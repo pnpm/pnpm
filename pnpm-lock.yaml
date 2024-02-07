@@ -12,7 +12,7 @@ overrides:
   clipanion: 3.2.0-rc.6
   debug@<3.1.0: '>=3.1.0'
   glob-parent@<5.1.2: '>=5.1.2'
-  hosted-git-info@4: npm:@zkochan/hosted-git-info@^4.0.2
+  hosted-git-info@1: npm:@pnpm/hosted-git-info@1.0.0
   istanbul-reports: npm:@zkochan/istanbul-reports
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.6
   json5@<2.2.2: '>=2.2.2'
@@ -430,6 +430,10 @@ importers:
         version: 0.28.20
 
   cli/command:
+    dependencies:
+      '@pnpm/tabtab':
+        specifier: ^0.5.2
+        version: 0.5.2
     devDependencies:
       '@pnpm/command':
         specifier: workspace:*
@@ -553,6 +557,49 @@ importers:
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
+
+  completion/plugin-commands-completion:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:^
+        version: link:../../cli/cli-utils
+      '@pnpm/command':
+        specifier: workspace:^
+        version: link:../../cli/command
+      '@pnpm/error':
+        specifier: workspace:^
+        version: link:../../packages/error
+      '@pnpm/find-workspace-dir':
+        specifier: workspace:^
+        version: link:../../workspace/find-workspace-dir
+      '@pnpm/nopt':
+        specifier: ^0.2.1
+        version: 0.2.1
+      '@pnpm/parse-cli-args':
+        specifier: workspace:^
+        version: link:../../cli/parse-cli-args
+      '@pnpm/tabtab':
+        specifier: ^0.5.2
+        version: 0.5.2
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:^
+        version: link:../../workspace/find-packages
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda@0.28.1
+      render-help:
+        specifier: ^1.0.3
+        version: 1.0.3
+      split-cmd:
+        specifier: ^1.0.1
+        version: 1.0.1
+    devDependencies:
+      '@pnpm/plugin-commands-completion':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/ramda':
+        specifier: 0.28.20
+        version: 0.28.20
 
   config/config:
     dependencies:
@@ -4441,6 +4488,9 @@ importers:
       '@pnpm/plugin-commands-audit':
         specifier: workspace:*
         version: link:../lockfile/plugin-commands-audit
+      '@pnpm/plugin-commands-completion':
+        specifier: workspace:*
+        version: link:../completion/plugin-commands-completion
       '@pnpm/plugin-commands-config':
         specifier: workspace:*
         version: link:../config/plugin-commands-config
@@ -4508,8 +4558,8 @@ importers:
         specifier: workspace:*
         version: link:../exec/run-npm
       '@pnpm/tabtab':
-        specifier: ^0.1.2
-        version: 0.1.2
+        specifier: ^0.5.2
+        version: 0.5.2
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../__utils__/test-fixtures
@@ -4953,8 +5003,8 @@ importers:
         specifier: ^3.1.2
         version: 3.1.2
       hosted-git-info:
-        specifier: npm:@zkochan/hosted-git-info@4.0.2
-        version: /@zkochan/hosted-git-info@4.0.2
+        specifier: npm:@pnpm/hosted-git-info@1.0.0
+        version: /@pnpm/hosted-git-info@1.0.0
       semver:
         specifier: ^7.5.4
         version: 7.5.4
@@ -7806,7 +7856,6 @@ packages:
 
   /@gar/promisify@1.1.3:
     resolution: {integrity: sha512-k2Ty1JcVojjJFwrg/ThKi2ujJ7XNLYaFGNB/bWT9wGR+oSMJHMa5w+CUq6p/pVrKeNNgA7pCqEcjSnHVoqJQFw==}
-    requiresBuild: true
     dev: false
 
   /@gwhitney/detect-indent@7.0.1:
@@ -8160,7 +8209,7 @@ packages:
       agent-base: 7.1.0
       http-proxy-agent: 7.0.0
       https-proxy-agent: 7.0.2
-      lru-cache: 10.1.0
+      lru-cache: 10.2.0
       socks-proxy-agent: 8.0.2
     transitivePeerDependencies:
       - supports-color
@@ -8441,6 +8490,13 @@ packages:
       '@pnpm/types': 9.1.0
     dev: true
 
+  /@pnpm/hosted-git-info@1.0.0:
+    resolution: {integrity: sha512-QzmNiLShTnNyeTHr+cykG5hYjwph0+v49KHV36Dh8uA2rRMWw30qoZMARuxd00SYdoTwT8bIouqqmzi6TWfJHQ==}
+    engines: {node: '>=10'}
+    dependencies:
+      lru-cache: 6.0.0
+    dev: false
+
   /@pnpm/lockfile-types@5.1.0:
     resolution: {integrity: sha512-14eYp9iOdJ7SyOIVXomXhbVnc14DEhzMLS3eKqxYxi9LkANUfxx1/pwRiRY/lTiP9RFS+OkIcTm2QiLsmNEctw==}
     engines: {node: '>=16.14'}
@@ -8581,7 +8637,7 @@ packages:
     resolution: {integrity: sha512-oQYP08exi6mOPdAZZWcNIGS+KKPsnNwUBzSuAEGWuCcqwMAt3k/WVCqVIXzBxhO5sP2b43og69VHmPj6IroKqw==}
     engines: {node: '>=14.6'}
     dependencies:
-      hosted-git-info: /@zkochan/hosted-git-info@4.0.2
+      hosted-git-info: 4.1.0
       semver: 7.5.4
       validate-npm-package-name: 4.0.0
     dev: false
@@ -8745,9 +8801,9 @@ packages:
       '@pnpm/types': 9.1.0
     dev: true
 
-  /@pnpm/tabtab@0.1.2:
-    resolution: {integrity: sha512-AYg+Vir0D0rigS9/O7M+v80J4WpTbl68pElNIQ9K5IYxfJ5h3Zk0NJI7bVciV/xbHj3SalmaE6Il8GbPOlKo7g==}
-    engines: {node: '>=10'}
+  /@pnpm/tabtab@0.5.2:
+    resolution: {integrity: sha512-ihbP3cE9ejh7EuR4B9TC0syGPlIml6AQWNPZnGSGAMOAax2+4jpCuCNwD2c+Iw/0V1bjvGh9bhs/Lf49EDMuaQ==}
+    engines: {node: '>=18'}
     dependencies:
       debug: 4.3.4
       enquirer: 2.4.1
@@ -8755,7 +8811,6 @@ packages:
       untildify: 4.0.0
     transitivePeerDependencies:
       - supports-color
-    dev: true
 
   /@pnpm/text.comments-parser@2.0.0:
     resolution: {integrity: sha512-DRWtTmmxQQtuWHf1xPt9bqzCSq8d0MQF5x1kdpCDMLd7xk3nP4To2/OGkPrb8MKbrWsgCNDwXyKCFlEKrAg7fg==}
@@ -9503,7 +9558,7 @@ packages:
       '@verdaccio/core': 6.0.0-6-next.55
       lodash: 4.17.21
       minimatch: 3.1.2
-      semver: 7.5.4
+      semver: 7.6.0
 
   /@yarnpkg/core@4.0.2(typanion@3.14.0):
     resolution: {integrity: sha512-YSibU3htZ3ZyslCUCG0aI4xcnmPZwZnHSUYl8TgC/Ck3++9xr474Mzh3t4Zv8olh9BguMC7FmRSpKAThiaFafw==}
@@ -9646,7 +9701,6 @@ packages:
   /@yarnpkg/shell@4.0.0(typanion@3.14.0):
     resolution: {integrity: sha512-Yk2gyiQvsoee/jXP9q0jMl412Nx27LYu+P1O4DHuxeutL9qtd6t3Ktuv+zZmOzFc6gMQ7+/6mQFPo3/LlXZM3w==}
     engines: {node: '>=18.12.0'}
-    hasBin: true
     dependencies:
       '@yarnpkg/fslib': 3.0.1
       '@yarnpkg/parsers': 3.0.0
@@ -9673,12 +9727,6 @@ packages:
     dependencies:
       spawno: 2.1.1
     dev: false
-
-  /@zkochan/hosted-git-info@4.0.2:
-    resolution: {integrity: sha512-DviFQfIuMzstXzcutxWP5uaAdzEg6AtAWtMKFkqVSgx6otqZ2hJaSML6saK1a1cVOfhu/ZqjV7qTSnYAdX2nhw==}
-    engines: {node: '>=10'}
-    dependencies:
-      lru-cache: 6.0.0
 
   /@zkochan/istanbul-reports@3.0.2:
     resolution: {integrity: sha512-GeZZ9YNlvveT1CrMqe64s9+5hNF5p9Gj6J+PRQU3OnBS/9c2y5kSFavUZ9YAuoAgxFW8tKGKWIxJK4I6HBSigg==}
@@ -9979,7 +10027,6 @@ packages:
   /are-we-there-yet@3.0.1:
     resolution: {integrity: sha512-QZW4EDmGwlYur0Yyf/b2uGucHQMa8aFUP7eu9ddR73vvhFyt4V0Vl3QHPcTNJ8l6qYOBdxgXdnBXQrHilfRQBg==}
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
-    requiresBuild: true
     dependencies:
       delegates: 1.0.0
       readable-stream: 3.6.2
@@ -10417,7 +10464,7 @@ packages:
       '@npmcli/fs': 3.1.0
       fs-minipass: 3.0.3
       glob: 10.3.10
-      lru-cache: 10.1.0
+      lru-cache: 10.2.0
       minipass: 7.0.4
       minipass-collect: 2.0.1
       minipass-flush: 1.0.5
@@ -10693,7 +10740,6 @@ packages:
   /code-point-at@1.1.0:
     resolution: {integrity: sha512-RpAVKQA5T63xEj6/giIbUEtZwJ4UFIc3ZtvEkiaUERylqe8xb5IvqcgOurZLahv93CLKfxcw5YI+DZcUBRyLXA==}
     engines: {node: '>=0.10.0'}
-    requiresBuild: true
 
   /collect-v8-coverage@1.0.2:
     resolution: {integrity: sha512-lHl4d5/ONEbLlJvaJNtsF/Lz+WvB07u2ycqTYbdrq7UypDXailES4valYb2eWiJFxZlVmpGekfqoxQhzyFdT4Q==}
@@ -10718,8 +10764,6 @@ packages:
 
   /color-support@1.1.3:
     resolution: {integrity: sha512-qiBjkpbMLO/HL68y+lh4q0/O1MZFj2RX6X/KmMa3+gJD3z+WwI1ZzDHysvqHGS3mP6mznPckpXmw1nI9cJjyRg==}
-    hasBin: true
-    requiresBuild: true
     dev: false
 
   /colors@0.6.2:
@@ -11523,7 +11567,6 @@ packages:
 
   /err-code@2.0.3:
     resolution: {integrity: sha512-2bmlRpNKBxT/CRmPOlyISQpNj+qSeYvcym/uT0Jx2bMOlKLtSy1ZmLuVxSEKKyor/N5yhvp/ZiG1oE3DEYMSFA==}
-    requiresBuild: true
     dev: false
 
   /error-ex@1.3.2:
@@ -12473,7 +12516,6 @@ packages:
   /gauge@4.0.4:
     resolution: {integrity: sha512-f9m+BEN5jkg6a0fZjleidjN51VE1X+mPFQ2DJ0uv1V39oCLCbsGe6yjbBnp7eK7z/+GAon99a3nHuqbuuthyPg==}
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
-    requiresBuild: true
     dependencies:
       aproba: 2.0.0
       color-support: 1.1.3
@@ -12623,7 +12665,6 @@ packages:
   /glob@10.3.10:
     resolution: {integrity: sha512-fa46+tv1Ak0UPK1TOy/pZrIybNNt4HCv7SDzwyfiOZkvZLEbjsZkJBPtDHVshZjbecAoAGSC20MjLDG/qr679g==}
     engines: {node: '>=16 || 14 >=14.17'}
-    hasBin: true
     requiresBuild: true
     dependencies:
       foreground-child: 3.1.1
@@ -12836,6 +12877,12 @@ packages:
 
   /hosted-git-info@2.8.9:
     resolution: {integrity: sha512-mxIDAb9Lsm6DoOJ7xH+5+X4y1LU/4Hi50L9C5sIswK3JzULS4bwk1FvjdBgvYR4bzT4tuUQiC15FE2f5HbLvYw==}
+
+  /hosted-git-info@4.1.0:
+    resolution: {integrity: sha512-kyCuEOWjJqZuDbRHzL8V93NzQhwIB71oFWSyzVo+KPZI+pnQPPxucdkrOZvkLRnrf5URsQM+IJ09Dw29cRALIA==}
+    engines: {node: '>=10'}
+    dependencies:
+      lru-cache: 6.0.0
 
   /hosted-git-info@6.1.1:
     resolution: {integrity: sha512-r0EI+HBMcXadMrugk0GCQ+6BQV39PiWAZVfq7oIckeGiN7sjRGyQxPdft3nQekFTCQbYxLBH+/axZMeH8UX6+w==}
@@ -13204,7 +13251,6 @@ packages:
   /is-fullwidth-code-point@1.0.0:
     resolution: {integrity: sha512-1pqUqRjkhPJ9miNq9SwMfdvi6lBJcd6eFxvfaivQhaH3SgisfiuudvFntdKOmxuee/77l+FPjKrQjWvmPjWrRw==}
     engines: {node: '>=0.10.0'}
-    requiresBuild: true
     dependencies:
       number-is-nan: 1.0.1
 
@@ -14234,8 +14280,8 @@ packages:
       semver: 7.5.4
     dev: false
 
-  /lru-cache@10.1.0:
-    resolution: {integrity: sha512-/1clY/ui8CzjKFyjdvwPWJUYKiFVXG2I2cY0ssG7h4+hwk+XOIX7ZSG9Q7TW8TW3Kp3BUSqgFWBLgL4PJ+Blag==}
+  /lru-cache@10.2.0:
+    resolution: {integrity: sha512-2bIM8x+VAf6JT4bKAljS1qUWgMsqZRPGJS6FSahIMPVvctcNhyVp7AJu7quxOW9jwkryBReKZY5tY5JYv2n/7Q==}
     engines: {node: 14 || >=16.14}
     requiresBuild: true
     dev: false
@@ -14599,7 +14645,6 @@ packages:
   /minimatch@9.0.3:
     resolution: {integrity: sha512-RHiac9mvaRw0x3AYRgDC1CxAP7HTcNrrECeA8YYJeWnpo+2Q5CegtZjaotWTWxDG3UeGA1coE05iH1mPjT/2mg==}
     engines: {node: '>=16 || 14 >=14.17'}
-    requiresBuild: true
     dependencies:
       brace-expansion: 2.0.1
     dev: false
@@ -14714,7 +14759,6 @@ packages:
 
   /mkdirp@0.5.6:
     resolution: {integrity: sha512-FP+p8RB8OWpF3YZBCrP5gtADmtXApB5AMLn+vdyA+PyxCjrCs00mjyUozssO33cwDeT3wNGdLxJ5M//YqtHAJw==}
-    hasBin: true
     dependencies:
       minimist: 1.2.8
 
@@ -14777,7 +14821,6 @@ packages:
 
   /ncp@2.0.0:
     resolution: {integrity: sha512-zIdGUrPRFTUELUvr3Gmc7KZ2Sw/h1PiVM0Af/oHB6zgnV1ikqSfRk+TOufi79aHYCW3NiOXmr1BP5nWbzojLaA==}
-    hasBin: true
 
   /ndjson@2.0.0:
     resolution: {integrity: sha512-nGl7LRGrzugTtaFcJMhLbpzJM6XdivmbkdlaGcrk/LXg2KL/YBC6z1g70xh0/al+oFuVFP8N8kiWRucmeEH/qQ==}
@@ -14889,7 +14932,6 @@ packages:
   /node-gyp@10.0.1:
     resolution: {integrity: sha512-gg3/bHehQfZivQVfqIyy8wTdSymF9yTyP4CJifK73imyNMU8AIGQE2pUa7dNWfmMeG9cDVF2eehiRMv0LC1iAg==}
     engines: {node: ^16.14.0 || >=18.0.0}
-    hasBin: true
     requiresBuild: true
     dependencies:
       env-paths: 2.2.1
@@ -14950,7 +14992,6 @@ packages:
   /nopt@7.2.0:
     resolution: {integrity: sha512-CVDtwCdhYIvnAzFoJ6NJ6dX3oga9/HyciQDnG1vQDjSLMeKLJ4A93ZqYKDrgYSr1FBY5/hMYC+2VCi24pgpkGA==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
-    hasBin: true
     requiresBuild: true
     dependencies:
       abbrev: 2.0.0
@@ -14974,9 +15015,9 @@ packages:
     resolution: {integrity: sha512-p2W1sgqij3zMMyRC067Dg16bfzVH+w7hyegmpIvZ4JNjqtGOVAIvLmjBx3yP7YTe9vKJgkoNOPjwQGogDoMXFA==}
     engines: {node: '>=10'}
     dependencies:
-      hosted-git-info: /@zkochan/hosted-git-info@4.0.2
+      hosted-git-info: 4.1.0
       is-core-module: 2.13.1
-      semver: 7.5.4
+      semver: 7.6.0
       validate-npm-package-license: 3.0.4
     dev: true
 
@@ -15079,7 +15120,6 @@ packages:
   /number-is-nan@1.0.1:
     resolution: {integrity: sha512-4jbtZXNAsfZbAHiiqjLPBiCl16dES1zI4Hpzzxw61Tk+loF+sBDBKx1ICKKKwIqQ7M0mFn1TmkN7euSncWgHiQ==}
     engines: {node: '>=0.10.0'}
-    requiresBuild: true
 
   /oauth-sign@0.9.0:
     resolution: {integrity: sha512-fexhUFFPTGV8ybAtSIGbV6gOkSv8UtRbDBnAyLQw4QPKkgNlsH2ByPGtMUqdWkos6YCRmAqViwgZrJc/mRDzZQ==}
@@ -15445,7 +15485,7 @@ packages:
     engines: {node: '>=16 || 14 >=14.17'}
     requiresBuild: true
     dependencies:
-      lru-cache: 10.1.0
+      lru-cache: 10.2.0
       minipass: 7.0.4
     dev: false
     optional: true
@@ -16218,7 +16258,6 @@ packages:
 
   /rimraf@2.4.5:
     resolution: {integrity: sha512-J5xnxTyqaiw06JjMftq7L9ouA448dw/E7dKghkP9WpKNuwmARNNg+Gk8/u5ryb9N/Yo2+z3MCwuqFK/+qPOPfQ==}
-    hasBin: true
     dependencies:
       glob: 6.0.4
 
@@ -16669,7 +16708,6 @@ packages:
 
   /split-cmd@1.0.1:
     resolution: {integrity: sha512-HnyUFgtv7yNcGKK1+tO1O2eyXwEVnXqQzjshvroHsCu4M9fxS8lJ3bpW9XfD8YG0SdxW6hXNHdT/VFAxtNY1yw==}
-    dev: true
 
   /split2@3.2.2:
     resolution: {integrity: sha512-9NThjpgZnifTkJpzTZ7Eue85S49QwpNhZTq6GRJwObb6jnLFNGB7Qm73V5HewTROPyxD0C29xqmaI68bQtV+hg==}
@@ -16849,7 +16887,6 @@ packages:
   /strip-ansi@3.0.1:
     resolution: {integrity: sha512-VhumSSbBqDTP8p2ZLKj40UjBCV4+v8bUSEpUb4KjRgWk9pbqGF4REFj6KEagidb2f/M6AzC0EmFyDNGaw9OCzg==}
     engines: {node: '>=0.10.0'}
-    requiresBuild: true
     dependencies:
       ansi-regex: 2.1.1
 
@@ -17487,7 +17524,6 @@ packages:
   /unique-slug@3.0.0:
     resolution: {integrity: sha512-8EyMynh679x/0gqE9fT9oilG+qEt+ibFyqjuVTsZn1+CMxH+XLlpvr2UZx4nVcCwTpx81nICr2JQFkM+HPLq4w==}
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
-    requiresBuild: true
     dependencies:
       imurmurhash: 0.1.4
     dev: false
@@ -17550,7 +17586,6 @@ packages:
   /untildify@4.0.0:
     resolution: {integrity: sha512-KK8xQ1mkzZeg9inewmFVDNkg3l5LUhoq9kN6iWYB/CC9YMG8HA+c1Q8HwDe6dEX7kErrEVNVBO3fWsVq5iDgtw==}
     engines: {node: '>=8'}
-    dev: true
 
   /update-browserslist-db@1.0.13(browserslist@4.22.2):
     resolution: {integrity: sha512-xebP81SNcPuNpPP3uzeW1NYXxI3rxyJzF3pD6sH4jE7o/IX+WtSpwnVU+qIsDPyk0d3hmFQ7mjqc6AtV604hbg==}
@@ -17587,8 +17622,6 @@ packages:
 
   /uuid@3.4.0:
     resolution: {integrity: sha512-HjSDRw6gZE5JMggctHBcjVak08+KEVhSIiDzFnT9S9aegmp85S/bReBVTb4QTFaRNptJ9kuYaNhnbNEOkbKb/A==}
-    deprecated: Please upgrade  to version 7 or higher.  Older versions may use Math.random() in certain circumstances, which is known to be problematic.  See https://v8.dev/blog/math-random for details.
-    hasBin: true
 
   /uuid@9.0.1:
     resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
@@ -18177,7 +18210,5 @@ packages:
     dev: false
 
 time:
-  /@pnpm/deps.graph-sequencer@1.0.0: '2023-10-15T23:14:46.212Z'
-  /@pnpm/registry-mock@3.24.2: '2024-02-06T23:50:07.901Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'

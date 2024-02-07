@@ -14,16 +14,6 @@ const argv = process.argv.slice(2)
     console.log(version)
     break
   }
-  case 'install-completion': {
-    const { install: installCompletion } = await import('@pnpm/tabtab')
-    await installCompletion({ name: 'pnpm', completer: 'pnpm', shell: argv[1] })
-    return
-  }
-  case 'uninstall-completion': {
-    const { uninstall: uninstallCompletion } = await import('@pnpm/tabtab')
-    await uninstallCompletion({ name: 'pnpm' })
-    return
-  }
   // commands that are passed through to npm:
   case 'access':
   case 'adduser':
