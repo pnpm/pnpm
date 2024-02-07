@@ -32,7 +32,7 @@ export type { AgentOptions }
 
 function getUserCertificates (authOptions: Record<string, string>) {
   // Get all the auth options that have :certfile or :keyfile in their name
-  const certAuths: {
+  const clientCerts: {
     [registry: string]: {
       ca?: string
       cert: string
@@ -44,21 +44,21 @@ function getUserCertificates (authOptions: Record<string, string>) {
     if (key.includes(':certfile') || key.includes(':keyfile') || key.includes(':cafile')) {
       // Split by '/:' because the registry may contain a port
       const registry = key.split('/:')[0] + '/'
-      if (!certAuths[registry]) {
-        certAuths[registry] = { cert: '', key: '' }
+      if (!clientCerts[registry]) {
+        clientCerts[registry] = { cert: '', key: '' }
       }
 
       if (key.includes(':certfile')) {
-        certAuths[registry].cert = readFileSync(value, 'utf8')
+        clientCerts[registry].cert = readFileSync(value, 'utf8')
       } else if (key.includes(':keyfile')) {
-        certAuths[registry].key = readFileSync(value, 'utf8')
+        clientCerts[registry].key = readFileSync(value, 'utf8')
       } else if (key.includes(':cafile')) {
-        certAuths[registry].ca = readFileSync(value, 'utf8')
+        clientCerts[registry].ca = readFileSync(value, 'utf8')
       }
     }
   }
 
-  return certAuths
+  return clientCerts
 }
 
 export function createFetchFromRegistry (
