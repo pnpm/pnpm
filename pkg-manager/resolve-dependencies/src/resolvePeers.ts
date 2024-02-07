@@ -341,7 +341,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       if (parentPkgNodeId === cachedNodeId) continue
       if (
         ctx.pathsByNodeId.has(cachedNodeId) &&
-            ctx.pathsByNodeId.get(cachedNodeId) === ctx.pathsByNodeId.get(parentPkgNodeId)
+        ctx.pathsByNodeId.get(cachedNodeId) === ctx.pathsByNodeId.get(parentPkgNodeId)
       ) continue
       if (!ctx.dependenciesTree.has(parentPkgNodeId) && parentPkgNodeId.startsWith('link:')) {
         return false
@@ -404,7 +404,6 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   let cache: PeersCacheItem
   const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
-
   if (isPure) {
     ctx.purePkgs.add(resolvedPackage.depPath)
   } else {
@@ -443,8 +442,8 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       pendingPeerNodeIds.push(peerNodeId)
     }
     if (pendingPeerNodeIds.length === 0) {
-      const peersFolderSuffix = createPeersDirSuffix(peerIds)
-      addDepPathToGraph(`${resolvedPackage.depPath}${peersFolderSuffix}`)
+      const peersDirSuffix = createPeersDirSuffix(peerIds)
+      addDepPathToGraph(`${resolvedPackage.depPath}${peersDirSuffix}`)
     } else {
       calculateDepPathIfNeeded = calculateDepPath.bind(null, peerIds, pendingPeerNodeIds)
     }
@@ -474,9 +473,8 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ...peerIds,
       ...await Promise.all(pendingPeerNodeIds
         .map(async (peerNodeId) => {
-          const peerPkg = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
           if (cyclicPeerNodeIds.has(peerNodeId)) {
-            const { name, version } = peerPkg
+            const { name, version } = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
             return `${name}@${version}`
           }
           return ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
@@ -488,21 +486,18 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   function addDepPathToGraph (depPath: string) {
     cache?.depPath.resolve(depPath)
-    const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
-    const modules = path.join(localLocation, 'node_modules')
-
     ctx.pathsByNodeId.set(nodeId, depPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
     if (ctx.depPathsByPkgId != null) {
       if (!ctx.depPathsByPkgId.has(resolvedPackage.depPath)) {
-        ctx.depPathsByPkgId.set(resolvedPackage.depPath, new Set())
-      }
-      if (!ctx.depPathsByPkgId.get(resolvedPackage.depPath)!.has(depPath)) {
+        ctx.depPathsByPkgId.set(resolvedPackage.depPath, new Set([depPath]))
+      } else {
         ctx.depPathsByPkgId.get(resolvedPackage.depPath)!.add(depPath)
       }
     }
     const peerDependencies = { ...resolvedPackage.peerDependencies }
     if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
+      const modules = path.join(ctx.virtualStoreDir, depPathToFilename(depPath), 'node_modules')
       const dir = path.join(modules, resolvedPackage.name)
 
       const transitivePeerDependencies = new Set<string>()
