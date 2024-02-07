@@ -405,7 +405,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   let cache: PeersCacheItem
   const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
 
-  if (!isPure) {
+  if (isPure) {
+    ctx.purePkgs.add(resolvedPackage.depPath)
+  } else {
     cache = {
       missingPeers: allMissingPeers,
       depPath: pDefer(),
@@ -416,8 +418,6 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     } else {
       ctx.peersCache.set(resolvedPackage.depPath, [cache])
     }
-  } else {
-    ctx.purePkgs.add(resolvedPackage.depPath)
   }
 
   let calculateDepPathIfNeeded: CalculateDepPath | undefined
@@ -457,12 +457,16 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     finishing,
   }
 
-  async function calculateDepPath (peersDirSuffixParts: Array<{ name: string, version: string } | string>, peerNodeIds: string[], cycles: string[][]) {
-    const cyclic = new Set()
+  async function calculateDepPath (
+    peersDirSuffixParts: Array<{ name: string, version: string } | string>,
+    peerNodeIds: string[],
+    cycles: string[][]
+  ) {
+    const cyclicPeerNodeIds = new Set()
     for (const cycle of cycles) {
       if (cycle.includes(nodeId)) {
-        for (const c of cycle) {
-          cyclic.add(c)
+        for (const peerNodeId of cycle) {
+          cyclicPeerNodeIds.add(peerNodeId)
         }
       }
     }
@@ -471,7 +475,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ...await Promise.all(peerNodeIds
         .map(async (peerNodeId) => {
           const peerPkg = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
-          if (cyclic.has(peerNodeId)) {
+          if (cyclicPeerNodeIds.has(peerNodeId)) {
             const { name, version } = peerPkg
             return `${name}@${version}`
           }
@@ -606,13 +610,15 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     if (finishing) {
       finishingList.push(finishing)
     }
-    graph.set(childNodeId, Array.from(resolvedPeers.values()))
     if (calculateDepPath) {
       calculateDepPaths.push(calculateDepPath)
     }
-    for (const [k, v] of resolvedPeers) {
-      allResolvedPeers.set(k, v)
+    const edges = []
+    for (const [peerName, peerNodeId] of resolvedPeers) {
+      allResolvedPeers.set(peerName, peerNodeId)
+      edges.push(peerNodeId)
     }
+    graph.set(childNodeId, edges)
     for (const missingPeer of missingPeers) {
       allMissingPeers.add(missingPeer)
     }
