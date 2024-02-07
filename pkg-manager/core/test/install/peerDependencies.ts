@@ -1681,20 +1681,28 @@ test('resolve peer of peer from the dependencies of the direct dependent package
   expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies?.['@pnpm.e2e/has-y-peer']).toBe('1.0.0(@pnpm/y@2.0.0)')
 })
 
-test('xxx', async () => {
+test('2 circular peers', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/circular-peer-a@1.0.0', '@pnpm.e2e/circular-peer-b@1.0.0'], await testDefaults())
 
   const lockfile = await project.readLockfile()
 
-  console.log(JSON.stringify(lockfile, null, 2))
+  expect(lockfile.dependencies['@pnpm.e2e/circular-peer-a'].version).toBe('1.0.0(@pnpm.e2e/circular-peer-b@1.0.0)')
+  expect(lockfile.dependencies['@pnpm.e2e/circular-peer-b'].version).toBe('1.0.0(@pnpm.e2e/circular-peer-a@1.0.0)')
 })
 
-test('xxx2', async () => {
+test('3 circular peers', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['@pnpm.e2e/circular-peers-1-of-3@1.0.0', '@pnpm.e2e/circular-peers-2-of-3@1.0.0', '@pnpm.e2e/circular-peers-3-of-3@1.0.0'], await testDefaults())
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/circular-peers-1-of-3@1.0.0',
+    '@pnpm.e2e/circular-peers-2-of-3@1.0.0',
+    '@pnpm.e2e/circular-peers-3-of-3@1.0.0',
+    '@pnpm.e2e/peer-a@1.0.0',
+  ], await testDefaults())
 
   const lockfile = await project.readLockfile()
 
-  console.log(JSON.stringify(lockfile, null, 2))
+  expect(lockfile.dependencies['@pnpm.e2e/circular-peers-1-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-2-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0)')
+  expect(lockfile.dependencies['@pnpm.e2e/circular-peers-2-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-3-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)')
+  expect(lockfile.dependencies['@pnpm.e2e/circular-peers-3-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-1-of-3@1.0.0)')
 })
