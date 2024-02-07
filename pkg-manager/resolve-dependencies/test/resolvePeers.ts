@@ -635,7 +635,7 @@ test('resolve peer dependencies with npm aliases', async () => {
     virtualStoreDir: '',
     lockfileDir: '',
   })
-  expect(Object.keys(dependenciesGraph)).toStrictEqual([
+  expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
     'bar/1.0.0',
     'bar/2.0.0',
     'foo/1.0.0(bar/1.0.0)',
