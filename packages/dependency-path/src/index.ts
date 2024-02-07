@@ -118,7 +118,7 @@ function depPathToFilenameUnescaped (depPath: string) {
   return depPath.replace(':', '+')
 }
 
-export function createPeersFolderSuffix (peers: Array<{ name: string, version: string }>): string {
+export function createPeersDirSuffix (peers: Array<{ name: string, version: string }>): string {
   const folderName = peers.map(({ name, version }) => `${name}@${version}`).sort().join(')(')
   return `(${folderName})`
 }

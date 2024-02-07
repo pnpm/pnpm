@@ -6,7 +6,7 @@ import type {
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
-import { depPathToFilename, createPeersFolderSuffix } from '@pnpm/dependency-path'
+import { depPathToFilename, createPeersDirSuffix } from '@pnpm/dependency-path'
 import mapValues from 'ramda/src/map'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
@@ -386,7 +386,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (allResolvedPeers.size === 0) {
     depPath = resolvedPackage.depPath
   } else {
-    const peersFolderSuffix = createPeersFolderSuffix(
+    const peersFolderSuffix = createPeersDirSuffix(
       [...allResolvedPeers.entries()]
         .map(([alias, nodeId]) => {
           if (nodeId.startsWith('link:')) {
