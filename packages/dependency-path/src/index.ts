@@ -121,10 +121,10 @@ function depPathToFilenameUnescaped (depPath: string) {
 export type PeerId = { name: string, version: string } | string
 
 export function createPeersDirSuffix (peers: PeerId[]): string {
-  const folderName = peers.map(
+  const dirName = peers.map(
     (peer) => typeof peer === 'string'
       ? (peer.startsWith('/') ? peer.substring(1) : peer)
       : `${peer.name}@${peer.version}`
   ).sort().join(')(')
-  return `(${folderName})`
+  return `(${dirName})`
 }
