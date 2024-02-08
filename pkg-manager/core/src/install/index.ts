@@ -898,13 +898,6 @@ type InstallFunction = (
 ) => Promise<InstallFunctionResult>
 
 const _installInContext: InstallFunction = async (projects, ctx, opts) => {
-  if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
-    logger.warn({
-      message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
-      prefix: ctx.lockfileDir,
-    })
-  }
-
   // The wanted lockfile is mutated during installation. To compare changes, a
   // deep copy before installation is needed. This copy should represent the
   // original wanted lockfile on disk as close as possible.
@@ -1395,6 +1388,12 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ...result,
         stats,
       }
+    }
+    if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
+      logger.warn({
+        message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
+        prefix: ctx.lockfileDir,
+      })
     }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line
