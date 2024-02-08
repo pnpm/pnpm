@@ -71,8 +71,8 @@ importers:
         specifier: 1.0.0
         version: 1.0.0
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:__utils__/tsconfig
@@ -189,8 +189,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -226,8 +226,8 @@ importers:
   __utils__/assert-store:
     dependencies:
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1335,8 +1335,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -1456,8 +1456,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -2900,8 +2900,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3160,8 +3160,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -3442,8 +3442,8 @@ importers:
         specifier: workspace:*
         version: link:../read-projects-context
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -3799,8 +3799,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3992,8 +3992,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -4552,8 +4552,8 @@ importers:
         specifier: workspace:*
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -4812,8 +4812,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
 
   releasing/plugin-commands-publishing:
     dependencies:
@@ -4912,8 +4912,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -5475,8 +5475,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5542,8 +5542,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -5636,8 +5636,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5968,8 +5968,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.24.2
-        version: 3.24.2(typanion@3.14.0)
+        specifier: 3.25.0
+        version: 3.25.0(typanion@3.14.0)
       '@types/archy':
         specifier: 0.0.33
         version: 0.0.33
@@ -6541,7 +6541,7 @@ packages:
       '@babel/helper-replace-supers': 7.22.20(@babel/core@7.23.3)
       '@babel/helper-skip-transparent-expression-wrappers': 7.22.5
       '@babel/helper-split-export-declaration': 7.22.6
-      semver: 7.5.4
+      semver: 7.6.0
     dev: true
 
   /@babel/helper-environment-visitor@7.22.20:
@@ -8736,8 +8736,8 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock@3.24.2(typanion@3.14.0):
-    resolution: {integrity: sha512-j756X+oEW71pYCHALwQ44MHxDXpL+/1uEVaghnI2phoCeiex9/E39mLP0sYp3rcO1a9Jqf+XaorKmAgtLT7Xbw==}
+  /@pnpm/registry-mock@3.25.0(typanion@3.14.0):
+    resolution: {integrity: sha512-rSKgbINc7T9s0hn8K/YHTJtMaUG2LWmXybzmiVNwDwrNx1SMHbLsZ+QafHz0wyktQhPQB2274BAd72jYLgFHFg==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
@@ -18240,6 +18240,7 @@ packages:
     dev: false
 
 time:
+  /@pnpm/registry-mock@3.25.0: '2024-02-08T22:03:39.172Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /graph-cycles@1.2.1: '2021-04-11T09:47:00.295Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'
