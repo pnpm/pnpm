@@ -986,10 +986,9 @@ test('peer dependency is resolved from parent package via its alias', async () =
   }, await testDefaults())
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  const suffix = createPeersDirSuffix([{ name: '@pnpm.e2e/tango-tango', version: '1.0.0' }])
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
-    `/@pnpm.e2e/has-tango-as-peer-dep@1.0.0${suffix}`,
-    `/@pnpm.e2e/tango-tango@1.0.0${suffix}`,
+    '/@pnpm.e2e/has-tango-as-peer-dep@1.0.0(@pnpm.e2e/tango-tango@1.0.0(@pnpm.e2e/tango-tango@1.0.0))',
+    '/@pnpm.e2e/tango-tango@1.0.0(@pnpm.e2e/tango-tango@1.0.0)',
   ])
 })
 
@@ -1466,8 +1465,7 @@ test('in a subdependency, when there are several aliased dependencies of the sam
   expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)']).toBeTruthy()
 })
 
-// TODO: fix this test
-test.skip('peer having peer is resolved correctly', async () => {
+test('peer having peer is resolved correctly', async () => {
   const manifest1 = {
     name: 'project-1',
 
@@ -1530,5 +1528,249 @@ test.skip('peer having peer is resolved correctly', async () => {
   const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
 
   expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer']['version']).not.toEqual(lockfile.importers['project-2'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer']['version'])
-  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0)(@pnpm/y@1.0.0)'].transitivePeerDependencies).toEqual(['@pnpm/y'])
+  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@1.0.0)')
+})
+
+test('peer having peer is resolved correctly. The peer is also in the dependencies of the dependent package', async () => {
+  const manifest1 = {
+    name: 'project-1',
+
+    dependencies: {
+      '@pnpm.e2e/has-has-y-peer-only-as-peer-and-y': '1.0.0',
+      '@pnpm.e2e/has-y-peer': '1.0.0',
+      '@pnpm/y': '2.0.0',
+    },
+  }
+  const manifest2 = {
+    name: 'project-2',
+
+    dependencies: {
+      '@pnpm.e2e/has-has-y-peer-only-as-peer-and-y': '1.0.0',
+      '@pnpm.e2e/has-y-peer': '1.0.0',
+      '@pnpm/y': '1.0.0',
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: manifest1,
+    },
+    {
+      location: 'project-2',
+      package: manifest2,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: manifest1,
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: manifest2,
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    autoInstallPeers: false,
+    dedupePeerDependents: false,
+    lockfileOnly: true,
+    strictPeerDependencies: false,
+  }))
+
+  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
+
+  expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y']['version']).toEqual('1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))')
+  expect(lockfile.importers['project-2'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y']['version']).toEqual('1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))')
+
+  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm/y']).toEqual('1.0.0')
+  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies['@pnpm/y']).toEqual('1.0.0')
+
+  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@1.0.0)')
+  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@2.0.0)')
+})
+
+test('peer having peer is resolved correctly. The peer is also in the dependencies of the dependent package. Test #2', async () => {
+  const manifest1 = {
+    name: 'project-1',
+
+    dependencies: {
+      '@pnpm.e2e/has-has-y-peer-only-as-peer-and-y': '2.0.0',
+      '@pnpm.e2e/has-y-peer': '1.0.0',
+      '@pnpm/y': '1.0.0',
+    },
+  }
+  const manifest2 = {
+    name: 'project-2',
+
+    dependencies: {
+      '@pnpm.e2e/has-has-y-peer-only-as-peer-and-y': '1.0.0',
+      '@pnpm.e2e/has-y-peer': '1.0.0',
+      '@pnpm/y': '2.0.0',
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: manifest1,
+    },
+    {
+      location: 'project-2',
+      package: manifest2,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: manifest1,
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: manifest2,
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    autoInstallPeers: false,
+    dedupePeerDependents: false,
+    lockfileOnly: true,
+    strictPeerDependencies: false,
+  }))
+
+  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
+
+  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@2.0.0)')
+  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@2.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@1.0.0)')
+})
+
+test('resolve peer of peer from the dependencies of the direct dependent package', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0', '@pnpm/y@2.0.0'], await testDefaults())
+
+  const lockfile = await project.readLockfile()
+
+  expect(lockfile.dependencies['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y'].version).toBe('1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))')
+  // Even though @pnpm/y@1.0.0 is in the dependencies of the direct dependent package, we resolve y from above.
+  // It might make sense to print a warning in this case and suggest to make y a peer dependency in the dependent package too.
+  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies?.['@pnpm.e2e/has-y-peer']).toBe('1.0.0(@pnpm/y@2.0.0)')
+})
+
+test('2 circular peers', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/circular-peer-a@1.0.0', '@pnpm.e2e/circular-peer-b@1.0.0'], await testDefaults())
+
+  const lockfile = await project.readLockfile()
+
+  expect(lockfile.dependencies['@pnpm.e2e/circular-peer-a'].version).toBe('1.0.0(@pnpm.e2e/circular-peer-b@1.0.0)')
+  expect(lockfile.dependencies['@pnpm.e2e/circular-peer-b'].version).toBe('1.0.0(@pnpm.e2e/circular-peer-a@1.0.0)')
+})
+
+test('3 circular peers', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/circular-peers-1-of-3@1.0.0',
+    '@pnpm.e2e/circular-peers-2-of-3@1.0.0',
+    '@pnpm.e2e/circular-peers-3-of-3@1.0.0',
+    '@pnpm.e2e/peer-a@1.0.0',
+  ], await testDefaults())
+
+  const lockfile = await project.readLockfile()
+
+  expect(lockfile.dependencies['@pnpm.e2e/circular-peers-1-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-2-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0)')
+  expect(lockfile.dependencies['@pnpm.e2e/circular-peers-2-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-3-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)')
+  expect(lockfile.dependencies['@pnpm.e2e/circular-peers-3-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-1-of-3@1.0.0)')
+})
+
+test('3 circular peers in workspace root', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'pkg',
+      package: {},
+    },
+  ])
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/circular-peers-1-of-3': '1.0.0',
+          '@pnpm.e2e/circular-peers-2-of-3': '1.0.0',
+          '@pnpm.e2e/circular-peers-3-of-3': '1.0.0',
+          '@pnpm.e2e/peer-a': '1.0.0',
+        },
+      },
+      rootDir: process.cwd(),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'pkg',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/circular-peers-1-of-3': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('pkg'),
+    },
+  ]
+  const reporter = jest.fn()
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('pkg'),
+    },
+    {
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ allProjects, reporter, autoInstallPeers: false, resolvePeersFromWorkspaceRoot: true, strictPeerDependencies: false }))
+
+  const lockfile = await projects.root.readLockfile()
+  expect(lockfile.importers.pkg?.dependencies?.['@pnpm.e2e/circular-peers-1-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-2-of-3@1.0.0(@pnpm.e2e/circular-peers-3-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0))(@pnpm.e2e/peer-a@1.0.0)')
+})
+
+test('resolves complex circular deps', async () => {
+  prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/complex-circular-peers-a@1.0.0',
+    '@pnpm.e2e/complex-circular-peers-b@1.0.0',
+    '@pnpm.e2e/complex-circular-peers-c@1.0.0',
+  ], await testDefaults({
+    autoInstallPeers: false,
+  }))
+  // it doesn't hang
 })
