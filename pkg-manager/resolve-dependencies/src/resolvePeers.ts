@@ -1,5 +1,5 @@
 import filenamify from 'filenamify'
-import { analyzeGraph, Graph } from 'graph-cycles'
+import { analyzeGraph, type Graph } from 'graph-cycles'
 import path from 'path'
 import pDefer from 'p-defer'
 import semver from 'semver'
