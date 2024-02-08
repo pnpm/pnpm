@@ -1706,3 +1706,59 @@ test('3 circular peers', async () => {
   expect(lockfile.dependencies['@pnpm.e2e/circular-peers-2-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-3-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)')
   expect(lockfile.dependencies['@pnpm.e2e/circular-peers-3-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-1-of-3@1.0.0)')
 })
+
+test('3 circular peers in workspace root', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'pkg',
+      package: {},
+    },
+  ])
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/circular-peers-1-of-3': '1.0.0',
+          '@pnpm.e2e/circular-peers-2-of-3': '1.0.0',
+          '@pnpm.e2e/circular-peers-3-of-3': '1.0.0',
+          '@pnpm.e2e/peer-a': '1.0.0',
+        },
+      },
+      rootDir: process.cwd(),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'pkg',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/circular-peers-1-of-3': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('pkg'),
+    },
+  ]
+  const reporter = jest.fn()
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('pkg'),
+    },
+    {
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ allProjects, reporter, autoInstallPeers: false, resolvePeersFromWorkspaceRoot: true, strictPeerDependencies: false }))
+
+  const lockfile = await projects.root.readLockfile()
+  expect(lockfile.importers.pkg?.dependencies?.['@pnpm.e2e/circular-peers-1-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-2-of-3@1.0.0(@pnpm.e2e/circular-peers-3-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0))(@pnpm.e2e/peer-a@1.0.0)')
+})
