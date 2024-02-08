@@ -26,7 +26,7 @@ async function writeFileAtomic (filename: string, data: string) {
 
 const LOCKFILE_YAML_FORMAT = {
   blankLines: true,
-  lineWidth: 1000,
+  lineWidth: -1, // This is setting line width to never wrap
   noCompatMode: true,
   noRefs: true,
   sortKeys: false,
