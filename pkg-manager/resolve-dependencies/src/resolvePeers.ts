@@ -92,6 +92,11 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       ...rootPkgsByName,
       ..._createPkgsByName({ directNodeIdsByAlias, topParents }),
     }
+    for (const { nodeId } of Object.values(pkgsByName)) {
+      if (nodeId && !pathsByNodeIdPromises.has(nodeId)) {
+        pathsByNodeIdPromises.set(nodeId, pDefer())
+      }
+    }
 
     // eslint-disable-next-line no-await-in-loop
     const { finishing } = await resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
