@@ -2,8 +2,17 @@ const { start, prepare } = require('@pnpm/registry-mock')
 
 module.exports = () => {
   prepare()
-  // TODO: FAIL TO START IF VERDACCIO IS ALREADY RUNNING ON THE SPECIFIED PORT!!!
-  global.__SERVER__ = start({
+  const server = start({
     stdio: 'ignore',
   })
+  let killed = false
+  server.on('close', () => {
+    if (!killed) {
+      process.exit(1)
+    }
+  })
+  global.killServer = () => {
+    killed = true
+    server.kill()
+  }
 }
