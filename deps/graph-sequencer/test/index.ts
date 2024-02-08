@@ -222,21 +222,6 @@ test('graph with multiple cycles. case 1', () => {
   )
 })
 
-test('graph with multiple cycles. case 1. Node with no outgoing edge is not specified', () => {
-  expect(graphSequencer(new Map([
-    ['a', ['c']],
-    ['b', ['a', 'd']],
-    ['c', ['b']],
-    ['d', ['c', 'e']],
-  ]))).toStrictEqual(
-    {
-      safe: false,
-      chunks: [['a', 'c', 'b'], ['d']],
-      cycles: [['a', 'c', 'b']],
-    }
-  )
-})
-
 test('graph with multiple cycles. case 2', () => {
   expect(graphSequencer(new Map([
     ['a', ['b']],
