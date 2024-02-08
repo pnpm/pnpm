@@ -2,7 +2,7 @@ import {
   currentTypedWordType,
   getLastOption,
   getOptionCompletions,
-} from '../src/getOptionType'
+} from './getOptionType'
 
 const TYPES = {
   color: ['red', 'blue', Array],

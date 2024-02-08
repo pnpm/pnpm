@@ -293,7 +293,7 @@ test('should not update when adding unrelated dependency', async () => {
   let manifest = JSON.parse(fs.readFileSync('./package.json', 'utf8'))
   await install(manifest, await testDefaults({ preferFrozenLockfile: false, dir: withGitProtocolDepFixture, lockfileDir: withGitProtocolDepFixture }))
 
-  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative@219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
+  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative+219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
 
   manifest = await addDependenciesToPackage(manifest, ['is-number'], await testDefaults({ preferFrozenLockfile: false }))
 
@@ -302,7 +302,7 @@ test('should not update when adding unrelated dependency', async () => {
 
   const project = assertProject(withGitProtocolDepFixture)
   await project.has('is-number')
-  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative@219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
+  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative+219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
   expect((await project.readLockfile()).dependencies).toEqual({
     'is-negative': {
       specifier: 'github:kevva/is-negative#master',
@@ -312,5 +312,34 @@ test('should not update when adding unrelated dependency', async () => {
       specifier: '^7.0.0',
       version: '7.0.0',
     },
+  })
+})
+
+test('git-hosted repository is not added to the store if it fails to be built', async () => {
+  prepareEmpty()
+
+  await expect(
+    addDependenciesToPackage({}, ['pnpm-e2e/prepare-script-fails'], await testDefaults())
+  ).rejects.toThrow()
+
+  await expect(
+    addDependenciesToPackage({}, ['pnpm-e2e/prepare-script-fails'], await testDefaults())
+  ).rejects.toThrow()
+})
+
+test('from subdirectories of a git repo', async () => {
+  const project = prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, [
+    'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
+    'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-express-server',
+  ], await testDefaults())
+
+  await project.has('@my-namespace/simple-react-app')
+  await project.has('@my-namespace/simple-express-server')
+
+  expect(manifest.dependencies).toStrictEqual({
+    '@my-namespace/simple-express-server': 'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-express-server',
+    '@my-namespace/simple-react-app': 'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
   })
 })

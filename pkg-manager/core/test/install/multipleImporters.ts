@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -13,7 +13,7 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
-import { createPeersFolderSuffix } from '@pnpm/dependency-path'
+import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import pick from 'ramda/src/pick'
@@ -659,7 +659,7 @@ test('current lockfile contains only installed dependencies when adding a new im
 
   const currentLockfile = await readCurrentLockfile(path.resolve('node_modules/.pnpm'), { ignoreIncompatible: false })
 
-  expect(Object.keys(currentLockfile?.packages ?? {})).toStrictEqual(['/is-negative/1.0.0'])
+  expect(Object.keys(currentLockfile?.packages ?? {})).toStrictEqual(['/is-negative@1.0.0'])
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace projects', async () => {
@@ -1475,8 +1475,8 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
   const project = assertProject(process.cwd())
 
   const wantedLockfile = await project.readLockfile()
-  const suffix1 = createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }])
-  const suffix2 = createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.1' }])
+  const suffix1 = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }])
+  const suffix2 = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.1' }])
   expect(Object.keys(wantedLockfile.packages).sort()).toStrictEqual(
     [
       '/@pnpm.e2e/abc-grand-parent-with-c@1.0.0',

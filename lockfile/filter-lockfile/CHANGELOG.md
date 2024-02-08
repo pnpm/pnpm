@@ -1,5 +1,11 @@
 # @pnpm/filter-lockfile
 
+## 8.1.6
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@9.0.5
+
 ## 8.1.5
 
 ### Patch Changes

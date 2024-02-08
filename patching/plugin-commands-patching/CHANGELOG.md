@@ -1,5 +1,45 @@
 # @pnpm/plugin-commands-patching
 
+## 5.1.1
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+- Updated dependencies [f43bdcf45]
+  - @pnpm/plugin-commands-installation@14.2.0
+  - @pnpm/pick-fetcher@2.0.1
+  - @pnpm/lockfile-utils@9.0.5
+  - @pnpm/cli-utils@2.1.9
+  - @pnpm/store-connection-manager@7.0.26
+  - @pnpm/config@20.4.2
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 5.1.0
+
+### Minor Changes
+
+- 6964eade5: `pnpm patch-remove` removes the directory containing the patch file if it is empty.
+
+### Patch Changes
+
+- Updated dependencies [9fb45d0fc]
+  - @pnpm/fs.packlist@1.0.3
+  - @pnpm/plugin-commands-installation@14.1.3
+  - @pnpm/store-connection-manager@7.0.25
+
+## 5.0.18
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+- Updated dependencies [d9564e354]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/config@20.4.1
+  - @pnpm/plugin-commands-installation@14.1.2
+  - @pnpm/store-connection-manager@7.0.24
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/patching.apply-patch@2.0.5
+
 ## 5.0.17
 
 ### Patch Changes

@@ -543,7 +543,7 @@ test('dependency without a package.json', async () => {
           isPeer: false,
           isSkipped: false,
           name: `camelcase#${commit}`,
-          path: path.join(withNonPackageDepFixture, 'node_modules', '.pnpm', `github.com+${org}+${pkg}@${commit}`, 'node_modules', `camelcase#${commit}`),
+          path: path.join(withNonPackageDepFixture, 'node_modules', '.pnpm', `github.com+${org}+${pkg}+${commit}`, 'node_modules', `camelcase#${commit}`),
           resolved: `https://codeload.github.com/${org}/${pkg}/tar.gz/${commit}`,
           version: '0.0.0',
         },

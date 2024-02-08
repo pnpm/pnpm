@@ -31,7 +31,6 @@ import {
   type RegistryPackageSpec,
 } from './parsePref'
 import { fromRegistry, RegistryResponseError } from './fetch'
-import { createPkgId } from './createNpmPkgId'
 import { workspacePrefToNpm } from './workspacePrefToNpm'
 
 export class NoMatchingVersionError extends PnpmError {
@@ -115,6 +114,7 @@ export type ResolveFromNpmOptions = {
   registry: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
+  updateToLatest?: boolean
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -161,6 +161,7 @@ async function resolveNpm (
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry: opts.registry,
+      updateToLatest: opts.updateToLatest,
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
@@ -219,7 +220,7 @@ async function resolveNpm (
     }
   }
 
-  const id = createPkgId(opts.registry, pickedPackage.name, pickedPackage.version)
+  const id = `/${pickedPackage.name}@${pickedPackage.version}`
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
     tarball: pickedPackage.dist.tarball,

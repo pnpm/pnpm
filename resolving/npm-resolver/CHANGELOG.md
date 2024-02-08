@@ -1,5 +1,16 @@
 # @pnpm/npm-resolver
 
+## 18.1.0
+
+### Minor Changes
+
+- 31054a63e: Running `pnpm update -r --latest` will no longer downgrade prerelease dependencies [#7436](https://github.com/pnpm/pnpm/issues/7436).
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+
 ## 18.0.2
 
 ### Patch Changes

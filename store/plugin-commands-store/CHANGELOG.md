@@ -1,5 +1,37 @@
 # @pnpm/plugin-commands-store
 
+## 8.1.17
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/store.cafs@2.0.12
+  - @pnpm/lockfile-utils@9.0.5
+  - @pnpm/cli-utils@2.1.9
+  - @pnpm/store-connection-manager@7.0.26
+  - @pnpm/config@20.4.2
+
+## 8.1.16
+
+### Patch Changes
+
+- Updated dependencies [60bcc797f]
+  - @pnpm/get-context@10.0.11
+  - @pnpm/store-connection-manager@7.0.25
+
+## 8.1.15
+
+### Patch Changes
+
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/get-context@10.0.10
+  - @pnpm/store-connection-manager@7.0.24
+  - @pnpm/cli-utils@2.1.8
+
 ## 8.1.14
 
 ### Patch Changes

@@ -5,7 +5,6 @@ import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
-  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -382,7 +381,6 @@ export async function mutateModules (
         ctx.existsNonEmptyWantedLockfile &&
         (
           ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION ||
-          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6 ||
           ctx.wantedLockfile.lockfileVersion === '6.1'
         ) &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
@@ -900,13 +898,6 @@ type InstallFunction = (
 ) => Promise<InstallFunctionResult>
 
 const _installInContext: InstallFunction = async (projects, ctx, opts) => {
-  if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
-    logger.warn({
-      message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
-      prefix: ctx.lockfileDir,
-    })
-  }
-
   // The wanted lockfile is mutated during installation. To compare changes, a
   // deep copy before installation is needed. This copy should represent the
   // original wanted lockfile on disk as close as possible.
@@ -1034,6 +1025,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
       tag: opts.tag,
+      updateToLatest: opts.updateToLatest,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
@@ -1078,7 +1070,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {
-    newLockfile.lockfileVersion = LOCKFILE_VERSION_V6
+    newLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
   const depsStateCache: DepsStateCache = {}
@@ -1396,6 +1388,12 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ...result,
         stats,
       }
+    }
+    if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
+      logger.warn({
+        message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
+        prefix: ctx.lockfileDir,
+      })
     }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line

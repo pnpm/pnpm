@@ -1,5 +1,16 @@
 # @pnpm/calc-dep-state
 
+## 5.0.0
+
+### Major Changes
+
+- 0c383327e: Reduce the length of the side-effects cache key. Instead of saving a stringified object composed from the dependency versions of the package, use the hash calculated from the said object [#7563](https://github.com/pnpm/pnpm/pull/7563).
+
+### Patch Changes
+
+- Updated dependencies [0c383327e]
+  - @pnpm/crypto.object-hasher@1.0.0
+
 ## 4.1.5
 
 ### Patch Changes

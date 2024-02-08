@@ -1,5 +1,19 @@
 # @pnpm/default-reporter
 
+## 12.4.13
+
+### Patch Changes
+
+- f12884def: `--aggregate-output` should work on scripts executed from the same project [#7556](https://github.com/pnpm/pnpm/issues/7556).
+  - @pnpm/config@20.4.2
+
+## 12.4.12
+
+### Patch Changes
+
+- Updated dependencies [d9564e354]
+  - @pnpm/config@20.4.1
+
 ## 12.4.11
 
 ### Patch Changes

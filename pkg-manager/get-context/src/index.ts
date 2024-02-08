@@ -172,10 +172,7 @@ export async function getContext (
     pendingBuilds: importersContext.pendingBuilds,
     projects: Object.fromEntries(importersContext.projects.map((project) => [project.rootDir, project])),
     publicHoistPattern: importersContext.currentPublicHoistPattern ?? opts.publicHoistPattern,
-    registries: {
-      ...opts.registries,
-      ...importersContext.registries,
-    },
+    registries: opts.registries,
     rootModulesDir: importersContext.rootModulesDir,
     skipped: importersContext.skipped,
     storeDir: opts.storeDir,

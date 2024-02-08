@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lifecycle",
-  "version": "16.0.10",
+  "version": "16.0.12",
   "description": "Package lifecycle hook runner",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -21,7 +21,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/exec/lifecycle",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "lifecycle",
     "scripts"

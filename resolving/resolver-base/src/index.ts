@@ -7,6 +7,7 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
+  path?: string
 }
 
 /**
@@ -20,6 +21,7 @@ export interface DirectoryResolution {
 export interface GitResolution {
   commit: string
   repo: string
+  path?: string
   type: 'git'
 }
 
@@ -78,6 +80,7 @@ export interface ResolveOptions {
   preferWorkspacePackages?: boolean
   registry: string
   workspacePackages?: WorkspacePackages
+  updateToLatest?: boolean
 }
 
 export type WantedDependency = {

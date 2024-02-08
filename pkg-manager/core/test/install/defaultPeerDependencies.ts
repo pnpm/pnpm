@@ -3,7 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from '@pnpm/core'
 import deepRequireCwd from 'deep-require-cwd'
-import { createPeersFolderSuffix } from '@pnpm/dependency-path'
+import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import exists from 'path-exists'
 import { testDefaults } from '../utils'
 
@@ -26,7 +26,7 @@ test('don\'t install the default peer dependency when it may be resolved from pa
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0',
-    `/@pnpm.e2e/has-default-peer@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0' }])}`,
+    `/@pnpm.e2e/has-default-peer@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0' }])}`,
   ])
 })
 

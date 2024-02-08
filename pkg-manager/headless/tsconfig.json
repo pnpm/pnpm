@@ -25,6 +25,9 @@
       "path": "../../config/package-is-installable"
     },
     {
+      "path": "../../crypto/object-hasher"
+    },
+    {
       "path": "../../deps/graph-builder"
     },
     {

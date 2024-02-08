@@ -2,6 +2,8 @@
 const fs = require('fs')
 const esbuild = require('esbuild')
 const pathLib = require('path')
+const childProcess = require('child_process')
+const { createRequire } = require('module')
 const { findWorkspacePackagesNoCheck } = require('@pnpm/workspace.find-packages')
 const { findWorkspaceDir } = require('@pnpm/find-workspace-dir')
 
@@ -31,6 +33,18 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
         const newPath = pathLib.resolve(dirByPackageName[path], 'src', 'index.ts')
         return {
           path: newPath
+        }
+      })
+
+      build.onResolve({filter: /js-yaml/}, ({ path, resolveDir, ...rest }) => {
+        if (path === 'js-yaml' && resolveDir.includes('lockfile/lockfile-file')) {
+          // Force esbuild to use the resolved js-yaml from within lockfile-file,
+          // since it seems to pick the wrong one otherwise.
+          const lockfileFileProject = pathLib.resolve(__dirname, '../../lockfile/lockfile-file/index.js')
+          const resolvedJsYaml = createRequire(lockfileFileProject).resolve('js-yaml')
+          return {
+            path: resolvedJsYaml
+          }
         }
       })
     }
@@ -68,6 +82,10 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
     }
   })
 
-  // Require the file just built by esbuild
-  require('./dist/pnpm.cjs')
+  const nodeBin = process.argv[0]
+
+  // Invoke the script just built by esbuild, with Node's sourcemaps enabled
+  childProcess.spawnSync(nodeBin, ['--enable-source-maps', pathLib.resolve(__dirname, 'dist/pnpm.cjs'), ...process.argv.slice(2)], {
+    stdio: 'inherit'
+  })
 })()

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "8.0.18",
+  "version": "8.0.21",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -21,7 +21,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/exec/plugin-commands-script-runners",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "scripts"
   ],
@@ -34,7 +34,7 @@
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.17.1",
+    "@pnpm/registry-mock": "3.24.2",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/is-windows": "^1.0.2",
     "@types/ramda": "0.28.20",

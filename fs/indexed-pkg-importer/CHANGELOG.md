@@ -1,5 +1,14 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.13
+
+### Patch Changes
+
+- e2e08b98f: Prefer hard links over reflinks on Windows as they perform better [#7564](https://github.com/pnpm/pnpm/pull/7564).
+- df9b16aa9: Don't fail in Windows CoW if the file already exists [#7554](https://github.com/pnpm/pnpm/issues/7554).
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+
 ## 5.0.12
 
 ### Patch Changes

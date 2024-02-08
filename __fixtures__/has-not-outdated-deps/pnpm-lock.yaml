@@ -1,16 +1,17 @@
+lockfileVersion: '6.0'
 dependencies:
-  is-negative: 2.1.0
-  is-positive: 3.1.0
-lockfileVersion: 5.1
+  is-negative:
+    version: 2.1.0
+    specifier: ^2.1.0
+  is-positive:
+    version: 3.1.0
+    specifier: ^3.1.0
 packages:
-  /is-negative/2.1.0:
+  /is-negative@2.1.0:
     dev: false
     resolution:
       integrity: sha512-+iCKT4ZcvjRnjkHnQjZ8/qfciLLGD8BFKS0GNR5VjDU6jEiwh899R0GSMkaYcuTNd7fEKXb3Qib0webe6HczNw==
-  /is-positive/3.1.0:
+  /is-positive@3.1.0:
     dev: false
     resolution:
       integrity: sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==
-specifiers:
-  is-negative: ^2.1.0
-  is-positive: ^3.1.0

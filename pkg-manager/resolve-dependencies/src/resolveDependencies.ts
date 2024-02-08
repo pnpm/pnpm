@@ -32,10 +32,8 @@ import {
 import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
-  type Dependencies,
   type PackageManifest,
   type PatchFile,
-  type PeerDependenciesMeta,
   type ReadPackageHook,
   type Registries,
 } from '@pnpm/types'
@@ -199,6 +197,13 @@ export type PkgAddress = {
   isLinkedDependency: undefined
 })
 
+export interface PeerDependency {
+  version: string
+  optional?: boolean
+}
+
+export type PeerDependencies = Record<string, PeerDependency>
+
 export interface ResolvedPackage {
   id: string
   resolution: Resolution
@@ -209,8 +214,7 @@ export interface ResolvedPackage {
   filesIndexFile: string
   name: string
   version: string
-  peerDependencies: Dependencies
-  peerDependenciesMeta?: PeerDependenciesMeta
+  peerDependencies: PeerDependencies
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
@@ -255,6 +259,7 @@ interface ResolvedDependenciesOptions {
   updateDepth: number
   prefix: string
   supportedArchitectures?: SupportedArchitectures
+  updateToLatest?: boolean
 }
 
 interface PostponedResolutionOpts {
@@ -677,6 +682,7 @@ async function resolveDependenciesOfDependency (
     updateDepth,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
+    updateToLatest: options.updateToLatest,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
@@ -713,6 +719,7 @@ async function resolveDependenciesOfDependency (
     prefix: options.prefix,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
+    updateToLatest: options.updateToLatest,
   })
   return {
     resolveDependencyResult,
@@ -769,6 +776,7 @@ async function resolveChildren (
     prefix: string
     updateMatching?: UpdateMatchingFunction
     supportedArchitectures?: SupportedArchitectures
+    updateToLatest?: boolean
   },
   {
     parentPkgAliases,
@@ -985,7 +993,7 @@ function getInfoFromLockfile (
       ...nameVerFromPkgSnapshot(depPath, dependencyLockfile),
       dependencyLockfile,
       depPath,
-      pkgId: packageIdFromSnapshot(depPath, dependencyLockfile, registries),
+      pkgId: packageIdFromSnapshot(depPath, dependencyLockfile),
       // resolution may not exist if lockfile is broken, and an unexpected error will be thrown
       // if resolution does not exist, return undefined so it can be autofixed later
       resolution: dependencyLockfile.resolution && pkgSnapshotToResolution(depPath, dependencyLockfile, registries),
@@ -993,7 +1001,7 @@ function getInfoFromLockfile (
   } else {
     return {
       depPath,
-      pkgId: dp.tryGetPackageId(registries, depPath) ?? depPath, // Does it make sense to set pkgId when we're not sure?
+      pkgId: dp.tryGetPackageId(depPath) ?? depPath, // Does it make sense to set pkgId when we're not sure?
     }
   }
 }
@@ -1019,6 +1027,7 @@ interface ResolveDependencyOptions {
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
   supportedArchitectures?: SupportedArchitectures
+  updateToLatest?: boolean
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
@@ -1098,6 +1107,7 @@ async function resolveDependency (
         err.pkgsStack = nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath)
         return err
       },
+      updateToLatest: options.updateToLatest,
     })
   } catch (err: any) { // eslint-disable-line
     if (wantedDependency.optional) {
@@ -1187,7 +1197,7 @@ async function resolveDependency (
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
-  let depPath = dp.relative(ctx.registries, pkg.name, pkgResponse.body.id)
+  let depPath = pkgResponse.body.id
   const nameAndVersion = `${pkg.name}@${pkg.version}`
   const patchFile = ctx.patchedDependencies?.[nameAndVersion]
   if (patchFile) {
@@ -1452,8 +1462,7 @@ function getResolvedPackage (
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
     patchFile: options.patchFile,
-    peerDependencies: peerDependencies ?? {},
-    peerDependenciesMeta: options.pkg.peerDependenciesMeta,
+    peerDependencies,
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     requiresBuild,
@@ -1462,25 +1471,27 @@ function getResolvedPackage (
   }
 }
 
-function peerDependenciesWithoutOwn (pkg: PackageManifest) {
-  if ((pkg.peerDependencies == null) && (pkg.peerDependenciesMeta == null)) return pkg.peerDependencies
+function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
+  if ((pkg.peerDependencies == null) && (pkg.peerDependenciesMeta == null)) return {}
   const ownDeps = new Set([
     ...Object.keys(pkg.dependencies ?? {}),
     ...Object.keys(pkg.optionalDependencies ?? {}),
   ])
-  const result: Record<string, string> = {}
+  const result: PeerDependencies = {}
   if (pkg.peerDependencies != null) {
     for (const [peerName, peerRange] of Object.entries(pkg.peerDependencies)) {
       if (ownDeps.has(peerName)) continue
-      result[peerName] = peerRange
+      result[peerName] = {
+        version: peerRange,
+      }
     }
   }
   if (pkg.peerDependenciesMeta != null) {
     for (const [peerName, peerMeta] of Object.entries(pkg.peerDependenciesMeta)) {
-      if (ownDeps.has(peerName) || result[peerName] || peerMeta.optional !== true) continue
-      result[peerName] = '*'
+      if (ownDeps.has(peerName) || peerMeta.optional !== true) continue
+      if (!result[peerName]) result[peerName] = { version: '*' }
+      result[peerName].optional = true
     }
   }
-  if (Object.keys(result).length === 0) return undefined
   return result
 }
