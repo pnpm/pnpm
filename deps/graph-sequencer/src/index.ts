@@ -100,7 +100,9 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
     const cycleVisited = new Set<T>()
     while (queue.length) {
       const [id, cycle] = queue.shift()!
-      for (const to of graph.get(id)!) {
+      const edges = graph.get(id)
+      if (!edges) continue
+      for (const to of edges) {
         if (to === startNode) {
           return cycle
         }
