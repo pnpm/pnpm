@@ -1,4 +1,5 @@
 import filenamify from 'filenamify'
+import { analyzeGraph, Graph } from 'graph-cycles'
 import path from 'path'
 import pDefer from 'p-defer'
 import semver from 'semver'
@@ -8,7 +9,6 @@ import type {
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersDirSuffix, type PeerId } from '@pnpm/dependency-path'
-import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import mapValues from 'ramda/src/map'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
@@ -599,7 +599,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
 
   // Resolving non-repeated nodes before repeated nodes proved to be slightly faster.
   const calculateDepPaths: CalculateDepPath[] = []
-  const graph = new Map<string, string[]>()
+  const graph = []
   const finishingList: FinishingResolutionPromise[] = []
   for (const [, childNodeId] of nodeIds) {
     const {
@@ -619,13 +619,13 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
       allResolvedPeers.set(peerName, peerNodeId)
       edges.push(peerNodeId)
     }
-    graph.set(childNodeId, edges)
+    graph.push([childNodeId, edges])
     for (const missingPeer of missingPeers) {
       allMissingPeers.add(missingPeer)
     }
   }
   if (calculateDepPaths.length) {
-    const { cycles } = graphSequencer(graph)
+    const { cycles } = analyzeGraph(graph as unknown as Graph)
     finishingList.push(...calculateDepPaths.map((calculateDepPath) => calculateDepPath(cycles)))
   }
   const finishing = Promise.all(finishingList).then(() => {})

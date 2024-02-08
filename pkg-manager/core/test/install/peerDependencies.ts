@@ -1762,3 +1762,11 @@ test('3 circular peers in workspace root', async () => {
   const lockfile = await projects.root.readLockfile()
   expect(lockfile.importers.pkg?.dependencies?.['@pnpm.e2e/circular-peers-1-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-2-of-3@1.0.0(@pnpm.e2e/circular-peers-3-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0))(@pnpm.e2e/peer-a@1.0.0)')
 })
+
+test('resolves circular deps of webpack', async () => {
+  prepareEmpty()
+  await addDependenciesToPackage({}, ['webpack@5.90.1', 'webpack-cli@5.1.4', 'webpack-dev-server@4.0.0'], await testDefaults({
+    autoInstallPeers: false,
+  }))
+  // it doesn't hang
+})
