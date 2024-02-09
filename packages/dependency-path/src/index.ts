@@ -97,8 +97,8 @@ export function depPathToFilename (depPath: string) {
   let filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|]/g, '+')
   if (filename.includes('(')) {
     filename = filename
-      .replace(/(\)\()|\(/g, '_')
       .replace(/\)$/, '')
+      .replace(/(\)\()|\(|\)/g, '_')
   }
   if (filename.length > 120 || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
     return `${filename.substring(0, MAX_LENGTH_WITHOUT_HASH)}_${createBase32Hash(filename)}`
