@@ -8,13 +8,12 @@ export function isAbsolute (dependencyPath: string) {
 
 export function indexOfPeersSuffix (depPath: string) {
   if (!depPath.endsWith(')')) return -1
-  let open = true
+  let open = 1
   for (let i = depPath.length - 2; i >= 0; i--) {
     if (depPath[i] === '(') {
-      open = false
+      open--
     } else if (depPath[i] === ')') {
-      if (open) return -1
-      open = true
+      open++
     } else if (!open) {
       return i + 1
     }
