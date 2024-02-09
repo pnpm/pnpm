@@ -1,6 +1,6 @@
 # pnpm
 
-## 9.0.0-alpha.2
+## 9.0.0-alpha.3
 
 ### Major Changes
 
