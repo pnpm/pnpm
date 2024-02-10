@@ -8,13 +8,12 @@ export function isAbsolute (dependencyPath: string) {
 
 export function indexOfPeersSuffix (depPath: string) {
   if (!depPath.endsWith(')')) return -1
-  let open = true
+  let open = 1
   for (let i = depPath.length - 2; i >= 0; i--) {
     if (depPath[i] === '(') {
-      open = false
+      open--
     } else if (depPath[i] === ')') {
-      if (open) return -1
-      open = true
+      open++
     } else if (!open) {
       return i + 1
     }
@@ -97,8 +96,8 @@ export function depPathToFilename (depPath: string) {
   let filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|]/g, '+')
   if (filename.includes('(')) {
     filename = filename
-      .replace(/(\)\()|\(/g, '_')
       .replace(/\)$/, '')
+      .replace(/(\)\()|\(|\)/g, '_')
   }
   if (filename.length > 120 || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
     return `${filename.substring(0, MAX_LENGTH_WITHOUT_HASH)}_${createBase32Hash(filename)}`
@@ -118,7 +117,19 @@ function depPathToFilenameUnescaped (depPath: string) {
   return depPath.replace(':', '+')
 }
 
-export function createPeersFolderSuffix (peers: Array<{ name: string, version: string }>): string {
-  const folderName = peers.map(({ name, version }) => `${name}@${version}`).sort().join(')(')
-  return `(${folderName})`
+export type PeerId = { name: string, version: string } | string
+
+export function createPeersDirSuffix (peerIds: PeerId[]): string {
+  const dirName = peerIds.map(
+    (peerId) => {
+      if (typeof peerId !== 'string') {
+        return `${peerId.name}@${peerId.version}`
+      }
+      if (peerId.startsWith('/')) {
+        return peerId.substring(1)
+      }
+      return peerId
+    }
+  ).sort().join(')(')
+  return `(${dirName})`
 }

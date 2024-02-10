@@ -12,7 +12,7 @@ export function depPathToRef (
 
   if (depPath[0] === '/' && opts.alias === opts.realName) {
     const ref = depPath.replace(`/${opts.realName}@`, '')
-    if (!ref.includes('/') || !ref.replace(/(\([^)]+\))+$/, '').includes('/')) return ref
+    return ref
   }
   return depPath
 }

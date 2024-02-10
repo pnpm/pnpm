@@ -2,6 +2,7 @@
 const fs = require('fs')
 const esbuild = require('esbuild')
 const pathLib = require('path')
+const childProcess = require('child_process')
 const { createRequire } = require('module')
 const { findWorkspacePackagesNoCheck } = require('@pnpm/workspace.find-packages')
 const { findWorkspaceDir } = require('@pnpm/find-workspace-dir')
@@ -81,6 +82,10 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
     }
   })
 
-  // Require the file just built by esbuild
-  require('./dist/pnpm.cjs')
+  const nodeBin = process.argv[0]
+
+  // Invoke the script just built by esbuild, with Node's sourcemaps enabled
+  childProcess.spawnSync(nodeBin, ['--enable-source-maps', pathLib.resolve(__dirname, 'dist/pnpm.cjs'), ...process.argv.slice(2)], {
+    stdio: 'inherit'
+  })
 })()

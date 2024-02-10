@@ -13,7 +13,7 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
-import { createPeersFolderSuffix } from '@pnpm/dependency-path'
+import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import pick from 'ramda/src/pick'
@@ -1475,8 +1475,8 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
   const project = assertProject(process.cwd())
 
   const wantedLockfile = await project.readLockfile()
-  const suffix1 = createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }])
-  const suffix2 = createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.1' }])
+  const suffix1 = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }])
+  const suffix2 = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.1' }])
   expect(Object.keys(wantedLockfile.packages).sort()).toStrictEqual(
     [
       '/@pnpm.e2e/abc-grand-parent-with-c@1.0.0',
