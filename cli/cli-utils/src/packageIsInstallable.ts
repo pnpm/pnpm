@@ -1,3 +1,4 @@
+import { PnpmError } from '@pnpm/error'
 import { packageManager } from '@pnpm/cli-meta'
 import { logger } from '@pnpm/logger'
 import { checkPackage, UnsupportedEngineError, type WantedEngine } from '@pnpm/package-is-installable'
@@ -6,6 +7,7 @@ import { type SupportedArchitectures } from '@pnpm/types'
 export function packageIsInstallable (
   pkgPath: string,
   pkg: {
+    packageManager?: string
     engines?: WantedEngine
     cpu?: string[]
     os?: string[]
@@ -20,6 +22,15 @@ export function packageIsInstallable (
   const pnpmVersion = packageManager.name === 'pnpm'
     ? packageManager.stableVersion
     : undefined
+  if (pkg.packageManager) {
+    const [pmName, pmVersion] = pkg.packageManager.split('@')
+    if (pmName && pmName !== 'pnpm') {
+      throw new PnpmError('OTHER_PM_EXPECTED', `This project requires ${pkg.packageManager} as its package manager`)
+    }
+    if (pmVersion && pnpmVersion && pmVersion !== pnpmVersion) {
+      throw new PnpmError('BAD_PM_VERSION', `This project requires v${pmVersion} of pnpm. Your current pnpm is v${pnpmVersion}`)
+    }
+  }
   const err = checkPackage(pkgPath, pkg, {
     nodeVersion: opts.nodeVersion,
     pnpmVersion,
