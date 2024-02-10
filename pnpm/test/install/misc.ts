@@ -272,6 +272,13 @@ test('install should fail if the used pnpm version does not satisfy the pnpm ver
 
   expect(status).toBe(1)
   expect(stdout.toString()).toContain('This project is configured to use v0.0.0 of pnpm. Your current pnpm is')
+
+  expect(execPnpmSync(['install', '--config.pm-strict=false']).status).toBe(0)
+  expect(execPnpmSync(['install'], {
+    env: {
+      COREPACK_ENABLE_STRICT: '0',
+    },
+  }).status).toBe(0)
 })
 
 test('install should fail if the project requires a different package manager', async () => {
@@ -286,6 +293,8 @@ test('install should fail if the project requires a different package manager', 
 
   expect(status).toBe(1)
   expect(stdout.toString()).toContain('This project is configured to use yarn')
+
+  expect(execPnpmSync(['install', '--config.pm-strict=false']).status).toBe(0)
 })
 
 test('engine-strict=false: install should not fail if the used Node version does not satisfy the Node version specified in engines', async () => {
