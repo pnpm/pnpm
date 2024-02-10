@@ -39,7 +39,7 @@
     "@commitlint/prompt-cli": "^17.8.1",
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/meta-updater": "1.0.0",
-    "@pnpm/registry-mock": "3.24.2",
+    "@pnpm/registry-mock": "3.25.0",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@types/jest": "^29.5.8",
@@ -65,7 +65,7 @@
   "engines": {
     "pnpm": ">=9"
   },
-  "packageManager": "pnpm@9.0.0-alpha.1",
+  "packageManager": "pnpm@9.0.0-alpha.4",
   "pnpm": {
     "overrides": {
       "clipanion": "3.2.0-rc.6",
@@ -104,10 +104,7 @@
         }
       }
     },
-    "neverBuiltDependencies": [
-      "core-js",
-      "level"
-    ],
+    "onlyBuiltDependencies": [],
     "peerDependencyRules": {
       "allowedVersions": {
         "eslint": "*"
@@ -161,7 +158,8 @@
     },
     "auditConfig": {
       "ignoreCves": [
-        "CVE-2023-28155"
+        "CVE-2023-28155",
+        "CVE-2024-24828"
       ]
     }
   }

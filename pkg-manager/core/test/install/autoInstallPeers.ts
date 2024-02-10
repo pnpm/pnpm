@@ -143,7 +143,7 @@ test('don\'t install the same missing peer dependency twice', async () => {
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages).sort()).toStrictEqual([
     '/@pnpm/y@1.0.0',
-    `/@pnpm.e2e/has-has-y-peer-peer@1.0.0${createPeersDirSuffix([{ name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm.e2e/has-y-peer', version: '1.0.0' }])}`,
+    '/@pnpm.e2e/has-has-y-peer-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))(@pnpm/y@1.0.0)',
     '/@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0)',
   ].sort())
 })

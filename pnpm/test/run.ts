@@ -46,7 +46,9 @@ test('run: pass the args to the command that is specified in the build script', 
 
   const { default: args } = await import(path.resolve('args.json'))
   expect(args).toStrictEqual([
+    [],
     ['arg', '--flag=true'],
+    [],
   ])
 })
 
@@ -69,7 +71,9 @@ test('run: pass all arguments after script name to the build script, even --', a
 
   const { default: args } = await import(path.resolve('args.json'))
   expect(args).toStrictEqual([
+    [],
     ['arg', '--', '--flag=true'],
+    [],
   ])
 })
 

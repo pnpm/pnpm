@@ -178,7 +178,7 @@ export async function resolveDependencies (
     dependenciesGraph,
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
-  } = resolvePeers({
+  } = await resolvePeers({
     dependenciesTree,
     dedupePeerDependents: opts.dedupePeerDependents,
     dedupeInjectedDeps: opts.dedupeInjectedDeps,

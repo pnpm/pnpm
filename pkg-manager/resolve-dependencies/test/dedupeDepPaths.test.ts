@@ -1,7 +1,7 @@
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import { type DependenciesTreeNode } from '../lib/resolveDependencies'
 
-test('packages are not deduplicated when versions do not match', () => {
+test('packages are not deduplicated when versions do not match', async () => {
   const fooPkg: PartialResolvedPackage = {
     name: 'foo',
     version: '1.0.0',
@@ -31,7 +31,7 @@ test('packages are not deduplicated when versions do not match', () => {
     ])
   )
 
-  const { dependenciesByProjectId } = resolvePeers({
+  const { dependenciesByProjectId } = await resolvePeers({
     projects: [
       {
         directNodeIdsByAlias: {
