@@ -29,6 +29,23 @@ test('the pnpm options are removed', async () => {
   })
 })
 
+test('the packageManager field is removed', async () => {
+  expect(await createExportableManifest(process.cwd(), {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      qar: '2',
+    },
+    packageManager: 'pnpm@8.0.0',
+  })).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      qar: '2',
+    },
+  })
+})
+
 test('publish lifecycle scripts are removed', async () => {
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
