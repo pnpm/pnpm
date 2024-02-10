@@ -14,7 +14,7 @@ export function packageIsInstallable (
     libc?: string[]
   },
   opts: {
-    pmStrict?: boolean
+    packageManagerStrict?: boolean
     engineStrict?: boolean
     nodeVersion?: string
     supportedArchitectures?: SupportedArchitectures
@@ -27,14 +27,14 @@ export function packageIsInstallable (
     const [pmName, pmVersion] = pkg.packageManager.split('@')
     if (pmName && pmName !== 'pnpm') {
       const msg = `This project is configured to use ${pmName}`
-      if (opts.pmStrict) {
+      if (opts.packageManagerStrict) {
         throw new PnpmError('OTHER_PM_EXPECTED', msg)
       } else {
         globalWarn(msg)
       }
     } else if (pmVersion && pnpmVersion && pmVersion !== pnpmVersion) {
       const msg = `This project is configured to use v${pmVersion} of pnpm. Your current pnpm is v${pnpmVersion}`
-      if (opts.pmStrict) {
+      if (opts.packageManagerStrict) {
         throw new PnpmError('BAD_PM_VERSION', msg)
       } else {
         globalWarn(msg)
