@@ -104,10 +104,7 @@
         }
       }
     },
-    "neverBuiltDependencies": [
-      "core-js",
-      "level"
-    ],
+    "onlyBuiltDependencies": [],
     "peerDependencyRules": {
       "allowedVersions": {
         "eslint": "*"
@@ -161,7 +158,8 @@
     },
     "auditConfig": {
       "ignoreCves": [
-        "CVE-2023-28155"
+        "CVE-2023-28155",
+        "CVE-2024-24828"
       ]
     }
   }
