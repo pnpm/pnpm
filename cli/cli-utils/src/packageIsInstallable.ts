@@ -25,10 +25,10 @@ export function packageIsInstallable (
   if (pkg.packageManager) {
     const [pmName, pmVersion] = pkg.packageManager.split('@')
     if (pmName && pmName !== 'pnpm') {
-      throw new PnpmError('OTHER_PM_EXPECTED', `This project requires ${pkg.packageManager} as its package manager`)
+      throw new PnpmError('OTHER_PM_EXPECTED', `This project is configured to use ${pmName}`)
     }
     if (pmVersion && pnpmVersion && pmVersion !== pnpmVersion) {
-      throw new PnpmError('BAD_PM_VERSION', `This project requires v${pmVersion} of pnpm. Your current pnpm is v${pnpmVersion}`)
+      throw new PnpmError('BAD_PM_VERSION', `This project is configured to use v${pmVersion} of pnpm. Your current pnpm is v${pnpmVersion}`)
     }
   }
   const err = checkPackage(pkgPath, pkg, {
