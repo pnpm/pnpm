@@ -210,6 +210,7 @@ export async function getConfig (
     'dedupe-injected-deps': true,
     'disallow-workspace-cycles': false,
     'enable-modules-dir': true,
+    'enable-pre-post-scripts': true,
     'exclude-links-from-lockfile': false,
     'extend-node-path': true,
     'fail-if-no-match': false,
