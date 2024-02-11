@@ -103,6 +103,7 @@ export const types = Object.assign({
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   'patches-dir': String,
   pnpmfile: String,
+  'package-manager-strict': Boolean,
   'prefer-frozen-lockfile': Boolean,
   'prefer-offline': Boolean,
   'prefer-symlinked-executables': Boolean,
@@ -240,6 +241,7 @@ export async function getConfig (
     'node-linker': 'isolated',
     'package-lock': npmDefaults['package-lock'],
     pending: false,
+    'package-manager-strict': process.env.COREPACK_ENABLE_STRICT !== '0',
     'prefer-workspace-packages': false,
     'public-hoist-pattern': [
       '*eslint*',
