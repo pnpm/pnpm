@@ -238,7 +238,7 @@ test('fetch only the included files', async () => {
   )
   expect(Object.keys(filesIndex).sort()).toStrictEqual([
     'README.md',
-    'dist/index.js',
+    `dist${path.sep}index.js`,
     'package.json',
   ])
 })

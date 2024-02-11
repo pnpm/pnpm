@@ -1,10 +1,12 @@
 import fs from 'node:fs/promises'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
+import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { type DependencyManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
+import pickAll from 'ramda/src/pickAll'
 import renameOverwrite from 'rename-overwrite'
 import { fastPathTemp as pathTemp } from 'path-temp'
 
@@ -70,19 +72,20 @@ async function prepareGitHostedPkg (
     force: true,
   })
   const { shouldBeBuilt, pkgDir } = await preparePackage(opts, tempLocation, resolution.path ?? '')
+  const files = await packlist(pkgDir)
   if (!resolution.path) {
     if (!shouldBeBuilt) {
       if (filesIndexFileNonBuilt !== filesIndexFile) {
         await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
       }
       return {
-        filesIndex,
+        filesIndex: pickAll(files, filesIndex),
         ignoredBuild: false,
       }
     }
     if (opts.ignoreScripts) {
       return {
-        filesIndex,
+        filesIndex: pickAll(files, filesIndex),
         ignoredBuild: true,
       }
     }
@@ -98,6 +101,7 @@ async function prepareGitHostedPkg (
     ...await addFilesFromDir({
       cafsDir: cafs.cafsDir,
       dir: pkgDir,
+      files,
       filesIndexFile,
       pkg: fetcherOpts.pkg,
       readManifest: fetcherOpts.readManifest,
