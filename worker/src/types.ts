@@ -45,6 +45,7 @@ export interface AddDirToStoreMessage {
   sideEffectsCacheKey?: string
   readManifest?: boolean
   pkg?: PkgNameVersion
+  files?: string[]
 }
 
 export interface ReadPkgFromCafsMessage {
