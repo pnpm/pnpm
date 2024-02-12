@@ -168,6 +168,7 @@ test('depPathToFilename()', () => {
   expect(depPathToFilename('github.com/something/foo/0000?v=1')).toBe('github.com+something+foo@0000+v=1')
   expect(depPathToFilename('\\//:*?"<>|')).toBe('++@+++++++')
   expect(depPathToFilename('/foo/1.0.0(react@16.0.0)(react-dom@16.0.0)')).toBe('foo@1.0.0_react@16.0.0_react-dom@16.0.0')
+  expect(depPathToFilename('/foo@1.0.0(react@16.0.0(react-dom@1.0.0))(react-dom@16.0.0)')).toBe('foo@1.0.0_react@16.0.0_react-dom@1.0.0__react-dom@16.0.0')
 
   const filename = depPathToFilename('file:test/foo-1.0.0.tgz_foo@2.0.0')
   expect(filename).toBe('file+test+foo-1.0.0.tgz_foo@2.0.0')
@@ -179,6 +180,7 @@ test('depPathToFilename()', () => {
 
 test('tryGetPackageId', () => {
   expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo/1.0.0_@types+babel__core@7.1.14')).toEqual('registry.npmjs.org/foo/1.0.0')
+  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))')).toEqual('registry.npmjs.org/foo@1.0.0')
   expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo/1.0.0(@types/babel__core@7.1.14)')).toEqual('registry.npmjs.org/foo/1.0.0')
   expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/@(-.-)/foo/1.0.0(@types/babel__core@7.1.14)')).toEqual('registry.npmjs.org/@(-.-)/foo/1.0.0')
 })
