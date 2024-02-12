@@ -45,7 +45,7 @@
     "normalize-path": "^3.0.0",
     "realpath-missing": "^1.1.0",
     "resolve-link-target": "^2.0.0",
-    "semver": "^7.5.4"
+    "semver": "^7.6.0"
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",

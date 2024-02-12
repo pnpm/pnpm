@@ -39,7 +39,7 @@
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
-    "@pnpm/npm-lifecycle": "^3.0.0",
+    "@pnpm/npm-lifecycle": "^3.0.1",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",

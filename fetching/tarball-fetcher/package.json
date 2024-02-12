@@ -59,7 +59,7 @@
     "@types/lodash.throttle": "4.1.7",
     "@types/ramda": "0.28.20",
     "@types/retry": "^0.12.5",
-    "@types/ssri": "^7.1.4",
+    "@types/ssri": "^7.1.5",
     "nock": "13.3.4",
     "ssri": "10.0.5",
     "tempy": "^1.0.1"

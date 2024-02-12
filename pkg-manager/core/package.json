@@ -68,7 +68,7 @@
     "path-exists": "^4.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "run-groups": "^3.0.1",
-    "semver": "^7.5.4",
+    "semver": "^7.6.0",
     "sort-keys": "^4.2.0",
     "version-selector-type": "^3.0.0"
   },
@@ -93,7 +93,7 @@
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.3",
     "@types/sinon": "^10.0.20",
-    "@yarnpkg/core": "4.0.2",
+    "@yarnpkg/core": "4.0.3",
     "ci-info": "^3.9.0",
     "deep-require-cwd": "1.0.0",
     "execa": "npm:safe-execa@0.1.2",
