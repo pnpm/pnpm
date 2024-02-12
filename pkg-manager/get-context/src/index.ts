@@ -316,10 +316,7 @@ async function purgeModulesDirsOfImporters (
     confirmModulesPurge?: boolean
     virtualStoreDir: string
   },
-  importers: Array<{
-    modulesDir: string
-    rootDir: string
-  }>
+  importers: ImporterToPurge[]
 ) {
   if (opts.confirmModulesPurge ?? true) {
     const confirmed = await enquirer.prompt({
