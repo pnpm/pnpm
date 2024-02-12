@@ -79,7 +79,8 @@
       "verdaccio": "5.20.1",
       "yaml@<2.2.2": ">=2.2.2",
       "semver@<7.5.2": ">=7.5.2",
-      "tough-cookie@<4.1.3": ">=4.1.3"
+      "tough-cookie@<4.1.3": ">=4.1.3",
+      "@yarnpkg/fslib@2": "3"
     },
     "packageExtensions": {
       "@babel/parser": {
