@@ -294,11 +294,12 @@ async function validateModules (
     })
   }
 
-  if (importersToPurge.length > 0) {
+  const purged = importersToPurge.length > 0
+  if (purged) {
     await purgeModulesDirsOfImporters(opts, importersToPurge)
   }
 
-  return { purged: importersToPurge.length > 0 }
+  return { purged }
 }
 
 async function purgeModulesDirsOfImporter (
