@@ -49,7 +49,7 @@ function createTarballWorkerPool (): WorkerPool {
 }
 
 export async function addFilesFromDir (
-  opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg'>
+  opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
 ) {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
@@ -72,6 +72,7 @@ export async function addFilesFromDir (
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      files: opts.files,
     })
   })
 }

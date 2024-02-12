@@ -1,5 +1,6 @@
 import path from 'path'
 import type { GitFetcher } from '@pnpm/fetcher-base'
+import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { addFilesFromDir } from '@pnpm/worker'
@@ -46,12 +47,14 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     }
     // removing /.git to make directory integrity calculation faster
     await rimraf(path.join(tempLocation, '.git'))
+    const files = await packlist(pkgDir)
     // Important! We cannot remove the temp location at this stage.
     // Even though we have the index of the package,
     // the linking of files to the store is in progress.
     return addFilesFromDir({
       cafsDir: cafs.cafsDir,
       dir: pkgDir,
+      files,
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
       pkg: opts.pkg,

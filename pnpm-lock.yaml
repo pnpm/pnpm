@@ -1592,6 +1592,9 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
+      '@pnpm/fs.packlist':
+        specifier: 1.0.3
+        version: 1.0.3
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -1650,6 +1653,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/fs.packlist':
+        specifier: 1.0.3
+        version: 1.0.3
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -8439,6 +8445,13 @@ packages:
       fast-glob: 3.3.2
       p-filter: 2.1.0
     dev: true
+
+  /@pnpm/fs.packlist@1.0.3:
+    resolution: {integrity: sha512-fIf4V48oB6+iTghJOzgtJmwOoSEcgMt4wl819zaoGTUZQFpWWuvAaqhNVgE5dUP3Ee5WHXQVyVaPMl+1jRrXrQ==}
+    engines: {node: '>=16.14'}
+    dependencies:
+      npm-packlist: 5.1.3
+    dev: false
 
   /@pnpm/git-utils@1.0.0:
     resolution: {integrity: sha512-lUI+XrzOJN4zdPGOGnFUrmtXAXpXi8wD8OI0nWOZmlh+raqbLzC3VkXu1zgaduOK6YonOcnQW88O+ojav1rAdA==}
@@ -18292,6 +18305,7 @@ time:
   /@pnpm/colorize-semver-diff@1.0.1: '2020-10-25T15:50:17.812Z'
   /@pnpm/config.env-replace@1.1.0: '2023-04-04T18:59:45.025Z'
   /@pnpm/exec@2.0.0: '2020-10-29T23:51:01.271Z'
+  /@pnpm/fs.packlist@1.0.3: '2024-01-22T09:17:00.735Z'
   /@pnpm/hosted-git-info@1.0.0: '2024-02-05T14:40:06.830Z'
   /@pnpm/log.group@1.0.1: '2023-10-21T01:56:15.610Z'
   /@pnpm/logger@5.0.0: '2022-10-14T13:56:04.285Z'

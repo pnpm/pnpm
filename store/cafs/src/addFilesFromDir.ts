@@ -12,49 +12,57 @@ import { parseJsonBufferSync } from './parseJson'
 export function addFilesFromDir (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
   dirname: string,
-  readManifest?: boolean
+  opts: {
+    files?: string[]
+    readManifest?: boolean
+  } = {}
 ): AddToStoreResult {
   const filesIndex: FilesIndex = {}
-  const manifest = _retrieveFileIntegrities(addBuffer, dirname, dirname, filesIndex, readManifest)
-  return { filesIndex, manifest }
-}
-
-function _retrieveFileIntegrities (
-  addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
-  rootDir: string,
-  currDir: string,
-  index: FilesIndex,
-  readManifest?: boolean
-) {
-  const files = fs.readdirSync(currDir, { withFileTypes: true })
   let manifest: DependencyManifest | undefined
+  const files = opts.files ?? findFilesInDir(dirname)
   for (const file of files) {
-    const fullPath = path.join(currDir, file.name)
-    if (file.isDirectory()) {
-      _retrieveFileIntegrities(addBuffer, rootDir, fullPath, index)
+    const fullPath = path.join(dirname, file)
+    const relativePath = path.relative(dirname, fullPath)
+    let stat: Stats
+    try {
+      stat = fs.statSync(fullPath)
+    } catch (err: any) { // eslint-disable-line
+      if (err.code !== 'ENOENT') {
+        throw err
+      }
       continue
     }
-    if (file.isFile()) {
-      const relativePath = path.relative(rootDir, fullPath)
-      let stat: Stats
-      try {
-        stat = fs.statSync(fullPath)
-      } catch (err: any) { // eslint-disable-line
-        if (err.code !== 'ENOENT') {
-          throw err
-        }
-        continue
-      }
-      const buffer = gfs.readFileSync(fullPath)
-      if (rootDir === currDir && readManifest && file.name === 'package.json') {
-        manifest = parseJsonBufferSync(buffer)
-      }
-      index[relativePath] = {
-        mode: stat.mode,
-        size: stat.size,
-        ...addBuffer(buffer, stat.mode),
-      }
+    const buffer = gfs.readFileSync(fullPath)
+    if (opts.readManifest && file === 'package.json') {
+      manifest = parseJsonBufferSync(buffer)
+    }
+    filesIndex[relativePath] = {
+      mode: stat.mode,
+      size: stat.size,
+      ...addBuffer(buffer, stat.mode),
     }
   }
-  return manifest
+  return { manifest, filesIndex }
+}
+
+function findFilesInDir (dir: string): string[] {
+  const files: string[] = []
+  findFiles(files, dir)
+  return files
+}
+
+function findFiles (
+  filesList: string[],
+  dir: string,
+  relativeDir = ''
+) {
+  const files = fs.readdirSync(dir, { withFileTypes: true })
+  for (const file of files) {
+    const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file.name}`
+    if (file.isDirectory()) {
+      findFiles(filesList, path.join(dir, file.name), relativeSubdir)
+    } else {
+      filesList.push(relativeSubdir)
+    }
+  }
 }

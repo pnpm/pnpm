@@ -221,3 +221,24 @@ test('do not build the package when scripts are ignored', async () => {
 function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
+
+test('fetch only the included files', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const { filesIndex } = await fetch(
+    createCafsStore(cafsDir),
+    {
+      commit: '958d6d487217512bb154d02836e9b5b922a600d8',
+      repo: 'https://github.com/pnpm-e2e/pkg-with-ignored-files',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(cafsDir, 'index.json'),
+    }
+  )
+  expect(Object.keys(filesIndex).sort()).toStrictEqual([
+    'README.md',
+    `dist${path.sep}index.js`,
+    'package.json',
+  ])
+})
