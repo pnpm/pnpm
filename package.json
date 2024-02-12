@@ -118,7 +118,8 @@
       "@yarnpkg/pnp@^4.0.0-rc.45": "4.0.0-rc.45",
       "@yarnpkg/shell@^4.0.0-rc.42": "4.0.0-rc.45",
       "@yarnpkg/shell@^4.0.0-rc.45": "4.0.0-rc.45",
-      "tough-cookie@<4.1.3": ">=4.1.3"
+      "tough-cookie@<4.1.3": ">=4.1.3",
+      "ts-api-utils": "1.0.0"
     },
     "packageExtensions": {
       "@babel/parser": {
