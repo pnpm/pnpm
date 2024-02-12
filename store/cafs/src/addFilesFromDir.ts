@@ -12,12 +12,43 @@ import { parseJsonBufferSync } from './parseJson'
 export function addFilesFromDir (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
   dirname: string,
-  files?: string[],
-  readManifest?: boolean
+  opts: {
+    files?: string[]
+    readManifest?: boolean
+  } = {}
 ): AddToStoreResult {
   const filesIndex: FilesIndex = {}
-  const manifest = _retrieveFileIntegrities(addBuffer, dirname, filesIndex, files, readManifest)
-  return { filesIndex, manifest }
+  let manifest: DependencyManifest | undefined
+  const files = opts.files ?? findFilesInDir(dirname)
+  for (const file of files) {
+    const fullPath = path.join(dirname, file)
+    const relativePath = path.relative(dirname, fullPath)
+    let stat: Stats
+    try {
+      stat = fs.statSync(fullPath)
+    } catch (err: any) { // eslint-disable-line
+      if (err.code !== 'ENOENT') {
+        throw err
+      }
+      continue
+    }
+    const buffer = gfs.readFileSync(fullPath)
+    if (opts.readManifest && file === 'package.json') {
+      manifest = parseJsonBufferSync(buffer)
+    }
+    filesIndex[relativePath] = {
+      mode: stat.mode,
+      size: stat.size,
+      ...addBuffer(buffer, stat.mode),
+    }
+  }
+  return { manifest, filesIndex }
+}
+
+function findFilesInDir (dir: string): string[] {
+  const files: string[] = []
+  findFiles(files, dir)
+  return files
 }
 
 function findFiles (
@@ -34,42 +65,4 @@ function findFiles (
       filesList.push(relativeSubdir)
     }
   }
-}
-
-function _retrieveFileIntegrities (
-  addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
-  rootDir: string,
-  index: FilesIndex,
-  files?: string[],
-  readManifest?: boolean
-) {
-  let manifest: DependencyManifest | undefined
-  let filesList = files
-  if (!filesList) {
-    filesList = []
-    findFiles(filesList, rootDir)
-  }
-  for (const file of filesList) {
-    const fullPath = path.join(rootDir, file)
-    const relativePath = path.relative(rootDir, fullPath)
-    let stat: Stats
-    try {
-      stat = fs.statSync(fullPath)
-    } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'ENOENT') {
-        throw err
-      }
-      continue
-    }
-    const buffer = gfs.readFileSync(fullPath)
-    if (readManifest && file === 'package.json') {
-      manifest = parseJsonBufferSync(buffer)
-    }
-    index[relativePath] = {
-      mode: stat.mode,
-      size: stat.size,
-      ...addBuffer(buffer, stat.mode),
-    }
-  }
-  return manifest
 }

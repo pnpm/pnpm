@@ -141,7 +141,7 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, p
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
   const cafs = cafsCache.get(cafsDir)!
-  const { filesIndex, manifest } = cafs.addFilesFromDir(dir, files, readManifest)
+  const { filesIndex, manifest } = cafs.addFilesFromDir(dir, { files, readManifest })
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   if (sideEffectsCacheKey) {
     let filesIndex!: PackageFilesIndex
