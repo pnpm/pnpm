@@ -1,5 +1,16 @@
 # @pnpm/license-scanner
 
+## 2.3.1
+
+### Patch Changes
+
+- Updated dependencies [822b2dae5]
+- Updated dependencies [738d443d2]
+  - @pnpm/dependency-path@2.1.8
+  - @pnpm/lockfile-file@8.1.7
+  - @pnpm/lockfile-utils@9.0.6
+  - @pnpm/lockfile-walker@7.0.9
+
 ## 2.3.0
 
 ### Minor Changes

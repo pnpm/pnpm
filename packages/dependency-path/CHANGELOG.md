@@ -1,5 +1,11 @@
 # @pnpm/dependency-path
 
+## 2.1.8
+
+### Patch Changes
+
+- 822b2dae5: Installation should work with lockfile created by pnpm v9.0.0-alpha.4
+
 ## 2.1.7
 
 ### Patch Changes

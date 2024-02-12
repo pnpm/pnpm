@@ -1,5 +1,12 @@
 # @pnpm/lockfile-utils
 
+## 9.0.6
+
+### Patch Changes
+
+- Updated dependencies [822b2dae5]
+  - @pnpm/dependency-path@2.1.8
+
 ## 9.0.5
 
 ### Patch Changes

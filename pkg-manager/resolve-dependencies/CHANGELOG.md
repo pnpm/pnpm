@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 31.4.3
+
+### Patch Changes
+
+- 7b0d5c282: Revert [#7583](https://github.com/pnpm/pnpm/pull/7583).
+- abf3909c4: Link globally the command of a package that has no name in `package.json` [#4761](https://github.com/pnpm/pnpm/issues/4761).
+- Updated dependencies [822b2dae5]
+  - @pnpm/dependency-path@2.1.8
+  - @pnpm/lockfile-utils@9.0.6
+  - @pnpm/prune-lockfile@5.0.10
+
 ## 31.4.2
 
 ### Patch Changes

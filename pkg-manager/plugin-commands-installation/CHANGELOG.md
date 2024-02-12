@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-installation
 
+## 14.2.3
+
+### Patch Changes
+
+- Updated dependencies [dc4892565]
+  - @pnpm/core@13.4.3
+  - @pnpm/plugin-commands-rebuild@10.0.19
+  - @pnpm/outdated@13.0.43
+  - @pnpm/package-store@19.0.16
+  - @pnpm/store-connection-manager@7.0.27
+
 ## 14.2.2
 
 ### Patch Changes

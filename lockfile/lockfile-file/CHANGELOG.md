@@ -1,5 +1,13 @@
 # @pnpm/lockfile-file
 
+## 8.1.7
+
+### Patch Changes
+
+- 738d443d2: Never wrap lines in the lockfile.
+- Updated dependencies [822b2dae5]
+  - @pnpm/dependency-path@2.1.8
+
 ## 8.1.6
 
 ### Patch Changes

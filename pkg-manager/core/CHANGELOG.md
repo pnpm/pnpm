@@ -1,5 +1,31 @@
 # @pnpm/core
 
+## 13.4.3
+
+### Patch Changes
+
+- dc4892565: Don't print an unnecessary warning when adding new dependencies to a project that uses hoisted node_modules.
+- Updated dependencies [822b2dae5]
+- Updated dependencies [ceb47e3b6]
+- Updated dependencies [7b0d5c282]
+- Updated dependencies [738d443d2]
+- Updated dependencies [abf3909c4]
+  - @pnpm/dependency-path@2.1.8
+  - @pnpm/get-context@10.0.12
+  - @pnpm/resolve-dependencies@31.4.3
+  - @pnpm/lockfile-file@8.1.7
+  - @pnpm/filter-lockfile@8.1.7
+  - @pnpm/lockfile-to-pnp@3.0.18
+  - @pnpm/lockfile-utils@9.0.6
+  - @pnpm/lockfile-walker@7.0.9
+  - @pnpm/prune-lockfile@5.0.10
+  - @pnpm/calc-dep-state@5.0.2
+  - @pnpm/headless@22.4.6
+  - @pnpm/hoist@8.2.2
+  - @pnpm/modules-cleaner@14.0.25
+  - @pnpm/package-requester@24.1.9
+  - @pnpm/build-modules@11.2.14
+
 ## 13.4.2
 
 ### Patch Changes

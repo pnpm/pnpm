@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/linux-x64",
-  "version": "8.15.1",
+  "version": "8.15.2",
   "license": "MIT",
   "publishConfig": {
     "bin": {

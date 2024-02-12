@@ -1,5 +1,14 @@
 # pnpm
 
+## 8.15.2
+
+### Patch Changes
+
+- When purging multiple `node_modules` directories, pnpm will no longer print multiple prompts simultaneously.
+- Don't print an unnecessary warning when adding new dependencies to a project that uses hoisted `node_modules`.
+- Linking globally the command of a package that has no name in `package.json` [#4761](https://github.com/pnpm/pnpm/issues/4761).
+- Installation should work with lockfile created by pnpm v9.0.0-alpha.4
+
 ## 8.15.1
 
 ### Patch Changes

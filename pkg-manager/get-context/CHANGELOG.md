@@ -1,5 +1,14 @@
 # @pnpm/get-context
 
+## 10.0.12
+
+### Patch Changes
+
+- ceb47e3b6: When purging multiple node_modules folders, pnpm will no longer print multiple prompts simultaneously.
+- Updated dependencies [738d443d2]
+  - @pnpm/lockfile-file@8.1.7
+  - @pnpm/read-projects-context@8.0.12
+
 ## 10.0.11
 
 ### Patch Changes
