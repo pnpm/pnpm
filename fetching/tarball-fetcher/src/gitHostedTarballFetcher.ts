@@ -105,6 +105,6 @@ async function prepareGitHostedPkg (
       pkg: fetcherOpts.pkg,
       readManifest: fetcherOpts.readManifest,
     }),
-    ignoredBuild: false,
+    ignoredBuild: Boolean(opts.ignoreScripts),
   }
 }
