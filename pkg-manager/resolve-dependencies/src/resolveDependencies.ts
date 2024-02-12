@@ -1156,7 +1156,7 @@ async function resolveDependency (
       throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.pref}: Missing package.json file`)
     }
     return {
-      alias: wantedDependency.alias || manifest.name,
+      alias: wantedDependency.alias || manifest.name || path.basename(pkgResponse.body.resolution.directory),
       depPath: pkgResponse.body.id,
       dev: wantedDependency.dev,
       isLinkedDependency: true,
