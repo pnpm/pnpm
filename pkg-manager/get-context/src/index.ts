@@ -101,6 +101,10 @@ export interface GetContextOptions {
   forcePublicHoistPattern?: boolean
   global?: boolean
 }
+interface ImporterToPurge {
+  modulesDir: string
+  rootDir: string
+}
 
 export async function getContext (
   opts: GetContextOptions
@@ -243,7 +247,9 @@ async function validateModules (
       ' Run "pnpm install" to recreate the modules directory.'
     )
   }
-  let purged = false
+
+  const importersToPurge: ImporterToPurge[] = []
+
   if (opts.forceHoistPattern && (rootProject != null)) {
     try {
       // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
@@ -256,11 +262,10 @@ async function validateModules (
       }
     } catch (err: any) { // eslint-disable-line
       if (!opts.forceNewModules) throw err
-      await purgeModulesDirsOfImporter(opts, rootProject)
-      purged = true
+      importersToPurge.push(rootProject)
     }
   }
-  await Promise.all(projects.map(async (project) => {
+  for (const project of projects) {
     try {
       checkCompatibility(modules, {
         modulesDir: project.modulesDir,
@@ -279,16 +284,21 @@ async function validateModules (
       }
     } catch (err: any) { // eslint-disable-line
       if (!opts.forceNewModules) throw err
-      await purgeModulesDirsOfImporter(opts, project)
-      purged = true
+      importersToPurge.push(project)
     }
-  }))
-  if (purged && (rootProject == null)) {
-    await purgeModulesDirsOfImporter(opts, {
+  }
+  if (importersToPurge.length > 0 && (rootProject == null)) {
+    importersToPurge.push({
       modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
       rootDir: opts.lockfileDir,
     })
   }
+
+  const purged = importersToPurge.length > 0
+  if (purged) {
+    await purgeModulesDirsOfImporters(opts, importersToPurge)
+  }
+
   return { purged }
 }
 
@@ -297,10 +307,7 @@ async function purgeModulesDirsOfImporter (
     confirmModulesPurge?: boolean
     virtualStoreDir: string
   },
-  importer: {
-    modulesDir: string
-    rootDir: string
-  }
+  importer: ImporterToPurge
 ) {
   return purgeModulesDirsOfImporters(opts, [importer])
 }
@@ -310,10 +317,7 @@ async function purgeModulesDirsOfImporters (
     confirmModulesPurge?: boolean
     virtualStoreDir: string
   },
-  importers: Array<{
-    modulesDir: string
-    rootDir: string
-  }>
+  importers: ImporterToPurge[]
 ) {
   if (opts.confirmModulesPurge ?? true) {
     const confirmed = await enquirer.prompt({
