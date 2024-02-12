@@ -6,7 +6,6 @@ import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { type DependencyManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
-import pickAll from 'ramda/src/pickAll'
 import renameOverwrite from 'rename-overwrite'
 import { fastPathTemp as pathTemp } from 'path-temp'
 
@@ -73,19 +72,19 @@ async function prepareGitHostedPkg (
   })
   const { shouldBeBuilt, pkgDir } = await preparePackage(opts, tempLocation, resolution.path ?? '')
   const files = await packlist(pkgDir)
-  if (!resolution.path) {
+  if (!resolution.path && files.length === Object.keys(filesIndex).length) {
     if (!shouldBeBuilt) {
       if (filesIndexFileNonBuilt !== filesIndexFile) {
         await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
       }
       return {
-        filesIndex: pickAll(files, filesIndex),
+        filesIndex,
         ignoredBuild: false,
       }
     }
     if (opts.ignoreScripts) {
       return {
-        filesIndex: pickAll(files, filesIndex),
+        filesIndex,
         ignoredBuild: true,
       }
     }
