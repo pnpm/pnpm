@@ -188,6 +188,7 @@ export interface Config {
   lockfile?: boolean
   dedupeInjectedDeps?: boolean
   nodeOptions?: string
+  packageManagerStrict?: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

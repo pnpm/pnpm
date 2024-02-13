@@ -1774,3 +1774,15 @@ test('resolves complex circular deps', async () => {
   }))
   // it doesn't hang
 })
+
+test('do not fail when the same package with peer dependency is installed via different aliases', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/has-y-peer@1.0.0',
+    'has-y-peer@npm:@pnpm.e2e/has-y-peer@1.0.0',
+  ], await testDefaults({
+    autoInstallPeers: true,
+  }))
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages).length).toBe(2)
+})
