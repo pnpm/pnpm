@@ -2489,8 +2489,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       '@pnpm/network.agent':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.0.1
+        version: 1.0.1
       '@zkochan/retry':
         specifier: ^0.2.0
         version: 0.2.0
@@ -8505,12 +8505,12 @@ packages:
       write-json-file: 5.0.0
     dev: true
 
-  /@pnpm/network.agent@1.0.0:
-    resolution: {integrity: sha512-1dhbiFoc+Jb3TobIAi6pjBjKw0ulPge38r30HCJ3WpDFY3zCnHYbFGvqfPNTBuEt6hZFhnQZvwTPBsCWxNjs3A==}
+  /@pnpm/network.agent@1.0.1:
+    resolution: {integrity: sha512-yRm8MzpZvst5IYF5IUgK7q5SvcncCUWOVBqpl527Pz6BafmDlcxAYyFy7lV4AiQr+VZ9VWudQsaHQeaYikyDGw==}
     engines: {node: '>=12.22.0'}
     dependencies:
-      '@pnpm/network.config': 1.0.0
-      '@pnpm/network.proxy-agent': 1.0.0
+      '@pnpm/network.config': 1.0.1
+      '@pnpm/network.proxy-agent': 1.0.1
       agentkeepalive: 4.2.1
       lru-cache: 7.10.1
     transitivePeerDependencies:
@@ -8523,15 +8523,15 @@ packages:
     dependencies:
       graceful-fs: 4.2.10
 
-  /@pnpm/network.config@1.0.0:
-    resolution: {integrity: sha512-99V1DxDZiUkrtFs1BEOZ/5bRFCfKUALFArKRUgF0Zp6o/GY/PqWVs85BBpa+GB0g3h71hcUqTHLIghb37HQzcQ==}
+  /@pnpm/network.config@1.0.1:
+    resolution: {integrity: sha512-ZmTsSFxd4QT5+IZvwHtQjzSlkB7OXAty6MfSenRyHOvR1f8j3l1VDWVXJiNaiLrKeidiZH6ADfsMTr2N0CGDeA==}
     engines: {node: '>=12.22.0'}
     dependencies:
       nerf-dart: 1.0.0
     dev: false
 
-  /@pnpm/network.proxy-agent@1.0.0:
-    resolution: {integrity: sha512-0/LchMny5Bz50zZzsHQV4+N+ov1bOovZaQso66exjapNGKSBbMRVCWw3stv7LiS/7JNRSzUWwi0dEZp42LEkMg==}
+  /@pnpm/network.proxy-agent@1.0.1:
+    resolution: {integrity: sha512-0q9Btpw43aTPzEJJmQY1TNBrwNlPINRae8EpO7VpqbmFflBRO6u6qady6XFfbi+wwPxpcpVOYr6rCDBzALXYHA==}
     engines: {node: '>=12.22.0'}
     dependencies:
       '@pnpm/error': 4.0.1
@@ -18058,5 +18058,6 @@ packages:
     dev: false
 
 time:
+  /@pnpm/network.agent@1.0.1: '2024-02-13T13:27:13.674Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'
