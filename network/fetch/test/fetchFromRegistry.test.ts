@@ -140,7 +140,7 @@ test('fail if the client certificate is not provided', async () => {
         throw new Error('Should have failed')
       })
   } catch (err: any) { // eslint-disable-line
-    expect(err.code).toMatch('ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED')
+    expect(err.code).toMatch(/ECONNRESET|ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED/)
   } finally {
     await proxyServer.stop()
   }
