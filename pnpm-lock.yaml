@@ -2491,6 +2491,9 @@ importers:
       '@pnpm/network.agent':
         specifier: ^1.0.1
         version: 1.0.1
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@zkochan/retry':
         specifier: ^0.2.0
         version: 0.2.0
@@ -2952,6 +2955,9 @@ importers:
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1

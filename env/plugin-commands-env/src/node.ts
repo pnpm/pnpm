@@ -27,6 +27,7 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'localAddress'
 | 'noProxy'
 | 'rawConfig'
+| 'sslConfigs'
 | 'strictSsl'
 | 'storeDir'
 | 'useNodeVersion'

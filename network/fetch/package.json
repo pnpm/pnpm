@@ -36,6 +36,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/network.agent": "^1.0.1",
+    "@pnpm/types": "workspace:*",
     "@zkochan/retry": "^0.2.0",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0"
   },

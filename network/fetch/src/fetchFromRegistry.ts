@@ -1,5 +1,5 @@
 import { URL } from 'url'
-import { readFileSync } from 'fs'
+import { type SslConfig } from '@pnpm/types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import { getAgent, type AgentOptions } from '@pnpm/network.agent'
 import { fetch, isRedirect, type Response, type RequestInfo, type RequestInit } from './fetch'
@@ -30,45 +30,13 @@ export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions) {
 
 export type { AgentOptions }
 
-function getUserCertificates (authOptions: Record<string, string>) {
-  // Get all the auth options that have :certfile or :keyfile in their name
-  const clientCerts: {
-    [registry: string]: {
-      ca?: string
-      cert: string
-      key: string
-    }
-  } = {}
-
-  for (const [key, value] of Object.entries(authOptions)) {
-    if (key.includes(':certfile') || key.includes(':keyfile') || key.includes(':cafile')) {
-      // Split by '/:' because the registry may contain a port
-      const registry = key.split('/:')[0] + '/'
-      if (!clientCerts[registry]) {
-        clientCerts[registry] = { cert: '', key: '' }
-      }
-
-      if (key.includes(':certfile')) {
-        clientCerts[registry].cert = readFileSync(value, 'utf8')
-      } else if (key.includes(':keyfile')) {
-        clientCerts[registry].key = readFileSync(value, 'utf8')
-      } else if (key.includes(':cafile')) {
-        clientCerts[registry].ca = readFileSync(value, 'utf8')
-      }
-    }
-  }
-
-  return clientCerts
-}
-
 export function createFetchFromRegistry (
   defaultOpts: {
     fullMetadata?: boolean
     userAgent?: string
-    rawConfig?: Record<string, string>
+    sslConfigs?: Record<string, SslConfig>
   } & AgentOptions
 ): FetchFromRegistry {
-  const clientCerts = getUserCertificates(defaultOpts.rawConfig ?? {})
   return async (url, opts): Promise<Response> => {
     const headers = {
       'user-agent': USER_AGENT,
@@ -95,7 +63,7 @@ export function createFetchFromRegistry (
       const response = await fetchWithAgent(urlObject, {
         agentOptions: {
           ...agentOptions,
-          clientCertificates: clientCerts,
+          clientCertificates: defaultOpts.sslConfigs,
         },
         // if verifying integrity, node-fetch must not decompress
         compress: opts?.compress ?? false,
