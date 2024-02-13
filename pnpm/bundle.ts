@@ -10,6 +10,7 @@ import { build } from 'esbuild'
     await build({
       entryPoints: ['lib/pnpm.js'],
       bundle: true,
+      minify: true,
       platform: 'node',
       outfile: 'dist/pnpm.cjs',
       external: ['node-gyp'],
@@ -29,6 +30,7 @@ import { build } from 'esbuild'
     await build({
       entryPoints: ['../worker/lib/worker.js'],
       bundle: true,
+      minify: true,
       platform: 'node',
       outfile: 'dist/worker.js',
       loader: {
