@@ -71,6 +71,7 @@ export interface ImporterToResolveGeneric<T> extends Importer<T> {
 
 export interface ResolveDependenciesOptions {
   autoInstallPeers?: boolean
+  autoInstallPeersFromHighestMatch?: boolean
   allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allowNonAppliedPatches: boolean
@@ -109,6 +110,7 @@ export async function resolveDependencyTree<T> (
   const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
     autoInstallPeers: opts.autoInstallPeers === true,
+    autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
     allowBuild: opts.allowBuild,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
     childrenByParentDepPath: {} as ChildrenByParentDepPath,

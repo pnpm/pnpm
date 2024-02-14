@@ -34,20 +34,17 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
     open (p: string, flags: string | number, cb: (exitCode: number, fd?: number) => void) {
       const dirEnt = getDirEnt(p)
       if (dirEnt?.entryType !== 'index') {
-        // eslint-disable-next-line n/no-callback-literal
         cb(-1)
         return
       }
       const fileInfo = dirEnt.index.files[dirEnt.subPath]
       if (!fileInfo) {
-        // eslint-disable-next-line n/no-callback-literal
         cb(-1)
         return
       }
       const filePathInStore = getFilePathByModeInCafs(cafsDir, fileInfo.integrity, fileInfo.mode)
       fs.open(filePathInStore, flags, (err, fd) => {
         if (err != null) {
-        // eslint-disable-next-line n/no-callback-literal
           cb(-1)
           return
         }
@@ -57,13 +54,12 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
     },
     release (p: string, fd: number, cb: (exitCode: number) => void) {
       fs.close(fd, (err) => {
-        cb((err != null) ? -1 : 0) // eslint-disable-line n/no-callback-literal
+        cb((err != null) ? -1 : 0)
       })
     },
     read (p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) {
       fs.read(fd, buffer, 0, length, position, (err, bytesRead) => {
         if (err != null) {
-        // eslint-disable-next-line n/no-callback-literal
           cb(-1)
           return
         }

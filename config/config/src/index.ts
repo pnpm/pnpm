@@ -16,7 +16,7 @@ import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
-import { getScopeRegistries } from './getScopeRegistries'
+import { getNetworkConfigs } from './getNetworkConfigs'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
 import {
   type Config,
@@ -103,6 +103,7 @@ export const types = Object.assign({
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   'patches-dir': String,
   pnpmfile: String,
+  'package-manager-strict': Boolean,
   'prefer-frozen-lockfile': Boolean,
   'prefer-offline': Boolean,
   'prefer-symlinked-executables': Boolean,
@@ -210,6 +211,7 @@ export async function getConfig (
     'dedupe-injected-deps': true,
     'disallow-workspace-cycles': false,
     'enable-modules-dir': true,
+    'enable-pre-post-scripts': true,
     'exclude-links-from-lockfile': false,
     'extend-node-path': true,
     'fail-if-no-match': false,
@@ -239,6 +241,7 @@ export async function getConfig (
     'node-linker': 'isolated',
     'package-lock': npmDefaults['package-lock'],
     pending: false,
+    'package-manager-strict': process.env.COREPACK_ENABLE_STRICT !== '0',
     'prefer-workspace-packages': false,
     'public-hoist-pattern': [
       '*eslint*',
@@ -316,10 +319,12 @@ export async function getConfig (
     cliOptions,
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
-    ...getScopeRegistries(pnpmConfig.rawConfig),
+    ...networkConfigs.registries,
   }
+  pnpmConfig.sslConfigs = networkConfigs.sslConfigs
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
     if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock

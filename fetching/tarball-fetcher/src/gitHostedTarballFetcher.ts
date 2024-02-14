@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
+import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { type DependencyManifest } from '@pnpm/types'
@@ -70,7 +71,8 @@ async function prepareGitHostedPkg (
     force: true,
   })
   const { shouldBeBuilt, pkgDir } = await preparePackage(opts, tempLocation, resolution.path ?? '')
-  if (!resolution.path) {
+  const files = await packlist(pkgDir)
+  if (!resolution.path && files.length === Object.keys(filesIndex).length) {
     if (!shouldBeBuilt) {
       if (filesIndexFileNonBuilt !== filesIndexFile) {
         await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
@@ -98,10 +100,11 @@ async function prepareGitHostedPkg (
     ...await addFilesFromDir({
       cafsDir: cafs.cafsDir,
       dir: pkgDir,
+      files,
       filesIndexFile,
       pkg: fetcherOpts.pkg,
       readManifest: fetcherOpts.readManifest,
     }),
-    ignoredBuild: false,
+    ignoredBuild: Boolean(opts.ignoreScripts),
   }
 }

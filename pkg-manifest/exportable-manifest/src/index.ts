@@ -25,7 +25,7 @@ export async function createExportableManifest (
   originalManifest: ProjectManifest,
   opts?: MakePublishManifestOptions
 ) {
-  const publishManifest: ProjectManifest = omit(['pnpm', 'scripts'], originalManifest)
+  const publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }

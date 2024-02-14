@@ -136,12 +136,12 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, r
   return { status: 'success', value: { filesIndex: filesMap, manifest } }
 }
 
-function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, pkg, readManifest }: AddDirToStoreMessage) {
+function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, pkg, readManifest, files }: AddDirToStoreMessage) {
   if (!cafsCache.has(cafsDir)) {
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
   const cafs = cafsCache.get(cafsDir)!
-  const { filesIndex, manifest } = cafs.addFilesFromDir(dir, readManifest)
+  const { filesIndex, manifest } = cafs.addFilesFromDir(dir, { files, readManifest })
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   if (sideEffectsCacheKey) {
     let filesIndex!: PackageFilesIndex
