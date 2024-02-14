@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 31.5.0
+
+### Minor Changes
+
+- 2c6f5f14b: Add a new option autoInstallPeersFromHighestMatch that makes pnpm install the highest version satisfying one of the peer dependencies even if the peer dependency ranges don't overlap.
+
 ## 31.4.3
 
 ### Patch Changes
