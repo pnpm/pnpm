@@ -108,9 +108,9 @@ test('fetch from registry with client certificate authentication', async () => {
 test('fail if the client certificate is not provided', async () => {
   const randomPort = Math.floor(Math.random() * 10000 + 10000)
   const proxyServer = new ProxyServer(randomPort, {
-    key: readFileSync('../../test-certs/server-key.pem'),
-    cert: readFileSync('../../test-certs/server-crt.pem'),
-    ca: readFileSync('../../test-certs/ca-crt.pem'),
+    key: fs.readFileSync('../../test-certs/server-key.pem'),
+    cert: fs.readFileSync('../../test-certs/server-crt.pem'),
+    ca: fs.readFileSync('../../test-certs/ca-crt.pem'),
     rejectUnauthorized: true,
     requestCert: true,
   }, 'https://registry.npmjs.org/')
