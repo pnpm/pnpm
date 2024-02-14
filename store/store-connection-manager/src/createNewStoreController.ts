@@ -38,14 +38,13 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'registrySupportsTimeField'
 | 'resolutionMode'
 | 'strictSsl'
-| 'sslConfigs'
 | 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
 > & {
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
-} & Partial<Pick<Config, 'userConfig' | 'deployAllFiles'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
+} & Partial<Pick<Config, 'userConfig' | 'deployAllFiles' | 'sslConfigs'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
