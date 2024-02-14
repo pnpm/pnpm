@@ -1,8 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import path from 'path'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import nock from 'nock'
 import { ProxyServer } from 'https-proxy-server-express'
 import fs from 'fs'
+
+const CERTS_DIR = path.join(__dirname, '__certs__')
 
 test('fetchFromRegistry', async () => {
   const fetchFromRegistry = createFetchFromRegistry({})
@@ -74,9 +77,9 @@ test('switch to the correct agent for requests on redirect from http: to https:'
 test('fetch from registry with client certificate authentication', async () => {
   const randomPort = Math.floor(Math.random() * 10000 + 10000)
   const proxyServer = new ProxyServer(randomPort, {
-    key: fs.readFileSync('../../test-certs/server-key.pem'),
-    cert: fs.readFileSync('../../test-certs/server-crt.pem'),
-    ca: fs.readFileSync('../../test-certs/ca-crt.pem'),
+    key: fs.readFileSync(path.join(CERTS_DIR, 'server-key.pem')),
+    cert: fs.readFileSync(path.join(CERTS_DIR, 'server-crt.pem')),
+    ca: fs.readFileSync(path.join(CERTS_DIR, 'ca-crt.pem')),
     rejectUnauthorized: true,
     requestCert: true,
   }, 'https://registry.npmjs.org/')
@@ -85,9 +88,9 @@ test('fetch from registry with client certificate authentication', async () => {
 
   const sslConfigs = {
     [`//localhost:${randomPort}/`]: {
-      ca: fs.readFileSync(require.resolve('../../../test-certs/ca-crt.pem'), 'utf8'),
-      cert: fs.readFileSync(require.resolve('../../../test-certs/client-crt.pem'), 'utf8'),
-      key: fs.readFileSync(require.resolve('../../../test-certs/client-key.pem'), 'utf8'),
+      ca: fs.readFileSync(path.join(CERTS_DIR, 'ca-crt.pem'), 'utf8'),
+      cert: fs.readFileSync(path.join(CERTS_DIR, 'client-crt.pem'), 'utf8'),
+      key: fs.readFileSync(path.join(CERTS_DIR, 'client-key.pem'), 'utf8'),
     },
   }
 
@@ -108,9 +111,9 @@ test('fetch from registry with client certificate authentication', async () => {
 test('fail if the client certificate is not provided', async () => {
   const randomPort = Math.floor(Math.random() * 10000 + 10000)
   const proxyServer = new ProxyServer(randomPort, {
-    key: fs.readFileSync('../../test-certs/server-key.pem'),
-    cert: fs.readFileSync('../../test-certs/server-crt.pem'),
-    ca: fs.readFileSync('../../test-certs/ca-crt.pem'),
+    key: fs.readFileSync(path.join(CERTS_DIR, 'server-key.pem')),
+    cert: fs.readFileSync(path.join(CERTS_DIR, 'server-crt.pem')),
+    ca: fs.readFileSync(path.join(CERTS_DIR, 'ca-crt.pem')),
     rejectUnauthorized: true,
     requestCert: true,
   }, 'https://registry.npmjs.org/')
@@ -121,18 +124,17 @@ test('fail if the client certificate is not provided', async () => {
     strictSsl: false,
   })
 
+  let err!: Error & { code: string }
   try {
     await fetchFromRegistry(`https://localhost:${randomPort}/is-positive`, {
       retry: {
         retries: 0,
       },
     })
-      .then(() => {
-        throw new Error('Should have failed')
-      })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.code).toMatch(/ECONNRESET|ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED/)
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
   } finally {
     await proxyServer.stop()
   }
+  expect(err?.code).toMatch(/ECONNRESET|ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED/)
 })
