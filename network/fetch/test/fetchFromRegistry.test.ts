@@ -2,7 +2,7 @@
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import nock from 'nock'
 import { ProxyServer } from 'https-proxy-server-express'
-import { readFileSync } from 'fs'
+import fs from 'fs'
 
 test('fetchFromRegistry', async () => {
   const fetchFromRegistry = createFetchFromRegistry({})
@@ -74,27 +74,25 @@ test('switch to the correct agent for requests on redirect from http: to https:'
 test('fetch from registry with client certificate authentication', async () => {
   const randomPort = Math.floor(Math.random() * 10000 + 10000)
   const proxyServer = new ProxyServer(randomPort, {
-    key: readFileSync('../../test-certs/server-key.pem'),
-    cert: readFileSync('../../test-certs/server-crt.pem'),
-    ca: readFileSync('../../test-certs/ca-crt.pem'),
+    key: fs.readFileSync('../../test-certs/server-key.pem'),
+    cert: fs.readFileSync('../../test-certs/server-crt.pem'),
+    ca: fs.readFileSync('../../test-certs/ca-crt.pem'),
     rejectUnauthorized: true,
     requestCert: true,
   }, 'https://registry.npmjs.org/')
 
   await proxyServer.start()
 
-  const rawConfig: {
-    [key: string]: string
-  } = {
-    registry: `https://localhost:${randomPort}/`,
+  const sslConfigs = {
+    [`//localhost:${randomPort}/`]: {
+      ca: fs.readFileSync(require.resolve('../../../test-certs/ca-crt.pem'), 'utf8'),
+      cert: fs.readFileSync(require.resolve('../../../test-certs/client-crt.pem'), 'utf8'),
+      key: fs.readFileSync(require.resolve('../../../test-certs/client-key.pem'), 'utf8'),
+    },
   }
 
-  rawConfig[`//localhost:${randomPort}/:cafile`] = require.resolve('../../../test-certs/ca-crt.pem')
-  rawConfig[`//localhost:${randomPort}/:certfile`] = require.resolve('../../../test-certs/client-crt.pem')
-  rawConfig[`//localhost:${randomPort}/:keyfile`] = require.resolve('../../../test-certs/client-key.pem')
-
   const fetchFromRegistry = createFetchFromRegistry({
-    rawConfig,
+    sslConfigs,
     strictSsl: false,
   })
 
@@ -119,14 +117,7 @@ test('fail if the client certificate is not provided', async () => {
 
   await proxyServer.start()
 
-  const rawConfig: {
-    [key: string]: string
-  } = {
-    registry: `https://localhost:${randomPort}/`,
-  }
-
   const fetchFromRegistry = createFetchFromRegistry({
-    rawConfig,
     strictSsl: false,
   })
 
