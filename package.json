@@ -63,9 +63,8 @@
     "verdaccio": "5.20.1"
   },
   "engines": {
-    "pnpm": ">=8.6.10"
+    "pnpm": ">=9"
   },
-  "packageManager": "pnpm@8.6.10",
   "pnpm": {
     "overrides": {
       "@yarnpkg/fslib": "3.0.0-rc.25",
