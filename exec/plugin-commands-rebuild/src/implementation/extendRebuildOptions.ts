@@ -6,7 +6,7 @@ import { type StoreController } from '@pnpm/store-controller-types'
 import { type Registries } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 
-export interface StrictRebuildOptions {
+export type StrictRebuildOptions = {
   autoInstallPeers: boolean
   cacheDir: string
   childConcurrency: number
@@ -48,7 +48,7 @@ export interface StrictRebuildOptions {
   deployAllFiles: boolean
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
-}
+} & Pick<Config, 'sslConfigs'>
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
 Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> & Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
