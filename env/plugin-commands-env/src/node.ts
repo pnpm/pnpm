@@ -27,12 +27,11 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'localAddress'
 | 'noProxy'
 | 'rawConfig'
-| 'sslConfigs'
 | 'strictSsl'
 | 'storeDir'
 | 'useNodeVersion'
 | 'pnpmHomeDir'
-> & Partial<Pick<Config, 'configDir' | 'cliOptions'>> & {
+> & Partial<Pick<Config, 'configDir' | 'cliOptions' | 'sslConfigs'>> & {
   remote?: boolean
 }
 
