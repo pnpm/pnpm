@@ -88,7 +88,7 @@ async function _read (
   let lockfile: Lockfile
   let hadConflicts!: boolean
   try {
-    lockfile = revertFromInlineSpecifiersFormatIfNecessary(convertFromLockfileFileMutable(yaml.load(lockfileRawContent) as Lockfile))
+    lockfile = revertFromInlineSpecifiersFormatIfNecessary(convertFromLockfileFileMutable(yaml.load(lockfileRawContent) as any) as any) // eslint-disable-line
     hadConflicts = false
   } catch (err: any) { // eslint-disable-line
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {

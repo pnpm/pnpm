@@ -1,51 +1,28 @@
 import type { Lockfile, ProjectSnapshot, ResolvedDependencies } from '@pnpm/lockfile-types'
 import {
-  INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX,
   type InlineSpecifiersLockfile,
   type InlineSpecifiersProjectSnapshot,
   type InlineSpecifiersResolvedDependencies,
 } from './InlineSpecifiersLockfile'
 
-export function isExperimentalInlineSpecifiersFormat (
-  lockfile: InlineSpecifiersLockfile | Lockfile
-): lockfile is InlineSpecifiersLockfile {
-  const { lockfileVersion } = lockfile
-  return lockfileVersion.toString().startsWith('6.') || typeof lockfileVersion === 'string' && lockfileVersion.endsWith(INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX)
-}
-
 export function convertToInlineSpecifiersFormat (lockfile: Lockfile): InlineSpecifiersLockfile {
   const newLockfile = {
     ...lockfile,
-    lockfileVersion: lockfile.lockfileVersion.toString().startsWith('6.')
-      ? lockfile.lockfileVersion.toString()
-      : (
-        lockfile.lockfileVersion.toString().endsWith(INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX)
-          ? lockfile.lockfileVersion.toString()
-          : `${lockfile.lockfileVersion}${INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX}`
-      ),
+    lockfileVersion: lockfile.lockfileVersion.toString(),
     importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
   }
   return newLockfile
 }
 
-export function revertFromInlineSpecifiersFormatIfNecessary (lockfile: Lockfile | InlineSpecifiersLockfile): Lockfile {
-  return isExperimentalInlineSpecifiersFormat(lockfile)
-    ? revertFromInlineSpecifiersFormat(lockfile)
-    : lockfile
+export function revertFromInlineSpecifiersFormatIfNecessary (lockfile: InlineSpecifiersLockfile): Lockfile {
+  return revertFromInlineSpecifiersFormat(lockfile)
 }
 
 export function revertFromInlineSpecifiersFormat (lockfile: InlineSpecifiersLockfile): Lockfile {
-  const { lockfileVersion, importers, ...rest } = lockfile
-
-  const originalVersionStr = lockfileVersion.replace(INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX, '')
-  const originalVersion = Number(originalVersionStr)
-  if (isNaN(originalVersion)) {
-    throw new Error(`Unable to revert lockfile from inline specifiers format. Invalid version parsed: ${originalVersionStr}`)
-  }
+  const { importers, ...rest } = lockfile
 
   const newLockfile = {
     ...rest,
-    lockfileVersion: lockfileVersion.endsWith(INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX) ? originalVersion : lockfileVersion,
     importers: mapValues(importers, revertProjectSnapshot),
   }
   return newLockfile

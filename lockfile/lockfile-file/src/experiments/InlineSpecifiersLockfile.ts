@@ -1,8 +1,6 @@
 import type { Lockfile } from '@pnpm/lockfile-types'
 import type { DependenciesMeta } from '@pnpm/types'
 
-export const INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX = '-inlineSpecifiers'
-
 /**
  * Similar to the current Lockfile importers format (lockfile version 5.4 at
  * time of writing), but specifiers are moved to each ResolvedDependencies block

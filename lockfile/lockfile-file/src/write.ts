@@ -72,14 +72,11 @@ async function writeLockfile (
 ) {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
-  const isLockfileV6 = wantedLockfile['lockfileVersion'].toString().startsWith('6.')
-  const lockfileToStringify = isLockfileV6
-    ? convertToInlineSpecifiersFormat(wantedLockfile) as unknown as Lockfile
-    : wantedLockfile
+  const lockfileToStringify = convertToInlineSpecifiersFormat(wantedLockfile) as unknown as Lockfile
 
   const yamlDoc = yamlStringify(lockfileToStringify, {
     forceSharedFormat: opts?.forceSharedFormat === true,
-    includeEmptySpecifiersField: !isLockfileV6,
+    includeEmptySpecifiersField: false,
   })
 
   return writeFileAtomic(lockfilePath, yamlDoc)
