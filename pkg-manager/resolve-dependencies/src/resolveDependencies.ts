@@ -127,6 +127,7 @@ export interface ChildrenByParentDepPath {
 
 export interface ResolutionContext {
   autoInstallPeers: boolean
+  autoInstallPeersFromHighestMatch: boolean
   allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   appliedPatches: Set<string>
@@ -446,7 +447,10 @@ async function resolveDependenciesOfImporters (
         ...filterMissingPeersFromPkgAddresses(pkgAddresses, currentParentPkgAliases, resolvedPeers),
         ...childrenResults,
         ...postponedPeersResolution,
-      ].map(({ missingPeers }) => missingPeers).filter(Boolean)
+      ].map(({ missingPeers }) => missingPeers).filter(Boolean),
+      {
+        autoInstallPeersFromHighestMatch: ctx.autoInstallPeersFromHighestMatch,
+      }
     )
     return {
       missingPeers: allMissingPeers,
@@ -574,6 +578,7 @@ export async function resolveDependencies (
       parentPkgAliases: options.parentPkgAliases,
       currentParentPkgAliases,
       postponedPeersResolutionQueue,
+      autoInstallPeersFromHighestMatch: ctx.autoInstallPeersFromHighestMatch,
     }),
   }
 }
@@ -585,12 +590,14 @@ async function startResolvingPeers (
     parentPkgAliases,
     pkgAddresses,
     postponedPeersResolutionQueue,
+    autoInstallPeersFromHighestMatch,
   }: {
     childrenResults: PeersResolutionResult[]
     currentParentPkgAliases: ParentPkgAliases
     parentPkgAliases: ParentPkgAliases
     pkgAddresses: PkgAddress[]
     postponedPeersResolutionQueue: PostponedPeersResolutionFunction[]
+    autoInstallPeersFromHighestMatch: boolean
   }
 ) {
   const results = await Promise.all(
@@ -602,7 +609,8 @@ async function startResolvingPeers (
       ...filterMissingPeersFromPkgAddresses(pkgAddresses, currentParentPkgAliases, resolvedPeers),
       ...childrenResults,
       ...results,
-    ].map(({ missingPeers }) => missingPeers).filter(Boolean)
+    ].map(({ missingPeers }) => missingPeers).filter(Boolean),
+    { autoInstallPeersFromHighestMatch }
   )
   return {
     missingPeers: allMissingPeers,
@@ -610,7 +618,7 @@ async function startResolvingPeers (
   }
 }
 
-function mergePkgsDeps (pkgsDeps: Array<Record<string, string>>): Record<string, string> {
+function mergePkgsDeps (pkgsDeps: Array<Record<string, string>>, opts: { autoInstallPeersFromHighestMatch: boolean }): Record<string, string> {
   const groupedRanges: Record<string, string[]> = {}
   for (const deps of pkgsDeps) {
     for (const [name, range] of Object.entries(deps)) {
@@ -625,6 +633,8 @@ function mergePkgsDeps (pkgsDeps: Array<Record<string, string>>): Record<string,
     const intersection = safeIntersect(ranges)
     if (intersection) {
       mergedPkgDeps[name] = intersection
+    } else if (opts.autoInstallPeersFromHighestMatch) {
+      mergedPkgDeps[name] = ranges.join(' || ')
     }
   }
   return mergedPkgDeps

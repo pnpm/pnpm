@@ -41,6 +41,21 @@ test('do not auto install when there is no common peer dependency range intersec
   ])
 })
 
+test('auto install latest when there is no common peer dependency range intersection', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/wants-peer-c-1', '@pnpm.e2e/wants-peer-c-2'], await testDefaults({
+    autoInstallPeers: true,
+    autoInstallPeersFromHighestMatch: true,
+  }))
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages)).toStrictEqual([
+    '/@pnpm.e2e/peer-c@2.0.0',
+    '/@pnpm.e2e/wants-peer-c-1@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+    '/@pnpm.e2e/wants-peer-c-2@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+  ])
+})
+
 test('don\'t fail on linked package, when peers are auto installed', async () => {
   const pkgManifest = {
     dependencies: {
