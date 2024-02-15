@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.33.7
+
+### Patch Changes
+
+- Remove vulnerable "ip" package from the dependencies [#7652](https://github.com/pnpm/pnpm/issues/7652).
+
 ## 7.33.6
 
 ### Patch Changes
