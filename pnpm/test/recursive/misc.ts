@@ -235,7 +235,6 @@ test('recursive installation of packages in workspace ignores hooks in packages'
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
   expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
   expect(lockfile.packages).toHaveProperty(['/is-number/1.0.0'])
-  /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
 })
 
 test('ignores .pnpmfile.cjs during recursive installation when --ignore-pnpmfile is used', async () => {
