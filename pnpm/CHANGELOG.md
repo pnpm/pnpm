@@ -1,5 +1,11 @@
 # pnpm
 
+## 8.15.3
+
+### Patch Changes
+
+- Remove vulnerable "ip" package from the dependencies [#7652](https://github.com/pnpm/pnpm/issues/7652).
+
 ## 8.15.2
 
 ### Patch Changes
