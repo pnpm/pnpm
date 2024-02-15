@@ -42,8 +42,8 @@
   },
   "devDependencies": {
     "@pnpm/local-resolver": "workspace:*",
-    "@types/normalize-path": "^3.0.0",
-    "@types/ssri": "^7.1.1"
+    "@types/normalize-path": "^3.0.2",
+    "@types/ssri": "^7.1.5"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

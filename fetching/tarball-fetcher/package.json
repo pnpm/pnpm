@@ -54,8 +54,8 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/ramda": "0.28.20",
-    "@types/retry": "^0.12.2",
-    "@types/ssri": "^7.1.1",
+    "@types/retry": "^0.12.5",
+    "@types/ssri": "^7.1.5",
     "nock": "13.2.9",
     "safe-promise-defer": "^1.0.1",
     "tempy": "^1.0.1"

@@ -33,8 +33,8 @@
   "dependencies": {
     "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "encode-registry": "^3.0.0",
-    "semver": "^7.5.4"
+    "encode-registry": "^3.0.1",
+    "semver": "7.6.0"
   },
   "devDependencies": {
     "@pnpm/dependency-path": "workspace:*",

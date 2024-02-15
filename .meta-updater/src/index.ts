@@ -14,6 +14,7 @@ const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => {
   const pnpmManifest = loadJsonFile.sync<any>(path.join(workspaceDir, 'pnpm/package.json'))
+  const rootManifest = loadJsonFile.sync<any>(path.join(workspaceDir, 'package.json'))
   const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
   const pnpmMajorKeyword = `pnpm${pnpmVersion.split('.')[0]}`
   const utilsDir = path.join(workspaceDir, '__utils__')
@@ -37,6 +38,10 @@ export default async (workspaceDir: string) => {
         }
       } else if (manifest.name === CLI_PKG_NAME && manifest.devDependencies) {
         delete manifest.devDependencies[manifest.name]
+      }
+      if (manifest.name === CLI_PKG_NAME) {
+        manifest.pnpm = manifest.pnpm ?? {}
+        manifest.pnpm.overrides = rootManifest.pnpm.overrides
       }
       if (manifest.private || isSubdir(utilsDir, dir)) return manifest
       manifest.keywords = [
