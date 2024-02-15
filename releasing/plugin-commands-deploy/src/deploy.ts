@@ -88,6 +88,9 @@ export async function handler (
   const includeOnlyPackageFiles = !opts.deployAllFiles
   await copyProject(deployedDir, deployDir, { includeOnlyPackageFiles })
   await install.handler({
+    // default values
+    virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
+    modulesDir: path.relative(deployedDir, path.join(deployDir, 'node_modules')),
     ...opts,
     confirmModulesPurge: false,
     // Deploy doesn't work with dedupePeerDependents=true currently as for deploy
@@ -106,8 +109,6 @@ export async function handler (
     frozenLockfile: false,
     preferFrozenLockfile: false,
     saveLockfile: false,
-    virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
-    modulesDir: path.relative(deployedDir, path.join(deployDir, 'node_modules')),
     rawLocalConfig: {
       ...opts.rawLocalConfig,
       // This is a workaround to prevent frozen install in CI envs.
