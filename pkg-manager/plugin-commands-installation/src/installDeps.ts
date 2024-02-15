@@ -141,7 +141,7 @@ when running add/update with the --workspace option')
       // Check and warn if there are cyclic dependencies
       if (!opts.ignoreWorkspaceCycles && !sequencedGraph.safe) {
         const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
-          ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
+          ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}` // eslint-disable-line
           : ''
         logger.warn({
           message: `There are cyclic workspace dependencies${cyclicDependenciesInfo}`,
