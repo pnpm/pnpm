@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { convertToLockfileFile } from '../lib/experiments/inlineSpecifiersLockfileConverters'
+import { convertToLockfileFile } from '../lib/lockfileFormatConverters'
 
 test('empty overrides and neverBuiltDependencies are removed during lockfile normalization', () => {
   expect(convertToLockfileFile({
