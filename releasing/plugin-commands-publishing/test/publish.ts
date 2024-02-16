@@ -701,6 +701,7 @@ test('publish: with specified publish branch name', async () => {
     argv: { original: ['publish', '--publish-branch', branch, ...CREDENTIALS] },
     dir: process.cwd(),
     publishBranch: branch,
+    publishTag: undefined,
   }, [])
 })
 

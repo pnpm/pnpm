@@ -111,6 +111,7 @@ export const types = Object.assign({
   production: [null, true],
   'public-hoist-pattern': Array,
   'publish-branch': String,
+  'publish-tag': String,
   'recursive-install': Boolean,
   reporter: String,
   'resolution-mode': ['highest', 'time-based', 'lowest-direct'],

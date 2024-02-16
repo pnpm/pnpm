@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { runNpm } from '@pnpm/run-npm'
 import { type ProjectManifest } from '@pnpm/types'
-import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
+import { getCurrentBranch, getCurrentTags, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { loadToken } from '@pnpm/network.auth-header'
 import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
@@ -27,6 +27,7 @@ export function rcOptionsTypes () {
     'npm-path',
     'otp',
     'publish-branch',
+    'publish-tag',
     'registry',
     'tag',
     'unsafe-perm',
@@ -62,6 +63,10 @@ export function help () {
           {
             description: 'Sets branch name to publish. Default is master',
             name: '--publish-branch',
+          },
+          {
+            description: 'Sets tag name to publish. Default is undefined',
+            name: '--publish-tag',
           },
           {
             description: 'Does everything a publish would do except actually publishing to the registry',
@@ -119,7 +124,7 @@ export async function handler (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme'>,
+  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'publishTag' | 'embedReadme'>,
   params: string[]
 ) {
   const result = await publish(opts, params)
@@ -135,7 +140,7 @@ export async function publish (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
+  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'publishTag' | 'embedReadme' | 'packGzipLevel'>,
   params: string[]
 ) {
   if (opts.gitChecks !== false && await isGitRepo()) {
@@ -145,19 +150,21 @@ export async function publish (
       })
     }
     const branches = opts.publishBranch ? [opts.publishBranch] : ['master', 'main']
+    const tags = opts.publishTag ? [opts.publishTag] : []
     const currentBranch = await getCurrentBranch()
-    if (currentBranch === null) {
+    const currentTags = await getCurrentTags()
+    if (currentBranch === null && currentTags.length === 0) {
       throw new PnpmError(
         'GIT_UNKNOWN_BRANCH',
-        `The Git HEAD may not attached to any branch, but your "publish-branch" is set to "${branches.join('|')}".`,
+        `The Git HEAD may not attached to any branch, but your "publish-branch" is set to "${branches.join('|')}", and your "publish-tag" is set to "${tags.join('|')}".`,
         {
           hint: GIT_CHECKS_HINT,
         }
       )
     }
-    if (!branches.includes(currentBranch)) {
+    if (!branches.includes(currentBranch) && tags.filter(tag => currentTags.includes(tag)).length === 0) {
       const { confirm } = await prompt({
-        message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
+        message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}", and your "publish-tag" is set to "${tags.join('|')}". \
 Do you want to continue?`,
         name: 'confirm',
         type: 'confirm',
