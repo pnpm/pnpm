@@ -3,7 +3,7 @@ import { assertProject } from '@pnpm/assert-project'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject, type PackageManifest } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import { testDefaults } from '../utils'
 
@@ -210,7 +210,7 @@ test('automatically install root peer dependencies', async () => {
   }
 
   // Automatically install the peer dependency when the lockfile is up to date
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await install(manifest, await testDefaults({ autoInstallPeers: true, frozenLockfile: true }))
 

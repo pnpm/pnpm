@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import {
   addDependenciesToPackage,
@@ -190,7 +190,7 @@ test('relative link uses realpath when contained in a symlinked dir', async () =
 
   await link([linkFrom], linkTo, await testDefaults({ manifest: {}, dir: process.cwd() }))
 
-  const linkToRelLink = await fs.readlink(path.join(linkTo, 'bar'))
+  const linkToRelLink = fs.readlinkSync(path.join(linkTo, 'bar'))
 
   if (process.platform === 'win32') {
     expect(path.relative(linkToRelLink, path.join(src, 'bar'))).toBe('') // link points to real location

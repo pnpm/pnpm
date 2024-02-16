@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -17,7 +18,6 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import existsSymlink from 'exists-link'
@@ -182,9 +182,9 @@ test('uninstall package with its bin files', async () => {
   const stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
   expect(stat).toBeFalsy()
 
-  expect(await exists(path.resolve('node_modules', '.bin', 'sh-hello-world'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules', '.bin', 'sh-hello-world.cmd'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules', '.bin', 'sh-hello-world.ps1'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world.cmd'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world.ps1'))).toBeFalsy()
 })
 
 test('relative link is uninstalled', async () => {

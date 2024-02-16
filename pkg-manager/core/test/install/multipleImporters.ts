@@ -12,10 +12,9 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import loadJsonFile from 'load-json-file'
-import exists from 'path-exists'
 import pick from 'ramda/src/pick'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
@@ -756,9 +755,9 @@ test('partial installation in a monorepo does not remove dependencies of other w
     rootDir: path.resolve('project-1'),
   }, await testDefaults())
 
-  expect(await exists(path.resolve('node_modules/.pnpm/is-positive@2.0.0/node_modules/is-positive'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/is-positive@2.0.0/node_modules/is-positive'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace projects when lockfile is frozen', async () => {
@@ -855,9 +854,9 @@ test('partial installation in a monorepo does not remove dependencies of other w
     rootDir: path.resolve('project-1'),
   }, await testDefaults({ frozenLockfile: true }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
 })
 
 test('adding a new dependency with the workspace: protocol', async () => {
@@ -1396,7 +1395,7 @@ test('resolve a subdependency from the workspace', async () => {
   const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   // Testing that headless installation does not fail with links in subdeps
   await mutateModules(importers, await testDefaults({
@@ -1564,7 +1563,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
   const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   // Testing that headless installation does not fail with links in subdeps
   await mutateModules(importers, await testDefaults({
@@ -1813,7 +1812,7 @@ test('symlink local package from the location described in its publishConfig.dir
   const lockfile = project.readLockfile()
   expect(lockfile.importers['project-1'].publishDirectory).toBe('dist')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await mutateModules(importers, await testDefaults({ allProjects, frozenLockfile: true, workspacePackages }))
 
   {
@@ -1950,9 +1949,9 @@ require("fs").writeFileSync("created-by-prepare", "", "utf8")`)
 
   expect(fs.existsSync('project-1/created-by-prepare')).toBeTruthy()
 
-  await rimraf('node_modules')
-  await rimraf('project-1/node_modules')
-  await rimraf('project-2/node_modules')
+  rimraf('node_modules')
+  rimraf('project-1/node_modules')
+  rimraf('project-2/node_modules')
   fs.renameSync('project-2/bin.js', 'project-2/__bin.js')
 
   await mutateModules(importers, await testDefaults({ allProjects, frozenLockfile: true }))

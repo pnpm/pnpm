@@ -2,7 +2,7 @@ import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { addDependenciesToPackage, install } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
 const skipOnNode17 = ['v14', 'v16'].includes(process.version.split('.')[0]) ? test : test.skip
@@ -30,8 +30,8 @@ test('a package that need authentication', async () => {
 
   // should work when a lockfile is available
   // and the registry in .npmrc is not the same as the one in lockfile
-  await rimraf('node_modules')
-  await rimraf(path.join('..', '.store'))
+  rimraf('node_modules')
+  rimraf(path.join('..', '.store'))
 
   authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
@@ -118,8 +118,8 @@ test('a scoped package that need authentication specific to scope', async () => 
   project.has('@private/foo')
 
   // should work when a lockfile is available
-  await rimraf('node_modules')
-  await rimraf(path.join('..', '.store'))
+  rimraf('node_modules')
+  rimraf(path.join('..', '.store'))
 
   // Recreating options to have a new storeController with clean cache
   opts = await testDefaults({}, {
@@ -158,8 +158,8 @@ test('a scoped package that need legacy authentication specific to scope', async
   project.has('@private/foo')
 
   // should work when a lockfile is available
-  await rimraf('node_modules')
-  await rimraf(path.join('..', '.store'))
+  rimraf('node_modules')
+  rimraf(path.join('..', '.store'))
 
   // Recreating options to have a new storeController with clean cache
   opts = await testDefaults({}, {
@@ -226,9 +226,9 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], opts)
 
-  await rimraf('node_modules')
-  await rimraf(path.join('..', '.registry'))
-  await rimraf(path.join('..', '.store'))
+  rimraf('node_modules')
+  rimraf(path.join('..', '.registry'))
+  rimraf(path.join('..', '.store'))
 
   // Recreating options to clean store cache
   opts = await testDefaults({

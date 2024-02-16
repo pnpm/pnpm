@@ -5,7 +5,7 @@ import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import { testDefaults } from '../utils'
 
@@ -53,7 +53,7 @@ test('patch package', async () => {
   expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
 
   // The same with frozen lockfile
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -65,7 +65,7 @@ test('patch package', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -220,7 +220,7 @@ test('patch package when scripts are ignored', async () => {
   expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
 
   // The same with frozen lockfile
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -232,7 +232,7 @@ test('patch package when scripts are ignored', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -307,7 +307,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
 
   // The same with frozen lockfile
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -319,7 +319,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',

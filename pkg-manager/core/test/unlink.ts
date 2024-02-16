@@ -9,7 +9,6 @@ import {
 import { prepareEmpty } from '@pnpm/prepare'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
-import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import isInnerLink from 'is-inner-link'
@@ -164,7 +163,7 @@ test('unlink 2 packages. One of them exists in package.json', async () => {
   }, opts)
 
   expect(typeof project.requireModule('is-subdir')).toBe('function')
-  expect(await exists(path.join('node_modules', 'is-positive'))).toBeFalsy()
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBeFalsy()
 })
 
 test('unlink all packages', async () => {

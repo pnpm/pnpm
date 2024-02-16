@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { type RootLog } from '@pnpm/core-loggers'
@@ -19,10 +19,9 @@ import {
   type MutatedProject,
   type ProjectOptions,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
-import exists from 'path-exists'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
 import { testDefaults } from './utils'
@@ -152,7 +151,7 @@ test('a lockfile created even when there are no deps in package.json', async () 
   await install({}, await testDefaults())
 
   expect(project.readLockfile()).toBeTruthy()
-  expect(await exists('node_modules')).toBeFalsy()
+  expect(fs.existsSync('node_modules')).toBeFalsy()
 })
 
 test('current lockfile removed when no deps in package.json', async () => {
@@ -178,7 +177,7 @@ test('current lockfile removed when no deps in package.json', async () => {
   await install({}, await testDefaults())
 
   expect(project.readLockfile()).toBeTruthy()
-  expect(await exists('node_modules')).toBeFalsy()
+  expect(fs.existsSync('node_modules')).toBeFalsy()
 })
 
 test('lockfile is fixed when it does not match package.json', async () => {
@@ -325,8 +324,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
 
   await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.1.0', distTag: 'latest' })))
 
-  await rimraf('node_modules')
-  await rimraf(path.join('..', '.store'))
+  rimraf('node_modules')
+  rimraf(path.join('..', '.store'))
 
   reporter.resetHistory()
 
@@ -419,7 +418,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 
   expect(lockfile1.dependencies['highmaps-release'].version).toBe('5.0.11')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await install(manifest, await testDefaults())
 
@@ -544,7 +543,7 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
 
   const manifest = await addDependenciesToPackage({}, ['is-negative@1.0.0'], await testDefaults())
 
-  await rimraf('node_modules/.pnpm/lock.yaml')
+  rimraf('node_modules/.pnpm/lock.yaml')
 
   await install(manifest, await testDefaults())
 
@@ -846,7 +845,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     await testDefaults({ save: true, lockfileDir: path.resolve('..'), storeDir })
   )
 
-  expect(!await exists('node_modules/.modules.yaml')).toBeTruthy()
+  expect(!fs.existsSync('node_modules/.modules.yaml')).toBeTruthy()
 
   process.chdir('..')
 
@@ -877,7 +876,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.packages![absDepPath].name).toBeTruthy()
   }
 
-  await fs.mkdir('project-2')
+  fs.mkdirSync('project-2')
 
   process.chdir('project-2')
 
@@ -1018,7 +1017,7 @@ test(`use current ${WANTED_LOCKFILE} as initial wanted one, when wanted was remo
 
   const manifest = await addDependenciesToPackage({}, ['lodash@4.17.11', 'underscore@1.9.0'], await testDefaults())
 
-  await rimraf(WANTED_LOCKFILE)
+  rimraf(WANTED_LOCKFILE)
 
   await addDependenciesToPackage(manifest, ['underscore@1.9.1'], await testDefaults())
 
@@ -1197,7 +1196,7 @@ test('tarball installed through non-standard URL endpoint from the registry doma
 test.skip('a lockfile with merge conflicts is autofixed', async () => {
   const project = prepareEmpty()
 
-  await fs.writeFile(WANTED_LOCKFILE, `\
+  fs.writeFileSync(WANTED_LOCKFILE, `\
 importers:
   .:
     dependencies:
@@ -1235,7 +1234,7 @@ packages:
 test('a lockfile v6 with merge conflicts is autofixed', async () => {
   const project = prepareEmpty()
 
-  await fs.writeFile(WANTED_LOCKFILE, `\
+  fs.writeFileSync(WANTED_LOCKFILE, `\
 lockfileVersion: '${LOCKFILE_VERSION}'
 importers:
   .:
@@ -1273,7 +1272,7 @@ packages:
 test('a lockfile with duplicate keys is fixed', async () => {
   const project = prepareEmpty()
 
-  await fs.writeFile(WANTED_LOCKFILE, `\
+  fs.writeFileSync(WANTED_LOCKFILE, `\
 importers:
   .:
     dependencies:
@@ -1309,7 +1308,7 @@ packages:
 test('a lockfile with duplicate keys is causes an exception, when frozenLockfile is true', async () => {
   prepareEmpty()
 
-  await fs.writeFile(WANTED_LOCKFILE, `\
+  fs.writeFileSync(WANTED_LOCKFILE, `\
 importers:
   .:
     dependencies:
@@ -1342,7 +1341,7 @@ test('a broken private lockfile is ignored', async () => {
     },
   }, await testDefaults())
 
-  await fs.writeFile('node_modules/.pnpm/lock.yaml', `\
+  fs.writeFileSync('node_modules/.pnpm/lock.yaml', `\
 importers:
   .:
     dependencies:
@@ -1418,7 +1417,7 @@ test('a broken lockfile should not break the store', async () => {
   delete lockfile.packages!['/is-positive@1.0.0'].version
 
   await writeYamlFile(WANTED_LOCKFILE, lockfile)
-  await rimraf(path.resolve('node_modules'))
+  rimraf(path.resolve('node_modules'))
 
   await mutateModulesInSingleProject({
     manifest,
@@ -1576,11 +1575,11 @@ test('lockfile is not written when it has no changes', async () => {
     },
   }, await testDefaults())
 
-  const stat = await fs.stat(WANTED_LOCKFILE)
+  const stat = fs.statSync(WANTED_LOCKFILE)
   const initialMtime = stat.mtimeMs
 
   await install(manifest, await testDefaults())
-  expect(await fs.stat(WANTED_LOCKFILE)).toHaveProperty('mtimeMs', initialMtime)
+  expect(fs.statSync(WANTED_LOCKFILE)).toHaveProperty('mtimeMs', initialMtime)
 })
 
 test('installation should work with packages that have () in the scope name', async () => {

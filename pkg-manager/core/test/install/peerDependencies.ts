@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type Lockfile } from '@pnpm/lockfile-file'
@@ -15,8 +15,7 @@ import {
   type PeerDependencyIssuesError,
   type ProjectOptions,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
-import exists from 'path-exists'
+import { sync as rimraf } from '@zkochan/rimraf'
 import sinon from 'sinon'
 import deepRequireCwd from 'deep-require-cwd'
 import { createPeersDirSuffix, depPathToFilename } from '@pnpm/dependency-path'
@@ -34,15 +33,15 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   const opts = await testDefaults()
   let manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/using-ajv'], opts)
 
-  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
   expect(deepRequireCwd(['@pnpm.e2e/using-ajv', 'ajv-keywords', 'ajv', './package.json']).version).toBe('4.10.4')
 
   // testing that peers are reinstalled correctly using info from the lockfile
-  await rimraf('node_modules')
-  await rimraf(path.resolve('..', '.store'))
+  rimraf('node_modules')
+  rimraf(path.resolve('..', '.store'))
   manifest = await install(manifest, await testDefaults())
 
-  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
   expect(deepRequireCwd(['@pnpm.e2e/using-ajv', 'ajv-keywords', 'ajv', './package.json']).version).toBe('4.10.4')
 
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/using-ajv'], await testDefaults({ update: true }))
@@ -65,8 +64,8 @@ test('nothing is needlessly removed from node_modules', async () => {
   })
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/using-ajv', 'ajv-keywords@1.5.0'], opts)
 
-  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords'))).toBeTruthy()
   expect(deepRequireCwd(['@pnpm.e2e/using-ajv', 'ajv-keywords', 'ajv', './package.json']).version).toBe('4.10.4')
 
   await mutateModulesInSingleProject({
@@ -76,8 +75,8 @@ test('nothing is needlessly removed from node_modules', async () => {
     rootDir: process.cwd(),
   }, opts)
 
-  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords'))).toBeFalsy()
 })
 
 test('peer dependency is grouped with dependent when the peer is a top dependency', async () => {
@@ -91,7 +90,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     message: `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.`,
   })).toBeFalsy()
 
-  expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords'))).toBeTruthy()
 
   await mutateModulesInSingleProject({
     manifest,
@@ -481,8 +480,8 @@ test('top peer dependency is linked on subsequent install', async () => {
 
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/abc-parent-with-ab@1.0.0'], await testDefaults())
 
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0/node_modules/@pnpm.e2e/abc-parent-with-ab'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/@pnpm.e2e/abc-parent-with-ab'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0/node_modules/@pnpm.e2e/abc-parent-with-ab'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/@pnpm.e2e/abc-parent-with-ab'))).toBeTruthy()
 })
 
 test('top peer dependency is linked on subsequent install, through transitive peer', async () => {
@@ -492,7 +491,7 @@ test('top peer dependency is linked on subsequent install, through transitive pe
 
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/peer-c@1.0.0'], await testDefaults({ strictPeerDependencies: false }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))).toBeTruthy()
 })
 
 test('the list of transitive peer dependencies is kept up to date', async () => {
@@ -503,7 +502,7 @@ test('the list of transitive peer dependencies is kept up to date', async () => 
 
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.1.0', distTag: 'latest' })
 
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))).toBeTruthy()
   {
     const lockfile = project.readLockfile()
     expect(lockfile.packages['/@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)'].transitivePeerDependencies).toStrictEqual(['@pnpm.e2e/peer-c'])
@@ -515,7 +514,7 @@ test('the list of transitive peer dependencies is kept up to date', async () => 
     rootDir: process.cwd(),
   }, await testDefaults({ update: true, depth: Infinity }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))).toBeTruthy()
 
   {
     const lockfile = project.readLockfile()
@@ -530,13 +529,13 @@ test('top peer dependency is linked on subsequent install. Reverse order', async
 
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/peer-c@1.0.0'], await testDefaults({ modulesCacheMaxAge: 0, strictPeerDependencies: false }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0/node_modules/@pnpm.e2e/abc-parent-with-ab'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/@pnpm.e2e/abc-parent-with-ab'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/is-positive'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0/node_modules/@pnpm.e2e/abc-parent-with-ab'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/@pnpm.e2e/abc-parent-with-ab'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/is-positive'))).toBeTruthy()
 })
 
 async function okFile (filename: string) {
-  expect(await exists(filename)).toBeTruthy()
+  expect(fs.existsSync(filename)).toBeTruthy()
 }
 
 // This usecase was failing. See https://github.com/pnpm/supi/issues/15
@@ -712,7 +711,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     message: `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.`,
   })).toBeFalsy()
 
-  expect(await exists(path.join('../node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords'))).toBeTruthy()
+  expect(fs.existsSync(path.join('../node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords'))).toBeTruthy()
 
   const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
 
@@ -748,12 +747,12 @@ test('peer dependency is grouped correctly with peer installed via separate inst
     await testDefaults({ autoInstallPeers: false, reporter, lockfileDir, strictPeerDependencies: false })
   )
 
-  expect(await exists(path.join('../node_modules/.pnpm/@pnpm.e2e+abc@1.0.0_@pnpm.e2e+peer-c@2.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
+  expect(fs.existsSync(path.join('../node_modules/.pnpm/@pnpm.e2e+abc@1.0.0_@pnpm.e2e+peer-c@2.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
 })
 
 test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async () => {
   prepareEmpty()
-  await fs.mkdir('_')
+  fs.mkdirSync('_')
   process.chdir('_')
   const lockfileDir = path.resolve('..')
 
@@ -821,7 +820,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
 test('external lockfile: peer dependency is grouped with dependent even after a named update', async () => {
   prepareEmpty()
-  await fs.mkdir('_')
+  fs.mkdirSync('_')
   process.chdir('_')
   const lockfileDir = path.resolve('..')
 
@@ -864,7 +863,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
 
 test('external lockfile: peer dependency is grouped with dependent even after a named update of the resolved package', async () => {
   prepareEmpty()
-  await fs.mkdir('_')
+  fs.mkdirSync('_')
   process.chdir('_')
   const lockfileDir = path.resolve('..')
 
@@ -904,12 +903,12 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
     })
   }
 
-  expect(await exists(path.join('../node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0_@pnpm.e2e+peer-c@2.0.0/node_modules/is-positive'))).toBeTruthy()
+  expect(fs.existsSync(path.join('../node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.0_@pnpm.e2e+peer-c@2.0.0/node_modules/is-positive'))).toBeTruthy()
 })
 
 test('regular dependencies are not removed on update from transitive packages that have children with peers resolved from above', async () => {
   prepareEmpty()
-  await fs.mkdir('_')
+  fs.mkdirSync('_')
   process.chdir('_')
   const lockfileDir = path.resolve('..')
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.1', distTag: 'latest' })
@@ -920,7 +919,7 @@ test('regular dependencies are not removed on update from transitive packages th
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.1', distTag: 'latest' })
   await install(manifest, await testDefaults({ lockfileDir, update: true, depth: 2 }))
 
-  expect(await exists(path.join('../node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.1_@pnpm.e2e+peer-c@1.0.1/node_modules/is-positive'))).toBeTruthy()
+  expect(fs.existsSync(path.join('../node_modules/.pnpm/@pnpm.e2e+abc-parent-with-ab@1.0.1_@pnpm.e2e+peer-c@1.0.1/node_modules/is-positive'))).toBeTruthy()
 })
 
 test('peer dependency is resolved from parent package', async () => {
@@ -1181,12 +1180,12 @@ test('local tarball dependency with peer dependency', async () => {
     'foo@npm:@pnpm.e2e/foo@100.0.0',
   ], await testDefaults({ reporter }))
 
-  const integrityLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
+  const integrityLocalPkgDirs = fs.readdirSync('node_modules/.pnpm')
     .filter((dir) => dir.startsWith('file+'))
 
   expect(integrityLocalPkgDirs.length).toBe(1)
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await mutateModulesInSingleProject({
     manifest,
@@ -1195,7 +1194,7 @@ test('local tarball dependency with peer dependency', async () => {
   }, await testDefaults())
 
   {
-    const updatedLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
+    const updatedLocalPkgDirs = fs.readdirSync('node_modules/.pnpm')
       .filter((dir) => dir.startsWith('file+'))
     expect(updatedLocalPkgDirs).toStrictEqual(integrityLocalPkgDirs)
   }

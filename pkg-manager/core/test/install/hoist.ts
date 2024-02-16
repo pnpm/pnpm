@@ -9,7 +9,7 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -406,8 +406,8 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
   projects['package'].hasNot('@pnpm.e2e/foo')
   projects['package'].hasNot('@pnpm.e2e/bar')
 
-  await rimraf('node_modules')
-  await rimraf('package/node_modules')
+  rimraf('node_modules')
+  rimraf('package/node_modules')
 
   await mutateModules(mutatedProjects, await testDefaults({ allProjects, frozenLockfile: true, hoistPattern: '*' }))
 
@@ -560,7 +560,7 @@ test('hoisting should not create a broken symlink to a skipped optional dependen
   expect(rootModules.readCurrentLockfile()).toStrictEqual(rootModules.readLockfile())
 
   // Verifying the same with headless installation
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await install(manifest, await testDefaults({ publicHoistPattern: '*' }))
 
@@ -578,7 +578,7 @@ test('the hoisted packages should not override the bin files of the direct depen
     expect(cmd).toContain('/hello-world-js-bin-parent/')
   }
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true, publicHoistPattern: '*' }))
 
@@ -912,7 +912,7 @@ test('hoistWorkspacePackages should hoist all workspace projects', async () => {
   projects['package'].hasNot('@pnpm.e2e/foo')
   projects['package'].hasNot('@pnpm.e2e/bar')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await mutateModules(mutatedProjects, await testDefaults({
     allProjects,
     frozenLockfile: true,

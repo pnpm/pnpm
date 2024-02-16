@@ -5,7 +5,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)
@@ -57,7 +57,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
   expect(lockfile.packages!['file:project/pkg.tgz']).toBeTruthy()
   expect(lockfile.packages!['file:project/pkg.tgz'].resolution).toHaveProperty(['tarball'], 'file:project/pkg.tgz')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await mutateModulesInSingleProject({
     manifest,

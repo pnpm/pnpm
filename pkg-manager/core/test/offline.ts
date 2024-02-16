@@ -1,6 +1,6 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from './utils'
 
 test('offline installation fails when package meta not found in local registry mirror', async () => {
@@ -19,7 +19,7 @@ test('offline installation fails when package tarball not found in local registr
 
   const manifest = await addDependenciesToPackage({}, ['is-positive@3.0.0'], await testDefaults())
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   try {
     await addDependenciesToPackage(manifest, ['is-positive@3.1.0'], await testDefaults({}, { offline: true }, { offline: true }))
@@ -34,7 +34,7 @@ test('successful offline installation', async () => {
 
   const manifest = await addDependenciesToPackage({}, ['is-positive@3.0.0'], await testDefaults({ save: true }))
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await install(manifest, await testDefaults({}, { offline: true }, { offline: true }))
 
