@@ -88,7 +88,7 @@ test('writeWantedLockfile()', async () => {
         },
       },
     },
-    lockfileVersion: '6.0',
+    lockfileVersion: '7.0',
     packages: {
       '/is-negative@1.0.0': {
         dependencies: {
@@ -131,7 +131,7 @@ test('writeCurrentLockfile()', async () => {
         },
       },
     },
-    lockfileVersion: '6.0',
+    lockfileVersion: '7.0',
     packages: {
       '/is-negative@1.0.0': {
         dependencies: {

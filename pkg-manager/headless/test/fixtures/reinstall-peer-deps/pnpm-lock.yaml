@@ -1,4 +1,4 @@
-lockfileVersion: '6.0'
+lockfileVersion: '7.0'
 
 settings:
   autoInstallPeers: true
@@ -7,11 +7,11 @@ settings:
 devDependencies:
   '@pnpm.e2e/abc':
     specifier: 1.0.0
-    version: 1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.1)
+    version: 1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)
 
 packages:
 
-  /@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.1):
+  /@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0):
     resolution: {integrity: sha512-pXCDz60zZZ33NeZpkHZtikJBbyAHjK42Nv33wgxGXV/bNDhLfXQ9yQTsVXfR1xOwJ55n2nV+Zkx/W0Lo5YL8ag==}
     peerDependencies:
       '@pnpm.e2e/peer-a': ^1.0.0
@@ -21,7 +21,7 @@ packages:
       '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0
       '@pnpm.e2e/peer-a': 1.0.1
       '@pnpm.e2e/peer-b': 1.0.0
-      '@pnpm.e2e/peer-c': 1.0.1
+      '@pnpm.e2e/peer-c': 1.0.0
     dev: true
 
   /@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0:
@@ -36,6 +36,6 @@ packages:
     resolution: {integrity: sha512-/xEON+6CnPFjT8WUWdDI+ZaK+/foZqWhqhzEslQvjaRUZZPD9ClSa1VQqrRLK7DctB9X01rYorCDfRrCCgNU4w==}
     dev: true
 
-  /@pnpm.e2e/peer-c@1.0.1:
-    resolution: {integrity: sha512-lggiyZeagLoAxKSvbMBMZaoQaDO2a0Kev28fUpgEVR/9eHpvB9SQe5relsbWQq3AIt+5Yi/ZL7PmiKY8qC0vhg==}
+  /@pnpm.e2e/peer-c@1.0.0:
+    resolution: {integrity: sha512-mIxp7K4B8IeXU/fuEP/llay2xDR+hyyhwlqL9D+/3NewrXTyvJUjp8cNagIuEOjA/1VZCDcNQfI947LjsSe3qQ==}
     dev: true
