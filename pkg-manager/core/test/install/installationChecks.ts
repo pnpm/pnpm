@@ -11,8 +11,8 @@ test('fail if installed package does not support the current engine and engine-s
       engineStrict: true,
     }))
   ).rejects.toThrow()
-  await project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
-  await project.storeHasNot('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
+  project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
+  project.storeHasNot('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
 })
 
 test('do not fail if installed package does not support the current engine and engine-strict = false', async () => {
@@ -22,10 +22,10 @@ test('do not fail if installed package does not support the current engine and e
     engineStrict: false,
   }))
 
-  await project.has('@pnpm.e2e/not-compatible-with-any-os')
-  await project.storeHas('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
+  project.has('@pnpm.e2e/not-compatible-with-any-os')
+  project.storeHas('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'].os).toStrictEqual(['this-os-does-not-exist'])
 })
 
@@ -37,10 +37,10 @@ test('do not fail if installed package requires the node version that was passed
     nodeVersion: '0.10.0',
   }))
 
-  await project.has('@pnpm.e2e/for-legacy-node')
-  await project.storeHas('@pnpm.e2e/for-legacy-node', '1.0.0')
+  project.has('@pnpm.e2e/for-legacy-node')
+  project.storeHas('@pnpm.e2e/for-legacy-node', '1.0.0')
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['/@pnpm.e2e/for-legacy-node@1.0.0'].engines).toStrictEqual({ node: '0.10' })
 })
 
@@ -49,7 +49,7 @@ test(`save cpu field to ${WANTED_LOCKFILE}`, async () => {
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/has-cpu-specified'], await testDefaults())
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(
     lockfile.packages['/@pnpm.e2e/has-cpu-specified@1.0.0'].cpu
@@ -63,7 +63,7 @@ test(`engines field is not added to ${WANTED_LOCKFILE} when "node": "*" is in "e
 
   await addDependenciesToPackage({}, ['jsonify@0.0.0'], await testDefaults())
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages['/jsonify@0.0.0']).not.toHaveProperty(['engines'])
 })

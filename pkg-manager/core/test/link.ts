@@ -32,15 +32,15 @@ test('relative link', async () => {
     },
   }))
 
-  await project.isExecutable('.bin/hello-world-js-bin')
+  project.isExecutable('.bin/hello-world-js-bin')
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
     version: 'link:../hello-world-js-bin',
     specifier: '*',
   })
 
-  const currentLockfile = await project.readCurrentLockfile()
+  const currentLockfile = project.readCurrentLockfile()
   expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
     version: 'link:../hello-world-js-bin',
     specifier: '*',
@@ -61,11 +61,11 @@ test('relative link is linked by the name of the alias', async () => {
     },
   }, await testDefaults())
 
-  await project.isExecutable('.bin/hello-world-js-bin')
+  project.isExecutable('.bin/hello-world-js-bin')
 
-  await project.has('hello')
+  project.has('hello')
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.dependencies).toStrictEqual({
     hello: {
       specifier: 'link:../hello-world-js-bin',
@@ -153,10 +153,10 @@ test('relative link is rewritten by named installation to regular dependency', a
 
   expect(project.requireModule('@pnpm.e2e/hello-world-js-bin/package.json').isLocal).toBeFalsy()
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('1.0.0')
 
-  const currentLockfile = await project.readCurrentLockfile()
+  const currentLockfile = project.readCurrentLockfile()
   expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('1.0.0')
 })
 
@@ -234,9 +234,9 @@ test('link should not change the type of the dependency', async () => {
     },
   }))
 
-  await project.isExecutable('.bin/hello-world-js-bin')
+  project.isExecutable('.bin/hello-world-js-bin')
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.devDependencies).toStrictEqual({
     '@pnpm.e2e/hello-world-js-bin': {
       version: 'link:../hello-world-js-bin',

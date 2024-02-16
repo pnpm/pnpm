@@ -38,5 +38,5 @@ test('successful offline installation', async () => {
 
   await install(manifest, await testDefaults({}, { offline: true }, { offline: true }))
 
-  await project.has('is-positive')
+  project.has('is-positive')
 })

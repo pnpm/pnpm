@@ -11,7 +11,7 @@ test('save to package.json (is-positive@^1.0.0)', async () => {
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['is-positive@^1.0.0'], await testDefaults({ save: true }))
 
-  await project.has('is-positive')
+  project.has('is-positive')
 
   expect(manifest.dependencies).toStrictEqual({ 'is-positive': '^1.0.0' })
 })
@@ -72,7 +72,7 @@ test('dependency should not be added to package.json if it is already there', as
     },
   })
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.devDependencies['@pnpm.e2e/foo'].version).toBe('100.0.0')
   expect(lockfile.packages['/@pnpm.e2e/foo@100.0.0'].dev).toBeTruthy()
@@ -150,7 +150,7 @@ test('dependency should be removed from the old field when installing it as a di
   })
 
   {
-    const lockfile = await project.readCurrentLockfile()
+    const lockfile = project.readCurrentLockfile()
     expect(Object.keys(lockfile.dependencies)).toStrictEqual(['@pnpm.e2e/bar', '@pnpm.e2e/foo', '@pnpm.e2e/qar'])
   }
 
@@ -162,7 +162,7 @@ test('dependency should be removed from the old field when installing it as a di
   await install(manifest, await testDefaults())
 
   {
-    const lockfile = await project.readCurrentLockfile()
+    const lockfile = project.readCurrentLockfile()
     expect(Object.keys(lockfile.devDependencies)).toStrictEqual(['@pnpm.e2e/bar', '@pnpm.e2e/foo', '@pnpm.e2e/qar'])
     expect(lockfile.dependencies).toBeFalsy()
   }
@@ -172,8 +172,8 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0', '@zkochan/foo@latest'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
 
-  await project.has('@zkochan/foo')
-  await project.has('is-positive')
+  project.has('@zkochan/foo')
+  project.has('is-positive')
 
   const expectedDeps = {
     '@zkochan/foo': '1.0.0',

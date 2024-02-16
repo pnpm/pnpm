@@ -24,7 +24,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.packages['/is-positive@1.0.0'].dependencies?.['@pnpm.e2e/bar']).toBe('100.1.0')
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
       'is-positive': {
@@ -33,7 +33,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
         },
       },
     }))
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
   }
 
@@ -46,7 +46,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
   }, await testDefaults({ packageExtensions }))
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.packages['/is-positive@1.0.0'].dependencies?.['@pnpm.e2e/foobar']).toBe('100.0.0')
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
       'is-positive': {
@@ -56,7 +56,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
         },
       },
     }))
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
   }
 
@@ -67,7 +67,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
   }, await testDefaults({ frozenLockfile: true, packageExtensions }))
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
       'is-positive': {
         dependencies: {
@@ -76,7 +76,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
         },
       },
     }))
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
   }
 
@@ -133,13 +133,13 @@ test('packageExtensionsChecksum does not change regardless of keys order', async
   await install(manifest(), await testDefaults({
     packageExtensions: packageExtensions1,
   }))
-  const lockfile1 = await project.readLockfile()
+  const lockfile1 = project.readLockfile()
   const checksum1 = lockfile1.packageExtensionsChecksum
 
   await install(manifest(), await testDefaults({
     packageExtensions: packageExtensions2,
   }))
-  const lockfile2 = await project.readLockfile()
+  const lockfile2 = project.readLockfile()
   const checksum2 = lockfile2.packageExtensionsChecksum
 
   expect(checksum1).toBe(checksum2)
@@ -155,7 +155,7 @@ test('manifests are patched by extensions from the compatibility database', asyn
     await testDefaults()
   )
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['/debug@4.0.0'].peerDependenciesMeta?.['supports-color']?.optional).toBe(true)
 })
 
@@ -170,6 +170,6 @@ test('manifests are not patched by extensions from the compatibility database wh
     })
   )
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['/debug@4.0.0'].peerDependenciesMeta).toBeUndefined()
 })

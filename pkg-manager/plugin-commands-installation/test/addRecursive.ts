@@ -52,7 +52,7 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
       { 'is-negative': '1.0.0' }
     )
     expect(
-      (await projects['project-1'].readLockfile()).devDependencies
+      (projects['project-1'].readLockfile()).devDependencies
     ).toStrictEqual(
       {
         'is-positive': {
@@ -80,7 +80,7 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
       { 'is-negative': '1.0.0' }
     )
     expect(
-      (await projects['project-2'].readLockfile()).devDependencies
+      (projects['project-2'].readLockfile()).devDependencies
     ).toStrictEqual(
       {
         'is-positive': {

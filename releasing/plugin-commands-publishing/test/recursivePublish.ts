@@ -106,7 +106,7 @@ test('recursive publish', async () => {
     expect(JSON.parse(stdout.toString())).toStrictEqual(pkg2.version)
   }
 
-  await projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
+  projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
 
   await publish.handler({
     ...DEFAULT_OPTS,

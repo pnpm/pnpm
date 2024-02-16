@@ -113,9 +113,9 @@ test('linking a package inside a monorepo', async () => {
   expect(pkg?.devDependencies).toStrictEqual({ 'project-3': '^3.0.0' }) // spec of linked package added to devDependencies
   expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
-  await projects['project-1'].has('project-2')
-  await projects['project-1'].has('project-3')
-  await projects['project-1'].has('project-4')
+  projects['project-1'].has('project-2')
+  projects['project-1'].has('project-3')
+  projects['project-1'].has('project-4')
 })
 
 test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies', async () => {
@@ -155,9 +155,9 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
   expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
   expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
-  await projects['project-1'].has('project-2')
-  await projects['project-1'].has('project-3')
-  await projects['project-1'].has('project-4')
+  projects['project-1'].has('project-2')
+  projects['project-1'].has('project-3')
+  projects['project-1'].has('project-4')
 })
 
 test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies and save-workspace-protocol is "rolling"', async () => {
@@ -203,9 +203,9 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
   expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
   expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
-  await projects['project-1'].has('project-2')
-  await projects['project-1'].has('project-3')
-  await projects['project-1'].has('project-4')
+  projects['project-1'].has('project-2')
+  projects['project-1'].has('project-3')
+  projects['project-1'].has('project-4')
 })
 
 test('linking a package inside a monorepo with --link-workspace-packages', async () => {
@@ -260,18 +260,18 @@ save-workspace-protocol=false
 
   expect(server.getLines()).toStrictEqual(['project-2', 'project-1'])
 
-  await projects['project-1'].has('project-2')
-  await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('is-positive')
+  projects['project-1'].has('project-2')
+  projects['project-1'].has('is-negative')
+  projects['project-1'].has('is-positive')
 
   {
-    const lockfile = await projects['project-1'].readLockfile()
+    const lockfile = projects['project-1'].readLockfile()
     expect(lockfile.dependencies['project-2'].version).toBe('link:../project-2')
     expect(lockfile.devDependencies['is-negative'].version).toBe('link:../is-negative')
     expect(lockfile.optionalDependencies['is-positive'].version).toBe('link:../is-positive')
   }
 
-  await projects['is-positive'].writePackageJson({
+  projects['is-positive'].writePackageJson({
     name: 'is-positive',
     version: '2.0.0',
   })
@@ -279,14 +279,14 @@ save-workspace-protocol=false
   await execPnpm(['install'])
 
   {
-    const lockfile = await projects['project-1'].readLockfile()
+    const lockfile = projects['project-1'].readLockfile()
     expect(lockfile.optionalDependencies['is-positive'].version).toBe('1.0.0') // is-positive is unlinked and installed from registry
   }
 
   await execPnpm(['update', 'is-negative@2.0.0'])
 
   {
-    const lockfile = await projects['project-1'].readLockfile()
+    const lockfile = projects['project-1'].readLockfile()
     expect(lockfile.devDependencies['is-negative'].version).toBe('2.0.0')
   }
 })
@@ -594,7 +594,7 @@ test('installation with --link-workspace-packages links packages even if they we
   await execPnpm(['recursive', 'install', '--no-link-workspace-packages'])
 
   {
-    const lockfile = await projects.project.readLockfile()
+    const lockfile = projects.project.readLockfile()
     expect(lockfile.dependencies['is-positive'].version).toBe('2.0.0')
     expect(lockfile.dependencies.negative.version).toBe('/is-negative@1.0.0')
   }
@@ -602,7 +602,7 @@ test('installation with --link-workspace-packages links packages even if they we
   await execPnpm(['recursive', 'install', '--link-workspace-packages'])
 
   {
-    const lockfile = await projects.project.readLockfile()
+    const lockfile = projects.project.readLockfile()
     expect(lockfile.dependencies['is-positive'].version).toBe('link:../is-positive')
     expect(lockfile.dependencies.negative.version).toBe('link:../is-negative')
   }
@@ -640,12 +640,12 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
     expect(lockfile.importers!.project!.dependencies!.negative.version).toBe('/is-negative@1.0.0')
   }
 
-  await projects['is-positive'].writePackageJson({
+  projects['is-positive'].writePackageJson({
     name: 'is-positive',
     version: '2.0.0',
   })
 
-  await projects['is-negative'].writePackageJson({
+  projects['is-negative'].writePackageJson({
     name: 'is-negative',
     version: '1.0.0',
   })
@@ -865,7 +865,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
 
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store', '--filter', 'project-1'])
 
-  await projects['project-1'].hasNot('project-1')
+  projects['project-1'].hasNot('project-1')
 })
 
 test('local packages should be preferred when running "pnpm install" inside a workspace', async () => {
@@ -891,7 +891,7 @@ test('local packages should be preferred when running "pnpm install" inside a wo
 
   await execPnpm(['link', '.'])
 
-  const lockfile = await projects['project-1'].readLockfile()
+  const lockfile = projects['project-1'].readLockfile()
 
   expect(lockfile?.dependencies?.['is-positive'].version).toBe('link:../is-positive')
 })
@@ -1149,7 +1149,7 @@ test('shared-workspace-lockfile config is ignored if no pnpm-workspace.yaml is f
 
   await execPnpm(['install'])
 
-  await project.has('is-positive')
+  project.has('is-positive')
 })
 
 test('shared-workspace-lockfile: removing a package recursively', async () => {
@@ -1317,14 +1317,14 @@ test("linking the package's bin to another workspace package in a monorepo", asy
 
   await execPnpm(['recursive', 'install'])
 
-  await projects.main.isExecutable('.bin/hello')
+  projects.main.isExecutable('.bin/hello')
 
   expect(await exists('main/node_modules')).toBeTruthy()
   await rimraf('main/node_modules')
 
   await execPnpm(['recursive', 'install', '--frozen-lockfile'])
 
-  await projects.main.isExecutable('.bin/hello')
+  projects.main.isExecutable('.bin/hello')
 })
 
 test('pnpm sees the bins from the root of the workspace', async () => {
@@ -1458,8 +1458,13 @@ test('custom virtual store directory in a workspace with not shared lockfile', a
   await execPnpm(['install'])
 
   {
-    const modulesManifest = await projects['project-1'].readModulesManifest()
-    expect(modulesManifest?.virtualStoreDir).toBe(path.resolve('project-1/virtual-store'))
+    const modulesManifest = projects['project-1'].readModulesManifest()
+    const virtualStoreDir = modulesManifest!.virtualStoreDir
+    if (path.isAbsolute(virtualStoreDir)) {
+      expect(virtualStoreDir).toBe(path.resolve('project-1/virtual-store'))
+    } else {
+      expect(virtualStoreDir).toBe('../virtual-store')
+    }
   }
 
   await rimraf('project-1/virtual-store')
@@ -1468,8 +1473,13 @@ test('custom virtual store directory in a workspace with not shared lockfile', a
   await execPnpm(['install', '--frozen-lockfile'])
 
   {
-    const modulesManifest = await projects['project-1'].readModulesManifest()
-    expect(modulesManifest?.virtualStoreDir).toBe(path.resolve('project-1/virtual-store'))
+    const modulesManifest = projects['project-1'].readModulesManifest()
+    const virtualStoreDir = modulesManifest!.virtualStoreDir
+    if (path.isAbsolute(virtualStoreDir)) {
+      expect(virtualStoreDir).toBe(path.resolve('project-1/virtual-store'))
+    } else {
+      expect(virtualStoreDir).toBe('../virtual-store')
+    }
   }
 })
 
@@ -1837,7 +1847,7 @@ test('peer dependencies are resolved from the root of the workspace when a new d
 
   await execPnpm(['add', 'ajv-keywords@1.5.0', '--strict-peer-dependencies', '--config.resolve-peers-from-workspace-root=true'])
 
-  const lockfile = await projects['project-1'].readLockfile()
+  const lockfile = projects['project-1'].readLockfile()
   expect(lockfile.packages).toHaveProperty(['/ajv-keywords@1.5.0(ajv@4.10.4)'])
 })
 
@@ -1866,7 +1876,7 @@ shared-workspace-lockfile=false
 
   await execPnpm(['install'])
 
-  const lockfile = await projects['project-1'].readLockfile()
+  const lockfile = projects['project-1'].readLockfile()
   expect(lockfile.overrides).toStrictEqual({
     'is-odd': '1.0.0',
   })

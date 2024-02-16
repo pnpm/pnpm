@@ -18,7 +18,7 @@ test('...', async t => {
   // ...
   const project = assertProject(t, pathToProject)
 
-  await project.has('foo')
+  project.has('foo')
   // Test fails if project has no foo in node_modules
 })
 ```

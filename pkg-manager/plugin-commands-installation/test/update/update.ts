@@ -31,7 +31,7 @@ test('update with "*" pattern', async () => {
     latest: true,
   }, ['@pnpm.e2e/peer-*'])
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/peer-c@2.0.0']).toBeTruthy()
@@ -62,7 +62,7 @@ test('update with negation pattern', async () => {
     latest: true,
   }, ['!@pnpm.e2e/peer-*'])
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.0']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/peer-c@1.0.0']).toBeTruthy()
@@ -172,7 +172,7 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
     const manifest = await loadJsonFile<ProjectManifest>('package.json')
     expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('^1.0.0')
 
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.dependencies['@pnpm.e2e/peer-a'].specifier).toBe('^1.0.0')
     expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.0']).toBeTruthy()
   }
@@ -190,7 +190,7 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
     const manifest = await loadJsonFile<ProjectManifest>('package.json')
     expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('^1.0.0')
 
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.dependencies['@pnpm.e2e/peer-a'].specifier).toBe('^1.0.0')
     expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
   }
@@ -223,7 +223,7 @@ test('update should work normal when set empty string version', async () => {
     latest: true,
   }, ['*'])
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/peer-c@2.0.0']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/foo@2.0.0']).toBeTruthy()
@@ -258,7 +258,7 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
     dir: process.cwd(),
   })
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/bar@100.0.0']).toBeTruthy()
@@ -274,7 +274,7 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
     latest: true,
   })
 
-  const lockfileUpdated = await project.readLockfile()
+  const lockfileUpdated = project.readLockfile()
 
   expect(lockfileUpdated.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
   expect(lockfileUpdated.packages['/@pnpm.e2e/bar@100.0.0']).toBeTruthy()
@@ -304,7 +304,7 @@ test('not ignore packages if these are specified in parameter even if these are 
     dir: process.cwd(),
   })
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/bar@100.0.0']).toBeTruthy()
@@ -317,7 +317,7 @@ test('not ignore packages if these are specified in parameter even if these are 
     dir: process.cwd(),
   }, ['@pnpm.e2e/foo@latest', '@pnpm.e2e/bar@latest'])
 
-  const lockfileUpdated = await project.readLockfile()
+  const lockfileUpdated = project.readLockfile()
 
   expect(lockfileUpdated.packages['/@pnpm.e2e/foo@100.1.0']).toBeTruthy()
   expect(lockfileUpdated.packages['/@pnpm.e2e/bar@100.1.0']).toBeTruthy()
@@ -350,7 +350,7 @@ test('do not update anything if all the dependencies are ignored and trying to u
     latest: true,
   }, [])
 
-  const lockfileUpdated = await project.readLockfile()
+  const lockfileUpdated = project.readLockfile()
   expect(lockfileUpdated.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
 })
 

@@ -46,11 +46,11 @@ test('lockfile has correct format', async () => {
       'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c',
     ], await testDefaults({ fastUnpack: false, save: true }))
 
-  const modules = await project.readModulesManifest()
+  const modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
   expect(modules!.pendingBuilds.length).toBe(0)
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
@@ -82,7 +82,7 @@ test('lockfile has dev deps even when installing for prod only', async () => {
     },
   }, await testDefaults({ production: true }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   const id = '/is-negative@2.1.0'
 
   expect(lockfile.devDependencies).toBeTruthy()
@@ -141,7 +141,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
     project.requireModule('.pnpm/react-datetime@1.3.0/node_modules/react-onclickoutside/package.json').version
   ).toBe('0.3.4') // react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(Object.keys(lockfile.dependencies).length).toBe(1) // resolutions not duplicated
 })
@@ -151,7 +151,7 @@ test('a lockfile created even when there are no deps in package.json', async () 
 
   await install({}, await testDefaults())
 
-  expect(await project.readLockfile()).toBeTruthy()
+  expect(project.readLockfile()).toBeTruthy()
   expect(await exists('node_modules')).toBeFalsy()
 })
 
@@ -177,7 +177,7 @@ test('current lockfile removed when no deps in package.json', async () => {
 
   await install({}, await testDefaults())
 
-  expect(await project.readLockfile()).toBeTruthy()
+  expect(project.readLockfile()).toBeTruthy()
   expect(await exists('node_modules')).toBeFalsy()
 })
 
@@ -235,7 +235,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
   })
   expect(reporter.withArgs(progress).callCount).toBe(0)
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.devDependencies['is-negative'].version).toBe('2.1.0')
   expect(lockfile.optionalDependencies['is-positive'].version).toBe('3.1.0')
@@ -294,7 +294,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
 
   expect(reporter.calledWithMatch(LOCKFILE_WARN_LOG)).toBeFalsy()
 
-  await project.has('is-negative')
+  project.has('is-negative')
 })
 
 test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
@@ -342,7 +342,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
 
   // t.equal(reporter.withArgs(fooProgress).callCount, 0, 'not reported foo')
 
-  await project.storeHasNot('@pnpm.e2e/foo', '100.1.0')
+  project.storeHasNot('@pnpm.e2e/foo', '100.1.0')
   expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/foo'))).version).toBe('100.0.0')
   expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/bar'))).version).toBe('100.0.0')
   expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/qar'))).version).toBe('100.0.0')
@@ -358,9 +358,9 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults())
 
-  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 
@@ -378,7 +378,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   await install(manifest, await testDefaults())
 
-  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 })
 
 test("recreates lockfile if it doesn't match the dependencies in package.json", async () => {
@@ -388,7 +388,7 @@ test("recreates lockfile if it doesn't match the dependencies in package.json", 
   manifest = await addDependenciesToPackage(manifest, ['is-positive@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'devDependencies' }))
   manifest = await addDependenciesToPackage(manifest, ['map-obj@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'optionalDependencies' }))
 
-  const lockfile1 = await project.readLockfile()
+  const lockfile1 = project.readLockfile()
   expect(lockfile1.dependencies['is-negative'].version).toBe('1.0.0')
   expect(lockfile1.dependencies['is-negative'].specifier).toBe('1.0.0')
 
@@ -398,7 +398,7 @@ test("recreates lockfile if it doesn't match the dependencies in package.json", 
 
   await install(manifest, await testDefaults())
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.dependencies['is-negative'].version).toBe('2.1.0')
   expect(lockfile.dependencies['is-negative'].specifier).toBe('^2.1.0')
@@ -415,7 +415,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 
   const manifest = await addDependenciesToPackage({}, ['highmaps-release@5.0.11'], await testDefaults())
 
-  const lockfile1 = await project.readLockfile()
+  const lockfile1 = project.readLockfile()
 
   expect(lockfile1.dependencies['highmaps-release'].version).toBe('5.0.11')
 
@@ -423,7 +423,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 
   await install(manifest, await testDefaults())
 
-  const lockfile2 = await project.readLockfile()
+  const lockfile2 = project.readLockfile()
 
   expect(lockfile1).toStrictEqual(lockfile2) // lockfile hasn't been changed
 })
@@ -442,7 +442,7 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 
   console.log('installed optional dependency which is also a dependency of @pnpm.e2e/pkg-with-1-dep')
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].dev).toBeFalsy()
 })
@@ -456,7 +456,7 @@ test('package is not marked optional if it is also a subdep of a regular depende
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults())
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].optional).toBeFalsy()
 })
@@ -470,9 +470,9 @@ test('scoped module from different registry', async () => {
   opts.registries!['@foo'] = `http://localhost:${REGISTRY_MOCK_PORT}`
   await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], opts)
 
-  await project.has('@zkochan/foo')
+  project.has('@zkochan/foo')
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -548,7 +548,7 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
 
   await install(manifest, await testDefaults())
 
-  await project.has('is-negative')
+  project.has('is-negative')
 })
 
 test('packages are placed in devDependencies even if they are present as non-dev as well', async () => {
@@ -565,7 +565,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
     },
   }, await testDefaults({ reporter }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.devDependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
   expect(lockfile.devDependencies).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep'])
@@ -615,14 +615,14 @@ test('pendingBuilds gets updated if install removes packages', async () => {
       '@pnpm.e2e/with-postinstall-b': '*',
     },
   }, await testDefaults({ fastUnpack: false, ignoreScripts: true }))
-  const modules1 = await project.readModulesManifest()
+  const modules1 = project.readModulesManifest()
 
   await install({
     dependencies: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '*',
     },
   }, await testDefaults({ fastUnpack: false, ignoreScripts: true }))
-  const modules2 = await project.readModulesManifest()
+  const modules2 = project.readModulesManifest()
 
   expect(modules1).toBeTruthy()
   expect(modules2).toBeTruthy()
@@ -639,7 +639,7 @@ test('dev properties are correctly updated on named install', async () => {
   )
   await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(
     Object.values(lockfile.packages).filter((dep) => typeof dep.dev !== 'undefined')
   ).toStrictEqual([])
@@ -651,7 +651,7 @@ test('optional properties are correctly updated on named install', async () => {
   const manifest = await addDependenciesToPackage({}, ['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
   await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(Object.values(lockfile.packages).filter((dep) => typeof dep.optional !== 'undefined')).toStrictEqual([])
 })
 
@@ -661,7 +661,7 @@ test('dev property is correctly set for package that is duplicated to both the d
   // TODO: use a smaller package for testing
   await addDependenciesToPackage({}, ['overlap@2.2.8'], await testDefaults())
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['/couleurs@5.0.0'].dev === false).toBeTruthy()
 })
 
@@ -673,9 +673,9 @@ test('no lockfile', async () => {
 
   expect(reporter.calledWithMatch(LOCKFILE_WARN_LOG)).toBeFalsy()
 
-  await project.has('is-positive')
+  project.has('is-positive')
 
-  expect(await project.readLockfile()).toBeFalsy()
+  expect(project.readLockfile()).toBeFalsy()
 })
 
 test('lockfile is ignored when lockfile = false', async () => {
@@ -709,9 +709,9 @@ test('lockfile is ignored when lockfile = false', async () => {
 
   expect(reporter.calledWithMatch(LOCKFILE_WARN_LOG)).toBeTruthy()
 
-  await project.has('is-negative')
+  project.has('is-negative')
 
-  expect(await project.readLockfile()).toBeTruthy()
+  expect(project.readLockfile()).toBeTruthy()
 })
 
 test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`, async () => {
@@ -739,9 +739,9 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
     expect(reporter.calledWithMatch(LOCKFILE_WARN_LOG)).toBeTruthy()
   }
 
-  await project.hasNot('is-positive')
+  project.hasNot('is-positive')
 
-  expect(await project.readLockfile()).toBeTruthy()
+  expect(project.readLockfile()).toBeTruthy()
 })
 
 test('fail when installing with useLockfile: false and lockfileOnly: true', async () => {
@@ -761,8 +761,8 @@ test("don't remove packages during named install when useLockfile: false", async
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ useLockfile: false }))
   await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ useLockfile: false }))
 
-  await project.has('is-positive')
-  await project.has('is-negative')
+  project.has('is-positive')
+  project.has('is-negative')
 })
 
 test('save tarball URL when it is non-standard', async () => {
@@ -770,7 +770,7 @@ test('save tarball URL when it is non-standard', async () => {
 
   await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], await testDefaults({ fastUnpack: false }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect((lockfile.packages['/esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
 })
@@ -783,7 +783,7 @@ test('packages installed via tarball URL from the default registry are normalize
     'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   ], await testDefaults())
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -1008,8 +1008,8 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     })
   )
 
-  await projects['pkg1'].has('is-negative')
-  await projects['pkg2'].has('is-positive')
+  projects['pkg1'].has('is-negative')
+  projects['pkg2'].has('is-positive')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1200
@@ -1022,8 +1022,8 @@ test(`use current ${WANTED_LOCKFILE} as initial wanted one, when wanted was remo
 
   await addDependenciesToPackage(manifest, ['underscore@1.9.1'], await testDefaults())
 
-  await project.has('lodash')
-  await project.has('underscore')
+  project.has('lodash')
+  project.has('underscore')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1876
@@ -1035,7 +1035,7 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults())
 
-  const initialLockfile = await project.readLockfile()
+  const initialLockfile = project.readLockfile()
   await writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 }, { lineWidth: 1000 })
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
@@ -1046,7 +1046,7 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
     rootDir: process.cwd(),
   }, await testDefaults())
 
-  const updatedLockfile = await project.readLockfile()
+  const updatedLockfile = project.readLockfile()
 
   expect(initialLockfile.packages).toStrictEqual(updatedLockfile.packages)
 })
@@ -1058,7 +1058,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ lockfileOnly: true }))
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
     delete lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
     await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
@@ -1082,8 +1082,8 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
     rootDir: process.cwd(),
   }, await testDefaults({ preferFrozenLockfile: true }))
 
-  await project.has('@pnpm.e2e/pkg-with-1-dep')
-  const lockfile = await project.readLockfile()
+  project.has('@pnpm.e2e/pkg-with-1-dep')
+  const lockfile = project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 })
 
@@ -1118,7 +1118,7 @@ test('tarball domain differs from registry domain', async () => {
     })
   )
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -1165,7 +1165,7 @@ test('tarball installed through non-standard URL endpoint from the registry doma
     })
   )
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -1228,7 +1228,7 @@ packages:
     },
   }, await testDefaults())
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
 })
 
@@ -1266,7 +1266,7 @@ packages:
     },
   }, await testDefaults())
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toHaveProperty('version', '100.1.0')
 })
 
@@ -1295,7 +1295,7 @@ packages:
     },
   }, await testDefaults({ reporter }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
@@ -1384,7 +1384,7 @@ test('build metadata is always ignored in versions and the lockfile is not flick
     ], await testDefaults({ lockfileOnly: true }))
 
   const depPath = '/@monorepolint/core@0.5.0-alpha.51'
-  const initialLockfile = await project.readLockfile()
+  const initialLockfile = project.readLockfile()
   const initialPkgEntry = initialLockfile.packages[depPath]
   expect(initialPkgEntry?.resolution).toStrictEqual({
     integrity: 'sha512-ihFonHDppOZyG717OW6Bamd37mI2gQHjd09buTjbKhRX8NAHsTbRUKwp39ZYVI5AYgLF1eDlLpgOY4dHy2xGQw==',
@@ -1392,7 +1392,7 @@ test('build metadata is always ignored in versions and the lockfile is not flick
 
   await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults({ lockfileOnly: true }))
 
-  const updatedLockfile = await project.readLockfile()
+  const updatedLockfile = project.readLockfile()
   expect(initialPkgEntry).toStrictEqual(updatedLockfile.packages[depPath])
 })
 
@@ -1433,7 +1433,7 @@ test('include tarball URL', async () => {
   const opts = await testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: true })
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).tarball)
     .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
 })

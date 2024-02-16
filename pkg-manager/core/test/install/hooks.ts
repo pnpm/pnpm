@@ -38,11 +38,11 @@ test('readPackage, afterAllResolved hooks', async () => {
     },
   }))
 
-  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
   expect(afterAllResolved).toHaveBeenCalledTimes(1)
   expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile).toHaveProperty(['foo'], 'foo')
 })
 
@@ -76,11 +76,11 @@ test('readPackage, afterAllResolved async hooks', async () => {
     },
   }))
 
-  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
   expect(afterAllResolved).toHaveBeenCalledTimes(1)
   expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile).toHaveProperty(['foo'], 'foo')
 })
 
@@ -120,5 +120,5 @@ test('readPackage hooks array', async () => {
     },
   }))
 
-  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })

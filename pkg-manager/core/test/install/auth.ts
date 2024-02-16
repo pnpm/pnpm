@@ -26,7 +26,7 @@ test('a package that need authentication', async () => {
     authConfig,
   }))
 
-  await project.has('@pnpm.e2e/needs-auth')
+  project.has('@pnpm.e2e/needs-auth')
 
   // should work when a lockfile is available
   // and the registry in .npmrc is not the same as the one in lockfile
@@ -44,7 +44,7 @@ test('a package that need authentication', async () => {
     authConfig,
   }))
 
-  await project.has('@pnpm.e2e/needs-auth')
+  project.has('@pnpm.e2e/needs-auth')
 })
 
 test('installing a package that need authentication, using password', async () => {
@@ -68,7 +68,7 @@ test('installing a package that need authentication, using password', async () =
     authConfig,
   }))
 
-  await project.has('@pnpm.e2e/needs-auth')
+  project.has('@pnpm.e2e/needs-auth')
 })
 
 test('a package that need authentication, legacy way', async () => {
@@ -90,7 +90,7 @@ test('a package that need authentication, legacy way', async () => {
     authConfig,
   }))
 
-  await project.has('@pnpm.e2e/needs-auth')
+  project.has('@pnpm.e2e/needs-auth')
 })
 
 test('a scoped package that need authentication specific to scope', async () => {
@@ -115,7 +115,7 @@ test('a scoped package that need authentication specific to scope', async () => 
   })
   const manifest = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
-  await project.has('@private/foo')
+  project.has('@private/foo')
 
   // should work when a lockfile is available
   await rimraf('node_modules')
@@ -130,7 +130,7 @@ test('a scoped package that need authentication specific to scope', async () => 
   })
   await addDependenciesToPackage(manifest, ['@private/foo'], opts)
 
-  await project.has('@private/foo')
+  project.has('@private/foo')
 })
 
 test('a scoped package that need legacy authentication specific to scope', async () => {
@@ -155,7 +155,7 @@ test('a scoped package that need legacy authentication specific to scope', async
   })
   const manifest = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
-  await project.has('@private/foo')
+  project.has('@private/foo')
 
   // should work when a lockfile is available
   await rimraf('node_modules')
@@ -170,7 +170,7 @@ test('a scoped package that need legacy authentication specific to scope', async
   })
   await addDependenciesToPackage(manifest, ['@private/foo'], opts)
 
-  await project.has('@private/foo')
+  project.has('@private/foo')
 })
 
 skipOnNode17('a package that need authentication reuses authorization tokens for tarball fetching', async () => {
@@ -197,7 +197,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     authConfig,
   }))
 
-  await project.has('@pnpm.e2e/needs-auth')
+  project.has('@pnpm.e2e/needs-auth')
 })
 
 skipOnNode17('a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached', async () => {
@@ -243,5 +243,5 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
   })
   await install(manifest, opts)
 
-  await project.has('@pnpm.e2e/needs-auth')
+  project.has('@pnpm.e2e/needs-auth')
 })

@@ -17,10 +17,10 @@ test('installing to a custom modules directory', async () => {
     },
   }, await testDefaults({ modulesDir: 'pnpm_modules' }))
 
-  await project.has('is-positive', 'pnpm_modules')
+  project.has('is-positive', 'pnpm_modules')
 
   await rimraf('pnpm_modules')
-  await project.hasNot('is-positive', 'pnpm_modules')
+  project.hasNot('is-positive', 'pnpm_modules')
 
   await install({
     dependencies: {
@@ -28,7 +28,7 @@ test('installing to a custom modules directory', async () => {
     },
   }, await testDefaults({ frozenLockfile: true, modulesDir: 'pnpm_modules' }))
 
-  await project.has('is-positive', 'pnpm_modules')
+  project.has('is-positive', 'pnpm_modules')
 })
 
 test('using different custom modules directory for every project', async () => {
@@ -91,6 +91,6 @@ test('using different custom modules directory for every project', async () => {
   ]
   await mutateModules(importers, await testDefaults({ allProjects }))
 
-  await projects['project-1'].has('is-positive', 'modules_1')
-  await projects['project-2'].has('is-positive', 'modules_2')
+  projects['project-1'].has('is-positive', 'modules_1')
+  projects['project-2'].has('is-positive', 'modules_2')
 })

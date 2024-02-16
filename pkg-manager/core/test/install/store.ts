@@ -21,5 +21,5 @@ test('repeat install with corrupted `store.json` should work', async () => {
 
   await install(manifest, opts)
 
-  await project.has('is-negative')
+  project.has('is-negative')
 })

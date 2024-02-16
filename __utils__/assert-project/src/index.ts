@@ -1,11 +1,11 @@
+import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type LockfileFile } from '@pnpm/lockfile-types'
-import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
+import { type Modules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import readYamlFile from 'read-yaml-file'
-import exists from 'path-exists'
+import { sync as readYamlFile } from 'read-yaml-file'
 import writePkg from 'write-pkg'
 import isExecutable from './isExecutable'
 
@@ -15,30 +15,30 @@ export interface Project {
   // eslint-disable-next-line
   requireModule: (moduleName: string) => any
   dir: () => string
-  has: (pkgName: string, modulesDir?: string) => Promise<void>
-  hasNot: (pkgName: string, modulesDir?: string) => Promise<void>
-  getStorePath: () => Promise<string>
-  resolve: (pkgName: string, version?: string, relativePath?: string) => Promise<string>
-  getPkgIndexFilePath: (pkgName: string, version?: string) => Promise<string>
-  cafsHas: (pkgName: string, version?: string) => Promise<void>
-  cafsHasNot: (pkgName: string, version?: string) => Promise<void>
-  storeHas: (pkgName: string, version?: string) => Promise<string>
-  storeHasNot: (pkgName: string, version?: string) => Promise<void>
-  isExecutable: (pathToExe: string) => Promise<void>
+  has: (pkgName: string, modulesDir?: string) => void
+  hasNot: (pkgName: string, modulesDir?: string) => void
+  getStorePath: () => string
+  resolve: (pkgName: string, version?: string, relativePath?: string) => string
+  getPkgIndexFilePath: (pkgName: string, version?: string) => string
+  cafsHas: (pkgName: string, version?: string) => void
+  cafsHasNot: (pkgName: string, version?: string) => void
+  storeHas: (pkgName: string, version?: string) => string
+  storeHasNot: (pkgName: string, version?: string) => void
+  isExecutable: (pathToExe: string) => void
   /**
    * TODO: Remove the `Required<T>` cast.
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readCurrentLockfile: () => Promise<Required<LockfileFile>>
-  readModulesManifest: () => Promise<Modules | null>
+  readCurrentLockfile: () => Required<LockfileFile>
+  readModulesManifest: () => Modules | null
   /**
    * TODO: Remove the `Required<T>` cast.
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readLockfile: (lockfileName?: string) => Promise<Required<LockfileFile>>
-  writePackageJson: (pkgJson: object) => Promise<void>
+  readLockfile: (lockfileName?: string) => Required<LockfileFile>
+  writePackageJson: (pkgJson: object) => void
 }
 
 export function assertProject (projectPath: string, encodedRegistryName?: string): Project {
@@ -47,16 +47,16 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
 
   let cachedStore: {
     storePath: string
-    getPkgIndexFilePath: (pkgName: string, version?: string) => Promise<string>
-    cafsHas: (pkgName: string, version?: string | undefined) => Promise<void>
-    cafsHasNot: (pkgName: string, version?: string | undefined) => Promise<void>
-    storeHas: (pkgName: string, version?: string | undefined) => Promise<void>
-    storeHasNot: (pkgName: string, version?: string | undefined) => Promise<void>
-    resolve: (pkgName: string, version?: string | undefined, relativePath?: string | undefined) => Promise<string>
+    getPkgIndexFilePath: (pkgName: string, version?: string) => string
+    cafsHas: (pkgName: string, version?: string | undefined) => void
+    cafsHasNot: (pkgName: string, version?: string | undefined) => void
+    storeHas: (pkgName: string, version?: string | undefined) => void
+    storeHasNot: (pkgName: string, version?: string | undefined) => void
+    resolve: (pkgName: string, version?: string | undefined, relativePath?: string | undefined) => string
   }
-  async function getStoreInstance () {
+  function getStoreInstance () {
     if (!cachedStore) {
-      const modulesYaml = await readModulesManifest(modules)
+      const modulesYaml = readModulesManifest(modules)
       if (modulesYaml == null) {
         throw new Error(`Cannot find module store. No .modules.yaml found at "${modules}"`)
       }
@@ -68,12 +68,15 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     }
     return cachedStore
   }
-  async function getVirtualStoreDir () {
-    const modulesYaml = await readModulesManifest(modules)
+  function getVirtualStoreDir () {
+    const modulesYaml = readModulesManifest(modules)
     if (modulesYaml == null) {
       return path.join(modules, '.pnpm')
     }
-    return modulesYaml.virtualStoreDir
+    if (path.isAbsolute(modulesYaml.virtualStoreDir)) {
+      return modulesYaml.virtualStoreDir
+    }
+    return path.join(modules, modulesYaml.virtualStoreDir)
   }
 
   // eslint-disable-next-line
@@ -86,42 +89,42 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
       // eslint-disable-next-line
       return require(path.join(modules, pkgName))
     },
-    async has (pkgName: string, _modulesDir?: string) {
+    has (pkgName: string, _modulesDir?: string) {
       const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules
-      ok(await exists(path.join(md, pkgName)))
+      ok(fs.existsSync(path.join(md, pkgName)))
     },
-    async hasNot (pkgName: string, _modulesDir?: string) {
+    hasNot (pkgName: string, _modulesDir?: string) {
       const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules
-      notOk(await exists(path.join(md, pkgName)))
+      notOk(fs.existsSync(path.join(md, pkgName)))
     },
-    async getStorePath () {
-      const store = await getStoreInstance()
+    getStorePath () {
+      const store = getStoreInstance()
       return store.storePath
     },
-    async resolve (pkgName: string, version?: string, relativePath?: string) {
-      const store = await getStoreInstance()
+    resolve (pkgName: string, version?: string, relativePath?: string) {
+      const store = getStoreInstance()
       return store.resolve(pkgName, version, relativePath)
     },
-    async getPkgIndexFilePath (pkgName: string, version?: string): Promise<string> {
-      const store = await getStoreInstance()
+    getPkgIndexFilePath (pkgName: string, version?: string): string {
+      const store = getStoreInstance()
       return store.getPkgIndexFilePath(pkgName, version)
     },
-    async cafsHas (pkgName: string, version?: string) {
-      const store = await getStoreInstance()
-      return store.cafsHas(pkgName, version)
+    cafsHas (pkgName: string, version?: string) {
+      const store = getStoreInstance()
+      store.cafsHas(pkgName, version)
     },
-    async cafsHasNot (pkgName: string, version?: string) {
-      const store = await getStoreInstance()
-      return store.cafsHasNot(pkgName, version)
+    cafsHasNot (pkgName: string, version?: string) {
+      const store = getStoreInstance()
+      store.cafsHasNot(pkgName, version)
     },
-    async storeHas (pkgName: string, version?: string) {
-      const store = await getStoreInstance()
+    storeHas (pkgName: string, version?: string) {
+      const store = getStoreInstance()
       return store.resolve(pkgName, version)
     },
-    async storeHasNot (pkgName: string, version?: string) {
+    storeHasNot (pkgName: string, version?: string) {
       try {
-        const store = await getStoreInstance()
-        return store.storeHasNot(pkgName, version)
+        const store = getStoreInstance()
+        store.storeHasNot(pkgName, version)
       } catch (err: any) { // eslint-disable-line
         if (err.message.startsWith('Cannot find module store')) {
           return
@@ -129,28 +132,37 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
         throw err
       }
     },
-    async isExecutable (pathToExe: string) {
-      return isExecutable(ok, path.join(modules, pathToExe))
+    isExecutable (pathToExe: string) {
+      isExecutable(ok, path.join(modules, pathToExe))
     },
-    async readCurrentLockfile () {
+    readCurrentLockfile () {
       try {
-        return await readYamlFile(path.join(await getVirtualStoreDir(), 'lock.yaml'))
+        return readYamlFile(path.join(getVirtualStoreDir(), 'lock.yaml'))
       } catch (err: any) { // eslint-disable-line
         if (err.code === 'ENOENT') return null!
         throw err
       }
     },
-    readModulesManifest: async () => readModulesManifest(modules),
-    async readLockfile (lockfileName: string = WANTED_LOCKFILE) {
+    readModulesManifest: () => readModulesManifest(modules),
+    readLockfile (lockfileName: string = WANTED_LOCKFILE) {
       try {
-        return await readYamlFile(path.join(projectPath, lockfileName))
+        return readYamlFile(path.join(projectPath, lockfileName))
       } catch (err: any) { // eslint-disable-line
         if (err.code === 'ENOENT') return null!
         throw err
       }
     },
-    async writePackageJson (pkgJson: object) {
-      return writePkg(projectPath, pkgJson as any) // eslint-disable-line
+    writePackageJson (pkgJson: object) {
+      writePkg.sync(projectPath, pkgJson as any) // eslint-disable-line
     },
+  }
+}
+
+function readModulesManifest (modulesDir: string) {
+  try {
+    return readYamlFile<Modules>(path.join(modulesDir, '.modules.yaml'))
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') return null!
+    throw err
   }
 }

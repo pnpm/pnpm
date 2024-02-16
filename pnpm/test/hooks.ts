@@ -36,7 +36,7 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
   await execPnpm(['remove', 'is-positive'])
   pkg = await loadJsonFile(path.resolve('package.json'))
   expect(pkg.dependencies).toBeFalsy() // remove & readPackage hook work
-  await project.hasNot('is-positive')
+  project.hasNot('is-positive')
 
   // Reset for --lockfile-only checks
   await fs.unlink('pnpm-lock.yaml')
@@ -180,7 +180,7 @@ test('should use default fetchers if no custom fetchers are defined', async () =
 
   await execPnpm(['add', 'is-positive@1.0.0'])
 
-  await project.cafsHas('is-positive', '1.0.0')
+  project.cafsHas('is-positive', '1.0.0')
 })
 
 test('custom fetcher can call default fetcher', async () => {
@@ -212,7 +212,7 @@ test('custom fetcher can call default fetcher', async () => {
 
   await execPnpm(['add', 'is-positive@1.0.0'])
 
-  await project.cafsHas('is-positive', '1.0.0')
+  project.cafsHas('is-positive', '1.0.0')
 
   const args = await loadJsonFile<any>('args.json') // eslint-disable-line
 

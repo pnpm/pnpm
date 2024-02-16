@@ -62,7 +62,7 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
     await testDefaults({ nodeLinker: 'hoisted', save: true })
   )
 
-  await project.storeHas('is-positive', '3.0.0')
+  project.storeHas('is-positive', '3.0.0')
 
   const updatedManifest = await addDependenciesToPackage(
     manifest,
@@ -70,7 +70,7 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
     await testDefaults({ nodeLinker: 'hoisted', save: true })
   )
 
-  await project.storeHas('is-positive', '3.1.0')
+  project.storeHas('is-positive', '3.1.0')
   expect(updatedManifest.dependencies?.['is-positive']).toBe('3.1.0')
   expect(loadJsonFile<{ version: string }>('node_modules/is-positive/package.json').version).toBe('3.1.0')
 })

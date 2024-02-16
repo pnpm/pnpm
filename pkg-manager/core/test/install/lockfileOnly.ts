@@ -19,31 +19,31 @@ test('install with lockfileOnly = true', async () => {
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
   const { cafsHas } = assertStore(opts.storeDir)
 
-  await cafsHas('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+  cafsHas('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
   expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
-  await cafsHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
+  cafsHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
   expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
-  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   expect(manifest.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.dependencies['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
 
-  const currentLockfile = await project.readCurrentLockfile()
+  const currentLockfile = project.readCurrentLockfile()
   expect(currentLockfile).toBeFalsy()
 
   console.log(`doing repeat install when ${WANTED_LOCKFILE} is available already`)
   await install(manifest, opts)
 
-  await cafsHas('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+  cafsHas('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
   expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
-  await cafsHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
+  cafsHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
   expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
-  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
-  expect(await project.readCurrentLockfile()).toBeFalsy()
+  expect(project.readCurrentLockfile()).toBeFalsy()
 })
 
 test('warn when installing with lockfileOnly = true and node_modules exists', async () => {
@@ -62,16 +62,16 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
     name: 'pnpm',
   })).toBeTruthy()
 
-  await project.storeHas('rimraf', '2.5.1')
-  await project.hasNot('rimraf')
+  project.storeHas('rimraf', '2.5.1')
+  project.hasNot('rimraf')
 
   expect(manifest.dependencies!.rimraf).toBeTruthy()
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.dependencies.rimraf).toBeTruthy()
   expect(lockfile.packages['/rimraf@2.5.1']).toBeTruthy()
 
-  const currentLockfile = await project.readCurrentLockfile()
+  const currentLockfile = project.readCurrentLockfile()
   expect(currentLockfile.packages['/rimraf@2.5.1']).toBeFalsy()
 })
 

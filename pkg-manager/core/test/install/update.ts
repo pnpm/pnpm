@@ -31,7 +31,7 @@ test('preserve subdeps on update', async () => {
 
   await install(manifest, await testDefaults({ update: true, depth: 0 }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages).toBeTruthy()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)'])
@@ -67,7 +67,7 @@ test('preserve subdeps on update when no node_modules is present', async () => {
 
   await install(manifest, await testDefaults({ update: true, depth: 0 }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages).toBeTruthy()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)']) // preserve version of package that has resolved peer deps
@@ -95,7 +95,7 @@ test('update does not install the package if it is not present in package.json',
     update: true,
   }))
 
-  await project.hasNot('is-positive')
+  project.hasNot('is-positive')
 })
 
 test('update dependency when external lockfile directory is used', async () => {
@@ -141,7 +141,7 @@ test('preserve subdeps when installing on a package that has one dependency spec
 
   await install(manifest, await testDefaults())
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)']) // preserve version of package that has resolved peer deps
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foobarqar@1.0.1'])
@@ -168,7 +168,7 @@ test('update only the packages that were requested to be updated when hoisting i
 
   expect(manifest.dependencies).toStrictEqual({ '@pnpm.e2e/bar': '^100.0.0', '@pnpm.e2e/foo': '^100.1.0' })
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual(['/@pnpm.e2e/bar@100.0.0', '/@pnpm.e2e/foo@100.1.0'])
 })
 
@@ -200,7 +200,7 @@ test('update only the specified package', async () => {
     updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/foo',
   }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)'])
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foobarqar@1.0.0'])

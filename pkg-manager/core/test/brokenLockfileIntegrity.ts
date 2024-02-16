@@ -22,7 +22,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     await testDefaults({ lockfileOnly: true })
   )
 
-  const corruptedLockfile = await project.readLockfile()
+  const corruptedLockfile = project.readLockfile()
   const correctLockfile = clone(corruptedLockfile)
   // breaking the lockfile
   ;(corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity = (corruptedLockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity
@@ -40,7 +40,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     rootDir: process.cwd(),
   }, await testDefaults())
 
-  expect(await project.readLockfile()).toStrictEqual(correctLockfile)
+  expect(project.readLockfile()).toStrictEqual(correctLockfile)
 
   // Breaking the lockfile again
   await writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
@@ -53,7 +53,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     rootDir: process.cwd(),
   }, await testDefaults({ preferFrozenLockfile: false }))
 
-  expect(await project.readLockfile()).toStrictEqual(correctLockfile)
+  expect(project.readLockfile()).toStrictEqual(correctLockfile)
 })
 
 test('installation breaks if the lockfile contains the wrong checksum and the store is clean', async () => {
@@ -67,7 +67,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
     await testDefaults({ lockfileOnly: true })
   )
 
-  const corruptedLockfile = await project.readLockfile()
+  const corruptedLockfile = project.readLockfile()
   const correctIntegrity = (corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity
   // breaking the lockfile
   ;(corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity = 'sha512-pl8WtlGAnoIQ7gPxT187/YwhKRnsFBR4h0YY+v0FPQjT5WPuZbI9dPRaKWgKBFOqWHylJ8EyPy34V5u9YArfng=='
@@ -88,7 +88,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
   }, await testDefaults({}, { retry: { retries: 0 } }))
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity).toBe(correctIntegrity)
   }
 
@@ -111,7 +111,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
     message: expect.stringMatching(/Got unexpected checksum/),
   }))
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity).toBe(correctIntegrity)
   }
 })

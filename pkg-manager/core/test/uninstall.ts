@@ -73,9 +73,9 @@ test('uninstall package with no dependencies', async () => {
 
   // uninstall does not remove packages from store
   // even if they become unreferenced
-  await project.storeHas('is-negative', '2.1.0')
+  project.storeHas('is-negative', '2.1.0')
 
-  await project.hasNot('is-negative')
+  project.hasNot('is-negative')
 
   expect(manifest.dependencies).toStrictEqual({})
 })
@@ -110,9 +110,9 @@ test('uninstall scoped package', async () => {
     rootDir: process.cwd(),
   }, await testDefaults({ save: true }))).manifest
 
-  await project.storeHas('@zkochan/logger', '0.1.0')
+  project.storeHas('@zkochan/logger', '0.1.0')
 
-  await project.hasNot('@zkochan/logger')
+  project.hasNot('@zkochan/logger')
 
   expect(manifest.dependencies).toStrictEqual({})
 })
@@ -129,8 +129,8 @@ test('uninstall tarball dependency', async () => {
     rootDir: process.cwd(),
   }, opts)).manifest
 
-  await project.storeHas('is-array', '1.0.1')
-  await project.hasNot('is-array')
+  project.storeHas('is-array', '1.0.1')
+  project.hasNot('is-array')
 
   expect(manifest.dependencies).toStrictEqual({})
 })
@@ -145,21 +145,21 @@ test('uninstall package with dependencies and do not touch other deps', async ()
     rootDir: process.cwd(),
   }, await testDefaults({ pruneStore: true, save: true }))).manifest
 
-  await project.storeHasNot('camelcase-keys', '3.0.0')
-  await project.hasNot('camelcase-keys')
+  project.storeHasNot('camelcase-keys', '3.0.0')
+  project.hasNot('camelcase-keys')
 
-  await project.storeHasNot('camelcase', '3.0.0')
-  await project.hasNot('camelcase')
+  project.storeHasNot('camelcase', '3.0.0')
+  project.hasNot('camelcase')
 
-  await project.storeHasNot('map-obj', '1.0.1')
-  await project.hasNot('map-obj')
+  project.storeHasNot('map-obj', '1.0.1')
+  project.hasNot('map-obj')
 
-  await project.storeHas('is-negative', '2.1.0')
-  await project.has('is-negative')
+  project.storeHas('is-negative', '2.1.0')
+  project.has('is-negative')
 
   expect(manifest.dependencies).toStrictEqual({ 'is-negative': '2.1.0' })
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.dependencies).toStrictEqual({
     'is-negative': {
       specifier: '2.1.0',
@@ -203,7 +203,7 @@ test('relative link is uninstalled', async () => {
     rootDir: process.cwd(),
   }, opts)
 
-  await project.hasNot(linkedPkgName)
+  project.hasNot(linkedPkgName)
 })
 
 test('pendingBuilds gets updated after uninstall', async () => {
@@ -214,7 +214,7 @@ test('pendingBuilds gets updated after uninstall', async () => {
     await testDefaults({ fastUnpack: false, save: true, ignoreScripts: true })
   )
 
-  const modules1 = await project.readModulesManifest()
+  const modules1 = project.readModulesManifest()
   expect(modules1).toBeTruthy()
   expect(modules1!.pendingBuilds.length).toBe(2)
 
@@ -225,7 +225,7 @@ test('pendingBuilds gets updated after uninstall', async () => {
     rootDir: process.cwd(),
   }, await testDefaults({ save: true }))
 
-  const modules2 = await project.readModulesManifest()
+  const modules2 = project.readModulesManifest()
   expect(modules2).toBeTruthy()
   expect(modules2!.pendingBuilds.length).toBe(1)
 })
@@ -297,8 +297,8 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
     })
   )
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].has('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
 
   await mutateModulesInSingleProject({
     dependencyNames: ['is-positive', 'project-2'],
@@ -311,8 +311,8 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
     pruneLockfileImporters: false,
   }))
 
-  await projects['project-1'].hasNot('is-positive')
-  await projects['project-2'].has('is-negative')
+  projects['project-1'].hasNot('is-positive')
+  projects['project-2'].has('is-negative')
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
@@ -352,7 +352,7 @@ test('uninstall remove modules that is not in package.json', async () => {
 
   await writeJsonFile('node_modules/foo/package.json', { name: 'foo', version: '1.0.0' })
 
-  await project.has('foo')
+  project.has('foo')
 
   await mutateModulesInSingleProject({
     dependencyNames: ['foo'],
@@ -361,5 +361,5 @@ test('uninstall remove modules that is not in package.json', async () => {
     rootDir: process.cwd(),
   }, await testDefaults())
 
-  await project.hasNot('foo')
+  project.hasNot('foo')
 })

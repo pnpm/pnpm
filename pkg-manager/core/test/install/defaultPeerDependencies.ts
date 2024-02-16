@@ -12,7 +12,7 @@ test('package with default peer dependency, when auto install peers is on', asyn
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/has-default-peer'], await testDefaults({ autoInstallPeers: true }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
@@ -23,7 +23,7 @@ test('don\'t install the default peer dependency when it may be resolved from pa
     await testDefaults({ autoInstallPeers: false })
   )
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0',
     `/@pnpm.e2e/has-default-peer@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0' }])}`,
@@ -34,7 +34,7 @@ test('install the default peer dependency when it cannot be resolved from parent
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/has-default-peer'], await testDefaults({ autoInstallPeers: false }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
     '/@pnpm.e2e/has-default-peer@1.0.0',
@@ -50,7 +50,7 @@ test('package that resolves its own peer dependency', async () => {
 
   expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-resolved-peer@1.0.0_@pnpm.e2e+peer-c@2.0.0/node_modules/@pnpm.e2e/pkg-with-resolved-peer'))).toBeTruthy()
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages['/@pnpm.e2e/pkg-with-resolved-peer@1.0.0(@pnpm.e2e/peer-c@2.0.0)']?.peerDependencies).toStrictEqual({ '@pnpm.e2e/peer-c': '*' })
   expect(lockfile.packages['/@pnpm.e2e/pkg-with-resolved-peer@1.0.0(@pnpm.e2e/peer-c@2.0.0)'].dependencies).toHaveProperty(['@pnpm.e2e/peer-c'])

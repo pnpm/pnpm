@@ -13,13 +13,13 @@ test('uninstall package and remove from appropriate property', async () => {
   // npm@5 introduced --save-prod that behaves the way --save worked in pre 5 versions
   await execPnpm(['uninstall', 'is-positive'])
 
-  await project.storeHas('is-positive', '3.1.0')
+  project.storeHas('is-positive', '3.1.0')
 
   await execPnpm(['store', 'prune'])
 
-  await project.storeHasNot('is-positive', '3.1.0')
+  project.storeHasNot('is-positive', '3.1.0')
 
-  await project.hasNot('is-positive')
+  project.hasNot('is-positive')
 
   const pkgJson = await readPackageJsonFromDir(process.cwd())
   expect(pkgJson.optionalDependencies).toBeUndefined()

@@ -33,7 +33,7 @@ test('patch package', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   const patchFileHash = 'jnbpamcxayl5i4ehrkoext3any'
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
       path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
@@ -200,7 +200,7 @@ test('patch package when scripts are ignored', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   const patchFileHash = 'jnbpamcxayl5i4ehrkoext3any'
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
       path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
@@ -287,7 +287,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   const patchFileHash = 'jnbpamcxayl5i4ehrkoext3any'
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
       path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
@@ -376,7 +376,7 @@ test('patch package when the patched package has no dependencies and appears mul
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/is-not-positive@1.0.0',
     '/is-positive@1.0.0(patch_hash=jnbpamcxayl5i4ehrkoext3any)',

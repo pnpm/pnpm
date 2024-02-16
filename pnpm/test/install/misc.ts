@@ -41,9 +41,9 @@ skipOnWindows('install --lockfile-only', async () => {
 
   await execPnpm(['install', 'rimraf@2.5.1', '--lockfile-only'])
 
-  await project.hasNot('rimraf')
+  project.hasNot('rimraf')
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/rimraf@2.5.1'])
 })
 
@@ -52,9 +52,9 @@ test('install --no-lockfile', async () => {
 
   await execPnpm(['install', 'is-positive', '--no-lockfile'])
 
-  await project.has('is-positive')
+  project.has('is-positive')
 
-  expect(await project.readLockfile()).toBeFalsy()
+  expect(project.readLockfile()).toBeFalsy()
 })
 
 test('write to stderr when --use-stderr is used', async () => {
@@ -62,7 +62,7 @@ test('write to stderr when --use-stderr is used', async () => {
 
   const result = execPnpmSync(['add', 'is-positive', '--use-stderr'])
 
-  await project.has('is-positive')
+  project.has('is-positive')
   expect(result.stdout.toString()).toBe('')
   expect(result.stderr.toString()).not.toBe('')
 })
@@ -74,9 +74,9 @@ test('install with package-lock=false in .npmrc', async () => {
 
   await execPnpm(['add', 'is-positive'])
 
-  await project.has('is-positive')
+  project.has('is-positive')
 
-  expect(await project.readLockfile()).toBeFalsy()
+  expect(project.readLockfile()).toBeFalsy()
 })
 
 test('install from any location via the --prefix flag', async () => {
@@ -90,8 +90,8 @@ test('install from any location via the --prefix flag', async () => {
 
   await execPnpm(['install', '--prefix', 'project'])
 
-  await project.has('rimraf')
-  await project.isExecutable('.bin/rimraf')
+  project.has('rimraf')
+  project.isExecutable('.bin/rimraf')
 })
 
 test('install with external lockfile directory', async () => {
@@ -99,7 +99,7 @@ test('install with external lockfile directory', async () => {
 
   await execPnpm(['install', 'is-positive', '--lockfile-directory', path.resolve('..')])
 
-  await project.has('is-positive')
+  project.has('is-positive')
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
 
@@ -111,7 +111,7 @@ test('install --save-exact', async () => {
 
   await execPnpm(['install', 'is-positive@3.1.0', '--save-exact', '--save-dev'])
 
-  await project.has('is-positive')
+  project.has('is-positive')
 
   const pkg = await readPackageJsonFromDir(process.cwd())
 
@@ -125,7 +125,7 @@ test('install to a project that uses package.yaml', async () => {
 
   await execPnpm(['install', 'is-positive@3.1.0', '--save-exact', '--save-dev'])
 
-  await project.has('is-positive')
+  project.has('is-positive')
 
   const { manifest } = await readProjectManifest(process.cwd())
 
@@ -137,7 +137,7 @@ test('install save new dep with the specified spec', async () => {
 
   await execPnpm(['install', 'is-positive@~3.1.0'])
 
-  await project.has('is-positive')
+  project.has('is-positive')
 
   const pkg = await readPackageJsonFromDir(process.cwd())
 
@@ -150,14 +150,14 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   await execPnpm(['install', '@pnpm.e2e/with-same-file-in-different-cases'])
 
-  await project.has('@pnpm.e2e/with-same-file-in-different-cases')
+  project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
-  const { files: integrityFile } = await loadJsonFile<{ files: object }>(await project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
+  const { files: integrityFile } = await loadJsonFile<{ files: object }>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
   const packageFiles = Object.keys(integrityFile).sort()
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = await fs.readdir('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
-  const storeDir = await project.getStorePath()
+  const storeDir = project.getStorePath()
   if (await dirIsCaseSensitive(storeDir)) {
     expect([...files]).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
@@ -457,7 +457,7 @@ test('installing in a CI environment', async () => {
 
   await execPnpm(['install'], { env: { CI: 'true' } })
 
-  await project.writePackageJson({
+  project.writePackageJson({
     dependencies: { rimraf: '1' },
   })
 
@@ -472,7 +472,7 @@ test('installing in a CI environment', async () => {
   await execPnpm(['install', '--no-frozen-lockfile'], { env: { CI: 'true' } })
 
   await rimraf('node_modules')
-  await project.writePackageJson({
+  project.writePackageJson({
     dependencies: { rimraf: '2' },
   })
 
