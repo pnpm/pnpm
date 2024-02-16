@@ -129,7 +129,7 @@ test('silent dlx prints the output of the child process only', async () => {
   prepare({})
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
-  mkdirSync(global)
+  fs.mkdirSync(global)
 
   const env = {
     [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`,
@@ -152,7 +152,7 @@ test('dlx ignores configuration in current project package.json', async () => {
   })
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
-  mkdirSync(global)
+  fs.mkdirSync(global)
 
   const env = {
     [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`,

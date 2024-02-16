@@ -69,7 +69,7 @@ test('write to stderr when --use-stderr is used', async () => {
 test('install with package-lock=false in .npmrc', async () => {
   const project = prepare()
 
-  writeFileSync('.npmrc', 'package-lock=false', 'utf8')
+  fs.writeFileSync('.npmrc', 'package-lock=false', 'utf8')
 
   await execPnpm(['add', 'is-positive'])
 
@@ -235,7 +235,7 @@ test('`pnpm -r add` should fail if no package name was provided', () => {
     },
   ])
 
-  writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   const { status, stdout } = execPnpmSync(['-r', 'add'])
 
