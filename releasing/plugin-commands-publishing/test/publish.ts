@@ -328,7 +328,7 @@ test('publish: package with publishConfig.directory', async () => {
       name: 'publish_config_directory_dist_package',
       version: '1.0.0',
     })
-  expect(existsSync('node_modules/publish_config_directory_dist_package/prepublishOnly')).toBeTruthy()
+  expect(fs.existsSync('node_modules/publish_config_directory_dist_package/prepublishOnly')).toBeTruthy()
 })
 
 test.skip('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async () => {
@@ -747,7 +747,7 @@ test('publish: use basic token helper for authentication', async () => {
 
   const tokenHelper = path.join(__dirname, 'utils', file)
 
-  chmodSync(tokenHelper, 0o755)
+  fs.chmodSync(tokenHelper, 0o755)
 
   await publish.handler({
     ...DEFAULT_OPTS,
@@ -775,7 +775,7 @@ test('publish: use bearer token helper for authentication', async () => {
     : 'tokenHelperBearer.js'
   const tokenHelper = path.join(__dirname, 'utils', file)
 
-  chmodSync(tokenHelper, 0o755)
+  fs.chmodSync(tokenHelper, 0o755)
 
   await publish.handler({
     ...DEFAULT_OPTS,
