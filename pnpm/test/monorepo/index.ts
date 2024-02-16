@@ -1,9 +1,9 @@
 // cspell:ignore buildscript
 import { promises as fs } from 'fs'
 import path from 'path'
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type LockfileV6 as Lockfile } from '@pnpm/lockfile-types'
+import { type LockfileFile } from '@pnpm/lockfile-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   prepare,
@@ -21,6 +21,8 @@ import symlink from 'symlink-dir'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils'
 import { addDistTag } from '@pnpm/registry-mock'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { type ProjectManifest } from '@pnpm/types'
 
 test('no projects matched the filters', async () => {
   preparePackages([
@@ -35,6 +37,11 @@ test('no projects matched the filters', async () => {
   {
     const { stdout } = execPnpmSync(['list', '--filter=not-exists'])
     expect(stdout.toString()).toMatch(/^No projects matched the filters in/)
+  }
+  {
+    const { stdout, status } = execPnpmSync(['list', '--filter=not-exists', '--fail-if-no-match'])
+    expect(stdout.toString()).toMatch(/^No projects matched the filters in/)
+    expect(status).toBe(1)
   }
   {
     const { stdout } = execPnpmSync(['list', '--filter=not-exists', '--parseable'])
@@ -202,13 +209,14 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
 })
 
 test('linking a package inside a monorepo with --link-workspace-packages', async () => {
+  await using server = await createTestIpcServer()
+
   const projects = preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-2': '2.0.0',
       },
       devDependencies: {
@@ -218,18 +226,15 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
         'is-positive': '1.0.0',
       },
       scripts: {
-        install: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
+        install: server.sendLineScript('project-1'),
       },
     },
     {
       name: 'project-2',
       version: '2.0.0',
 
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        install: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
+        install: server.sendLineScript('project-2'),
       },
     },
     {
@@ -253,8 +258,7 @@ save-workspace-protocol=false
 
   await execPnpm(['install'])
 
-  const { default: outputs } = await import(path.resolve('..', 'output.json'))
-  expect(outputs).toStrictEqual(['project-2', 'project-1'])
+  expect(server.getLines()).toStrictEqual(['project-2', 'project-1'])
 
   await projects['project-1'].has('project-2')
   await projects['project-1'].has('is-negative')
@@ -288,16 +292,18 @@ save-workspace-protocol=false
 })
 
 test('topological order of packages with self-dependencies in monorepo is correct', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
 
       dependencies: { 'project-2': '1.0.0', 'project-3': '1.0.0' },
-      devDependencies: { 'json-append': '1' },
       scripts: {
-        install: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
-        test: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
+        install: server1.sendLineScript('project-1'),
+        test: server2.sendLineScript('project-1'),
       },
     },
     {
@@ -305,10 +311,9 @@ test('topological order of packages with self-dependencies in monorepo is correc
       version: '1.0.0',
 
       dependencies: { 'project-2': '1.0.0' },
-      devDependencies: { 'json-append': '1' },
       scripts: {
-        install: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
-        test: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output2.json',
+        install: server1.sendLineScript('project-2'),
+        test: server2.sendLineScript('project-2'),
       },
     },
     {
@@ -316,10 +321,9 @@ test('topological order of packages with self-dependencies in monorepo is correc
       version: '1.0.0',
 
       dependencies: { 'project-2': '1.0.0', 'project-3': '1.0.0' },
-      devDependencies: { 'json-append': '1' },
       scripts: {
-        install: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output.json',
-        test: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
+        install: server1.sendLineScript('project-3'),
+        test: server2.sendLineScript('project-3'),
       },
     },
   ])
@@ -330,56 +334,53 @@ test('topological order of packages with self-dependencies in monorepo is correc
 
   await execPnpm(['install'])
 
-  const { default: outputs } = await import(path.resolve('..', 'output.json'))
-  expect(outputs).toStrictEqual(['project-2', 'project-3', 'project-1'])
+  expect(server1.getLines()).toStrictEqual(['project-2', 'project-3', 'project-1'])
 
   await execPnpm(['recursive', 'test'])
 
-  const { default: outputs2 } = await import(path.resolve('..', 'output2.json'))
-  expect(outputs2).toStrictEqual(['project-2', 'project-3', 'project-1'])
+  expect(server2.getLines()).toStrictEqual(['project-2', 'project-3', 'project-1'])
 })
 
 test('test-pattern is respected by the test script', async () => {
+  await using server = await createTestIpcServer()
+
   const remote = tempy.directory()
 
-  preparePackages([
+  const projects: Array<ProjectManifest & { name: string }> = [
     {
       name: 'project-1',
       version: '1.0.0',
       dependencies: { 'project-2': 'workspace:*', 'project-3': 'workspace:*' },
-      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
+        test: server.sendLineScript('project-1'),
       },
     },
     {
       name: 'project-2',
       version: '1.0.0',
       dependencies: {},
-      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
+        test: server.sendLineScript('project-2'),
       },
     },
     {
       name: 'project-3',
       version: '1.0.0',
       dependencies: { 'project-2': 'workspace:*' },
-      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output.json',
+        test: server.sendLineScript('project-3'),
       },
     },
     {
       name: 'project-4',
       version: '1.0.0',
       dependencies: {},
-      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-4\')" | json-append ../output.json',
+        test: server.sendLineScript('project-4'),
       },
     },
-  ])
+  ]
+  preparePackages(projects)
 
   await execa('git', ['init', '--initial-branch=main'])
   await execa('git', ['config', 'user.email', 'x@y.z'])
@@ -398,14 +399,12 @@ test('test-pattern is respected by the test script', async () => {
   await execa('git', ['add', '.'])
   await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
 
-  process.chdir('project-1')
-
   await execPnpm(['install'])
 
   await execPnpm(['recursive', 'test', '--filter', '...[origin/main]'])
 
-  const { default: output } = await import(path.resolve('..', 'output.json'))
-  expect(output.sort()).toStrictEqual(['project-2', 'project-4'])
+  // Expecting only project-2 and project-4 to run since they were changed above.
+  expect(server.getLines().sort()).toEqual(['project-2', 'project-4'])
 })
 
 test('changed-files-ignore-pattern is respected', async () => {
@@ -636,9 +635,9 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   await execPnpm(['recursive', 'install'])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-    expect(lockfile.importers.project!.dependencies!['is-positive'].version).toBe('2.0.0')
-    expect(lockfile.importers.project!.dependencies!.negative.version).toBe('/is-negative@1.0.0')
+    const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+    expect(lockfile.importers!.project!.dependencies!['is-positive'].version).toBe('2.0.0')
+    expect(lockfile.importers!.project!.dependencies!.negative.version).toBe('/is-negative@1.0.0')
   }
 
   await projects['is-positive'].writePackageJson({
@@ -654,13 +653,14 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   await execPnpm(['recursive', 'install'])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-    expect(lockfile.importers.project!.dependencies!['is-positive'].version).toBe('link:../is-positive')
-    expect(lockfile.importers.project!.dependencies!.negative.version).toBe('link:../is-negative')
+    const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+    expect(lockfile.importers!.project!.dependencies!['is-positive'].version).toBe('link:../is-positive')
+    expect(lockfile.importers!.project!.dependencies!.negative.version).toBe('link:../is-negative')
   }
 })
 
 test('recursive install with link-workspace-packages and shared-workspace-lockfile', async () => {
+  await using server = await createTestIpcServer()
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const projects = preparePackages([
     {
@@ -669,10 +669,9 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
 
       dependencies: {
         'is-negative': '1.0.0',
-        'json-append': '1',
       },
       scripts: {
-        install: 'node -e "process.stdout.write(\'is-positive\')" | json-append ../output.json',
+        install: server.sendLineScript('is-positive'),
       },
     },
     // This empty package is added to the workspace only to verify
@@ -687,10 +686,9 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
 
       devDependencies: {
         'is-positive': '1.0.0',
-        'json-append': '1',
       },
       scripts: {
-        install: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
+        install: server.sendLineScript('project-1'),
       },
     },
   ])
@@ -712,11 +710,10 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   expect(projects['is-positive'].requireModule('is-negative')).toBeTruthy()
   expect(projects['project-1'].requireModule('is-positive/package.json').author).toBeFalsy()
 
-  const sharedLockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(sharedLockfile.importers['project-1']!.devDependencies!['is-positive'].version).toBe('link:../is-positive')
+  const sharedLockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+  expect(sharedLockfile.importers!['project-1']!.devDependencies!['is-positive'].version).toBe('link:../is-positive')
 
-  const { default: outputs } = await import(path.resolve('output.json'))
-  expect(outputs).toStrictEqual(['is-positive', 'project-1'])
+  expect(server.getLines()).toStrictEqual(['is-positive', 'project-1'])
 
   await execPnpm(['recursive', 'install', '@pnpm.e2e/pkg-with-1-dep', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
 
@@ -737,20 +734,19 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
 })
 
 test('recursive install with shared-workspace-lockfile builds workspace projects in correct order', async () => {
-  const jsonAppend = (append: string, target: string) => `node -e "process.stdout.write('${append}')" | json-append ${target}`
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-999',
       version: '1.0.0',
 
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        install: `${jsonAppend('project-999-install', '../output1.json')} && ${jsonAppend('project-999-install', '../output2.json')}`,
-        postinstall: `${jsonAppend('project-999-postinstall', '../output1.json')} && ${jsonAppend('project-999-postinstall', '../output2.json')}`,
-        prepare: `${jsonAppend('project-999-prepare', '../output1.json')} && ${jsonAppend('project-999-prepare', '../output2.json')}`,
-        prepublish: `${jsonAppend('project-999-prepublish', '../output1.json')} && ${jsonAppend('project-999-prepublish', '../output2.json')}`,
+        install: `${server1.sendLineScript('project-999-install')} && ${server2.sendLineScript('project-999-install')}`,
+        postinstall: `${server1.sendLineScript('project-999-postinstall')} && ${server2.sendLineScript('project-999-postinstall')}`,
+        prepare: `${server1.sendLineScript('project-999-prepare')} && ${server2.sendLineScript('project-999-prepare')}`,
+        prepublish: `${server1.sendLineScript('project-999-prepublish')} && ${server2.sendLineScript('project-999-prepublish')}`,
       },
     },
     {
@@ -758,14 +754,13 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
       version: '1.0.0',
 
       devDependencies: {
-        'json-append': '1',
         'project-999': '1.0.0',
       },
       scripts: {
-        install: jsonAppend('project-1-install', '../output1.json'),
-        postinstall: jsonAppend('project-1-postinstall', '../output1.json'),
-        prepare: jsonAppend('project-1-prepare', '../output1.json'),
-        prepublish: jsonAppend('project-1-prepublish', '../output1.json'),
+        install: server1.sendLineScript('project-1-install'),
+        postinstall: server1.sendLineScript('project-1-postinstall'),
+        prepare: server1.sendLineScript('project-1-prepare'),
+        prepublish: server1.sendLineScript('project-1-prepublish'),
       },
     },
     {
@@ -773,14 +768,13 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
       version: '1.0.0',
 
       devDependencies: {
-        'json-append': '1',
         'project-999': '1.0.0',
       },
       scripts: {
-        install: jsonAppend('project-2-install', '../output2.json'),
-        postinstall: jsonAppend('project-2-postinstall', '../output2.json'),
-        prepare: jsonAppend('project-2-prepare', '../output2.json'),
-        prepublish: jsonAppend('project-2-prepublish', '../output2.json'),
+        install: server2.sendLineScript('project-2-install'),
+        postinstall: server2.sendLineScript('project-2-postinstall'),
+        prepare: server2.sendLineScript('project-2-prepare'),
+        prepublish: server2.sendLineScript('project-2-prepublish'),
       },
     },
   ], { manifestFormat: 'YAML' })
@@ -789,56 +783,48 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
 
-  {
-    const { default: outputs1 } = await import(path.resolve('output1.json'))
-    expect(outputs1).toStrictEqual([
-      'project-999-install',
-      'project-999-postinstall',
-      'project-999-prepare',
-      'project-1-install',
-      'project-1-postinstall',
-      'project-1-prepare',
-    ])
+  expect(server1.getLines()).toStrictEqual([
+    'project-999-install',
+    'project-999-postinstall',
+    'project-999-prepare',
+    'project-1-install',
+    'project-1-postinstall',
+    'project-1-prepare',
+  ])
 
-    const { default: outputs2 } = await import(path.resolve('output2.json'))
-    expect(outputs2).toStrictEqual([
-      'project-999-install',
-      'project-999-postinstall',
-      'project-999-prepare',
-      'project-2-install',
-      'project-2-postinstall',
-      'project-2-prepare',
-    ])
-  }
+  expect(server2.getLines()).toStrictEqual([
+    'project-999-install',
+    'project-999-postinstall',
+    'project-999-prepare',
+    'project-2-install',
+    'project-2-postinstall',
+    'project-2-prepare',
+  ])
 
   await rimraf('node_modules')
-  await rimraf('output1.json')
-  await rimraf('output2.json')
+  server1.clear()
+  server2.clear()
 
   // TODO: duplicate this test in @pnpm/headless
   await execPnpm(['recursive', 'install', '--frozen-lockfile', '--link-workspace-packages', '--shared-workspace-lockfile=true'])
 
-  {
-    const { default: outputs1 } = await import(path.resolve('output1.json'))
-    expect(outputs1).toStrictEqual([
-      'project-999-install',
-      'project-999-postinstall',
-      'project-999-prepare',
-      'project-1-install',
-      'project-1-postinstall',
-      'project-1-prepare',
-    ])
+  expect(server1.getLines()).toStrictEqual([
+    'project-999-install',
+    'project-999-postinstall',
+    'project-999-prepare',
+    'project-1-install',
+    'project-1-postinstall',
+    'project-1-prepare',
+  ])
 
-    const { default: outputs2 } = await import(path.resolve('output2.json'))
-    expect(outputs2).toStrictEqual([
-      'project-999-install',
-      'project-999-postinstall',
-      'project-999-prepare',
-      'project-2-install',
-      'project-2-postinstall',
-      'project-2-prepare',
-    ])
-  }
+  expect(server2.getLines()).toStrictEqual([
+    'project-999-install',
+    'project-999-postinstall',
+    'project-999-prepare',
+    'project-2-install',
+    'project-2-postinstall',
+    'project-2-prepare',
+  ])
 })
 
 test('recursive installation with shared-workspace-lockfile and a readPackage hook', async () => {
@@ -874,7 +860,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
 
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store'])
 
-  const lockfile = await readYamlFile<Lockfile>(`./${WANTED_LOCKFILE}`)
+  const lockfile = await readYamlFile<LockfileFile>(`./${WANTED_LOCKFILE}`)
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store', '--filter', 'project-1'])
@@ -923,7 +909,7 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
 
   await execPnpm(['install', '--store-dir', 'store'])
 
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
   expect(lockfile.importers).toHaveProperty(['.'])
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
@@ -966,7 +952,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
 
   await execPnpm(['recursive', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages'])
 
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -1047,7 +1033,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
 
   await execPnpm(['-r', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages', '--no-save-workspace-protocol'])
 
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -1137,8 +1123,8 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
   await execPnpm(['recursive', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages'])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-    expect(Object.keys(lockfile.importers)).toStrictEqual(['package-1', 'package-2'])
+    const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+    expect(Object.keys(lockfile.importers!)).toStrictEqual(['package-1', 'package-2'])
   }
 
   await rimraf('package-2')
@@ -1146,8 +1132,8 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
   await execPnpm(['recursive', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages'])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-    expect(Object.keys(lockfile.importers)).toStrictEqual(['package-1'])
+    const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+    expect(Object.keys(lockfile.importers!)).toStrictEqual(['package-1'])
   }
 })
 
@@ -1210,7 +1196,7 @@ test('shared-workspace-lockfile: removing a package recursively', async () => {
     expect(pkg.dependencies).toStrictEqual({ 'is-negative': '1.0.0' }) // is-positive removed from project2')
   }
 
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/is-negative@1.0.0']) // is-positive removed from ${WANTED_LOCKFILE}
 })
@@ -1242,8 +1228,8 @@ auto-install-peers=false`, 'utf8')
   await execPnpm(['install', 'ajv@4.10.4', 'ajv-keywords@1.5.0'])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
-    expect(lockfile.importers.foo).toStrictEqual({
+    const lockfile = await readYamlFile<LockfileFile>(path.resolve('..', WANTED_LOCKFILE))
+    expect(lockfile.importers!.foo).toStrictEqual({
       dependencies: {
         ajv: {
           specifier: '4.10.4',
@@ -1264,8 +1250,8 @@ auto-install-peers=false`, 'utf8')
   await execPnpm(['uninstall', 'ajv', '--no-strict-peer-dependencies'])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
-    expect(lockfile.importers.foo).toStrictEqual({
+    const lockfile = await readYamlFile<LockfileFile>(path.resolve('..', WANTED_LOCKFILE))
+    expect(lockfile.importers!.foo).toStrictEqual({
       dependencies: {
         'ajv-keywords': {
           specifier: '1.5.0',
@@ -1320,7 +1306,7 @@ test("linking the package's bin to another workspace package in a monorepo", asy
       version: '2.0.0',
 
       dependencies: {
-        hello: '1.0.0',
+        hello: 'workspace:*',
       },
     },
   ], { manifestFormat: 'YAML' })

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolver-base",
-  "version": "10.0.4",
+  "version": "11.1.0",
   "description": "Types for pnpm-compatible resolvers",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -17,12 +17,12 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/resolver-base",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "resolver"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "license": "MIT",
   "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/resolver-base#readme",

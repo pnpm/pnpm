@@ -1,5 +1,55 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.13
+
+### Patch Changes
+
+- e2e08b98f: Prefer hard links over reflinks on Windows as they perform better [#7564](https://github.com/pnpm/pnpm/pull/7564).
+- df9b16aa9: Don't fail in Windows CoW if the file already exists [#7554](https://github.com/pnpm/pnpm/issues/7554).
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+
+## 5.0.12
+
+### Patch Changes
+
+- 19be6b704: Fix copy-on-write on Windows Dev Drives [#7468](https://github.com/pnpm/pnpm/issues/7468).
+
+## 5.0.11
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/store-controller-types@17.1.4
+
+## 5.0.10
+
+### Patch Changes
+
+- @pnpm/core-loggers@9.0.5
+- @pnpm/store-controller-types@17.1.3
+
+## 5.0.9
+
+### Patch Changes
+
+- 418866ac0: Bump version of `@reflink/reflink` that avoids empty cloned files when using Copy-on-Write on Windows Dev Drives. (#7186)
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+
+## 5.0.7
+
+### Patch Changes
+
+- Updated dependencies [7ea45afbe]
+  - @pnpm/store-controller-types@17.1.1
+
 ## 5.0.6
 
 ### Patch Changes

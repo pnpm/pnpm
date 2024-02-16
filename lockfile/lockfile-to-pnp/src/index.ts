@@ -131,6 +131,6 @@ function toPackageDependenciesMap (
 
 function toPnPVersion (version: string, peersSuffix: string | undefined) {
   return peersSuffix
-    ? `virtual:${version}_${peersSuffix}#${version}`
+    ? `virtual:${version}${peersSuffix}#${version}`
     : version
 }

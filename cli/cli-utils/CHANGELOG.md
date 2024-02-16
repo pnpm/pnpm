@@ -1,5 +1,86 @@
 # @pnpm/cli-utils
 
+## 2.1.9
+
+### Patch Changes
+
+- Updated dependencies [f12884def]
+  - @pnpm/default-reporter@12.4.13
+  - @pnpm/config@20.4.2
+
+## 2.1.8
+
+### Patch Changes
+
+- Updated dependencies [d9564e354]
+  - @pnpm/config@20.4.1
+  - @pnpm/default-reporter@12.4.12
+
+## 2.1.7
+
+### Patch Changes
+
+- Updated dependencies [fac2ed424]
+- Updated dependencies [c597f72ec]
+  - @pnpm/default-reporter@12.4.11
+  - @pnpm/config@20.4.0
+
+## 2.1.6
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/config@20.3.0
+  - @pnpm/types@9.4.2
+  - @pnpm/default-reporter@12.4.10
+  - @pnpm/cli-meta@5.0.6
+  - @pnpm/package-is-installable@8.1.2
+  - @pnpm/manifest-utils@5.0.7
+  - @pnpm/read-project-manifest@5.0.10
+
+## 2.1.5
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/cli-meta@5.0.5
+  - @pnpm/default-reporter@12.4.9
+  - @pnpm/package-is-installable@8.1.1
+  - @pnpm/manifest-utils@5.0.6
+  - @pnpm/read-project-manifest@5.0.9
+
+## 2.1.4
+
+### Patch Changes
+
+- Updated dependencies [633c0d6f8]
+  - @pnpm/default-reporter@12.4.8
+
+## 2.1.3
+
+### Patch Changes
+
+- Updated dependencies [45bdc79b1]
+  - @pnpm/default-reporter@12.4.7
+
+## 2.1.2
+
+### Patch Changes
+
+- @pnpm/config@20.1.2
+- @pnpm/default-reporter@12.4.6
+
+## 2.1.1
+
+### Patch Changes
+
+- @pnpm/config@20.1.1
+- @pnpm/default-reporter@12.4.5
+
 ## 2.1.0
 
 ### Minor Changes

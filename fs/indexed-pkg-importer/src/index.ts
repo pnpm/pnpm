@@ -48,14 +48,19 @@ function createAutoImporter (): ImportIndexedPackage {
     to: string,
     opts: ImportOptions
   ): string | undefined {
-    try {
-      const _clonePkg = clonePkg.bind(null, createCloneFunction())
-      if (!_clonePkg(to, opts)) return undefined
-      packageImportMethodLogger.debug({ method: 'clone' })
-      auto = _clonePkg
-      return 'clone'
-    } catch (err: any) { // eslint-disable-line
-      // ignore
+    // Although reflinks are supported on Windows Dev Drives,
+    // they are 10x slower than hard links.
+    // Hence, we prefer reflinks by default only on Linux and macOS.
+    if (process.platform !== 'win32') {
+      try {
+        const _clonePkg = clonePkg.bind(null, createCloneFunction())
+        if (!_clonePkg(to, opts)) return undefined
+        packageImportMethodLogger.debug({ method: 'clone' })
+        auto = _clonePkg
+        return 'clone'
+      } catch (err: any) { // eslint-disable-line
+        // ignore
+      }
     }
     try {
       if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined
@@ -121,10 +126,7 @@ function clonePkg (
 function createCloneFunction (): CloneFunction {
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
-  //
-  // For now, we use it only for macOS as we are tracking down an issue on Windows:
-  //   https://github.com/pnpm/pnpm/issues/7186
-  if (process.platform === 'darwin') {
+  if (process.platform === 'darwin' || process.platform === 'win32') {
     // eslint-disable-next-line
     const { reflinkFileSync } = require('@reflink/reflink')
     return (fr, to) => {
@@ -134,7 +136,7 @@ function createCloneFunction (): CloneFunction {
         // If the file already exists, then we just proceed.
         // This will probably only happen if the package's index file contains the same file twice.
         // For instance: { "index.js": "hash", "./index.js": "hash" }
-        if (!err.message.startsWith('File exists')) throw err
+        if (!err.message.startsWith('File exists') && !err.message.includes('-2147024816')) throw err
       }
     }
   }

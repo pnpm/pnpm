@@ -1,5 +1,124 @@
 # @pnpm/resolve-dependencies
 
+## 31.4.0
+
+### Minor Changes
+
+- 31054a63e: Running `pnpm update -r --latest` will no longer downgrade prerelease dependencies [#7436](https://github.com/pnpm/pnpm/issues/7436).
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/npm-resolver@18.1.0
+  - @pnpm/pick-fetcher@2.0.1
+  - @pnpm/lockfile-utils@9.0.5
+
+## 31.3.1
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+- 4d34684f1: Added support for boolean values in 'bundleDependencies' package.json fields when installing a dependency. Fix to properly handle 'bundledDependencies' alias [#7411](https://github.com/pnpm/pnpm/issues/7411).
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/npm-resolver@18.0.2
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/prune-lockfile@5.0.9
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/manifest-utils@5.0.7
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/store-controller-types@17.1.4
+  - @pnpm/pick-fetcher@2.0.1
+
+## 31.3.0
+
+### Minor Changes
+
+- 672c559e4: A new setting added for symlinking [injected dependencies](https://pnpm.io/package_json#dependenciesmetainjected) from the workspace, if their dependencies use the same peer dependencies as the dependent package. The setting is called `dedupe-injected-deps` [#7416](https://github.com/pnpm/pnpm/pull/7416).
+
+### Patch Changes
+
+- Added support for boolean values in 'bundleDependencies' package.json fields when installing a dependency. Fix to properly handle 'bundledDependencies' alias [#7411](https://github.com/pnpm/pnpm/issues/7411).
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/prune-lockfile@5.0.8
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/manifest-utils@5.0.6
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/npm-resolver@18.0.1
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/pick-fetcher@2.0.1
+
+## 31.2.7
+
+### Patch Changes
+
+- d5a176af7: Fix a bug where `--fix-lockfile` crashes on tarballs [#7368](https://github.com/pnpm/pnpm/issues/7368).
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+
+## 31.2.6
+
+### Patch Changes
+
+- 5462cb6d4: Fix dependencies deduplication.
+
+## 31.2.5
+
+### Patch Changes
+
+- 6558d1865: When `dedupe-direct-deps` is set to `true`, commands of dependencies should be deduplicated [#7359](https://github.com/pnpm/pnpm/pull/7359).
+
+## 31.2.4
+
+### Patch Changes
+
+- Updated dependencies [cd4fcfff0]
+  - @pnpm/npm-resolver@18.0.0
+
+## 31.2.3
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+
+## 31.2.2
+
+### Patch Changes
+
+- 4da7b463f: (Important) Increased the default amount of allowed concurrent network request on systems that have more than 16 CPUs [#7285](https://github.com/pnpm/pnpm/pull/7285).
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/npm-resolver@17.0.0
+
+## 31.2.1
+
+### Patch Changes
+
+- 7ea45afbe: If a package's tarball cannot be fetched, print the dependency chain that leads to the failed package [#7265](https://github.com/pnpm/pnpm/pull/7265).
+- Updated dependencies [4c2450208]
+- Updated dependencies [7ea45afbe]
+- Updated dependencies [cfc017ee3]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/npm-resolver@17.0.0
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/exec.files-include-install-scripts@1.0.0
+  - @pnpm/pick-fetcher@2.0.1
+
 ## 31.2.0
 
 ### Minor Changes

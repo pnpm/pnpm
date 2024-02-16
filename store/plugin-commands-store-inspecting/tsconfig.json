@@ -1,0 +1,43 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts", "../../__typings__/**/*.d.ts"],
+  "references": [
+    { "path": "../../__utils__/prepare" },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../lockfile/lockfile-types"
+    },
+
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/parse-wanted-dependency"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/client"
+    },
+    {
+      "path": "../cafs"
+    },
+    {
+      "path": "../store-path"
+    }
+  ],
+  "composite": true
+}

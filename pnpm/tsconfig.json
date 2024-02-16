@@ -23,6 +23,9 @@
       "path": "../__utils__/test-fixtures"
     },
     {
+      "path": "../__utils__/test-ipc-server"
+    },
+    {
       "path": "../cli/cli-meta"
     },
     {
@@ -39,6 +42,9 @@
     },
     {
       "path": "../cli/parse-cli-args"
+    },
+    {
+      "path": "../completion/plugin-commands-completion"
     },
     {
       "path": "../config/config"
@@ -129,6 +135,9 @@
     },
     {
       "path": "../store/plugin-commands-store"
+    },
+    {
+      "path": "../store/plugin-commands-store-inspecting"
     },
     {
       "path": "../worker"

@@ -26,7 +26,7 @@ export async function finishWorkers () {
 }
 
 function createTarballWorkerPool (): WorkerPool {
-  const maxWorkers = Math.max(2, os.cpus().length - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
+  const maxWorkers = Math.max(2, (os.availableParallelism?.() ?? os.cpus().length) - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
   const workerPool = new WorkerPool({
     id: 'pnpm',
     maxWorkers,
@@ -49,14 +49,13 @@ function createTarballWorkerPool (): WorkerPool {
 }
 
 export async function addFilesFromDir (
-  opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg'>
+  opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
 ) {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
-    // eslint-disable-next-line
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
@@ -73,6 +72,7 @@ export async function addFilesFromDir (
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      files: opts.files,
     })
   })
 }

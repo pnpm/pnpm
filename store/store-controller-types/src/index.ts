@@ -51,7 +51,7 @@ export interface StoreController {
   getFilesIndexFilePath: GetFilesIndexFilePath
   importPackage: ImportPackageFunctionAsync
   close: () => Promise<void>
-  prune: () => Promise<void>
+  prune: (removeAlienFiles?: boolean) => Promise<void>
   upload: UploadPkgToStore
 }
 
@@ -97,7 +97,10 @@ export interface FetchPackageToStoreOptions {
    * Expected package is the package name and version that are found in the lockfile.
    */
   expectedPkg?: PkgNameVersion
+  onFetchError?: OnFetchError
 }
+
+export type OnFetchError = (error: Error) => Error
 
 export type RequestPackageFunction = (
   wantedDependency: WantedDependency & { optional?: boolean },
@@ -130,6 +133,8 @@ export interface RequestPackageOptions {
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean
   supportedArchitectures?: SupportedArchitectures
+  onFetchError?: OnFetchError
+  updateToLatest?: boolean
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

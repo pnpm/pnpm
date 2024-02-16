@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.find-packages",
-  "version": "1.1.0",
+  "version": "1.1.10",
   "description": "Finds packages inside a workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/find-packages",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm"
   ],
   "license": "MIT",
@@ -30,11 +30,10 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/find-packages#readme",
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/constants": "workspace:*",
     "@pnpm/fs.find-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "1.0.0",
-    "read-yaml-file": "^2.1.0"
+    "@pnpm/workspace.read-manifest": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

@@ -260,6 +260,43 @@ test('install should fail if the used pnpm version does not satisfy the pnpm ver
   expect(stdout.toString()).toContain('Your pnpm version is incompatible with')
 })
 
+test('install should fail if the used pnpm version does not satisfy the pnpm version specified in packageManager', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+
+    packageManager: 'pnpm@0.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['install'])
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toContain('This project is configured to use v0.0.0 of pnpm. Your current pnpm is')
+
+  expect(execPnpmSync(['install', '--config.package-manager-strict=false']).status).toBe(0)
+  expect(execPnpmSync(['install'], {
+    env: {
+      COREPACK_ENABLE_STRICT: '0',
+    },
+  }).status).toBe(0)
+})
+
+test('install should fail if the project requires a different package manager', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+
+    packageManager: 'yarn@4.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['install'])
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toContain('This project is configured to use yarn')
+
+  expect(execPnpmSync(['install', '--config.package-manager-strict=false']).status).toBe(0)
+})
+
 test('engine-strict=false: install should not fail if the used Node version does not satisfy the Node version specified in engines', async () => {
   prepare({
     name: 'project',

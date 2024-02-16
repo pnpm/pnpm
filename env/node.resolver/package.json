@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.resolver",
-  "version": "2.0.30",
+  "version": "2.0.40",
   "description": "Resolves a Node.js version specifier to an exact Node.js version",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -13,7 +13,7 @@
     ".": "./lib/index.js"
   },
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -24,7 +24,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/env/node.resolver",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "env",
     "node.js"
@@ -37,7 +37,7 @@
   "dependencies": {
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
-    "semver": "^7.5.4",
+    "semver": "^7.6.0",
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {

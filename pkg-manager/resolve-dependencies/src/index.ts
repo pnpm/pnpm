@@ -20,7 +20,6 @@ import {
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
   type ProjectManifest,
-  type Registries,
 } from '@pnpm/types'
 import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
@@ -95,6 +94,8 @@ export async function resolveDependencies (
   opts: ResolveDependenciesOptions & {
     defaultUpdateDepth: number
     dedupePeerDependents?: boolean
+    dedupeDirectDeps?: boolean
+    dedupeInjectedDeps?: boolean
     excludeLinksFromLockfile?: boolean
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
@@ -108,6 +109,8 @@ export async function resolveDependencies (
     preferredVersions: opts.preferredVersions,
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
+    updateToLatest: opts.updateToLatest,
+    noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
   })
   const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
   const {
@@ -133,48 +136,8 @@ export async function resolveDependencies (
     })
   }
 
-  const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
-  const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project, index) => {
+  const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project) => {
     const resolvedImporter = resolvedImporters[project.id]
-    linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
-    let updatedManifest: ProjectManifest | undefined = project.manifest
-    let updatedOriginalManifest: ProjectManifest | undefined = project.originalManifest
-    if (project.updatePackageManifest) {
-      const manifests = await updateProjectManifest(project, {
-        directDependencies: resolvedImporter.directDependencies,
-        preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
-        saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
-      })
-      updatedManifest = manifests[0]
-      updatedOriginalManifest = manifests[1]
-    } else {
-      packageManifestLogger.debug({
-        prefix: project.rootDir,
-        updated: project.manifest,
-      })
-    }
-
-    if (updatedManifest != null) {
-      if (opts.autoInstallPeers) {
-        if (updatedManifest.peerDependencies) {
-          const allDeps = getAllDependenciesFromManifest(updatedManifest)
-          for (const [peerName, peerRange] of Object.entries(updatedManifest.peerDependencies)) {
-            if (allDeps[peerName]) continue
-            updatedManifest.dependencies ??= {}
-            updatedManifest.dependencies[peerName] = peerRange
-          }
-        }
-      }
-      const projectSnapshot = opts.wantedLockfile.importers[project.id]
-      opts.wantedLockfile.importers[project.id] = addDirectDependenciesToLockfile(
-        updatedManifest,
-        projectSnapshot,
-        resolvedImporter.linkedDependencies,
-        resolvedImporter.directDependencies,
-        opts.registries,
-        opts.excludeLinksFromLockfile
-      )
-    }
 
     const topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }> = project.manifest
       ? await getTopParents(
@@ -199,8 +162,6 @@ export async function resolveDependencies (
       })
     })
 
-    const manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
-    importers[index].manifest = manifest
     return {
       binsDir: project.binsDir,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
@@ -217,20 +178,65 @@ export async function resolveDependencies (
     dependenciesGraph,
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
-  } = resolvePeers({
+  } = await resolvePeers({
     dependenciesTree,
     dedupePeerDependents: opts.dedupePeerDependents,
+    dedupeInjectedDeps: opts.dedupeInjectedDeps,
     lockfileDir: opts.lockfileDir,
     projects: projectsToLink,
     virtualStoreDir: opts.virtualStoreDir,
     resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
+    resolvedImporters,
   })
 
-  for (const { id, manifest } of projectsToLink) {
-    for (const [alias, depPath] of Object.entries(dependenciesByProjectId[id])) {
-      const projectSnapshot = opts.wantedLockfile.importers[id]
-      if (manifest.dependenciesMeta != null) {
-        projectSnapshot.dependenciesMeta = manifest.dependenciesMeta
+  const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
+  await Promise.all(projectsToResolve.map(async (project, index) => {
+    const resolvedImporter = resolvedImporters[project.id]
+    linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
+    let updatedManifest: ProjectManifest | undefined
+    let updatedOriginalManifest: ProjectManifest | undefined
+    if (project.updatePackageManifest) {
+      [updatedManifest, updatedOriginalManifest] = await updateProjectManifest(project, {
+        directDependencies: resolvedImporter.directDependencies,
+        preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
+        saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+      })
+    } else {
+      updatedManifest = project.manifest
+      updatedOriginalManifest = project.originalManifest
+      packageManifestLogger.debug({
+        prefix: project.rootDir,
+        updated: project.manifest,
+      })
+    }
+
+    if (updatedManifest != null) {
+      if (opts.autoInstallPeers) {
+        if (updatedManifest.peerDependencies) {
+          const allDeps = getAllDependenciesFromManifest(updatedManifest)
+          for (const [peerName, peerRange] of Object.entries(updatedManifest.peerDependencies)) {
+            if (allDeps[peerName]) continue
+            updatedManifest.dependencies ??= {}
+            updatedManifest.dependencies[peerName] = peerRange
+          }
+        }
+      }
+      const projectSnapshot = opts.wantedLockfile.importers[project.id]
+      opts.wantedLockfile.importers[project.id] = addDirectDependenciesToLockfile(
+        updatedManifest,
+        projectSnapshot,
+        resolvedImporter.linkedDependencies,
+        resolvedImporter.directDependencies,
+        opts.excludeLinksFromLockfile
+      )
+    }
+
+    importers[index].manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
+
+    for (const [alias, depPath] of Object.entries(dependenciesByProjectId[project.id])) {
+      const projectSnapshot = opts.wantedLockfile.importers[project.id]
+      if (project.manifest.dependenciesMeta != null) {
+        projectSnapshot.dependenciesMeta = project.manifest.dependenciesMeta
       }
 
       const depNode = dependenciesGraph[depPath]
@@ -238,7 +244,6 @@ export async function resolveDependencies (
       const ref = depPathToRef(depPath, {
         alias,
         realName: depNode.name,
-        registries: opts.registries,
         resolution: depNode.resolution,
       })
       if (projectSnapshot.dependencies?.[alias]) {
@@ -247,6 +252,20 @@ export async function resolveDependencies (
         projectSnapshot.devDependencies[alias] = ref
       } else if (projectSnapshot.optionalDependencies?.[alias]) {
         projectSnapshot.optionalDependencies[alias] = ref
+      }
+    }
+  }))
+
+  if (opts.dedupeDirectDeps) {
+    const rootDeps = dependenciesByProjectId['.']
+    if (rootDeps) {
+      for (const [id, deps] of Object.entries(dependenciesByProjectId)) {
+        if (id === '.') continue
+        for (const [alias, depPath] of Object.entries(deps)) {
+          if (depPath === rootDeps[alias]) {
+            delete deps[alias]
+          }
+        }
       }
     }
   }
@@ -367,7 +386,6 @@ function addDirectDependenciesToLockfile (
   projectSnapshot: ProjectSnapshot,
   linkedPackages: Array<{ alias: string }>,
   directDependencies: ResolvedDirectDependency[],
-  registries: Registries,
   excludeLinksFromLockfile?: boolean
 ): ProjectSnapshot {
   const newProjectSnapshot: ProjectSnapshot & Required<Pick<ProjectSnapshot, 'dependencies' | 'devDependencies' | 'optionalDependencies'>> = {
@@ -406,7 +424,6 @@ function addDirectDependenciesToLockfile (
       const ref = depPathToRef(dep.pkgId, {
         alias: dep.alias,
         realName: dep.name,
-        registries,
         resolution: dep.resolution,
       })
       if (dep.dev) {

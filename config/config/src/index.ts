@@ -16,7 +16,7 @@ import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
-import { getScopeRegistries } from './getScopeRegistries'
+import { getNetworkConfigs } from './getNetworkConfigs'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
 import {
   type Config,
@@ -52,6 +52,7 @@ export const types = Object.assign({
   'deploy-all-files': Boolean,
   'dedupe-peer-dependents': Boolean,
   'dedupe-direct-deps': Boolean,
+  'dedupe-injected-deps': Boolean,
   dev: [null, true],
   dir: String,
   'disallow-workspace-cycles': Boolean,
@@ -73,6 +74,7 @@ export const types = Object.assign({
   'git-branch-lockfile': Boolean,
   hoist: Boolean,
   'hoist-pattern': Array,
+  'hoist-workspace-packages': Boolean,
   'ignore-compatibility-db': Boolean,
   'ignore-dep-scripts': Boolean,
   'ignore-pnpmfile': Boolean,
@@ -101,6 +103,7 @@ export const types = Object.assign({
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   'patches-dir': String,
   pnpmfile: String,
+  'package-manager-strict': Boolean,
   'prefer-frozen-lockfile': Boolean,
   'prefer-offline': Boolean,
   'prefer-symlinked-executables': Boolean,
@@ -144,10 +147,11 @@ export const types = Object.assign({
   'embed-readme': Boolean,
   'update-notifier': Boolean,
   'registry-supports-time-field': Boolean,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  'fail-if-no-match': Boolean,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as Partial<Record<keyof KebabCaseConfig, any>>, npmTypes.types)
 
-export type CliOptions = Record<string, unknown> & { dir?: string }
+export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
 
 export async function getConfig (
   opts: {
@@ -204,10 +208,13 @@ export async function getConfig (
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
     'dedupe-direct-deps': false,
+    'dedupe-injected-deps': true,
     'disallow-workspace-cycles': false,
     'enable-modules-dir': true,
+    'enable-pre-post-scripts': true,
     'exclude-links-from-lockfile': false,
     'extend-node-path': true,
+    'fail-if-no-match': false,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,
@@ -225,14 +232,16 @@ export async function getConfig (
     'git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
+    'hoist-workspace-packages': true,
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
-    'link-workspace-packages': true,
+    'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'node-linker': 'isolated',
     'package-lock': npmDefaults['package-lock'],
     pending: false,
+    'package-manager-strict': process.env.COREPACK_ENABLE_STRICT !== '0',
     'prefer-workspace-packages': false,
     'public-hoist-pattern': [
       '*eslint*',
@@ -285,7 +294,9 @@ export async function getConfig (
     ...rcOptions.map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // eslint-disable-line
     ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name), value]),
   ]) as unknown as ConfigWithDeprecatedSettings
-  const cwd = betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix)
+  // Resolving the current working directory to its actual location is crucial.
+  // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
+  const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
 
   pnpmConfig.maxSockets = npmConfig.maxsockets
   // @ts-expect-error
@@ -308,10 +319,12 @@ export async function getConfig (
     cliOptions,
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
-    ...getScopeRegistries(pnpmConfig.rawConfig),
+    ...networkConfigs.registries,
   }
+  pnpmConfig.sslConfigs = networkConfigs.sslConfigs
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
     if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock

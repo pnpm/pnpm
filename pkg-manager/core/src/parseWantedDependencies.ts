@@ -24,7 +24,7 @@ export function parseWantedDependencies (
       const alias = parsed['alias']
       let pref = parsed['pref']
       let pinnedVersion!: PinnedVersion | undefined
-      /* eslint-enable @typescript-eslint/dot-notation */
+
       if (!opts.allowNew && (!alias || !opts.currentPrefs[alias])) {
         return null
       }

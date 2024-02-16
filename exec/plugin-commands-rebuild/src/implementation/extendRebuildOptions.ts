@@ -6,7 +6,7 @@ import { type StoreController } from '@pnpm/store-controller-types'
 import { type Registries } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 
-export interface StrictRebuildOptions {
+export type StrictRebuildOptions = {
   autoInstallPeers: boolean
   cacheDir: string
   childConcurrency: number
@@ -48,7 +48,7 @@ export interface StrictRebuildOptions {
   deployAllFiles: boolean
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
-}
+} & Pick<Config, 'sslConfigs'>
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
 Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> & Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
@@ -80,7 +80,7 @@ const defaults = async (opts: RebuildOptions) => {
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
       !process.setgid ||
-      process.getuid() !== 0,
+      process.getuid?.() !== 0,
     useLockfile: true,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
   } as StrictRebuildOptions

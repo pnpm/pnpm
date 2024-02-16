@@ -1,5 +1,166 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.5.3
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/lifecycle@16.0.12
+  - @pnpm/client@10.0.46
+  - @pnpm/cli-utils@2.1.9
+  - @pnpm/config@20.4.2
+  - @pnpm/exportable-manifest@5.0.11
+
+## 7.5.2
+
+### Patch Changes
+
+- 3c6726936: `pnpm pack` should work as expected when "prepack" modifies the manifest [#7558](https://github.com/pnpm/pnpm/pull/7558).
+
+## 7.5.1
+
+### Patch Changes
+
+- 7856b9263: `@pnpm/network.auth-header` should be a prod dependency.
+- 9fb45d0fc: `pnpm publish` should pack "main" file or "bin" files defined in "publishConfig" [#4195](https://github.com/pnpm/pnpm/issues/4195).
+- Updated dependencies [9fb45d0fc]
+  - @pnpm/fs.packlist@1.0.3
+  - @pnpm/client@10.0.45
+  - @pnpm/lifecycle@16.0.11
+
+## 7.5.0
+
+### Minor Changes
+
+- 5a5e42551: Allow using token helpers in `pnpm publish` [#7316](https://github.com/pnpm/pnpm/issues/7316).
+
+### Patch Changes
+
+- Updated dependencies [5a5e42551]
+- Updated dependencies [d9564e354]
+- Updated dependencies [5a5e42551]
+  - @pnpm/run-npm@6.1.0
+  - @pnpm/config@20.4.1
+  - @pnpm/client@10.0.44
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/exportable-manifest@5.0.11
+  - @pnpm/lifecycle@16.0.10
+
+## 7.4.13
+
+### Patch Changes
+
+- @pnpm/client@10.0.43
+
+## 7.4.12
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 7.4.11
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/package-bins@8.0.6
+  - @pnpm/exportable-manifest@5.0.11
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/sort-packages@5.0.9
+  - @pnpm/client@10.0.42
+
+## 7.4.10
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/package-bins@8.0.5
+  - @pnpm/exportable-manifest@5.0.10
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/sort-packages@5.0.8
+  - @pnpm/client@10.0.41
+
+## 7.4.9
+
+### Patch Changes
+
+- @pnpm/client@10.0.40
+
+## 7.4.8
+
+### Patch Changes
+
+- @pnpm/client@10.0.39
+- @pnpm/cli-utils@2.1.4
+
+## 7.4.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+- @pnpm/client@10.0.38
+
+## 7.4.6
+
+### Patch Changes
+
+- @pnpm/client@10.0.37
+
+## 7.4.5
+
+### Patch Changes
+
+- @pnpm/client@10.0.36
+
+## 7.4.4
+
+### Patch Changes
+
+- Updated dependencies [74432d605]
+  - @pnpm/fs.packlist@1.0.2
+  - @pnpm/client@10.0.35
+  - @pnpm/lifecycle@16.0.8
+  - @pnpm/config@20.1.2
+  - @pnpm/cli-utils@2.1.2
+  - @pnpm/exportable-manifest@5.0.9
+
+## 7.4.3
+
+### Patch Changes
+
+- Updated dependencies [c7f1359b6]
+  - @pnpm/fs.packlist@1.0.1
+  - @pnpm/lifecycle@16.0.7
+  - @pnpm/client@10.0.34
+
+## 7.4.2
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/client@10.0.33
+  - @pnpm/lifecycle@16.0.6
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+  - @pnpm/exportable-manifest@5.0.9
+
 ## 7.4.1
 
 ### Patch Changes

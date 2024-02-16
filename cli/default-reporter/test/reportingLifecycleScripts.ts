@@ -481,6 +481,71 @@ ${chalk.cyan('packages/foo')} ${POSTINSTALL}: Done`)
   })
 })
 
+test('groups lifecycle output when append-only and aggregate-output are used with mixed stages', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: {
+      appendOnly: true,
+      aggregateOutput: true,
+      outputMaxWidth: 79,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  const fooBuild = {
+    depPath: 'packages/foo',
+    stage: 'build',
+    wd: 'packages/foo',
+  }
+
+  const fooLint = {
+    depPath: 'packages/foo',
+    stage: 'lint',
+    wd: 'packages/foo',
+  }
+
+  const barPostinstall = {
+    depPath: 'packages/bar',
+    stage: 'postinstall',
+    wd: 'packages/bar',
+  }
+
+  const BUILD = hlValue('build')
+  const LINT = hlValue('lint')
+
+  lifecycleLogger.debug({ ...fooBuild, optional: false, script: 'node build' })
+  lifecycleLogger.debug({ ...fooBuild, line: 'foo build I', stdio: 'stdout' })
+  lifecycleLogger.debug({ ...fooLint, optional: false, script: 'node lint' })
+  lifecycleLogger.debug({ ...fooLint, line: 'foo lint I', stdio: 'stdout' })
+  lifecycleLogger.debug({ ...barPostinstall, optional: false, script: 'node bar' })
+  lifecycleLogger.debug({ ...barPostinstall, line: 'bar I', stdio: 'stdout' })
+  lifecycleLogger.debug({ ...fooLint, line: 'foo lint II', stdio: 'stdout' })
+  lifecycleLogger.debug({ ...fooLint, line: 'foo lint III', stdio: 'stdout' })
+  lifecycleLogger.debug({ ...fooBuild, line: 'foo build II', stdio: 'stdout' })
+  lifecycleLogger.debug({ ...fooBuild, exitCode: 1, optional: true })
+  lifecycleLogger.debug({ ...fooLint, exitCode: 0, optional: true })
+  lifecycleLogger.debug({ ...barPostinstall, exitCode: 0, optional: false })
+
+  await expect(
+    firstValueFrom(
+      output$.pipe(map<string, string>(normalizeNewline), take(12), toArray())
+    )
+  ).resolves.toEqual([
+    `${chalk.cyan('packages/foo')} ${BUILD}$ node build`,
+    `${chalk.cyan('packages/foo')} ${BUILD}: foo build I`,
+    `${chalk.cyan('packages/foo')} ${BUILD}: foo build II`,
+    `${chalk.cyan('packages/foo')} ${BUILD}: Failed`,
+    `${chalk.cyan('packages/foo')} ${LINT}$ node lint`,
+    `${chalk.cyan('packages/foo')} ${LINT}: foo lint I`,
+    `${chalk.cyan('packages/foo')} ${LINT}: foo lint II`,
+    `${chalk.cyan('packages/foo')} ${LINT}: foo lint III`,
+    `${chalk.cyan('packages/foo')} ${LINT}: Done`,
+    `${chalk.magenta('packages/bar')} ${POSTINSTALL}$ node bar`,
+    `${chalk.magenta('packages/bar')} ${POSTINSTALL}: bar I`,
+    `${chalk.magenta('packages/bar')} ${POSTINSTALL}: Done`,
+  ])
+})
+
 test('groups lifecycle output when append-only and reporter-hide-prefix are used', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },

@@ -4,7 +4,7 @@ import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingle
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
-import { createPeersFolderSuffix } from '@pnpm/dependency-path'
+import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import { testDefaults } from '../utils'
 
 test('auto install non-optional peer dependencies', async () => {
@@ -41,6 +41,21 @@ test('do not auto install when there is no common peer dependency range intersec
   ])
 })
 
+test('auto install latest when there is no common peer dependency range intersection', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/wants-peer-c-1', '@pnpm.e2e/wants-peer-c-2'], await testDefaults({
+    autoInstallPeers: true,
+    autoInstallPeersFromHighestMatch: true,
+  }))
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages)).toStrictEqual([
+    '/@pnpm.e2e/peer-c@2.0.0',
+    '/@pnpm.e2e/wants-peer-c-1@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+    '/@pnpm.e2e/wants-peer-c-2@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+  ])
+})
+
 test('don\'t fail on linked package, when peers are auto installed', async () => {
   const pkgManifest = {
     dependencies: {
@@ -71,7 +86,7 @@ test('hoist a peer dependency in order to reuse it by other dependencies, when i
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm/xyz-parent-parent-parent-parent', '@pnpm/xyz-parent-parent-with-xyz'], await testDefaults({ autoInstallPeers: true }))
   const lockfile = await project.readLockfile()
-  const suffix = createPeersFolderSuffix([{ name: '@pnpm/x', version: '1.0.0' }, { name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm/z', version: '1.0.0' }])
+  const suffix = createPeersDirSuffix([{ name: '@pnpm/x', version: '1.0.0' }, { name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm/z', version: '1.0.0' }])
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/@pnpm/x@1.0.0',
     `/@pnpm/xyz-parent-parent-parent-parent@1.0.0${suffix}`,
@@ -94,8 +109,8 @@ test('don\'t hoist a peer dependency when there is a root dependency by that nam
     `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm/y/-/y-2.0.0.tgz`,
   ], await testDefaults({ autoInstallPeers: true }))
   const lockfile = await project.readLockfile()
-  const suffix1 = createPeersFolderSuffix([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
-  const suffix2 = createPeersFolderSuffix([{ name: '@pnpm/x', version: '1.0.0' }, { name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm/z', version: '1.0.0' }])
+  const suffix1 = createPeersDirSuffix([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
+  const suffix2 = createPeersDirSuffix([{ name: '@pnpm/x', version: '1.0.0' }, { name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm/z', version: '1.0.0' }])
   expect(Object.keys(lockfile.packages).sort()).toStrictEqual([
     '/@pnpm.e2e/peer-a@1.0.0',
     '/@pnpm/x@1.0.0',
@@ -121,7 +136,7 @@ test('don\'t auto-install a peer dependency, when that dependency is in the root
     `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm/y/-/y-2.0.0.tgz`,
   ], await testDefaults({ autoInstallPeers: true }))
   const lockfile = await project.readLockfile()
-  const suffix = createPeersFolderSuffix([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
+  const suffix = createPeersDirSuffix([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
   expect(Object.keys(lockfile.packages).sort()).toStrictEqual([
     `/@pnpm/xyz-parent-parent-parent-parent@1.0.0${suffix}`,
     `/@pnpm/xyz-parent-parent-parent@1.0.0${suffix}`,
@@ -143,7 +158,7 @@ test('don\'t install the same missing peer dependency twice', async () => {
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages).sort()).toStrictEqual([
     '/@pnpm/y@1.0.0',
-    `/@pnpm.e2e/has-has-y-peer-peer@1.0.0${createPeersFolderSuffix([{ name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm.e2e/has-y-peer', version: '1.0.0' }])}`,
+    '/@pnpm.e2e/has-has-y-peer-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))(@pnpm/y@1.0.0)',
     '/@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0)',
   ].sort())
 })

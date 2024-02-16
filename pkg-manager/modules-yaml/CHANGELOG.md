@@ -1,5 +1,25 @@
 # @pnpm/modules-yaml
 
+## 12.1.7
+
+### Patch Changes
+
+- d349bc3a2: readModulesYaml should not crash on empty file.
+
+## 12.1.6
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+
+## 12.1.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+
 ## 12.1.4
 
 ### Patch Changes

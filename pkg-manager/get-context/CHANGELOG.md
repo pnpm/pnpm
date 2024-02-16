@@ -1,5 +1,53 @@
 # @pnpm/get-context
 
+## 10.0.11
+
+### Patch Changes
+
+- 60bcc797f: Registry configuration from previous installation should not override current settings [#7507](https://github.com/pnpm/pnpm/issues/7507).
+
+## 10.0.10
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/read-projects-context@8.0.11
+
+## 10.0.9
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/read-projects-context@8.0.10
+
+## 10.0.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/read-projects-context@8.0.9
+
+## 10.0.7
+
+### Patch Changes
+
+- b1fd38cca: The modules directory should not be removed if the registry configuration has changed.
+
+## 10.0.6
+
+### Patch Changes
+
+- 2143a9388: Improve the error message when `node_modules` should be recreated.
+
 ## 10.0.5
 
 ### Patch Changes

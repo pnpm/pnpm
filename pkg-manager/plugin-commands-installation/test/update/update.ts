@@ -99,6 +99,24 @@ test('update: fail when both "latest" and "workspace" are true', async () => {
   expect(err.message).toBe('Cannot use --latest with --workspace simultaneously')
 })
 
+test('update --latest forbids specs', async () => {
+  prepare()
+
+  let err!: PnpmError
+  try {
+    await update.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      latest: true,
+      workspaceDir: process.cwd(),
+    }, ['foo@latest', 'bar@next', 'baz'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_LATEST_WITH_SPEC')
+  expect(err.message).toBe('Specs are not allowed to be used with --latest (foo@latest, bar@next)')
+})
+
 describe('update by package name', () => {
   beforeAll(async () => {
     prepare({

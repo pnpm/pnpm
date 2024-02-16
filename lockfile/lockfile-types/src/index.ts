@@ -2,6 +2,8 @@ import { type DependenciesMeta, type PatchFile } from '@pnpm/types'
 
 export type { PatchFile }
 
+export * from './lockfileFileTypes'
+
 export interface LockfileSettings {
   autoInstallPeers?: boolean
   excludeLinksFromLockfile?: boolean
@@ -25,28 +27,6 @@ export interface ProjectSnapshot {
   dependencies?: ResolvedDependencies
   optionalDependencies?: ResolvedDependencies
   devDependencies?: ResolvedDependencies
-  dependenciesMeta?: DependenciesMeta
-  publishDirectory?: string
-}
-
-export interface LockfileV6 {
-  importers: Record<string, ProjectSnapshotV6>
-  lockfileVersion: number | string
-  time?: Record<string, string>
-  packages?: PackageSnapshots
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  overrides?: Record<string, string>
-  packageExtensionsChecksum?: string
-  patchedDependencies?: Record<string, PatchFile>
-  settings?: LockfileSettings
-}
-
-export interface ProjectSnapshotV6 {
-  specifiers: ResolvedDependenciesOfImporters
-  dependencies?: ResolvedDependenciesOfImporters
-  optionalDependencies?: ResolvedDependenciesOfImporters
-  devDependencies?: ResolvedDependenciesOfImporters
   dependenciesMeta?: DependenciesMeta
   publishDirectory?: string
 }
@@ -116,7 +96,7 @@ export interface PackageSnapshot {
     }
   }
   transitivePeerDependencies?: string[]
-  bundledDependencies?: string[]
+  bundledDependencies?: string[] | boolean
   engines?: Record<string, string> & {
     node: string
   }

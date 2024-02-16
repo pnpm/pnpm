@@ -340,6 +340,38 @@ test('throw error when accessing private package w/o authorization', async () =>
   expect(scope.isDone()).toBeTruthy()
 })
 
+test('do not retry when package does not exist', async () => {
+  const scope = nock(registry)
+    .get('/foo.tgz')
+    .reply(404)
+
+  process.chdir(tempy.directory())
+
+  const resolution = {
+    integrity: tarballIntegrity,
+    tarball: 'http://example.com/foo.tgz',
+  }
+
+  await expect(
+    fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
+      lockfileDir: process.cwd(),
+      pkg: {},
+    })
+  ).rejects.toThrow(
+    new FetchError(
+      {
+        url: resolution.tarball,
+      },
+      {
+        status: 404,
+        statusText: '',
+      }
+    )
+  )
+  expect(scope.isDone()).toBeTruthy()
+})
+
 test('accessing private packages', async () => {
   const scope = nock(
     registry,
@@ -416,6 +448,24 @@ test('fail when preparing a git-hosted package', async () => {
   ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
 })
 
+test('take only the files included in the package, when fetching a git-hosted package', async () => {
+  process.chdir(tempy.directory())
+
+  const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/pkg-with-ignored-files/tar.gz/958d6d487217512bb154d02836e9b5b922a600d8' }
+
+  const result = await fetch.gitHostedTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg: {},
+  })
+
+  expect(Object.keys(result.filesIndex).sort()).toStrictEqual([
+    'README.md',
+    `dist${path.sep}index.js`,
+    'package.json',
+  ])
+})
+
 test('fail when extracting a broken tarball', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')
@@ -480,4 +530,79 @@ test('when extracting files with the same name, pick the last ones', async () =>
   const pkgJson = JSON.parse(fs.readFileSync(filesIndex['package.json'], 'utf8'))
   expect(pkgJson.name).toBe('pkg2')
   expect(manifest?.name).toBe('pkg2')
+})
+
+test('use the subfolder when path is present', async () => {
+  process.chdir(tempy.directory())
+
+  const resolution = {
+    tarball: 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+    path: '/packages/simple-react-app',
+  }
+
+  const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+    ignoreScripts: true,
+    rawConfig: {},
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+  const { filesIndex } = await fetch.gitHostedTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg: {},
+  })
+
+  expect(filesIndex).toHaveProperty(['package.json'])
+  expect(filesIndex).not.toHaveProperty(['lerna.json'])
+})
+
+test('prevent directory traversal attack when path is present', async () => {
+  process.chdir(tempy.directory())
+
+  const tarball = 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
+  const path = '../../etc'
+  const resolution = { tarball, path }
+
+  const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+    ignoreScripts: true,
+    rawConfig: {},
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+
+  await expect(() => fetch.gitHostedTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg: {},
+  })).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${tarball}": Path "${path}" should be a sub directory`)
+})
+
+test('fail when path is not exists', async () => {
+  process.chdir(tempy.directory())
+
+  const tarball = 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
+  const path = '/not-exists'
+  const resolution = { tarball, path }
+
+  const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+    ignoreScripts: true,
+    rawConfig: {},
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+
+  await expect(() => fetch.gitHostedTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg: {},
+  })).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${tarball}": Path "${path}" is not a directory`)
 })

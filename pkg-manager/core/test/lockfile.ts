@@ -1,11 +1,11 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { type RootLog } from '@pnpm/core-loggers'
 import { type PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-file'
-import { type LockfileV6 } from '@pnpm/lockfile-types'
+import { type LockfileFile } from '@pnpm/lockfile-types'
 import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -855,18 +855,18 @@ test('lockfile file has correct format when lockfile directory does not equal th
   expect(modules.pendingBuilds.length).toBe(0)
 
   {
-    const lockfile: LockfileV6 = await readYamlFile(WANTED_LOCKFILE)
+    const lockfile: LockfileFile = await readYamlFile(WANTED_LOCKFILE)
     const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
 
     expect(lockfile.importers).toBeTruthy()
-    expect(lockfile.importers.project).toBeTruthy()
-    expect(lockfile.importers.project).toBeTruthy()
-    expect(lockfile.importers.project.dependencies).toBeTruthy()
-    expect(lockfile.importers.project.dependencies!['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
-    expect(lockfile.importers.project.dependencies!['@zkochan/foo']).toBeTruthy()
-    expect(lockfile.importers.project.dependencies!['is-negative'].version).toContain('/')
+    expect(lockfile.importers?.project).toBeTruthy()
+    expect(lockfile.importers?.project).toBeTruthy()
+    expect(lockfile.importers?.project.dependencies).toBeTruthy()
+    expect(lockfile.importers?.project.dependencies!['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
+    expect(lockfile.importers?.project.dependencies!['@zkochan/foo']).toBeTruthy()
+    expect(lockfile.importers?.project.dependencies!['is-negative'].version).toContain('/')
 
     expect(lockfile.packages![id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
     expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
@@ -889,16 +889,16 @@ test('lockfile file has correct format when lockfile directory does not equal th
   }))
 
   {
-    const lockfile = await readYamlFile<LockfileV6>(path.join('..', WANTED_LOCKFILE))
+    const lockfile = await readYamlFile<LockfileFile>(path.join('..', WANTED_LOCKFILE))
 
     expect(lockfile.importers).toHaveProperty(['project-2'])
 
     // previous entries are not removed
     const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
-    expect(lockfile.importers.project.dependencies!['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
-    expect(lockfile.importers.project.dependencies).toHaveProperty(['@zkochan/foo'])
-    expect(lockfile.importers.project.dependencies!['is-negative'].version).toContain('/')
+    expect(lockfile.importers?.project.dependencies!['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
+    expect(lockfile.importers?.project.dependencies).toHaveProperty(['@zkochan/foo'])
+    expect(lockfile.importers?.project.dependencies!['is-negative'].version).toContain('/')
 
     expect(lockfile.packages).toHaveProperty([id])
     expect(lockfile.packages![id].dependencies).toBeTruthy()
@@ -977,9 +977,9 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     })
   )
 
-  const currentLockfile = await readYamlFile<LockfileV6>(path.resolve('node_modules/.pnpm/lock.yaml'))
+  const currentLockfile = await readYamlFile<LockfileFile>(path.resolve('node_modules/.pnpm/lock.yaml'))
 
-  expect(Object.keys(currentLockfile['importers'])).toStrictEqual(['pkg2'])
+  expect(Object.keys(currentLockfile.importers ?? {})).toStrictEqual(['pkg2'])
 
   await mutateModules(
     [
@@ -1049,52 +1049,6 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
   const updatedLockfile = await project.readLockfile()
 
   expect(initialLockfile.packages).toStrictEqual(updatedLockfile.packages)
-})
-
-test('lockfile is not getting broken if the used registry changes', async () => {
-  const project = prepareEmpty()
-
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1'], await testDefaults())
-
-  const newOpts = await testDefaults({ registries: { default: 'https://registry.npmjs.org/' } })
-  let err!: PnpmError
-  try {
-    await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-  expect(err.code).toBe('ERR_PNPM_REGISTRIES_MISMATCH')
-
-  await mutateModulesInSingleProject({
-    manifest,
-    mutation: 'install',
-    rootDir: process.cwd(),
-  }, {
-    ...newOpts,
-    confirmModulesPurge: false,
-  })
-  await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
-
-  expect(Object.keys((await project.readLockfile()).packages)).toStrictEqual([
-    '/is-negative@1.0.1',
-    '/is-positive@1.0.0',
-  ])
-})
-
-test('when using a different registry, add -g to the error report according to options.global', async () => {
-  prepareEmpty()
-
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1'], await testDefaults())
-
-  const newOpts = await testDefaults({ registries: { default: 'https://registry.npmjs.org/' }, global: true })
-  let err!: PnpmError
-  try {
-    await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-  expect(err.code).toBe('ERR_PNPM_REGISTRIES_MISMATCH')
-  expect(err.message).toContain('pnpm install -g')
 })
 
 test('broken lockfile is fixed even if it seems like up to date at first. Unless frozenLockfile option is set to true', async () => {
@@ -1174,20 +1128,18 @@ test('tarball domain differs from registry domain', async () => {
     dependencies: {
       'is-positive': {
         specifier: '^3.1.0',
-        version: 'registry.npmjs.org/is-positive@3.1.0',
+        version: '3.1.0',
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'registry.npmjs.org/is-positive@3.1.0': {
+      '/is-positive@3.1.0': {
         dev: false,
         engines: { node: '>=0.10.0' },
-        name: 'is-positive',
         resolution: {
           integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
           tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
         },
-        version: '3.1.0',
       },
     },
   })

@@ -1,5 +1,55 @@
 # @pnpm/default-resolver
 
+## 18.0.22
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/npm-resolver@18.1.0
+  - @pnpm/git-resolver@8.0.12
+  - @pnpm/local-resolver@11.0.4
+  - @pnpm/tarball-resolver@8.0.8
+
+## 18.0.21
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+  - @pnpm/npm-resolver@18.0.2
+  - @pnpm/local-resolver@11.0.3
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/git-resolver@8.0.11
+  - @pnpm/tarball-resolver@8.0.7
+
+## 18.0.20
+
+### Patch Changes
+
+- @pnpm/local-resolver@11.0.2
+- @pnpm/npm-resolver@18.0.1
+- @pnpm/resolver-base@11.0.1
+- @pnpm/git-resolver@8.0.10
+- @pnpm/tarball-resolver@8.0.6
+
+## 18.0.19
+
+### Patch Changes
+
+- Updated dependencies [cd4fcfff0]
+  - @pnpm/npm-resolver@18.0.0
+
+## 18.0.18
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/npm-resolver@17.0.0
+  - @pnpm/git-resolver@8.0.9
+  - @pnpm/local-resolver@11.0.1
+  - @pnpm/tarball-resolver@8.0.5
+
 ## 18.0.17
 
 ### Patch Changes

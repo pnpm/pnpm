@@ -22,6 +22,7 @@ import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
+  autoInstallPeersFromHighestMatch: boolean
   forceSharedLockfile: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
@@ -91,6 +92,7 @@ export interface StrictInstallOptions {
   unsafePerm: boolean
   registries: Registries
   tag: string
+  updateToLatest?: boolean
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
   workspacePackages: WorkspacePackages
@@ -123,6 +125,7 @@ export interface StrictInstallOptions {
   allProjects: ProjectOptions[]
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
+  dedupeInjectedDeps: boolean
   dedupePeerDependents: boolean
   extendNodePath: boolean
   excludeLinksFromLockfile: boolean
@@ -139,6 +142,7 @@ export interface StrictInstallOptions {
   disableRelinkLocalDirDeps: boolean
 
   supportedArchitectures?: SupportedArchitectures
+  hoistWorkspacePackages?: boolean
 }
 
 export type InstallOptions =
@@ -154,9 +158,11 @@ const defaults = (opts: InstallOptions) => {
     allowedDeprecatedVersions: {},
     allowNonAppliedPatches: false,
     autoInstallPeers: true,
+    autoInstallPeersFromHighestMatch: false,
     childConcurrency: 5,
     confirmModulesPurge: !opts.force,
     depth: 0,
+    dedupeInjectedDeps: true,
     enablePnp: false,
     engineStrict: false,
     force: false,
@@ -212,7 +218,7 @@ const defaults = (opts: InstallOptions) => {
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
       !process.setgid ||
-      process.getuid() !== 0,
+      process.getuid?.() !== 0,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,

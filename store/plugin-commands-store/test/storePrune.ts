@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
-import { type LockfileV6 as Lockfile } from '@pnpm/lockfile-file'
+import { type LockfileFile } from '@pnpm/lockfile-file'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -136,7 +136,7 @@ test('keep dependencies used by others', async () => {
   await project.hasNot('map-obj')
 
   // all dependencies are marked as dev
-  const lockfile = await project.readLockfile() as Lockfile
+  const lockfile = await project.readLockfile() as LockfileFile
   expect(isEmpty(lockfile.packages)).toBeFalsy()
 
   Object.entries(lockfile.packages ?? {}).forEach(([_, dep]) => {
@@ -233,4 +233,41 @@ test('prune does not fail if the store contains an unexpected directory', async 
       message: `An alien directory is present in the store: ${alienDir}`,
     })
   )
+
+  // as force is not used, the alien directory is not removed
+  expect(fs.existsSync(alienDir)).toBeTruthy()
+})
+
+test('prune removes alien files from the store if the --force flag is used', async () => {
+  const project = prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
+
+  await project.storeHas('is-negative', '2.1.0')
+  const alienDir = path.join(storeDir, 'v3/files/44/directory')
+  fs.mkdirSync(alienDir)
+
+  const reporter = jest.fn()
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    rawConfig: {
+      registry: REGISTRY,
+    },
+    registries: { default: REGISTRY },
+    reporter,
+    storeDir,
+    userConfig: {},
+    force: true,
+  }, ['prune'])
+  expect(reporter).toBeCalledWith(
+    expect.objectContaining({
+      level: 'warn',
+      message: `An alien directory has been removed from the store: ${alienDir}`,
+    })
+  )
+  expect(fs.existsSync(alienDir)).toBeFalsy()
 })

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-rebuild",
-  "version": "10.0.1",
+  "version": "10.0.17",
   "description": "Commands for rebuilding dependencies",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/exec/plugin-commands-rebuild",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "rebuild"
   ],
@@ -31,11 +31,13 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/plugin-commands-rebuild#readme",
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.16.0",
+    "@pnpm/registry-mock": "3.25.0",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.3",
     "@types/sinon": "^10.0.20",
@@ -77,7 +79,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "render-help": "^1.0.3",
     "run-groups": "^3.0.1",
-    "semver": "^7.5.4"
+    "semver": "^7.6.0"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

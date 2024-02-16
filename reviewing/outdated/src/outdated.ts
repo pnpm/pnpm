@@ -20,6 +20,7 @@ import {
 import * as dp from '@pnpm/dependency-path'
 import semver from 'semver'
 import { createMatcher } from '@pnpm/matcher'
+import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 
 export * from './createManifestGetter'
 
@@ -54,7 +55,22 @@ export async function outdated (
   if (opts.wantedLockfile == null) {
     throw new PnpmError('OUTDATED_NO_LOCKFILE', `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`)
   }
-  const allDeps = getAllDependenciesFromManifest(opts.manifest)
+
+  async function getOverriddenManifest () {
+    const overrides = opts.currentLockfile?.overrides ?? opts.wantedLockfile?.overrides
+    if (overrides) {
+      const readPackageHook = createReadPackageHook({
+        lockfileDir: opts.lockfileDir,
+        overrides,
+      })
+      const manifest = await readPackageHook?.(opts.manifest, opts.lockfileDir)
+      if (manifest) return manifest
+    }
+
+    return opts.manifest
+  }
+
+  const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest())
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
   const currentLockfile = opts.currentLockfile ?? { importers: { [importerId]: {} } }
 

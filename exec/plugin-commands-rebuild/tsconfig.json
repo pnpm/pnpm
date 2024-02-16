@@ -19,6 +19,9 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -29,6 +32,9 @@
     },
     {
       "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../crypto/object-hasher"
     },
     {
       "path": "../../deps/graph-sequencer"

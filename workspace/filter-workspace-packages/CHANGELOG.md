@@ -1,5 +1,75 @@
 # @pnpm/filter-workspace-packages
 
+## 7.2.11
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.14
+- @pnpm/workspace.find-packages@1.1.10
+
+## 7.2.10
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.9
+
+## 7.2.9
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.8
+
+## 7.2.8
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.13
+- @pnpm/workspace.find-packages@1.1.7
+
+## 7.2.7
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.6
+- @pnpm/workspace.pkgs-graph@2.0.12
+
+## 7.2.6
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.5
+
+## 7.2.5
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.4
+
+## 7.2.4
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.11
+
+## 7.2.3
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.3
+
+## 7.2.2
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.2
+
+## 7.2.1
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.10
+- @pnpm/workspace.find-packages@1.1.1
+
 ## 7.2.0
 
 ### Minor Changes

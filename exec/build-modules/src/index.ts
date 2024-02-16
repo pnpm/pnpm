@@ -100,8 +100,9 @@ async function buildDependency (
     builtHoistedDeps?: Record<string, DeferredPromise<void>>
     warn: (message: string) => void
   }
-) {
+): Promise<void> {
   const depNode = depGraph[depPath]
+  if (!depNode.filesIndexFile) return
   if (opts.builtHoistedDeps) {
     if (opts.builtHoistedDeps[depNode.depPath]) {
       await opts.builtHoistedDeps[depNode.depPath].promise
@@ -135,12 +136,10 @@ async function buildDependency (
           patchFileHash: depNode.patchFile?.hash,
           isBuilt: hasSideEffects,
         })
-        if (depNode.filesIndexFile) {
-          await opts.storeController.upload(depNode.dir, {
-            sideEffectsCacheKey,
-            filesIndexFile: depNode.filesIndexFile,
-          })
-        }
+        await opts.storeController.upload(depNode.dir, {
+          sideEffectsCacheKey,
+          filesIndexFile: depNode.filesIndexFile,
+        })
       } catch (err: any) { // eslint-disable-line
         if (err.statusCode === 403) {
           logger.warn({

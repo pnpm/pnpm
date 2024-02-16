@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core-loggers",
   "description": "Core loggers of pnpm",
-  "version": "9.0.4",
+  "version": "9.0.6",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -21,11 +21,11 @@
     "test": "test"
   },
   "keywords": [
-    "pnpm8"
+    "pnpm9"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/core-loggers",
   "scripts": {

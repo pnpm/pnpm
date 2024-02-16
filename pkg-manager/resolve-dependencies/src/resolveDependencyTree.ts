@@ -31,6 +31,16 @@ import {
 export * from './nodeIdUtils'
 export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 
+export interface ResolvedImporters {
+  [id: string]: {
+    directDependencies: ResolvedDirectDependency[]
+    directNodeIdsByAlias: {
+      [alias: string]: string
+    }
+    linkedDependencies: LinkedDependency[]
+  }
+}
+
 export interface ResolvedDirectDependency {
   alias: string
   optional: boolean
@@ -61,6 +71,7 @@ export interface ImporterToResolveGeneric<T> extends Importer<T> {
 
 export interface ResolveDependenciesOptions {
   autoInstallPeers?: boolean
+  autoInstallPeersFromHighestMatch?: boolean
   allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allowNonAppliedPatches: boolean
@@ -89,6 +100,7 @@ export interface ResolveDependenciesOptions {
   wantedLockfile: Lockfile
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
+  updateToLatest?: boolean
 }
 
 export async function resolveDependencyTree<T> (
@@ -98,6 +110,7 @@ export async function resolveDependencyTree<T> (
   const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
     autoInstallPeers: opts.autoInstallPeers === true,
+    autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
     allowBuild: opts.allowBuild,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
     childrenByParentDepPath: {} as ChildrenByParentDepPath,
@@ -156,6 +169,7 @@ export async function resolveDependencyTree<T> (
       updateMatching: importer.updateMatching,
       prefix: importer.rootDir,
       supportedArchitectures: opts.supportedArchitectures,
+      updateToLatest: opts.updateToLatest,
     }
     return {
       updatePackageManifest: importer.updatePackageManifest,
@@ -180,15 +194,7 @@ export async function resolveDependencyTree<T> (
     })
   })
 
-  const resolvedImporters = {} as {
-    [id: string]: {
-      directDependencies: ResolvedDirectDependency[]
-      directNodeIdsByAlias: {
-        [alias: string]: string
-      }
-      linkedDependencies: LinkedDependency[]
-    }
-  }
+  const resolvedImporters: ResolvedImporters = {}
 
   for (const { id, wantedDependencies } of importers) {
     const directDeps = dedupeSameAliasDirectDeps(directDepsByImporterId[id], wantedDependencies)

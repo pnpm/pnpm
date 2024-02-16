@@ -6,6 +6,7 @@ import {
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
+import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
@@ -25,7 +26,6 @@ import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
 import { recursive, createMatcher, matchDependencies, makeIgnorePatterns, type UpdateDepsMatcher } from './recursive'
-import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -105,6 +105,7 @@ export type InstallDepsOptions = Pick<Config,
    */
   lockfileCheck?: (prev: Lockfile, next: Lockfile) => void
   update?: boolean
+  updateToLatest?: boolean
   updateMatching?: (pkgName: string) => boolean
   updatePackageManifest?: boolean
   useBetaCli?: boolean
@@ -265,12 +266,8 @@ when running add/update with the --workspace option')
     }
   }
 
-  if (opts.update && opts.latest) {
-    if (!params || (params.length === 0)) {
-      params = updateToLatestSpecsFromManifest(manifest, includeDirect)
-    } else {
-      params = createLatestSpecs(params, manifest)
-    }
+  if (opts.update && opts.latest && (!params || (params.length === 0))) {
+    params = Object.keys(filterDependenciesByType(manifest, includeDirect))
   }
   if (opts.workspace) {
     if (!params || (params.length === 0)) {

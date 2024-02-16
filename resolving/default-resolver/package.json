@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-resolver",
-  "version": "18.0.17",
+  "version": "18.0.22",
   "description": "pnpm's default package resolver",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/default-resolver",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "resolver",
     "npm"

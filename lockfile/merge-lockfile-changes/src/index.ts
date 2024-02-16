@@ -2,7 +2,7 @@ import { type Lockfile, type PackageSnapshot, type PackageSnapshots } from '@pnp
 import comverToSemver from 'comver-to-semver'
 import semver from 'semver'
 
-export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) {
+export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile): Lockfile {
   const newLockfile: Lockfile = {
     importers: {},
     lockfileVersion: semver.gt(comverToSemver(theirs.lockfileVersion.toString()), comverToSemver(ours.lockfileVersion.toString()))
@@ -84,8 +84,8 @@ function takeChangedValue<T> (ourValue: T, theirValue: T): T {
 function mergeVersions (ourValue: string, theirValue: string) {
   if (ourValue === theirValue || !theirValue) return ourValue
   if (!ourValue) return theirValue
-  const [ourVersion] = ourValue.split('_')
-  const [theirVersion] = theirValue.split('_')
+  const [ourVersion] = ourValue.split('(')
+  const [theirVersion] = theirValue.split('(')
   if (semver.gt(ourVersion, theirVersion)) {
     return ourValue
   }

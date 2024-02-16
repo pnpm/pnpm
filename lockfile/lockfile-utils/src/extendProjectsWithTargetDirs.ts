@@ -24,6 +24,7 @@ export function extendProjectsWithTargetDirs<T> (
       const importerId = pkgId.replace(/^file:/, '')
       if (projectsById[importerId] == null) return
       const localLocations = getLocalLocations(depPath, pkg.name!)
+      if (!localLocations) return
       projectsById[importerId].targetDirs.push(...localLocations)
       projectsById[importerId].stages = ['preinstall', 'install', 'postinstall', 'prepare', 'prepublishOnly']
     })

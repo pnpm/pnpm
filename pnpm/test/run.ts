@@ -1,7 +1,7 @@
 import { promises as fs, mkdirSync } from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { execPnpm, execPnpmSync } from './utils'
 
@@ -46,7 +46,9 @@ test('run: pass the args to the command that is specified in the build script', 
 
   const { default: args } = await import(path.resolve('args.json'))
   expect(args).toStrictEqual([
+    [],
     ['arg', '--flag=true'],
+    [],
   ])
 })
 
@@ -69,7 +71,9 @@ test('run: pass all arguments after script name to the build script, even --', a
 
   const { default: args } = await import(path.resolve('args.json'))
   expect(args).toStrictEqual([
+    [],
     ['arg', '--', '--flag=true'],
+    [],
   ])
 })
 
@@ -98,18 +102,15 @@ test('start: run "node server.js" by default', async () => {
 
 test('install-test: install dependencies and runs tests', async () => {
   prepare({
-    dependencies: {
-      'json-append': '1',
-    },
     scripts: {
-      test: 'node -e "process.stdout.write(\'test\')" | json-append ./output.json',
+      test: 'node -e "process.stdout.write(\'test\')" > ./output.txt',
     },
   }, { manifestFormat: 'JSON5' })
 
   await execPnpm(['install-test'])
 
-  const { default: scriptsRan } = await import(path.resolve('output.json'))
-  expect(scriptsRan).toStrictEqual(['test'])
+  const scriptsRan = (await fs.readFile('output.txt')).toString()
+  expect(scriptsRan.trim()).toStrictEqual('test')
 })
 
 test('silent run only prints the output of the child process', async () => {
@@ -261,4 +262,15 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
   expect(output).not.toContain('script1: 1')
   expect(output).toContain('2')
   expect(output).not.toContain('script2: 2')
+})
+
+test('dlx should work with npm_config_save_dev env variable', async () => {
+  prepareEmpty()
+  const result = execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
+    env: {
+      npm_config_save_dev: 'true',
+    },
+    stdio: 'inherit',
+  })
+  expect(result.status).toBe(0)
 })

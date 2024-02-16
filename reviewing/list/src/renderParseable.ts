@@ -14,20 +14,26 @@ export async function renderParseable (
     search: boolean
   }
 ) {
-  return pkgs.map((pkg) => renderParseableForPackage(pkg, opts)).filter(p => p.length !== 0).join('\n')
+  const depPaths = new Set<string>()
+  return pkgs
+    .map(renderParseableForPackage.bind(null, depPaths, opts))
+    .filter(p => p.length !== 0)
+    .join('\n')
 }
 
 function renderParseableForPackage (
-  pkg: PackageDependencyHierarchy,
+  depPaths: Set<string>,
   opts: {
     long: boolean
     depth: number
     alwaysPrintRootPackage: boolean
     search: boolean
-  }
+  },
+  pkg: PackageDependencyHierarchy
 ) {
   const pkgs = sortPackages(
     flatten(
+      depPaths,
       [
         ...(pkg.optionalDependencies ?? []),
         ...(pkg.dependencies ?? []),
@@ -66,13 +72,19 @@ interface PackageInfo {
 }
 
 function flatten (
+  depPaths: Set<string>,
   nodes: PackageNode[]
 ): PackageInfo[] {
   let packages: PackageInfo[] = []
   for (const node of nodes) {
-    packages.push(node)
+    // The content output by renderParseable is flat,
+    // so we can deduplicate packages that are repeatedly dependent on multiple packages.
+    if (!depPaths.has(node.path)) {
+      depPaths.add(node.path)
+      packages.push(node)
+    }
     if (node.dependencies?.length) {
-      packages = packages.concat(flatten(node.dependencies))
+      packages = packages.concat(flatten(depPaths, node.dependencies))
     }
   }
   return packages

@@ -1,5 +1,53 @@
 # @pnpm/prepare-package
 
+## 5.0.24
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.12
+
+## 5.0.23
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.11
+
+## 5.0.22
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/read-package-json@8.0.7
+
+## 5.0.21
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/read-package-json@8.0.6
+
+## 5.0.20
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.8
+
+## 5.0.19
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.7
+
+## 5.0.18
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.6
+
 ## 5.0.17
 
 ### Patch Changes

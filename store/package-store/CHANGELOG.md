@@ -1,5 +1,98 @@
 # @pnpm/package-store
 
+## 19.0.15
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/package-requester@24.1.8
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/store.cafs@2.0.12
+  - @pnpm/create-cafs-store@6.0.13
+  - @pnpm/fetcher-base@15.0.7
+  - @pnpm/worker@0.3.14
+
+## 19.0.14
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.12
+- @pnpm/package-requester@24.1.7
+- @pnpm/worker@0.3.13
+
+## 19.0.13
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/store.cafs@2.0.11
+  - @pnpm/types@9.4.2
+  - @pnpm/create-cafs-store@6.0.11
+  - @pnpm/package-requester@24.1.6
+  - @pnpm/worker@0.3.12
+  - @pnpm/fetcher-base@15.0.6
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/store-controller-types@17.1.4
+
+## 19.0.12
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/fetcher-base@15.0.5
+  - @pnpm/package-requester@24.1.5
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/store.cafs@2.0.10
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/worker@0.3.11
+  - @pnpm/create-cafs-store@6.0.10
+
+## 19.0.11
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.9
+- @pnpm/package-requester@24.1.4
+- @pnpm/worker@0.3.10
+
+## 19.0.10
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/package-requester@24.1.3
+  - @pnpm/worker@0.3.9
+
+## 19.0.9
+
+### Patch Changes
+
+- 291607c5a: When using `pnpm store prune --force` alien directories are removed from the store [#7272](https://github.com/pnpm/pnpm/pull/7272).
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/package-requester@24.1.2
+  - @pnpm/store.cafs@2.0.9
+  - @pnpm/create-cafs-store@6.0.8
+  - @pnpm/worker@0.3.8
+
+## 19.0.8
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+- Updated dependencies [cfc017ee3]
+- Updated dependencies [7ea45afbe]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/create-cafs-store@6.0.7
+  - @pnpm/package-requester@24.1.1
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/fetcher-base@15.0.4
+  - @pnpm/worker@0.3.7
+  - @pnpm/store.cafs@2.0.8
+
 ## 19.0.7
 
 ### Patch Changes

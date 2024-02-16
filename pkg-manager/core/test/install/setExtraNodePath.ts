@@ -7,7 +7,6 @@ import {
   mutateModules,
   install,
 } from '@pnpm/core'
-import { sync as loadJsonFile } from 'load-json-file'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)
@@ -40,12 +39,11 @@ test('jest CLI should print the right version when multiple instances of jest ar
         name: 'project-1',
         version: '1.0.0',
         scripts: {
-          postinstall: 'jest --version | json-append output.json',
+          postinstall: 'jest --version > output.json',
         },
 
         dependencies: {
           jest: '27.5.1',
-          'json-append': '1.1.1',
         },
       },
       rootDir: path.resolve('project-1'),
@@ -56,12 +54,11 @@ test('jest CLI should print the right version when multiple instances of jest ar
         name: 'project-2',
         version: '1.0.0',
         scripts: {
-          postinstall: 'jest --version | json-append output.json',
+          postinstall: 'jest --version > output.json',
         },
 
         dependencies: {
           jest: '24.9.0',
-          'json-append': '1.1.1',
         },
       },
       rootDir: path.resolve('project-2'),
@@ -75,11 +72,11 @@ test('jest CLI should print the right version when multiple instances of jest ar
   }))
 
   {
-    const [jestVersion] = loadJsonFile<string[]>('project-1/output.json')
+    const jestVersion = fs.readFileSync('project-1/output.json').toString()
     expect(jestVersion.trim()).toStrictEqual('27.5.1')
   }
   {
-    const [jestVersion] = loadJsonFile<string[]>('project-2/output.json')
+    const jestVersion = fs.readFileSync('project-2/output.json').toString()
     expect(jestVersion.trim()).toStrictEqual('24.9.0')
   }
 })

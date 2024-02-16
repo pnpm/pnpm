@@ -5,7 +5,6 @@ import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
-  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -382,7 +381,6 @@ export async function mutateModules (
         ctx.existsNonEmptyWantedLockfile &&
         (
           ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION ||
-          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6 ||
           ctx.wantedLockfile.lockfileVersion === '6.1'
         ) &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
@@ -430,7 +428,6 @@ Note that in CI environments, this setting is enabled by default.`,
     Failure reason:
     ${detailedReason ?? ''}`,
               })
-            /* eslint-enable @typescript-eslint/restrict-template-expressions */
           }
         }
       }
@@ -896,17 +893,11 @@ type InstallFunction = (
     pruneVirtualStore: boolean
     scriptsOpts: RunLifecycleHooksConcurrentlyOptions
     currentLockfileIsUpToDate: boolean
+    hoistWorkspacePackages?: boolean
   }
 ) => Promise<InstallFunctionResult>
 
 const _installInContext: InstallFunction = async (projects, ctx, opts) => {
-  if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
-    logger.warn({
-      message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
-      prefix: ctx.lockfileDir,
-    })
-  }
-
   // The wanted lockfile is mutated during installation. To compare changes, a
   // deep copy before installation is needed. This copy should represent the
   // original wanted lockfile on disk as close as possible.
@@ -1008,8 +999,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
       allowNonAppliedPatches: opts.allowNonAppliedPatches,
       autoInstallPeers: opts.autoInstallPeers,
+      autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: opts.depth,
+      dedupeDirectDeps: opts.dedupeDirectDeps,
+      dedupeInjectedDeps: opts.dedupeInjectedDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
@@ -1032,6 +1026,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
       tag: opts.tag,
+      updateToLatest: opts.updateToLatest,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
@@ -1076,7 +1071,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {
-    newLockfile.lockfileVersion = LOCKFILE_VERSION_V6
+    newLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
   const depsStateCache: DepsStateCache = {}
@@ -1120,6 +1115,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         virtualStoreDir: ctx.virtualStoreDir,
         wantedLockfile: newLockfile,
         wantedToBeSkippedPackageIds,
+        hoistWorkspacePackages: opts.hoistWorkspacePackages,
       }
     )
     stats = result.stats
@@ -1387,11 +1383,18 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         prunedAt: ctx.modulesFile?.prunedAt,
         wantedLockfile: result.newLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+        hoistWorkspacePackages: opts.hoistWorkspacePackages,
       })
       return {
         ...result,
         stats,
       }
+    }
+    if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
+      logger.warn({
+        message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
+        prefix: ctx.lockfileDir,
+      })
     }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line

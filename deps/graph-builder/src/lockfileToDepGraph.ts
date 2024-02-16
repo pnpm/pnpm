@@ -106,7 +106,7 @@ export async function lockfileToDepGraph (
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-        const packageId = packageIdFromSnapshot(depPath, pkgSnapshot, opts.registries)
+        const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
 
         const pkg = {
           name: pkgName,
@@ -132,11 +132,13 @@ export async function lockfileToDepGraph (
         const dir = path.join(modules, pkgName)
         const depIsPresent = !refIsLocalDirectory(depPath) &&
           currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies)
+        let dirExists: boolean | undefined
         if (
-          depIsPresent && isEmpty(currentPackages[depPath].optionalDependencies) &&
-          isEmpty(lockfile.packages![depPath].optionalDependencies)
+          depIsPresent && isEmpty(currentPackages[depPath].optionalDependencies ?? {}) &&
+          isEmpty(lockfile.packages![depPath].optionalDependencies ?? {})
         ) {
-          if (await pathExists(dir)) {
+          dirExists = await pathExists(dir)
+          if (dirExists) {
             return
           }
 
@@ -146,7 +148,7 @@ export async function lockfileToDepGraph (
         }
         let fetchResponse!: Partial<ReturnType<FetchPackageToStoreFunction>>
         if (depIsPresent && equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)) {
-          if (await pathExists(dir)) {
+          if (dirExists ?? await pathExists(dir)) {
             fetchResponse = {}
           } else {
             brokenModulesLogger.debug({
@@ -254,7 +256,7 @@ function getChildrenPaths (
 ) {
   const children: { [alias: string]: string } = {}
   for (const [alias, ref] of Object.entries(allDeps)) {
-    const childDepPath = dp.refToAbsolute(ref, alias, ctx.registries)
+    const childDepPath = dp.refToRelative(ref, alias)
     if (childDepPath === null) {
       children[alias] = path.resolve(ctx.lockfileDir, importerId, ref.slice(5))
       continue

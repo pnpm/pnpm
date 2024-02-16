@@ -1,9 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare module '@pnpm/tabtab' {
-  const anything: any
-  export = anything
-}
-
 declare module 'hyperdrive-schemas' {
   const anything: any
   export = anything

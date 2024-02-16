@@ -1,5 +1,76 @@
 # @pnpm/find-workspace-packages
 
+## 1.1.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.9
+
+## 1.1.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.8
+
+## 1.1.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.7
+
+## 1.1.7
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/fs.find-packages@2.0.10
+
+## 1.1.6
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/fs.find-packages@2.0.9
+
+## 1.1.5
+
+### Patch Changes
+
+- Updated dependencies [e8926e920]
+  - @pnpm/workspace.read-manifest@1.0.2
+  - @pnpm/cli-utils@2.1.4
+
+## 1.1.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+
+## 1.1.3
+
+### Patch Changes
+
+- Updated dependencies [e2a0c7272]
+  - @pnpm/workspace.read-manifest@1.0.1
+
+## 1.1.2
+
+### Patch Changes
+
+- Updated dependencies [3f7e65e10]
+  - @pnpm/workspace.read-manifest@1.0.0
+  - @pnpm/cli-utils@2.1.2
+
+## 1.1.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.1
+
 ## 1.1.0
 
 ### Minor Changes

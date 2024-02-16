@@ -1,5 +1,79 @@
 # @pnpm/tarball-fetcher
 
+## 18.0.19
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.7
+- @pnpm/prepare-package@5.0.24
+- @pnpm/worker@0.3.14
+
+## 18.0.18
+
+### Patch Changes
+
+- 342222d20: A git-hosted dependency should not be added to the store if it failed to be built [#7407](https://github.com/pnpm/pnpm/pull/7407).
+  - @pnpm/prepare-package@5.0.23
+
+## 18.0.17
+
+### Patch Changes
+
+- @pnpm/worker@0.3.13
+
+## 18.0.16
+
+### Patch Changes
+
+- @pnpm/worker@0.3.12
+- @pnpm/prepare-package@5.0.22
+- @pnpm/fetcher-base@15.0.6
+- @pnpm/core-loggers@9.0.6
+
+## 18.0.15
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.21
+- @pnpm/fetcher-base@15.0.5
+- @pnpm/core-loggers@9.0.5
+- @pnpm/worker@0.3.11
+
+## 18.0.14
+
+### Patch Changes
+
+- @pnpm/worker@0.3.10
+
+## 18.0.13
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/worker@0.3.9
+
+## 18.0.12
+
+### Patch Changes
+
+- abdf1f2b6: Don't retry fetching missing packages, since the retries will never work [#7276](https://github.com/pnpm/pnpm/pull/7276).
+  - @pnpm/prepare-package@5.0.20
+  - @pnpm/worker@0.3.8
+
+## 18.0.11
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.19
+
+## 18.0.10
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.4
+- @pnpm/worker@0.3.7
+- @pnpm/prepare-package@5.0.18
+
 ## 18.0.9
 
 ### Patch Changes

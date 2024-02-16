@@ -1,5 +1,141 @@
 # @pnpm/plugin-commands-outdated
 
+## 10.0.17
+
+### Patch Changes
+
+- @pnpm/default-resolver@18.0.22
+- @pnpm/outdated@13.0.42
+- @pnpm/cli-utils@2.1.9
+- @pnpm/config@20.4.2
+
+## 10.0.16
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.41
+
+## 10.0.15
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/outdated@13.0.40
+  - @pnpm/cli-utils@2.1.8
+
+## 10.0.14
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.39
+
+## 10.0.13
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 10.0.12
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [8fd4e349a]
+- Updated dependencies [4d34684f1]
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/outdated@13.0.38
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/default-resolver@18.0.21
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/modules-yaml@12.1.6
+
+## 10.0.11
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/outdated@13.0.37
+  - @pnpm/default-resolver@18.0.20
+
+## 10.0.10
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.36
+
+## 10.0.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.4
+- @pnpm/outdated@13.0.35
+
+## 10.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+- @pnpm/outdated@13.0.34
+
+## 10.0.7
+
+### Patch Changes
+
+- @pnpm/default-resolver@18.0.19
+- @pnpm/outdated@13.0.33
+
+## 10.0.6
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.32
+
+## 10.0.5
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.31
+
+## 10.0.4
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.30
+- @pnpm/config@20.1.2
+- @pnpm/cli-utils@2.1.2
+
+## 10.0.3
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.29
+
+## 10.0.2
+
+### Patch Changes
+
+- Updated dependencies [7d65d901a]
+  - @pnpm/store-path@8.0.1
+  - @pnpm/outdated@13.0.28
+  - @pnpm/default-resolver@18.0.18
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+
 ## 10.0.1
 
 ### Patch Changes

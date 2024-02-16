@@ -82,8 +82,8 @@ export interface BaseManifest {
   peerDependencies?: Dependencies
   peerDependenciesMeta?: PeerDependenciesMeta
   dependenciesMeta?: DependenciesMeta
-  bundleDependencies?: string[]
-  bundledDependencies?: string[]
+  bundleDependencies?: string[] | boolean
+  bundledDependencies?: string[] | boolean
   homepage?: string
   repository?: string | { url: string }
   scripts?: PackageScripts
@@ -122,6 +122,7 @@ export interface PeerDependencyRules {
 export type AllowedDeprecatedVersions = Record<string, string>
 
 export type ProjectManifest = BaseManifest & {
+  packageManager?: string
   workspaces?: string[]
   pnpm?: {
     neverBuiltDependencies?: string[]

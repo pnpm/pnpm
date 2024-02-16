@@ -29,13 +29,34 @@ To quote the [Rush](https://rushjs.io/) team:
 [![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=pnpmjs&region=follow_link)
 [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://stand-with-ukraine.pp.ua)
 
-## Gold Sponsors
+## Platinum Sponsors
 
 <table>
   <tbody>
     <tr>
       <td align="center" valign="middle">
         <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80"></a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://figma.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/figma.svg" width="80"></a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Gold Sponsors
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://discord.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/discord.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/discord_light.svg" />
+            <img src="https://pnpm.io/img/users/discord.svg" width="220" />
+          </picture>
+        </a>
       </td>
       <td align="center" valign="middle">
         <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
@@ -54,6 +75,26 @@ To quote the [Rush](https://rushjs.io/) team:
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/uscreen.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/uscreen_light.svg" />
             <img src="https://pnpm.io/img/users/uscreen.svg" width="180" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://www.jetbrains.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
+            <img src="https://pnpm.io/img/users/jetbrains.svg" width="85" />
+          </picture>
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://nx.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/nx.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/nx_light.svg" />
+            <img src="https://pnpm.io/img/users/nx.svg" width="120" />
           </picture>
         </a>
       </td>
@@ -103,15 +144,6 @@ To quote the [Rush](https://rushjs.io/) team:
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://www.thinkmill.com.au/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/thinkmill.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/thinkmill_light.svg" />
-            <img src="https://pnpm.io/img/users/thinkmill.svg" width="200" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
         <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/devowlio.svg" />
@@ -120,14 +152,12 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://macpaw.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/macpaw.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/macpaw_light.svg" />
-            <img src="https://pnpm.io/img/users/thinkmill.svg" width="200" />
+            <img src="https://pnpm.io/img/users/macpaw.svg" width="200" />
           </picture>
         </a>
       </td>
@@ -170,6 +200,12 @@ pnpm is up to 2x faster than npm and Yarn classic. See all benchmarks [here](htt
 Benchmarks on an app with lots of dependencies:
 
 ![](https://pnpm.io/img/benchmarks/alotta-files.svg)
+
+## Usage Trend
+
+[Usage Trend of pnpm](https://npm-compare.com/pnpm/#timeRange=THREE_YEARS)
+
+![image](https://github.com/pnpm/pnpm/assets/3455798/ee2513db-7a98-43dc-8561-7f4d62635912)
 
 ## Backers
 

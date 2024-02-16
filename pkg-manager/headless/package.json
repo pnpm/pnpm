@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "22.3.2",
+  "version": "22.4.4",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -18,14 +18,16 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/client": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/headless": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
-    "@pnpm/registry-mock": "3.16.0",
+    "@pnpm/registry-mock": "3.25.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@types/fs-extra": "^9.0.13",
     "@types/ramda": "0.28.20",
     "@types/rimraf": "^3.0.2",
@@ -42,14 +44,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless#readme",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "install",
     "installer"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless",
   "scripts": {
@@ -59,7 +61,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "runPrepareFixtures": "node ../../pnpm/bin/pnpm.cjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force --no-strict-peer-dependencies",
-    "prepareFixtures": "registry-mock prepare && concurrently --success=first --kill-others registry-mock \"pnpm run runPrepareFixtures\"",
+    "prepareFixtures": "git clean -fdx test/fixtures && rm -rf \"test/fixtures/*/pnpm-lock.yaml\" && registry-mock prepare && concurrently --success=first --kill-others registry-mock \"pnpm run runPrepareFixtures\"",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {

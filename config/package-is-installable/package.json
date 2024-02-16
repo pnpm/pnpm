@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "8.1.0",
+  "version": "8.1.2",
   "description": "Checks if a package is installable on the current system",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,11 +9,11 @@
     "!*.map"
   ],
   "keywords": [
-    "pnpm8"
+    "pnpm9"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
@@ -35,7 +35,7 @@
     "detect-libc": "^2.0.2",
     "execa": "npm:safe-execa@0.1.2",
     "mem": "^8.1.1",
-    "semver": "^7.5.4"
+    "semver": "^7.6.0"
   },
   "devDependencies": {
     "@pnpm/package-is-installable": "workspace:*",

@@ -1,4 +1,5 @@
 import { createReadStream, promises as fs } from 'fs'
+import os from 'os'
 import path from 'path'
 import {
   type FileType,
@@ -97,7 +98,10 @@ export function createPackageRequester (
   } {
   opts = opts || {}
 
-  const networkConcurrency = opts.networkConcurrency ?? 16
+  // A lower bound of 16 is enforced to prevent performance degradation,
+  // especially in CI environments. Tests with a threshold lower than 16
+  // have shown consistent underperformance.
+  const networkConcurrency = opts.networkConcurrency ?? Math.max(os.availableParallelism?.() ?? os.cpus().length, 16)
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
@@ -180,6 +184,7 @@ async function resolveAndFetch (
       projectDir: options.projectDir,
       registry: options.registry,
       workspacePackages: options.workspacePackages,
+      updateToLatest: options.updateToLatest,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest
@@ -268,6 +273,7 @@ async function resolveAndFetch (
     expectedPkg: options.expectedPkg?.name != null
       ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
       : pkg,
+    onFetchError: options.onFetchError,
   })
 
   return {
@@ -429,6 +435,9 @@ function fetchToStore (
       return await p
     } catch (err: any) { // eslint-disable-line
       ctx.fetchingLocker.delete(opts.pkg.id)
+      if (opts.onFetchError) {
+        throw opts.onFetchError(err)
+      }
       throw err
     }
   }

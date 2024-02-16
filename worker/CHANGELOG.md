@@ -1,5 +1,72 @@
 # @pnpm/worker
 
+## 0.3.14
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.12
+- @pnpm/create-cafs-store@6.0.13
+- @pnpm/fs.hard-link-dir@3.0.0
+- @pnpm/symlink-dependency@7.1.4
+
+## 0.3.13
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.12
+
+## 0.3.12
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+  - @pnpm/store.cafs@2.0.11
+  - @pnpm/create-cafs-store@6.0.11
+  - @pnpm/symlink-dependency@7.1.4
+  - @pnpm/cafs-types@4.0.0
+  - @pnpm/fs.hard-link-dir@3.0.0
+
+## 0.3.11
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@7.1.3
+- @pnpm/store.cafs@2.0.10
+- @pnpm/cafs-types@4.0.0
+- @pnpm/fs.hard-link-dir@3.0.0
+- @pnpm/create-cafs-store@6.0.10
+
+## 0.3.10
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.9
+
+## 0.3.9
+
+### Patch Changes
+
+- 1e7bd4af3: Use availableParallelism, when available.
+
+## 0.3.8
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.9
+- @pnpm/create-cafs-store@6.0.8
+- @pnpm/fs.hard-link-dir@3.0.0
+- @pnpm/symlink-dependency@7.1.2
+
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [cfc017ee3]
+  - @pnpm/create-cafs-store@6.0.7
+  - @pnpm/store.cafs@2.0.8
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/symlink-dependency@7.1.2
+
 ## 0.3.6
 
 ### Patch Changes
