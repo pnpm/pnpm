@@ -1459,7 +1459,12 @@ test('custom virtual store directory in a workspace with not shared lockfile', a
 
   {
     const modulesManifest = projects['project-1'].readModulesManifest()
-    expect(modulesManifest?.virtualStoreDir).toBe('../virtual-store')
+    const virtualStoreDir = modulesManifest!.virtualStoreDir
+    if (path.isAbsolute(virtualStoreDir)) {
+      expect(virtualStoreDir).toBe(path.resolve('project-1/virtual-store'))
+    } else {
+      expect(virtualStoreDir).toBe('../virtual-store')
+    }
   }
 
   await rimraf('project-1/virtual-store')
@@ -1469,7 +1474,12 @@ test('custom virtual store directory in a workspace with not shared lockfile', a
 
   {
     const modulesManifest = projects['project-1'].readModulesManifest()
-    expect(modulesManifest?.virtualStoreDir).toBe('../virtual-store')
+    const virtualStoreDir = modulesManifest!.virtualStoreDir
+    if (path.isAbsolute(virtualStoreDir)) {
+      expect(virtualStoreDir).toBe(path.resolve('project-1/virtual-store'))
+    } else {
+      expect(virtualStoreDir).toBe('../virtual-store')
+    }
   }
 })
 
