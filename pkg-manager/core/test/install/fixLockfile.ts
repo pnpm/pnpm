@@ -47,7 +47,7 @@ test('fix broken lockfile with --fix-lockfile', async () => {
     devDependencies: {
       'core-js-pure': '^3.16.2',
     },
-  }, await testDefaults({ fixLockfile: true }))
+  }, testDefaults({ fixLockfile: true }))
 
   const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.packages as PackageSnapshots).length).toBe(2)
@@ -156,7 +156,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
     },
   }, { lineWidth: 1000 })
 
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     fixLockfile: true,
     lockfileOnly: true,
     allProjects: [
@@ -250,10 +250,10 @@ test(
       },
     }
     // install first time to generate lock file
-    await install(packages, await testDefaults())
+    await install(packages, testDefaults())
 
     // install second time to check whether install successfully with lockfileOnly
-    await install(packages, await testDefaults({
+    await install(packages, testDefaults({
       fixLockfile: true,
     }))
   }

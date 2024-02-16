@@ -10,7 +10,7 @@ import { testDefaults } from './utils'
 
 test('fail on non-compatible node_modules', async () => {
   prepareEmpty()
-  const opts = await testDefaults()
+  const opts = testDefaults()
 
   await saveModulesYaml('0.50.0', opts.storeDir)
 
@@ -24,7 +24,7 @@ test('fail on non-compatible node_modules', async () => {
 
 test("don't fail on non-compatible node_modules when forced", async () => {
   prepareEmpty()
-  const opts = await testDefaults({ force: true })
+  const opts = testDefaults({ force: true })
 
   await saveModulesYaml('0.50.0', opts.storeDir)
 
@@ -38,10 +38,10 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
       package: {},
     },
   ])
-  const opts = await testDefaults({ force: true })
+  const opts = testDefaults({ force: true })
 
   process.chdir('pkg')
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDir: path.resolve('..') }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({ lockfileDir: path.resolve('..') }))
   rimraf('node_modules')
 
   process.chdir('..')
@@ -53,7 +53,7 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
 
 test('do not fail on non-compatible node_modules when forced with a named installation', async () => {
   prepareEmpty()
-  const opts = await testDefaults()
+  const opts = testDefaults()
 
   await saveModulesYaml('0.50.0', opts.storeDir)
 
@@ -73,7 +73,7 @@ test('do not fail on non-compatible node_modules when forced with a named instal
 
 test("don't fail on non-compatible store when forced", async () => {
   prepareEmpty()
-  const opts = await testDefaults({ force: true })
+  const opts = testDefaults({ force: true })
 
   await saveModulesYaml('0.32.0', opts.storeDir)
 
@@ -82,7 +82,7 @@ test("don't fail on non-compatible store when forced", async () => {
 
 test('do not fail on non-compatible store when forced during named installation', async () => {
   prepareEmpty()
-  const opts = await testDefaults()
+  const opts = testDefaults()
 
   await saveModulesYaml('0.32.0', opts.storeDir)
 
@@ -115,7 +115,7 @@ test(`fail on non-compatible ${WANTED_LOCKFILE} when frozen lockfile installatio
   fs.writeFileSync(WANTED_LOCKFILE, '')
 
   try {
-    await addDependenciesToPackage({}, ['is-negative'], await testDefaults({ frozenLockfile: true }))
+    await addDependenciesToPackage({}, ['is-negative'], testDefaults({ frozenLockfile: true }))
     throw new Error('should have failed')
   } catch (err: any) { // eslint-disable-line
     if (err.message === 'should have failed') throw err
@@ -127,5 +127,5 @@ test(`don't fail on non-compatible ${WANTED_LOCKFILE} when forced`, async () => 
   prepareEmpty()
   fs.writeFileSync(WANTED_LOCKFILE, '')
 
-  await addDependenciesToPackage({}, ['is-negative'], await testDefaults({ force: true }))
+  await addDependenciesToPackage({}, ['is-negative'], testDefaults({ force: true }))
 })

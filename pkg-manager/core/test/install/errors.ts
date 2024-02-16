@@ -22,7 +22,7 @@ test('fail if none of the available resolvers support a version spec', async () 
       },
       mutation: 'install',
       rootDir: process.cwd(),
-    }, await testDefaults())
+    }, testDefaults())
     throw new Error('should have failed')
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -59,7 +59,7 @@ test('fail if a package cannot be fetched', async () => {
 
   let err!: PnpmError
   try {
-    await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], await testDefaults({}, {}, { retry: { retries: 0 } }))
+    await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({}, {}, { retry: { retries: 0 } }))
     throw new Error('should have failed')
   } catch (_err: any) { // eslint-disable-line
     nock.restore()

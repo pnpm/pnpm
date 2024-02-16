@@ -16,7 +16,7 @@ test('uninstall package with no dependencies', async () => {
   let manifest = await addDependenciesToPackage(
     {},
     ['is-negative@2.1.0'],
-    await testDefaults({ save: true, nodeLinker: 'hoisted' })
+    testDefaults({ save: true, nodeLinker: 'hoisted' })
   )
 
   const reporter = sinon.spy()
@@ -25,7 +25,7 @@ test('uninstall package with no dependencies', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).manifest
+  }, testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).manifest
 
   expect(reporter.calledWithMatch({
     initial: {
@@ -76,14 +76,14 @@ test('uninstall package with dependencies and do not touch other deps', async ()
   let manifest = await addDependenciesToPackage(
     {},
     ['is-negative@2.1.0', 'camelcase-keys@3.0.0'],
-    await testDefaults({ nodeLinker: 'hoisted', save: true })
+    testDefaults({ nodeLinker: 'hoisted', save: true })
   )
   manifest = (await mutateModulesInSingleProject({
     dependencyNames: ['camelcase-keys'],
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).manifest
+  }, testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).manifest
 
   project.storeHasNot('camelcase-keys', '3.0.0')
   project.hasNot('camelcase-keys')

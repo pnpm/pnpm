@@ -23,7 +23,7 @@ test('relative link', async () => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   f.copy(linkedPkgName, linkedPkgPath)
-  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults({
+  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), testDefaults({
     dir: process.cwd(),
     manifest: {
       dependencies: {
@@ -59,7 +59,7 @@ test('relative link is linked by the name of the alias', async () => {
     dependencies: {
       hello: `link:../${linkedPkgName}`,
     },
-  }, await testDefaults())
+  }, testDefaults())
 
   project.isExecutable('.bin/hello-world-js-bin')
 
@@ -81,7 +81,7 @@ test('relative link is not rewritten by argumentless install', async () => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   const reporter = sinon.spy()
-  const opts = await testDefaults()
+  const opts = testDefaults()
 
   f.copy(linkedPkgName, linkedPkgPath)
   const manifest = await link(
@@ -120,7 +120,7 @@ test('relative link is rewritten by named installation to regular dependency', a
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   const reporter = sinon.spy()
-  const opts = await testDefaults({ fastUnpack: false })
+  const opts = testDefaults({ fastUnpack: false })
 
   f.copy(linkedPkgName, linkedPkgPath)
   let manifest = await link(
@@ -188,7 +188,7 @@ test('relative link uses realpath when contained in a symlinked dir', async () =
   const linkFrom = path.join(app1, '/packages/public/bar')
   const linkTo = path.join(app2, '/packages/public/foo', 'node_modules')
 
-  await link([linkFrom], linkTo, await testDefaults({ manifest: {}, dir: process.cwd() }))
+  await link([linkFrom], linkTo, testDefaults({ manifest: {}, dir: process.cwd() }))
 
   const linkToRelLink = fs.readlinkSync(path.join(linkTo, 'bar'))
 
@@ -207,10 +207,10 @@ test('throws error is package name is not defined', async () => {
 
   writeJsonFile.sync('../is-positive/package.json', { version: '1.0.0' })
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults())
 
   try {
-    await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ manifest, dir: process.cwd() }))
+    await link(['../is-positive'], path.resolve('node_modules'), testDefaults({ manifest, dir: process.cwd() }))
     throw new Error('link package should fail')
   } catch (err: any) { // eslint-disable-line
     expect(err.message).toBe('Package in ../is-positive must have a name field to be linked')
@@ -225,7 +225,7 @@ test('link should not change the type of the dependency', async () => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   f.copy(linkedPkgName, linkedPkgPath)
-  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults({
+  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), testDefaults({
     dir: process.cwd(),
     manifest: {
       devDependencies: {
@@ -255,7 +255,7 @@ test('link should not change the type of the dependency', async () => {
 //     },
 //   ])
 
-//   const opts = await testDefaults({ lockfileDir: path.join('..') })
+//   const opts = testDefaults({ lockfileDir: path.join('..') })
 //   await link([process.cwd()], path.resolve(process.cwd(), 'node_modules'), opts)
 
 //   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))

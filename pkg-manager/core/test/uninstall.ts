@@ -28,7 +28,7 @@ const f = fixtures(__dirname)
 test('uninstall package with no dependencies', async () => {
   const project = prepareEmpty()
 
-  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults({ save: true }))
+  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], testDefaults({ save: true }))
 
   const reporter = sinon.spy()
   manifest = (await mutateModulesInSingleProject({
@@ -36,7 +36,7 @@ test('uninstall package with no dependencies', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ save: true, reporter }))).manifest
+  }, testDefaults({ save: true, reporter }))).manifest
 
   expect(reporter.calledWithMatch({
     initial: {
@@ -89,7 +89,7 @@ test('uninstall a dependency that is not present in node_modules', async () => {
     manifest: {},
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ reporter }))
+  }, testDefaults({ reporter }))
 
   expect(reporter.calledWithMatch({
     level: 'debug',
@@ -102,13 +102,13 @@ test('uninstall a dependency that is not present in node_modules', async () => {
 
 test('uninstall scoped package', async () => {
   const project = prepareEmpty()
-  let manifest = await addDependenciesToPackage({}, ['@zkochan/logger@0.1.0'], await testDefaults({ save: true }))
+  let manifest = await addDependenciesToPackage({}, ['@zkochan/logger@0.1.0'], testDefaults({ save: true }))
   manifest = (await mutateModulesInSingleProject({
     dependencyNames: ['@zkochan/logger'],
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ save: true }))).manifest
+  }, testDefaults({ save: true }))).manifest
 
   project.storeHas('@zkochan/logger', '0.1.0')
 
@@ -119,7 +119,7 @@ test('uninstall scoped package', async () => {
 
 test('uninstall tarball dependency', async () => {
   const project = prepareEmpty()
-  const opts = await testDefaults({ save: true })
+  const opts = testDefaults({ save: true })
 
   let manifest = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz`], opts)
   manifest = (await mutateModulesInSingleProject({
@@ -137,13 +137,13 @@ test('uninstall tarball dependency', async () => {
 
 test('uninstall package with dependencies and do not touch other deps', async () => {
   const project = prepareEmpty()
-  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0', 'camelcase-keys@3.0.0'], await testDefaults({ save: true }))
+  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0', 'camelcase-keys@3.0.0'], testDefaults({ save: true }))
   manifest = (await mutateModulesInSingleProject({
     dependencyNames: ['camelcase-keys'],
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ pruneStore: true, save: true }))).manifest
+  }, testDefaults({ pruneStore: true, save: true }))).manifest
 
   project.storeHasNot('camelcase-keys', '3.0.0')
   project.hasNot('camelcase-keys')
@@ -170,13 +170,13 @@ test('uninstall package with dependencies and do not touch other deps', async ()
 
 test('uninstall package with its bin files', async () => {
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/sh-hello-world@1.0.1'], await testDefaults({ fastUnpack: false, save: true }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/sh-hello-world@1.0.1'], testDefaults({ fastUnpack: false, save: true }))
   await mutateModulesInSingleProject({
     dependencyNames: ['@pnpm.e2e/sh-hello-world'],
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ save: true }))
+  }, testDefaults({ save: true }))
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
   const stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
@@ -189,7 +189,7 @@ test('uninstall package with its bin files', async () => {
 
 test('relative link is uninstalled', async () => {
   const project = prepareEmpty()
-  const opts = await testDefaults({ manifest: {}, dir: process.cwd() })
+  const opts = testDefaults({ manifest: {}, dir: process.cwd() })
 
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
@@ -211,7 +211,7 @@ test('pendingBuilds gets updated after uninstall', async () => {
 
   const manifest = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/with-postinstall-b'],
-    await testDefaults({ fastUnpack: false, save: true, ignoreScripts: true })
+    testDefaults({ fastUnpack: false, save: true, ignoreScripts: true })
   )
 
   const modules1 = project.readModulesManifest()
@@ -223,7 +223,7 @@ test('pendingBuilds gets updated after uninstall', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ save: true }))
+  }, testDefaults({ save: true }))
 
   const modules2 = project.readModulesManifest()
   expect(modules2).toBeTruthy()
@@ -265,7 +265,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
         rootDir: path.resolve('project-2'),
       },
     ],
-    await testDefaults({
+    testDefaults({
       allProjects: [
         {
           buildIndex: 0,
@@ -305,7 +305,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
     manifest: pkgs[0],
     mutation: 'uninstallSome',
     rootDir: path.resolve('project-1'),
-  }, await testDefaults({
+  }, testDefaults({
     lockfileDir: process.cwd(),
     store,
     pruneLockfileImporters: false,
@@ -359,7 +359,7 @@ test('uninstall remove modules that is not in package.json', async () => {
     manifest: {},
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults())
+  }, testDefaults())
 
   project.hasNot('foo')
 })

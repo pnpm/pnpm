@@ -20,7 +20,7 @@ test('a package that need authentication', async () => {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
   }
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], await testDefaults({}, {
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
     authConfig,
   }, {
     authConfig,
@@ -37,7 +37,7 @@ test('a package that need authentication', async () => {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     registry: 'https://registry.npmjs.org/',
   }
-  await addDependenciesToPackage(manifest, ['@pnpm.e2e/needs-auth'], await testDefaults({}, {
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
     authConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
@@ -62,7 +62,7 @@ test('installing a package that need authentication, using password', async () =
     [`//localhost:${REGISTRY_MOCK_PORT}/:username`]: 'foo',
     registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
   }
-  await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], await testDefaults({}, {
+  await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
     authConfig,
   }, {
     authConfig,
@@ -84,7 +84,7 @@ test('a package that need authentication, legacy way', async () => {
     _auth: 'Zm9vOmJhcg==', // base64 encoded foo:bar
     registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
   }
-  await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], await testDefaults({}, {
+  await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
     authConfig,
   }, {
     authConfig,
@@ -107,7 +107,7 @@ test('a scoped package that need authentication specific to scope', async () => 
     '@private:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     registry: 'https://registry.npmjs.org/',
   }
-  let opts = await testDefaults({}, {
+  let opts = testDefaults({}, {
     authConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
@@ -122,7 +122,7 @@ test('a scoped package that need authentication specific to scope', async () => 
   rimraf(path.join('..', '.store'))
 
   // Recreating options to have a new storeController with clean cache
-  opts = await testDefaults({}, {
+  opts = testDefaults({}, {
     authConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
@@ -147,7 +147,7 @@ test('a scoped package that need legacy authentication specific to scope', async
     '@private:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     registry: 'https://registry.npmjs.org/',
   }
-  let opts = await testDefaults({}, {
+  let opts = testDefaults({}, {
     authConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
@@ -162,7 +162,7 @@ test('a scoped package that need legacy authentication specific to scope', async
   rimraf(path.join('..', '.store'))
 
   // Recreating options to have a new storeController with clean cache
-  opts = await testDefaults({}, {
+  opts = testDefaults({}, {
     authConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
@@ -186,7 +186,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }
-  await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({
     registries: {
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
@@ -213,7 +213,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }
-  let opts = await testDefaults({
+  let opts = testDefaults({
     registries: {
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
@@ -231,7 +231,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
   rimraf(path.join('..', '.store'))
 
   // Recreating options to clean store cache
-  opts = await testDefaults({
+  opts = testDefaults({
     registries: {
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },

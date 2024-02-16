@@ -6,7 +6,7 @@ import { testDefaults } from '../utils'
 test('tarball from npm registry', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz`], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz`], testDefaults())
 
   project.has('is-array')
   project.storeHas(`localhost+${REGISTRY_MOCK_PORT}/is-array/1.0.1`)
@@ -17,7 +17,7 @@ test('tarball from npm registry', async () => {
 test('tarball not from npm registry', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['https://github.com/hegemonic/taffydb/tarball/master'], await testDefaults())
+  await addDependenciesToPackage({}, ['https://github.com/hegemonic/taffydb/tarball/master'], testDefaults())
 
   project.has('taffydb')
   project.storeHas('github.com/hegemonic/taffydb/tarball/master')
@@ -26,7 +26,7 @@ test('tarball not from npm registry', async () => {
 test('tarballs from GitHub (is-negative)', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], await testDefaults())
+  await addDependenciesToPackage({}, ['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], testDefaults())
 
   project.has('is-negative')
 })

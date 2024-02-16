@@ -54,7 +54,7 @@ test('pick common range for a dependency used in two workspace projects when res
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true, resolutionMode: 'highest' }))
+  await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true, resolutionMode: 'highest' }))
 
   const project = assertProject(process.cwd())
   const lockfile = project.readLockfile()
@@ -111,7 +111,7 @@ test('pick common range for a dependency used in two workspace projects when res
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true, resolutionMode: 'lowest-direct' }))
+  await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true, resolutionMode: 'lowest-direct' }))
 
   const project = assertProject(process.cwd())
   const lockfile = project.readLockfile()

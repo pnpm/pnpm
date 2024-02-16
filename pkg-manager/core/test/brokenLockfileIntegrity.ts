@@ -19,7 +19,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     [
       '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ],
-    await testDefaults({ lockfileOnly: true })
+    testDefaults({ lockfileOnly: true })
   )
 
   const corruptedLockfile = project.readLockfile()
@@ -32,13 +32,13 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults({ frozenLockfile: true }))).rejects.toThrowError(/Package name mismatch found while reading/)
+  }, testDefaults({ frozenLockfile: true }))).rejects.toThrowError(/Package name mismatch found while reading/)
 
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults())
+  }, testDefaults())
 
   expect(project.readLockfile()).toStrictEqual(correctLockfile)
 
@@ -51,7 +51,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults({ preferFrozenLockfile: false }))
+  }, testDefaults({ preferFrozenLockfile: false }))
 
   expect(project.readLockfile()).toStrictEqual(correctLockfile)
 })
@@ -64,7 +64,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
     [
       '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ],
-    await testDefaults({ lockfileOnly: true })
+    testDefaults({ lockfileOnly: true })
   )
 
   const corruptedLockfile = project.readLockfile()
@@ -78,14 +78,14 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
       manifest,
       mutation: 'install',
       rootDir: process.cwd(),
-    }, await testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))
+    }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))
   ).rejects.toThrowError(/Got unexpected checksum/)
 
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults({}, { retry: { retries: 0 } }))
+  }, testDefaults({}, { retry: { retries: 0 } }))
 
   {
     const lockfile = project.readLockfile()
@@ -102,7 +102,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults({ preferFrozenLockfile: false, reporter }, { retry: { retries: 0 } }))
+  }, testDefaults({ preferFrozenLockfile: false, reporter }, { retry: { retries: 0 } }))
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'warn',

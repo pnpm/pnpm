@@ -10,7 +10,7 @@ import { testDefaults } from '../utils'
 test('package with default peer dependency, when auto install peers is on', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['@pnpm.e2e/has-default-peer'], await testDefaults({ autoInstallPeers: true }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/has-default-peer'], testDefaults({ autoInstallPeers: true }))
 
   const lockfile = project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
@@ -20,7 +20,7 @@ test('don\'t install the default peer dependency when it may be resolved from pa
   const project = prepareEmpty()
   await addDependenciesToPackage({},
     ['@pnpm.e2e/has-default-peer', '@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'],
-    await testDefaults({ autoInstallPeers: false })
+    testDefaults({ autoInstallPeers: false })
   )
 
   const lockfile = project.readLockfile()
@@ -32,7 +32,7 @@ test('don\'t install the default peer dependency when it may be resolved from pa
 
 test('install the default peer dependency when it cannot be resolved from parent packages', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['@pnpm.e2e/has-default-peer'], await testDefaults({ autoInstallPeers: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/has-default-peer'], testDefaults({ autoInstallPeers: false }))
 
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
@@ -44,7 +44,7 @@ test('install the default peer dependency when it cannot be resolved from parent
 test('package that resolves its own peer dependency', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-resolved-peer', '@pnpm.e2e/peer-c@2.0.0'], await testDefaults())
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-resolved-peer', '@pnpm.e2e/peer-c@2.0.0'], testDefaults())
 
   expect(deepRequireCwd(['@pnpm.e2e/pkg-with-resolved-peer', '@pnpm.e2e/peer-c', './package.json']).version).toBe('2.0.0')
 

@@ -16,7 +16,7 @@ const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.s
 test.skip('caching side effects of native package', async () => {
   prepareEmpty()
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -43,7 +43,7 @@ test.skip('caching side effects of native package', async () => {
 test.skip('caching side effects of native package when hoisting is used', async () => {
   const project = prepareEmpty()
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     hoistPattern: '*',
     sideEffectsCacheRead: true,
@@ -74,7 +74,7 @@ test('using side effects cache', async () => {
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -94,7 +94,7 @@ test('using side effects cache', async () => {
 
   rimraf('node_modules')
   rimraf('pnpm-lock.yaml') // to avoid headless install
-  const opts2 = await testDefaults({
+  const opts2 = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -110,7 +110,7 @@ test('using side effects cache', async () => {
 test.skip('readonly side effects cache', async () => {
   prepareEmpty()
 
-  const opts1 = await testDefaults({
+  const opts1 = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -123,7 +123,7 @@ test.skip('readonly side effects cache', async () => {
   fs.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   rimraf('node_modules')
-  const opts2 = await testDefaults({
+  const opts2 = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: false,
@@ -144,7 +144,7 @@ test.skip('readonly side effects cache', async () => {
 test('uploading errors do not interrupt installation', async () => {
   prepareEmpty()
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -165,7 +165,7 @@ test('uploading errors do not interrupt installation', async () => {
 test('a postinstall script does not modify the original sources added to the store', async () => {
   prepareEmpty()
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -190,7 +190,7 @@ test('a postinstall script does not modify the original sources added to the sto
 test('a corrupted side-effects cache is ignored', async () => {
   prepareEmpty()
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -209,7 +209,7 @@ test('a corrupted side-effects cache is ignored', async () => {
   rimraf(sideEffectFile) // we remove the side effect file to break the store
 
   rimraf('node_modules')
-  const opts2 = await testDefaults({
+  const opts2 = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,

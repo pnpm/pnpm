@@ -17,7 +17,7 @@ test('prune removes extraneous packages', async () => {
   const linkedPkg = f.prepare('hello-world-js-bin')
   const project = prepareEmpty()
 
-  const opts = await testDefaults()
+  const opts = testDefaults()
   let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
   manifest = await addDependenciesToPackage(manifest, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
   manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
@@ -73,10 +73,10 @@ test('prune removes extraneous packages', async () => {
 test('prune removes dev dependencies in production', async () => {
   const project = prepareEmpty()
 
-  let manifest = await addDependenciesToPackage({}, ['is-positive@2.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
-  manifest = await addDependenciesToPackage(manifest, ['is-negative@2.1.0'], await testDefaults({ targetDependenciesField: 'dependencies' }))
-  manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
-  await install(manifest, await testDefaults({
+  let manifest = await addDependenciesToPackage({}, ['is-positive@2.0.0'], testDefaults({ targetDependenciesField: 'devDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['is-negative@2.1.0'], testDefaults({ targetDependenciesField: 'dependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  await install(manifest, testDefaults({
     include: {
       dependencies: true,
       devDependencies: false,

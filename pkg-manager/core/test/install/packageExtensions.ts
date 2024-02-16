@@ -20,7 +20,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
   const manifest = await addDependenciesToPackage(
     {},
     ['is-positive@1.0.0'],
-    await testDefaults({ packageExtensions })
+    testDefaults({ packageExtensions })
   )
 
   {
@@ -43,7 +43,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults({ packageExtensions }))
+  }, testDefaults({ packageExtensions }))
 
   {
     const lockfile = project.readLockfile()
@@ -64,7 +64,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults({ frozenLockfile: true, packageExtensions }))
+  }, testDefaults({ frozenLockfile: true, packageExtensions }))
 
   {
     const lockfile = project.readLockfile()
@@ -86,7 +86,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
       manifest,
       mutation: 'install',
       rootDir: process.cwd(),
-    }, await testDefaults({ frozenLockfile: true, packageExtensions }))
+    }, testDefaults({ frozenLockfile: true, packageExtensions }))
   ).rejects.toThrow(
     new PnpmError('LOCKFILE_CONFIG_MISMATCH',
       'Cannot proceed with the frozen installation. The current "packageExtensionsChecksum" configuration doesn\'t match the value found in the lockfile'
@@ -130,13 +130,13 @@ test('packageExtensionsChecksum does not change regardless of keys order', async
     },
   })
 
-  await install(manifest(), await testDefaults({
+  await install(manifest(), testDefaults({
     packageExtensions: packageExtensions1,
   }))
   const lockfile1 = project.readLockfile()
   const checksum1 = lockfile1.packageExtensionsChecksum
 
-  await install(manifest(), await testDefaults({
+  await install(manifest(), testDefaults({
     packageExtensions: packageExtensions2,
   }))
   const lockfile2 = project.readLockfile()
@@ -152,7 +152,7 @@ test('manifests are patched by extensions from the compatibility database', asyn
   await addDependenciesToPackage(
     {},
     ['debug@4.0.0'],
-    await testDefaults()
+    testDefaults()
   )
 
   const lockfile = project.readLockfile()
@@ -165,7 +165,7 @@ test('manifests are not patched by extensions from the compatibility database wh
   await addDependenciesToPackage(
     {},
     ['debug@4.0.0'],
-    await testDefaults({
+    testDefaults({
       ignoreCompatibilityDb: true,
     })
   )

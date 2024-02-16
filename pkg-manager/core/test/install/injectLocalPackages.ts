@@ -117,7 +117,7 @@ test('inject local packages', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     workspacePackages,
@@ -184,7 +184,7 @@ test('inject local packages', async () => {
   rimraf('project-2/node_modules')
   rimraf('project-3/node_modules')
 
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
@@ -205,7 +205,7 @@ test('inject local packages', async () => {
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  await mutateModules(importers, await testDefaults({ autoInstallPeers: false, allProjects, workspacePackages }))
+  await mutateModules(importers, testDefaults({ autoInstallPeers: false, allProjects, workspacePackages }))
   {
     const lockfile = rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
@@ -346,7 +346,7 @@ test('inject local packages declared via file protocol', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     workspacePackages,
@@ -413,7 +413,7 @@ test('inject local packages declared via file protocol', async () => {
   rimraf('project-2/node_modules')
   rimraf('project-3/node_modules')
 
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
@@ -435,7 +435,7 @@ test('inject local packages declared via file protocol', async () => {
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
   writeJsonFile('project-1/package.json', allProjects[0].manifest)
-  await mutateModules(importers, await testDefaults({ autoInstallPeers: false, allProjects, workspacePackages }))
+  await mutateModules(importers, testDefaults({ autoInstallPeers: false, allProjects, workspacePackages }))
   {
     const lockfile = rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
@@ -566,7 +566,7 @@ test('inject local packages when the file protocol is used', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     workspacePackages,
@@ -628,7 +628,7 @@ test('inject local packages when the file protocol is used', async () => {
   rimraf('project-2/node_modules')
   rimraf('project-3/node_modules')
 
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
@@ -650,7 +650,7 @@ test('inject local packages when the file protocol is used', async () => {
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
   writeJsonFile('project-1/package.json', allProjects[0].manifest)
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     workspacePackages,
@@ -757,7 +757,7 @@ test('inject local packages and relink them after build', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     workspacePackages,
@@ -801,7 +801,7 @@ test('inject local packages and relink them after build', async () => {
   rimraf('project-1/node_modules')
   rimraf('project-2/node_modules')
 
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
@@ -876,7 +876,7 @@ test('inject local packages and relink them after build (file protocol is used)'
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ autoInstallPeers: false, allProjects }))
+  await mutateModules(importers, testDefaults({ autoInstallPeers: false, allProjects }))
 
   projects['project-1'].has('is-negative')
   projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -911,7 +911,7 @@ test('inject local packages and relink them after build (file protocol is used)'
   rimraf('project-1/node_modules')
   rimraf('project-2/node_modules')
 
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
@@ -1036,7 +1036,7 @@ test('inject local packages when node-linker is hoisted', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     nodeLinker: 'hoisted',
@@ -1200,7 +1200,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     nodeLinker: 'hoisted',
@@ -1379,7 +1379,7 @@ test('peer dependency of injected project should be resolved correctly', async (
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     nodeLinker: 'hoisted',
@@ -1465,7 +1465,7 @@ test('do not modify the manifest of the injected workspace project', async () =>
       },
     },
   }
-  const [project1] = (await mutateModules(importers, await testDefaults({
+  const [project1] = (await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     workspacePackages,
@@ -1590,7 +1590,7 @@ test('injected package is kept up-to-date when it is hoisted to multiple places'
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     dedupeInjectedDeps: false,
     nodeLinker: 'hoisted',
@@ -1665,7 +1665,7 @@ test('relink injected dependency on install by default', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     dedupeInjectedDeps: false,
     workspacePackages,
@@ -1683,7 +1683,7 @@ test('relink injected dependency on install by default', async () => {
 
   expect(storeInode).not.toEqual(getInode())
 
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     dedupeInjectedDeps: false,
     workspacePackages,
@@ -1752,7 +1752,7 @@ test('do not relink injected dependency on install when disableRelinkLocalDirDep
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     dedupeInjectedDeps: false,
     workspacePackages,
@@ -1773,7 +1773,7 @@ test('do not relink injected dependency on install when disableRelinkLocalDirDep
 
   expect(storeInode).not.toEqual(newInode)
 
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     dedupeInjectedDeps: false,
     workspacePackages,
@@ -1957,7 +1957,7 @@ test('injected local packages are deduped', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: true,
     allProjects,
     dedupeInjectedDeps: true,
@@ -2009,7 +2009,7 @@ test('injected local packages are deduped', async () => {
   rimraf('project-2/node_modules')
   rimraf('project-3/node_modules')
 
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     autoInstallPeers: true,
     allProjects,
     dedupeInjectedDeps: true,
@@ -2031,7 +2031,7 @@ test('injected local packages are deduped', async () => {
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  await mutateModules(importers, await testDefaults({ autoInstallPeers: true, allProjects, dedupeInjectedDeps: true, workspacePackages }))
+  await mutateModules(importers, testDefaults({ autoInstallPeers: true, allProjects, dedupeInjectedDeps: true, workspacePackages }))
   {
     const lockfile = rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({

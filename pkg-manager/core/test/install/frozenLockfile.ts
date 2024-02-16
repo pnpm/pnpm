@@ -18,7 +18,7 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
         'is-positive': '1.0.0',
       },
     },
-    await testDefaults()
+    testDefaults()
   )
 
   await expect(
@@ -26,7 +26,7 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
       dependencies: {
         'is-positive': '^3.1.0',
       },
-    }, await testDefaults({ frozenLockfile: true }))
+    }, testDefaults({ frozenLockfile: true }))
   ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with package.json`)
 })
 
@@ -37,14 +37,14 @@ test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json 
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, await testDefaults({ hoistPattern: '*' }))
+  }, testDefaults({ hoistPattern: '*' }))
 
   await expect(
     install({
       dependencies: {
         'is-positive': '^3.1.0',
       },
-    }, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
+    }, testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
   ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with package.json`)
 })
 
@@ -83,7 +83,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
     },
     rootDir: path.resolve('p2'),
   }
-  await mutateModules(projects, await testDefaults({
+  await mutateModules(projects, testDefaults({
     allProjects: [project1, project2],
   }))
 
@@ -95,7 +95,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
   }
 
   await expect(
-    mutateModules(projects, await testDefaults({ frozenLockfile: true, allProjects: [project1, project2] }))
+    mutateModules(projects, testDefaults({ frozenLockfile: true, allProjects: [project1, project2] }))
   ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with p1${path.sep}package.json`)
 })
 
@@ -106,11 +106,11 @@ test(`frozen-lockfile: should successfully install when ${WANTED_LOCKFILE} is av
     dependencies: {
       'is-positive': '^3.0.0',
     },
-  }, await testDefaults({ lockfileOnly: true }))
+  }, testDefaults({ lockfileOnly: true }))
 
   project.hasNot('is-positive')
 
-  await install(manifest, await testDefaults({ frozenLockfile: true }))
+  await install(manifest, testDefaults({ frozenLockfile: true }))
 
   project.has('is-positive')
 })
@@ -123,7 +123,7 @@ test(`frozen-lockfile: should fail if no ${WANTED_LOCKFILE} is present`, async (
       dependencies: {
         'is-positive': '^3.0.0',
       },
-    }, await testDefaults({ frozenLockfile: true }))
+    }, testDefaults({ frozenLockfile: true }))
   ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`)
 })
 
@@ -134,12 +134,12 @@ test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_
     dependencies: {
       'is-positive': '^3.0.0',
     },
-  }, await testDefaults({ lockfileOnly: true }))
+  }, testDefaults({ lockfileOnly: true }))
 
   project.hasNot('is-positive')
 
   const reporter = sinon.spy()
-  await install(manifest, await testDefaults({ reporter, preferFrozenLockfile: true }))
+  await install(manifest, testDefaults({ reporter, preferFrozenLockfile: true }))
 
   expect(reporter.calledWithMatch({
     level: 'info',
@@ -157,7 +157,7 @@ test(`prefer-frozen-lockfile: should not prefer headless installation when ${WAN
     dependencies: {
       'is-positive': '^3.0.0',
     },
-  }, await testDefaults({ lockfileOnly: true }))
+  }, testDefaults({ lockfileOnly: true }))
 
   project.hasNot('is-positive')
 
@@ -166,7 +166,7 @@ test(`prefer-frozen-lockfile: should not prefer headless installation when ${WAN
     dependencies: {
       'is-negative': '1.0.0',
     },
-  }, await testDefaults({ reporter, preferFrozenLockfile: true }))
+  }, testDefaults({ reporter, preferFrozenLockfile: true }))
 
   expect(reporter.calledWithMatch({
     level: 'info',
@@ -180,13 +180,13 @@ test(`prefer-frozen-lockfile: should not prefer headless installation when ${WAN
 test(`prefer-frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async () => {
   prepareEmpty()
 
-  await install({}, await testDefaults({ preferFrozenLockfile: true }))
+  await install({}, testDefaults({ preferFrozenLockfile: true }))
 })
 
 test(`frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async () => {
   prepareEmpty()
 
-  await install({}, await testDefaults({ frozenLockfile: true }))
+  await install({}, testDefaults({ frozenLockfile: true }))
 })
 
 test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async () => {
@@ -196,12 +196,12 @@ test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation w
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },
-  }, await testDefaults({ lockfileOnly: true }))
+  }, testDefaults({ lockfileOnly: true }))
 
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   const reporter = sinon.spy()
-  await install(manifest, await testDefaults({
+  await install(manifest, testDefaults({
     hoistPattern: '*',
     preferFrozenLockfile: true,
     reporter,
@@ -269,10 +269,10 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
       rootDir: path.resolve('p2'),
     },
   ]
-  await mutateModules(mutatedProjects, await testDefaults({ allProjects }))
+  await mutateModules(mutatedProjects, testDefaults({ allProjects }))
 
   const reporter = sinon.spy()
-  await mutateModules(mutatedProjects, await testDefaults({
+  await mutateModules(mutatedProjects, testDefaults({
     allProjects,
     preferFrozenLockfile: true,
     reporter,
@@ -296,9 +296,9 @@ test('frozen-lockfile: installation fails if the value of auto-install-peers cha
     },
   }
 
-  await install(manifest, await testDefaults({ autoInstallPeers: true }))
+  await install(manifest, testDefaults({ autoInstallPeers: true }))
 
   await expect(
-    install(manifest, await testDefaults({ frozenLockfile: true, autoInstallPeers: false }))
+    install(manifest, testDefaults({ frozenLockfile: true, autoInstallPeers: false }))
   ).rejects.toThrow('Cannot proceed with the frozen installation. The current "settings.autoInstallPeers" configuration doesn\'t match the value found in the lockfile')
 })

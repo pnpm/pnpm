@@ -64,7 +64,7 @@ test('jest CLI should print the right version when multiple instances of jest ar
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     extendNodePath: true,
     fastUnpack: false,
@@ -91,7 +91,7 @@ test('drupal-js-build should find plugins inside the hidden node_modules directo
     scripts: {
       prepare: 'drupal-js-build',
     },
-  }, await testDefaults({
+  }, testDefaults({
     extendNodePath: true,
     fastUnpack: false,
     hoistPattern: '*',

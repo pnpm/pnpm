@@ -13,7 +13,7 @@ testSkipOnCI('a package with a huge amount of circular dependencies and many pee
 
   await addDependenciesToPackage({},
     ['@teambit/bit@0.0.745'],
-    await testDefaults({
+    testDefaults({
       fastUnpack: true,
       lockfileOnly: true,
       registries: {

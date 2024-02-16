@@ -19,7 +19,7 @@ test('production install (with --production flag)', async () => {
       'js-yaml': '3.14.0',
       once: '^1.4.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     fastUnpack: false,
     include: {
       dependencies: true,
@@ -51,7 +51,7 @@ test('production install with --no-optional', async () => {
       'js-yaml': '3.14.0',
       once: '^1.4.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     fastUnpack: false,
     include: {
       dependencies: true,
@@ -79,7 +79,7 @@ test('install dev dependencies only', async () => {
     devDependencies: {
       inflight: '1.0.6',
     },
-  }, await testDefaults({
+  }, testDefaults({
     include: {
       dependencies: false,
       devDependencies: true,
@@ -101,7 +101,7 @@ test('install dev dependencies only', async () => {
   }
 
   // Repeat normal installation adds missing deps to node_modules
-  await install(manifest, await testDefaults())
+  await install(manifest, testDefaults())
 
   project.has('once')
 
@@ -124,7 +124,7 @@ test('fail if installing different types of dependencies in a project that uses 
     devDependencies: {
       inflight: '1.0.6',
     },
-  }, await testDefaults({
+  }, testDefaults({
     include: {
       dependencies: false,
       devDependencies: true,
@@ -136,7 +136,7 @@ test('fail if installing different types of dependencies in a project that uses 
   project.has('inflight')
   project.hasNot('once')
 
-  const newOpts = await testDefaults({
+  const newOpts = testDefaults({
     confirmModulesPurge: false,
     include: {
       dependencies: true,
@@ -161,7 +161,7 @@ test('installation should not fail if a linked dependency points to a directory 
       'is-positive': '1.0.0',
       'not-exists': 'link:../not-exists',
     },
-  }, await testDefaults())
+  }, testDefaults())
 
   project.has('is-positive')
 })

@@ -8,7 +8,7 @@ import { testDefaults } from '../utils'
 test('repeat install with corrupted `store.json` should work', async () => {
   const project = prepareEmpty()
 
-  const opts = await testDefaults()
+  const opts = testDefaults()
   const manifest = await addDependenciesToPackage({}, ['is-negative@1.0.0'], opts)
 
   rimraf('node_modules')

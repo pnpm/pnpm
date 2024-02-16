@@ -6,7 +6,7 @@ import { testDefaults } from '../utils'
 
 test('installing aliased dependency', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('negative')
   expect(typeof m).toBe('function')
@@ -59,7 +59,7 @@ test('aliased dependency w/o version spec, with custom tag config', async () => 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: tag })
 
-  await addDependenciesToPackage({}, ['foo@npm:@pnpm.e2e/dep-of-pkg-with-1-dep'], await testDefaults({ tag }))
+  await addDependenciesToPackage({}, ['foo@npm:@pnpm.e2e/dep-of-pkg-with-1-dep'], testDefaults({ tag }))
 
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -69,7 +69,7 @@ test('a dependency has an aliased subdependency', async () => {
 
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-aliased-dep'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-aliased-dep'], testDefaults({ fastUnpack: false }))
 
   expect(project.requireModule('@pnpm.e2e/pkg-with-1-aliased-dep')().name).toEqual('@pnpm.e2e/dep-of-pkg-with-1-dep')
 
@@ -107,7 +107,7 @@ test('a dependency has an aliased subdependency', async () => {
 
 test('installing the same package via an alias and directly', async () => {
   const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['negative@npm:is-negative@^1.0.1', 'is-negative@^1.0.1'], await testDefaults({ fastUnpack: false }))
+  const manifest = await addDependenciesToPackage({}, ['negative@npm:is-negative@^1.0.1', 'is-negative@^1.0.1'], testDefaults({ fastUnpack: false }))
 
   expect(manifest.dependencies).toStrictEqual({ negative: 'npm:is-negative@^1.0.1', 'is-negative': '^1.0.1' })
 

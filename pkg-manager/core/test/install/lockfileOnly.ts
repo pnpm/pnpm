@@ -15,7 +15,7 @@ test('install with lockfileOnly = true', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
+  const opts = testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
   const { cafsHas } = assertStore(opts.storeDir)
 
@@ -50,8 +50,8 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults())
-  await addDependenciesToPackage(manifest, ['rimraf@2.5.1'], await testDefaults({
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], testDefaults())
+  await addDependenciesToPackage(manifest, ['rimraf@2.5.1'], testDefaults({
     lockfileOnly: true,
     reporter,
   }))
@@ -77,14 +77,14 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
 
 test('do not update the lockfile when lockfileOnly and frozenLockfile are both used', async () => {
   prepareEmpty()
-  await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({
+  await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({
     lockfileOnly: true,
   }))
   await expect(install({
     dependencies: {
       'is-positive': '2.0.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     lockfileOnly: true,
     frozenLockfile: true,
   }))).rejects.toThrow(/is not up to date/)

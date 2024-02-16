@@ -7,7 +7,7 @@ test('fail if installed package does not support the current engine and engine-s
   const project = prepareEmpty()
 
   await expect(
-    addDependenciesToPackage({}, ['@pnpm.e2e/not-compatible-with-any-os'], await testDefaults({}, {}, {}, {
+    addDependenciesToPackage({}, ['@pnpm.e2e/not-compatible-with-any-os'], testDefaults({}, {}, {}, {
       engineStrict: true,
     }))
   ).rejects.toThrow()
@@ -18,7 +18,7 @@ test('fail if installed package does not support the current engine and engine-s
 test('do not fail if installed package does not support the current engine and engine-strict = false', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/not-compatible-with-any-os'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/not-compatible-with-any-os'], testDefaults({
     engineStrict: false,
   }))
 
@@ -32,7 +32,7 @@ test('do not fail if installed package does not support the current engine and e
 test('do not fail if installed package requires the node version that was passed in and engine-strict = true', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/for-legacy-node'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/for-legacy-node'], testDefaults({
     engineStrict: true,
     nodeVersion: '0.10.0',
   }))
@@ -47,7 +47,7 @@ test('do not fail if installed package requires the node version that was passed
 test(`save cpu field to ${WANTED_LOCKFILE}`, async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/has-cpu-specified'], await testDefaults())
+  await addDependenciesToPackage({}, ['@pnpm.e2e/has-cpu-specified'], testDefaults())
 
   const lockfile = project.readLockfile()
 
@@ -61,7 +61,7 @@ test(`save cpu field to ${WANTED_LOCKFILE}`, async () => {
 test(`engines field is not added to ${WANTED_LOCKFILE} when "node": "*" is in "engines" field`, async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['jsonify@0.0.0'], await testDefaults())
+  await addDependenciesToPackage({}, ['jsonify@0.0.0'], testDefaults())
 
   const lockfile = project.readLockfile()
 

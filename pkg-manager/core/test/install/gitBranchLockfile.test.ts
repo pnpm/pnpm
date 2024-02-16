@@ -16,7 +16,7 @@ test('install with git-branch-lockfile = true', async () => {
   const branchName: string = 'main-branch'
   ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     useGitBranchLockfile: true,
   })
 
@@ -42,14 +42,14 @@ test('install with git-branch-lockfile = true and no lockfile changes', async ()
     },
   }
 
-  const opts1 = await testDefaults({
+  const opts1 = testDefaults({
     useGitBranchLockfile: false,
   })
   await install(manifest, opts1)
 
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
 
-  const opts2 = await testDefaults({
+  const opts2 = testDefaults({
     useGitBranchLockfile: true,
   })
   await install(manifest, opts2)
@@ -88,7 +88,7 @@ test('install a workspace with git-branch-lockfile = true', async () => {
   const branchName: string = 'main-branch'
   ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     useGitBranchLockfile: true,
     allProjects: [
       {
@@ -142,7 +142,7 @@ test('install with --merge-git-branch-lockfiles', async () => {
   expect(fs.existsSync(otherLockfilePath)).toBe(true)
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     useGitBranchLockfile: true,
     mergeGitBranchLockfiles: true,
   })
@@ -216,7 +216,7 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
       'is-positive': '^3.1.0',
     },
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     useGitBranchLockfile: true,
     mergeGitBranchLockfiles: true,
     frozenLockfile: true,

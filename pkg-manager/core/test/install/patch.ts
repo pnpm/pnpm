@@ -18,7 +18,7 @@ test('patch package', async () => {
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -85,7 +85,7 @@ test('patch package', async () => {
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -105,7 +105,7 @@ test('patch package reports warning if not all patches are applied and allowNonA
     'is-positive@1.0.0': patchPath,
     'is-negative@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -134,7 +134,7 @@ test('patch package throws an exception if not all patches are applied', async (
     'is-positive@1.0.0': patchPath,
     'is-negative@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -157,7 +157,7 @@ test('the patched package is updated if the patch is modified', async () => {
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -184,7 +184,7 @@ test('patch package when scripts are ignored', async () => {
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     ignoreScripts: true,
     sideEffectsCacheRead: true,
@@ -252,7 +252,7 @@ test('patch package when scripts are ignored', async () => {
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     fastUnpack: false,
     ignoreScripts: true,
     sideEffectsCacheRead: true,
@@ -271,7 +271,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -339,7 +339,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -358,7 +358,7 @@ test('patch package when the patched package has no dependencies and appears mul
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -390,7 +390,7 @@ test('patch package should fail when the patch could not be applied', async () =
   const patchedDependencies = {
     'is-positive@3.1.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,

@@ -7,7 +7,7 @@ import { testDefaults } from './utils'
 test('packageImportMethod can be set to copy', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['is-negative'], await testDefaults({ fastUnpack: false }, {}, {}, { packageImportMethod: 'copy' }))
+  await addDependenciesToPackage({}, ['is-negative'], testDefaults({ fastUnpack: false }, {}, {}, { packageImportMethod: 'copy' }))
 
   const m = project.requireModule('is-negative')
   expect(m).toBeTruthy() // is-negative is available with packageImportMethod = copy
@@ -16,7 +16,7 @@ test('packageImportMethod can be set to copy', async () => {
 test('copy does not fail on package that self-requires itself', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/requires-itself'], await testDefaults({}, {}, {}, { packageImportMethod: 'copy' }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/requires-itself'], testDefaults({}, {}, {}, { packageImportMethod: 'copy' }))
 
   const m = project.requireModule('@pnpm.e2e/requires-itself/package.json')
   expect(m).toBeTruthy() // requires-itself is available with packageImportMethod = copy
@@ -27,7 +27,7 @@ test('copy does not fail on package that self-requires itself', async () => {
 
 test('packages are updated in node_modules, when packageImportMethod is set to copy and modules manifest and current lockfile are incorrect', async () => {
   prepareEmpty()
-  const opts = await testDefaults({ fastUnpack: false, force: false, nodeLinker: 'hoisted' }, {}, {}, { packageImportMethod: 'copy' })
+  const opts = testDefaults({ fastUnpack: false, force: false, nodeLinker: 'hoisted' }, {}, {}, { packageImportMethod: 'copy' })
 
   await addDependenciesToPackage({}, ['is-negative@1.0.0'], opts)
   const modulesManifestContent = fs.readFileSync('node_modules/.modules.yaml')

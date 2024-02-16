@@ -30,14 +30,14 @@ test('spec not specified in package.json.dependencies', async () => {
     },
   ]
   {
-    const { stats } = await mutateModules(importers, await testDefaults({ allProjects }))
+    const { stats } = await mutateModules(importers, testDefaults({ allProjects }))
     expect(stats.added).toEqual(1)
     expect(stats.removed).toEqual(0)
     expect(stats.linkedToRoot).toEqual(1)
   }
   rimraf('node_modules')
   {
-    const { stats } = await mutateModules(importers, await testDefaults({ allProjects, frozenLockfile: true }))
+    const { stats } = await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
     expect(stats.added).toEqual(1)
     expect(stats.removed).toEqual(0)
     expect(stats.linkedToRoot).toEqual(1)
@@ -49,7 +49,7 @@ test('spec not specified in package.json.dependencies', async () => {
         dependencyNames: ['is-positive'],
         rootDir: process.cwd(),
       },
-    ], await testDefaults({ allProjects, frozenLockfile: true }))
+    ], testDefaults({ allProjects, frozenLockfile: true }))
     expect(stats.added).toEqual(0)
     expect(stats.removed).toEqual(1)
     expect(stats.linkedToRoot).toEqual(0)

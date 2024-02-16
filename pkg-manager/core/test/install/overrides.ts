@@ -19,7 +19,7 @@ test('versions are replaced with versions specified through overrides option', a
   }
   const manifest = await addDependenciesToPackage({},
     ['@pnpm.e2e/pkg-with-1-dep@100.0.0', '@pnpm.e2e/foobar@100.0.0', '@pnpm.e2e/foobarqar@1.0.0'],
-    await testDefaults({ overrides })
+    testDefaults({ overrides })
   )
 
   {
@@ -41,7 +41,7 @@ test('versions are replaced with versions specified through overrides option', a
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, { ...await testDefaults(), ignorePackageManifest: true, overrides })
+  }, { ...testDefaults(), ignorePackageManifest: true, overrides })
 
   // The lockfile is updated if the overrides are changed
   overrides['@pnpm.e2e/bar@^100.0.0'] = '100.0.0'
@@ -51,7 +51,7 @@ test('versions are replaced with versions specified through overrides option', a
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults({ overrides }))
+  }, testDefaults({ overrides }))
 
   {
     const lockfile = project.readLockfile()
@@ -72,7 +72,7 @@ test('versions are replaced with versions specified through overrides option', a
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults({ frozenLockfile: true, overrides }))
+  }, testDefaults({ frozenLockfile: true, overrides }))
 
   {
     const lockfile = project.readLockfile()
@@ -92,7 +92,7 @@ test('versions are replaced with versions specified through overrides option', a
       manifest,
       mutation: 'install',
       rootDir: process.cwd(),
-    }, await testDefaults({ frozenLockfile: true, overrides }))
+    }, testDefaults({ frozenLockfile: true, overrides }))
   ).rejects.toThrow(
     new PnpmError('LOCKFILE_CONFIG_MISMATCH',
       'Cannot proceed with the frozen installation. The current "overrides" configuration doesn\'t match the value found in the lockfile'
@@ -110,7 +110,7 @@ test('when adding a new dependency that is present in the overrides, use the spe
   }
   const manifest = await addDependenciesToPackage({},
     ['@pnpm.e2e/bar'],
-    await testDefaults({ overrides })
+    testDefaults({ overrides })
   )
 
   expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe(overrides['@pnpm.e2e/bar'])
@@ -127,7 +127,7 @@ test('explicitly specifying a version at install will ignore overrides', async (
   const EXACT_VERSION = '100.0.0'
   const manifest = await addDependenciesToPackage({},
     [`@pnpm.e2e/bar@${EXACT_VERSION}`],
-    await testDefaults({ overrides })
+    testDefaults({ overrides })
   )
 
   expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe(EXACT_VERSION)

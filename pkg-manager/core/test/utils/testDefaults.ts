@@ -3,7 +3,6 @@ import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type StoreController } from '@pnpm/store-controller-types'
-import { getStorePath } from '@pnpm/store-path'
 import { type Registries } from '@pnpm/types'
 import { type InstallOptions } from '@pnpm/core'
 
@@ -16,7 +15,7 @@ const retryOpts = {
   retryMintimeout: 10_000,
 }
 
-export async function testDefaults<T> (
+export function testDefaults<T> (
   opts?: T & {
     fastUnpack?: boolean
     storeDir?: string
@@ -25,16 +24,14 @@ export async function testDefaults<T> (
   resolveOpts?: any, // eslint-disable-line
   fetchOpts?: any, // eslint-disable-line
   storeOpts?: any // eslint-disable-line
-): Promise<
-  InstallOptions &
+): InstallOptions &
   {
     cacheDir: string
     registries: Registries
     storeController: StoreController
     storeDir: string
   } &
-  T
-  > {
+  T {
   const authConfig = { registry }
   const cacheDir = path.resolve('cache')
   const { resolve, fetchers } = createClient({
@@ -45,12 +42,7 @@ export async function testDefaults<T> (
     ...resolveOpts,
     ...fetchOpts,
   })
-  let storeDir = opts?.storeDir ?? path.resolve('.store')
-  storeDir = await getStorePath({
-    pkgRoot: opts?.prefix ?? process.cwd(),
-    storePath: storeDir,
-    pnpmHomeDir: '',
-  })
+  const storeDir = opts?.storeDir ?? path.resolve('.store')
   const storeController = createPackageStore(
     resolve,
     fetchers,

@@ -76,14 +76,14 @@ test('dedupe direct dependencies', async () => {
       rootDir: path.resolve('project-3'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, dedupeDirectDeps: true }))
+  await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: true }))
   projects['project-2'].has('@pnpm.e2e/hello-world-js-bin')
   projects['project-3'].has('@pnpm.e2e/hello-world-js-bin')
 
   allProjects[0].manifest.dependencies['@pnpm.e2e/hello-world-js-bin'] = '1.0.0'
   allProjects[1].manifest.dependencies['is-positive'] = '1.0.0'
   allProjects[1].manifest.dependencies['is-odd'] = '2.0.0'
-  await mutateModules(importers, await testDefaults({ allProjects, dedupeDirectDeps: true }))
+  await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: true }))
 
   expect(Array.from(fs.readdirSync('node_modules').sort())).toEqual([
     '.bin',
@@ -100,7 +100,7 @@ test('dedupe direct dependencies', async () => {
   expect(fs.existsSync('project-3/node_modules')).toBeFalsy()
 
   // Test the same with headless install
-  await mutateModules(importers, await testDefaults({ allProjects, dedupeDirectDeps: true, frozenLockfile: true }))
+  await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: true, frozenLockfile: true }))
   expect(fs.readdirSync('project-2/node_modules').sort()).toEqual(['is-odd'])
   projects['project-3'].hasNot('@pnpm.e2e/hello-world-js-bin')
   expect(fs.existsSync('project-3/node_modules')).toBeFalsy()
@@ -154,7 +154,7 @@ test('dedupe direct dependencies after public hoisting', async () => {
       rootDir: path.resolve('project-2'),
     },
   ]
-  const opts = await testDefaults({
+  const opts = testDefaults({
     allProjects,
     dedupeDirectDeps: true,
     publicHoistPattern: ['@pnpm.e2e/dep-of-pkg-with-1-dep'],
