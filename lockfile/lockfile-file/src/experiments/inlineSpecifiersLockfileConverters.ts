@@ -1,19 +1,123 @@
 import type { Lockfile, ProjectSnapshot, ResolvedDependencies } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { type LockfileFile } from '../write'
+import equals from 'ramda/src/equals'
+import isEmpty from 'ramda/src/isEmpty'
+import _mapValues from 'ramda/src/map'
+import pickBy from 'ramda/src/pickBy'
 import {
+  type LockfileFile,
   type InlineSpecifiersLockfile,
   type InlineSpecifiersProjectSnapshot,
   type InlineSpecifiersResolvedDependencies,
 } from './InlineSpecifiersLockfile'
 
-export function convertToInlineSpecifiersFormat (lockfile: Lockfile): InlineSpecifiersLockfile {
+export interface NormalizeLockfileOpts {
+  forceSharedFormat: boolean
+}
+
+export function convertToInlineSpecifiersFormat (lockfile: Lockfile, opts: NormalizeLockfileOpts): LockfileFile {
   const newLockfile = {
     ...lockfile,
     lockfileVersion: lockfile.lockfileVersion.toString(),
     importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
   }
-  return newLockfile
+  return normalizeLockfile(newLockfile, opts)
+}
+
+function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeLockfileOpts): LockfileFile {
+  let lockfileToSave!: LockfileFile
+  if (!opts.forceSharedFormat && equals(Object.keys(lockfile.importers ?? {}), ['.'])) {
+    lockfileToSave = {
+      ...lockfile,
+      ...lockfile.importers?.['.'],
+    }
+    delete lockfileToSave.importers
+    for (const depType of DEPENDENCIES_FIELDS) {
+      if (isEmpty(lockfileToSave[depType])) {
+        delete lockfileToSave[depType]
+      }
+    }
+    if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
+      delete lockfileToSave.packages
+    }
+  } else {
+    lockfileToSave = {
+      ...lockfile,
+      importers: _mapValues((importer) => {
+        const normalizedImporter: Partial<InlineSpecifiersProjectSnapshot> = {}
+        if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
+          normalizedImporter.dependenciesMeta = importer.dependenciesMeta
+        }
+        for (const depType of DEPENDENCIES_FIELDS) {
+          if (!isEmpty(importer[depType] ?? {})) {
+            normalizedImporter[depType] = importer[depType]
+          }
+        }
+        if (importer.publishDirectory) {
+          normalizedImporter.publishDirectory = importer.publishDirectory
+        }
+        return normalizedImporter as InlineSpecifiersProjectSnapshot
+      }, lockfile.importers ?? {}),
+    }
+    if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
+      delete lockfileToSave.packages
+    }
+  }
+  if (lockfileToSave.time) {
+    lockfileToSave.time = pruneTimeInLockfileV6(lockfileToSave.time, lockfile.importers ?? {})
+  }
+  if ((lockfileToSave.overrides != null) && isEmpty(lockfileToSave.overrides)) {
+    delete lockfileToSave.overrides
+  }
+  if ((lockfileToSave.patchedDependencies != null) && isEmpty(lockfileToSave.patchedDependencies)) {
+    delete lockfileToSave.patchedDependencies
+  }
+  if (lockfileToSave.neverBuiltDependencies != null) {
+    if (isEmpty(lockfileToSave.neverBuiltDependencies)) {
+      delete lockfileToSave.neverBuiltDependencies
+    } else {
+      lockfileToSave.neverBuiltDependencies = lockfileToSave.neverBuiltDependencies.sort()
+    }
+  }
+  if (lockfileToSave.onlyBuiltDependencies != null) {
+    lockfileToSave.onlyBuiltDependencies = lockfileToSave.onlyBuiltDependencies.sort()
+  }
+  if (!lockfileToSave.packageExtensionsChecksum) {
+    delete lockfileToSave.packageExtensionsChecksum
+  }
+  return lockfileToSave
+}
+
+function pruneTimeInLockfileV6 (time: Record<string, string>, importers: Record<string, InlineSpecifiersProjectSnapshot>): Record<string, string> {
+  const rootDepPaths = new Set<string>()
+  for (const importer of Object.values(importers)) {
+    for (const depType of DEPENDENCIES_FIELDS) {
+      for (const [depName, ref] of Object.entries(importer[depType] ?? {})) {
+        const suffixStart = ref.version.indexOf('(')
+        const refWithoutPeerSuffix = suffixStart === -1 ? ref.version : ref.version.slice(0, suffixStart)
+        const depPath = refToRelative(refWithoutPeerSuffix, depName)
+        if (!depPath) continue
+        rootDepPaths.add(depPath)
+      }
+    }
+  }
+  return pickBy((_, depPath) => rootDepPaths.has(depPath), time)
+}
+
+function refToRelative (
+  reference: string,
+  pkgName: string
+): string | null {
+  if (reference.startsWith('link:')) {
+    return null
+  }
+  if (reference.startsWith('file:')) {
+    return reference
+  }
+  if (!reference.includes('/') || !reference.replace(/(\([^)]+\))+$/, '').includes('/')) {
+    return `/${pkgName}@${reference}`
+  }
+  return reference
 }
 
 /**

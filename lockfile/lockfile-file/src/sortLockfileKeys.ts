@@ -1,6 +1,6 @@
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import sortKeys from 'sort-keys'
-import { type LockfileFile } from './write'
+import { type LockfileFile } from './experiments/InlineSpecifiersLockfile'
 
 const ORDERED_KEYS = {
   resolution: 1,

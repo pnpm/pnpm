@@ -1,6 +1,8 @@
 import type { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import type { DependenciesMeta } from '@pnpm/types'
 
+export type LockfileFile = Omit<InlineSpecifiersLockfile, 'importers'> & Partial<InlineSpecifiersProjectSnapshot> & Partial<Pick<InlineSpecifiersLockfile, 'importers'>>
+
 /**
  * Similar to the current Lockfile importers format (lockfile version 5.4 at
  * time of writing), but specifiers are moved to each ResolvedDependencies block

@@ -81,7 +81,7 @@ test('convertToInlineSpecifiersFormat()', () => {
       },
     },
   }
-  expect(convertToInlineSpecifiersFormat(lockfileV5)).toEqual(lockfileV6)
+  expect(convertToInlineSpecifiersFormat(lockfileV5, { forceSharedFormat: false })).toEqual(lockfileV6)
   expect(revertFromInlineSpecifiersFormat(lockfileV6)).toEqual(lockfileV5)
 })
 
@@ -166,6 +166,6 @@ test('convertToInlineSpecifiersFormat() with lockfile v6', () => {
       },
     },
   }
-  expect(convertToInlineSpecifiersFormat(lockfileV5)).toEqual(lockfileV6)
+  expect(convertToInlineSpecifiersFormat(lockfileV5, { forceSharedFormat: false })).toEqual(lockfileV6)
   expect(revertFromInlineSpecifiersFormat(lockfileV6)).toEqual(lockfileV5)
 })

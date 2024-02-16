@@ -29,27 +29,6 @@ export interface ProjectSnapshot {
   publishDirectory?: string
 }
 
-export interface LockfileV6 {
-  importers: Record<string, ProjectSnapshotV6>
-  lockfileVersion: number | string
-  time?: Record<string, string>
-  packages?: PackageSnapshots
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  overrides?: Record<string, string>
-  packageExtensionsChecksum?: string
-  patchedDependencies?: Record<string, PatchFile>
-  settings?: LockfileSettings
-}
-
-export interface ProjectSnapshotV6 {
-  dependencies?: ResolvedDependenciesOfImporters
-  optionalDependencies?: ResolvedDependenciesOfImporters
-  devDependencies?: ResolvedDependenciesOfImporters
-  dependenciesMeta?: DependenciesMeta
-  publishDirectory?: string
-}
-
 export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>
 
 export interface PackageSnapshots {
