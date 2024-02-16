@@ -216,13 +216,10 @@ export async function writeLockfiles (
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
   const forceSharedFormat = opts?.forceSharedFormat === true
-  const isLockfileV6 = opts.wantedLockfile.lockfileVersion.toString().startsWith('6.')
-  const wantedLockfileToStringify = isLockfileV6
-    ? convertToInlineSpecifiersFormat(opts.wantedLockfile) as unknown as Lockfile
-    : opts.wantedLockfile
+  const wantedLockfileToStringify = convertToInlineSpecifiersFormat(opts.wantedLockfile) as unknown as Lockfile
   const normalizeOpts = {
     forceSharedFormat,
-    includeEmptySpecifiersField: !isLockfileV6,
+    includeEmptySpecifiersField: false,
   }
   const yamlDoc = yamlStringify(wantedLockfileToStringify, normalizeOpts)
 
@@ -249,9 +246,7 @@ export async function writeLockfiles (
     prefix: opts.wantedLockfileDir,
   })
 
-  const currentLockfileToStringify = opts.wantedLockfile.lockfileVersion.toString().startsWith('6.')
-    ? convertToInlineSpecifiersFormat(opts.currentLockfile) as unknown as Lockfile
-    : opts.currentLockfile
+  const currentLockfileToStringify = convertToInlineSpecifiersFormat(opts.currentLockfile) as unknown as Lockfile
   const currentYamlDoc = yamlStringify(currentLockfileToStringify, normalizeOpts)
 
   await Promise.all([

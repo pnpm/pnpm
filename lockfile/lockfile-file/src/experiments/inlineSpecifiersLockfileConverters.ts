@@ -14,10 +14,6 @@ export function convertToInlineSpecifiersFormat (lockfile: Lockfile): InlineSpec
   return newLockfile
 }
 
-export function revertFromInlineSpecifiersFormatIfNecessary (lockfile: InlineSpecifiersLockfile): Lockfile {
-  return revertFromInlineSpecifiersFormat(lockfile)
-}
-
 export function revertFromInlineSpecifiersFormat (lockfile: InlineSpecifiersLockfile): Lockfile {
   const { importers, ...rest } = lockfile
 

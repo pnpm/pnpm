@@ -18,7 +18,7 @@ import { lockfileLogger as logger } from './logger'
 import { type LockfileFile } from './write'
 import { getWantedLockfileName } from './lockfileName'
 import { getGitBranchLockfileNames } from './gitBranchLockfile'
-import { revertFromInlineSpecifiersFormatIfNecessary } from './experiments/inlineSpecifiersLockfileConverters'
+import { revertFromInlineSpecifiersFormat } from './experiments/inlineSpecifiersLockfileConverters'
 
 export async function readCurrentLockfile (
   virtualStoreDir: string,
@@ -88,7 +88,7 @@ async function _read (
   let lockfile: Lockfile
   let hadConflicts!: boolean
   try {
-    lockfile = revertFromInlineSpecifiersFormatIfNecessary(convertFromLockfileFileMutable(yaml.load(lockfileRawContent) as any) as any) // eslint-disable-line
+    lockfile = revertFromInlineSpecifiersFormat(convertFromLockfileFileMutable(yaml.load(lockfileRawContent) as any) as any) // eslint-disable-line
     hadConflicts = false
   } catch (err: any) { // eslint-disable-line
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
