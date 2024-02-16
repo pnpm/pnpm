@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import readYamlFile from 'read-yaml-file'
 import { install, link } from '@pnpm/plugin-commands-installation'
@@ -21,7 +21,7 @@ test('linking multiple packages', async () => {
 
   await writePkg('linked-foo', { name: 'linked-foo', version: '1.0.0' })
   await writePkg('linked-bar', { name: 'linked-bar', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } })
-  await fs.writeFile('linked-bar/.npmrc', 'shamefully-hoist = true')
+  fs.writeFileSync('linked-bar/.npmrc', 'shamefully-hoist = true')
 
   process.chdir('linked-foo')
 
@@ -57,10 +57,10 @@ test('link global bin', async function () {
   const globalBin = path.join(globalDir, 'bin')
   const oldPath = process.env[PATH]
   process.env[PATH] = `${globalBin}${path.delimiter}${oldPath ?? ''}`
-  await fs.mkdir(globalBin, { recursive: true })
+  fs.mkdirSync(globalBin, { recursive: true })
 
   await writePkg('package-with-bin', { name: 'package-with-bin', version: '1.0.0', bin: 'bin.js' })
-  await fs.writeFile('package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
+  fs.writeFileSync('package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
 
   process.chdir('package-with-bin')
 
@@ -87,10 +87,10 @@ test('link to global bin from the specified directory', async function () {
   const globalBin = path.join(globalDir, 'bin')
   const oldPath = process.env[PATH]
   process.env[PATH] = `${globalBin}${path.delimiter}${oldPath ?? ''}`
-  await fs.mkdir(globalBin, { recursive: true })
+  fs.mkdirSync(globalBin, { recursive: true })
 
   await writePkg('./dir/package-with-bin-in-dir', { name: 'package-with-bin-in-dir', version: '1.0.0', bin: 'bin.js' })
-  await fs.writeFile('./dir/package-with-bin-in-dir/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
+  fs.writeFileSync('./dir/package-with-bin-in-dir/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
 
   await link.handler({
     ...DEFAULT_OPTS,
@@ -116,10 +116,10 @@ test('link a global package to the specified directory', async function () {
   const globalBin = path.join(globalDir, 'bin')
   const oldPath = process.env[PATH]
   process.env[PATH] = `${globalBin}${path.delimiter}${oldPath ?? ''}`
-  await fs.mkdir(globalBin, { recursive: true })
+  fs.mkdirSync(globalBin, { recursive: true })
 
   await writePkg('global-package-with-bin', { name: 'global-package-with-bin', version: '1.0.0', bin: 'bin.js' })
-  await fs.writeFile('global-package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
+  fs.writeFileSync('global-package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
 
   process.chdir('global-package-with-bin')
 

@@ -483,19 +483,19 @@ test('re-install should update local file dependency', async () => {
 
 test('local directory is not relinked if disableRelinkLocalDirDeps is set to true', async () => {
   prepareEmpty()
-  fss.mkdirSync('pkg')
-  fss.writeFileSync('pkg/index.js', 'hello', 'utf8')
-  fss.writeFileSync('pkg/package.json', '{"name": "pkg"}', 'utf8')
+  fs.mkdirSync('pkg')
+  fs.writeFileSync('pkg/index.js', 'hello', 'utf8')
+  fs.writeFileSync('pkg/package.json', '{"name": "pkg"}', 'utf8')
 
   const manifest = await addDependenciesToPackage({}, ['file:./pkg'], await testDefaults())
 
-  fss.writeFileSync('pkg/new.js', 'hello', 'utf8')
+  fs.writeFileSync('pkg/new.js', 'hello', 'utf8')
 
   await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], await testDefaults({ disableRelinkLocalDirDeps: true }))
 
-  expect(fss.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
+  expect(fs.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
 
   await install(manifest, await testDefaults({ frozenLockfile: true, disableRelinkLocalDirDeps: true }))
 
-  expect(fss.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
+  expect(fs.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
 })

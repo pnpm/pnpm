@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
@@ -267,7 +267,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
     },
   ])
 
-  await fs.mkdir('node_modules')
+  fs.mkdirSync('node_modules')
   process.chdir('packages')
 
   await install.handler({
@@ -640,8 +640,8 @@ test('recursive install in a monorepo with different modules directories', async
       },
     },
   ])
-  await fs.writeFile('project-1/.npmrc', 'modules-dir=modules_1', 'utf8')
-  await fs.writeFile('project-2/.npmrc', 'modules-dir=modules_2', 'utf8')
+  fs.writeFileSync('project-1/.npmrc', 'modules-dir=modules_1', 'utf8')
+  fs.writeFileSync('project-2/.npmrc', 'modules-dir=modules_2', 'utf8')
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({
@@ -672,7 +672,7 @@ test('recursive install in a monorepo with parsing env variables', async () => {
 
   process.env['SOME_NAME'] = 'some_name'
   // eslint-disable-next-line no-template-curly-in-string
-  await fs.writeFile('project/.npmrc', 'modules-dir=${SOME_NAME}_modules', 'utf8')
+  fs.writeFileSync('project/.npmrc', 'modules-dir=${SOME_NAME}_modules', 'utf8')
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({

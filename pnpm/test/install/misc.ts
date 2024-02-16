@@ -1,4 +1,4 @@
-import { promises as fs, writeFileSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type Lockfile } from '@pnpm/lockfile-types'
@@ -8,10 +8,9 @@ import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import readYamlFile from 'read-yaml-file'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'
-import exists from 'path-exists'
 import crossSpawn from 'cross-spawn'
 import {
   execPnpm,
@@ -156,7 +155,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   const packageFiles = Object.keys(integrityFile).sort()
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
-  const files = await fs.readdir('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
+  const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
   const storeDir = project.getStorePath()
   if (await dirIsCaseSensitive(storeDir)) {
     expect([...files]).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
@@ -352,7 +351,7 @@ test('recursive install should fail if the used pnpm version does not satisfy th
     },
   ])
 
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   process.chdir('project-1')
 
@@ -385,7 +384,7 @@ test('engine-strict=true: recursive install should fail if the used Node version
     },
   ])
 
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   process.chdir('project-1')
 
@@ -418,7 +417,7 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
     },
   ])
 
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   process.chdir('project-1')
 
@@ -435,18 +434,18 @@ test('using a custom virtual-store-dir location', async () => {
 
   await execPnpm(['install', '--virtual-store-dir=.pnpm'])
 
-  expect(await exists('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
-  expect(await exists('.pnpm/lock.yaml')).toBeTruthy()
-  expect(await exists('.pnpm/node_modules/once/package.json')).toBeTruthy()
+  expect(fs.existsSync('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
+  expect(fs.existsSync('.pnpm/lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 
-  await rimraf('node_modules')
-  await rimraf('.pnpm')
+  rimraf('node_modules')
+  rimraf('.pnpm')
 
   await execPnpm(['install', '--virtual-store-dir=.pnpm', '--frozen-lockfile'])
 
-  expect(await exists('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
-  expect(await exists('.pnpm/lock.yaml')).toBeTruthy()
-  expect(await exists('.pnpm/node_modules/once/package.json')).toBeTruthy()
+  expect(fs.existsSync('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
+  expect(fs.existsSync('.pnpm/lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 })
 
 // This is an integration test only because it is hard to mock is-ci
@@ -471,7 +470,7 @@ test('installing in a CI environment', async () => {
 
   await execPnpm(['install', '--no-frozen-lockfile'], { env: { CI: 'true' } })
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   project.writePackageJson({
     dependencies: { rimraf: '2' },
   })
