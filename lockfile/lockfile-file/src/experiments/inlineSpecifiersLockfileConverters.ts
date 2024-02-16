@@ -1,4 +1,6 @@
 import type { Lockfile, ProjectSnapshot, ResolvedDependencies } from '@pnpm/lockfile-types'
+import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { type LockfileFile } from '../write'
 import {
   type InlineSpecifiersLockfile,
   type InlineSpecifiersProjectSnapshot,
@@ -14,12 +16,33 @@ export function convertToInlineSpecifiersFormat (lockfile: Lockfile): InlineSpec
   return newLockfile
 }
 
-export function revertFromInlineSpecifiersFormat (lockfile: InlineSpecifiersLockfile): Lockfile {
-  const { importers, ...rest } = lockfile
+/**
+ * Reverts changes from the "forceSharedFormat" write option if necessary.
+ */
+function convertFromLockfileFileMutable (lockfileFile: LockfileFile): InlineSpecifiersLockfile {
+  if (typeof lockfileFile?.['importers'] === 'undefined') {
+    lockfileFile.importers = {
+      '.': {
+        dependenciesMeta: lockfileFile['dependenciesMeta'],
+        publishDirectory: lockfileFile['publishDirectory'],
+      },
+    }
+    for (const depType of DEPENDENCIES_FIELDS) {
+      if (lockfileFile[depType] != null) {
+        lockfileFile.importers['.'][depType] = lockfileFile[depType]
+        delete lockfileFile[depType]
+      }
+    }
+  }
+  return lockfileFile as InlineSpecifiersLockfile
+}
+
+export function revertFromInlineSpecifiersFormat (lockfile: LockfileFile): Lockfile {
+  const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
 
   const newLockfile = {
     ...rest,
-    importers: mapValues(importers, revertProjectSnapshot),
+    importers: mapValues(importers ?? {}, revertProjectSnapshot),
   }
   return newLockfile
 }
@@ -34,9 +57,9 @@ function convertProjectSnapshotToInlineSpecifiersFormat (
       : block
   return {
     ...rest,
-    dependencies: convertBlock(projectSnapshot.dependencies),
-    optionalDependencies: convertBlock(projectSnapshot.optionalDependencies),
-    devDependencies: convertBlock(projectSnapshot.devDependencies),
+    dependencies: convertBlock(projectSnapshot.dependencies ?? {}),
+    optionalDependencies: convertBlock(projectSnapshot.optionalDependencies ?? {}),
+    devDependencies: convertBlock(projectSnapshot.devDependencies ?? {}),
   }
 }
 

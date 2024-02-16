@@ -1,3 +1,4 @@
+import { type Lockfile } from '@pnpm/lockfile-types'
 import { mergeLockfileChanges } from '@pnpm/merge-lockfile-changes'
 import yaml from 'js-yaml'
 import { revertFromInlineSpecifiersFormat } from './experiments/inlineSpecifiersLockfileConverters'
@@ -7,7 +8,7 @@ const MERGE_CONFLICT_END = '>>>>>>>'
 const MERGE_CONFLICT_THEIRS = '======='
 const MERGE_CONFLICT_OURS = '<<<<<<<'
 
-export function autofixMergeConflicts (fileContent: string) {
+export function autofixMergeConflicts (fileContent: string): Lockfile {
   const { ours, theirs } = parseMergeFile(fileContent)
   return mergeLockfileChanges(
     revertFromInlineSpecifiersFormat(yaml.load(ours) as any), // eslint-disable-line
