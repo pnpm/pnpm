@@ -7,22 +7,26 @@ test('sorts keys alphabetically', () => {
     importers: {
       foo: {
         dependencies: {
-          zzz: 'link:../zzz',
-          bar: 'link:../bar',
-          aaa: 'link:../aaa',
-        },
-        specifiers: {
-          zzz: 'link:../zzz',
-          bar: 'link:../bar',
-          aaa: 'link:../aaa',
+          zzz: {
+            version: 'link:../zzz',
+            specifier: 'link:../zzz',
+          },
+          bar: {
+            version: 'link:../bar',
+            specifier: 'link:../bar',
+          },
+          aaa: {
+            version: 'link:../aaa',
+            specifier: 'link:../aaa',
+          },
         },
       },
       bar: {
-        specifiers: {
-          baz: 'link:../baz',
-        },
         dependencies: {
-          baz: 'link:../baz',
+          baz: {
+            version: 'link:../baz',
+            specifier: 'link:../baz',
+          },
         },
       },
     },
@@ -38,22 +42,26 @@ test('sorts keys alphabetically', () => {
     importers: {
       bar: {
         dependencies: {
-          baz: 'link:../baz',
-        },
-        specifiers: {
-          baz: 'link:../baz',
+          baz: {
+            version: 'link:../baz',
+            specifier: 'link:../baz',
+          },
         },
       },
       foo: {
         dependencies: {
-          aaa: 'link:../aaa',
-          bar: 'link:../bar',
-          zzz: 'link:../zzz',
-        },
-        specifiers: {
-          aaa: 'link:../aaa',
-          bar: 'link:../bar',
-          zzz: 'link:../zzz',
+          aaa: {
+            version: 'link:../aaa',
+            specifier: 'link:../aaa',
+          },
+          bar: {
+            version: 'link:../bar',
+            specifier: 'link:../bar',
+          },
+          zzz: {
+            version: 'link:../zzz',
+            specifier: 'link:../zzz',
+          },
         },
       },
     },
@@ -64,7 +72,6 @@ test('sorts keys alphabetically', () => {
     },
   })
   expect(Object.keys(normalizedLockfile.importers?.foo.dependencies ?? {})).toStrictEqual(['aaa', 'bar', 'zzz'])
-  expect(Object.keys(normalizedLockfile.importers?.foo.specifiers ?? {})).toStrictEqual(['aaa', 'bar', 'zzz'])
   expect(Object.keys(normalizedLockfile.patchedDependencies ?? {})).toStrictEqual(['aaa', 'bar', 'zzz'])
 })
 
@@ -75,14 +82,18 @@ test('sorting does not care about locale (e.g. Czech has "ch" as a single charac
     importers: {
       foo: {
         dependencies: {
-          bar: 'link:../bar',
-          href: 'link:../href',
-          chmod: 'link:../chmod',
-        },
-        specifiers: {
-          bar: 'link:../bar',
-          href: 'link:../href',
-          chmod: 'link:../chmod',
+          bar: {
+            version: 'link:../bar',
+            specifier: 'link:../bar',
+          },
+          href: {
+            version: 'link:../href',
+            specifier: 'link:../href',
+          },
+          chmod: {
+            version: 'link:../chmod',
+            specifier: 'link:../chmod',
+          },
         },
       },
     },
@@ -94,18 +105,21 @@ test('sorting does not care about locale (e.g. Czech has "ch" as a single charac
     importers: {
       foo: {
         dependencies: {
-          bar: 'link:../bar',
-          chmod: 'link:../chmod',
-          href: 'link:../href',
-        },
-        specifiers: {
-          bar: 'link:../bar',
-          chmod: 'link:../chmod',
-          href: 'link:../href',
+          bar: {
+            version: 'link:../bar',
+            specifier: 'link:../bar',
+          },
+          chmod: {
+            version: 'link:../chmod',
+            specifier: 'link:../chmod',
+          },
+          href: {
+            version: 'link:../href',
+            specifier: 'link:../href',
+          },
         },
       },
     },
   })
   expect(Object.keys(normalizedLockfile.importers?.foo.dependencies ?? {})).toStrictEqual(['bar', 'chmod', 'href'])
-  expect(Object.keys(normalizedLockfile.importers?.foo.specifiers ?? {})).toStrictEqual(['bar', 'chmod', 'href'])
 })

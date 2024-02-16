@@ -1,8 +1,8 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { normalizeLockfile } from '../lib/write'
+import { convertToLockfileFile } from '../lib/lockfileFormatConverters'
 
 test('empty overrides and neverBuiltDependencies are removed during lockfile normalization', () => {
-  expect(normalizeLockfile({
+  expect(convertToLockfileFile({
     lockfileVersion: LOCKFILE_VERSION,
     // but this should be preserved.
     onlyBuiltDependencies: [],
@@ -22,67 +22,24 @@ test('empty overrides and neverBuiltDependencies are removed during lockfile nor
     },
   }, {
     forceSharedFormat: false,
-    includeEmptySpecifiersField: false,
   })).toStrictEqual({
     lockfileVersion: LOCKFILE_VERSION,
     onlyBuiltDependencies: [],
     importers: {
       foo: {
         dependencies: {
-          bar: 'link:../bar',
+          bar: {
+            version: 'link:../bar',
+            specifier: 'link:../bar',
+          },
         },
-        specifiers: {
-          bar: 'link:../bar',
-        },
       },
-    },
-  })
-})
-
-test('empty specifiers field is preserved', () => {
-  expect(normalizeLockfile({
-    lockfileVersion: LOCKFILE_VERSION,
-    packages: {},
-    importers: {
-      foo: {
-        specifiers: {},
-      },
-    },
-  }, {
-    forceSharedFormat: false,
-    includeEmptySpecifiersField: true,
-  })).toStrictEqual({
-    lockfileVersion: LOCKFILE_VERSION,
-    importers: {
-      foo: {
-        specifiers: {},
-      },
-    },
-  })
-})
-
-test('empty specifiers field is removed', () => {
-  expect(normalizeLockfile({
-    lockfileVersion: LOCKFILE_VERSION,
-    packages: {},
-    importers: {
-      foo: {
-        specifiers: {},
-      },
-    },
-  }, {
-    forceSharedFormat: false,
-    includeEmptySpecifiersField: false,
-  })).toStrictEqual({
-    lockfileVersion: LOCKFILE_VERSION,
-    importers: {
-      foo: {},
     },
   })
 })
 
 test('redundant fields are removed from "time"', () => {
-  expect(normalizeLockfile({
+  expect(convertToLockfileFile({
     lockfileVersion: LOCKFILE_VERSION,
     packages: {},
     importers: {
@@ -111,24 +68,27 @@ test('redundant fields are removed from "time"', () => {
     },
   }, {
     forceSharedFormat: false,
-    includeEmptySpecifiersField: false,
   })).toStrictEqual({
     lockfileVersion: LOCKFILE_VERSION,
     importers: {
       foo: {
         dependencies: {
-          bar: '1.0.0',
+          bar: {
+            version: '1.0.0',
+            specifier: '1.0.0',
+          },
         },
         devDependencies: {
-          foo: '1.0.0(react@18.0.0)',
+          foo: {
+            version: '1.0.0(react@18.0.0)',
+            specifier: '1.0.0',
+          },
         },
         optionalDependencies: {
-          qar: '1.0.0',
-        },
-        specifiers: {
-          bar: '1.0.0',
-          foo: '1.0.0',
-          qar: '1.0.0',
+          qar: {
+            version: '1.0.0',
+            specifier: '1.0.0',
+          },
         },
       },
     },

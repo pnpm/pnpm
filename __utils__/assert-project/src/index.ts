@@ -1,7 +1,7 @@
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileV6 as Lockfile, type ProjectSnapshotV6 as ProjectSnapshot } from '@pnpm/lockfile-types'
+import { type LockfileFile } from '@pnpm/lockfile-types'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
@@ -10,8 +10,6 @@ import writePkg from 'write-pkg'
 import isExecutable from './isExecutable'
 
 export { isExecutable, type Modules }
-
-export type RawLockfile = Lockfile & Partial<ProjectSnapshot>
 
 export interface Project {
   // eslint-disable-next-line
@@ -32,14 +30,14 @@ export interface Project {
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readCurrentLockfile: () => Promise<Required<RawLockfile>>
+  readCurrentLockfile: () => Promise<Required<LockfileFile>>
   readModulesManifest: () => Promise<Modules | null>
   /**
    * TODO: Remove the `Required<T>` cast.
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readLockfile: (lockfileName?: string) => Promise<Required<RawLockfile>>
+  readLockfile: (lockfileName?: string) => Promise<Required<LockfileFile>>
   writePackageJson: (pkgJson: object) => Promise<void>
 }
 
