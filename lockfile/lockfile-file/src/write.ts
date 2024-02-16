@@ -1,19 +1,15 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { type Lockfile, type ProjectSnapshot } from '@pnpm/lockfile-types'
+import { type Lockfile, type LockfileFile } from '@pnpm/lockfile-types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import yaml from 'js-yaml'
-import equals from 'ramda/src/equals'
-import pickBy from 'ramda/src/pickBy'
 import isEmpty from 'ramda/src/isEmpty'
-import mapValues from 'ramda/src/map'
 import writeFileAtomicCB from 'write-file-atomic'
 import { lockfileLogger as logger } from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
 import { getWantedLockfileName } from './lockfileName'
-import { convertToInlineSpecifiersFormat } from './experiments/inlineSpecifiersLockfileConverters'
+import { convertToLockfileFile } from './lockfileFormatConverters'
 
 async function writeFileAtomic (filename: string, data: string) {
   return new Promise<void>((resolve, reject) => {
@@ -72,135 +68,22 @@ async function writeLockfile (
 ) {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
-  const isLockfileV6 = wantedLockfile['lockfileVersion'].toString().startsWith('6.')
-  const lockfileToStringify = isLockfileV6
-    ? convertToInlineSpecifiersFormat(wantedLockfile) as unknown as Lockfile
-    : wantedLockfile
-
-  const yamlDoc = yamlStringify(lockfileToStringify, {
+  const lockfileToStringify = convertToLockfileFile(wantedLockfile, {
     forceSharedFormat: opts?.forceSharedFormat === true,
-    includeEmptySpecifiersField: !isLockfileV6,
   })
+
+  const yamlDoc = yamlStringify(lockfileToStringify)
 
   return writeFileAtomic(lockfilePath, yamlDoc)
 }
 
-function yamlStringify (lockfile: Lockfile, opts: NormalizeLockfileOpts) {
-  let normalizedLockfile = normalizeLockfile(lockfile, opts)
-  normalizedLockfile = sortLockfileKeys(normalizedLockfile)
-  return yaml.dump(normalizedLockfile, LOCKFILE_YAML_FORMAT)
+function yamlStringify (lockfile: LockfileFile) {
+  const sortedLockfile = sortLockfileKeys(lockfile)
+  return yaml.dump(sortedLockfile, LOCKFILE_YAML_FORMAT)
 }
 
 export function isEmptyLockfile (lockfile: Lockfile) {
   return Object.values(lockfile.importers).every((importer) => isEmpty(importer.specifiers ?? {}) && isEmpty(importer.dependencies ?? {}))
-}
-
-export type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
-
-export interface NormalizeLockfileOpts {
-  forceSharedFormat: boolean
-  includeEmptySpecifiersField: boolean
-}
-
-export function normalizeLockfile (lockfile: Lockfile, opts: NormalizeLockfileOpts) {
-  let lockfileToSave!: LockfileFile
-  if (!opts.forceSharedFormat && equals(Object.keys(lockfile.importers), ['.'])) {
-    lockfileToSave = {
-      ...lockfile,
-      ...lockfile.importers['.'],
-    }
-    delete lockfileToSave.importers
-    for (const depType of DEPENDENCIES_FIELDS) {
-      if (isEmpty(lockfileToSave[depType])) {
-        delete lockfileToSave[depType]
-      }
-    }
-    if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
-      delete lockfileToSave.packages
-    }
-  } else {
-    lockfileToSave = {
-      ...lockfile,
-      importers: mapValues((importer) => {
-        const normalizedImporter: Partial<ProjectSnapshot> = {}
-        if (!isEmpty(importer.specifiers ?? {}) || opts.includeEmptySpecifiersField) {
-          normalizedImporter['specifiers'] = importer.specifiers ?? {}
-        }
-        if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
-          normalizedImporter['dependenciesMeta'] = importer.dependenciesMeta
-        }
-        for (const depType of DEPENDENCIES_FIELDS) {
-          if (!isEmpty(importer[depType] ?? {})) {
-            normalizedImporter[depType] = importer[depType]
-          }
-        }
-        if (importer.publishDirectory) {
-          normalizedImporter.publishDirectory = importer.publishDirectory
-        }
-        return normalizedImporter as ProjectSnapshot
-      }, lockfile.importers),
-    }
-    if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
-      delete lockfileToSave.packages
-    }
-  }
-  if (lockfileToSave.time) {
-    lockfileToSave.time = pruneTimeInLockfileV6(lockfileToSave.time, lockfile.importers)
-  }
-  if ((lockfileToSave.overrides != null) && isEmpty(lockfileToSave.overrides)) {
-    delete lockfileToSave.overrides
-  }
-  if ((lockfileToSave.patchedDependencies != null) && isEmpty(lockfileToSave.patchedDependencies)) {
-    delete lockfileToSave.patchedDependencies
-  }
-  if (lockfileToSave.neverBuiltDependencies != null) {
-    if (isEmpty(lockfileToSave.neverBuiltDependencies)) {
-      delete lockfileToSave.neverBuiltDependencies
-    } else {
-      lockfileToSave.neverBuiltDependencies = lockfileToSave.neverBuiltDependencies.sort()
-    }
-  }
-  if (lockfileToSave.onlyBuiltDependencies != null) {
-    lockfileToSave.onlyBuiltDependencies = lockfileToSave.onlyBuiltDependencies.sort()
-  }
-  if (!lockfileToSave.packageExtensionsChecksum) {
-    delete lockfileToSave.packageExtensionsChecksum
-  }
-  return lockfileToSave
-}
-
-function pruneTimeInLockfileV6 (time: Record<string, string>, importers: Record<string, ProjectSnapshot>): Record<string, string> {
-  const rootDepPaths = new Set<string>()
-  for (const importer of Object.values(importers)) {
-    for (const depType of DEPENDENCIES_FIELDS) {
-      for (let [depName, ref] of Object.entries(importer[depType] ?? {})) {
-        // @ts-expect-error
-        if (ref['version']) ref = ref['version']
-        const suffixStart = ref.indexOf('(')
-        const refWithoutPeerSuffix = suffixStart === -1 ? ref : ref.slice(0, suffixStart)
-        const depPath = refToRelative(refWithoutPeerSuffix, depName)
-        if (!depPath) continue
-        rootDepPaths.add(depPath)
-      }
-    }
-  }
-  return pickBy((_, depPath) => rootDepPaths.has(depPath), time)
-}
-
-function refToRelative (
-  reference: string,
-  pkgName: string
-): string | null {
-  if (reference.startsWith('link:')) {
-    return null
-  }
-  if (reference.startsWith('file:')) {
-    return reference
-  }
-  if (!reference.includes('/') || !reference.replace(/(\([^)]+\))+$/, '').includes('/')) {
-    return `/${pkgName}@${reference}`
-  }
-  return reference
 }
 
 export async function writeLockfiles (
@@ -219,15 +102,11 @@ export async function writeLockfiles (
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
   const forceSharedFormat = opts?.forceSharedFormat === true
-  const isLockfileV6 = opts.wantedLockfile.lockfileVersion.toString().startsWith('6.')
-  const wantedLockfileToStringify = isLockfileV6
-    ? convertToInlineSpecifiersFormat(opts.wantedLockfile) as unknown as Lockfile
-    : opts.wantedLockfile
   const normalizeOpts = {
     forceSharedFormat,
-    includeEmptySpecifiersField: !isLockfileV6,
   }
-  const yamlDoc = yamlStringify(wantedLockfileToStringify, normalizeOpts)
+  const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile, normalizeOpts)
+  const yamlDoc = yamlStringify(wantedLockfileToStringify)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
@@ -252,10 +131,8 @@ export async function writeLockfiles (
     prefix: opts.wantedLockfileDir,
   })
 
-  const currentLockfileToStringify = opts.wantedLockfile.lockfileVersion.toString().startsWith('6.')
-    ? convertToInlineSpecifiersFormat(opts.currentLockfile) as unknown as Lockfile
-    : opts.currentLockfile
-  const currentYamlDoc = yamlStringify(currentLockfileToStringify, normalizeOpts)
+  const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile, normalizeOpts)
+  const currentYamlDoc = yamlStringify(currentLockfileToStringify)
 
   await Promise.all([
     writeFileAtomic(wantedLockfilePath, yamlDoc),

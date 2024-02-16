@@ -5,7 +5,7 @@ import { type RootLog } from '@pnpm/core-loggers'
 import { type PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-file'
-import { type LockfileV6 } from '@pnpm/lockfile-types'
+import { type LockfileFile } from '@pnpm/lockfile-types'
 import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -855,18 +855,18 @@ test('lockfile file has correct format when lockfile directory does not equal th
   expect(modules.pendingBuilds.length).toBe(0)
 
   {
-    const lockfile: LockfileV6 = await readYamlFile(WANTED_LOCKFILE)
+    const lockfile: LockfileFile = await readYamlFile(WANTED_LOCKFILE)
     const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
 
     expect(lockfile.importers).toBeTruthy()
-    expect(lockfile.importers.project).toBeTruthy()
-    expect(lockfile.importers.project).toBeTruthy()
-    expect(lockfile.importers.project.dependencies).toBeTruthy()
-    expect(lockfile.importers.project.dependencies!['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
-    expect(lockfile.importers.project.dependencies!['@zkochan/foo']).toBeTruthy()
-    expect(lockfile.importers.project.dependencies!['is-negative'].version).toContain('/')
+    expect(lockfile.importers?.project).toBeTruthy()
+    expect(lockfile.importers?.project).toBeTruthy()
+    expect(lockfile.importers?.project.dependencies).toBeTruthy()
+    expect(lockfile.importers?.project.dependencies!['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
+    expect(lockfile.importers?.project.dependencies!['@zkochan/foo']).toBeTruthy()
+    expect(lockfile.importers?.project.dependencies!['is-negative'].version).toContain('/')
 
     expect(lockfile.packages![id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
     expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
@@ -889,16 +889,16 @@ test('lockfile file has correct format when lockfile directory does not equal th
   }))
 
   {
-    const lockfile = await readYamlFile<LockfileV6>(path.join('..', WANTED_LOCKFILE))
+    const lockfile = await readYamlFile<LockfileFile>(path.join('..', WANTED_LOCKFILE))
 
     expect(lockfile.importers).toHaveProperty(['project-2'])
 
     // previous entries are not removed
     const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
-    expect(lockfile.importers.project.dependencies!['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
-    expect(lockfile.importers.project.dependencies).toHaveProperty(['@zkochan/foo'])
-    expect(lockfile.importers.project.dependencies!['is-negative'].version).toContain('/')
+    expect(lockfile.importers?.project.dependencies!['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
+    expect(lockfile.importers?.project.dependencies).toHaveProperty(['@zkochan/foo'])
+    expect(lockfile.importers?.project.dependencies!['is-negative'].version).toContain('/')
 
     expect(lockfile.packages).toHaveProperty([id])
     expect(lockfile.packages![id].dependencies).toBeTruthy()
@@ -977,9 +977,9 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     })
   )
 
-  const currentLockfile = await readYamlFile<LockfileV6>(path.resolve('node_modules/.pnpm/lock.yaml'))
+  const currentLockfile = await readYamlFile<LockfileFile>(path.resolve('node_modules/.pnpm/lock.yaml'))
 
-  expect(Object.keys(currentLockfile['importers'])).toStrictEqual(['pkg2'])
+  expect(Object.keys(currentLockfile.importers ?? {})).toStrictEqual(['pkg2'])
 
   await mutateModules(
     [
