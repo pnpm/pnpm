@@ -2,6 +2,8 @@ import { type DependenciesMeta, type PatchFile } from '@pnpm/types'
 
 export type { PatchFile }
 
+export * from './lockfileFileTypes'
+
 export interface LockfileSettings {
   autoInstallPeers?: boolean
   excludeLinksFromLockfile?: boolean

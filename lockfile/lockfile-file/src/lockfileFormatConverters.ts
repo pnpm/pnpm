@@ -1,15 +1,17 @@
-import type { Lockfile, ProjectSnapshot, ResolvedDependencies } from '@pnpm/lockfile-types'
+import {
+  type Lockfile,
+  type ProjectSnapshot,
+  type ResolvedDependencies,
+  type LockfileFile,
+  type InlineSpecifiersLockfile,
+  type InlineSpecifiersProjectSnapshot,
+  type InlineSpecifiersResolvedDependencies,
+} from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import _mapValues from 'ramda/src/map'
 import pickBy from 'ramda/src/pickBy'
-import {
-  type LockfileFile,
-  type InlineSpecifiersLockfile,
-  type InlineSpecifiersProjectSnapshot,
-  type InlineSpecifiersResolvedDependencies,
-} from './lockfileFileTypes'
 
 export interface NormalizeLockfileOpts {
   forceSharedFormat: boolean

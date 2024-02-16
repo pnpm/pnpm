@@ -1,4 +1,4 @@
-import type { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
+import type { Lockfile, ProjectSnapshot } from '.'
 import type { DependenciesMeta } from '@pnpm/types'
 
 export type LockfileFile = Omit<InlineSpecifiersLockfile, 'importers'> &

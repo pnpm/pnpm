@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import { type Lockfile, type LockfileFile } from '@pnpm/lockfile-types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import yaml from 'js-yaml'
@@ -10,7 +10,6 @@ import { lockfileLogger as logger } from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
 import { getWantedLockfileName } from './lockfileName'
 import { convertToLockfileFile } from './lockfileFormatConverters'
-import { type LockfileFile } from './lockfileFileTypes'
 
 async function writeFileAtomic (filename: string, data: string) {
   return new Promise<void>((resolve, reject) => {
