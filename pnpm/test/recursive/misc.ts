@@ -175,10 +175,10 @@ test('recursive installation of packages with hooks', async () => {
 
   await execPnpm(['recursive', 'install'])
 
-  const lockfile1 = await projects['project-1'].readLockfile()
+  const lockfile1 = projects['project-1'].readLockfile()
   expect(lockfile1.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
-  const lockfile2 = await projects['project-2'].readLockfile()
+  const lockfile2 = projects['project-2'].readLockfile()
   expect(lockfile2.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
@@ -273,10 +273,10 @@ test('ignores .pnpmfile.cjs during recursive installation when --ignore-pnpmfile
 
   await execPnpm(['recursive', 'install', '--ignore-pnpmfile'])
 
-  const lockfile1 = await projects['project-1'].readLockfile()
+  const lockfile1 = projects['project-1'].readLockfile()
   expect(lockfile1.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
-  const lockfile2 = await projects['project-2'].readLockfile()
+  const lockfile2 = projects['project-2'].readLockfile()
   expect(lockfile2.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
@@ -313,9 +313,9 @@ test('recursive command with filter from config', async () => {
   await fs.writeFile('.npmrc', 'filter=project-1 project-2', 'utf8')
   await execPnpm(['recursive', 'install'])
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].has('is-negative')
-  await projects['project-3'].hasNot('minimatch')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
+  projects['project-3'].hasNot('minimatch')
 })
 
 test('non-recursive install ignores filter from config', async () => {
@@ -352,9 +352,9 @@ test('non-recursive install ignores filter from config', async () => {
   await fs.writeFile('.npmrc', 'filter=project-2', 'utf8')
   await execPnpm(['install'])
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].hasNot('is-negative')
-  await projects['project-3'].hasNot('minimatch')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
+  projects['project-3'].hasNot('minimatch')
 })
 
 test('adding new dependency in the root should fail if neither --workspace-root nor --ignore-workspace-root-check are used', async () => {
@@ -374,21 +374,21 @@ test('adding new dependency in the root should fail if neither --workspace-root 
     const { status } = execPnpmSync(['add', 'is-positive', '--ignore-workspace-root-check'])
 
     expect(status).toBe(0)
-    await project.has('is-positive')
+    project.has('is-positive')
   }
 
   {
     const { status } = execPnpmSync(['add', 'is-odd', '--workspace-root'])
 
     expect(status).toBe(0)
-    await project.has('is-odd')
+    project.has('is-odd')
   }
 
   {
     const { status } = execPnpmSync(['add', 'is-even', '-w'])
 
     expect(status).toBe(0)
-    await project.has('is-even')
+    project.has('is-even')
   }
 })
 
@@ -423,8 +423,8 @@ test('--workspace-packages', async () => {
 
   await execPnpm(['install', '--store-dir', storeDir, '--workspace-packages', 'project-1'])
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].hasNot('is-positive')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].hasNot('is-positive')
 })
 
 test('set recursive-install to false in .npmrc would disable recursive install in workspace', async () => {
@@ -461,8 +461,8 @@ dedupe-peer-dependents = false`, 'utf8')
   process.chdir('project-1')
   await execPnpm(['install'])
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
 })
 
 test('set recursive-install to false would install as --filter {.}...', async () => {
@@ -498,5 +498,5 @@ test('set recursive-install to false would install as --filter {.}...', async ()
   process.chdir('project-1')
   await execPnpm(['install'])
 
-  await projects['project-2'].has('is-negative')
+  projects['project-2'].has('is-negative')
 })

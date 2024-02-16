@@ -31,7 +31,7 @@ test('installs in the folder where the package.json file is', async () => {
 
   const m = project.requireModule('rimraf')
   expect(typeof m).toBe('function')
-  await project.isExecutable('.bin/rimraf')
+  project.isExecutable('.bin/rimraf')
 })
 
 test('pnpm import does not move modules created by npm', async () => {
@@ -111,7 +111,7 @@ test('adding new dep does not fail if node_modules was created with --public-hoi
   expect(execPnpmSync(['add', 'is-negative', '--no-shamefully-hoist']).status).toBe(1)
   expect(execPnpmSync(['add', 'is-negative']).status).toBe(0)
 
-  await project.has('is-negative')
+  project.has('is-negative')
 })
 
 test('pnpx works', () => {

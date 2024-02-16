@@ -42,12 +42,12 @@ test('installing a simple project', async () => {
   expect(project.requireModule('is-negative')).toBeTruthy()
   expect(project.requireModule('colors')).toBeTruthy()
 
-  await project.has('.pnpm/colors@1.2.0')
+  project.has('.pnpm/colors@1.2.0')
 
-  await project.isExecutable('.bin/rimraf')
+  project.isExecutable('.bin/rimraf')
 
-  expect(await project.readCurrentLockfile()).toBeTruthy()
-  expect(await project.readModulesManifest()).toBeTruthy()
+  expect(project.readCurrentLockfile()).toBeTruthy()
+  expect(project.readModulesManifest()).toBeTruthy()
 
   expect(reporter.calledWithMatch({
     level: 'debug',
@@ -107,12 +107,12 @@ test('installing only prod deps', async () => {
   }))
 
   const project = assertProject(prefix)
-  await project.has('is-positive')
-  await project.has('rimraf')
-  await project.hasNot('is-negative')
-  await project.hasNot('colors')
+  project.has('is-positive')
+  project.has('rimraf')
+  project.hasNot('is-negative')
+  project.hasNot('colors')
 
-  await project.isExecutable('.bin/rimraf')
+  project.isExecutable('.bin/rimraf')
 })
 
 test('installing only dev deps', async () => {
@@ -128,10 +128,10 @@ test('installing only dev deps', async () => {
   }))
 
   const project = assertProject(prefix)
-  await project.hasNot('is-positive')
-  await project.hasNot('rimraf')
-  await project.has('is-negative')
-  await project.hasNot('colors')
+  project.hasNot('is-positive')
+  project.hasNot('rimraf')
+  project.has('is-negative')
+  project.hasNot('colors')
 })
 
 test('installing with package manifest ignored', async () => {
@@ -149,13 +149,13 @@ test('installing with package manifest ignored', async () => {
   await headlessInstall({ ...opt, ignorePackageManifest: true })
 
   const project = assertProject(prefix)
-  const currentLockfile = await project.readCurrentLockfile()
+  const currentLockfile = project.readCurrentLockfile()
   expect(currentLockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
   expect(currentLockfile.packages).toHaveProperty(['/is-negative@2.1.0'])
-  await project.storeHas('is-negative')
-  await project.storeHas('is-positive')
-  await project.hasNot('is-negative')
-  await project.hasNot('is-positive')
+  project.storeHas('is-negative')
+  project.storeHas('is-positive')
+  project.hasNot('is-negative')
+  project.hasNot('is-positive')
 })
 
 test('installing only prod package with package manifest ignored', async () => {
@@ -173,13 +173,13 @@ test('installing only prod package with package manifest ignored', async () => {
   await headlessInstall({ ...opt, ignorePackageManifest: true })
 
   const project = assertProject(prefix)
-  const currentLockfile = await project.readCurrentLockfile()
+  const currentLockfile = project.readCurrentLockfile()
   expect(currentLockfile.packages).not.toHaveProperty(['/is-negative@2.1.0'])
   expect(currentLockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
-  await project.storeHasNot('is-negative')
-  await project.storeHas('is-positive')
-  await project.hasNot('is-negative')
-  await project.hasNot('is-positive')
+  project.storeHasNot('is-negative')
+  project.storeHas('is-positive')
+  project.hasNot('is-negative')
+  project.hasNot('is-positive')
 })
 
 test('installing only dev package with package manifest ignored', async () => {
@@ -197,13 +197,13 @@ test('installing only dev package with package manifest ignored', async () => {
   await headlessInstall({ ...opt, ignorePackageManifest: true })
 
   const project = assertProject(prefix)
-  const currentLockfile = await project.readCurrentLockfile()
+  const currentLockfile = project.readCurrentLockfile()
   expect(currentLockfile.packages).toHaveProperty(['/is-negative@2.1.0'])
   expect(currentLockfile.packages).not.toHaveProperty(['/is-positive@1.0.0'])
-  await project.storeHasNot('is-negative')
-  await project.storeHas('is-positive')
-  await project.hasNot('is-negative')
-  await project.hasNot('is-positive')
+  project.storeHasNot('is-negative')
+  project.storeHas('is-positive')
+  project.hasNot('is-negative')
+  project.hasNot('is-positive')
 })
 
 test('installing non-prod deps then all deps', async () => {
@@ -222,15 +222,15 @@ test('installing non-prod deps then all deps', async () => {
   const inflight = project.requireModule('inflight')
   expect(typeof inflight).toBe('function')
 
-  await project.hasNot('once')
+  project.hasNot('once')
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.packages['/is-positive@1.0.0'].dev === false).toBeTruthy()
   }
 
   {
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(currentLockfile.packages).not.toHaveProperty(['/is-positive@1.0.0'])
   }
 
@@ -266,10 +266,10 @@ test('installing non-prod deps then all deps', async () => {
     name: 'pnpm:root',
   } as RootLog)).toBeFalsy()
 
-  await project.has('once')
+  project.has('once')
 
   {
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(currentLockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
   }
 })
@@ -290,10 +290,10 @@ test('installing only optional deps', async () => {
   }))
 
   const project = assertProject(prefix)
-  await project.hasNot('is-positive')
-  await project.hasNot('rimraf')
-  await project.hasNot('is-negative')
-  await project.has('colors')
+  project.hasNot('is-positive')
+  project.hasNot('rimraf')
+  project.hasNot('is-negative')
+  project.has('colors')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1958
@@ -310,8 +310,8 @@ test('not installing optional deps', async () => {
   }))
 
   const project = assertProject(prefix)
-  await project.hasNot('is-positive')
-  await project.has('@pnpm.e2e/pkg-with-good-optional')
+  project.hasNot('is-positive')
+  project.has('@pnpm.e2e/pkg-with-good-optional')
 })
 
 test('skipping optional dependency if it cannot be fetched', async () => {
@@ -332,8 +332,8 @@ test('skipping optional dependency if it cannot be fetched', async () => {
   expect(project.requireModule('rimraf')).toBeTruthy()
   expect(project.requireModule('is-negative')).toBeTruthy()
 
-  expect(await project.readCurrentLockfile()).toBeTruthy()
-  expect(await project.readModulesManifest()).toBeTruthy()
+  expect(project.readCurrentLockfile()).toBeTruthy()
+  expect(project.readModulesManifest()).toBeTruthy()
 })
 
 test('run pre/postinstall scripts', async () => {
@@ -395,10 +395,10 @@ test('orphan packages are removed', async () => {
   } as StatsLog)).toBeTruthy()
 
   const project = assertProject(projectDir)
-  await project.hasNot('resolve-from')
-  await project.has('rimraf')
-  await project.has('is-negative')
-  await project.has('colors')
+  project.hasNot('resolve-from')
+  project.has('rimraf')
+  project.has('is-negative')
+  project.has('colors')
 })
 
 test('available packages are used when node_modules is not clean', async () => {
@@ -421,8 +421,8 @@ test('available packages are used when node_modules is not clean', async () => {
   await headlessInstall(await testDefaults({ lockfileDir: projectDir, reporter }))
 
   const project = assertProject(projectDir)
-  await project.has('rimraf')
-  await project.has('glob')
+  project.has('rimraf')
+  project.has('glob')
 
   expect(reporter.calledWithMatch({
     level: 'debug',
@@ -458,8 +458,8 @@ test('available packages are relinked during forced install', async () => {
   await headlessInstall(await testDefaults({ lockfileDir: projectDir, reporter, force: true }))
 
   const project = assertProject(projectDir)
-  await project.has('rimraf')
-  await project.has('glob')
+  project.has('rimraf')
+  project.has('glob')
 
   expect(reporter.calledWithMatch({
     level: 'debug',
@@ -534,7 +534,7 @@ test('install peer dependencies that are in prod dependencies', async () => {
 
   const project = assertProject(prefix)
 
-  await project.has('.pnpm/@pnpm.e2e+peer-a@1.0.1/node_modules/@pnpm.e2e/peer-a')
+  project.has('.pnpm/@pnpm.e2e+peer-a@1.0.1/node_modules/@pnpm.e2e/peer-a')
 })
 
 test('installing with hoistPattern=*', async () => {
@@ -550,13 +550,13 @@ test('installing with hoistPattern=*', async () => {
   expect(project.requireModule('is-negative')).toBeTruthy()
   expect(project.requireModule('colors')).toBeTruthy()
 
-  await project.has('.pnpm/colors@1.2.0')
+  project.has('.pnpm/colors@1.2.0')
 
-  await project.isExecutable('.bin/rimraf')
-  await project.isExecutable('.pnpm/node_modules/.bin/hello-world-js-bin')
+  project.isExecutable('.bin/rimraf')
+  project.isExecutable('.pnpm/node_modules/.bin/hello-world-js-bin')
 
-  expect(await project.readCurrentLockfile()).toBeTruthy()
-  expect(await project.readModulesManifest()).toBeTruthy()
+  expect(project.readCurrentLockfile()).toBeTruthy()
+  expect(project.readModulesManifest()).toBeTruthy()
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'debug',
@@ -591,7 +591,7 @@ test('installing with hoistPattern=*', async () => {
     status: 'resolved',
   }))
 
-  const modules = await project.readModulesManifest()
+  const modules = project.readModulesManifest()
 
   expect(modules!.hoistedDependencies['/balanced-match@1.0.2']).toStrictEqual({ 'balanced-match': 'private' })
 })
@@ -609,13 +609,13 @@ test('installing with publicHoistPattern=*', async () => {
   expect(project.requireModule('is-negative')).toBeTruthy()
   expect(project.requireModule('colors')).toBeTruthy()
 
-  await project.has('.pnpm/colors@1.2.0')
+  project.has('.pnpm/colors@1.2.0')
 
-  await project.isExecutable('.bin/rimraf')
-  await project.isExecutable('.bin/hello-world-js-bin')
+  project.isExecutable('.bin/rimraf')
+  project.isExecutable('.bin/hello-world-js-bin')
 
-  expect(await project.readCurrentLockfile()).toBeTruthy()
-  expect(await project.readModulesManifest()).toBeTruthy()
+  expect(project.readCurrentLockfile()).toBeTruthy()
+  expect(project.readModulesManifest()).toBeTruthy()
 
   expect(reporter.calledWithMatch({
     level: 'debug',
@@ -647,7 +647,7 @@ test('installing with publicHoistPattern=*', async () => {
     status: 'resolved',
   })).toBeTruthy()
 
-  const modules = await project.readModulesManifest()
+  const modules = project.readModulesManifest()
 
   expect(modules!.hoistedDependencies['/balanced-match@1.0.2']).toStrictEqual({ 'balanced-match': 'public' })
 })
@@ -723,7 +723,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
   await headlessInstall(opts)
 
   const project = assertProject(lockfileDir)
-  await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
+  project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
   const cacheBuildDir = path.join(opts.storeDir, `diskusage@1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
@@ -733,7 +733,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
 
   expect(await exists(path.join(lockfileDir, 'node_modules/.pnpm/node_modules/diskusage/build/new-file.txt'))).toBeTruthy()
 
-  await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
+  project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 })
 
 test('installing in a workspace', async () => {
@@ -751,7 +751,7 @@ test('installing in a workspace', async () => {
 
   const projectBar = assertProject(path.join(workspaceFixture, 'bar'))
 
-  await projectBar.has('foo')
+  projectBar.has('foo')
 
   await headlessInstall(await testDefaults({
     lockfileDir: workspaceFixture,
@@ -759,7 +759,7 @@ test('installing in a workspace', async () => {
   }))
 
   const rootModules = assertProject(workspaceFixture)
-  const lockfile = await rootModules.readCurrentLockfile()
+  const lockfile = rootModules.readCurrentLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/is-negative@1.0.0',
     '/is-positive@1.0.0',
@@ -779,8 +779,8 @@ test('installing with no symlinks but with PnP', async () => {
   expect([...await fs.readdir(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
 
   const project = assertProject(prefix)
-  expect(await project.readCurrentLockfile()).toBeTruthy()
-  expect(await project.readModulesManifest()).toBeTruthy()
+  expect(project.readCurrentLockfile()).toBeTruthy()
+  expect(project.readModulesManifest()).toBeTruthy()
   expect(await exists(path.join(prefix, '.pnp.cjs'))).toBeTruthy()
 })
 

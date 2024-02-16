@@ -28,7 +28,7 @@ test('CLI fails when store status finds modified packages', async () => {
   await rimraf('node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive/index.js')
 
   let err!: PnpmError & { modified: string[] }
-  const modulesState = await project.readModulesManifest()
+  const modulesState = project.readModulesManifest()
   try {
     await store.handler({
       cacheDir,
@@ -80,7 +80,7 @@ test('CLI does not fail when store status does not find modified packages', asyn
     '--verify-store-integrity',
   ])
 
-  const modulesState = await project.readModulesManifest()
+  const modulesState = project.readModulesManifest()
   await store.handler({
     cacheDir,
     dir: process.cwd(),

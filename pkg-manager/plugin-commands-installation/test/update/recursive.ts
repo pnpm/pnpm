@@ -48,7 +48,7 @@ test('recursive update', async () => {
   }, ['is-positive@2.0.0'])
 
   expect(projects['project-1'].requireModule('is-positive/package.json').version).toBe('2.0.0')
-  await projects['project-2'].hasNot('is-positive')
+  projects['project-2'].hasNot('is-positive')
 })
 
 test('recursive update prod dependencies only', async () => {
@@ -372,13 +372,13 @@ test('recursive update --latest foo should only update packages that have foo', 
   }, ['@pnpm.e2e/foo'])
 
   {
-    const lockfile = await projects['project-1'].readLockfile()
+    const lockfile = projects['project-1'].readLockfile()
 
     expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/foo@100.1.0', '/@pnpm.e2e/qar@100.0.0'])
   }
 
   {
-    const lockfile = await projects['project-2'].readLockfile()
+    const lockfile = projects['project-2'].readLockfile()
 
     expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/bar@100.0.0'])
   }
@@ -412,6 +412,6 @@ test('recursive update in workspace should not add new dependencies', async () =
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
 
-  await projects['project-1'].hasNot('is-positive')
-  await projects['project-2'].hasNot('is-positive')
+  projects['project-1'].hasNot('is-positive')
+  projects['project-2'].hasNot('is-positive')
 })

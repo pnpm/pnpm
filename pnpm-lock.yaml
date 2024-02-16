@@ -199,9 +199,6 @@ importers:
       isexe:
         specifier: 2.0.0
         version: 2.0.0
-      path-exists:
-        specifier: ^4.0.0
-        version: 4.0.0
       read-yaml-file:
         specifier: ^2.1.0
         version: 2.1.0

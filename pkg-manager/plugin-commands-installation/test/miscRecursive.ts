@@ -47,7 +47,7 @@ test('recursive add/remove', async () => {
 
   expect(projects['project-1'].requireModule('is-positive')).toBeTruthy()
   expect(projects['project-2'].requireModule('is-negative')).toBeTruthy()
-  await projects['project-2'].has('is-negative')
+  projects['project-2'].has('is-negative')
 
   await add.handler({
     ...DEFAULT_OPTS,
@@ -72,7 +72,7 @@ test('recursive add/remove', async () => {
     workspaceDir: process.cwd(),
   }, ['is-negative'])
 
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-2'].hasNot('is-negative')
 })
 
 test('recursive add/remove in workspace with many lockfiles', async () => {
@@ -109,7 +109,7 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
 
   expect(projects['project-1'].requireModule('is-positive')).toBeTruthy()
   expect(projects['project-2'].requireModule('is-negative')).toBeTruthy()
-  await projects['project-2'].has('is-negative')
+  projects['project-2'].has('is-negative')
 
   await add.handler({
     ...DEFAULT_OPTS,
@@ -134,7 +134,7 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
     workspaceDir: process.cwd(),
   }, ['is-negative'])
 
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-2'].hasNot('is-negative')
 
   {
     const manifest = await loadJsonFile<ProjectManifest>(path.resolve('project-1/package.json'))
@@ -226,8 +226,8 @@ test('running `pnpm recursive` on a subset of packages', async () => {
     workspaceDir: process.cwd(),
   })
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
 })
 
 test('running `pnpm recursive` only for packages in subdirectories of cwd', async () => {
@@ -278,9 +278,9 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
     workspaceDir: process.cwd(),
   })
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].has('is-negative')
-  await projects['root-project'].hasNot('debug')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
+  projects['root-project'].hasNot('debug')
 })
 
 test('recursive installation fails when installation in one of the packages fails', async () => {
@@ -413,9 +413,9 @@ test('recursive --filter ignore excluded packages', async () => {
     workspaceDir: process.cwd(),
   })
 
-  await projects['project-1'].hasNot('is-positive')
-  await projects['project-2'].hasNot('is-negative')
-  await projects['project-3'].hasNot('minimatch')
+  projects['project-1'].hasNot('is-positive')
+  projects['project-2'].hasNot('is-negative')
+  projects['project-3'].hasNot('minimatch')
 })
 
 test('recursive filter multiple times', async () => {
@@ -458,9 +458,9 @@ test('recursive filter multiple times', async () => {
     workspaceDir: process.cwd(),
   })
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].has('is-negative')
-  await projects['project-3'].hasNot('minimatch')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
+  projects['project-3'].hasNot('minimatch')
 })
 
 test('recursive install --no-bail', async () => {
@@ -540,7 +540,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     expect(pkg.dependencies).toBeFalsy()
   }
 
-  await projects['project-1'].has('project-2')
+  projects['project-1'].has('project-2')
 })
 
 test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is "rolling"', async () => {
@@ -581,7 +581,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     expect(pkg.dependencies).toBeFalsy()
   }
 
-  await projects['project-1'].has('project-2')
+  projects['project-1'].has('project-2')
 })
 
 test('recursive install on workspace with custom lockfile-dir', async () => {
@@ -654,8 +654,8 @@ test('recursive install in a monorepo with different modules directories', async
     workspaceDir: process.cwd(),
   })
 
-  await projects['project-1'].has('is-positive', 'modules_1')
-  await projects['project-2'].has('is-positive', 'modules_2')
+  projects['project-1'].has('is-positive', 'modules_1')
+  projects['project-2'].has('is-positive', 'modules_2')
 })
 
 test('recursive install in a monorepo with parsing env variables', async () => {
@@ -685,7 +685,7 @@ test('recursive install in a monorepo with parsing env variables', async () => {
     workspaceDir: process.cwd(),
   })
 
-  await projects['project'].has('is-positive', `${process.env['SOME_NAME']}_modules`)
+  projects['project'].has('is-positive', `${process.env['SOME_NAME']}_modules`)
 })
 
 test('prefer-workspace-package', async () => {
@@ -754,7 +754,7 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
     workspaceDir: virtualPath,
   })
 
-  await projects['project-1'].has('is-positive')
+  projects['project-1'].has('is-positive')
 })
 
 test('pass readPackage with shared lockfile', async () => {
@@ -793,8 +793,8 @@ test('pass readPackage with shared lockfile', async () => {
     },
   })
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-1'].hasNot('is-negative')
-  await projects['project-2'].has('is-positive')
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-1'].hasNot('is-negative')
+  projects['project-2'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
 })

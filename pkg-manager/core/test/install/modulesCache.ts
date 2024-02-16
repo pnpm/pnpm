@@ -18,7 +18,7 @@ test('the modules cache is pruned when it expires', async () => {
     },
   }, await testDefaults())
 
-  const modulesFile = await project.readModulesManifest()
+  const modulesFile = project.readModulesManifest()
 
   expect(modulesFile?.prunedAt).toBeTruthy()
 
@@ -29,7 +29,7 @@ test('the modules cache is pruned when it expires', async () => {
     rootDir: process.cwd(),
   }, await testDefaults({}))).manifest
 
-  await project.has('.pnpm/is-negative@1.0.0/node_modules/is-negative')
+  project.has('.pnpm/is-negative@1.0.0/node_modules/is-negative')
 
   const prunedAt = new Date()
   prunedAt.setMinutes(prunedAt.getMinutes() - 3)
@@ -41,7 +41,7 @@ test('the modules cache is pruned when it expires', async () => {
     await testDefaults({ modulesCacheMaxAge: 2 })
   )
 
-  await project.hasNot('.pnpm/is-negative@1.0.0/node_modules/is-negative')
+  project.hasNot('.pnpm/is-negative@1.0.0/node_modules/is-negative')
 })
 
 test('the modules cache is pruned when it expires and headless install is used', async () => {
@@ -54,7 +54,7 @@ test('the modules cache is pruned when it expires and headless install is used',
     },
   }, await testDefaults())
 
-  const modulesFile = await project.readModulesManifest()
+  const modulesFile = project.readModulesManifest()
 
   expect(modulesFile?.prunedAt).toBeTruthy()
 
@@ -67,7 +67,7 @@ test('the modules cache is pruned when it expires and headless install is used',
 
   manifest = await install(manifest, await testDefaults({ frozenLockfile: true }))
 
-  await project.has('.pnpm/is-negative@1.0.0/node_modules/is-negative')
+  project.has('.pnpm/is-negative@1.0.0/node_modules/is-negative')
 
   const prunedAt = new Date()
   prunedAt.setMinutes(prunedAt.getMinutes() - 3)
@@ -76,5 +76,5 @@ test('the modules cache is pruned when it expires and headless install is used',
 
   await install(manifest, await testDefaults({ frozenLockfile: true, modulesCacheMaxAge: 2 }))
 
-  await project.hasNot('.pnpm/is-negative@1.0.0/node_modules/is-negative')
+  project.hasNot('.pnpm/is-negative@1.0.0/node_modules/is-negative')
 })

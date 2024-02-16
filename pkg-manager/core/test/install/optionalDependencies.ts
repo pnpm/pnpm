@@ -52,9 +52,9 @@ test('skip non-existing optional dependency', async () => {
     reason: 'resolution_failure',
   })).toBeTruthy()
 
-  await project.has('is-positive')
+  project.has('is-positive')
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.dependencies['is-positive'].specifier).toBe('1.0.0')
 })
@@ -69,11 +69,11 @@ test('skip optional dependency that does not support the current OS', async () =
     },
   }, await testDefaults({ reporter }))
 
-  await project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
-  await project.storeHas('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
+  project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
+  project.storeHas('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
   expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-optional-pkg@1.0.0'))).toBeFalsy()
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['/@pnpm.e2e/not-compatible-with-any-os@1.0.0']).toBeTruthy()
 
   // optional dependencies always get requiresBuild: true
@@ -82,7 +82,7 @@ test('skip optional dependency that does not support the current OS', async () =
 
   expect(lockfile.packages['/@pnpm.e2e/dep-of-optional-pkg@1.0.0']).toBeTruthy()
 
-  const currentLockfile = await project.readCurrentLockfile()
+  const currentLockfile = project.readCurrentLockfile()
 
   expect(currentLockfile.packages).toStrictEqual(lockfile.packages)
 
@@ -107,10 +107,10 @@ test('skip optional dependency that does not support the current OS', async () =
 
   manifest = await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-optional-pkg'], await testDefaults())
 
-  await project.has('@pnpm.e2e/dep-of-optional-pkg')
+  project.has('@pnpm.e2e/dep-of-optional-pkg')
 
   {
-    const modules = await project.readModulesManifest()
+    const modules = project.readModulesManifest()
     expect(modules?.skipped).toStrictEqual(['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 
@@ -122,11 +122,11 @@ test('skip optional dependency that does not support the current OS', async () =
     rootDir: process.cwd(),
   }, await testDefaults({ frozenLockfile: true }))
 
-  await project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
-  await project.has('@pnpm.e2e/dep-of-optional-pkg')
+  project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
+  project.has('@pnpm.e2e/dep-of-optional-pkg')
 
   {
-    const modules = await project.readModulesManifest()
+    const modules = project.readModulesManifest()
     expect(modules?.skipped).toStrictEqual(['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 })
@@ -141,8 +141,8 @@ test('skip optional dependency that does not support the current Node version', 
     },
   }, await testDefaults({ reporter }))
 
-  await project.hasNot('@pnpm.e2e/for-legacy-node')
-  await project.storeHas('@pnpm.e2e/for-legacy-node', '1.0.0')
+  project.hasNot('@pnpm.e2e/for-legacy-node')
+  project.storeHas('@pnpm.e2e/for-legacy-node', '1.0.0')
 
   const logMatcher = sinon.match({
     package: {
@@ -170,8 +170,8 @@ test('skip optional dependency that does not support the current pnpm version', 
     pnpmVersion: '4.0.0',
   }))
 
-  await project.hasNot('@pnpm.e2e/for-legacy-pnpm')
-  await project.storeHas('@pnpm.e2e/for-legacy-pnpm', '1.0.0')
+  project.hasNot('@pnpm.e2e/for-legacy-pnpm')
+  project.storeHas('@pnpm.e2e/for-legacy-pnpm', '1.0.0')
 
   const logMatcher = sinon.match({
     package: {
@@ -194,8 +194,8 @@ test('don\'t skip optional dependency that does not support the current OS when 
     },
   }, await testDefaults({}, {}, {}, { force: true }))
 
-  await project.has('@pnpm.e2e/not-compatible-with-any-os')
-  await project.storeHas('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
+  project.has('@pnpm.e2e/not-compatible-with-any-os')
+  project.storeHas('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2636
@@ -306,7 +306,7 @@ test('optional subdependency is skipped', async () => {
   }, await testDefaults()
   )
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(Object.keys(lockfile.packages).length).toBe(3)
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
@@ -338,7 +338,7 @@ test('optional subdependency of newly added optional dependency is skipped', asy
   const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
   expect(modulesInfo.skipped).toStrictEqual(['/@pnpm.e2e/dep-of-optional-pkg@1.0.0', '/@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(Object.keys(lockfile.packages).length).toBe(3)
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
@@ -359,7 +359,7 @@ test('only that package is skipped which is an optional dependency only and not 
     expect(modulesInfo.skipped).toStrictEqual([])
   }
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(typeof lockfile.packages['/@pnpm.e2e/dep-of-optional-pkg@1.0.0'].optional).toBe('undefined')
 
   await rimraf('node_modules')
@@ -397,8 +397,8 @@ test('not installing optional dependencies when optional is false', async () => 
     })
   )
 
-  await project.hasNot('is-positive')
-  await project.has('@pnpm.e2e/pkg-with-good-optional')
+  project.hasNot('is-positive')
+  project.has('@pnpm.e2e/pkg-with-good-optional')
 
   expect(deepRequireCwd(['@pnpm.e2e/pkg-with-good-optional', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json'])).toBeTruthy()
   expect(deepRequireCwd.silent(['@pnpm.e2e/pkg-with-good-optional', 'is-positive', './package.json'])).toBeFalsy()
@@ -532,7 +532,7 @@ test('do not fail on unsupported dependency of optional dependency', async () =>
     await testDefaults({ targetDependenciesField: 'optionalDependencies' }, {}, {}, { engineStrict: true })
   )
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'].optional).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/dep-of-optional-pkg@1.0.0']).toBeTruthy()
 })

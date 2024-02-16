@@ -226,6 +226,6 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   expect(fs.existsSync(otherLockfilePath)).toBe(false)
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
 
-  const wantedLockfileAfterMergeOther = await project.readLockfile()
+  const wantedLockfileAfterMergeOther = project.readLockfile()
   expect(wantedLockfileAfterMergeOther).toEqual(otherLockfileContent)
 })

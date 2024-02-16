@@ -64,9 +64,9 @@ test('uninstall package with no dependencies', async () => {
 
   // uninstall does not remove packages from store
   // even if they become unreferenced
-  await project.storeHas('is-negative', '2.1.0')
+  project.storeHas('is-negative', '2.1.0')
 
-  await project.hasNot('is-negative')
+  project.hasNot('is-negative')
 
   expect(manifest.dependencies).toStrictEqual({})
 })
@@ -85,21 +85,21 @@ test('uninstall package with dependencies and do not touch other deps', async ()
     rootDir: process.cwd(),
   }, await testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).manifest
 
-  await project.storeHasNot('camelcase-keys', '3.0.0')
-  await project.hasNot('camelcase-keys')
+  project.storeHasNot('camelcase-keys', '3.0.0')
+  project.hasNot('camelcase-keys')
 
-  await project.storeHasNot('camelcase', '3.0.0')
-  await project.hasNot('camelcase')
+  project.storeHasNot('camelcase', '3.0.0')
+  project.hasNot('camelcase')
 
-  await project.storeHasNot('map-obj', '1.0.1')
-  await project.hasNot('map-obj')
+  project.storeHasNot('map-obj', '1.0.1')
+  project.hasNot('map-obj')
 
-  await project.storeHas('is-negative', '2.1.0')
-  await project.has('is-negative')
+  project.storeHas('is-negative', '2.1.0')
+  project.has('is-negative')
 
   expect(manifest.dependencies).toStrictEqual({ 'is-negative': '2.1.0' })
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.dependencies).toStrictEqual({
     'is-negative': {
       specifier: '2.1.0',

@@ -42,8 +42,8 @@ test('linking multiple packages', async () => {
     ...linkOpts,
   }, ['linked-foo', '../linked-bar'])
 
-  await project.has('linked-foo')
-  await project.has('linked-bar')
+  project.has('linked-foo')
+  project.has('linked-bar')
 
   const modules = await readYamlFile<any>('../linked-bar/node_modules/.modules.yaml') // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(modules.hoistPattern).toStrictEqual(['*']) // the linked package used its own configs during installation // eslint-disable-line @typescript-eslint/dot-notation
@@ -74,7 +74,7 @@ test('link global bin', async function () {
   })
   process.env[PATH] = oldPath
 
-  await isExecutable((value) => {
+  isExecutable((value) => {
     expect(value).toBeTruthy()
   }, path.join(globalBin, 'package-with-bin'))
 })
@@ -103,7 +103,7 @@ test('link to global bin from the specified directory', async function () {
   })
   process.env[PATH] = oldPath
 
-  await isExecutable((value) => {
+  isExecutable((value) => {
     expect(value).toBeTruthy()
   }, path.join(globalBin, 'package-with-bin-in-dir'))
 })
@@ -152,7 +152,7 @@ test('link a global package to the specified directory', async function () {
 
   const manifest = loadJsonFile<any>(path.join(projectDir, 'package.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(manifest.dependencies).toStrictEqual({ 'global-package-with-bin': '0.0.0' })
-  await project.has('global-package-with-bin')
+  project.has('global-package-with-bin')
 })
 
 test('relative link', async () => {
@@ -171,20 +171,20 @@ test('relative link', async () => {
     dir: process.cwd(),
   }, [`../${linkedPkgName}`])
 
-  await project.isExecutable('.bin/hello-world-js-bin')
+  project.isExecutable('.bin/hello-world-js-bin')
 
   // The linked package has been installed successfully as well with bins linked
   // to node_modules/.bin
   const linkedProject = assertProject(linkedPkgPath)
-  await linkedProject.isExecutable('.bin/cowsay')
+  linkedProject.isExecutable('.bin/cowsay')
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
     specifier: '*', // specifier of linked dependency added to ${WANTED_LOCKFILE}
     version: 'link:../hello-world-js-bin', // link added to wanted lockfile
   })
 
-  const currentLockfile = await project.readCurrentLockfile()
+  const currentLockfile = project.readCurrentLockfile()
   expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
 })
 
@@ -204,20 +204,20 @@ test('absolute link', async () => {
     dir: process.cwd(),
   }, [linkedPkgPath])
 
-  await project.isExecutable('.bin/hello-world-js-bin')
+  project.isExecutable('.bin/hello-world-js-bin')
 
   // The linked package has been installed successfully as well with bins linked
   // to node_modules/.bin
   const linkedProject = assertProject(linkedPkgPath)
-  await linkedProject.isExecutable('.bin/cowsay')
+  linkedProject.isExecutable('.bin/cowsay')
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
     specifier: '*', // specifier of linked dependency added to ${WANTED_LOCKFILE}
     version: 'link:../hello-world-js-bin', // link added to wanted lockfile
   })
 
-  const currentLockfile = await project.readCurrentLockfile()
+  const currentLockfile = project.readCurrentLockfile()
   expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
 })
 
@@ -259,12 +259,12 @@ test('link --production', async () => {
     dir: process.cwd(),
   }, ['../source'])
 
-  await projects['source'].has('is-positive')
-  await projects['source'].hasNot('is-negative')
+  projects['source'].has('is-positive')
+  projects['source'].hasNot('is-negative')
 
   // --production should not have effect on the target
-  await projects['target'].has('is-positive')
-  await projects['target'].has('is-negative')
+  projects['target'].has('is-positive')
+  projects['target'].has('is-negative')
 })
 
 test('link fails if nothing is linked', async () => {

@@ -161,8 +161,8 @@ skipOnWindows('uploading cache can be disabled without breaking install', async 
   await expect(execPnpm(['add', '--side-effects-cache', 'diskusage@1.1.3'])).resolves.not.toThrow()
 
   // make sure the installation is successful, but the cache has not been written
-  await project.has('diskusage')
-  const storePath = await project.getStorePath()
+  project.has('diskusage')
+  const storePath = project.getStorePath()
   const engine = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
   const cacheDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${engine}/package`)
   await expect(pathExists(cacheDir)).resolves.toBeFalsy()

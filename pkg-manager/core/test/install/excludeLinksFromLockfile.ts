@@ -232,7 +232,7 @@ test('path to external link is not added to the lockfile, when it resolves a pee
     await testDefaults({ excludeLinksFromLockfile: true })
   )
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   const key = '/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@node_modules+@pnpm.e2e+peer-a)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)'
   expect(lockfile.packages[key]).toBeTruthy()
   expect(lockfile.packages[key].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:node_modules/@pnpm.e2e/peer-a')

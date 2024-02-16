@@ -42,7 +42,7 @@ test('recursive linking/unlinking', async () => {
   expect(projects['project-1'].requireModule('is-positive/package.json').author).toBeFalsy()
 
   {
-    const project1Lockfile = await projects['project-1'].readLockfile()
+    const project1Lockfile = projects['project-1'].readLockfile()
     expect(project1Lockfile.devDependencies['is-positive'].version).toBe('link:../is-positive')
   }
 
@@ -61,13 +61,13 @@ test('recursive linking/unlinking', async () => {
   expect(await exists(path.resolve('node_modules', 'is-positive', 'index.js'))).toBeTruthy()
 
   {
-    const project1Lockfile = await projects['project-1'].readLockfile()
+    const project1Lockfile = projects['project-1'].readLockfile()
     expect(project1Lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
     expect(project1Lockfile.devDependencies['is-positive'].version).toBe('1.0.0')
     expect(project1Lockfile.packages['/is-positive@1.0.0']).toBeTruthy()
   }
 
-  const isPositiveLockfile = await projects['is-positive'].readLockfile()
+  const isPositiveLockfile = projects['is-positive'].readLockfile()
   expect(isPositiveLockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
 })
 
@@ -107,7 +107,7 @@ test('recursive unlink specific package', async () => {
   expect(projects['project-1'].requireModule('is-positive/package.json').author).toBeFalsy()
 
   {
-    const project1Lockfile = await projects['project-1'].readLockfile()
+    const project1Lockfile = projects['project-1'].readLockfile()
     expect(project1Lockfile.devDependencies['is-positive'].version).toBe('link:../is-positive')
   }
 
@@ -126,12 +126,12 @@ test('recursive unlink specific package', async () => {
   expect(await exists(path.resolve('node_modules', 'is-positive', 'index.js'))).toBeTruthy()
 
   {
-    const project1Lockfile = await projects['project-1'].readLockfile()
+    const project1Lockfile = projects['project-1'].readLockfile()
     expect(project1Lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
     expect(project1Lockfile.devDependencies['is-positive'].version).toBe('1.0.0')
     expect(project1Lockfile.packages['/is-positive@1.0.0']).toBeTruthy()
   }
 
-  const isPositiveLockfile = await projects['is-positive'].readLockfile()
+  const isPositiveLockfile = projects['is-positive'].readLockfile()
   expect(isPositiveLockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
 })

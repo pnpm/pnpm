@@ -54,20 +54,20 @@ test.skip('caching side effects of native package when hoisting is used', async 
   const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   const stat1 = await fs.stat(cacheBuildDir)
 
-  await project.has('.pnpm/node_modules/diskusage/build') // build folder created
+  project.has('.pnpm/node_modules/diskusage/build') // build folder created
   expect(await exists(cacheBuildDir)).toBeTruthy() // build folder created in side effects cache
-  await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
+  project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
   await addDependenciesToPackage(manifest, ['expire-fs@2.2.3'], opts)
   const stat2 = await fs.stat(cacheBuildDir)
   expect(stat1.ino).toBe(stat2.ino) // existing cache is not overridden
-  await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
+  project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
   opts.force = true
   await addDependenciesToPackage(manifest, ['expire-fs@2.2.3'], opts)
   const stat3 = await fs.stat(cacheBuildDir)
   expect(stat1.ino).not.toBe(stat3.ino) // cache is overridden when force is true
-  await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
+  project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 })
 
 test('using side effects cache', async () => {

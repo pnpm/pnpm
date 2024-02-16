@@ -30,10 +30,10 @@ test('production install (with --production flag)', async () => {
 
   expect(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
   expect(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
-  await project.has('@pnpm.e2e/pkg-with-1-dep')
-  await project.has('write-yaml')
-  await project.hasNot('@zkochan/foo')
-  await project.hasNot('js-yaml')
+  project.has('@pnpm.e2e/pkg-with-1-dep')
+  project.has('write-yaml')
+  project.hasNot('@zkochan/foo')
+  project.hasNot('js-yaml')
 })
 
 test('production install with --no-optional', async () => {
@@ -62,10 +62,10 @@ test('production install with --no-optional', async () => {
 
   expect(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
   expect(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
-  await project.has('@pnpm.e2e/pkg-with-1-dep')
-  await project.has('write-yaml')
-  await project.hasNot('@zkochan/foo')
-  await project.hasNot('js-yaml')
+  project.has('@pnpm.e2e/pkg-with-1-dep')
+  project.has('write-yaml')
+  project.hasNot('@zkochan/foo')
+  project.hasNot('js-yaml')
 })
 
 test('install dev dependencies only', async () => {
@@ -87,26 +87,26 @@ test('install dev dependencies only', async () => {
     },
   }))
 
-  await project.has('inflight')
-  await project.hasNot('once')
+  project.has('inflight')
+  project.hasNot('once')
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.packages['/is-positive@1.0.0'].dev === false).toBeTruthy()
   }
 
   {
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(currentLockfile.packages['/is-positive@1.0.0']).toBeFalsy()
   }
 
   // Repeat normal installation adds missing deps to node_modules
   await install(manifest, await testDefaults())
 
-  await project.has('once')
+  project.has('once')
 
   {
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(currentLockfile.packages['/is-positive@1.0.0']).toBeTruthy()
   }
 })
@@ -133,8 +133,8 @@ test('fail if installing different types of dependencies in a project that uses 
     lockfileDir,
   }))
 
-  await project.has('inflight')
-  await project.hasNot('once')
+  project.has('inflight')
+  project.hasNot('once')
 
   const newOpts = await testDefaults({
     confirmModulesPurge: false,
@@ -163,5 +163,5 @@ test('installation should not fail if a linked dependency points to a directory 
     },
   }, await testDefaults())
 
-  await project.has('is-positive')
+  project.has('is-positive')
 })

@@ -42,7 +42,7 @@ test('local file', async () => {
 
   expect(m).toBeTruthy()
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -79,12 +79,12 @@ test('local directory with no package.json', async () => {
 
   const expectedSpecs = { pkg: 'file:pkg' }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
-  await project.has('pkg')
+  project.has('pkg')
 
   await rimraf('node_modules')
 
   await install(manifest, await testDefaults({ frozenLockfile: true }))
-  await project.has('pkg')
+  project.has('pkg')
 })
 
 test('local file via link:', async () => {
@@ -100,7 +100,7 @@ test('local file via link:', async () => {
 
   expect(m).toBeTruthy()
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -132,7 +132,7 @@ test('local file with symlinked node_modules', async () => {
 
   expect(m).toBeTruthy()
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -169,7 +169,7 @@ test('tarball local package', async () => {
   const pkgSpec = `file:${normalizePath(f.find('tar-pkg/tar-pkg-1.0.0.tgz'))}`
   expect(manifest.dependencies).toStrictEqual({ 'tar-pkg': pkgSpec })
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages[lockfile.dependencies['tar-pkg'].version]).toStrictEqual({
     dev: false,
     name: 'tar-pkg',
@@ -199,7 +199,7 @@ test('tarball local package from project directory', async () => {
   const pkgSpec = 'file:tar-pkg-1.0.0.tgz'
   expect(manifest.dependencies).toStrictEqual({ 'tar-pkg': pkgSpec })
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.dependencies['tar-pkg'].version).toBe(pkgSpec)
   expect(lockfile.packages[lockfile.dependencies['tar-pkg'].version]).toStrictEqual({
     dev: false,
@@ -218,13 +218,13 @@ test('update tarball local package when its integrity changes', async () => {
   f.copy('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
   const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], await testDefaults())
 
-  const lockfile1 = await project.readLockfile()
+  const lockfile1 = project.readLockfile()
   expect(lockfile1.packages['file:../tar.tgz'].dependencies!['is-positive']).toBe('1.0.0')
 
   f.copy('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
   await install(manifest, await testDefaults())
 
-  const lockfile2 = await project.readLockfile()
+  const lockfile2 = project.readLockfile()
   expect(lockfile2.packages['file:../tar.tgz'].dependencies!['is-positive']).toBe('2.0.0')
 
   const manifestOfTarballDep = await import(path.resolve('node_modules/tar-pkg-with-dep/package.json'))
@@ -239,7 +239,7 @@ test('do not update deps when installing in a project that has local tarball dep
   f.copy('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
   const manifest = await addDependenciesToPackage({}, ['../tar.tgz', '@pnpm.e2e/peer-a'], await testDefaults({ lockfileOnly: true }))
 
-  const initialLockfile = await project.readLockfile()
+  const initialLockfile = project.readLockfile()
 
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
 
@@ -249,7 +249,7 @@ test('do not update deps when installing in a project that has local tarball dep
     rootDir: process.cwd(),
   }, await testDefaults())
 
-  const latestLockfile = await project.readLockfile()
+  const latestLockfile = project.readLockfile()
 
   expect(initialLockfile).toStrictEqual(latestLockfile)
 })
@@ -397,7 +397,7 @@ test('re-install should update local file dependency', async () => {
   expect(m).toBeTruthy()
   await expect(fs.access('./node_modules/local-pkg/add.js')).rejects.toThrow()
 
-  let lockfile = await project.readLockfile()
+  let lockfile = project.readLockfile()
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -441,7 +441,7 @@ test('re-install should update local file dependency', async () => {
   }), 'utf8')
   await install(manifest, await testDefaults())
   await expect(fs.access('./node_modules/.pnpm/is-positive@1.0.0')).resolves.toBeUndefined()
-  lockfile = await project.readLockfile()
+  lockfile = project.readLockfile()
   expect(lockfile).toMatchObject({
     packages: {
       'file:../local-pkg': {
@@ -465,7 +465,7 @@ test('re-install should update local file dependency', async () => {
   }), 'utf8')
   await install(manifest, await testDefaults())
   await expect(fs.access('./node_modules/.pnpm/is-positive@2.0.0')).resolves.toBeUndefined()
-  lockfile = await project.readLockfile()
+  lockfile = project.readLockfile()
   expect(lockfile).toMatchObject({
     packages: {
       'file:../local-pkg': {

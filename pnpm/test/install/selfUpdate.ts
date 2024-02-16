@@ -32,5 +32,5 @@ skipOnWindows('self-update stops the store server', async () => {
   await execPnpm(['install', '-g', 'pnpm', '--store-dir', path.resolve('..', 'store'), '--reporter=append-only'], { env })
 
   expect(await pathExists(serverJsonPath)).toBeFalsy()
-  await project.isExecutable('../pnpm')
+  project.isExecutable('../pnpm')
 })

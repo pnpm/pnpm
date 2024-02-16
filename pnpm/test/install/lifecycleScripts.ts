@@ -108,8 +108,8 @@ test('dependency should not be added to package.json and lockfile if it was not 
 
   expect(result.status).toBe(1)
 
-  expect(await project.readCurrentLockfile()).toBeFalsy()
-  expect(await project.readLockfile()).toBeFalsy()
+  expect(project.readCurrentLockfile()).toBeFalsy()
+  expect(project.readLockfile()).toBeFalsy()
 
   const { default: pkg } = await import(path.resolve('package.json'))
   expect(pkg).toStrictEqual({ name: 'foo', version: '1.0.0' })

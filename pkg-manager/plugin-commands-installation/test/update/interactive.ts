@@ -129,7 +129,7 @@ test('interactively update', async () => {
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
 
     expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy()
     expect(lockfile.packages['/is-negative@1.0.1']).toBeTruthy()
@@ -186,7 +186,7 @@ test('interactively update', async () => {
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
 
     expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy()
     expect(lockfile.packages['/is-negative@2.1.0']).toBeTruthy()
@@ -347,7 +347,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
 
     expect(lockfile.packages['/micromatch@3.1.10']).toBeTruthy()
     expect(lockfile.packages['/is-negative@1.0.0']).toBeTruthy()

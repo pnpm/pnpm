@@ -21,7 +21,7 @@ test('copy does not fail on package that self-requires itself', async () => {
   const m = project.requireModule('@pnpm.e2e/requires-itself/package.json')
   expect(m).toBeTruthy() // requires-itself is available with packageImportMethod = copy
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['/@pnpm.e2e/requires-itself@1.0.0'].dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
 })
 

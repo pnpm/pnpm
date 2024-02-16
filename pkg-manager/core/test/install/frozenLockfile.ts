@@ -108,11 +108,11 @@ test(`frozen-lockfile: should successfully install when ${WANTED_LOCKFILE} is av
     },
   }, await testDefaults({ lockfileOnly: true }))
 
-  await project.hasNot('is-positive')
+  project.hasNot('is-positive')
 
   await install(manifest, await testDefaults({ frozenLockfile: true }))
 
-  await project.has('is-positive')
+  project.has('is-positive')
 })
 
 test(`frozen-lockfile: should fail if no ${WANTED_LOCKFILE} is present`, async () => {
@@ -136,7 +136,7 @@ test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_
     },
   }, await testDefaults({ lockfileOnly: true }))
 
-  await project.hasNot('is-positive')
+  project.hasNot('is-positive')
 
   const reporter = sinon.spy()
   await install(manifest, await testDefaults({ reporter, preferFrozenLockfile: true }))
@@ -147,7 +147,7 @@ test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_
     name: 'pnpm',
   })).toBeTruthy()
 
-  await project.has('is-positive')
+  project.has('is-positive')
 })
 
 test(`prefer-frozen-lockfile: should not prefer headless installation when ${WANTED_LOCKFILE} does not satisfy package.json`, async () => {
@@ -159,7 +159,7 @@ test(`prefer-frozen-lockfile: should not prefer headless installation when ${WAN
     },
   }, await testDefaults({ lockfileOnly: true }))
 
-  await project.hasNot('is-positive')
+  project.hasNot('is-positive')
 
   const reporter = sinon.spy()
   await install({
@@ -174,7 +174,7 @@ test(`prefer-frozen-lockfile: should not prefer headless installation when ${WAN
     name: 'pnpm',
   })).toBeFalsy()
 
-  await project.has('is-negative')
+  project.has('is-negative')
 })
 
 test(`prefer-frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async () => {
@@ -198,7 +198,7 @@ test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation w
     },
   }, await testDefaults({ lockfileOnly: true }))
 
-  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   const reporter = sinon.spy()
   await install(manifest, await testDefaults({
@@ -213,8 +213,8 @@ test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation w
     name: 'pnpm',
   })).toBeTruthy()
 
-  await project.has('@pnpm.e2e/pkg-with-1-dep')
-  await project.has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+  project.has('@pnpm.e2e/pkg-with-1-dep')
+  project.has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
 })
 
 test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has linked dependency', async () => {
@@ -284,8 +284,8 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
     name: 'pnpm',
   })).toBeTruthy()
 
-  await projects['p1'].has('p2')
-  await projects['p2'].has('is-negative')
+  projects['p1'].has('p2')
+  projects['p2'].has('is-negative')
 })
 
 test('frozen-lockfile: installation fails if the value of auto-install-peers changes', async () => {

@@ -55,7 +55,7 @@ test('run pre/postinstall scripts', async () => {
     expect(typeof generatedByPostinstall).toBe('function')
   }
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild)
 })
 
@@ -293,7 +293,7 @@ test('run prepare script for git-hosted dependencies', async () => {
     'postinstall',
   ])
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['github.com/pnpm/test-git-fetch/d222f6bfbdea55c032fdb5f0538d52b2a484bbbf'].prepare === true).toBeTruthy()
 })
 
@@ -302,8 +302,8 @@ test('lifecycle scripts run before linking bins', async () => {
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/generated-bins'], await testDefaults({ fastUnpack: false }))
 
-  await project.isExecutable('.bin/cmd1')
-  await project.isExecutable('.bin/cmd2')
+  project.isExecutable('.bin/cmd1')
+  project.isExecutable('.bin/cmd2')
 
   await rimraf('node_modules')
 
@@ -313,8 +313,8 @@ test('lifecycle scripts run before linking bins', async () => {
     rootDir: process.cwd(),
   }, await testDefaults({ frozenLockfile: true }))
 
-  await project.isExecutable('.bin/cmd1')
-  await project.isExecutable('.bin/cmd2')
+  project.isExecutable('.bin/cmd1')
+  project.isExecutable('.bin/cmd2')
 })
 
 test('hoisting does not fail on commands that will be created by lifecycle scripts on a later stage', async () => {
@@ -322,8 +322,8 @@ test('hoisting does not fail on commands that will be created by lifecycle scrip
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-generated-bins-as-dep'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  // await project.isExecutable('.pnpm/node_modules/.bin/cmd1')
-  // await project.isExecutable('.pnpm/node_modules/.bin/cmd2')
+  // project.isExecutable('.pnpm/node_modules/.bin/cmd1')
+  // project.isExecutable('.pnpm/node_modules/.bin/cmd2')
 
   // Testing the same with headless installation
   await rimraf('node_modules')
@@ -334,8 +334,8 @@ test('hoisting does not fail on commands that will be created by lifecycle scrip
     rootDir: process.cwd(),
   }, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
 
-  // await project.isExecutable('.pnpm/node_modules/.bin/cmd1')
-  // await project.isExecutable('.pnpm/node_modules/.bin/cmd2')
+  // project.isExecutable('.pnpm/node_modules/.bin/cmd1')
+  // project.isExecutable('.pnpm/node_modules/.bin/cmd2')
 })
 
 test('bins are linked even if lifecycle scripts are ignored', async () => {
@@ -351,8 +351,8 @@ test('bins are linked even if lifecycle scripts are ignored', async () => {
     await testDefaults({ fastUnpack: false, ignoreScripts: true })
   )
 
-  await project.isExecutable('.bin/peer-with-bin')
-  await project.isExecutable('@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
+  project.isExecutable('.bin/peer-with-bin')
+  project.isExecutable('@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
 
   // Verifying that the scripts were ignored
   expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/package.json')).toBeTruthy()
@@ -366,8 +366,8 @@ test('bins are linked even if lifecycle scripts are ignored', async () => {
     rootDir: process.cwd(),
   }, await testDefaults({ frozenLockfile: true, ignoreScripts: true }))
 
-  await project.isExecutable('.bin/peer-with-bin')
-  await project.isExecutable('@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
+  project.isExecutable('.bin/peer-with-bin')
+  project.isExecutable('@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
 
   // Verifying that the scripts were ignored
   expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/package.json')).toBeTruthy()
@@ -396,7 +396,7 @@ test('dependency should not be added to current lockfile if it was not built suc
     }, await testDefaults({ frozenLockfile: true }))
   ).rejects.toThrow()
 
-  expect(await project.readCurrentLockfile()).toBeFalsy()
+  expect(project.readCurrentLockfile()).toBeFalsy()
 })
 
 test('scripts have access to unlisted bins when hoisting is used', async () => {
@@ -423,7 +423,7 @@ test('selectively ignore scripts in some dependencies by neverBuiltDependencies'
   expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(await exists('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.neverBuiltDependencies).toStrictEqual(neverBuiltDependencies)
   expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBe(undefined)
   expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBeTruthy()
@@ -461,7 +461,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
   expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(await exists('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
   expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBe(undefined)
   expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBe(true)
@@ -526,7 +526,7 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.neverBuiltDependencies).toBeFalsy()
     expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBeTruthy()
     expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBeTruthy()
@@ -540,7 +540,7 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
   }, await testDefaults({ neverBuiltDependencies }))
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.neverBuiltDependencies).toStrictEqual(neverBuiltDependencies)
     expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBe(undefined)
     expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBeTruthy()
@@ -555,7 +555,7 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.onlyBuiltDependencies).toBeFalsy()
     expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBeTruthy()
     expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBeTruthy()
@@ -569,7 +569,7 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   }, await testDefaults({ onlyBuiltDependencies }))
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
     expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBe(undefined)
     expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBe(undefined)
@@ -583,7 +583,7 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   }, await testDefaults({ onlyBuiltDependencies }))
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
     expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBe(true)
     expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBe(undefined)
@@ -597,7 +597,7 @@ test('lifecycle scripts have access to package\'s own binary by binary name', as
     await testDefaults({ fastUnpack: false })
   )
 
-  await project.isExecutable('.pnpm/@pnpm.e2e+runs-own-bin@1.0.0/node_modules/@pnpm.e2e/runs-own-bin/node_modules/.bin/runs-own-bin')
+  project.isExecutable('.pnpm/@pnpm.e2e+runs-own-bin@1.0.0/node_modules/@pnpm.e2e/runs-own-bin/node_modules/.bin/runs-own-bin')
 })
 
 test('lifecycle scripts run after linking root dependencies', async () => {
@@ -754,16 +754,16 @@ test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted',
     nodeLinker: 'hoisted',
   }))
   const rootProject = assertProject(process.cwd())
-  await rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 })
 
 test('run pre/postinstall scripts in a project that uses node-linker=hoisted. Should not fail on repeat install', async () => {

@@ -73,12 +73,12 @@ test('install only the dependencies of the specified importer', async () => {
 
   await mutateModules(importers.slice(0, 1), await testDefaults({ allProjects }))
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
 
   const rootModules = assertProject(process.cwd())
-  await rootModules.has('.pnpm/is-positive@1.0.0')
-  await rootModules.hasNot('.pnpm/is-negative@1.0.0')
+  rootModules.has('.pnpm/is-positive@1.0.0')
+  rootModules.hasNot('.pnpm/is-negative@1.0.0')
 })
 
 test('install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore', async () => {
@@ -161,7 +161,7 @@ test('install only the dependencies of the specified importer. The current lockf
   ], await testDefaults({ allProjects, hoistPattern: '*' }))
 
   const rootModules = assertProject(process.cwd())
-  const currentLockfile = await rootModules.readCurrentLockfile()
+  const currentLockfile = rootModules.readCurrentLockfile()
   expect(currentLockfile.importers).toHaveProperty(['project-3'])
   expect(currentLockfile.packages).toHaveProperty(['/@pnpm.e2e/foobar@100.0.0'])
 })
@@ -294,15 +294,15 @@ test('dependencies of other importers are not pruned when installing for a subse
     pruneLockfileImporters: false,
   }))
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].has('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
 
   const rootModules = assertProject(process.cwd())
-  await rootModules.has('.pnpm/is-positive@2.0.0')
-  await rootModules.hasNot('.pnpm/is-positive@1.0.0')
-  await rootModules.has('.pnpm/is-negative@1.0.0')
+  rootModules.has('.pnpm/is-positive@2.0.0')
+  rootModules.hasNot('.pnpm/is-positive@1.0.0')
+  rootModules.has('.pnpm/is-negative@1.0.0')
 
-  const lockfile = await rootModules.readCurrentLockfile()
+  const lockfile = rootModules.readCurrentLockfile()
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/is-negative@1.0.0',
@@ -373,13 +373,13 @@ test('dependencies of other importers are not pruned when (headless) installing 
     pruneLockfileImporters: false,
   }))
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].has('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
 
   const rootModules = assertProject(process.cwd())
-  await rootModules.has('.pnpm/is-positive@2.0.0')
-  await rootModules.hasNot('.pnpm/is-positive@1.0.0')
-  await rootModules.has('.pnpm/is-negative@1.0.0')
+  rootModules.has('.pnpm/is-positive@2.0.0')
+  rootModules.hasNot('.pnpm/is-positive@1.0.0')
+  rootModules.has('.pnpm/is-negative@1.0.0')
 })
 
 test('adding a new dev dependency to project that uses a shared lockfile', async () => {
@@ -465,9 +465,9 @@ test('headless install is used when package linked to another package in the wor
     name: 'pnpm',
   })).toBeTruthy()
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-1'].has('project-2')
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-1'].has('project-2')
+  projects['project-2'].hasNot('is-negative')
 })
 
 test('headless install is used with an up-to-date lockfile when package references another package via workspace: protocol', async () => {
@@ -537,9 +537,9 @@ test('headless install is used with an up-to-date lockfile when package referenc
     name: 'pnpm',
   })).toBeTruthy()
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-1'].has('project-2')
-  await projects['project-2'].has('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-1'].has('project-2')
+  projects['project-2'].has('is-negative')
 })
 
 test('headless install is used when packages are not linked from the workspace (unless workspace ranges are used)', async () => {
@@ -1243,16 +1243,16 @@ test('remove dependencies of a project that was removed from the workspace (duri
   const project = assertProject(process.cwd())
 
   {
-    const wantedLockfile = await project.readLockfile()
+    const wantedLockfile = project.readLockfile()
     expect(Object.keys(wantedLockfile.importers)).toStrictEqual(['project-1'])
     expect(Object.keys(wantedLockfile.packages)).toStrictEqual(['/is-positive@1.0.0'])
 
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(Object.keys(currentLockfile.importers)).toStrictEqual(['project-1', 'project-2'])
     expect(Object.keys(currentLockfile.packages)).toStrictEqual(['/is-negative@1.0.0', '/is-positive@1.0.0'])
 
-    await project.has('.pnpm/is-positive@1.0.0')
-    await project.has('.pnpm/is-negative@1.0.0')
+    project.has('.pnpm/is-positive@1.0.0')
+    project.has('.pnpm/is-negative@1.0.0')
   }
 
   await mutateModules(importers.slice(0, 1), await testDefaults({
@@ -1261,12 +1261,12 @@ test('remove dependencies of a project that was removed from the workspace (duri
     modulesCacheMaxAge: 0,
   }))
   {
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(Object.keys(currentLockfile.importers)).toStrictEqual(['project-1'])
     expect(Object.keys(currentLockfile.packages)).toStrictEqual(['/is-positive@1.0.0'])
 
-    await project.has('.pnpm/is-positive@1.0.0')
-    await project.hasNot('.pnpm/is-negative@1.0.0')
+    project.has('.pnpm/is-positive@1.0.0')
+    project.hasNot('.pnpm/is-negative@1.0.0')
   }
 })
 
@@ -1330,7 +1330,7 @@ test('do not resolve a subdependency from the workspace by default', async () =>
 
   const project = assertProject(process.cwd())
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
 })
 
@@ -1393,7 +1393,7 @@ test('resolve a subdependency from the workspace', async () => {
 
   const project = assertProject(process.cwd())
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   await rimraf('node_modules')
@@ -1474,7 +1474,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
 
   const project = assertProject(process.cwd())
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   const suffix1 = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }])
   const suffix2 = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.1' }])
   expect(Object.keys(wantedLockfile.packages).sort()).toStrictEqual(
@@ -1561,7 +1561,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
 
   const project = assertProject(process.cwd())
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   await rimraf('node_modules')
@@ -1645,7 +1645,7 @@ test('install the dependency that is already present in the workspace when addin
   }))
 
   const rootModules = assertProject(process.cwd())
-  const currentLockfile = await rootModules.readCurrentLockfile()
+  const currentLockfile = rootModules.readCurrentLockfile()
 
   expect(currentLockfile.importers['project-1'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
     specifier: '^100.0.0',
@@ -1727,7 +1727,7 @@ test('do not update dependency that has the same name as a dependency in the wor
   ], await testDefaults({ allProjects, linkWorkspacePackagesDepth: -1, workspacePackages, preferredVersions: {} }))
 
   const rootModules = assertProject(process.cwd())
-  const currentLockfile = await rootModules.readCurrentLockfile()
+  const currentLockfile = rootModules.readCurrentLockfile()
   expect(Object.keys(currentLockfile.packages)).toStrictEqual([
     '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
     '/is-negative@2.1.0',
@@ -1810,7 +1810,7 @@ test('symlink local package from the location described in its publishConfig.dir
   }
 
   const project = assertProject(process.cwd())
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.importers['project-1'].publishDirectory).toBe('dist')
 
   await rimraf('node_modules')

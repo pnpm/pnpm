@@ -65,5 +65,5 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
     rootDir: process.cwd(),
   }, await testDefaults({ frozenLockfile: true, lockfileDir }))
 
-  await project.has('tar-pkg-with-dep')
+  project.has('tar-pkg-with-dep')
 })
