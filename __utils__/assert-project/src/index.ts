@@ -73,6 +73,9 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     if (modulesYaml == null) {
       return path.join(modules, '.pnpm')
     }
+    if (path.isAbsolute(modulesYaml.virtualStoreDir)) {
+      return modulesYaml.virtualStoreDir
+    }
     return path.join(modules, modulesYaml.virtualStoreDir)
   }
 
