@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import PATH from 'path-name'
 import { getCurrentBranch } from '@pnpm/git-utils'
@@ -165,8 +165,8 @@ test('when using --global, link-workspace-packages, shared-workspace-lockfile an
     'shared-workspace-lockfile=true',
     'lockfile-dir=/home/src',
   ].join('\n')
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   {
     const { config } = await getConfig({
@@ -223,7 +223,7 @@ test('registries of scoped packages are read and normalized', async () => {
 test('registries in current directory\'s .npmrc have bigger priority then global config settings', async () => {
   prepare()
 
-  await fs.writeFile('.npmrc', 'registry=https://pnpm.io/', 'utf8')
+  fs.writeFileSync('.npmrc', 'registry=https://pnpm.io/', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {
@@ -246,8 +246,8 @@ test('registries in current directory\'s .npmrc have bigger priority then global
 test('filter is read from .npmrc as an array', async () => {
   prepareEmpty()
 
-  await fs.writeFile('.npmrc', 'filter=foo bar...', 'utf8')
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('.npmrc', 'filter=foo bar...', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {
@@ -264,8 +264,8 @@ test('filter is read from .npmrc as an array', async () => {
 test('filter-prod is read from .npmrc as an array', async () => {
   prepareEmpty()
 
-  await fs.writeFile('.npmrc', 'filter-prod=foo bar...', 'utf8')
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('.npmrc', 'filter-prod=foo bar...', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {
@@ -479,10 +479,10 @@ test.skip('rawLocalConfig in a workspace', async () => {
   prepareEmpty()
 
   const workspaceDir = process.cwd()
-  await fs.writeFile('.npmrc', 'hoist-pattern=*', 'utf8')
-  await fs.mkdir('package')
+  fs.writeFileSync('.npmrc', 'hoist-pattern=*', 'utf8')
+  fs.mkdirSync('package')
   process.chdir('package')
-  await fs.writeFile('.npmrc', 'hoist-pattern=eslint-*', 'utf8')
+  fs.writeFileSync('.npmrc', 'hoist-pattern=eslint-*', 'utf8')
 
   {
     const { config } = await getConfig({
@@ -503,7 +503,7 @@ test.skip('rawLocalConfig in a workspace', async () => {
   }
 
   // package w/o its own .npmrc
-  await fs.mkdir('package2')
+  fs.mkdirSync('package2')
   process.chdir('package2')
   {
     const { config } = await getConfig({
@@ -527,7 +527,7 @@ test.skip('rawLocalConfig in a workspace', async () => {
 test.skip('rawLocalConfig', async () => {
   prepareEmpty()
 
-  await fs.writeFile('.npmrc', 'modules-dir=modules', 'utf8')
+  fs.writeFileSync('.npmrc', 'modules-dir=modules', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {
@@ -577,7 +577,7 @@ test('normalize the value of the color flag', async () => {
 test('read only supported settings from config', async () => {
   prepare()
 
-  await fs.writeFile('.npmrc', 'store-dir=__store__\nfoo=bar', 'utf8')
+  fs.writeFileSync('.npmrc', 'store-dir=__store__\nfoo=bar', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {},
@@ -670,7 +670,7 @@ test('respects changed-files-ignore-pattern', async () => {
       'changed-files-ignore-pattern[]=**/README.md',
     ].join('\n')
 
-    await fs.writeFile('.npmrc', npmrc, 'utf8')
+    fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
     const { config } = await getConfig({
       cliOptions: {
@@ -689,7 +689,7 @@ test('respects changed-files-ignore-pattern', async () => {
 test('dir is resolved to real path', async () => {
   prepareEmpty()
   const realDir = path.resolve('real-path')
-  await fs.mkdir(realDir)
+  fs.mkdirSync(realDir)
   const symlink = path.resolve('symlink')
   await symlinkDir(realDir, symlink)
   const { config } = await getConfig({
@@ -712,7 +712,7 @@ test('warn user unknown settings in npmrc', async () => {
     '//foo.bar:_authToken=aaa',
     '@qar:registry=https://registry.example.org/',
   ].join('\n')
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
   const { warnings } = await getConfig({
     cliOptions: {},
@@ -753,8 +753,8 @@ test('getConfig() converts noproxy to noProxy', async () => {
 
 test('getConfig() returns the userconfig', async () => {
   prepareEmpty()
-  await fs.mkdir('user-home')
-  await fs.writeFile(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
   loadNpmConf.defaults.userconfig = path.resolve('user-home', '.npmrc')
   const { config } = await getConfig({
     cliOptions: {},
@@ -768,10 +768,10 @@ test('getConfig() returns the userconfig', async () => {
 
 test('getConfig() returns the userconfig even when overridden locally', async () => {
   prepareEmpty()
-  await fs.mkdir('user-home')
-  await fs.writeFile(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
   loadNpmConf.defaults.userconfig = path.resolve('user-home', '.npmrc')
-  await fs.writeFile('.npmrc', 'registry = https://project-local.example.test', 'utf-8')
+  fs.writeFileSync('.npmrc', 'registry = https://project-local.example.test', 'utf-8')
   const { config } = await getConfig({
     cliOptions: {},
     packageManager: {
@@ -834,7 +834,7 @@ test('respect merge-git-branch-lockfiles-branch-pattern', async () => {
       'merge-git-branch-lockfiles-branch-pattern[]=release/**',
     ].join('\n')
 
-    await fs.writeFile('.npmrc', npmrc, 'utf8')
+    fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
     const { config } = await getConfig({
       cliOptions: {
@@ -858,7 +858,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
       'merge-git-branch-lockfiles-branch-pattern[]=release/**',
     ].join('\n')
 
-    await fs.writeFile('.npmrc', npmrc, 'utf8')
+    fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
     ;(getCurrentBranch as jest.Mock).mockReturnValue('develop')
     const { config } = await getConfig({
@@ -918,7 +918,7 @@ test('preferSymlinkedExecutables should be true when nodeLinker is hoisted', asy
 })
 
 test('return a warning when the .npmrc has an env variable that does not exist', async () => {
-  await fs.writeFile('.npmrc', 'foo=${ENV_VAR_123}', 'utf8') // eslint-disable-line
+  fs.writeFileSync('.npmrc', 'foo=${ENV_VAR_123}', 'utf8') // eslint-disable-line
   const { warnings } = await getConfig({
     cliOptions: {},
     packageManager: {

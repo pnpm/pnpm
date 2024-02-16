@@ -1,6 +1,6 @@
 import tempy from 'tempy'
 import execa from 'execa'
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { getCurrentBranch, isGitRepo, isWorkingTreeClean } from '@pnpm/git-utils'
 
@@ -33,7 +33,7 @@ test('isWorkingTreeClean', async () => {
 
   await expect(isWorkingTreeClean()).resolves.toBe(true)
 
-  await fs.writeFile(path.join(tempDir, 'foo'), 'foo')
+  fs.writeFileSync(path.join(tempDir, 'foo'), 'foo')
 
   await expect(isWorkingTreeClean()).resolves.toBe(false)
 })

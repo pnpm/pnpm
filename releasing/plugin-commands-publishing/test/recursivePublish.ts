@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { streamParser } from '@pnpm/logger'
@@ -70,7 +70,7 @@ test('recursive publish', async () => {
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   await publish.handler({
     ...DEFAULT_OPTS,
@@ -154,7 +154,7 @@ test('print info when no packages are published', async () => {
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   const reporter = jest.fn()
   streamParser.on('data', reporter)
@@ -189,7 +189,7 @@ test('packages are released even if their current version is published, when for
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   await publish.handler({
     ...DEFAULT_OPTS,
@@ -252,7 +252,7 @@ test('recursive publish writes publish summary', async () => {
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   process.env.npm_config_userconfig = path.join('.npmrc')
   await publish.handler({
@@ -266,7 +266,7 @@ test('recursive publish writes publish summary', async () => {
   {
     const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
     expect(publishSummary).toMatchSnapshot()
-    await fs.unlink('pnpm-publish-summary.json')
+    fs.unlinkSync('pnpm-publish-summary.json')
   }
 
   await publish.handler({
@@ -298,7 +298,7 @@ test('when publish some package throws an error, exit code should be non-zero', 
   ])
 
   // Throw ENEEDAUTH error when publish.
-  await fs.writeFile('.npmrc', 'registry=https://__fake_npm_registry__.com', 'utf8')
+  fs.writeFileSync('.npmrc', 'registry=https://__fake_npm_registry__.com', 'utf8')
 
   const result = await publish.handler({
     ...DEFAULT_OPTS,

@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
@@ -94,7 +94,7 @@ test('recursive list with shared-workspace-lockfile', async () => {
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
+  fs.writeFileSync('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({

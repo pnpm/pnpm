@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { promises as fs, statSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
@@ -695,7 +695,7 @@ test('refetch package to store if it has been modified', async () => {
 
   await delay(200)
   // Adding some content to the file to change its integrity
-  await fs.appendFile(indexJsFile, '// foobar')
+  fs.appendFileSync(indexJsFile, '// foobar')
 
   const reporter = jest.fn()
   streamParser.on('data', reporter)
@@ -728,7 +728,7 @@ test('refetch package to store if it has been modified', async () => {
 
   streamParser.removeListener('data', reporter)
 
-  expect(await fs.readFile(indexJsFile, 'utf8')).not.toContain('// foobar')
+  expect(fs.readFileSync(indexJsFile, 'utf8')).not.toContain('// foobar')
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'warn',
