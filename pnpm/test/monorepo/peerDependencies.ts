@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { Lockfile } from '@pnpm/lockfile-types'
 import { preparePackages } from '@pnpm/prepare'
@@ -25,7 +25,7 @@ test('peer dependency is not unlinked when adding a new dependency', async () =>
     },
   ])
 
-  await fs.writeFile('.npmrc', 'auto-install-peers=false', 'utf8')
+  fs.writeFileSync('.npmrc', 'auto-install-peers=false', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['install'])
   await execPnpm(['--filter=project-1', 'add', 'is-odd@1.0.0'])

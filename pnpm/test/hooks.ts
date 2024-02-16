@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
@@ -20,7 +20,7 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
       return pkg
       }
   `
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
   await execPnpm(['add', 'is-positive@1.0.0'])
   let pkg: PackageManifest = await loadJsonFile(path.resolve('package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '1.0.0' }) // add dependency & readPackage hook work
@@ -39,7 +39,7 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
   project.hasNot('is-positive')
 
   // Reset for --lockfile-only checks
-  await fs.unlink('pnpm-lock.yaml')
+  fs.unlinkSync('pnpm-lock.yaml')
 
   await execPnpm(['install', '--lockfile-only'])
   pkg = await loadJsonFile(path.resolve('package.json'))
@@ -73,7 +73,7 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
         return pkg
       }
     `
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['add', 'is-positive@1.0.0', '--filter', 'project-a'])
@@ -93,7 +93,7 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
   expect(pkg.dependencies).toBeFalsy() // remove & readPackage hook work
 
   // Reset for --lockfile-only checks
-  await fs.unlink('pnpm-lock.yaml')
+  fs.unlinkSync('pnpm-lock.yaml')
 
   await execPnpm(['install', '--lockfile-only'])
   pkg = await loadJsonFile(path.resolve('project-a/package.json'))
@@ -116,7 +116,7 @@ test('filterLog hook filters peer dependency warning', async () => {
         return true
       }
     `
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
   const result = execPnpmSync(['add', '@rollup/pluginutils@3.1.0', '--no-strict-peer-dependencies'])
 
   expect(result.status).toBe(0)
@@ -142,8 +142,8 @@ test('importPackage hooks', async () => {
     global-pnpmfile=.pnpmfile.cjs
   `
 
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
 
@@ -175,8 +175,8 @@ test('should use default fetchers if no custom fetchers are defined', async () =
     global-pnpmfile=.pnpmfile.cjs
   `
 
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
 
@@ -207,8 +207,8 @@ test('custom fetcher can call default fetcher', async () => {
     global-pnpmfile=.pnpmfile.cjs
   `
 
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
 

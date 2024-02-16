@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm } from '../utils'
@@ -58,7 +58,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shamefully-hoist=true', 'utf8')
+  fs.writeFileSync('.npmrc', 'shamefully-hoist=true', 'utf8')
 
   await execPnpm(['install'])
 
@@ -92,7 +92,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', `shamefully-hoist=true
+  fs.writeFileSync('.npmrc', `shamefully-hoist=true
 dedupe-direct-deps=true`, 'utf8')
 
   await execPnpm(['install'])

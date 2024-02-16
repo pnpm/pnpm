@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { type Lockfile } from '@pnpm/lockfile-types'
@@ -35,7 +35,7 @@ test('recursive installation with package-specific .npmrc', async () => {
     },
   ])
 
-  await fs.writeFile('project-2/.npmrc', 'hoist = false', 'utf8')
+  fs.writeFileSync('project-2/.npmrc', 'hoist = false', 'utf8')
 
   await execPnpm(['recursive', 'install'])
 
@@ -76,9 +76,9 @@ test('workspace .npmrc is always read', async () => {
   ])
 
   const storeDir = path.resolve('../store')
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'shamefully-flatten = true\nshared-workspace-lockfile=false', 'utf8')
-  await fs.writeFile('workspace/project-2/.npmrc', 'hoist=false', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('.npmrc', 'shamefully-flatten = true\nshared-workspace-lockfile=false', 'utf8')
+  fs.writeFileSync('workspace/project-2/.npmrc', 'hoist=false', 'utf8')
 
   process.chdir('workspace/project-1')
   await execPnpm(['install', '--store-dir', storeDir, '--filter', '.'])
@@ -166,10 +166,10 @@ test('recursive installation of packages with hooks', async () => {
       return pkg
     }
   `
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   process.chdir('../project-2')
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   process.chdir('..')
 
@@ -212,9 +212,9 @@ test('recursive installation of packages in workspace ignores hooks in packages'
       return pkg
     }
   `
-  await fs.writeFile('project-1/.pnpmfile.cjs', pnpmfile, 'utf8')
-  await fs.writeFile('project-2/.pnpmfile.cjs', pnpmfile, 'utf8')
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('project-1/.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('project-2/.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', `
     module.exports = { hooks: { readPackage } }
     function readPackage (pkg) {
       pkg.dependencies = pkg.dependencies || {}
@@ -264,10 +264,10 @@ test('ignores .pnpmfile.cjs during recursive installation when --ignore-pnpmfile
       return pkg
     }
   `
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   process.chdir('../project-2')
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   process.chdir('..')
 
@@ -309,8 +309,8 @@ test('recursive command with filter from config', async () => {
     },
   ])
 
-  await fs.writeFile('package.json', '{}', 'utf8')
-  await fs.writeFile('.npmrc', 'filter=project-1 project-2', 'utf8')
+  fs.writeFileSync('package.json', '{}', 'utf8')
+  fs.writeFileSync('.npmrc', 'filter=project-1 project-2', 'utf8')
   await execPnpm(['recursive', 'install'])
 
   projects['project-1'].has('is-positive')
@@ -349,7 +349,7 @@ test('non-recursive install ignores filter from config', async () => {
     },
   ])
 
-  await fs.writeFile('.npmrc', 'filter=project-2', 'utf8')
+  fs.writeFileSync('.npmrc', 'filter=project-2', 'utf8')
   await execPnpm(['install'])
 
   projects['project-1'].has('is-positive')
@@ -360,7 +360,7 @@ test('non-recursive install ignores filter from config', async () => {
 test('adding new dependency in the root should fail if neither --workspace-root nor --ignore-workspace-root-check are used', async () => {
   const project = prepare()
 
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   {
     const { status, stdout } = execPnpmSync(['add', 'is-positive'])
@@ -419,7 +419,7 @@ test('--workspace-packages', async () => {
   ])
 
   const storeDir = path.resolve('../store')
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   await execPnpm(['install', '--store-dir', storeDir, '--workspace-packages', 'project-1'])
 
@@ -454,8 +454,8 @@ test('set recursive-install to false in .npmrc would disable recursive install i
   ])
 
   process.chdir('workspace')
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', `recursive-install = false
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('.npmrc', `recursive-install = false
 dedupe-peer-dependents = false`, 'utf8')
 
   process.chdir('project-1')
@@ -492,8 +492,8 @@ test('set recursive-install to false would install as --filter {.}...', async ()
   ])
 
   process.chdir('workspace')
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'recursive-install = false', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('.npmrc', 'recursive-install = false', 'utf8')
 
   process.chdir('project-1')
   await execPnpm(['install'])

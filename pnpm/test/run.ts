@@ -1,4 +1,4 @@
-import { promises as fs, mkdirSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -17,8 +17,8 @@ test('run -r: pass the args to the command that is specified in the build script
       prefoo: 'node recordArgs',
     },
   }])
-  await fs.writeFile('project/args.json', '[]', 'utf8')
-  await fs.writeFile('project/recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('project/args.json', '[]', 'utf8')
+  fs.writeFileSync('project/recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await execPnpm(['run', '-r', '--config.enable-pre-post-scripts', 'foo', 'arg', '--flag=true'])
 
@@ -39,8 +39,8 @@ test('run: pass the args to the command that is specified in the build script', 
       prefoo: 'node recordArgs',
     },
   })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await execPnpm(['run', 'foo', 'arg', '--flag=true'])
 
@@ -64,8 +64,8 @@ test('run: pass all arguments after script name to the build script, even --', a
       prefoo: 'node recordArgs',
     },
   })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await execPnpm(['run', 'foo', 'arg', '--', '--flag=true'])
 
@@ -93,7 +93,7 @@ test('test -r: pass the args to the command that is specified in the build scrip
 test('start: run "node server.js" by default', async () => {
   prepare({}, { manifestFormat: 'YAML' })
 
-  await fs.writeFile('server.js', 'console.log("Hello world!")', 'utf8')
+  fs.writeFileSync('server.js', 'console.log("Hello world!")', 'utf8')
 
   const result = execPnpmSync(['start'])
 
@@ -109,7 +109,7 @@ test('install-test: install dependencies and runs tests', async () => {
 
   await execPnpm(['install-test'])
 
-  const scriptsRan = (await fs.readFile('output.txt')).toString()
+  const scriptsRan = (fs.readFileSync('output.txt')).toString()
   expect(scriptsRan.trim()).toStrictEqual('test')
 })
 
@@ -176,7 +176,7 @@ testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
     prefer-symlinked-executables=true=true
   `
 
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
   const result = execPnpmSync(['run', 'build'])
 
@@ -195,7 +195,7 @@ testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir
     prefer-symlinked-executables=true=true
   `
 
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
   const result = execPnpmSync(['run', 'build'])
 

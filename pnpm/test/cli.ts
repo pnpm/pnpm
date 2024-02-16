@@ -1,9 +1,9 @@
-import { promises as fs, mkdirSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
 import {
   execPnpm,
@@ -24,7 +24,7 @@ test('some commands pass through to npm', () => {
 test('installs in the folder where the package.json file is', async () => {
   const project = prepare()
 
-  await fs.mkdir('subdir')
+  fs.mkdirSync('subdir')
   process.chdir('subdir')
 
   await execPnpm(['install', 'rimraf@2.5.1'])
@@ -40,18 +40,18 @@ test('pnpm import does not move modules created by npm', async () => {
   await execa('npm', ['install', 'is-positive@1.0.0', '--save'])
   await execa('npm', ['shrinkwrap'])
 
-  const packageManifestInodeBefore = (await fs.stat('node_modules/is-positive/package.json')).ino
+  const packageManifestInodeBefore = (fs.statSync('node_modules/is-positive/package.json')).ino
 
   await execPnpm(['import'])
 
-  const packageManifestInodeAfter = (await fs.stat('node_modules/is-positive/package.json')).ino
+  const packageManifestInodeAfter = (fs.statSync('node_modules/is-positive/package.json')).ino
 
   expect(packageManifestInodeBefore).toBe(packageManifestInodeAfter)
 })
 
 test('pass through to npm with all the args', async () => {
   prepare()
-  await rimraf('package.json')
+  rimraf('package.json')
 
   const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
 
@@ -118,7 +118,7 @@ test('pnpx works', () => {
   prepareEmpty()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
-  mkdirSync(global)
+  fs.mkdirSync(global)
 
   const env = {
     [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`,
@@ -146,19 +146,19 @@ test('use the specified Node.js version for running scripts', async () => {
       test: "node -e \"require('fs').writeFileSync('version',process.version,'utf8')\"",
     },
   })
-  await fs.writeFile('.npmrc', 'use-node-version=14.0.0', 'utf8')
+  fs.writeFileSync('.npmrc', 'use-node-version=14.0.0', 'utf8')
   await execPnpm(['run', 'test'], {
     env: {
       PNPM_HOME: path.resolve('pnpm_home'),
     },
   })
-  expect(await fs.readFile('version', 'utf8')).toBe('v14.0.0')
+  expect(fs.readFileSync('version', 'utf8')).toBe('v14.0.0')
 })
 
 test('if an unknown command is executed, run it', async () => {
   prepare({})
   await execPnpm(['node', '-e', "require('fs').writeFileSync('foo','','utf8')"])
-  expect(await fs.readFile('foo', 'utf8')).toBe('')
+  expect(fs.readFileSync('foo', 'utf8')).toBe('')
 })
 
 test.each([

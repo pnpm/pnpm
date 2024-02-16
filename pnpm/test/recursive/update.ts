@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -35,13 +35,13 @@ test.skip('recursive update --latest should update deps with correct specs', asy
     },
   ])
 
-  await fs.writeFile(
+  fs.writeFileSync(
     'project-2/.npmrc',
     'save-exact = true',
     'utf8'
   )
 
-  await fs.writeFile(
+  fs.writeFileSync(
     'project-3/.npmrc',
     'save-prefix = ~',
     'utf8'

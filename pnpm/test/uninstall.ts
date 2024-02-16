@@ -1,7 +1,7 @@
+import fs from 'fs'
 import path from 'path'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { prepare } from '@pnpm/prepare'
-import exists from 'path-exists'
 import PATH from 'path-name'
 import { execPnpm } from './utils'
 
@@ -39,11 +39,11 @@ test('uninstall global package with its bin files', async () => {
 
   await execPnpm(['add', '-g', '@pnpm.e2e/sh-hello-world@1.0.1'], { env })
 
-  let stat = await exists(path.resolve(globalBin, 'sh-hello-world'))
+  let stat = fs.existsSync(path.resolve(globalBin, 'sh-hello-world'))
   expect(stat).toBeTruthy() // sh-hello-world is in .bin
 
   await execPnpm(['uninstall', '-g', '@pnpm.e2e/sh-hello-world'], { env })
 
-  stat = await exists(path.resolve(globalBin, 'sh-hello-world'))
+  stat = fs.existsSync(path.resolve(globalBin, 'sh-hello-world'))
   expect(stat).toBeFalsy() // sh-hello-world is removed from .bin
 })

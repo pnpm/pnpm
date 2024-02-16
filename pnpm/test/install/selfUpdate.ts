@@ -1,8 +1,8 @@
+import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
 import { prepare } from '@pnpm/prepare'
 import isWindows from 'is-windows'
-import pathExists from 'path-exists'
 import {
   execPnpm,
   retryLoadJsonFile,
@@ -31,6 +31,6 @@ skipOnWindows('self-update stops the store server', async () => {
 
   await execPnpm(['install', '-g', 'pnpm', '--store-dir', path.resolve('..', 'store'), '--reporter=append-only'], { env })
 
-  expect(await pathExists(serverJsonPath)).toBeFalsy()
+  expect(fs.existsSync(serverJsonPath)).toBeFalsy()
   project.isExecutable('../pnpm')
 })
