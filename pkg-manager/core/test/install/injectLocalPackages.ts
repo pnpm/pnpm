@@ -3,8 +3,7 @@ import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
 import { preparePackages } from '@pnpm/prepare'
-import rimraf from '@zkochan/rimraf'
-import pathExists from 'path-exists'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as writeJsonFile } from 'write-json-file'
 import { testDefaults } from '../utils'
 
@@ -180,10 +179,10 @@ test('inject local packages', async () => {
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
 
-  await rimraf('node_modules')
-  await rimraf('project-1/node_modules')
-  await rimraf('project-2/node_modules')
-  await rimraf('project-3/node_modules')
+  rimraf('node_modules')
+  rimraf('project-1/node_modules')
+  rimraf('project-2/node_modules')
+  rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
     autoInstallPeers: false,
@@ -409,10 +408,10 @@ test('inject local packages declared via file protocol', async () => {
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
 
-  await rimraf('node_modules')
-  await rimraf('project-1/node_modules')
-  await rimraf('project-2/node_modules')
-  await rimraf('project-3/node_modules')
+  rimraf('node_modules')
+  rimraf('project-1/node_modules')
+  rimraf('project-2/node_modules')
+  rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
     autoInstallPeers: false,
@@ -624,10 +623,10 @@ test('inject local packages when the file protocol is used', async () => {
     expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
   }
 
-  await rimraf('node_modules')
-  await rimraf('project-1/node_modules')
-  await rimraf('project-2/node_modules')
-  await rimraf('project-3/node_modules')
+  rimraf('node_modules')
+  rimraf('project-1/node_modules')
+  rimraf('project-2/node_modules')
+  rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
     autoInstallPeers: false,
@@ -771,7 +770,7 @@ test('inject local packages and relink them after build', async () => {
   projects['project-2'].has('is-positive')
   projects['project-2'].has('project-1')
 
-  expect(await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
 
   const rootModules = assertProject(process.cwd())
   const lockfile = rootModules.readLockfile()
@@ -797,10 +796,10 @@ test('inject local packages and relink them after build', async () => {
     dev: false,
   })
 
-  await rimraf('node_modules')
-  await rimraf('project-1/main.js')
-  await rimraf('project-1/node_modules')
-  await rimraf('project-2/node_modules')
+  rimraf('node_modules')
+  rimraf('project-1/main.js')
+  rimraf('project-1/node_modules')
+  rimraf('project-2/node_modules')
 
   await mutateModules(importers, await testDefaults({
     autoInstallPeers: false,
@@ -816,7 +815,7 @@ test('inject local packages and relink them after build', async () => {
   projects['project-2'].has('is-positive')
   projects['project-2'].has('project-1')
 
-  expect(await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
 })
 
 test('inject local packages and relink them after build (file protocol is used)', async () => {
@@ -886,7 +885,7 @@ test('inject local packages and relink them after build (file protocol is used)'
   projects['project-2'].has('is-positive')
   projects['project-2'].has('project-1')
 
-  expect(await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
 
   const rootModules = assertProject(process.cwd())
   const lockfile = rootModules.readLockfile()
@@ -907,10 +906,10 @@ test('inject local packages and relink them after build (file protocol is used)'
     dev: false,
   })
 
-  await rimraf('node_modules')
-  await rimraf('project-1/main.js')
-  await rimraf('project-1/node_modules')
-  await rimraf('project-2/node_modules')
+  rimraf('node_modules')
+  rimraf('project-1/main.js')
+  rimraf('project-1/node_modules')
+  rimraf('project-2/node_modules')
 
   await mutateModules(importers, await testDefaults({
     autoInstallPeers: false,
@@ -925,7 +924,7 @@ test('inject local packages and relink them after build (file protocol is used)'
   projects['project-2'].has('is-positive')
   projects['project-2'].has('project-1')
 
-  expect(await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
 })
 
 test('inject local packages when node-linker is hoisted', async () => {
@@ -2005,10 +2004,10 @@ test('injected local packages are deduped', async () => {
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
   }
 
-  await rimraf('node_modules')
-  await rimraf('project-1/node_modules')
-  await rimraf('project-2/node_modules')
-  await rimraf('project-3/node_modules')
+  rimraf('node_modules')
+  rimraf('project-1/node_modules')
+  rimraf('project-2/node_modules')
+  rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
     autoInstallPeers: true,

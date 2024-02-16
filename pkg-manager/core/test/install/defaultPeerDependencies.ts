@@ -1,10 +1,10 @@
+import fs from 'fs'
 import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from '@pnpm/core'
 import deepRequireCwd from 'deep-require-cwd'
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
-import exists from 'path-exists'
 import { testDefaults } from '../utils'
 
 test('package with default peer dependency, when auto install peers is on', async () => {
@@ -48,7 +48,7 @@ test('package that resolves its own peer dependency', async () => {
 
   expect(deepRequireCwd(['@pnpm.e2e/pkg-with-resolved-peer', '@pnpm.e2e/peer-c', './package.json']).version).toBe('2.0.0')
 
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-resolved-peer@1.0.0_@pnpm.e2e+peer-c@2.0.0/node_modules/@pnpm.e2e/pkg-with-resolved-peer'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-resolved-peer@1.0.0_@pnpm.e2e+peer-c@2.0.0/node_modules/@pnpm.e2e/pkg-with-resolved-peer'))).toBeTruthy()
 
   const lockfile = project.readLockfile()
 

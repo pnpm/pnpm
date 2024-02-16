@@ -5,7 +5,7 @@ import { type LockfileFile } from '@pnpm/lockfile-file'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
 import isEmpty from 'ramda/src/isEmpty'
 import ssri from 'ssri'
@@ -91,7 +91,7 @@ test.skip('remove packages that are used by project that no longer exist', async
 
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   cafsHas(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
 

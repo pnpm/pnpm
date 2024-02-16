@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
@@ -7,7 +8,6 @@ import {
   addDependenciesToPackage,
   install,
 } from '@pnpm/core'
-import exists from 'path-exists'
 import sinon from 'sinon'
 import { testDefaults } from '../utils'
 
@@ -20,9 +20,9 @@ test('install with lockfileOnly = true', async () => {
   const { cafsHas } = assertStore(opts.storeDir)
 
   cafsHas('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
-  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
+  expect(fs.existsSync(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
   cafsHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
-  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
+  expect(fs.existsSync(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   expect(manifest.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
@@ -38,9 +38,9 @@ test('install with lockfileOnly = true', async () => {
   await install(manifest, opts)
 
   cafsHas('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
-  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
+  expect(fs.existsSync(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
   cafsHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
-  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
+  expect(fs.existsSync(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   expect(project.readCurrentLockfile()).toBeFalsy()

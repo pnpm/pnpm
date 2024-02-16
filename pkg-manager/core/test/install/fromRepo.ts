@@ -9,9 +9,8 @@ import {
 } from '@pnpm/core'
 import { fixtures } from '@pnpm/test-fixtures'
 import { assertProject } from '@pnpm/assert-project'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
-import exists from 'path-exists'
 import sinon from 'sinon'
 import { testDefaults } from '../utils'
 
@@ -141,7 +140,7 @@ test('a subdependency is from a github repo with different name', async () => {
   project.isExecutable('@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin/hi')
   project.isExecutable('@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin/szia')
 
-  expect(await exists(path.resolve(`node_modules/.pnpm/${depPathToFilename('@pnpm.e2e/has-say-hi-peer@1.0.0(github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)')}/node_modules/@pnpm.e2e/has-say-hi-peer`))).toBeTruthy()
+  expect(fs.existsSync(path.resolve(`node_modules/.pnpm/${depPathToFilename('@pnpm.e2e/has-say-hi-peer@1.0.0(github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)')}/node_modules/@pnpm.e2e/has-say-hi-peer`))).toBeTruthy()
 })
 
 test('from a git repo', async () => {
@@ -203,15 +202,15 @@ test.skip('from a github repo that needs to be built. isolated node linker is us
 
   project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install(manifest, await testDefaults({ preferFrozenLockfile: false }))
   project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install(manifest, await testDefaults({ frozenLockfile: true }))
   project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install(manifest, await testDefaults({ frozenLockfile: true, ignoreScripts: true }, { ignoreScripts: true }))
   project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 })
@@ -227,15 +226,15 @@ test.skip('from a github repo that needs to be built. hoisted node linker is  us
 
   project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install(manifest, await testDefaults({ preferFrozenLockfile: false, nodeLinker: 'hoisted' }))
   project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install(manifest, await testDefaults({ frozenLockfile: true, nodeLinker: 'hoisted' }))
   project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install(manifest, await testDefaults({ frozenLockfile: true, ignoreScripts: true, nodeLinker: 'hoisted' }, { ignoreScripts: true }))
   project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 })

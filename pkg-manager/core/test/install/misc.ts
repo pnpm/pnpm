@@ -1,5 +1,5 @@
 import * as path from 'path'
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   type PackageManifestLog,
@@ -19,15 +19,14 @@ import {
   UnexpectedStoreError,
   UnexpectedVirtualStoreDirError,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
-import exists from 'path-exists'
 import semver from 'semver'
 import sinon from 'sinon'
 import deepRequireCwd from 'deep-require-cwd'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)
@@ -55,9 +54,9 @@ test.skip('ignoring some files in the dependency', async () => {
   await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({}, {}, { ignoreFile }))
 
   // package.json was not ignored
-  expect(await exists(path.resolve('node_modules', 'is-positive', 'package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules', 'is-positive', 'package.json'))).toBeTruthy()
   // readme.md was ignored
-  expect(await exists(path.resolve('node_modules', 'is-positive', 'readme.md'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules', 'is-positive', 'readme.md'))).toBeFalsy()
 })
 
 test('no dependencies (lodash)', async () => {
@@ -387,11 +386,11 @@ test('forcing', async () => {
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
-  await rimraf(distPath)
+  rimraf(distPath)
 
   await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false, force: true }))
 
-  const distPathExists = await exists(distPath)
+  const distPathExists = fs.existsSync(distPath)
   expect(distPathExists).toBeTruthy()
 })
 
@@ -400,11 +399,11 @@ test('argumentless forcing', async () => {
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
-  await rimraf(distPath)
+  rimraf(distPath)
 
   await install(manifest, await testDefaults({ fastUnpack: false, force: true }))
 
-  const distPathExists = await exists(distPath)
+  const distPathExists = fs.existsSync(distPath)
   expect(distPathExists).toBeTruthy()
 })
 
@@ -413,11 +412,11 @@ test('no forcing', async () => {
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults())
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
-  await rimraf(distPath)
+  rimraf(distPath)
 
   await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], await testDefaults())
 
-  const distPathExists = await exists(distPath)
+  const distPathExists = fs.existsSync(distPath)
   expect(distPathExists).toBeFalsy()
 })
 
@@ -426,13 +425,13 @@ test('refetch package to store if it has been modified', async () => {
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
 
   const distPathInStore = project.resolve('magic-hook', '2.0.0', 'dist')
-  await rimraf(distPathInStore)
-  await rimraf('node_modules')
+  rimraf(distPathInStore)
+  rimraf('node_modules')
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
 
   await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
 
-  const distPathExists = await exists(distPath)
+  const distPathExists = fs.existsSync(distPath)
   expect(distPathExists).toBeTruthy()
 })
 
@@ -443,22 +442,22 @@ test.skip('relink package to project if the dependency is not linked from store'
 
   const pkgJsonPath = path.resolve('node_modules', 'magic-hook', 'package.json')
 
-  async function getInode () {
-    return (await fs.stat(pkgJsonPath)).ino
+  function getInode () {
+    return fs.statSync(pkgJsonPath).ino
   }
 
-  const storeInode = await getInode()
+  const storeInode = getInode()
 
   // rewriting package.json, to destroy the link
-  const pkgJson = await fs.readFile(pkgJsonPath, 'utf8')
-  await rimraf(pkgJsonPath)
-  await fs.writeFile(pkgJsonPath, pkgJson, 'utf8')
+  const pkgJson = fs.readFileSync(pkgJsonPath, 'utf8')
+  rimraf(pkgJsonPath)
+  fs.writeFileSync(pkgJsonPath, pkgJson, 'utf8')
 
-  expect(storeInode).not.toEqual(await getInode())
+  expect(storeInode).not.toEqual(getInode())
 
   await install(manifest, await testDefaults({ repeatInstallDepth: 0 }))
 
-  expect(storeInode).toEqual(await getInode())
+  expect(storeInode).toEqual(getInode())
 })
 
 test('circular deps', async () => {
@@ -469,7 +468,7 @@ test('circular deps', async () => {
 
   expect(m()).toEqual('@pnpm.e2e/circular-deps-1-of-2')
 
-  expect(await exists(path.join('node_modules', '@pnpm.e2e/circular-deps-1-of-2', 'node_modules', '@pnpm.e2e/circular-deps-2-of-2', 'node_modules', '@pnpm.e2e/circular-deps-1-of-2'))).toBeFalsy()
+  expect(fs.existsSync(path.join('node_modules', '@pnpm.e2e/circular-deps-1-of-2', 'node_modules', '@pnpm.e2e/circular-deps-2-of-2', 'node_modules', '@pnpm.e2e/circular-deps-1-of-2'))).toBeFalsy()
 })
 
 test('concurrent circular deps', async () => {
@@ -484,10 +483,10 @@ test('concurrent circular deps', async () => {
   const m = project.requireModule('es6-iterator')
 
   expect(m).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/es6-iterator@2.0.0/node_modules/es5-ext'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/es6-iterator@2.0.1/node_modules/es5-ext'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-iterator'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-symbol'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es6-iterator@2.0.0/node_modules/es5-ext'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es6-iterator@2.0.1/node_modules/es5-ext'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-iterator'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-symbol'))).toBeTruthy()
 })
 
 test('concurrent installation of the same packages', async () => {
@@ -541,7 +540,7 @@ test('bin specified in the directories property symlinked to .bin folder when pr
   project.isExecutable('.bin/pkg-with-directories-bin')
 
   if (!isWindows()) {
-    const link = await fs.readlink('node_modules/.bin/pkg-with-directories-bin')
+    const link = fs.readlinkSync('node_modules/.bin/pkg-with-directories-bin')
     expect(link).toBeTruthy()
   }
 })
@@ -551,7 +550,7 @@ testOnNonWindows('building native addons', async () => {
 
   await addDependenciesToPackage({}, ['diskusage@1.1.3'], await testDefaults({ fastUnpack: false }))
 
-  expect(await exists('node_modules/diskusage/build')).toBeTruthy()
+  expect(fs.existsSync('node_modules/diskusage/build')).toBeTruthy()
 
   const lockfile = project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/diskusage@1.1.3', 'requiresBuild'], true)
@@ -710,7 +709,7 @@ test('lockfile locks npm dependencies', async () => {
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   reporter.resetHistory()
   await install(manifest, await testDefaults({ reporter }))
@@ -746,7 +745,7 @@ test('install on project with lockfile and no node_modules', async () => {
 
   const manifest = await addDependenciesToPackage({}, ['is-negative'], await testDefaults())
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults())
 
@@ -832,9 +831,9 @@ test('reinstalls missing packages to node_modules', async () => {
 
   expect(reporter.calledWithMatch(missingDepLog)).toBeFalsy()
 
-  await rimraf('pnpm-lock.yaml')
-  await rimraf('node_modules/is-positive')
-  await rimraf(depLocation)
+  rimraf('pnpm-lock.yaml')
+  rimraf('node_modules/is-positive')
+  rimraf(depLocation)
 
   project.hasNot('is-positive')
 
@@ -862,8 +861,8 @@ test('reinstalls missing packages to node_modules during headless install', asyn
 
   expect(reporter.calledWithMatch(missingDepLog)).toBeFalsy()
 
-  await rimraf('node_modules/is-positive')
-  await rimraf(depLocation)
+  rimraf('node_modules/is-positive')
+  rimraf(depLocation)
 
   project.hasNot('is-positive')
 
@@ -909,7 +908,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
     rootDir: process.cwd(),
   }, await testDefaults())
 
-  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
       '@pnpm.e2e/foobarqar': {
         specifier: '1.0.1',
@@ -964,7 +963,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
   }, await testDefaults({ preferFrozenLockfile: false }))
 
   expect(
-    [...await fs.readdir(path.resolve('node_modules/.pnpm/@pnpm.e2e+foobarqar@1.0.1/node_modules/@pnpm.e2e'))].sort()
+    [...fs.readdirSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+foobarqar@1.0.1/node_modules/@pnpm.e2e'))].sort()
   ).toStrictEqual(
     [
       'bar',
@@ -1002,7 +1001,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     ]
   )
 
-  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
       '@pnpm.e2e/parent-of-pkg-with-1-dep': {
         specifier: '1.0.0',
@@ -1048,7 +1047,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     rootDir: process.cwd(),
   }, await testDefaults({ preferFrozenLockfile: false }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
 test('globally installed package which don\'t have bins should log warning message', async () => {
@@ -1090,8 +1089,8 @@ test('ignore files in node_modules', async () => {
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
-  await fs.mkdir('node_modules')
-  await fs.writeFile('node_modules/foo', 'x', 'utf8')
+  fs.mkdirSync('node_modules')
+  fs.writeFileSync('node_modules/foo', 'x', 'utf8')
 
   await addDependenciesToPackage(
     {
@@ -1105,7 +1104,7 @@ test('ignore files in node_modules', async () => {
   const m = project.requireModule('lodash')
   expect(typeof m).toEqual('function')
   expect(typeof m.clone).toEqual('function')
-  expect(await fs.readFile('node_modules/foo', 'utf8')).toEqual('x')
+  expect(fs.readFileSync('node_modules/foo', 'utf8')).toEqual('x')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2339
@@ -1121,7 +1120,7 @@ test('memory consumption is under control on huge package with many peer depende
     await testDefaults({ fastUnpack: true, lockfileOnly: true, strictPeerDependencies: false })
   )
 
-  expect(await exists('pnpm-lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2339
@@ -1137,7 +1136,7 @@ test('memory consumption is under control on huge package with many peer depende
     await testDefaults({ fastUnpack: true, lockfileOnly: true, strictPeerDependencies: false })
   )
 
-  expect(await exists('pnpm-lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
 })
 
 test('installing with no symlinks with PnP', async () => {
@@ -1156,12 +1155,12 @@ test('installing with no symlinks with PnP', async () => {
     })
   )
 
-  expect([...await fs.readdir(path.resolve('node_modules'))]).toStrictEqual(['.bin', '.modules.yaml', '.pnpm'])
-  expect([...await fs.readdir(path.resolve('node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
+  expect([...fs.readdirSync(path.resolve('node_modules'))]).toStrictEqual(['.bin', '.modules.yaml', '.pnpm'])
+  expect([...fs.readdirSync(path.resolve('node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
 
   expect(project.readCurrentLockfile()).toBeTruthy()
   expect(project.readModulesManifest()).toBeTruthy()
-  expect(await exists(path.resolve('.pnp.cjs'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('.pnp.cjs'))).toBeTruthy()
 })
 
 test('installing with no modules directory', async () => {
@@ -1180,7 +1179,7 @@ test('installing with no modules directory', async () => {
   )
 
   expect(project.readLockfile()).toBeTruthy()
-  expect(await exists(path.resolve('node_modules'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeFalsy()
 })
 
 test('installing dependencies with the same name in different case', async () => {
@@ -1224,7 +1223,7 @@ test('two dependencies have the same version and name. The only difference is th
     },
   }))
 
-  expect((await fs.readdir(path.resolve('node_modules/.pnpm'))).length).toBe(5)
+  expect(fs.readdirSync(path.resolve('node_modules/.pnpm')).length).toBe(5)
 })
 
 test('installing a package with broken bin', async () => {
@@ -1246,7 +1245,7 @@ test('a package should be able to be a dependency of itself', async () => {
     expect(pkg.version).toBe('1.0.0')
   }
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install(manifest, await testDefaults({ frozenLockfile: true }))
 
   {

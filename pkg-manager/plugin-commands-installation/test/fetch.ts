@@ -2,7 +2,7 @@ import path from 'path'
 import { install, fetch } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -49,8 +49,8 @@ test('fetch dependencies', async () => {
     storeDir,
   })
 
-  await rimraf(path.resolve(project.dir(), 'node_modules'))
-  await rimraf(path.resolve(project.dir(), './package.json'))
+  rimraf(path.resolve(project.dir(), 'node_modules'))
+  rimraf(path.resolve(project.dir(), './package.json'))
 
   project.storeHasNot('is-negative')
   project.storeHasNot('is-positive')
@@ -80,8 +80,8 @@ test('fetch production dependencies', async () => {
     storeDir,
   })
 
-  await rimraf(path.resolve(project.dir(), 'node_modules'))
-  await rimraf(path.resolve(project.dir(), './package.json'))
+  rimraf(path.resolve(project.dir(), 'node_modules'))
+  rimraf(path.resolve(project.dir(), './package.json'))
 
   project.storeHasNot('is-negative')
   project.storeHasNot('is-positive')
@@ -112,8 +112,8 @@ test('fetch only dev dependencies', async () => {
     storeDir,
   })
 
-  await rimraf(path.resolve(project.dir(), 'node_modules'))
-  await rimraf(path.resolve(project.dir(), './package.json'))
+  rimraf(path.resolve(project.dir(), 'node_modules'))
+  rimraf(path.resolve(project.dir(), './package.json'))
 
   project.storeHasNot('is-negative')
   project.storeHasNot('is-positive')

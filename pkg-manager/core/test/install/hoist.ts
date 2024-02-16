@@ -9,12 +9,12 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
 import symlinkDir from 'symlink-dir'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils'
 
 test('should hoist dependencies', async () => {
@@ -406,8 +406,8 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
   projects['package'].hasNot('@pnpm.e2e/foo')
   projects['package'].hasNot('@pnpm.e2e/bar')
 
-  await rimraf('node_modules')
-  await rimraf('package/node_modules')
+  rimraf('node_modules')
+  rimraf('package/node_modules')
 
   await mutateModules(mutatedProjects, await testDefaults({ allProjects, frozenLockfile: true, hoistPattern: '*' }))
 
@@ -560,7 +560,7 @@ test('hoisting should not create a broken symlink to a skipped optional dependen
   expect(rootModules.readCurrentLockfile()).toStrictEqual(rootModules.readLockfile())
 
   // Verifying the same with headless installation
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await install(manifest, await testDefaults({ publicHoistPattern: '*' }))
 
@@ -578,7 +578,7 @@ test('the hoisted packages should not override the bin files of the direct depen
     expect(cmd).toContain('/hello-world-js-bin-parent/')
   }
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true, publicHoistPattern: '*' }))
 
@@ -641,7 +641,7 @@ test('hoist packages which is in the dependencies tree of the selected projects'
    * when partial install project@3.0.0, is-positive@3.0.0 always should be hoisted
    * instead of using is-positive@2.0.0 and does not hoist anything
    */
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     lockfileVersion: LOCKFILE_VERSION,
     importers: {
       '.': {},
@@ -699,7 +699,7 @@ test('only hoist packages which is in the dependencies tree of the selected proj
     },
   ])
 
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     lockfileVersion: LOCKFILE_VERSION,
     importers: {
       '.': {},
@@ -912,7 +912,7 @@ test('hoistWorkspacePackages should hoist all workspace projects', async () => {
   projects['package'].hasNot('@pnpm.e2e/foo')
   projects['package'].hasNot('@pnpm.e2e/bar')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await mutateModules(mutatedProjects, await testDefaults({
     allProjects,
     frozenLockfile: true,

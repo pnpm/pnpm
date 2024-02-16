@@ -11,7 +11,7 @@ import { prune } from './prune'
 
 export { type CafsLocker }
 
-export async function createPackageStore (
+export function createPackageStore (
   resolve: ResolveFunction,
   fetchers: Fetchers,
   initOpts: {
@@ -28,7 +28,7 @@ export async function createPackageStore (
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     verifyStoreIntegrity: boolean
   }
-): Promise<StoreController> {
+): StoreController {
   const storeDir = initOpts.storeDir
   const cafs = createCafsStore(storeDir, {
     cafsLocker: initOpts.cafsLocker,

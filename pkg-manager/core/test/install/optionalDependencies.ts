@@ -3,7 +3,7 @@ import path from 'path'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import deepRequireCwd from 'deep-require-cwd'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
   install,
@@ -11,8 +11,7 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
-import exists from 'path-exists'
+import { sync as rimraf } from '@zkochan/rimraf'
 import sinon from 'sinon'
 import { testDefaults } from '../utils'
 
@@ -71,7 +70,7 @@ test('skip optional dependency that does not support the current OS', async () =
 
   project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
   project.storeHas('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-optional-pkg@1.0.0'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-optional-pkg@1.0.0'))).toBeFalsy()
 
   const lockfile = project.readLockfile()
   expect(lockfile.packages['/@pnpm.e2e/not-compatible-with-any-os@1.0.0']).toBeTruthy()
@@ -86,7 +85,7 @@ test('skip optional dependency that does not support the current OS', async () =
 
   expect(currentLockfile.packages).toStrictEqual(lockfile.packages)
 
-  const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+  const modulesInfo = readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
   expect(modulesInfo.skipped).toStrictEqual([
     '/@pnpm.e2e/dep-of-optional-pkg@1.0.0',
     '/@pnpm.e2e/not-compatible-with-any-os@1.0.0',
@@ -114,7 +113,7 @@ test('skip optional dependency that does not support the current OS', async () =
     expect(modules?.skipped).toStrictEqual(['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await mutateModulesInSingleProject({
     manifest,
@@ -248,10 +247,10 @@ test('optional subdependency is not removed from current lockfile when new depen
   )
 
   {
-    const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+    const modulesInfo = readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
     expect(modulesInfo.skipped).toStrictEqual(['/@pnpm.e2e/dep-of-optional-pkg@1.0.0', '/@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
 
-    const currentLockfile = await readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
+    const currentLockfile = readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
     expect(currentLockfile.packages).toHaveProperty(['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 
@@ -264,7 +263,7 @@ test('optional subdependency is not removed from current lockfile when new depen
   ], await testDefaults({ allProjects, fastUnpack: false, hoistPattern: ['*'] }))
 
   {
-    const currentLockfile = await readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
+    const currentLockfile = readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
     expect(currentLockfile.packages).toHaveProperty(['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 })
@@ -276,12 +275,12 @@ test('optional subdependency is skipped', async () => {
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-optional', '@pnpm.e2e/dep-of-optional-pkg'], await testDefaults({ reporter }))
 
   {
-    const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+    const modulesInfo = readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
     expect(modulesInfo.skipped).toStrictEqual(['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 
-  expect(await exists('node_modules/.pnpm/@pnpm.e2e+pkg-with-optional@1.0.0')).toBeTruthy()
-  expect(await exists('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeFalsy()
+  expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+pkg-with-optional@1.0.0')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeFalsy()
 
   const logMatcher = sinon.match({
     package: {
@@ -296,8 +295,8 @@ test('optional subdependency is skipped', async () => {
 
   // recreate the lockfile with optional dependencies present
 
-  expect(await exists('pnpm-lock.yaml')).toBeTruthy()
-  await rimraf('pnpm-lock.yaml')
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+  rimraf('pnpm-lock.yaml')
 
   await mutateModulesInSingleProject({
     manifest,
@@ -320,10 +319,10 @@ test('optional subdependency is skipped', async () => {
     rootDir: process.cwd(),
   }, await testDefaults({ force: true, frozenLockfile: true }))
 
-  expect(await exists('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeTruthy()
 
   {
-    const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+    const modulesInfo = readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
     expect(modulesInfo.skipped).toStrictEqual([])
   }
 })
@@ -335,7 +334,7 @@ test('optional subdependency of newly added optional dependency is skipped', asy
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-optional'], await testDefaults({ reporter, targetDependenciesField: 'optionalDependencies' }))
 
-  const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+  const modulesInfo = readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
   expect(modulesInfo.skipped).toStrictEqual(['/@pnpm.e2e/dep-of-optional-pkg@1.0.0', '/@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
 
   const lockfile = project.readLockfile()
@@ -355,14 +354,14 @@ test('only that package is skipped which is an optional dependency only and not 
   ], await testDefaults({ reporter }))
 
   {
-    const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+    const modulesInfo = readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
     expect(modulesInfo.skipped).toStrictEqual([])
   }
 
   const lockfile = project.readLockfile()
   expect(typeof lockfile.packages['/@pnpm.e2e/dep-of-optional-pkg@1.0.0'].optional).toBe('undefined')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await mutateModulesInSingleProject({
     manifest,
@@ -371,7 +370,7 @@ test('only that package is skipped which is an optional dependency only and not 
   }, await testDefaults({ frozenLockfile: true }))
 
   {
-    const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+    const modulesInfo = readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
     expect(modulesInfo.skipped).toStrictEqual([])
   }
 })
@@ -449,10 +448,10 @@ test('only skip optional dependencies', async () => {
     },
   }, await testDefaults({ fastUnpack: false, preferredVersions }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/duplexify@3.6.0'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/stream-shift@1.0.0'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/duplexify@3.6.0'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/stream-shift@1.0.0'))).toBeTruthy()
 
-  expect(await exists(path.resolve('node_modules/.pnpm/got@3.3.1/node_modules/duplexify'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/got@3.3.1/node_modules/duplexify'))).toBeTruthy()
 })
 
 test('skip optional dependency that does not support the current OS, when doing install on a subset of workspace projects', async () => {
@@ -518,7 +517,7 @@ test('skip optional dependency that does not support the current OS, when doing 
     preferFrozenLockfile: false,
   }))
 
-  const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+  const modulesInfo = readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
   expect(modulesInfo.skipped).toStrictEqual([
     '/@pnpm.e2e/dep-of-optional-pkg@1.0.0',
     '/@pnpm.e2e/not-compatible-with-any-os@1.0.0',
@@ -669,7 +668,7 @@ test('optional dependency is hardlinked to the store if it does not require a bu
     })
   )
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   reporter.mockClear()
   await install(manifest, await testDefaults({ frozenLockfile: true, reporter }, {}, {}, { packageImportMethod: 'hardlink' }))

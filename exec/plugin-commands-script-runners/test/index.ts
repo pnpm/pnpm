@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import fsSync, { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
@@ -12,7 +12,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import execa from 'execa'
 import isWindows from 'is-windows'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
@@ -52,8 +52,8 @@ test('pnpm run --no-bail never fails', async () => {
       exit1: 'node recordArgs && exit 1',
     },
   })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
     bail: false,
@@ -77,8 +77,8 @@ test('run: pass the args to the command that is specified in the build script', 
       prefoo: 'node recordArgs',
     },
   })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
     dir: process.cwd(),
@@ -99,8 +99,8 @@ test('run: pass the args to the command that is specified in the build script of
       prefoo: 'node recordArgs',
     },
   }, { manifestFormat: 'YAML' })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
     dir: process.cwd(),
@@ -121,8 +121,8 @@ test('test: pass the args to the command that is specified in the build script o
       test: 'node recordArgs',
     },
   }, { manifestFormat: 'YAML' })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await testCommand.handler({
     dir: process.cwd(),
@@ -143,8 +143,8 @@ test('run start: pass the args to the command that is specified in the build scr
       start: 'node recordArgs',
     },
   }, { manifestFormat: 'YAML' })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
     dir: process.cwd(),
@@ -165,8 +165,8 @@ test('run stop: pass the args to the command that is specified in the build scri
       stop: 'node recordArgs',
     },
   }, { manifestFormat: 'YAML' })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
     dir: process.cwd(),
@@ -298,7 +298,7 @@ test('"pnpm run" prints the list of available commands, including commands of th
       },
     },
   ])
-  await writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFile('pnpm-workspace.yaml', {})
   const workspaceDir = process.cwd()
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
@@ -380,7 +380,7 @@ test('if a script is not found but is present in the root, print an info message
       version: '1.0.0',
     },
   ])
-  await writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFile('pnpm-workspace.yaml', {})
 
   await execa(pnpmBin, [
     'install',
@@ -433,7 +433,7 @@ test('scripts work with PnP', async () => {
   // https://github.com/pnpm/registry-mock/blob/ac2e129eb262009d2e7cd43ed869c31097793073/packages/hello-world-js-bin%401.0.0/index.js#L2
   const helloWorldJsBinOutput = 'Hello world!\n'
 
-  const fooOutput = fsSync.readFileSync(path.resolve('output.txt')).toString()
+  const fooOutput = fs.readFileSync(path.resolve('output.txt')).toString()
   expect(fooOutput).toStrictEqual(helloWorldJsBinOutput)
 })
 
@@ -486,13 +486,13 @@ test('pnpm run with RegExp script selector should work', async () => {
     rawConfig: {},
   }, ['/^(lint|build):.*/'])
 
-  expect(await fs.readFile('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(await fs.readFile('output-build-b.txt', { encoding: 'utf-8' })).toEqual('b')
-  expect(await fs.readFile('output-build-c.txt', { encoding: 'utf-8' })).toEqual('c')
+  expect(fs.readFileSync('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(fs.readFileSync('output-build-b.txt', { encoding: 'utf-8' })).toEqual('b')
+  expect(fs.readFileSync('output-build-c.txt', { encoding: 'utf-8' })).toEqual('c')
 
-  expect(await fs.readFile('output-lint-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(await fs.readFile('output-lint-b.txt', { encoding: 'utf-8' })).toEqual('b')
-  expect(await fs.readFile('output-lint-c.txt', { encoding: 'utf-8' })).toEqual('c')
+  expect(fs.readFileSync('output-lint-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(fs.readFileSync('output-lint-b.txt', { encoding: 'utf-8' })).toEqual('b')
+  expect(fs.readFileSync('output-lint-c.txt', { encoding: 'utf-8' })).toEqual('c')
 })
 
 test('pnpm run with RegExp script selector should work also for pre/post script', async () => {
@@ -511,8 +511,8 @@ test('pnpm run with RegExp script selector should work also for pre/post script'
     enablePrePostScripts: true,
   }, ['/build:.*/'])
 
-  expect(await fs.readFile('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(await fs.readFile('output-pre-a.txt', { encoding: 'utf-8' })).toEqual('pre-a')
+  expect(fs.readFileSync('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(fs.readFileSync('output-pre-a.txt', { encoding: 'utf-8' })).toEqual('pre-a')
 })
 
 test('pnpm run with RegExp script selector should work parallel as a default behavior (parallel execution limits number is four)', async () => {

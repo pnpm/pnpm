@@ -169,7 +169,7 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
   })
 
   {
-    const manifest = await loadJsonFile<ProjectManifest>('package.json')
+    const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
     expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('^1.0.0')
 
     const lockfile = project.readLockfile()
@@ -187,7 +187,7 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
   }, [])
 
   {
-    const manifest = await loadJsonFile<ProjectManifest>('package.json')
+    const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
     expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('^1.0.0')
 
     const lockfile = project.readLockfile()
@@ -378,7 +378,7 @@ test('should not update tag version when --latest not set', async () => {
     latest: false,
   })
 
-  const manifest = await loadJsonFile<ProjectManifest>('package.json')
+  const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
   expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('latest')
   expect(manifest.dependencies?.['@pnpm.e2e/peer-c']).toBe('canary')
   expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')

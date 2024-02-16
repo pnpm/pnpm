@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
@@ -7,10 +7,10 @@ import { add, install, remove, update } from '@pnpm/plugin-commands-installation
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 import symlinkDir from 'symlink-dir'
 
@@ -216,7 +216,7 @@ test('running `pnpm recursive` on a subset of packages', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -267,7 +267,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
     },
   ])
 
-  await fs.mkdir('node_modules')
+  fs.mkdirSync('node_modules')
   process.chdir('packages')
 
   await install.handler({
@@ -345,7 +345,7 @@ test('second run of `recursive install` after package.json has been edited manua
     workspaceDir: process.cwd(),
   })
 
-  await writeJsonFile('is-negative/package.json', {
+  writeJsonFile.sync('is-negative/package.json', {
     name: 'is-negative',
     version: '1.0.0',
 
@@ -396,7 +396,7 @@ test('recursive --filter ignore excluded packages', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFile('pnpm-workspace.yaml', {
     packages: [
       '**',
       '!project-1',
@@ -617,7 +617,7 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<LockfileFile>(path.join(lockfileDir, 'pnpm-lock.yaml'))
+  const lockfile = readYamlFile<LockfileFile>(path.join(lockfileDir, 'pnpm-lock.yaml'))
   expect(Object.keys(lockfile.importers!)).toStrictEqual(['../project-1', '../project-2'])
 })
 
@@ -640,8 +640,8 @@ test('recursive install in a monorepo with different modules directories', async
       },
     },
   ])
-  await fs.writeFile('project-1/.npmrc', 'modules-dir=modules_1', 'utf8')
-  await fs.writeFile('project-2/.npmrc', 'modules-dir=modules_2', 'utf8')
+  fs.writeFileSync('project-1/.npmrc', 'modules-dir=modules_1', 'utf8')
+  fs.writeFileSync('project-2/.npmrc', 'modules-dir=modules_2', 'utf8')
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({
@@ -672,7 +672,7 @@ test('recursive install in a monorepo with parsing env variables', async () => {
 
   process.env['SOME_NAME'] = 'some_name'
   // eslint-disable-next-line no-template-curly-in-string
-  await fs.writeFile('project/.npmrc', 'modules-dir=${SOME_NAME}_modules', 'utf8')
+  fs.writeFileSync('project/.npmrc', 'modules-dir=${SOME_NAME}_modules', 'utf8')
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({
@@ -725,7 +725,7 @@ test('prefer-workspace-package', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<LockfileFile>(path.resolve('pnpm-lock.yaml'))
+  const lockfile = readYamlFile<LockfileFile>(path.resolve('pnpm-lock.yaml'))
   expect(lockfile.importers?.['project-1'].dependencies?.['@pnpm.e2e/foo'].version).toBe('link:../foo')
 })
 

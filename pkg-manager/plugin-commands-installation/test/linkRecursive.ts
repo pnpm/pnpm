@@ -1,9 +1,9 @@
+import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install, unlink } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
-import exists from 'path-exists'
 import { DEFAULT_OPTS } from './utils'
 
 test('recursive linking/unlinking', async () => {
@@ -58,7 +58,7 @@ test('recursive linking/unlinking', async () => {
   }, [])
 
   process.chdir('project-1')
-  expect(await exists(path.resolve('node_modules', 'is-positive', 'index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules', 'is-positive', 'index.js'))).toBeTruthy()
 
   {
     const project1Lockfile = projects['project-1'].readLockfile()
@@ -123,7 +123,7 @@ test('recursive unlink specific package', async () => {
   }, ['is-positive'])
 
   process.chdir('project-1')
-  expect(await exists(path.resolve('node_modules', 'is-positive', 'index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules', 'is-positive', 'index.js'))).toBeTruthy()
 
   {
     const project1Lockfile = projects['project-1'].readLockfile()

@@ -1,6 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import {
   addDistTag,
   execPnpm,
@@ -14,8 +14,8 @@ test('when prefer offline is used, meta from store is used, where latest might b
   // This will cache the meta of `foo`
   await execPnpm(['install', '@pnpm.e2e/foo'])
 
-  await rimraf('node_modules')
-  await rimraf(WANTED_LOCKFILE)
+  rimraf('node_modules')
+  rimraf(WANTED_LOCKFILE)
 
   await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
 

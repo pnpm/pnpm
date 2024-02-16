@@ -1,11 +1,11 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
@@ -15,7 +15,7 @@ import {
 test('readPackage hook', async () => {
   const project = prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -40,7 +40,7 @@ test('readPackage hook', async () => {
 test('readPackage async hook', async () => {
   const project = prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -65,7 +65,7 @@ test('readPackage async hook', async () => {
 test('readPackage hook makes installation fail if it does not return the modified package manifests', async () => {
   prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -82,7 +82,7 @@ test('readPackage hook makes installation fail if it does not return the modifie
 test('readPackage hook from custom location', async () => {
   const project = prepare()
 
-  await fs.writeFile('pnpm.js', `
+  fs.writeFileSync('pnpm.js', `
     'use strict'
     module.exports = {
       hooks: {
@@ -107,7 +107,7 @@ test('readPackage hook from custom location', async () => {
 test('readPackage hook from global pnpmfile', async () => {
   const project = prepare()
 
-  await fs.writeFile('../.pnpmfile.cjs', `
+  fs.writeFileSync('../.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -132,7 +132,7 @@ test('readPackage hook from global pnpmfile', async () => {
 test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
   const project = prepare()
 
-  await fs.writeFile('../.pnpmfile.cjs', `
+  fs.writeFileSync('../.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -147,7 +147,7 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
     }
   `, 'utf8')
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -173,7 +173,7 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
 test('readPackage async hook from global pnpmfile and local pnpmfile', async () => {
   const project = prepare()
 
-  await fs.writeFile('../.pnpmfile.cjs', `
+  fs.writeFileSync('../.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -188,7 +188,7 @@ test('readPackage async hook from global pnpmfile and local pnpmfile', async () 
     }
   `, 'utf8')
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -231,9 +231,9 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
       return pkg
     }
   `
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
   const storeDir = path.resolve('store')
 
@@ -248,7 +248,7 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
 
   process.chdir('..')
 
-  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
   expect(lockfile.packages!['/is-positive@1.0.0'].dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
   })
@@ -264,7 +264,7 @@ test('readPackage hook during update', async () => {
     },
   })
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -289,7 +289,7 @@ test('readPackage hook during update', async () => {
 test('prints meaningful error when there is syntax error in .pnpmfile.cjs', async () => {
   prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', '/boom', 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', '/boom', 'utf8')
 
   const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep'])
 
@@ -300,7 +300,7 @@ test('prints meaningful error when there is syntax error in .pnpmfile.cjs', asyn
 test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
   prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', 'module.exports = require("./this-does-node-exist")', 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', 'module.exports = require("./this-does-node-exist")', 'utf8')
 
   const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep'])
 
@@ -311,7 +311,7 @@ test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
 test('ignore .pnpmfile.cjs when --ignore-pnpmfile is used', async () => {
   const project = prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -339,7 +339,7 @@ test('ignore .pnpmfile.cjs during update when --ignore-pnpmfile is used', async 
     },
   })
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -363,7 +363,7 @@ test('ignore .pnpmfile.cjs during update when --ignore-pnpmfile is used', async 
 test('pnpmfile: pass log function to readPackage hook', async () => {
   const project = prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -401,7 +401,7 @@ test('pnpmfile: pass log function to readPackage hook', async () => {
 test('pnpmfile: pass log function to readPackage hook of global and local pnpmfile', async () => {
   const project = prepare()
 
-  await fs.writeFile('../.pnpmfile.cjs', `
+  fs.writeFileSync('../.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -417,7 +417,7 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
     }
   `, 'utf8')
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -465,7 +465,7 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
 test('pnpmfile: run afterAllResolved hook', async () => {
   prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -495,7 +495,7 @@ test('pnpmfile: run afterAllResolved hook', async () => {
 test('pnpmfile: run async afterAllResolved hook', async () => {
   prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -525,7 +525,7 @@ test('pnpmfile: run async afterAllResolved hook', async () => {
 test('readPackage hook normalizes the package manifest', async () => {
   prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -550,7 +550,7 @@ test('readPackage hook overrides project package', async () => {
     name: 'test-read-package-hook',
   })
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -589,9 +589,9 @@ test('readPackage hook is used during removal inside a workspace', async () => {
     },
   ])
 
-  await fs.writeFile('.npmrc', 'auto-install-peers=false', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
-  await fs.writeFile('.pnpmfile.cjs', `
+  fs.writeFileSync('.npmrc', 'auto-install-peers=false', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
       hooks: {
@@ -612,7 +612,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
   await execPnpm(['uninstall', 'is-positive', '--no-strict-peer-dependencies'])
 
   process.chdir('..')
-  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
   const suffix = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: 'is-negative', version: '1.0.0' }])
   expect(lockfile.packages![`/@pnpm.e2e/abc@1.0.0${suffix}`].peerDependencies!['is-negative']).toBe('1.0.0')
 })
@@ -634,11 +634,11 @@ test('preResolution hook', async () => {
     @foo:registry=https://foo.com
   `
 
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
-  const ctx = await loadJsonFile<any>('args.json') // eslint-disable-line
+  const ctx = loadJsonFile.sync<any>('args.json') // eslint-disable-line
 
   expect(ctx.currentLockfile).toBeDefined()
   expect(ctx.wantedLockfile).toBeDefined()

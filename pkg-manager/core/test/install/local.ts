@@ -1,4 +1,4 @@
-import fss, { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { type Lockfile } from '@pnpm/lockfile-file'
@@ -12,9 +12,9 @@ import {
   type MutatedProject,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
 import { testDefaults } from '../utils'
 
@@ -67,13 +67,13 @@ test('a symlink to a symlink to a local dependency is preserved', async () => {
 
   await addDependenciesToPackage({}, ['link:../symlink'], await testDefaults())
 
-  expect(await fs.readlink(path.resolve('node_modules/local-pkg'))).toContain('symlink')
+  expect(fs.readlinkSync(path.resolve('node_modules/local-pkg'))).toContain('symlink')
 })
 
 test('local directory with no package.json', async () => {
   const project = prepareEmpty()
-  await fs.mkdir('pkg')
-  await fs.writeFile('pkg/index.js', 'hello', 'utf8')
+  fs.mkdirSync('pkg')
+  fs.writeFileSync('pkg/index.js', 'hello', 'utf8')
 
   const manifest = await addDependenciesToPackage({}, ['file:./pkg'], await testDefaults())
 
@@ -81,7 +81,7 @@ test('local directory with no package.json', async () => {
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
   project.has('pkg')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await install(manifest, await testDefaults({ frozenLockfile: true }))
   project.has('pkg')
@@ -120,7 +120,7 @@ test('local file via link:', async () => {
 test('local file with symlinked node_modules', async () => {
   const project = prepareEmpty()
   f.copy('local-pkg', path.resolve('..', 'local-pkg'))
-  await fs.mkdir(path.join('..', 'node_modules'))
+  fs.mkdirSync(path.join('..', 'node_modules'))
   await symlinkDir(path.join('..', 'node_modules'), 'node_modules')
 
   const manifest = await addDependenciesToPackage({}, ['link:../local-pkg'], await testDefaults())
@@ -261,7 +261,7 @@ test('frozen-lockfile: installation fails if the integrity of a tarball dependen
   f.copy('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
   const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], await testDefaults())
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   f.copy('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
 
@@ -304,7 +304,7 @@ test('deep local', async () => {
   process.chdir('project-1')
   await install(manifest1, await testDefaults())
 
-  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['file:../project-2', 'file:../project-2/project-3'])
 })
 
@@ -395,7 +395,7 @@ test('re-install should update local file dependency', async () => {
   const m = project.requireModule('local-pkg')
 
   expect(m).toBeTruthy()
-  await expect(fs.access('./node_modules/local-pkg/add.js')).rejects.toThrow()
+  expect(fs.existsSync('./node_modules/local-pkg/add.js')).toBeFalsy()
 
   let lockfile = project.readLockfile()
 
@@ -421,18 +421,18 @@ test('re-install should update local file dependency', async () => {
   })
 
   // add file
-  await fs.writeFile('../local-pkg/add.js', 'added', 'utf8')
+  fs.writeFileSync('../local-pkg/add.js', 'added', 'utf8')
   await install(manifest, await testDefaults())
-  await expect(fs.access('./node_modules/local-pkg/add.js')).resolves.toBeUndefined()
+  expect(fs.existsSync('./node_modules/local-pkg/add.js')).toBeTruthy()
 
   // remove file
-  await fs.rm('../local-pkg/add.js')
+  fs.rmSync('../local-pkg/add.js')
   await install(manifest, await testDefaults())
-  await expect(fs.access('./node_modules/local-pkg/add.js')).rejects.toThrow()
+  expect(fs.existsSync('./node_modules/local-pkg/add.js')).toBeFalsy()
 
   // add dependency
-  await expect(fs.access('./node_modules/.pnpm/is-positive@1.0.0')).rejects.toThrow()
-  await fs.writeFile('../local-pkg/package.json', JSON.stringify({
+  expect(fs.existsSync('./node_modules/.pnpm/is-positive@1.0.0')).toBeFalsy()
+  fs.writeFileSync('../local-pkg/package.json', JSON.stringify({
     name: 'local-pkg',
     version: '1.0.0',
     dependencies: {
@@ -440,7 +440,7 @@ test('re-install should update local file dependency', async () => {
     },
   }), 'utf8')
   await install(manifest, await testDefaults())
-  await expect(fs.access('./node_modules/.pnpm/is-positive@1.0.0')).resolves.toBeUndefined()
+  expect(fs.existsSync('./node_modules/.pnpm/is-positive@1.0.0')).toBeTruthy()
   lockfile = project.readLockfile()
   expect(lockfile).toMatchObject({
     packages: {
@@ -456,7 +456,7 @@ test('re-install should update local file dependency', async () => {
   })
 
   // update dependency
-  await fs.writeFile('../local-pkg/package.json', JSON.stringify({
+  fs.writeFileSync('../local-pkg/package.json', JSON.stringify({
     name: 'local-pkg',
     version: '1.0.0',
     dependencies: {
@@ -464,7 +464,7 @@ test('re-install should update local file dependency', async () => {
     },
   }), 'utf8')
   await install(manifest, await testDefaults())
-  await expect(fs.access('./node_modules/.pnpm/is-positive@2.0.0')).resolves.toBeUndefined()
+  expect(fs.existsSync('./node_modules/.pnpm/is-positive@2.0.0')).toBeTruthy()
   lockfile = project.readLockfile()
   expect(lockfile).toMatchObject({
     packages: {
@@ -483,19 +483,19 @@ test('re-install should update local file dependency', async () => {
 
 test('local directory is not relinked if disableRelinkLocalDirDeps is set to true', async () => {
   prepareEmpty()
-  fss.mkdirSync('pkg')
-  fss.writeFileSync('pkg/index.js', 'hello', 'utf8')
-  fss.writeFileSync('pkg/package.json', '{"name": "pkg"}', 'utf8')
+  fs.mkdirSync('pkg')
+  fs.writeFileSync('pkg/index.js', 'hello', 'utf8')
+  fs.writeFileSync('pkg/package.json', '{"name": "pkg"}', 'utf8')
 
   const manifest = await addDependenciesToPackage({}, ['file:./pkg'], await testDefaults())
 
-  fss.writeFileSync('pkg/new.js', 'hello', 'utf8')
+  fs.writeFileSync('pkg/new.js', 'hello', 'utf8')
 
   await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], await testDefaults({ disableRelinkLocalDirDeps: true }))
 
-  expect(fss.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
+  expect(fs.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
 
   await install(manifest, await testDefaults({ frozenLockfile: true, disableRelinkLocalDirDeps: true }))
 
-  expect(fss.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
+  expect(fs.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
 })

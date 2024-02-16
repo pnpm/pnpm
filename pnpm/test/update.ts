@@ -1,8 +1,8 @@
 import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import readYamlFile from 'read-yaml-file'
-import writeYamlFile from 'write-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
@@ -79,10 +79,10 @@ test('recursive update --no-save', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'update', '--no-save'])
 
-  const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
+  const lockfile = readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo@100.1.0'])
 
   const pkg = await readPackageJsonFromDir(path.resolve('project'))
@@ -102,10 +102,10 @@ test('recursive update', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'update'])
 
-  const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
+  const lockfile = readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo@100.1.0'])
 
   const pkg = await readPackageJsonFromDir(path.resolve('project'))
@@ -127,7 +127,7 @@ test('recursive update --no-shared-workspace-lockfile', async function () {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'update', '--no-shared-workspace-lockfile'])
 
   const lockfile = projects['project'].readLockfile()
@@ -448,7 +448,7 @@ test('recursive update --latest on projects with a shared a lockfile', async () 
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'install'])
 
   await execPnpm(['recursive', 'update', '--latest'])
@@ -465,7 +465,7 @@ test('recursive update --latest on projects with a shared a lockfile', async () 
     '@pnpm.e2e/foo': '100.1.0',
   })
 
-  const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
+  const lockfile = readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
   expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
   expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/bar'].version).toBe('100.1.0')
@@ -504,7 +504,7 @@ test('recursive update --latest --prod on projects with a shared a lockfile', as
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'install'])
 
   await execPnpm(['recursive', 'update', '--latest', '--prod'])
@@ -525,7 +525,7 @@ test('recursive update --latest --prod on projects with a shared a lockfile', as
     '@pnpm.e2e/bar': '100.0.0',
   })
 
-  const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
+  const lockfile = readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
   expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
   expect(lockfile.importers['project-1'].devDependencies['@pnpm.e2e/foo'].version).toBe('100.0.0')
   expect(lockfile.importers['project-2'].devDependencies['@pnpm.e2e/bar'].version).toBe('100.0.0')
@@ -567,7 +567,7 @@ test('recursive update --latest specific dependency on projects with a shared a 
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'install'])
 
   await execPnpm(['recursive', 'update', '--latest', '@pnpm.e2e/foo', 'alias'])
@@ -585,7 +585,7 @@ test('recursive update --latest specific dependency on projects with a shared a 
     '@pnpm.e2e/foo': '100.1.0',
   })
 
-  const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
+  const lockfile = readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
   expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
   expect(lockfile.importers['project-1'].dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
   expect(lockfile.importers['project-1'].dependencies['alias'].version).toBe('/@pnpm.e2e/qar@100.1.0')
@@ -622,7 +622,7 @@ test('update to latest without downgrading already defined prerelease (#7436)', 
     },
   })
 
-  const lockfile1 = await readYamlFile('pnpm-lock.yaml')
+  const lockfile1 = readYamlFile('pnpm-lock.yaml')
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
   expect(lockfile1).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
 
@@ -635,7 +635,7 @@ test('update to latest without downgrading already defined prerelease (#7436)', 
     },
   })
 
-  const lockfile2 = await readYamlFile('pnpm-lock.yaml')
+  const lockfile2 = readYamlFile('pnpm-lock.yaml')
   expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
   expect(lockfile2).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
 
@@ -648,7 +648,7 @@ test('update to latest without downgrading already defined prerelease (#7436)', 
     },
   })
 
-  const lockfile3 = await readYamlFile('pnpm-lock.yaml')
+  const lockfile3 = readYamlFile('pnpm-lock.yaml')
   expect(lockfile3).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
   expect(lockfile3).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
 })
@@ -666,7 +666,7 @@ test('update with tag @latest will downgrade prerelease', async function () {
     },
   })
 
-  const lockfile1 = await readYamlFile('pnpm-lock.yaml')
+  const lockfile1 = readYamlFile('pnpm-lock.yaml')
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
   expect(lockfile1).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
 
@@ -679,7 +679,7 @@ test('update with tag @latest will downgrade prerelease', async function () {
     },
   })
 
-  const lockfile2 = await readYamlFile('pnpm-lock.yaml')
+  const lockfile2 = readYamlFile('pnpm-lock.yaml')
   expect(lockfile2).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
   expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
 })
@@ -714,10 +714,10 @@ test('update to latest recursive workspace (outdated, updated, prerelease, outda
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['install', '-r'])
 
-  const lockfile1 = await readYamlFile('pnpm-lock.yaml')
+  const lockfile1 = readYamlFile('pnpm-lock.yaml')
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
@@ -757,7 +757,7 @@ test('update to latest recursive workspace (outdated, updated, prerelease, outda
     },
   })
 
-  const lockfile2 = await readYamlFile('pnpm-lock.yaml')
+  const lockfile2 = readYamlFile('pnpm-lock.yaml')
   expect(lockfile2).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
   expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
   expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
@@ -781,10 +781,10 @@ test('update to latest recursive workspace (prerelease, outdated)', async functi
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['install', '-r'])
 
-  const lockfile1 = await readYamlFile('pnpm-lock.yaml')
+  const lockfile1 = readYamlFile('pnpm-lock.yaml')
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
   expect(lockfile1).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
@@ -810,7 +810,7 @@ test('update to latest recursive workspace (prerelease, outdated)', async functi
     },
   })
 
-  const lockfile2 = await readYamlFile('pnpm-lock.yaml')
+  const lockfile2 = readYamlFile('pnpm-lock.yaml')
   expect(lockfile2).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
   expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
   expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])

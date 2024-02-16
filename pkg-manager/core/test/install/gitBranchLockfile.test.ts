@@ -6,7 +6,7 @@ import { testDefaults } from '../utils'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch } from '@pnpm/git-utils'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 
 jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
@@ -135,7 +135,7 @@ test('install with --merge-git-branch-lockfiles', async () => {
   ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
 
   const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
-  await writeYamlFile(otherLockfilePath, {
+  writeYamlFile(otherLockfilePath, {
     whatever: 'whatever',
   })
 
@@ -160,7 +160,7 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   const project = prepareEmpty()
 
   // @types/semver installed in the main branch
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       '@types/semver': {
         specifier: '5.3.31',
@@ -207,7 +207,7 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
       },
     },
   }
-  await writeYamlFile(otherLockfilePath, otherLockfileContent, { lineWidth: 1000 })
+  writeYamlFile(otherLockfilePath, otherLockfileContent, { lineWidth: 1000 })
 
   // the other branch merged to the main branch
   const projectManifest: ProjectManifest = {

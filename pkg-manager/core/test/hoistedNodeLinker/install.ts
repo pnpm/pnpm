@@ -3,7 +3,7 @@ import path from 'path'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
@@ -31,7 +31,7 @@ test('installing with hoisted node-linker', async () => {
   expect(readYamlFile<{ nodeLinker: string }>('node_modules/.modules.yaml').nodeLinker).toBe('hoisted')
 
   // If a package from node_modules is removed, it should be re-added.
-  await rimraf('node_modules/send')
+  rimraf('node_modules/send')
   await install(manifest, await testDefaults({
     nodeLinker: 'hoisted',
   }))

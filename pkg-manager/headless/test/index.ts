@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { promises as fs, existsSync, realpathSync, writeFileSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
@@ -18,9 +18,8 @@ import { tempDir } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
-import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import { testDefaults } from './utils/testDefaults'
@@ -52,7 +51,7 @@ test('installing a simple project', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: await loadJsonFile(path.join(prefix, 'package.json')),
+    updated: loadJsonFile.sync(path.join(prefix, 'package.json')),
   } as PackageManifestLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     added: 15,
@@ -372,11 +371,11 @@ test('orphan packages are removed', async () => {
   }))
 
   const simpleDir = f.find('simple')
-  await fs.copyFile(
+  fs.copyFileSync(
     path.join(simpleDir, 'package.json'),
     path.join(projectDir, 'package.json')
   )
-  await fs.copyFile(
+  fs.copyFileSync(
     path.join(simpleDir, WANTED_LOCKFILE),
     path.join(projectDir, WANTED_LOCKFILE)
   )
@@ -408,14 +407,14 @@ test('available packages are used when node_modules is not clean', async () => {
   const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
   const hasGlobDir = f.find('has-glob')
-  await fs.copyFile(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
-  await fs.copyFile(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  fs.copyFileSync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
+  fs.copyFileSync(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headlessInstall(await testDefaults({ lockfileDir: projectDir }))
 
   const hasGlobAndRimrafDir = f.find('has-glob-and-rimraf')
-  await fs.copyFile(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
-  await fs.copyFile(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  fs.copyFileSync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
+  fs.copyFileSync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   const reporter = sinon.spy()
   await headlessInstall(await testDefaults({ lockfileDir: projectDir, reporter }))
@@ -445,14 +444,14 @@ test('available packages are relinked during forced install', async () => {
   const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
   const hasGlobDir = f.find('has-glob')
-  await fs.copyFile(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
-  await fs.copyFile(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  fs.copyFileSync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
+  fs.copyFileSync(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headlessInstall(await testDefaults({ lockfileDir: projectDir }))
 
   const hasGlobAndRimrafDir = f.find('has-glob-and-rimraf')
-  await fs.copyFile(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
-  await fs.copyFile(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  fs.copyFileSync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
+  fs.copyFileSync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   const reporter = sinon.spy()
   await headlessInstall(await testDefaults({ lockfileDir: projectDir, reporter, force: true }))
@@ -500,8 +499,8 @@ test('installing using passed in lockfile files', async () => {
   const prefix = tempDir()
 
   const simplePkgPath = f.find('simple')
-  await fs.copyFile(path.join(simplePkgPath, 'package.json'), path.join(prefix, 'package.json'))
-  await fs.copyFile(path.join(simplePkgPath, WANTED_LOCKFILE), path.join(prefix, WANTED_LOCKFILE))
+  fs.copyFileSync(path.join(simplePkgPath, 'package.json'), path.join(prefix, 'package.json'))
+  fs.copyFileSync(path.join(simplePkgPath, WANTED_LOCKFILE), path.join(prefix, WANTED_LOCKFILE))
 
   const wantedLockfile = await readWantedLockfile(simplePkgPath, { ignoreIncompatible: false })
 
@@ -620,7 +619,7 @@ test('installing with publicHoistPattern=*', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: await loadJsonFile(path.join(prefix, 'package.json')),
+    updated: loadJsonFile.sync(path.join(prefix, 'package.json')),
   } as PackageManifestLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     added: 17,
@@ -684,14 +683,14 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
 
   const cafsDir = path.join(opts.storeDir, 'files')
   const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
-  const cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
   delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
 
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-preinstall.js'])
-  await writeJsonFile(cacheIntegrityPath, cacheIntegrity)
+  writeJsonFile.sync(cacheIntegrityPath, cacheIntegrity)
 
   prefix = f.prepare('side-effects')
   const opts2 = await testDefaults({
@@ -704,8 +703,8 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   }, {}, {}, { packageImportMethod: 'copy' })
   await headlessInstall(opts2)
 
-  expect(await exists(path.join(prefix, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy()
-  expect(await exists(path.join(prefix, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(prefix, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy()
+  expect(fs.existsSync(path.join(prefix, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy()
 })
 
 test.skip('using side effects cache and hoistPattern=*', async () => {
@@ -726,12 +725,12 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
   project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
   const cacheBuildDir = path.join(opts.storeDir, `diskusage@1.1.3/side_effects/${ENGINE_DIR}/package/build`)
-  writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
+  fs.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
-  await rimraf(path.join(lockfileDir, 'node_modules'))
+  rimraf(path.join(lockfileDir, 'node_modules'))
   await headlessInstall(opts)
 
-  expect(await exists(path.join(lockfileDir, 'node_modules/.pnpm/node_modules/diskusage/build/new-file.txt'))).toBeTruthy()
+  expect(fs.existsSync(path.join(lockfileDir, 'node_modules/.pnpm/node_modules/diskusage/build/new-file.txt'))).toBeTruthy()
 
   project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 })
@@ -775,13 +774,13 @@ test('installing with no symlinks but with PnP', async () => {
     symlink: false,
   }))
 
-  expect([...await fs.readdir(path.join(prefix, 'node_modules'))]).toStrictEqual(['.bin', '.modules.yaml', '.pnpm'])
-  expect([...await fs.readdir(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
+  expect([...fs.readdirSync(path.join(prefix, 'node_modules'))]).toStrictEqual(['.bin', '.modules.yaml', '.pnpm'])
+  expect([...fs.readdirSync(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
 
   const project = assertProject(prefix)
   expect(project.readCurrentLockfile()).toBeTruthy()
   expect(project.readModulesManifest()).toBeTruthy()
-  expect(await exists(path.join(prefix, '.pnp.cjs'))).toBeTruthy()
+  expect(fs.existsSync(path.join(prefix, '.pnp.cjs'))).toBeTruthy()
 })
 
 test('installing with no modules directory', async () => {
@@ -792,7 +791,7 @@ test('installing with no modules directory', async () => {
     lockfileDir: prefix,
   }))
 
-  expect(await exists(path.join(prefix, 'node_modules'))).toBeFalsy()
+  expect(fs.existsSync(path.join(prefix, 'node_modules'))).toBeFalsy()
 })
 
 test('installing with node-linker=hoisted', async () => {
@@ -804,9 +803,9 @@ test('installing with node-linker=hoisted', async () => {
     nodeLinker: 'hoisted',
   }))
 
-  expect(realpathSync('node_modules/ms')).toBe(path.resolve('node_modules/ms'))
-  expect(realpathSync('node_modules/send')).toBe(path.resolve('node_modules/send'))
-  expect(existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
+  expect(fs.realpathSync('node_modules/ms')).toBe(path.resolve('node_modules/ms'))
+  expect(fs.realpathSync('node_modules/send')).toBe(path.resolve('node_modules/send'))
+  expect(fs.existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
 })
 
 test('installing in a workspace with node-linker=hoisted', async () => {
@@ -821,9 +820,9 @@ test('installing in a workspace with node-linker=hoisted', async () => {
     ],
   }))
 
-  expect(realpathSync('bar/node_modules/foo')).toBe(path.resolve('foo'))
+  expect(fs.realpathSync('bar/node_modules/foo')).toBe(path.resolve('foo'))
   expect(readPkgVersion(path.join(prefix, 'foo/node_modules/webpack'))).toBe('2.7.0')
-  expect(realpathSync('foo/node_modules/express')).toBe(path.resolve('foo/node_modules/express'))
+  expect(fs.realpathSync('foo/node_modules/express')).toBe(path.resolve('foo/node_modules/express'))
   expect(readPkgVersion(path.join(prefix, 'foo/node_modules/express'))).toBe('4.17.2')
   expect(readPkgVersion(path.join(prefix, 'node_modules/webpack'))).toBe('5.65.0')
   expect(readPkgVersion(path.join(prefix, 'node_modules/express'))).toBe('2.5.11')

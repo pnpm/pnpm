@@ -3,7 +3,7 @@ import {
   mutateModules,
   type MutatedProject,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
 test('spec not specified in package.json.dependencies', async () => {
@@ -35,7 +35,7 @@ test('spec not specified in package.json.dependencies', async () => {
     expect(stats.removed).toEqual(0)
     expect(stats.linkedToRoot).toEqual(1)
   }
-  await rimraf('node_modules')
+  rimraf('node_modules')
   {
     const { stats } = await mutateModules(importers, await testDefaults({ allProjects, frozenLockfile: true }))
     expect(stats.added).toEqual(1)

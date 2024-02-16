@@ -1,7 +1,7 @@
+import fs from 'fs'
 import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
-import exists from 'path-exists'
 import { testDefaults } from '../utils'
 
 test('production install (with --production flag)', async () => {
@@ -28,8 +28,8 @@ test('production install (with --production flag)', async () => {
     },
   }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
   project.has('@pnpm.e2e/pkg-with-1-dep')
   project.has('write-yaml')
   project.hasNot('@zkochan/foo')
@@ -60,8 +60,8 @@ test('production install with --no-optional', async () => {
     },
   }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
   project.has('@pnpm.e2e/pkg-with-1-dep')
   project.has('write-yaml')
   project.hasNot('@zkochan/foo')

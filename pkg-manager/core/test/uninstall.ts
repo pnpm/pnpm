@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -10,14 +11,13 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type PackageManifest } from '@pnpm/types'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
   link,
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import existsSymlink from 'exists-link'
@@ -182,9 +182,9 @@ test('uninstall package with its bin files', async () => {
   const stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
   expect(stat).toBeFalsy()
 
-  expect(await exists(path.resolve('node_modules', '.bin', 'sh-hello-world'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules', '.bin', 'sh-hello-world.cmd'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules', '.bin', 'sh-hello-world.ps1'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world.cmd'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world.ps1'))).toBeFalsy()
 })
 
 test('relative link is uninstalled', async () => {
@@ -314,7 +314,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
   projects['project-1'].hasNot('is-positive')
   projects['project-2'].has('is-negative')
 
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -350,7 +350,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
 test('uninstall remove modules that is not in package.json', async () => {
   const project = prepareEmpty()
 
-  await writeJsonFile('node_modules/foo/package.json', { name: 'foo', version: '1.0.0' })
+  writeJsonFile.sync('node_modules/foo/package.json', { name: 'foo', version: '1.0.0' })
 
   project.has('foo')
 
