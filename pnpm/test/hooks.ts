@@ -22,19 +22,19 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
   `
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
   await execPnpm(['add', 'is-positive@1.0.0'])
-  let pkg: PackageManifest = await loadJsonFile(path.resolve('package.json'))
+  let pkg: PackageManifest = loadJsonFile.sync(path.resolve('package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '1.0.0' }) // add dependency & readPackage hook work
 
   await execPnpm(['update', 'is-positive@2.0.0'])
-  pkg = await loadJsonFile(path.resolve('package.json'))
+  pkg = loadJsonFile.sync(path.resolve('package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '2.0.0' }) // update dependency & readPackage hook work
 
   await execPnpm(['install'])
-  pkg = await loadJsonFile(path.resolve('package.json'))
+  pkg = loadJsonFile.sync(path.resolve('package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '2.0.0' }) // install & readPackage hook work
 
   await execPnpm(['remove', 'is-positive'])
-  pkg = await loadJsonFile(path.resolve('package.json'))
+  pkg = loadJsonFile.sync(path.resolve('package.json'))
   expect(pkg.dependencies).toBeFalsy() // remove & readPackage hook work
   project.hasNot('is-positive')
 
@@ -42,12 +42,12 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
   fs.unlinkSync('pnpm-lock.yaml')
 
   await execPnpm(['install', '--lockfile-only'])
-  pkg = await loadJsonFile(path.resolve('package.json'))
+  pkg = loadJsonFile.sync(path.resolve('package.json'))
   expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, without pnpm-lock.yaml
 
   // runs with pnpm-lock.yaml should not mutate local projects
   await execPnpm(['install', '--lockfile-only'])
-  pkg = await loadJsonFile(path.resolve('package.json'))
+  pkg = loadJsonFile.sync(path.resolve('package.json'))
   expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, with pnpm-lock.yaml
 })
 
@@ -77,31 +77,31 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['add', 'is-positive@1.0.0', '--filter', 'project-a'])
-  let pkg: PackageManifest = await loadJsonFile(path.resolve('project-a/package.json'))
+  let pkg: PackageManifest = loadJsonFile.sync(path.resolve('project-a/package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '1.0.0' }) // add dependency & readPackage hook work
 
   await execPnpm(['update', 'is-positive@2.0.0', '--filter', 'project-a'])
-  pkg = await loadJsonFile(path.resolve('project-a/package.json'))
+  pkg = loadJsonFile.sync(path.resolve('project-a/package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '2.0.0' }) // update dependency & readPackage hook work
 
   await execPnpm(['install', '--filter', 'project-a'])
-  pkg = await loadJsonFile(path.resolve('project-a/package.json'))
+  pkg = loadJsonFile.sync(path.resolve('project-a/package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '2.0.0' }) // install & readPackage hook work
 
   await execPnpm(['remove', 'is-positive', '--filter', 'project-a'])
-  pkg = await loadJsonFile(path.resolve('project-a/package.json'))
+  pkg = loadJsonFile.sync(path.resolve('project-a/package.json'))
   expect(pkg.dependencies).toBeFalsy() // remove & readPackage hook work
 
   // Reset for --lockfile-only checks
   fs.unlinkSync('pnpm-lock.yaml')
 
   await execPnpm(['install', '--lockfile-only'])
-  pkg = await loadJsonFile(path.resolve('project-a/package.json'))
+  pkg = loadJsonFile.sync(path.resolve('project-a/package.json'))
   expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, without pnpm-lock.yaml
 
   // runs with pnpm-lock.yaml should not mutate local projects
   await execPnpm(['install', '--lockfile-only'])
-  pkg = await loadJsonFile(path.resolve('project-a/package.json'))
+  pkg = loadJsonFile.sync(path.resolve('project-a/package.json'))
   expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, with pnpm-lock.yaml
 })
 
@@ -147,7 +147,7 @@ test('importPackage hooks', async () => {
 
   await execPnpm(['add', 'is-positive@1.0.0'])
 
-  const [to, opts] = await loadJsonFile<any>('args.json') // eslint-disable-line
+  const [to, opts] = loadJsonFile.sync<any>('args.json') // eslint-disable-line
 
   expect(typeof to).toBe('string')
   expect(Object.keys(opts.filesMap).sort()).toStrictEqual([
@@ -214,7 +214,7 @@ test('custom fetcher can call default fetcher', async () => {
 
   project.cafsHas('is-positive', '1.0.0')
 
-  const args = await loadJsonFile<any>('args.json') // eslint-disable-line
+  const args = loadJsonFile.sync<any>('args.json') // eslint-disable-line
 
   expect(args.resolution).toEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',

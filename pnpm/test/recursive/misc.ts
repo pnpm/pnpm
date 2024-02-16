@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { type Lockfile } from '@pnpm/lockfile-types'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
 import writeYamlFile from 'write-yaml-file'
@@ -42,10 +42,10 @@ test('recursive installation with package-specific .npmrc', async () => {
   expect(projects['project-1'].requireModule('is-positive')).toBeTruthy()
   expect(projects['project-2'].requireModule('is-negative')).toBeTruthy()
 
-  const modulesYaml1 = await readYamlFile<{ hoistPattern: string }>(path.resolve('project-1', 'node_modules', '.modules.yaml'))
+  const modulesYaml1 = readYamlFile<{ hoistPattern: string }>(path.resolve('project-1', 'node_modules', '.modules.yaml'))
   expect(modulesYaml1?.hoistPattern).toStrictEqual(['*'])
 
-  const modulesYaml2 = await readYamlFile<{ hoistPattern: string }>(path.resolve('project-2', 'node_modules', '.modules.yaml'))
+  const modulesYaml2 = readYamlFile<{ hoistPattern: string }>(path.resolve('project-2', 'node_modules', '.modules.yaml'))
   expect(modulesYaml2?.hoistPattern).toBeFalsy()
 })
 
@@ -85,7 +85,7 @@ test('workspace .npmrc is always read', async () => {
 
   expect(projects['project-1'].requireModule('is-positive')).toBeTruthy()
 
-  const modulesYaml1 = await readYamlFile<{ hoistPattern: string }>(path.resolve('node_modules', '.modules.yaml'))
+  const modulesYaml1 = readYamlFile<{ hoistPattern: string }>(path.resolve('node_modules', '.modules.yaml'))
   expect(modulesYaml1?.hoistPattern).toStrictEqual(['*'])
 
   process.chdir('..')
@@ -95,7 +95,7 @@ test('workspace .npmrc is always read', async () => {
 
   expect(projects['project-2'].requireModule('is-negative')).toBeTruthy()
 
-  const modulesYaml2 = await readYamlFile<{ hoistPattern: string }>(path.resolve('node_modules', '.modules.yaml'))
+  const modulesYaml2 = readYamlFile<{ hoistPattern: string }>(path.resolve('node_modules', '.modules.yaml'))
   expect(modulesYaml2?.hoistPattern).toBeFalsy()
 })
 
@@ -227,7 +227,7 @@ test('recursive installation of packages in workspace ignores hooks in packages'
 
   await execPnpm(['install'])
 
-  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
   const depPaths = Object.keys(lockfile.packages ?? [])
   expect(depPaths).not.toContain('/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
   expect(depPaths).toContain('/is-number@1.0.0')

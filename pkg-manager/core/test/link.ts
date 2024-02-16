@@ -205,7 +205,7 @@ test('relative link uses realpath when contained in a symlinked dir', async () =
 test('throws error is package name is not defined', async () => {
   prepareEmpty()
 
-  await writeJsonFile('../is-positive/package.json', { version: '1.0.0' })
+  writeJsonFile.sync('../is-positive/package.json', { version: '1.0.0' })
 
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults())
 

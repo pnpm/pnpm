@@ -200,7 +200,7 @@ test('packages are released even if their current version is published, when for
     recursive: true,
   }, [])
 
-  const manifest = await loadJsonFile<ProjectManifest>('is-positive/package.json')
+  const manifest = loadJsonFile.sync<ProjectManifest>('is-positive/package.json')
   expect(manifest.version).toBe('4.0.0')
 })
 
@@ -264,7 +264,7 @@ test('recursive publish writes publish summary', async () => {
   }, [])
 
   {
-    const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
+    const publishSummary = loadJsonFile.sync('pnpm-publish-summary.json')
     expect(publishSummary).toMatchSnapshot()
     fs.unlinkSync('pnpm-publish-summary.json')
   }
@@ -278,7 +278,7 @@ test('recursive publish writes publish summary', async () => {
   }, [])
 
   {
-    const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
+    const publishSummary = loadJsonFile.sync('pnpm-publish-summary.json')
     expect(publishSummary).toStrictEqual({
       publishedPackages: [],
     })

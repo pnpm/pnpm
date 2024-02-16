@@ -2,7 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import isWindows from 'is-windows'
 import tempy from 'tempy'
 
@@ -31,7 +31,7 @@ test('writeModulesManifest() and readModulesManifest()', async () => {
   await writeModulesManifest(modulesDir, modulesYaml)
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
 
-  const raw = await readYamlFile<any>(path.join(modulesDir, '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const raw = readYamlFile<any>(path.join(modulesDir, '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(raw.virtualStoreDir).toBeDefined()
   expect(path.isAbsolute(raw.virtualStoreDir)).toEqual(isWindows())
 })

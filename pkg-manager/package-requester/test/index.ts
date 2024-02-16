@@ -376,7 +376,7 @@ test('fetchPackageToStore()', async () => {
   expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 
-  const indexFile = await loadJsonFile<PackageFilesIndex>(fetchResult.filesIndexFile)
+  const indexFile = loadJsonFile.sync<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
   expect(typeof indexFile.files['package.json'].checkedAt).toBeTruthy()
 
@@ -460,7 +460,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[0]
     const { files } = await fetchResult.fetching()
 
-    ino1 = statSync(files.filesIndex['package.json'] as string).ino
+    ino1 = fs.statSync(files.filesIndex['package.json'] as string).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.resolvedFrom).toBe('remote')
@@ -470,7 +470,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[1]
     const { files } = await fetchResult.fetching()
 
-    ino2 = statSync(files.filesIndex['package.json'] as string).ino
+    ino2 = fs.statSync(files.filesIndex['package.json'] as string).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.resolvedFrom).toBe('remote')

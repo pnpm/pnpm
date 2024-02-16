@@ -7,7 +7,7 @@ import { add, install, remove, update } from '@pnpm/plugin-commands-installation
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import writeYamlFile from 'write-yaml-file'
@@ -345,7 +345,7 @@ test('second run of `recursive install` after package.json has been edited manua
     workspaceDir: process.cwd(),
   })
 
-  await writeJsonFile('is-negative/package.json', {
+  writeJsonFile.sync('is-negative/package.json', {
     name: 'is-negative',
     version: '1.0.0',
 
@@ -617,7 +617,7 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<LockfileFile>(path.join(lockfileDir, 'pnpm-lock.yaml'))
+  const lockfile = readYamlFile<LockfileFile>(path.join(lockfileDir, 'pnpm-lock.yaml'))
   expect(Object.keys(lockfile.importers!)).toStrictEqual(['../project-1', '../project-2'])
 })
 
@@ -725,7 +725,7 @@ test('prefer-workspace-package', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<LockfileFile>(path.resolve('pnpm-lock.yaml'))
+  const lockfile = readYamlFile<LockfileFile>(path.resolve('pnpm-lock.yaml'))
   expect(lockfile.importers?.['project-1'].dependencies?.['@pnpm.e2e/foo'].version).toBe('link:../foo')
 })
 

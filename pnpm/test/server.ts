@@ -333,7 +333,7 @@ test.skip('fail if the store server is run by a different version of pnpm', asyn
   prepare()
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
-  await writeJsonFile(serverJsonPath, { pnpmVersion: '2.0.0' })
+  writeJsonFile.sync(serverJsonPath, { pnpmVersion: '2.0.0' })
 
   const result = execPnpmSync(['install', 'is-positive@1.0.0'])
 

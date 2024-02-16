@@ -77,7 +77,7 @@ test('rebuilds dependencies', async () => {
 
   const cafsDir = path.join(storeDir, 'v3/files')
   const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
-  const cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
@@ -102,7 +102,7 @@ test('skipIfHasSideEffectsCache', async () => {
 
   const cafsDir = path.join(storeDir, 'v3/files')
   const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
-  let cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  let cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   cacheIntegrity.sideEffects = {
     [sideEffectsKey]: { foo: 'bar' },
@@ -129,7 +129,7 @@ test('skipIfHasSideEffectsCache', async () => {
   expect(modules).toBeTruthy()
   expect(modules!.pendingBuilds.length).toBe(0)
 
-  cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'foo'])
 })

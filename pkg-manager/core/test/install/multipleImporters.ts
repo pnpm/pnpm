@@ -1804,7 +1804,7 @@ test('symlink local package from the location described in its publishConfig.dir
   await mutateModules(importers, await testDefaults({ allProjects, workspacePackages }))
 
   {
-    const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
+    const linkedManifest = loadJsonFile.sync<{ name: string }>('project-2/node_modules/project-1/package.json')
     expect(linkedManifest.name).toBe('project-1-dist')
   }
 
@@ -1816,7 +1816,7 @@ test('symlink local package from the location described in its publishConfig.dir
   await mutateModules(importers, await testDefaults({ allProjects, frozenLockfile: true, workspacePackages }))
 
   {
-    const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
+    const linkedManifest = loadJsonFile.sync<{ name: string }>('project-2/node_modules/project-1/package.json')
     expect(linkedManifest.name).toBe('project-1-dist')
   }
 })
@@ -1891,7 +1891,7 @@ test('do not symlink local package from the location described in its publishCon
   }
   await mutateModules(importers, await testDefaults({ allProjects, workspacePackages }))
 
-  const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
+  const linkedManifest = loadJsonFile.sync<{ name: string }>('project-2/node_modules/project-1/package.json')
   expect(linkedManifest.name).toBe('project-1')
 })
 

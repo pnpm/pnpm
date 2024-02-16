@@ -11,7 +11,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type PackageManifest } from '@pnpm/types'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
   link,
@@ -314,7 +314,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
   projects['project-1'].hasNot('is-positive')
   projects['project-2'].has('is-negative')
 
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -350,7 +350,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
 test('uninstall remove modules that is not in package.json', async () => {
   const project = prepareEmpty()
 
-  await writeJsonFile('node_modules/foo/package.json', { name: 'foo', version: '1.0.0' })
+  writeJsonFile.sync('node_modules/foo/package.json', { name: 'foo', version: '1.0.0' })
 
   project.has('foo')
 

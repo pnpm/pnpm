@@ -74,7 +74,7 @@ test("don't update package when unlinking", async () => {
 
   process.chdir('..')
 
-  await writeJsonFile('foo/package.json', {
+  writeJsonFile.sync('foo/package.json', {
     name: '@pnpm.e2e/foo',
     version: '100.0.0',
   })
@@ -99,7 +99,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
   const opts = await testDefaults({ dir: process.cwd(), resolutionMode: 'lowest-direct' })
   process.chdir('..')
 
-  await writeJsonFile('foo/package.json', {
+  writeJsonFile.sync('foo/package.json', {
     name: '@pnpm.e2e/foo',
     version: '100.0.0',
   })

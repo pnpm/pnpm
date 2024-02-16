@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { install, link } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { assertProject, isExecutable } from '@pnpm/assert-project'
@@ -45,7 +45,7 @@ test('linking multiple packages', async () => {
   project.has('linked-foo')
   project.has('linked-bar')
 
-  const modules = await readYamlFile<any>('../linked-bar/node_modules/.modules.yaml') // eslint-disable-line @typescript-eslint/no-explicit-any
+  const modules = readYamlFile<any>('../linked-bar/node_modules/.modules.yaml') // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(modules.hoistPattern).toStrictEqual(['*']) // the linked package used its own configs during installation // eslint-disable-line @typescript-eslint/dot-notation
 })
 

@@ -51,7 +51,7 @@ test('installing a simple project', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: await loadJsonFile(path.join(prefix, 'package.json')),
+    updated: loadJsonFile.sync(path.join(prefix, 'package.json')),
   } as PackageManifestLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     added: 15,
@@ -619,7 +619,7 @@ test('installing with publicHoistPattern=*', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: await loadJsonFile(path.join(prefix, 'package.json')),
+    updated: loadJsonFile.sync(path.join(prefix, 'package.json')),
   } as PackageManifestLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     added: 17,
@@ -683,14 +683,14 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
 
   const cafsDir = path.join(opts.storeDir, 'files')
   const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
-  const cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
   delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
 
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-preinstall.js'])
-  await writeJsonFile(cacheIntegrityPath, cacheIntegrity)
+  writeJsonFile.sync(cacheIntegrityPath, cacheIntegrity)
 
   prefix = f.prepare('side-effects')
   const opts2 = await testDefaults({

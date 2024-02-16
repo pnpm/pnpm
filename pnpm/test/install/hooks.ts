@@ -3,7 +3,7 @@ import path from 'path'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
 import {
@@ -248,7 +248,7 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
 
   process.chdir('..')
 
-  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
   expect(lockfile.packages!['/is-positive@1.0.0'].dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
   })
@@ -612,7 +612,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
   await execPnpm(['uninstall', 'is-positive', '--no-strict-peer-dependencies'])
 
   process.chdir('..')
-  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
   const suffix = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: 'is-negative', version: '1.0.0' }])
   expect(lockfile.packages![`/@pnpm.e2e/abc@1.0.0${suffix}`].peerDependencies!['is-negative']).toBe('1.0.0')
 })
@@ -638,7 +638,7 @@ test('preResolution hook', async () => {
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
-  const ctx = await loadJsonFile<any>('args.json') // eslint-disable-line
+  const ctx = loadJsonFile.sync<any>('args.json') // eslint-disable-line
 
   expect(ctx.currentLockfile).toBeDefined()
   expect(ctx.wantedLockfile).toBeDefined()

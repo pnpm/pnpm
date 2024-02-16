@@ -3,7 +3,7 @@ import { type PnpmError } from '@pnpm/error'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
 import tempy from 'tempy'
 
@@ -25,7 +25,7 @@ test('CLI fails when store status finds modified packages', async () => {
     '--verify-store-integrity',
   ])
 
-  await rimraf('node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive/index.js')
+  rimraf('node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive/index.js')
 
   let err!: PnpmError & { modified: string[] }
   const modulesState = project.readModulesManifest()

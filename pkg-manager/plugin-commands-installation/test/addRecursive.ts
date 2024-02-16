@@ -3,7 +3,7 @@ import { readProjects } from '@pnpm/filter-workspace-packages'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { add } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 
 test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles', async () => {
@@ -159,7 +159,7 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     )
   }
 
-  const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('./pnpm-lock.yaml')
   expect(
     lockfile.importers['project-1'].devDependencies
   ).toStrictEqual(

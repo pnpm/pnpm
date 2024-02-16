@@ -174,10 +174,10 @@ test('INIT_CWD is always set to lockfile directory', async () => {
     lockfileDir: rootDir,
   }))
 
-  const childEnv = await loadJsonFile<{ INIT_CWD: string }>(path.join(rootDir, 'node_modules/@pnpm.e2e/write-lifecycle-env/env.json'))
+  const childEnv = loadJsonFile.sync<{ INIT_CWD: string }>(path.join(rootDir, 'node_modules/@pnpm.e2e/write-lifecycle-env/env.json'))
   expect(childEnv.INIT_CWD).toBe(rootDir)
 
-  const output = await loadJsonFile(path.join(rootDir, 'output.json'))
+  const output = loadJsonFile.sync(path.join(rootDir, 'output.json'))
   expect(output).toStrictEqual(process.cwd())
 })
 

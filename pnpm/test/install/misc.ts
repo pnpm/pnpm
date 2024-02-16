@@ -7,7 +7,7 @@ import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'
@@ -100,7 +100,7 @@ test('install with external lockfile directory', async () => {
 
   project.has('is-positive')
 
-  const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
+  const lockfile = readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
 
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project'])
 })
@@ -151,7 +151,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
-  const { files: integrityFile } = await loadJsonFile<{ files: object }>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
+  const { files: integrityFile } = loadJsonFile.sync<{ files: object }>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
   const packageFiles = Object.keys(integrityFile).sort()
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
