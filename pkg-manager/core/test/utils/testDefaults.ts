@@ -51,7 +51,7 @@ export async function testDefaults<T> (
     storePath: storeDir,
     pnpmHomeDir: '',
   })
-  const storeController = await createPackageStore(
+  const storeController = createPackageStore(
     resolve,
     fetchers,
     {
