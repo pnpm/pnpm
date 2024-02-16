@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
-import { type LockfileV6 as Lockfile } from '@pnpm/lockfile-file'
+import { type LockfileFile } from '@pnpm/lockfile-file'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -136,7 +136,7 @@ test('keep dependencies used by others', async () => {
   await project.hasNot('map-obj')
 
   // all dependencies are marked as dev
-  const lockfile = await project.readLockfile() as Lockfile
+  const lockfile = await project.readLockfile() as LockfileFile
   expect(isEmpty(lockfile.packages)).toBeFalsy()
 
   Object.entries(lockfile.packages ?? {}).forEach(([_, dep]) => {

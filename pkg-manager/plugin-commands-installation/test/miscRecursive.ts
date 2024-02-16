@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
-import { type LockfileV6 as Lockfile } from '@pnpm/lockfile-types'
+import { type LockfileFile } from '@pnpm/lockfile-types'
 import { add, install, remove, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -617,8 +617,8 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<Lockfile>(path.join(lockfileDir, 'pnpm-lock.yaml'))
-  expect(Object.keys(lockfile.importers)).toStrictEqual(['../project-1', '../project-2'])
+  const lockfile = await readYamlFile<LockfileFile>(path.join(lockfileDir, 'pnpm-lock.yaml'))
+  expect(Object.keys(lockfile.importers!)).toStrictEqual(['../project-1', '../project-2'])
 })
 
 test('recursive install in a monorepo with different modules directories', async () => {
@@ -725,8 +725,8 @@ test('prefer-workspace-package', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<Lockfile>(path.resolve('pnpm-lock.yaml'))
-  expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/foo'].version).toBe('link:../foo')
+  const lockfile = await readYamlFile<LockfileFile>(path.resolve('pnpm-lock.yaml'))
+  expect(lockfile.importers?.['project-1'].dependencies?.['@pnpm.e2e/foo'].version).toBe('link:../foo')
 })
 
 test('installing in monorepo with shared lockfile should work on virtual drives', async () => {

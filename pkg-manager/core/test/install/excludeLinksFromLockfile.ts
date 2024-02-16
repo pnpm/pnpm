@@ -8,7 +8,7 @@ import {
   type MutatedProject,
   type ProjectOptions,
 } from '@pnpm/core'
-import { type Lockfile, type LockfileV6 } from '@pnpm/lockfile-types'
+import { type Lockfile, type LockfileFile } from '@pnpm/lockfile-types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -78,9 +78,9 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
     },
   ]
   await mutateModules(importers, await testDefaults({ allProjects, excludeLinksFromLockfile: true }))
-  const lockfile: LockfileV6 = await readYamlFile(WANTED_LOCKFILE)
-  expect(lockfile.importers['project-1'].dependencies?.['external-1']).toBeUndefined()
-  expect(lockfile.importers['project-2'].dependencies?.['external-2']).toBeUndefined()
+  const lockfile: LockfileFile = await readYamlFile(WANTED_LOCKFILE)
+  expect(lockfile.importers?.['project-1'].dependencies?.['external-1']).toBeUndefined()
+  expect(lockfile.importers?.['project-2'].dependencies?.['external-2']).toBeUndefined()
 
   expect(fs.existsSync(path.resolve('project-1/node_modules/external-1/index.js'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('project-2/node_modules/external-2/index.js'))).toBeTruthy()
@@ -301,8 +301,8 @@ test('links resolved from workspace protocol dependencies are not removed', asyn
     workspacePackages,
   }))
 
-  const lockfile: LockfileV6 = await readYamlFile(WANTED_LOCKFILE)
-  expect(lockfile.importers['project-1'].dependencies?.['project-2']).toStrictEqual({
+  const lockfile: LockfileFile = await readYamlFile(WANTED_LOCKFILE)
+  expect(lockfile.importers?.['project-1'].dependencies?.['project-2']).toStrictEqual({
     specifier: 'workspace:*',
     version: 'link:../project-2',
   })
