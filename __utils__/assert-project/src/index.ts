@@ -73,7 +73,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     if (modulesYaml == null) {
       return path.join(modules, '.pnpm')
     }
-    return modulesYaml.virtualStoreDir
+    return path.join(modules, modulesYaml.virtualStoreDir)
   }
 
   // eslint-disable-next-line
