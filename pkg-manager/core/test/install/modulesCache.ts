@@ -1,5 +1,5 @@
 import path from 'path'
-import { writeModulesManifest } from '@pnpm/modules-yaml'
+import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
 import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
@@ -18,7 +18,8 @@ test('the modules cache is pruned when it expires', async () => {
     },
   }, await testDefaults())
 
-  const modulesFile = project.readModulesManifest()
+  const modulesDir = path.resolve('node_modules')
+  const modulesFile = await readModulesManifest(modulesDir)!
 
   expect(modulesFile?.prunedAt).toBeTruthy()
 
@@ -34,7 +35,7 @@ test('the modules cache is pruned when it expires', async () => {
   const prunedAt = new Date()
   prunedAt.setMinutes(prunedAt.getMinutes() - 3)
   modulesFile!.prunedAt = prunedAt.toString()
-  await writeModulesManifest(path.resolve('node_modules'), modulesFile as any) // eslint-disable-line
+  await writeModulesManifest(modulesDir, modulesFile as any) // eslint-disable-line
 
   await addDependenciesToPackage(manifest,
     ['is-negative@2.0.0'],
@@ -54,7 +55,8 @@ test('the modules cache is pruned when it expires and headless install is used',
     },
   }, await testDefaults())
 
-  const modulesFile = project.readModulesManifest()
+  const modulesDir = path.resolve('node_modules')
+  const modulesFile = await readModulesManifest(modulesDir)
 
   expect(modulesFile?.prunedAt).toBeTruthy()
 
@@ -72,7 +74,7 @@ test('the modules cache is pruned when it expires and headless install is used',
   const prunedAt = new Date()
   prunedAt.setMinutes(prunedAt.getMinutes() - 3)
   modulesFile!.prunedAt = prunedAt.toString()
-  await writeModulesManifest(path.resolve('node_modules'), modulesFile as any) // eslint-disable-line
+  await writeModulesManifest(modulesDir, modulesFile as any) // eslint-disable-line
 
   await install(manifest, await testDefaults({ frozenLockfile: true, modulesCacheMaxAge: 2 }))
 
