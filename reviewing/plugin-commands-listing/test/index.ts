@@ -7,7 +7,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 
 import execa from 'execa'
 import stripAnsi from 'strip-ansi'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
@@ -82,7 +82,7 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   fs.writeFileSync('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
   await execa('node', [pnpmBin, 'recursive', 'install'])

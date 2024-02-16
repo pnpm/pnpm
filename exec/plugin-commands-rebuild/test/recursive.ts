@@ -6,7 +6,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { type PackageManifest } from '@pnpm/types'
 import execa from 'execa'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
@@ -102,7 +102,7 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
   await execa('node', [
     pnpmBin,
     'install',
@@ -191,7 +191,7 @@ test('rebuild multiple packages in correct order', async () => {
     },
   ]
   preparePackages(pkgs)
-  await writeYamlFile('pnpm-workspace.yaml', { packages: pkgs.map(pkg => pkg.name) })
+  writeYamlFile('pnpm-workspace.yaml', { packages: pkgs.map(pkg => pkg.name) })
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await execa('node', [

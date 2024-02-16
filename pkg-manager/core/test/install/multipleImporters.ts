@@ -17,7 +17,7 @@ import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import loadJsonFile from 'load-json-file'
 import pick from 'ramda/src/pick'
 import sinon from 'sinon'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils'
 
 test('install only the dependencies of the specified importer', async () => {
@@ -697,7 +697,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
     ],
   }))
 
-  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     importers: {
       'project-1': {
         dependencies: {
@@ -796,7 +796,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
     ],
   }))
 
-  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     importers: {
       'project-1': {
         dependencies: {

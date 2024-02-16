@@ -6,7 +6,7 @@ import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspac
 import { type PnpmError } from '@pnpm/error'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import execa from 'execa'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
@@ -725,7 +725,7 @@ test('`pnpm run -r` should avoid infinite recursion', async () => {
       },
     },
   ])
-  await writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFile('pnpm-workspace.yaml', {})
 
   await execa(pnpmBin, [
     'install',

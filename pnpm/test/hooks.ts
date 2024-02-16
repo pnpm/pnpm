@@ -4,7 +4,7 @@ import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import loadJsonFile from 'load-json-file'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils'
 
 test('readPackage hook in single project doesn\'t modify manifest', async () => {
@@ -74,7 +74,7 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
       }
     `
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['add', 'is-positive@1.0.0', '--filter', 'project-a'])
   let pkg: PackageManifest = loadJsonFile.sync(path.resolve('project-a/package.json'))

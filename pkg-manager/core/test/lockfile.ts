@@ -23,7 +23,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import sinon from 'sinon'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from './utils'
 
 const f = fixtures(__dirname)
@@ -94,7 +94,7 @@ test('lockfile has dev deps even when installing for prod only', async () => {
 test('lockfile with scoped package', async () => {
   prepareEmpty()
 
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       '@types/semver': {
         specifier: '^5.3.31',
@@ -157,7 +157,7 @@ test('a lockfile created even when there are no deps in package.json', async () 
 test('current lockfile removed when no deps in package.json', async () => {
   const project = prepareEmpty()
 
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       'is-negative': {
         specifier: '2.1.0',
@@ -183,7 +183,7 @@ test('current lockfile removed when no deps in package.json', async () => {
 test('lockfile is fixed when it does not match package.json', async () => {
   const project = prepareEmpty()
 
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       '@types/semver': {
         specifier: '5.3.31',
@@ -245,7 +245,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
 test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async () => {
   const project = prepareEmpty()
 
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       '@types/semver': {
         specifier: '5.3.31',
@@ -373,7 +373,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
 
-  await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
+  writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
 
   await install(manifest, await testDefaults())
 
@@ -680,7 +680,7 @@ test('no lockfile', async () => {
 test('lockfile is ignored when lockfile = false', async () => {
   const project = prepareEmpty()
 
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       'is-negative': {
         specifier: '2.1.0',
@@ -933,7 +933,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     pkg2,
   ])
 
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     importers: {
       pkg1: {
         dependencies: {
@@ -1035,7 +1035,7 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults())
 
   const initialLockfile = project.readLockfile()
-  await writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 }, { lineWidth: 1000 })
+  writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 }, { lineWidth: 1000 })
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
@@ -1060,7 +1060,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
     const lockfile = project.readLockfile()
     expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
     delete lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
-    await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
+    writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
   }
 
   let err!: PnpmError
@@ -1405,7 +1405,7 @@ test('a broken lockfile should not break the store', async () => {
   lockfile.packages!['/is-positive@1.0.0'].name = 'bad-name'
   lockfile.packages!['/is-positive@1.0.0'].version = '1.0.0'
 
-  await writeYamlFile(WANTED_LOCKFILE, lockfile)
+  writeYamlFile(WANTED_LOCKFILE, lockfile)
 
   await mutateModulesInSingleProject({
     manifest,
@@ -1416,7 +1416,7 @@ test('a broken lockfile should not break the store', async () => {
   delete lockfile.packages!['/is-positive@1.0.0'].name
   delete lockfile.packages!['/is-positive@1.0.0'].version
 
-  await writeYamlFile(WANTED_LOCKFILE, lockfile)
+  writeYamlFile(WANTED_LOCKFILE, lockfile)
   rimraf(path.resolve('node_modules'))
 
   await mutateModulesInSingleProject({

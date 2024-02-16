@@ -26,7 +26,7 @@ import isWindows from 'is-windows'
 import semver from 'semver'
 import sinon from 'sinon'
 import deepRequireCwd from 'deep-require-cwd'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)
@@ -908,7 +908,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
     rootDir: process.cwd(),
   }, await testDefaults())
 
-  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
       '@pnpm.e2e/foobarqar': {
         specifier: '1.0.1',
@@ -1001,7 +1001,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     ]
   )
 
-  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
       '@pnpm.e2e/parent-of-pkg-with-1-dep': {
         specifier: '1.0.0',

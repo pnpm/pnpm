@@ -14,7 +14,7 @@ import resolveLinkTarget from 'resolve-link-target'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
 import symlinkDir from 'symlink-dir'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils'
 
 test('should hoist dependencies', async () => {
@@ -641,7 +641,7 @@ test('hoist packages which is in the dependencies tree of the selected projects'
    * when partial install project@3.0.0, is-positive@3.0.0 always should be hoisted
    * instead of using is-positive@2.0.0 and does not hoist anything
    */
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     lockfileVersion: LOCKFILE_VERSION,
     importers: {
       '.': {},
@@ -699,7 +699,7 @@ test('only hoist packages which is in the dependencies tree of the selected proj
     },
   ])
 
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     lockfileVersion: LOCKFILE_VERSION,
     importers: {
       '.': {},

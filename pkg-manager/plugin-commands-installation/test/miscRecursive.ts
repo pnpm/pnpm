@@ -10,7 +10,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 import symlinkDir from 'symlink-dir'
 
@@ -216,7 +216,7 @@ test('running `pnpm recursive` on a subset of packages', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -396,7 +396,7 @@ test('recursive --filter ignore excluded packages', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFile('pnpm-workspace.yaml', {
     packages: [
       '**',
       '!project-1',

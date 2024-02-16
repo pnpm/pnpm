@@ -5,7 +5,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import { sync as readYamlFile } from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
@@ -233,7 +233,7 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
   `
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
   const storeDir = path.resolve('store')
 
@@ -590,7 +590,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
   ])
 
   fs.writeFileSync('.npmrc', 'auto-install-peers=false', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
   fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {

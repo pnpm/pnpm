@@ -12,7 +12,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import execa from 'execa'
 import isWindows from 'is-windows'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
@@ -298,7 +298,7 @@ test('"pnpm run" prints the list of available commands, including commands of th
       },
     },
   ])
-  await writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFile('pnpm-workspace.yaml', {})
   const workspaceDir = process.cwd()
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
@@ -380,7 +380,7 @@ test('if a script is not found but is present in the root, print an info message
       version: '1.0.0',
     },
   ])
-  await writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFile('pnpm-workspace.yaml', {})
 
   await execa(pnpmBin, [
     'install',

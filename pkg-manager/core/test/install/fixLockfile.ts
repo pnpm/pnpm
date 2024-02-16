@@ -2,7 +2,7 @@ import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, type MutatedProject, mutateModules } from '@pnpm/core'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { type Lockfile, type PackageSnapshots } from '@pnpm/lockfile-file'
 import { testDefaults } from '../utils'
@@ -10,7 +10,7 @@ import { testDefaults } from '../utils'
 test('fix broken lockfile with --fix-lockfile', async () => {
   prepareEmpty()
 
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       '@types/semver': {
         specifier: '^5.3.31',
@@ -99,7 +99,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
    * and @babel/runtime-corejs3@7.15.3 depends on core-js-pure@3.17.2 while @babel/runtime-corejs3@7.15.4 depends on core-js-pure@3.17.3
    * --fix-lockfile should not change the locked dependency version and only adding missing fields in this scene
    */
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     lockfileVersion: LOCKFILE_VERSION,
     importers: {
       '.': {},

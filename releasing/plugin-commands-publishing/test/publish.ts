@@ -8,7 +8,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import crossSpawn from 'cross-spawn'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
@@ -103,7 +103,7 @@ skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is prese
   ], { manifestFormat: 'YAML' })
 
   const workspaceDir = process.cwd()
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
   fs.writeFileSync('project-2/LICENSE', 'project-2 license', 'utf8')
 
@@ -156,7 +156,7 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
   ], { manifestFormat: 'YAML' })
 
   const workspaceDir = process.cwd()
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
   fs.writeFileSync('project-200/LICENSE', 'project-200 license', 'utf8')
 
@@ -366,7 +366,7 @@ test.skip('publish package that calls executable from the workspace .bin folder 
   ])
 
   const workspaceDir = process.cwd()
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('test-publish-scripts')
   await publish.handler({
@@ -470,7 +470,7 @@ test.skip('convert specs with workspace protocols to regular version ranges', as
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('workspace-protocol-package')
 
@@ -575,7 +575,7 @@ test.skip('convert specs with relative workspace protocols to regular version ra
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('relative-workspace-protocol-package')
 

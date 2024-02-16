@@ -1,6 +1,6 @@
 import fs from 'fs'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from '../utils'
 
 test('hoist the dependency graph', async () => {
@@ -57,7 +57,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   fs.writeFileSync('.npmrc', 'shamefully-hoist=true', 'utf8')
 
   await execPnpm(['install'])
@@ -91,7 +91,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   fs.writeFileSync('.npmrc', `shamefully-hoist=true
 dedupe-direct-deps=true`, 'utf8')
 

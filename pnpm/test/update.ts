@@ -2,7 +2,7 @@ import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { sync as readYamlFile } from 'read-yaml-file'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
@@ -79,7 +79,7 @@ test('recursive update --no-save', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'update', '--no-save'])
 
   const lockfile = readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
@@ -102,7 +102,7 @@ test('recursive update', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'update'])
 
   const lockfile = readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
@@ -127,7 +127,7 @@ test('recursive update --no-shared-workspace-lockfile', async function () {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'update', '--no-shared-workspace-lockfile'])
 
   const lockfile = projects['project'].readLockfile()
@@ -448,7 +448,7 @@ test('recursive update --latest on projects with a shared a lockfile', async () 
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'install'])
 
   await execPnpm(['recursive', 'update', '--latest'])
@@ -504,7 +504,7 @@ test('recursive update --latest --prod on projects with a shared a lockfile', as
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'install'])
 
   await execPnpm(['recursive', 'update', '--latest', '--prod'])
@@ -567,7 +567,7 @@ test('recursive update --latest specific dependency on projects with a shared a 
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'install'])
 
   await execPnpm(['recursive', 'update', '--latest', '@pnpm.e2e/foo', 'alias'])
@@ -714,7 +714,7 @@ test('update to latest recursive workspace (outdated, updated, prerelease, outda
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['install', '-r'])
 
   const lockfile1 = readYamlFile('pnpm-lock.yaml')
@@ -781,7 +781,7 @@ test('update to latest recursive workspace (prerelease, outdated)', async functi
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['install', '-r'])
 
   const lockfile1 = readYamlFile('pnpm-lock.yaml')

@@ -5,7 +5,7 @@ import { type Lockfile } from '@pnpm/lockfile-types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import {
   execPnpm,
   execPnpmSync,
@@ -223,7 +223,7 @@ test('recursive installation of packages in workspace ignores hooks in packages'
     }
   `)
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
 
   await execPnpm(['install'])
 
