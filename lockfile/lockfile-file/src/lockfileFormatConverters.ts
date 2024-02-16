@@ -9,13 +9,13 @@ import {
   type InlineSpecifiersLockfile,
   type InlineSpecifiersProjectSnapshot,
   type InlineSpecifiersResolvedDependencies,
-} from './InlineSpecifiersLockfile'
+} from './lockfileFileTypes'
 
 export interface NormalizeLockfileOpts {
   forceSharedFormat: boolean
 }
 
-export function convertToInlineSpecifiersFormat (lockfile: Lockfile, opts: NormalizeLockfileOpts): LockfileFile {
+export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfileOpts): LockfileFile {
   const newLockfile = {
     ...lockfile,
     lockfileVersion: lockfile.lockfileVersion.toString(),
@@ -141,7 +141,7 @@ function convertFromLockfileFileMutable (lockfileFile: LockfileFile): InlineSpec
   return lockfileFile as InlineSpecifiersLockfile
 }
 
-export function revertFromInlineSpecifiersFormat (lockfile: LockfileFile): Lockfile {
+export function convertToLockfileObject (lockfile: LockfileFile): Lockfile {
   const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
 
   const newLockfile = {

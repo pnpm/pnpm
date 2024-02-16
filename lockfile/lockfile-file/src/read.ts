@@ -16,7 +16,7 @@ import { autofixMergeConflicts, isDiff } from './gitMergeFile'
 import { lockfileLogger as logger } from './logger'
 import { getWantedLockfileName } from './lockfileName'
 import { getGitBranchLockfileNames } from './gitBranchLockfile'
-import { revertFromInlineSpecifiersFormat } from './experiments/inlineSpecifiersLockfileConverters'
+import { convertToLockfileObject } from './lockfileFormatConverters'
 
 export async function readCurrentLockfile (
   virtualStoreDir: string,
@@ -86,7 +86,7 @@ async function _read (
   let lockfile: Lockfile
   let hadConflicts!: boolean
   try {
-    lockfile = revertFromInlineSpecifiersFormat(yaml.load(lockfileRawContent) as any) // eslint-disable-line
+    lockfile = convertToLockfileObject(yaml.load(lockfileRawContent) as any) // eslint-disable-line
     hadConflicts = false
   } catch (err: any) { // eslint-disable-line
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {

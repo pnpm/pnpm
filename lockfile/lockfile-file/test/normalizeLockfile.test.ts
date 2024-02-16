@@ -1,8 +1,8 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { convertToInlineSpecifiersFormat } from '../lib/experiments/inlineSpecifiersLockfileConverters'
+import { convertToLockfileFile } from '../lib/experiments/inlineSpecifiersLockfileConverters'
 
 test('empty overrides and neverBuiltDependencies are removed during lockfile normalization', () => {
-  expect(convertToInlineSpecifiersFormat({
+  expect(convertToLockfileFile({
     lockfileVersion: LOCKFILE_VERSION,
     // but this should be preserved.
     onlyBuiltDependencies: [],
@@ -39,7 +39,7 @@ test('empty overrides and neverBuiltDependencies are removed during lockfile nor
 })
 
 test('redundant fields are removed from "time"', () => {
-  expect(convertToInlineSpecifiersFormat({
+  expect(convertToLockfileFile({
     lockfileVersion: LOCKFILE_VERSION,
     packages: {},
     importers: {

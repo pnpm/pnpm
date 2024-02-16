@@ -9,8 +9,8 @@ import writeFileAtomicCB from 'write-file-atomic'
 import { lockfileLogger as logger } from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
 import { getWantedLockfileName } from './lockfileName'
-import { convertToInlineSpecifiersFormat } from './experiments/inlineSpecifiersLockfileConverters'
-import { type LockfileFile } from './experiments/InlineSpecifiersLockfile'
+import { convertToLockfileFile } from './lockfileFormatConverters'
+import { type LockfileFile } from './lockfileFileTypes'
 
 async function writeFileAtomic (filename: string, data: string) {
   return new Promise<void>((resolve, reject) => {
@@ -69,7 +69,7 @@ async function writeLockfile (
 ) {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
-  const lockfileToStringify = convertToInlineSpecifiersFormat(wantedLockfile, {
+  const lockfileToStringify = convertToLockfileFile(wantedLockfile, {
     forceSharedFormat: opts?.forceSharedFormat === true,
   })
 
@@ -106,7 +106,7 @@ export async function writeLockfiles (
   const normalizeOpts = {
     forceSharedFormat,
   }
-  const wantedLockfileToStringify = convertToInlineSpecifiersFormat(opts.wantedLockfile, normalizeOpts)
+  const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile, normalizeOpts)
   const yamlDoc = yamlStringify(wantedLockfileToStringify)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
@@ -132,7 +132,7 @@ export async function writeLockfiles (
     prefix: opts.wantedLockfileDir,
   })
 
-  const currentLockfileToStringify = convertToInlineSpecifiersFormat(opts.currentLockfile, normalizeOpts)
+  const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile, normalizeOpts)
   const currentYamlDoc = yamlStringify(currentLockfileToStringify)
 
   await Promise.all([
