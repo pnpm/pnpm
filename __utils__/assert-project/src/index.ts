@@ -69,7 +69,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     return cachedStore
   }
   function getVirtualStoreDir () {
-    const modulesYaml = readYamlFile<any>(path.join(modules, '.modules.yaml')) // eslint-disable-line
+    const modulesYaml = readModulesManifest(modules)
     if (modulesYaml == null) {
       return path.join(modules, '.pnpm')
     }
