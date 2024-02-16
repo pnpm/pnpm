@@ -896,9 +896,9 @@ test('lockfile file has correct format when lockfile directory does not equal th
     // previous entries are not removed
     const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
-    expect(lockfile.importers.project.dependencies!['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
-    expect(lockfile.importers.project.dependencies).toHaveProperty(['@zkochan/foo'])
-    expect(lockfile.importers.project.dependencies!['is-negative'].version).toContain('/')
+    expect(lockfile.importers?.project.dependencies!['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
+    expect(lockfile.importers?.project.dependencies).toHaveProperty(['@zkochan/foo'])
+    expect(lockfile.importers?.project.dependencies!['is-negative'].version).toContain('/')
 
     expect(lockfile.packages).toHaveProperty([id])
     expect(lockfile.packages![id].dependencies).toBeTruthy()
