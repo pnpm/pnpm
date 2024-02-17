@@ -350,7 +350,7 @@ export async function mutateModules (
     }
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
-      !ctx.wantedLockfile.lockfileVersion.toString().startsWith('6.') ||
+      !ctx.wantedLockfile.lockfileVersion.toString().startsWith('7.') ||
       opts.forceFullResolution
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
