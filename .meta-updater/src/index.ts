@@ -93,7 +93,8 @@ async function updateTSConfig (
     ...importer.devDependencies,
   }
   const references = [] as Array<{ path: string }>
-  for (const [depName, spec] of Object.entries(deps)) {
+  for (let [depName, spec] of Object.entries(deps)) {
+    spec = typeof spec === 'string' ? spec : spec['version']
     if (!spec.startsWith('link:') || spec.length === 5) continue
     const relativePath = spec.slice(5)
     const linkedPkgDir = path.join(dir, relativePath)
