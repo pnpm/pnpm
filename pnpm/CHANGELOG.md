@@ -1,10 +1,11 @@
 # pnpm
 
-## 9.0.0-alpha.4
+## 9.0.0-alpha.5
 
 ### Major Changes
 
 - Node.js v16 support dropped. Use at least Node.js v18.12.
+- Lockfile version bumped to v7.
 - Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
 - The [`dedupe-injected-deps`](https://pnpm.io/npmrc#dedupe-injected-deps) setting is `true` by default.
 - The default value of the `link-workspace-packages` setting changed from `true` to `false`. This means that by default, dependencies will be linked from workspace packages only when they are specified using the [workspace protocol](https://pnpm.io/workspaces#workspace-protocol-workspace).
@@ -12,6 +13,9 @@
 - The default value of the [hoist-workspace-packages](https://pnpm.io/npmrc#hoist-workspace-packages) is `true`.
 - `pnpm licenses list` prints license information of all versions of the same package in case different versions use different licenses. The format of the `pnpm licenses list --json` output has been changed [#7528](https://github.com/pnpm/pnpm/pull/7528).
 - A new command added for printing completion code to the console: `pnpm completion [shell]`. The old command that modified the user's shell dotfiles has been removed [#3083](https://github.com/pnpm/pnpm/issues/3083).
+- pnpm will now check the `package.json` file for a `packageManager` field. If this field is present and specifies a different package manager or a different version of pnpm than the one you're currently using, pnpm will not proceed. This ensures that you're always using the correct package manager and version that the project requires.
+- `enable-pre-post-scripts` is set to `true` by default. This means that when you run a script like `start`, `prestart` and `poststart` will also run.
+- When installing git-hosted dependencies, only pick the files that would be packed with the package [#7638](https://github.com/pnpm/pnpm/pull/7638).
 - Use the same directories on macOS as on Linux. Don't use directories inside `~/Library` on macOS [#7321](https://github.com/pnpm/pnpm/issues/7321).
 
 - Peer dependencies of peer dependencies are now resolved correctly. When peer dependencies have peer dependencies of their own, the peer dependencies are grouped with their own peer dependencies before being linked to their dependents.
@@ -82,7 +86,18 @@
 
 - PowerShell completion support added [#7597](https://github.com/pnpm/pnpm/pull/7597).
 
-- Support `node-options` option inside `.npmrc` file when running scripts [#7596](https://github.com/pnpm/pnpm/issues/7596)
+- Support `node-options` option inside `.npmrc` file when running scripts [#7596](https://github.com/pnpm/pnpm/issues/7596).
+
+- Added support for registry-scoped SSL configurations (cert, key, and ca). Three new settings supported: `<registryURL>:certfile`, `<registryURL>:keyfile`, and `<registryURL>:ca`. For instance:
+
+  ```
+  //registry.mycomp.com/:certfile=server-cert.pem
+  //registry.mycomp.com/:keyfile=server-key.pem
+  //registry.mycomp.com/:cafile=client-cert.pem
+  ```
+
+  Related issue: [#7427](https://github.com/pnpm/pnpm/issues/7427).
+  Related PR: [#7626](https://github.com/pnpm/pnpm/pull/7626).
 
 ## 8.15.0
 
