@@ -27,7 +27,7 @@ describe('FUSE handlers', () => {
       expect(returnCode).toBe(0)
       expect(files!.sort()).toStrictEqual([
         '@zkochan+git-config@0.1.0',
-        'ini@1.3.8',
+        'ini@1.3.4',
         'is-positive@1.0.0',
       ].sort())
     })
