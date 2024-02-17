@@ -1,4 +1,4 @@
-lockfileVersion: '6.0'
+lockfileVersion: '7.0'
 
 settings:
   autoInstallPeers: true
@@ -16,14 +16,14 @@ optionalDependencies:
 
 packages:
 
-  /@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0:
-    resolution: {integrity: sha512-KS9eCiX1F0DF+YHrpQDGkUkIPcZFhz6NhOh5amLnTUpR0Dcd6Mv96YOf01PBw1pINWs+Jo5KhXYp0L58mebTgw==}
+  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0:
+    resolution: {integrity: sha512-60+yiZtuRbojMieLzg4UxzBs5fxSVfRtTRNKvdfTaLTb/2XLZTZORTSWkz8ttCGmNbMv5Li2gP4TNgVFMbnYgw==}
     dev: false
 
   /@pnpm.e2e/pkg-with-good-optional@1.0.0:
     resolution: {integrity: sha512-KfshZeGJiii1oEMjabBfxZ/rB14oJfE7wtFIRHmElIIZZHZlDtP1u4m8nBYrFKs4b8Dku4BCMV6pO0uMIVwHpQ==}
     dependencies:
-      '@pnpm.e2e/dep-of-pkg-with-1-dep': 101.0.0
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.1.0
     optionalDependencies:
       is-positive: 1.0.0
     dev: false

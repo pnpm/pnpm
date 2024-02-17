@@ -8,7 +8,7 @@ import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { diff } from 'jest-diff'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 
 const f = fixtures(__dirname)
@@ -159,12 +159,12 @@ async function testFixture (fixtureName: string) {
 
   const readProjectLockfile = () => readYamlFile<Lockfile>(path.join(project.dir(), './pnpm-lock.yaml'))
 
-  const originalLockfile = await readProjectLockfile()
+  const originalLockfile = readProjectLockfile()
 
   // Sanity check that this test is set up correctly by ensuring the lockfile is
   // unmodified after a regular install.
   await install.handler(opts)
-  expect(await readProjectLockfile()).toEqual(originalLockfile)
+  expect(readProjectLockfile()).toEqual(originalLockfile)
 
   let dedupeCheckError: DedupeCheckIssuesError | undefined
   try {
@@ -174,7 +174,7 @@ async function testFixture (fixtureName: string) {
     dedupeCheckError = err as DedupeCheckIssuesError
   } finally {
     // The dedupe check option should never change the lockfile.
-    expect(await readProjectLockfile()).toEqual(originalLockfile)
+    expect(readProjectLockfile()).toEqual(originalLockfile)
   }
 
   if (dedupeCheckError == null) {
@@ -185,7 +185,7 @@ async function testFixture (fixtureName: string) {
   // re-resolving versions.
   await dedupe.handler(opts)
 
-  const dedupedLockfile = await readProjectLockfile()
+  const dedupedLockfile = readProjectLockfile()
 
   // It should be possible to remove packages from the fixture lockfile.
   const originalLockfilePackageNames = Object.keys(originalLockfile.packages ?? {})
@@ -200,7 +200,7 @@ async function testFixture (fixtureName: string) {
   // state. If so, the "pnpm install" command should pass successfully and not
   // make any further edits to the lockfile.
   await install.handler(opts)
-  expect(await readProjectLockfile()).toEqual(dedupedLockfile)
+  expect(readProjectLockfile()).toEqual(dedupedLockfile)
 
   return { originalLockfile, dedupedLockfile, dedupeCheckError }
 }
