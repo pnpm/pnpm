@@ -1,8 +1,9 @@
 import fs from 'fs'
 import delay from 'delay'
 import path from 'path'
+import { readProjects } from '@pnpm/filter-workspace-packages'
 import { add, install } from '@pnpm/plugin-commands-installation'
-import { prepareEmpty } from '@pnpm/prepare'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { DEFAULT_OPTS } from './utils'
 
@@ -51,4 +52,108 @@ test('install with no store integrity validation', async () => {
   })
 
   expect(fs.readFileSync('node_modules/is-positive/readme.md', 'utf8')).toBe('modified')
+})
+
+describe('install injected dependency with publishConfig in manifest', () => {
+  test.each([true, false])('with shared lockfile: %s', async withLockfile => {
+    preparePackages([
+      {
+        location: '.',
+        package: {
+          name: 'root',
+          version: '1.0.0',
+        },
+      },
+      {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'project-2': 'workspace:*',
+        },
+        devDependencies: {
+          'project-3': 'workspace:*',
+        },
+        dependenciesMeta: {
+          'project-2': {
+            injected: true,
+          },
+        },
+      },
+      {
+        name: 'project-2',
+        version: '1.0.0',
+        devDependencies: {
+          'project-3': 'workspace:*',
+        },
+        publishConfig: {
+          exports: {
+            foo: 'bar',
+          },
+        },
+      },
+      {
+        location: 'nested-packages/project-3',
+        package: {
+          name: 'project-3',
+          version: '1.0.0',
+        },
+      },
+    ])
+
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+
+    const lockfileDir = withLockfile ? process.cwd() : undefined
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      lockfileDir,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    })
+
+    const originalProject2 = fs.readFileSync('project-2/package.json', 'utf8')
+    expect(
+      JSON.parse(originalProject2)
+    ).toEqual({
+      name: 'project-2',
+      version: '1.0.0',
+      devDependencies: {
+        'project-3': 'workspace:*',
+      },
+      publishConfig: {
+        exports: {
+          foo: 'bar',
+        },
+      },
+    })
+
+    const injectedProject2 = fs.readFileSync('project-1/node_modules/project-2/package.json', 'utf8')
+    expect(
+      JSON.parse(injectedProject2)
+    ).toEqual({
+      name: 'project-2',
+      version: '1.0.0',
+      devDependencies: {
+        'project-3': 'workspace:*',
+      },
+      publishConfig: {
+        exports: {
+          foo: 'bar',
+        },
+      },
+    })
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      lockfileDir,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    })
+  })
 })
