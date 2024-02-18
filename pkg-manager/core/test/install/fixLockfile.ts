@@ -2,15 +2,15 @@ import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, type MutatedProject, mutateModules } from '@pnpm/core'
-import writeYamlFile from 'write-yaml-file'
-import readYamlFile from 'read-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { type Lockfile, type PackageSnapshots } from '@pnpm/lockfile-file'
 import { testDefaults } from '../utils'
 
 test('fix broken lockfile with --fix-lockfile', async () => {
   prepareEmpty()
 
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       '@types/semver': {
         specifier: '^5.3.31',
@@ -47,9 +47,9 @@ test('fix broken lockfile with --fix-lockfile', async () => {
     devDependencies: {
       'core-js-pure': '^3.16.2',
     },
-  }, await testDefaults({ fixLockfile: true }))
+  }, testDefaults({ fixLockfile: true }))
 
-  const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
+  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.packages as PackageSnapshots).length).toBe(2)
   expect(lockfile.packages?.['/@types/semver@5.3.31']).toBeTruthy()
   expect(lockfile.packages?.['/@types/semver@5.3.31']?.resolution).toEqual({
@@ -99,7 +99,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
    * and @babel/runtime-corejs3@7.15.3 depends on core-js-pure@3.17.2 while @babel/runtime-corejs3@7.15.4 depends on core-js-pure@3.17.3
    * --fix-lockfile should not change the locked dependency version and only adding missing fields in this scene
    */
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     lockfileVersion: LOCKFILE_VERSION,
     importers: {
       '.': {},
@@ -156,7 +156,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
     },
   }, { lineWidth: 1000 })
 
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     fixLockfile: true,
     lockfileOnly: true,
     allProjects: [
@@ -193,7 +193,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
     ],
   }))
 
-  const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
+  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
 
   expect(Object.keys(lockfile.packages as PackageSnapshots).length).toBe(5)
 
@@ -250,10 +250,10 @@ test(
       },
     }
     // install first time to generate lock file
-    await install(packages, await testDefaults())
+    await install(packages, testDefaults())
 
     // install second time to check whether install successfully with lockfileOnly
-    await install(packages, await testDefaults({
+    await install(packages, testDefaults({
       fixLockfile: true,
     }))
   }

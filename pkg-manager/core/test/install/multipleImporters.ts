@@ -12,13 +12,12 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import loadJsonFile from 'load-json-file'
-import exists from 'path-exists'
 import pick from 'ramda/src/pick'
 import sinon from 'sinon'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils'
 
 test('install only the dependencies of the specified importer', async () => {
@@ -69,16 +68,16 @@ test('install only the dependencies of the specified importer', async () => {
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true }))
+  await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
 
-  await mutateModules(importers.slice(0, 1), await testDefaults({ allProjects }))
+  await mutateModules(importers.slice(0, 1), testDefaults({ allProjects }))
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
 
   const rootModules = assertProject(process.cwd())
-  await rootModules.has('.pnpm/is-positive@1.0.0')
-  await rootModules.hasNot('.pnpm/is-negative@1.0.0')
+  rootModules.has('.pnpm/is-positive@1.0.0')
+  rootModules.hasNot('.pnpm/is-negative@1.0.0')
 })
 
 test('install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore', async () => {
@@ -149,8 +148,8 @@ test('install only the dependencies of the specified importer. The current lockf
       rootDir: path.resolve('project-3'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, hoistPattern: '*' }))
-  await mutateModules(importers.slice(0, 2), await testDefaults({ allProjects, lockfileOnly: true, pruneLockfileImporters: true }))
+  await mutateModules(importers, testDefaults({ allProjects, hoistPattern: '*' }))
+  await mutateModules(importers.slice(0, 2), testDefaults({ allProjects, lockfileOnly: true, pruneLockfileImporters: true }))
 
   await mutateModules([
     {
@@ -158,10 +157,10 @@ test('install only the dependencies of the specified importer. The current lockf
       dependencySelectors: ['@pnpm.e2e/pkg-with-1-dep'],
       mutation: 'installSome',
     },
-  ], await testDefaults({ allProjects, hoistPattern: '*' }))
+  ], testDefaults({ allProjects, hoistPattern: '*' }))
 
   const rootModules = assertProject(process.cwd())
-  const currentLockfile = await rootModules.readCurrentLockfile()
+  const currentLockfile = rootModules.readCurrentLockfile()
   expect(currentLockfile.importers).toHaveProperty(['project-3'])
   expect(currentLockfile.packages).toHaveProperty(['/@pnpm.e2e/foobar@100.0.0'])
 })
@@ -226,10 +225,10 @@ test('some projects were removed from the workspace and the ones that are left d
       },
     },
   }
-  await mutateModules(importers, await testDefaults({ allProjects, workspacePackages }))
+  await mutateModules(importers, testDefaults({ allProjects, workspacePackages }))
 
   await expect(
-    mutateModules(importers.slice(0, 1), await testDefaults({
+    mutateModules(importers.slice(0, 1), testDefaults({
       allProjects: allProjects.slice(0, 1),
       pruneLockfileImporters: true,
       workspacePackages: pick(['project-1'], workspacePackages),
@@ -258,7 +257,7 @@ test('dependencies of other importers are not pruned when installing for a subse
       mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
-  ], await testDefaults({
+  ], testDefaults({
     allProjects: [
       {
         buildIndex: 0,
@@ -287,22 +286,22 @@ test('dependencies of other importers are not pruned when installing for a subse
     ],
   }))).updatedProjects
 
-  await addDependenciesToPackage(manifest, ['is-positive@2'], await testDefaults({
+  await addDependenciesToPackage(manifest, ['is-positive@2'], testDefaults({
     dir: path.resolve('project-1'),
     lockfileDir: process.cwd(),
     modulesCacheMaxAge: 0,
     pruneLockfileImporters: false,
   }))
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].has('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
 
   const rootModules = assertProject(process.cwd())
-  await rootModules.has('.pnpm/is-positive@2.0.0')
-  await rootModules.hasNot('.pnpm/is-positive@1.0.0')
-  await rootModules.has('.pnpm/is-negative@1.0.0')
+  rootModules.has('.pnpm/is-positive@2.0.0')
+  rootModules.hasNot('.pnpm/is-positive@1.0.0')
+  rootModules.has('.pnpm/is-negative@1.0.0')
 
-  const lockfile = await rootModules.readCurrentLockfile()
+  const lockfile = rootModules.readCurrentLockfile()
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/is-negative@1.0.0',
@@ -358,28 +357,28 @@ test('dependencies of other importers are not pruned when (headless) installing 
       rootDir: path.resolve('project-2'),
     },
   ]
-  const [{ manifest }] = (await mutateModules(importers, await testDefaults({ allProjects }))).updatedProjects
+  const [{ manifest }] = (await mutateModules(importers, testDefaults({ allProjects }))).updatedProjects
 
-  await addDependenciesToPackage(manifest, ['is-positive@2'], await testDefaults({
+  await addDependenciesToPackage(manifest, ['is-positive@2'], testDefaults({
     dir: path.resolve('project-1'),
     lockfileDir: process.cwd(),
     lockfileOnly: true,
     pruneLockfileImporters: false,
   }))
-  await mutateModules(importers.slice(0, 1), await testDefaults({
+  await mutateModules(importers.slice(0, 1), testDefaults({
     allProjects,
     frozenLockfile: true,
     modulesCacheMaxAge: 0,
     pruneLockfileImporters: false,
   }))
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].has('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
 
   const rootModules = assertProject(process.cwd())
-  await rootModules.has('.pnpm/is-positive@2.0.0')
-  await rootModules.hasNot('.pnpm/is-positive@1.0.0')
-  await rootModules.has('.pnpm/is-negative@1.0.0')
+  rootModules.has('.pnpm/is-positive@2.0.0')
+  rootModules.hasNot('.pnpm/is-positive@1.0.0')
+  rootModules.has('.pnpm/is-negative@1.0.0')
 })
 
 test('adding a new dev dependency to project that uses a shared lockfile', async () => {
@@ -390,7 +389,7 @@ test('adding a new dev dependency to project that uses a shared lockfile', async
       mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
-  ], await testDefaults({
+  ], testDefaults({
     allProjects: [
       {
         buildIndex: 0,
@@ -406,7 +405,7 @@ test('adding a new dev dependency to project that uses a shared lockfile', async
       },
     ],
   }))).updatedProjects
-  manifest = await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
 
   expect(manifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
   expect(manifest.devDependencies).toStrictEqual({ 'is-negative': '1.0.0' })
@@ -454,10 +453,10 @@ test('headless install is used when package linked to another package in the wor
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true }))
+  await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
 
   const reporter = sinon.spy()
-  await mutateModules(importers.slice(0, 1), await testDefaults({ allProjects, reporter }))
+  await mutateModules(importers.slice(0, 1), testDefaults({ allProjects, reporter }))
 
   expect(reporter.calledWithMatch({
     level: 'info',
@@ -465,9 +464,9 @@ test('headless install is used when package linked to another package in the wor
     name: 'pnpm',
   })).toBeTruthy()
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-1'].has('project-2')
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-1'].has('project-2')
+  projects['project-2'].hasNot('is-negative')
 })
 
 test('headless install is used with an up-to-date lockfile when package references another package via workspace: protocol', async () => {
@@ -526,10 +525,10 @@ test('headless install is used with an up-to-date lockfile when package referenc
       },
     },
   }
-  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true, workspacePackages }))
+  await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true, workspacePackages }))
 
   const reporter = sinon.spy()
-  await mutateModules(importers, await testDefaults({ allProjects, reporter, workspacePackages }))
+  await mutateModules(importers, testDefaults({ allProjects, reporter, workspacePackages }))
 
   expect(reporter.calledWithMatch({
     level: 'info',
@@ -537,9 +536,9 @@ test('headless install is used with an up-to-date lockfile when package referenc
     name: 'pnpm',
   })).toBeTruthy()
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-1'].has('project-2')
-  await projects['project-2'].has('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-1'].has('project-2')
+  projects['project-2'].has('is-negative')
 })
 
 test('headless install is used when packages are not linked from the workspace (unless workspace ranges are used)', async () => {
@@ -604,7 +603,7 @@ test('headless install is used when packages are not linked from the workspace (
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     linkWorkspacePackagesDepth: -1,
     lockfileOnly: true,
@@ -612,7 +611,7 @@ test('headless install is used when packages are not linked from the workspace (
   }))
 
   const reporter = sinon.spy()
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     linkWorkspacePackagesDepth: -1,
     reporter,
@@ -649,13 +648,13 @@ test('current lockfile contains only installed dependencies when adding a new im
     manifest: pkg1,
     mutation: 'install',
     rootDir: path.resolve('project-1'),
-  }, await testDefaults({ lockfileOnly: true }))
+  }, testDefaults({ lockfileOnly: true }))
 
   await mutateModulesInSingleProject({
     manifest: pkg2,
     mutation: 'install',
     rootDir: path.resolve('project-2'),
-  }, await testDefaults())
+  }, testDefaults())
 
   const currentLockfile = await readCurrentLockfile(path.resolve('node_modules/.pnpm'), { ignoreIncompatible: false })
 
@@ -675,7 +674,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
       mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
-  ], await testDefaults({
+  ], testDefaults({
     allProjects: [
       {
         buildIndex: 0,
@@ -698,7 +697,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
     ],
   }))
 
-  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     importers: {
       'project-1': {
         dependencies: {
@@ -754,11 +753,11 @@ test('partial installation in a monorepo does not remove dependencies of other w
     },
     mutation: 'install',
     rootDir: path.resolve('project-1'),
-  }, await testDefaults())
+  }, testDefaults())
 
-  expect(await exists(path.resolve('node_modules/.pnpm/is-positive@2.0.0/node_modules/is-positive'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/is-positive@2.0.0/node_modules/is-positive'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace projects when lockfile is frozen', async () => {
@@ -774,7 +773,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
       mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
-  ], await testDefaults({
+  ], testDefaults({
     allProjects: [
       {
         buildIndex: 0,
@@ -797,7 +796,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
     ],
   }))
 
-  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+  writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     importers: {
       'project-1': {
         dependencies: {
@@ -853,11 +852,11 @@ test('partial installation in a monorepo does not remove dependencies of other w
     },
     mutation: 'install',
     rootDir: path.resolve('project-1'),
-  }, await testDefaults({ frozenLockfile: true }))
+  }, testDefaults({ frozenLockfile: true }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeTruthy()
 })
 
 test('adding a new dependency with the workspace: protocol', async () => {
@@ -872,7 +871,7 @@ test('adding a new dependency with the workspace: protocol', async () => {
     },
     mutation: 'installSome',
     rootDir: path.resolve('project-1'),
-  }, await testDefaults({
+  }, testDefaults({
     saveWorkspaceProtocol: true,
     workspacePackages: {
       foo: {
@@ -902,7 +901,7 @@ test('adding a new dependency with the workspace: protocol and save-workspace-pr
     },
     mutation: 'installSome',
     rootDir: path.resolve('project-1'),
-  }, await testDefaults({
+  }, testDefaults({
     saveWorkspaceProtocol: 'rolling',
     workspacePackages: {
       foo: {
@@ -935,7 +934,7 @@ test('update workspace range', async () => {
       rootDir: path.resolve('project-2'),
       update: true,
     },
-  ], await testDefaults({
+  ], testDefaults({
     allProjects: [
       {
         manifest: {
@@ -1081,7 +1080,7 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
       rootDir: path.resolve('project-2'),
       update: true,
     },
-  ], await testDefaults({
+  ], testDefaults({
     allProjects: [
       {
         manifest: {
@@ -1236,37 +1235,37 @@ test('remove dependencies of a project that was removed from the workspace (duri
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects }))
+  await mutateModules(importers, testDefaults({ allProjects }))
 
-  await mutateModules(importers.slice(0, 1), await testDefaults({ allProjects: allProjects.slice(0, 1), lockfileOnly: true, pruneLockfileImporters: true }))
+  await mutateModules(importers.slice(0, 1), testDefaults({ allProjects: allProjects.slice(0, 1), lockfileOnly: true, pruneLockfileImporters: true }))
 
   const project = assertProject(process.cwd())
 
   {
-    const wantedLockfile = await project.readLockfile()
+    const wantedLockfile = project.readLockfile()
     expect(Object.keys(wantedLockfile.importers)).toStrictEqual(['project-1'])
     expect(Object.keys(wantedLockfile.packages)).toStrictEqual(['/is-positive@1.0.0'])
 
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(Object.keys(currentLockfile.importers)).toStrictEqual(['project-1', 'project-2'])
     expect(Object.keys(currentLockfile.packages)).toStrictEqual(['/is-negative@1.0.0', '/is-positive@1.0.0'])
 
-    await project.has('.pnpm/is-positive@1.0.0')
-    await project.has('.pnpm/is-negative@1.0.0')
+    project.has('.pnpm/is-positive@1.0.0')
+    project.has('.pnpm/is-negative@1.0.0')
   }
 
-  await mutateModules(importers.slice(0, 1), await testDefaults({
+  await mutateModules(importers.slice(0, 1), testDefaults({
     allProjects: allProjects.slice(0, 1),
     preferFrozenLockfile: false,
     modulesCacheMaxAge: 0,
   }))
   {
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(Object.keys(currentLockfile.importers)).toStrictEqual(['project-1'])
     expect(Object.keys(currentLockfile.packages)).toStrictEqual(['/is-positive@1.0.0'])
 
-    await project.has('.pnpm/is-positive@1.0.0')
-    await project.hasNot('.pnpm/is-negative@1.0.0')
+    project.has('.pnpm/is-positive@1.0.0')
+    project.hasNot('.pnpm/is-negative@1.0.0')
   }
 })
 
@@ -1326,11 +1325,11 @@ test('do not resolve a subdependency from the workspace by default', async () =>
       },
     },
   }
-  await mutateModules(importers, await testDefaults({ allProjects, workspacePackages }))
+  await mutateModules(importers, testDefaults({ allProjects, workspacePackages }))
 
   const project = assertProject(process.cwd())
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
 })
 
@@ -1389,17 +1388,17 @@ test('resolve a subdependency from the workspace', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({ allProjects, linkWorkspacePackagesDepth: Infinity, workspacePackages }))
+  await mutateModules(importers, testDefaults({ allProjects, linkWorkspacePackagesDepth: Infinity, workspacePackages }))
 
   const project = assertProject(process.cwd())
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   // Testing that headless installation does not fail with links in subdeps
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     frozenLockfile: true,
     workspacePackages,
@@ -1463,7 +1462,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     autoInstallPeers: false,
     dedupePeerDependents: false,
@@ -1474,7 +1473,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
 
   const project = assertProject(process.cwd())
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   const suffix1 = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }])
   const suffix2 = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.1' }])
   expect(Object.keys(wantedLockfile.packages).sort()).toStrictEqual(
@@ -1552,7 +1551,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
   const overrides = {
     '@pnpm.e2e/dep-of-pkg-with-1-dep': 'workspace:*',
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     linkWorkspacePackagesDepth: -1,
     overrides,
@@ -1561,13 +1560,13 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
 
   const project = assertProject(process.cwd())
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   // Testing that headless installation does not fail with links in subdeps
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     frozenLockfile: true,
     overrides,
@@ -1620,7 +1619,7 @@ test('install the dependency that is already present in the workspace when addin
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects }))
+  await mutateModules(importers, testDefaults({ allProjects }))
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
@@ -1631,7 +1630,7 @@ test('install the dependency that is already present in the workspace when addin
       dependencySelectors: ['@pnpm.e2e/dep-of-pkg-with-1-dep'],
       mutation: 'installSome',
     },
-  ], await testDefaults({
+  ], testDefaults({
     allProjects,
     lockfileDir: process.cwd(),
     workspacePackages: {
@@ -1645,7 +1644,7 @@ test('install the dependency that is already present in the workspace when addin
   }))
 
   const rootModules = assertProject(process.cwd())
-  const currentLockfile = await rootModules.readCurrentLockfile()
+  const currentLockfile = rootModules.readCurrentLockfile()
 
   expect(currentLockfile.importers['project-1'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
     specifier: '^100.0.0',
@@ -1715,7 +1714,7 @@ test('do not update dependency that has the same name as a dependency in the wor
       },
     },
   }
-  await mutateModules(importers, await testDefaults({ allProjects, linkWorkspacePackagesDepth: -1, workspacePackages }))
+  await mutateModules(importers, testDefaults({ allProjects, linkWorkspacePackagesDepth: -1, workspacePackages }))
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   await mutateModules([
     {
@@ -1724,10 +1723,10 @@ test('do not update dependency that has the same name as a dependency in the wor
       mutation: 'installSome',
     },
     importers[1],
-  ], await testDefaults({ allProjects, linkWorkspacePackagesDepth: -1, workspacePackages, preferredVersions: {} }))
+  ], testDefaults({ allProjects, linkWorkspacePackagesDepth: -1, workspacePackages, preferredVersions: {} }))
 
   const rootModules = assertProject(process.cwd())
-  const currentLockfile = await rootModules.readCurrentLockfile()
+  const currentLockfile = rootModules.readCurrentLockfile()
   expect(Object.keys(currentLockfile.packages)).toStrictEqual([
     '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
     '/is-negative@2.1.0',
@@ -1802,22 +1801,22 @@ test('symlink local package from the location described in its publishConfig.dir
       },
     },
   }
-  await mutateModules(importers, await testDefaults({ allProjects, workspacePackages }))
+  await mutateModules(importers, testDefaults({ allProjects, workspacePackages }))
 
   {
-    const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
+    const linkedManifest = loadJsonFile.sync<{ name: string }>('project-2/node_modules/project-1/package.json')
     expect(linkedManifest.name).toBe('project-1-dist')
   }
 
   const project = assertProject(process.cwd())
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.importers['project-1'].publishDirectory).toBe('dist')
 
-  await rimraf('node_modules')
-  await mutateModules(importers, await testDefaults({ allProjects, frozenLockfile: true, workspacePackages }))
+  rimraf('node_modules')
+  await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true, workspacePackages }))
 
   {
-    const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
+    const linkedManifest = loadJsonFile.sync<{ name: string }>('project-2/node_modules/project-1/package.json')
     expect(linkedManifest.name).toBe('project-1-dist')
   }
 })
@@ -1890,9 +1889,9 @@ test('do not symlink local package from the location described in its publishCon
       },
     },
   }
-  await mutateModules(importers, await testDefaults({ allProjects, workspacePackages }))
+  await mutateModules(importers, testDefaults({ allProjects, workspacePackages }))
 
-  const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
+  const linkedManifest = loadJsonFile.sync<{ name: string }>('project-2/node_modules/project-1/package.json')
   expect(linkedManifest.name).toBe('project-1')
 })
 
@@ -1946,16 +1945,16 @@ require("fs").writeFileSync("created-by-prepare", "", "utf8")`)
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects }))
+  await mutateModules(importers, testDefaults({ allProjects }))
 
   expect(fs.existsSync('project-1/created-by-prepare')).toBeTruthy()
 
-  await rimraf('node_modules')
-  await rimraf('project-1/node_modules')
-  await rimraf('project-2/node_modules')
+  rimraf('node_modules')
+  rimraf('project-1/node_modules')
+  rimraf('project-2/node_modules')
   fs.renameSync('project-2/bin.js', 'project-2/__bin.js')
 
-  await mutateModules(importers, await testDefaults({ allProjects, frozenLockfile: true }))
+  await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
 
   expect(fs.existsSync('project-1/created-by-prepare')).toBeTruthy()
 })

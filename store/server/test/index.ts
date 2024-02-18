@@ -6,7 +6,7 @@ import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
 import fetch from 'node-fetch'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import tempy from 'tempy'
 import isPortReachable from 'is-port-reachable'
@@ -169,7 +169,7 @@ test('server upload', async () => {
     filesIndexFile,
   })
 
-  const cacheIntegrity = await loadJsonFile<any>(filesIndexFile) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = loadJsonFile.sync<any>(filesIndexFile) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(Object.keys(cacheIntegrity?.['sideEffects'][fakeEngine]).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
 
   await server.close()
@@ -177,7 +177,7 @@ test('server upload', async () => {
 })
 
 test('disable server upload', async () => {
-  await rimraf('.store')
+  rimraf('.store')
 
   const port = await getPort()
   const hostname = 'localhost'

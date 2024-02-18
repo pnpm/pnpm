@@ -6,9 +6,9 @@ import { testDefaults } from '../utils'
 test('time-based resolution mode', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/bravo', '@pnpm.e2e/romeo'], await testDefaults({ resolutionMode: 'time-based' }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/bravo', '@pnpm.e2e/romeo'], testDefaults({ resolutionMode: 'time-based' }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/@pnpm.e2e/bravo-dep@1.0.1',
     '/@pnpm.e2e/bravo@1.0.0',
@@ -20,12 +20,12 @@ test('time-based resolution mode', async () => {
 test('time-based resolution mode with a registry that supports the time field in abbreviated metadata', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/bravo', '@pnpm.e2e/romeo'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/bravo', '@pnpm.e2e/romeo'], testDefaults({
     registrySupportsTimeField: true,
     resolutionMode: 'time-based',
   }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/@pnpm.e2e/bravo-dep@1.0.1',
     '/@pnpm.e2e/bravo@1.0.0',
@@ -42,17 +42,17 @@ test('the lowest version of a direct dependency is installed when resolution mod
     dependencies: {
       '@pnpm.e2e/foo': '^100.0.0',
     },
-  }, await testDefaults({ resolutionMode: 'time-based' }))
+  }, testDefaults({ resolutionMode: 'time-based' }))
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
   }
 
-  manifest = await install(manifest, await testDefaults({ resolutionMode: 'time-based', update: true }))
+  manifest = await install(manifest, testDefaults({ resolutionMode: 'time-based', update: true }))
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.packages['/@pnpm.e2e/foo@100.1.0']).toBeTruthy()
   }
   expect(manifest.dependencies).toStrictEqual({
@@ -62,7 +62,7 @@ test('the lowest version of a direct dependency is installed when resolution mod
 
 test('time-based resolution mode should not fail when publishedBy date cannot be calculated', async () => {
   prepareEmpty()
-  await install({}, await testDefaults({ resolutionMode: 'time-based' }))
+  await install({}, testDefaults({ resolutionMode: 'time-based' }))
 })
 
 test('the lowest version of a direct dependency is installed when resolution mode is lowest-direct', async () => {
@@ -74,18 +74,18 @@ test('the lowest version of a direct dependency is installed when resolution mod
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
     },
-  }, await testDefaults({ resolutionMode: 'lowest-direct' }))
+  }, testDefaults({ resolutionMode: 'lowest-direct' }))
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
     expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
   }
 
-  manifest = await install(manifest, await testDefaults({ resolutionMode: 'lowest-direct', update: true }))
+  manifest = await install(manifest, testDefaults({ resolutionMode: 'lowest-direct', update: true }))
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.1.0']).toBeTruthy()
   }
   expect(manifest.dependencies).toStrictEqual({

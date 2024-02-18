@@ -1,26 +1,38 @@
 lockfileVersion: '6.0'
 
-dependencies:
-  '@zkochan/git-config':
-    specifier: 0.1.0
-    version: 0.1.0
-  is-positive:
-    specifier: 1.0.0
-    version: 1.0.0
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@zkochan/git-config':
+        specifier: 0.1.0
+        version: 0.1.0
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
 
 packages:
 
   /@zkochan/git-config@0.1.0:
-    resolution: {integrity: sha1-lHdoOUuwyBsfrnA+/pjQDYyXl+A=}
+    resolution: {integrity: sha512-JBrmOelc6E+T2pbyLItPnVhY/hBVKE8K4TpdVK0ymlL1OvYj/VJYJszuAoOP2Q+Sw2QIZHvngURNYChk1TbhvA==}
     dependencies:
-      ini: 1.3.8
+      ini: 1.3.4
     dev: false
 
-  /ini@1.3.8:
-    resolution: {integrity: sha512-JV/yugV2uzW5iMRSiZAyDtQd+nxtUnjeLt0acNdw98kKLrvuRVyB80tsREOE7yvGVgalhZ6RNXCmEHkUKBKxew==}
+  /ini@1.3.4:
+    resolution: {integrity: sha512-VUA7WAWNCWfm6/8f9kAb8Y6iGBWnmCfgFS5dTrv2C38LLm1KUmpY388mCVCJCsMKQomvOQ1oW8/edXdChd9ZXQ==}
+    deprecated: Please update to ini >=1.3.6 to avoid a prototype pollution issue
     dev: false
 
   /is-positive@1.0.0:
-    resolution: {integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=}
+    resolution: {integrity: sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==}
     engines: {node: '>=0.10.0'}
     dev: false
+
+time:
+  /@zkochan/git-config@0.1.0: '2016-04-06T16:35:39.401Z'
+  /is-positive@1.0.0: '2015-06-02T12:03:51.069Z'

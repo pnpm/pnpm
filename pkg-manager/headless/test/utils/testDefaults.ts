@@ -51,7 +51,7 @@ export async function testDefaults (
     ...resolveOpts,
     ...fetchOpts,
   })
-  const storeController = await createPackageStore(
+  const storeController = createPackageStore(
     resolve,
     fetchers,
     {

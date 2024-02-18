@@ -187,15 +187,6 @@ function getChangelogEntry (changelog: string, version: string) {
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://www.thinkmill.com.au/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/thinkmill.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/thinkmill_light.svg" />
-            <img src="https://pnpm.io/img/users/thinkmill.svg" width="200" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
         <a href="https://devowl.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/devowlio.svg" />
@@ -204,8 +195,6 @@ function getChangelogEntry (changelog: string, version: string) {
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://macpaw.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>

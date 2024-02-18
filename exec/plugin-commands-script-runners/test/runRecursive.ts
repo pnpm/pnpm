@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { run } from '@pnpm/plugin-commands-script-runners'
@@ -6,7 +6,7 @@ import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspac
 import { type PnpmError } from '@pnpm/error'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import execa from 'execa'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
@@ -725,7 +725,7 @@ test('`pnpm run -r` should avoid infinite recursion', async () => {
       },
     },
   ])
-  await writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFile('pnpm-workspace.yaml', {})
 
   await execa(pnpmBin, [
     'install',
@@ -914,25 +914,25 @@ test('pnpm run with RegExp script selector should work on recursive', async () =
     },
     workspaceDir: process.cwd(),
   }, ['/^(lint|build):.*/'])
-  expect(await fs.readFile('output-build-1-a.txt', { encoding: 'utf-8' })).toEqual('1-a')
-  expect(await fs.readFile('output-build-1-b.txt', { encoding: 'utf-8' })).toEqual('1-b')
-  expect(await fs.readFile('output-build-1-c.txt', { encoding: 'utf-8' })).toEqual('1-c')
-  expect(await fs.readFile('output-build-2-a.txt', { encoding: 'utf-8' })).toEqual('2-a')
-  expect(await fs.readFile('output-build-2-b.txt', { encoding: 'utf-8' })).toEqual('2-b')
-  expect(await fs.readFile('output-build-2-c.txt', { encoding: 'utf-8' })).toEqual('2-c')
-  expect(await fs.readFile('output-build-3-a.txt', { encoding: 'utf-8' })).toEqual('3-a')
-  expect(await fs.readFile('output-build-3-b.txt', { encoding: 'utf-8' })).toEqual('3-b')
-  expect(await fs.readFile('output-build-3-c.txt', { encoding: 'utf-8' })).toEqual('3-c')
+  expect(fs.readFileSync('output-build-1-a.txt', { encoding: 'utf-8' })).toEqual('1-a')
+  expect(fs.readFileSync('output-build-1-b.txt', { encoding: 'utf-8' })).toEqual('1-b')
+  expect(fs.readFileSync('output-build-1-c.txt', { encoding: 'utf-8' })).toEqual('1-c')
+  expect(fs.readFileSync('output-build-2-a.txt', { encoding: 'utf-8' })).toEqual('2-a')
+  expect(fs.readFileSync('output-build-2-b.txt', { encoding: 'utf-8' })).toEqual('2-b')
+  expect(fs.readFileSync('output-build-2-c.txt', { encoding: 'utf-8' })).toEqual('2-c')
+  expect(fs.readFileSync('output-build-3-a.txt', { encoding: 'utf-8' })).toEqual('3-a')
+  expect(fs.readFileSync('output-build-3-b.txt', { encoding: 'utf-8' })).toEqual('3-b')
+  expect(fs.readFileSync('output-build-3-c.txt', { encoding: 'utf-8' })).toEqual('3-c')
 
-  expect(await fs.readFile('output-lint-1-a.txt', { encoding: 'utf-8' })).toEqual('1-a')
-  expect(await fs.readFile('output-lint-1-b.txt', { encoding: 'utf-8' })).toEqual('1-b')
-  expect(await fs.readFile('output-lint-1-c.txt', { encoding: 'utf-8' })).toEqual('1-c')
-  expect(await fs.readFile('output-lint-2-a.txt', { encoding: 'utf-8' })).toEqual('2-a')
-  expect(await fs.readFile('output-lint-2-b.txt', { encoding: 'utf-8' })).toEqual('2-b')
-  expect(await fs.readFile('output-lint-2-c.txt', { encoding: 'utf-8' })).toEqual('2-c')
-  expect(await fs.readFile('output-lint-3-a.txt', { encoding: 'utf-8' })).toEqual('3-a')
-  expect(await fs.readFile('output-lint-3-b.txt', { encoding: 'utf-8' })).toEqual('3-b')
-  expect(await fs.readFile('output-lint-3-c.txt', { encoding: 'utf-8' })).toEqual('3-c')
+  expect(fs.readFileSync('output-lint-1-a.txt', { encoding: 'utf-8' })).toEqual('1-a')
+  expect(fs.readFileSync('output-lint-1-b.txt', { encoding: 'utf-8' })).toEqual('1-b')
+  expect(fs.readFileSync('output-lint-1-c.txt', { encoding: 'utf-8' })).toEqual('1-c')
+  expect(fs.readFileSync('output-lint-2-a.txt', { encoding: 'utf-8' })).toEqual('2-a')
+  expect(fs.readFileSync('output-lint-2-b.txt', { encoding: 'utf-8' })).toEqual('2-b')
+  expect(fs.readFileSync('output-lint-2-c.txt', { encoding: 'utf-8' })).toEqual('2-c')
+  expect(fs.readFileSync('output-lint-3-a.txt', { encoding: 'utf-8' })).toEqual('3-a')
+  expect(fs.readFileSync('output-lint-3-b.txt', { encoding: 'utf-8' })).toEqual('3-b')
+  expect(fs.readFileSync('output-lint-3-c.txt', { encoding: 'utf-8' })).toEqual('3-c')
 })
 
 test('pnpm recursive run report summary', async () => {

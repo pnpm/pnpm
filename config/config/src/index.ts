@@ -16,7 +16,7 @@ import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
-import { getScopeRegistries } from './getScopeRegistries'
+import { getNetworkConfigs } from './getNetworkConfigs'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
 import {
   type Config,
@@ -319,10 +319,12 @@ export async function getConfig (
     cliOptions,
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
-    ...getScopeRegistries(pnpmConfig.rawConfig),
+    ...networkConfigs.registries,
   }
+  pnpmConfig.sslConfigs = networkConfigs.sslConfigs
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
     if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock

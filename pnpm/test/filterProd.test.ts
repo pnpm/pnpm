@@ -1,4 +1,4 @@
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from './utils'
 import {
   preparePackages,
@@ -49,7 +49,7 @@ test.each([
   ]
   preparePackages(projects)
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['install'])
 
   await execPnpm(['recursive', 'test', filter, '...project-3'])

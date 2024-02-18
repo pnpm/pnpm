@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { prepare } from '@pnpm/prepare'
 import { PnpmError } from '@pnpm/error'
@@ -90,7 +90,7 @@ test('publish: fails git check if branch is not clean', async () => {
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
 
-  await fs.writeFile('LICENSE', 'workspace license', 'utf8')
+  fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
 
   await expect(
     publish.handler({

@@ -1,7 +1,7 @@
+import fs from 'fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from '@pnpm/core'
 import { isCI } from 'ci-info'
-import exists from 'path-exists'
 import { testDefaults } from '../utils'
 
 const testSkipOnCI = isCI ? test.skip : test
@@ -13,7 +13,7 @@ testSkipOnCI('a package with a huge amount of circular dependencies and many pee
 
   await addDependenciesToPackage({},
     ['@teambit/bit@0.0.745'],
-    await testDefaults({
+    testDefaults({
       fastUnpack: true,
       lockfileOnly: true,
       registries: {
@@ -23,5 +23,5 @@ testSkipOnCI('a package with a huge amount of circular dependencies and many pee
     })
   )
 
-  expect(await exists('pnpm-lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
 })

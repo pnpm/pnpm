@@ -8,6 +8,7 @@ module.exports = () => {
   let killed = false
   server.on('close', () => {
     if (!killed) {
+      console.log('Error: The registry server was killed!')
       process.exit(1)
     }
   })

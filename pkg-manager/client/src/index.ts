@@ -4,6 +4,7 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
 import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
+import { type SslConfig } from '@pnpm/types'
 import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
 import type { CustomFetchers, GitFetcher, DirectoryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
@@ -18,7 +19,8 @@ export type ClientOptions = {
   authConfig: Record<string, string>
   customFetchers?: CustomFetchers
   ignoreScripts?: boolean
-  rawConfig: object
+  rawConfig: Record<string, string>
+  sslConfigs?: Record<string, SslConfig>
   retry?: RetryTimeoutOptions
   timeout?: number
   unsafePerm?: boolean

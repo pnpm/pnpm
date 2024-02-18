@@ -3,6 +3,7 @@ import {
   type ProjectManifest,
   type ProjectsGraph,
   type Registries,
+  type SslConfig,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
 
@@ -166,6 +167,7 @@ export interface Config {
   packGzipLevel?: number
 
   registries: Registries
+  sslConfigs: Record<string, SslConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean
 

@@ -4,7 +4,6 @@ import fs from 'fs'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import isWindows from 'is-windows'
-import exists from 'path-exists'
 import {
   addDistTag,
   execPnpm,
@@ -84,7 +83,7 @@ test('run lifecycle events of global packages in correct working directory', asy
 
   await execPnpm(['install', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
 
-  expect(await exists(path.join(global, `pnpm/global/${LAYOUT_VERSION}/node_modules/@pnpm.e2e/postinstall-calls-pnpm/created-by-postinstall`))).toBeTruthy()
+  expect(fs.existsSync(path.join(global, `pnpm/global/${LAYOUT_VERSION}/node_modules/@pnpm.e2e/postinstall-calls-pnpm/created-by-postinstall`))).toBeTruthy()
 })
 
 test('global update to latest', async () => {

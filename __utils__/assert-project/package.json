@@ -48,7 +48,6 @@
     "@pnpm/types": "workspace:*",
     "is-windows": "^1.0.2",
     "isexe": "2.0.0",
-    "path-exists": "^4.0.0",
     "read-yaml-file": "^2.1.0",
     "write-pkg": "4.0.0"
   }
