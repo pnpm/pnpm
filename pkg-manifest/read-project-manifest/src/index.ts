@@ -16,7 +16,7 @@ import {
 
 type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 
-export async function safeReadProjectManifestOnly (projectDir: string) {
+export async function safeReadProjectManifestOnly (projectDir: string): Promise<ProjectManifest | null> {
   try {
     return await readProjectManifestOnly(projectDir)
   } catch (err: any) { // eslint-disable-line
