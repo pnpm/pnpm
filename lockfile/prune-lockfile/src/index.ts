@@ -46,7 +46,6 @@ export function pruneLockfile (
     warn?: (msg: string) => void
   }
 ): Lockfile {
-  const packages: PackageSnapshots = {}
   const importer = lockfile.importers[importerId]
   const lockfileSpecs: ResolvedDependencies = importer.specifiers ?? {}
   const optionalDependencies = Object.keys(pkg.optionalDependencies ?? {})
@@ -96,9 +95,6 @@ export function pruneLockfile (
     },
     lockfileVersion: lockfile.lockfileVersion || LOCKFILE_VERSION,
     packages: lockfile.packages,
-  }
-  if (!isEmpty(packages)) {
-    prunedLockfile.packages = packages
   }
   if (!isEmpty(lockfileDependencies)) {
     updatedImporter.dependencies = lockfileDependencies
