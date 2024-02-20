@@ -17,7 +17,7 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "pretest": "pnpm install --dir=test/__fixtures__/simple",
+    "pretest": "node ../../pnpm/dist/pnpm.cjs install --dir=test/__fixtures__/simple",
     "_test": "pnpm pretest && jest",
     "compile": "tsc --build && pnpm run lint --fix"
   },
