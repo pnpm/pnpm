@@ -1,8 +1,8 @@
-import { convertToInlineSpecifiersFormat, revertFromInlineSpecifiersFormat } from '../lib/experiments/inlineSpecifiersLockfileConverters'
+import { convertToLockfileFile, convertToLockfileObject } from '../lib/lockfileFormatConverters'
 
-test('convertToInlineSpecifiersFormat()', () => {
+test('convertToLockfileFile()', () => {
   const lockfileV5 = {
-    lockfileVersion: '6.0',
+    lockfileVersion: '7.0',
     importers: {
       project1: {
         specifiers: {
@@ -39,7 +39,7 @@ test('convertToInlineSpecifiersFormat()', () => {
     },
   }
   const lockfileV6 = {
-    lockfileVersion: '6.0',
+    lockfileVersion: '7.0',
     importers: {
       project1: {
         dependencies: {
@@ -81,13 +81,13 @@ test('convertToInlineSpecifiersFormat()', () => {
       },
     },
   }
-  expect(convertToInlineSpecifiersFormat(lockfileV5)).toEqual(lockfileV6)
-  expect(revertFromInlineSpecifiersFormat(lockfileV6)).toEqual(lockfileV5)
+  expect(convertToLockfileFile(lockfileV5, { forceSharedFormat: false })).toEqual(lockfileV6)
+  expect(convertToLockfileObject(lockfileV6)).toEqual(lockfileV5)
 })
 
-test('convertToInlineSpecifiersFormat() with lockfile v6', () => {
+test('convertToLockfileFile() with lockfile v6', () => {
   const lockfileV5 = {
-    lockfileVersion: '6.0',
+    lockfileVersion: '7.0',
     importers: {
       project1: {
         specifiers: {
@@ -124,7 +124,7 @@ test('convertToInlineSpecifiersFormat() with lockfile v6', () => {
     },
   }
   const lockfileV6 = {
-    lockfileVersion: '6.0',
+    lockfileVersion: '7.0',
     importers: {
       project1: {
         dependencies: {
@@ -166,6 +166,6 @@ test('convertToInlineSpecifiersFormat() with lockfile v6', () => {
       },
     },
   }
-  expect(convertToInlineSpecifiersFormat(lockfileV5)).toEqual(lockfileV6)
-  expect(revertFromInlineSpecifiersFormat(lockfileV6)).toEqual(lockfileV5)
+  expect(convertToLockfileFile(lockfileV5, { forceSharedFormat: false })).toEqual(lockfileV6)
+  expect(convertToLockfileObject(lockfileV6)).toEqual(lockfileV5)
 })

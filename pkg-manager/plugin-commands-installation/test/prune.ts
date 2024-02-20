@@ -48,7 +48,7 @@ test('prune removes external link that is not in package.json', async () => {
     storeDir,
   }, ['./local'])
 
-  await project.has('local-pkg')
+  project.has('local-pkg')
 
   await prune.handler({
     ...DEFAULT_OPTIONS,
@@ -57,7 +57,7 @@ test('prune removes external link that is not in package.json', async () => {
     storeDir,
   })
 
-  await project.hasNot('local-pkg')
+  project.hasNot('local-pkg')
 })
 
 test('prune keeps hoisted dependencies', async () => {
@@ -79,7 +79,7 @@ test('prune keeps hoisted dependencies', async () => {
     storeDir,
   })
 
-  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
 })
 
 test('prune removes dev dependencies', async () => {
@@ -105,8 +105,8 @@ test('prune removes dev dependencies', async () => {
     storeDir,
   })
 
-  await project.has('is-positive')
-  await project.has('.pnpm/is-positive@1.0.0')
-  await project.hasNot('is-negative')
-  await project.hasNot('.pnpm/is-negative@1.0.0')
+  project.has('is-positive')
+  project.has('.pnpm/is-positive@1.0.0')
+  project.hasNot('is-negative')
+  project.hasNot('.pnpm/is-negative@1.0.0')
 })

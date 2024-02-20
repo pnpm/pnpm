@@ -1,4 +1,4 @@
-import { writeFileSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type Lockfile } from '@pnpm/lockfile-types'
@@ -36,7 +36,7 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   ])
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  writeFileSync('.npmrc', `dedupe-peer-dependents=true
+  fs.writeFileSync('.npmrc', `dedupe-peer-dependents=true
 auto-install-peers=false`, 'utf8')
   await execPnpm(['install'])
   await execPnpm(['--filter=project-2', 'add', '@pnpm.e2e/abc@1.0.0'])
@@ -79,7 +79,7 @@ test('partial update in a workspace should work with dedupe-peer-dependents is t
   ])
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  writeFileSync('.npmrc', `dedupe-peer-dependents=true
+  fs.writeFileSync('.npmrc', `dedupe-peer-dependents=true
 auto-install-peers=false`, 'utf8')
   await execPnpm(['install'])
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.1', distTag: 'latest' })
@@ -116,7 +116,7 @@ test('peer dependents deduplication should not remove peer dependencies', async 
   ])
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  writeFileSync('.npmrc', `dedupe-peer-dependents=true
+  fs.writeFileSync('.npmrc', `dedupe-peer-dependents=true
 auto-install-peers=true`, 'utf8')
   await execPnpm(['install'])
   await execPnpm(['--filter=project-2', 'add', 'is-positive@1.0.0'])

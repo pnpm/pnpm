@@ -9,7 +9,6 @@ import {
 import { prepareEmpty } from '@pnpm/prepare'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
-import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import isInnerLink from 'is-inner-link'
@@ -34,7 +33,7 @@ test('unlink 1 package that exists in package.json', async () => {
   ])
 
   // TODO: unset useLockfileV6
-  const opts = await testDefaults({ fastUnpack: false, store: path.resolve('.store'), useLockfileV6: false })
+  const opts = testDefaults({ fastUnpack: false, store: path.resolve('.store'), useLockfileV6: false })
 
   let manifest = await link(
     ['is-subdir', 'is-positive'],
@@ -70,12 +69,12 @@ test("don't update package when unlinking", async () => {
   const project = prepareEmpty()
 
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
-  const opts = await testDefaults({ dir: process.cwd() })
+  const opts = testDefaults({ dir: process.cwd() })
   let manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/foo'], opts)
 
   process.chdir('..')
 
-  await writeJsonFile('foo/package.json', {
+  writeJsonFile.sync('foo/package.json', {
     name: '@pnpm.e2e/foo',
     version: '100.0.0',
   })
@@ -97,10 +96,10 @@ test("don't update package when unlinking", async () => {
 test(`don't update package when unlinking. Initial link is done on a package w/o ${WANTED_LOCKFILE}`, async () => {
   const project = prepareEmpty()
 
-  const opts = await testDefaults({ dir: process.cwd(), resolutionMode: 'lowest-direct' })
+  const opts = testDefaults({ dir: process.cwd(), resolutionMode: 'lowest-direct' })
   process.chdir('..')
 
-  await writeJsonFile('foo/package.json', {
+  writeJsonFile.sync('foo/package.json', {
     name: '@pnpm.e2e/foo',
     version: '100.0.0',
   })
@@ -129,7 +128,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
 
 test('unlink 2 packages. One of them exists in package.json', async () => {
   const project = prepareEmpty()
-  const opts = await testDefaults({ fastUnpack: false, dir: process.cwd() })
+  const opts = testDefaults({ fastUnpack: false, dir: process.cwd() })
   process.chdir('..')
 
   await Promise.all([
@@ -164,12 +163,12 @@ test('unlink 2 packages. One of them exists in package.json', async () => {
   }, opts)
 
   expect(typeof project.requireModule('is-subdir')).toBe('function')
-  expect(await exists(path.join('node_modules', 'is-positive'))).toBeFalsy()
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBeFalsy()
 })
 
 test('unlink all packages', async () => {
   const project = prepareEmpty()
-  const opts = await testDefaults({ fastUnpack: false, dir: process.cwd() })
+  const opts = testDefaults({ fastUnpack: false, dir: process.cwd() })
   process.chdir('..')
 
   await Promise.all([
@@ -209,14 +208,14 @@ test('unlink all packages', async () => {
 test("don't warn about scoped packages when running unlink w/o params", async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['@zkochan/logger'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['@zkochan/logger'], testDefaults())
 
   const reporter = sinon.spy()
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'unlink',
     rootDir: process.cwd(),
-  }, await testDefaults({ reporter }))
+  }, testDefaults({ reporter }))
 
   expect(reporter.calledWithMatch({
     level: 'warn',
@@ -229,14 +228,14 @@ test("don't unlink package that is not a link", async () => {
 
   const reporter = sinon.spy()
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], testDefaults())
 
   await mutateModulesInSingleProject({
     dependencyNames: ['is-positive'],
     manifest,
     mutation: 'unlinkSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ reporter }))
+  }, testDefaults({ reporter }))
 
   expect(reporter.calledWithMatch({
     level: 'warn',
@@ -262,7 +261,7 @@ test('unlink would remove global bin', async () => {
     }),
   ])
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     globalBin: path.resolve('bin'),
     linkToBin: path.resolve('bin'),

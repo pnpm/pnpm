@@ -19,6 +19,12 @@ export interface Registries {
   [scope: string]: string
 }
 
+export interface SslConfig {
+  cert: string
+  key: string
+  ca?: string
+}
+
 export type HoistedDependencies = Record<string, Record<string, 'public' | 'private'>>
 
 export interface PatchFile {

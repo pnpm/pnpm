@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/fs.packlist": "1.0.3",
     "@pnpm/prepare-package": "workspace:*",
     "@zkochan/rimraf": "^2.1.3",
     "execa": "npm:safe-execa@0.1.2"

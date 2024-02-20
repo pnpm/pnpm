@@ -52,13 +52,13 @@ test('import from package-lock.json', async () => {
   }, [])
 
   const project = assertProject(process.cwd())
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
   expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   // node_modules is not created
-  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
-  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 })
 
 test('import from yarn.lock', async () => {
@@ -72,13 +72,13 @@ test('import from yarn.lock', async () => {
   }, [])
 
   const project = assertProject(process.cwd())
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
   expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   // node_modules is not created
-  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
-  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 })
 
 test('import from yarn2 lock file', async () => {
@@ -90,14 +90,14 @@ test('import from yarn2 lock file', async () => {
   }, [])
 
   const project = assertProject(process.cwd())
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(lockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
   expect(lockfile.packages).toHaveProperty(['/is-negative@1.0.0'])
 
   // node_modules is not created
-  await project.hasNot('balanced-match')
-  await project.hasNot('brace-expansion')
+  project.hasNot('balanced-match')
+  project.hasNot('brace-expansion')
 })
 
 test('import from npm-shrinkwrap.json', async () => {
@@ -111,13 +111,13 @@ test('import from npm-shrinkwrap.json', async () => {
   }, [])
 
   const project = assertProject(process.cwd())
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
   expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   // node_modules is not created
-  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
-  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 })
 
 test('import fails when no lockfiles are found', async () => {
@@ -143,11 +143,11 @@ test('import from package-lock.json v3', async () => {
   }, [])
 
   const project = assertProject(process.cwd())
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
   expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   // node_modules is not created
-  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
-  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 })

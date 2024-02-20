@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 import { preparePackages } from '@pnpm/prepare'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { type ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import path from 'path'
@@ -20,6 +20,23 @@ test('the pnpm options are removed', async () => {
         bar: '1',
       },
     },
+  })).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      qar: '2',
+    },
+  })
+})
+
+test('the packageManager field is removed', async () => {
+  expect(await createExportableManifest(process.cwd(), {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      qar: '2',
+    },
+    packageManager: 'pnpm@8.0.0',
   })).toStrictEqual({
     name: 'foo',
     version: '1.0.0',
@@ -92,7 +109,7 @@ test('workspace deps are replaced', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   crossSpawn.sync(pnpmBin, ['install', '--store-dir=store'])
 

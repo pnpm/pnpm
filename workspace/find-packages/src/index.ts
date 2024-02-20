@@ -11,6 +11,7 @@ export async function findWorkspacePackages (
   workspaceRoot: string,
   opts?: {
     engineStrict?: boolean
+    packageManagerStrict?: boolean
     nodeVersion?: string
     patterns?: string[]
     sharedWorkspaceLockfile?: boolean

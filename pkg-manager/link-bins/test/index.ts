@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { promises as fs, writeFileSync, readdirSync, existsSync, readFileSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { logger, globalWarn } from '@pnpm/logger'
 import {
@@ -11,7 +11,6 @@ import { fixtures } from '@pnpm/test-fixtures'
 import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
-import exists from 'path-exists'
 import tempy from 'tempy'
 import { spawnSync } from 'child_process'
 
@@ -59,15 +58,15 @@ test('linkBins()', async () => {
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
   expect(warn).not.toHaveBeenCalled()
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
-  expect(await exists(binLocation)).toBe(true)
-  const content = await fs.readFile(binLocation, 'utf8')
+  expect(fs.existsSync(binLocation)).toBe(true)
+  const content = fs.readFileSync(binLocation, 'utf8')
   expect(content).toMatch('node_modules/simple/index.js')
 
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     const binFile = path.join(binTarget, 'simple')
-    const stat = await fs.stat(binFile)
+    const stat = fs.statSync(binFile)
     expect(stat.mode).toBe(parseInt('100755', 8))
     expect(stat.isFile()).toBe(true)
   }
@@ -80,7 +79,7 @@ test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => 
 
   await linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })
 
-  const bins = await fs.readdir(binTarget)
+  const bins = fs.readdirSync(binTarget)
   expect(bins).toContain('pnpm')
   expect(bins).not.toContain('pnpm.ps1')
 })
@@ -96,15 +95,15 @@ test('linkBins() finds exotic manifests', async () => {
   })
 
   expect(warn).not.toHaveBeenCalled()
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
-  expect(await exists(binLocation)).toBe(true)
-  const content = await fs.readFile(binLocation, 'utf8')
+  expect(fs.existsSync(binLocation)).toBe(true)
+  const content = fs.readFileSync(binLocation, 'utf8')
   expect(content).toMatch('node_modules/simple/index.js')
 
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     const binFile = path.join(binTarget, 'simple')
-    const stat = await fs.stat(binFile)
+    const stat = fs.statSync(binFile)
     expect(stat.mode).toBe(parseInt('100755', 8))
     expect(stat.isFile()).toBe(true)
   }
@@ -144,7 +143,7 @@ test('linkBins() does not link own bins', async () => {
   await linkBins(modules, binTarget, { warn })
 
   expect(warn).not.toHaveBeenCalled()
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar']))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['bar']))
 })
 
 test('linkBinsOfPackages()', async () => {
@@ -161,10 +160,10 @@ test('linkBinsOfPackages()', async () => {
     binTarget
   )
 
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
-  expect(await exists(binLocation)).toBe(true)
-  const content = await fs.readFile(binLocation, 'utf8')
+  expect(fs.existsSync(binLocation)).toBe(true)
+  const content = fs.readFileSync(binLocation, 'utf8')
   expect(content).toMatch('node_modules/simple/index.js')
 })
 
@@ -180,7 +179,7 @@ test('linkBinsOfPkgsByAliases()', async () => {
       warn: () => {},
     }
   )
-  expect(readdirSync(binTarget)).toEqual([])
+  expect(fs.readdirSync(binTarget)).toEqual([])
 
   await linkBinsOfPkgsByAliases(
     ['simple'],
@@ -191,10 +190,10 @@ test('linkBinsOfPkgsByAliases()', async () => {
     }
   )
 
-  expect(readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
-  expect(existsSync(binLocation)).toBe(true)
-  const content = readFileSync(binLocation, 'utf8')
+  expect(fs.existsSync(binLocation)).toBe(true)
+  const content = fs.readFileSync(binLocation, 'utf8')
   expect(content).toMatch('node_modules/simple/index.js')
 })
 
@@ -211,19 +210,19 @@ test('linkBins() resolves conflicts. Prefer packages that use their name as bin 
     linkedPkgName: 'bar',
     skippedPkgName: 'foo',
   })
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
 
   {
     const binLocation = path.join(binTarget, 'bar')
-    expect(await exists(binLocation)).toBe(true)
-    const content = await fs.readFile(binLocation, 'utf8')
+    expect(fs.existsSync(binLocation)).toBe(true)
+    const content = fs.readFileSync(binLocation, 'utf8')
     expect(content).toMatch('node_modules/bar/index.js')
   }
 
   {
     const binLocation = path.join(binTarget, 'foofoo')
-    expect(await exists(binLocation)).toBe(true)
-    const content = await fs.readFile(binLocation, 'utf8')
+    expect(fs.existsSync(binLocation)).toBe(true)
+    const content = fs.readFileSync(binLocation, 'utf8')
     expect(content).toMatch('node_modules/foo/index.js')
   }
 })
@@ -254,19 +253,19 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
     linkedPkgName: 'bar',
     skippedPkgName: 'foo',
   })
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
 
   {
     const binLocation = path.join(binTarget, 'bar')
-    expect(await exists(binLocation)).toBe(true)
-    const content = await fs.readFile(binLocation, 'utf8')
+    expect(fs.existsSync(binLocation)).toBe(true)
+    const content = fs.readFileSync(binLocation, 'utf8')
     expect(content).toMatch('node_modules/bar/index.js')
   }
 
   {
     const binLocation = path.join(binTarget, 'foofoo')
-    expect(await exists(binLocation)).toBe(true)
-    const content = await fs.readFile(binLocation, 'utf8')
+    expect(fs.existsSync(binLocation)).toBe(true)
+    const content = fs.readFileSync(binLocation, 'utf8')
     expect(content).toMatch('node_modules/foo/index.js')
   }
 })
@@ -286,19 +285,19 @@ test('linkBins() resolves conflicts. Prefer packages are direct dependencies', a
   })
 
   expect(warn).not.toHaveBeenCalled() // With(`Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`, 'BINARIES_CONFLICT')
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
 
   {
     const binLocation = path.join(binTarget, 'bar')
-    expect(await exists(binLocation)).toBe(true)
-    const content = await fs.readFile(binLocation, 'utf8')
+    expect(fs.existsSync(binLocation)).toBe(true)
+    const content = fs.readFileSync(binLocation, 'utf8')
     expect(content).toMatch('node_modules/foo/index.js')
   }
 
   {
     const binLocation = path.join(binTarget, 'foofoo')
-    expect(await exists(binLocation)).toBe(true)
-    const content = await fs.readFile(binLocation, 'utf8')
+    expect(fs.existsSync(binLocation)).toBe(true)
+    const content = fs.readFileSync(binLocation, 'utf8')
     expect(content).toMatch('node_modules/foo/index.js')
   }
 })
@@ -354,7 +353,7 @@ test('linkBins() links commands from bin directory with a subdirectory', async (
 
   await linkBins(f.find('bin-dir'), binTarget, { warn: () => {} })
 
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['index.js']))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['index.js']))
 })
 
 test('linkBins() fix window shebang line', async () => {
@@ -365,12 +364,12 @@ test('linkBins() fix window shebang line', async () => {
   await linkBins(path.join(windowShebangFixture, 'node_modules'), binTarget, { warn })
 
   expect(warn).not.toHaveBeenCalled()
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['crlf', 'lf']))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['crlf', 'lf']))
 
   const lfBinLoc = path.join(binTarget, 'lf')
   const crlfBinLoc = path.join(binTarget, 'crlf')
   for (const binLocation of [lfBinLoc, crlfBinLoc]) {
-    expect(await exists(binLocation)).toBe(true) // eslint-disable-line no-await-in-loop
+    expect(fs.existsSync(binLocation)).toBe(true)
   }
 
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
@@ -378,12 +377,12 @@ test('linkBins() fix window shebang line', async () => {
     const crlfFilePath = path.join(windowShebangFixture, 'node_modules', 'crlf/bin/crlf.js')
 
     for (const filePath of [lfFilePath, crlfFilePath]) {
-      const content = await fs.readFile(filePath, 'utf8') // eslint-disable-line no-await-in-loop
+      const content = fs.readFileSync(filePath, 'utf8')
       expect(content.startsWith('#!/usr/bin/env node\n')).toBeTruthy()
     }
 
-    const lfStat = await fs.stat(lfBinLoc)
-    const crlfStat = await fs.stat(crlfBinLoc)
+    const lfStat = fs.statSync(lfBinLoc)
+    const crlfStat = fs.statSync(crlfBinLoc)
     for (const stat of [lfStat, crlfStat]) {
       expect(stat.mode).toBe(parseInt('100755', 8))
       expect(stat.isFile()).toBe(true)
@@ -400,7 +399,7 @@ test("linkBins() emits global warning when bin points to path that doesn't exist
     warn: () => {},
   })
 
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins([]))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins([]))
   expect(
     globalWarn
   ).toHaveBeenCalled()
@@ -408,13 +407,13 @@ test("linkBins() emits global warning when bin points to path that doesn't exist
 
 testOnWindows('linkBins() should remove an existing .exe file from the target directory', async () => {
   const binTarget = tempy.directory()
-  writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')
+  fs.writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')
   const warn = jest.fn()
   const simpleFixture = f.prepare('simple-fixture')
 
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
 })
 
 describe('enable prefer-symlinked-executables', () => {
@@ -426,10 +425,10 @@ describe('enable prefer-symlinked-executables', () => {
     await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn, preferSymlinkedExecutables: true })
 
     expect(warn).not.toHaveBeenCalled()
-    expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
+    expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
     const binLocation = path.join(binTarget, 'simple')
-    expect(await exists(binLocation)).toBe(true)
-    const content = await fs.readFile(binLocation, 'utf8')
+    expect(fs.existsSync(binLocation)).toBe(true)
+    const content = fs.readFileSync(binLocation, 'utf8')
     if (IS_WINDOWS) {
       expect(content).toMatch('node_modules/simple/index.js')
     } else {
@@ -438,7 +437,7 @@ describe('enable prefer-symlinked-executables', () => {
 
     if (EXECUTABLE_SHEBANG_SUPPORTED) {
       const binFile = path.join(binTarget, 'simple')
-      const stat = await fs.stat(binFile)
+      const stat = fs.statSync(binFile)
       expect(stat.mode).toBe(parseInt('100755', 8))
       expect(stat.isFile()).toBe(true)
       const stdout = spawnSync(binFile).stdout.toString('utf-8')
@@ -458,10 +457,10 @@ describe('enable prefer-symlinked-executables', () => {
 
     if (IS_WINDOWS) {
       // cmdShim
-      expect(await fs.readdir(binTarget)).toEqual(getExpectedBins([]))
+      expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins([]))
     } else {
       // it will fix symlink file permission
-      expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['meow']))
+      expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['meow']))
     }
     expect(
       globalWarn

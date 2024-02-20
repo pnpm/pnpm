@@ -16,7 +16,7 @@ test('uninstall package with no dependencies', async () => {
   let manifest = await addDependenciesToPackage(
     {},
     ['is-negative@2.1.0'],
-    await testDefaults({ save: true, nodeLinker: 'hoisted' })
+    testDefaults({ save: true, nodeLinker: 'hoisted' })
   )
 
   const reporter = sinon.spy()
@@ -25,7 +25,7 @@ test('uninstall package with no dependencies', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).manifest
+  }, testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).manifest
 
   expect(reporter.calledWithMatch({
     initial: {
@@ -64,9 +64,9 @@ test('uninstall package with no dependencies', async () => {
 
   // uninstall does not remove packages from store
   // even if they become unreferenced
-  await project.storeHas('is-negative', '2.1.0')
+  project.storeHas('is-negative', '2.1.0')
 
-  await project.hasNot('is-negative')
+  project.hasNot('is-negative')
 
   expect(manifest.dependencies).toStrictEqual({})
 })
@@ -76,30 +76,30 @@ test('uninstall package with dependencies and do not touch other deps', async ()
   let manifest = await addDependenciesToPackage(
     {},
     ['is-negative@2.1.0', 'camelcase-keys@3.0.0'],
-    await testDefaults({ nodeLinker: 'hoisted', save: true })
+    testDefaults({ nodeLinker: 'hoisted', save: true })
   )
   manifest = (await mutateModulesInSingleProject({
     dependencyNames: ['camelcase-keys'],
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).manifest
+  }, testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).manifest
 
-  await project.storeHasNot('camelcase-keys', '3.0.0')
-  await project.hasNot('camelcase-keys')
+  project.storeHasNot('camelcase-keys', '3.0.0')
+  project.hasNot('camelcase-keys')
 
-  await project.storeHasNot('camelcase', '3.0.0')
-  await project.hasNot('camelcase')
+  project.storeHasNot('camelcase', '3.0.0')
+  project.hasNot('camelcase')
 
-  await project.storeHasNot('map-obj', '1.0.1')
-  await project.hasNot('map-obj')
+  project.storeHasNot('map-obj', '1.0.1')
+  project.hasNot('map-obj')
 
-  await project.storeHas('is-negative', '2.1.0')
-  await project.has('is-negative')
+  project.storeHas('is-negative', '2.1.0')
+  project.has('is-negative')
 
   expect(manifest.dependencies).toStrictEqual({ 'is-negative': '2.1.0' })
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.dependencies).toStrictEqual({
     'is-negative': {
       specifier: '2.1.0',

@@ -3,7 +3,7 @@ import delay from 'delay'
 import path from 'path'
 import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepareEmpty } from '@pnpm/prepare'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { DEFAULT_OPTS } from './utils'
 
 test('install fails if no package.json is found', async () => {
@@ -42,7 +42,7 @@ test('install with no store integrity validation', async () => {
   const readmePath = path.join(DEFAULT_OPTS.storeDir, 'v3/files/9a/f6af85f55c111108eddf1d7ef7ef224b812e7c7bfabae41c79cf8bc9a910352536963809463e0af2799abacb975f22418a35a1d170055ef3fdc3b2a46ef1c5')
   fs.writeFileSync(readmePath, 'modified', 'utf8')
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
   await install.handler({
     ...DEFAULT_OPTS,

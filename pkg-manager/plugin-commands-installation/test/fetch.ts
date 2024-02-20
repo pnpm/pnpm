@@ -2,7 +2,7 @@ import path from 'path'
 import { install, fetch } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -49,11 +49,11 @@ test('fetch dependencies', async () => {
     storeDir,
   })
 
-  await rimraf(path.resolve(project.dir(), 'node_modules'))
-  await rimraf(path.resolve(project.dir(), './package.json'))
+  rimraf(path.resolve(project.dir(), 'node_modules'))
+  rimraf(path.resolve(project.dir(), './package.json'))
 
-  await project.storeHasNot('is-negative')
-  await project.storeHasNot('is-positive')
+  project.storeHasNot('is-negative')
+  project.storeHasNot('is-positive')
 
   await fetch.handler({
     ...DEFAULT_OPTIONS,
@@ -62,8 +62,8 @@ test('fetch dependencies', async () => {
     storeDir,
   })
 
-  await project.storeHas('is-positive')
-  await project.storeHas('is-negative')
+  project.storeHas('is-positive')
+  project.storeHas('is-negative')
 })
 
 test('fetch production dependencies', async () => {
@@ -80,11 +80,11 @@ test('fetch production dependencies', async () => {
     storeDir,
   })
 
-  await rimraf(path.resolve(project.dir(), 'node_modules'))
-  await rimraf(path.resolve(project.dir(), './package.json'))
+  rimraf(path.resolve(project.dir(), 'node_modules'))
+  rimraf(path.resolve(project.dir(), './package.json'))
 
-  await project.storeHasNot('is-negative')
-  await project.storeHasNot('is-positive')
+  project.storeHasNot('is-negative')
+  project.storeHasNot('is-positive')
 
   await fetch.handler({
     ...DEFAULT_OPTIONS,
@@ -94,8 +94,8 @@ test('fetch production dependencies', async () => {
     storeDir,
   })
 
-  await project.storeHasNot('is-negative')
-  await project.storeHas('is-positive')
+  project.storeHasNot('is-negative')
+  project.storeHas('is-positive')
 })
 
 test('fetch only dev dependencies', async () => {
@@ -112,11 +112,11 @@ test('fetch only dev dependencies', async () => {
     storeDir,
   })
 
-  await rimraf(path.resolve(project.dir(), 'node_modules'))
-  await rimraf(path.resolve(project.dir(), './package.json'))
+  rimraf(path.resolve(project.dir(), 'node_modules'))
+  rimraf(path.resolve(project.dir(), './package.json'))
 
-  await project.storeHasNot('is-negative')
-  await project.storeHasNot('is-positive')
+  project.storeHasNot('is-negative')
+  project.storeHasNot('is-positive')
 
   await fetch.handler({
     ...DEFAULT_OPTIONS,
@@ -126,6 +126,6 @@ test('fetch only dev dependencies', async () => {
     storeDir,
   })
 
-  await project.storeHas('is-negative')
-  await project.storeHasNot('is-positive')
+  project.storeHas('is-negative')
+  project.storeHasNot('is-positive')
 })
