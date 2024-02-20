@@ -3134,6 +3134,9 @@ importers:
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
+      '@pnpm/catalogs.protocol-parser':
+        specifier: workspace:*
+        version: link:../../catalogs/protocol-parser
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
