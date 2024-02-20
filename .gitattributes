@@ -1,3 +1,2 @@
 * text eol=lf
-
-*.tgz binary
+*.tgz filter=lfs diff=lfs merge=lfs -text
