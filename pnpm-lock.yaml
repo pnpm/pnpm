@@ -2642,6 +2642,9 @@ importers:
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
+      execa:
+        specifier: npm:safe-execa@0.1.2
+        version: /safe-execa@0.1.2
 
   packages/parse-wanted-dependency:
     dependencies:
