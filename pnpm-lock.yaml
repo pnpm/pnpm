@@ -2645,6 +2645,9 @@ importers:
       execa:
         specifier: npm:safe-execa@0.1.2
         version: /safe-execa@0.1.2
+      pnpm:
+        specifier: 8.15.3
+        version: 8.15.3
 
   packages/parse-wanted-dependency:
     dependencies:
@@ -15349,6 +15352,12 @@ packages:
     resolution: {integrity: sha512-8xCNE/aT/EXKenuMDZ+xTVwkT8gsoHN2z/Q29l80u0ppGEXVvsKRzNMbtKhg8LS8k1tJLAHHylf6p4VFmP6XUQ==}
     engines: {node: '>= 0.4.0'}
 
+  /pnpm@8.15.3:
+    resolution: {integrity: sha512-3YXNbspkF8b3PbMroetHZ/+0y6T1vwcnhGciyStrnlaizCGLEThbvCsh8YoWpn2nes6um2Gg9WoWQ7JeH7amBQ==}
+    engines: {node: '>=16.14'}
+    hasBin: true
+    dev: true
+
   /prebuild-install@7.1.1:
     resolution: {integrity: sha512-jAXscXWMcCK8GgCoHOfIr0ODh5ai8mj63L2nWrjuAgXE6tDyYGnx4/8o/rCgU+B4JSyZBKbeZqzhtwtC3ovxjw==}
     engines: {node: '>=10'}
@@ -18110,6 +18119,7 @@ time:
   /path-name@1.0.0: '2016-10-20T18:43:50.780Z'
   /path-temp@2.1.0: '2023-07-16T21:25:05.258Z'
   /pidtree@0.6.0: '2022-06-05T18:35:44.206Z'
+  /pnpm@8.15.3: '2024-02-15T10:51:32.315Z'
   /preferred-pm@3.1.2: '2023-09-05T00:02:00.039Z'
   /pretty-bytes@5.6.0: '2021-02-21T14:04:35.036Z'
   /pretty-ms@7.0.1: '2020-09-24T09:37:39.213Z'
