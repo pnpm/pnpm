@@ -91,6 +91,10 @@ test('workspace deps are replaced', async () => {
       baz: 'workspace:baz@^',
       foo: 'workspace:*',
     },
+    peerDependencies: {
+      foo: 'workspace:>= || ^3.9.0',
+      baz: '^1.0.0 || workspace:>',
+    },
   }
 
   preparePackages([
@@ -122,6 +126,10 @@ test('workspace deps are replaced', async () => {
       bar: 'npm:@foo/bar@3.2.1',
       baz: '^1.2.3',
       foo: '4.5.6',
+    },
+    peerDependencies: {
+      baz: '^1.0.0 || >1.2.3',
+      foo: '>=4.5.6 || ^3.9.0',
     },
   })
 })
