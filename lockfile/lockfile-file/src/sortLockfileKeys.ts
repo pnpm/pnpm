@@ -48,7 +48,7 @@ const ROOT_KEYS: readonly RootKey[] = [
   'importers',
   'packages',
 ]
-const ROOT_KEYS_ORDER = Object.fromEntries(ROOT_KEYS.map((key, index) => [key, index]))
+const ROOT_KEYS_ORDER = Object.fromEntries(ROOT_KEYS.map((key, index) => [key, index + 1]))
 
 function compareWithPriority (priority: Record<string, number>, left: string, right: string) {
   const leftPriority = priority[left]
