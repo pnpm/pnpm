@@ -31,30 +31,30 @@ const ORDERED_KEYS = {
   optional: 20,
 }
 
-const ROOT_KEYS_ORDER = {
-  lockfileVersion: 1,
-  settings: 2,
-  // only and never are conflict options.
-  neverBuiltDependencies: 3,
-  onlyBuiltDependencies: 3,
-  overrides: 4,
-  packageExtensionsChecksum: 5,
-  patchedDependencies: 6,
-  specifiers: 10,
-  dependencies: 11,
-  optionalDependencies: 12,
-  devDependencies: 13,
-  dependenciesMeta: 14,
-  importers: 15,
-  packages: 16,
-}
+type RootKey = keyof LockfileFile
+const ROOT_KEYS: readonly RootKey[] = [
+  'lockfileVersion',
+  'settings',
+  'neverBuiltDependencies',
+  'onlyBuiltDependencies',
+  'overrides',
+  'packageExtensionsChecksum',
+  'patchedDependencies',
+  'dependencies',
+  'optionalDependencies',
+  'devDependencies',
+  'dependenciesMeta',
+  'importers',
+  'packages',
+]
+const ROOT_KEYS_ORDER = Object.fromEntries(ROOT_KEYS.map((key, index) => [key, index]))
 
 function compareWithPriority (priority: Record<string, number>, left: string, right: string) {
   const leftPriority = priority[left]
   const rightPriority = priority[right]
-  if (leftPriority && rightPriority) return leftPriority - rightPriority
-  if (leftPriority) return -1
-  if (rightPriority) return 1
+  if (leftPriority != null && rightPriority != null) return leftPriority - rightPriority
+  if (leftPriority != null) return -1
+  if (rightPriority != null) return 1
   return lexCompare(left, right)
 }
 
