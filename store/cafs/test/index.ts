@@ -122,3 +122,13 @@ test('unpack a tarball that contains hard links', () => {
   )
   expect(Object.keys(filesIndex).length).toBeGreaterThan(0)
 })
+
+// Related issue: https://github.com/pnpm/pnpm/issues/7120
+test('unpack should not fail when the tarball format seems to be not USTAR or GNU TAR', () => {
+  const dest = tempy.directory()
+  const cafs = createCafs(dest)
+  const { filesIndex } = cafs.addFilesFromTarball(
+    fs.readFileSync(path.join(__dirname, '../__fixtures__/devextreme-17.1.6.tgz'))
+  )
+  expect(Object.keys(filesIndex).length).toBeGreaterThan(0)
+})

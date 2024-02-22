@@ -22,13 +22,10 @@ const FILE_TYPE_PAX_HEADER: number = 'x'.charCodeAt(0)
 const FILE_TYPE_PAX_GLOBAL_HEADER: number = 'g'.charCodeAt(0)
 const FILE_TYPE_LONGLINK: number = 'L'.charCodeAt(0)
 
-const USTAR_MAGIC: Buffer = Buffer.from('ustar', 'latin1')
-
 const MODE_OFFSET: 100 = 100
 const FILE_SIZE_OFFSET: 124 = 124
 const CHECKSUM_OFFSET: 148 = 148
 const FILE_TYPE_OFFSET: 156 = 156
-const MAGIC_OFFSET: 257 = 257
 const PREFIX_OFFSET: 345 = 345
 
 // See TAR specification here: https://www.gnu.org/software/tar/manual/html_node/Standard.html
@@ -73,24 +70,6 @@ export function parseTarball (buffer: Buffer): IParseResult {
     if (expectedCheckSum !== actualCheckSum) {
       throw new Error(
         `Invalid checksum for TAR header at offset ${blockStart}. Expected ${expectedCheckSum}, got ${actualCheckSum}`
-      )
-    }
-
-    if (
-      buffer.compare(
-        USTAR_MAGIC,
-        0,
-        USTAR_MAGIC.byteLength,
-        blockStart + MAGIC_OFFSET,
-        blockStart + MAGIC_OFFSET + USTAR_MAGIC.byteLength
-      ) !== 0
-    ) {
-      throw new Error(
-        `This parser only supports USTAR or GNU TAR archives. Found magic and version: ${buffer.toString(
-          'latin1',
-          blockStart + MAGIC_OFFSET,
-          blockStart + MAGIC_OFFSET + 8
-        )}`
       )
     }
 
