@@ -47,14 +47,14 @@ const ROOT_KEYS: readonly RootKey[] = [
   'importers',
   'packages',
 ]
-const ROOT_KEYS_ORDER = Object.fromEntries(ROOT_KEYS.map((key, index) => [key, index + 1]))
+const ROOT_KEYS_ORDER = Object.fromEntries(ROOT_KEYS.map((key, index) => [key, index]))
 
 function compareWithPriority (priority: Record<string, number>, left: string, right: string) {
   const leftPriority = priority[left]
   const rightPriority = priority[right]
-  if (leftPriority && rightPriority) return leftPriority - rightPriority
-  if (leftPriority) return -1
-  if (rightPriority) return 1
+  if (leftPriority != null && rightPriority != null) return leftPriority - rightPriority
+  if (leftPriority != null) return -1
+  if (rightPriority != null) return 1
   return lexCompare(left, right)
 }
 
