@@ -40,7 +40,6 @@ const ROOT_KEYS: readonly RootKey[] = [
   'overrides',
   'packageExtensionsChecksum',
   'patchedDependencies',
-  'specifiers' as string as RootKey, // TypeScript says that 'specifiers' doesn't exist in LockfileFile, should it be removed?
   'dependencies',
   'optionalDependencies',
   'devDependencies',
