@@ -137,7 +137,7 @@ export function createLockfileObject (
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
   }
-) {
+): Lockfile {
   const importers = importerIds.reduce((acc, importerId) => {
     acc[importerId] = {
       dependencies: {},

@@ -105,6 +105,9 @@ export function pruneLockfile (
   if (!isEmpty(lockfileDevDependencies)) {
     updatedImporter.devDependencies = lockfileDevDependencies
   }
+  if (lockfile.pnpmfileChecksum) {
+    prunedLockfile.pnpmfileChecksum = lockfile.pnpmfileChecksum
+  }
   return pruneSharedLockfile(prunedLockfile, opts)
 }
 
