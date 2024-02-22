@@ -59,7 +59,7 @@ export async function addFilesFromDir (
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError('GIT_FETCH_FAILED', error as string))
+        reject(new PnpmError(error.code ?? 'GIT_FETCH_FAILED', error.message as string))
         return
       }
       resolve(value)
@@ -131,7 +131,7 @@ export async function addFilesFromTarball (
           }))
           return
         }
-        reject(new PnpmError('TARBALL_EXTRACT', `Failed to unpack the tarball from "${opts.url}": ${error as string}`))
+        reject(new PnpmError(error.code ?? 'TARBALL_EXTRACT', `Failed to add tarball from "${opts.url}" to store: ${error.message as string}`))
         return
       }
       resolve(value)
@@ -162,7 +162,7 @@ export async function readPkgFromCafs (
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError('READ_FROM_STORE', error as string))
+        reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string))
         return
       }
       resolve(value)
@@ -188,7 +188,7 @@ export async function importPackage (
     localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError('LINKING_FAILED', error as string))
+        reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
         return
       }
       resolve(value)
@@ -211,7 +211,7 @@ export async function symlinkAllModules (
     localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError('SYMLINK_FAILED', error as string))
+        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string))
         return
       }
       resolve(value)
@@ -232,7 +232,7 @@ export async function hardLinkDir (src: string, destDirs: string[]): Promise<voi
     localWorker.once('message', ({ status, error }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError('HARDLINK_FAILED', error as string))
+        reject(new PnpmError(error.code ?? 'HARDLINK_FAILED', error.message as string))
         return
       }
       resolve()
