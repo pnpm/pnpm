@@ -52,17 +52,18 @@ export function requireHooks (
   let globalHooks: Hooks = globalPnpmfile?.hooks
 
   const pnpmfilePath = getPnpmfilePath(prefix, opts.pnpmfile)
+  const pnpmfileChecksum = getPnpmfileChecksum(pnpmfilePath)
   const pnpmFile = requirePnpmfile(pnpmfilePath, prefix)
   let hooks: Hooks = pnpmFile?.hooks
 
-  if (!globalHooks && !hooks) return { afterAllResolved: [], filterLog: [], readPackage: [] }
+  if (!globalHooks && !hooks) return { afterAllResolved: [], filterLog: [], readPackage: [], pnpmfileChecksum }
   globalHooks = globalHooks || {}
   hooks = hooks || {}
   const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'filterLog'>> = {
     afterAllResolved: [],
     filterLog: [],
     readPackage: [],
-    pnpmfileChecksum: getPnpmfileChecksum(pnpmfilePath),
+    pnpmfileChecksum,
   }
   for (const hookName of ['readPackage', 'afterAllResolved'] as const) {
     if (globalHooks[hookName]) {
