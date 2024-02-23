@@ -87,6 +87,9 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
   if (!lockfileToSave.packageExtensionsChecksum) {
     delete lockfileToSave.packageExtensionsChecksum
   }
+  if (!lockfileToSave.pnpmfileChecksum) {
+    delete lockfileToSave.pnpmfileChecksum
+  }
   return lockfileToSave
 }
 

@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",

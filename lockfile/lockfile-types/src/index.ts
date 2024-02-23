@@ -19,6 +19,7 @@ export interface Lockfile {
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
   patchedDependencies?: Record<string, PatchFile>
+  pnpmfileChecksum?: string
   settings?: LockfileSettings
 }
 

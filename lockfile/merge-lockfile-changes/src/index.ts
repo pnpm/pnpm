@@ -9,6 +9,10 @@ export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile): Lockfil
       ? theirs.lockfileVersion
       : ours.lockfileVersion,
   }
+  const pnpmfileChecksum = ours.pnpmfileChecksum ?? theirs.pnpmfileChecksum // Install should automatically detect change later
+  if (pnpmfileChecksum) {
+    newLockfile.pnpmfileChecksum = pnpmfileChecksum
+  }
 
   for (const importerId of Array.from(new Set([...Object.keys(ours.importers), ...Object.keys(theirs.importers)]))) {
     newLockfile.importers[importerId] = {

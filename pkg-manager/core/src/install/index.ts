@@ -321,6 +321,7 @@ export async function mutateModules (
       )
     }
     const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
+    const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
       : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies, opts.lockfileDir) : {})
@@ -342,6 +343,7 @@ export async function mutateModules (
         onlyBuiltDependencies: opts.onlyBuiltDependencies,
         packageExtensionsChecksum,
         patchedDependencies,
+        pnpmfileChecksum,
       })
       outdatedLockfileSettings = outdatedLockfileSettingName != null
       if (frozenLockfile && outdatedLockfileSettings) {
@@ -361,6 +363,7 @@ export async function mutateModules (
       ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
       ctx.wantedLockfile.onlyBuiltDependencies = opts.onlyBuiltDependencies
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
+      ctx.wantedLockfile.pnpmfileChecksum = pnpmfileChecksum
       ctx.wantedLockfile.patchedDependencies = patchedDependencies
     } else if (!frozenLockfile) {
       ctx.wantedLockfile.settings = {
@@ -715,6 +718,7 @@ function getOutdatedLockfileSetting (
     patchedDependencies,
     autoInstallPeers,
     excludeLinksFromLockfile,
+    pnpmfileChecksum,
   }: {
     neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
@@ -723,6 +727,7 @@ function getOutdatedLockfileSetting (
     patchedDependencies?: Record<string, PatchFile>
     autoInstallPeers?: boolean
     excludeLinksFromLockfile?: boolean
+    pnpmfileChecksum?: string
   }
 ) {
   if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
@@ -745,6 +750,9 @@ function getOutdatedLockfileSetting (
   }
   if (lockfile.settings?.excludeLinksFromLockfile != null && lockfile.settings.excludeLinksFromLockfile !== excludeLinksFromLockfile) {
     return 'settings.excludeLinksFromLockfile'
+  }
+  if (lockfile.pnpmfileChecksum !== pnpmfileChecksum) {
+    return 'pnpmfileChecksum'
   }
   return null
 }

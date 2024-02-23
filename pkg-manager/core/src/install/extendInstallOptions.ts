@@ -70,6 +70,8 @@ export interface StrictInstallOptions {
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion: string
   packageExtensions: Record<string, PackageExtension>
+  pnpmfile: string
+  ignorePnpmfile: boolean
   packageManager: {
     name: string
     version: string
@@ -79,6 +81,7 @@ export interface StrictInstallOptions {
     readPackage?: ReadPackageHook[]
     preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
     afterAllResolved?: Array<(lockfile: Lockfile) => Lockfile | Promise<Lockfile>>
+    calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean

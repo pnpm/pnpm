@@ -79,12 +79,12 @@ function toLockfileDependency (
     opts.lockfileIncludeTarballUrl
   )
   const newResolvedDeps = updateResolvedDeps(
-    opts.prevSnapshot?.dependencies ?? {},
+    {},
     opts.updatedDeps,
     opts.depGraph
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
-    opts.prevSnapshot?.optionalDependencies ?? {},
+    {},
     opts.updatedOptionalDeps,
     opts.depGraph
   )

@@ -39,6 +39,7 @@ const ROOT_KEYS: readonly RootKey[] = [
   'onlyBuiltDependencies',
   'overrides',
   'packageExtensionsChecksum',
+  'pnpmfileChecksum',
   'patchedDependencies',
   'dependencies',
   'optionalDependencies',
