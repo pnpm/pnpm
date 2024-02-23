@@ -10,7 +10,6 @@ export interface StrictStoreStatusOptions {
   dir: string
   storeDir: string
   force: boolean
-  forceSharedLockfile: boolean
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   useLockfile: boolean
   registries: Registries
@@ -33,7 +32,6 @@ const defaults = async (opts: StoreStatusOptions) => {
     binsDir: path.join(dir, 'node_modules', '.bin'),
     dir,
     force: false,
-    forceSharedLockfile: false,
     lockfileDir,
     nodeLinker: 'isolated',
     registries: DEFAULT_REGISTRIES,

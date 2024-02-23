@@ -4,10 +4,13 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  glob:
-    specifier: ^7.0.5
-    version: 7.2.3
+importers:
+
+  .:
+    dependencies:
+      glob:
+        specifier: ^7.0.5
+        version: 7.2.3
 
 packages:
 

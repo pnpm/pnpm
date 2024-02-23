@@ -31,21 +31,17 @@ export async function writeWantedLockfile (
   pkgPath: string,
   wantedLockfile: Lockfile,
   opts?: {
-    forceSharedFormat?: boolean
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
   }
 ) {
   const wantedLockfileName: string = await getWantedLockfileName(opts)
-  return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile, opts)
+  return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile)
 }
 
 export async function writeCurrentLockfile (
   virtualStoreDir: string,
-  currentLockfile: Lockfile,
-  opts?: {
-    forceSharedFormat?: boolean
-  }
+  currentLockfile: Lockfile
 ) {
   // empty lockfile is not saved
   if (isEmptyLockfile(currentLockfile)) {
@@ -53,23 +49,18 @@ export async function writeCurrentLockfile (
     return
   }
   await fs.mkdir(virtualStoreDir, { recursive: true })
-  return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile, opts)
-}
-
-interface LockfileFormatOptions {
-  forceSharedFormat?: boolean
+  return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile)
 }
 
 async function writeLockfile (
   lockfileFilename: string,
   pkgPath: string,
-  wantedLockfile: Lockfile,
-  opts?: LockfileFormatOptions
+  wantedLockfile: Lockfile
 ) {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
   const lockfileToStringify = convertToLockfileFile(wantedLockfile, {
-    forceSharedFormat: opts?.forceSharedFormat === true,
+    forceSharedFormat: true,
   })
 
   const yamlDoc = yamlStringify(lockfileToStringify)
@@ -88,7 +79,6 @@ export function isEmptyLockfile (lockfile: Lockfile) {
 
 export async function writeLockfiles (
   opts: {
-    forceSharedFormat?: boolean
     wantedLockfile: Lockfile
     wantedLockfileDir: string
     currentLockfile: Lockfile
@@ -101,9 +91,8 @@ export async function writeLockfiles (
   const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
-  const forceSharedFormat = opts?.forceSharedFormat === true
   const normalizeOpts = {
-    forceSharedFormat,
+    forceSharedFormat: true,
   }
   const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile, normalizeOpts)
   const yamlDoc = yamlStringify(wantedLockfileToStringify)

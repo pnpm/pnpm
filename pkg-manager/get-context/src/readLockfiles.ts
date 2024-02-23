@@ -30,7 +30,6 @@ export async function readLockfiles (
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
     force: boolean
-    forceSharedLockfile: boolean
     frozenLockfile: boolean
     projects: Array<{
       id: string

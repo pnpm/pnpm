@@ -4,16 +4,19 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  has-flag:
-    specifier: 1.0.0
-    version: 1.0.0
-  ms:
-    specifier: 1.0.0
-    version: 1.0.0
-  send:
-    specifier: 0.17.2
-    version: 0.17.2
+importers:
+
+  .:
+    dependencies:
+      has-flag:
+        specifier: 1.0.0
+        version: 1.0.0
+      ms:
+        specifier: 1.0.0
+        version: 1.0.0
+      send:
+        specifier: 0.17.2
+        version: 0.17.2
 
 packages:
 

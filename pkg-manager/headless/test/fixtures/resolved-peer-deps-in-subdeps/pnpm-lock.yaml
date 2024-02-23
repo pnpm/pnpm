@@ -4,10 +4,13 @@ settings:
   autoInstallPeers: false
   excludeLinksFromLockfile: false
 
-dependencies:
-  pnpm-default-reporter:
-    specifier: 0.14.7
-    version: 0.14.7
+importers:
+
+  .:
+    dependencies:
+      pnpm-default-reporter:
+        specifier: 0.14.7
+        version: 0.14.7
 
 packages:
 
