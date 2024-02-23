@@ -81,7 +81,7 @@ export interface StrictInstallOptions {
     readPackage?: ReadPackageHook[]
     preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
     afterAllResolved?: Array<(lockfile: Lockfile) => Lockfile | Promise<Lockfile>>
-    pnpmfileChecksum?: Promise<string | undefined>
+    calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean

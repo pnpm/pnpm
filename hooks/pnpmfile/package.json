@@ -1,4 +1,4 @@
-  {
+{
   "name": "@pnpm/pnpmfile",
   "version": "5.0.20",
   "description": "Reading a .pnpmfile.cjs",
