@@ -4469,6 +4469,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../packages/core-loggers
+      '@pnpm/crypto.base32-hash':
+        specifier: workspace:*
+        version: link:../packages/crypto.base32-hash
       '@pnpm/default-reporter':
         specifier: workspace:*
         version: link:../cli/default-reporter

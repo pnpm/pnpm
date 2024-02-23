@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -222,4 +223,76 @@ test('custom fetcher can call default fetcher', async () => {
   })
 
   expect(args.opts).toBeDefined()
+})
+
+test('adding or changing pnpmfile should change pnpmfileChecksum and module structure', async () => {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const lockfile0 = project.readLockfile()
+  expect(lockfile0.pnpmfileChecksum).toBeUndefined()
+  expect(lockfile0.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+  expect(lockfile0.packages).toHaveProperty(['/is-positive@1.0.0'])
+
+  const pnpmfile1 = `
+    function readPackage (pkg) {
+      if (pkg.optionalDependencies) {
+        pkg.optionalDependencies = {} // 'delete pkg.optionalDependencies' doesn't work here
+      }
+      return pkg
+    }
+
+    module.exports.hooks = { readPackage }
+  `
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile1)
+  await execPnpm(['install'])
+
+  const lockfile1 = project.readLockfile()
+  expect(lockfile1.pnpmfileChecksum).toBe(createBase32Hash(pnpmfile1))
+  expect(lockfile1.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+  expect(lockfile1.packages).not.toHaveProperty(['/is-positive@1.0.0']) // this should be removed due to being optional dependency
+
+  const pnpmfile2 = `
+    function readPackage (pkg) {
+      if (pkg.name === '@pnpm.e2e/pkg-with-good-optional') {
+        pkg.dependencies['@pnpm.e2e/foo'] = '100.0.0'
+      }
+      if (pkg.name === 'is-positive') {
+        pkg.dependencies['@pnpm.e2e/bar'] = '100.0.0'
+      }
+      return pkg
+    }
+
+    module.exports.hooks = { readPackage }
+  `
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile2)
+  await execPnpm(['install'])
+
+  const lockfile2 = project.readLockfile()
+  expect(lockfile2.pnpmfileChecksum).toBe(createBase32Hash(pnpmfile2))
+  expect(lockfile2.packages).toMatchObject({
+    '/@pnpm.e2e/foo@100.0.0': expect.any(Object),
+    '/@pnpm.e2e/bar@100.0.0': expect.any(Object),
+    '/@pnpm.e2e/pkg-with-good-optional@1.0.0': {
+      dependencies: {
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+    },
+    '/is-positive@1.0.0': {
+      dependencies: {
+        '@pnpm.e2e/bar': '100.0.0',
+      },
+    },
+  })
+
+  fs.unlinkSync('.pnpmfile.cjs')
+  await execPnpm(['install'])
+
+  const lockfile3 = project.readLockfile()
+  expect(lockfile3).toStrictEqual(lockfile0)
 })
