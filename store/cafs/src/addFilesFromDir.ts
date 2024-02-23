@@ -44,6 +44,10 @@ function _retrieveFileIntegrities (
       }
       continue
     }
+    if (stat.isDirectory()) {
+      _retrieveFileIntegrities(addBuffer, rootDir, fullPath, index)
+      continue
+    }
     const buffer = gfs.readFileSync(fullPath)
     if (rootDir === currDir && readManifest && file.name === 'package.json') {
       manifest = parseJsonBufferSync(buffer)
