@@ -60,6 +60,8 @@ import safePromiseDefer, { type SafePromiseDefer } from 'safe-promise-defer'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
+const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'])
+
 export function nodeIdToParents (
   nodeId: string,
   resolvedPackagesByDepPath: ResolvedPackagesByDepPath
@@ -1252,7 +1254,7 @@ async function resolveDependency (
     hasBin = currentPkg.dependencyLockfile.hasBin === true
     pkg = {
       ...nameVerFromPkgSnapshot(currentPkg.depPath, currentPkg.dependencyLockfile),
-      ...currentPkg.dependencyLockfile,
+      ...omitDepsFields(currentPkg.dependencyLockfile),
       ...pkg,
     }
   } else {
