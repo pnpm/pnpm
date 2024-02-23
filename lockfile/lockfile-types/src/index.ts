@@ -22,6 +22,20 @@ export interface Lockfile {
   settings?: LockfileSettings
 }
 
+export interface LockfileV7 {
+  importers: Record<string, ProjectSnapshot>
+  lockfileVersion: number | string
+  time?: Record<string, string>
+  snapshots?: Record<string, PackageSnapshotV7>
+  packages?: Record<string, PackageInfo>
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
+  overrides?: Record<string, string>
+  packageExtensionsChecksum?: string
+  patchedDependencies?: Record<string, PatchFile>
+  settings?: LockfileSettings
+}
+
 export interface ProjectSnapshot {
   specifiers: ResolvedDependencies
   dependencies?: ResolvedDependencies
@@ -71,6 +85,10 @@ export type Resolution =
 export type LockfileResolution = Resolution | {
   integrity: string
 }
+
+export type PackageSnapshotV7 = Pick<PackageSnapshot, 'dev' | 'optional' | 'dependencies' | 'optionalDependencies' | 'transitivePeerDependencies'>
+
+export type PackageInfo = Pick<PackageSnapshot, 'id' | 'patched' | 'hasBin' | 'name' | 'version' | 'resolution' | 'peerDependencies' | 'peerDependenciesMeta' | 'bundledDependencies' | 'engines' | 'cpu' | 'os' | 'libc' | 'deprecated'>
 
 export interface PackageSnapshot {
   id?: string

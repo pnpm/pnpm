@@ -1,25 +1,38 @@
 import {
   type Lockfile,
   type ProjectSnapshot,
+  type PackageSnapshotV7,
   type ResolvedDependencies,
   type LockfileFile,
   type InlineSpecifiersLockfile,
   type InlineSpecifiersProjectSnapshot,
   type InlineSpecifiersResolvedDependencies,
+  type PackageInfo,
 } from '@pnpm/lockfile-types'
+import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import _mapValues from 'ramda/src/map'
 import pickBy from 'ramda/src/pickBy'
+import pick from 'ramda/src/pick'
 
 export interface NormalizeLockfileOpts {
   forceSharedFormat: boolean
 }
 
 export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfileOpts): LockfileFile {
+  const packages: Record<string, PackageInfo> = {}
+  const snapshots: Record<string, PackageSnapshotV7> = {}
+  for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
+    snapshots[depPath] = pick(['dependencies', 'optionalDependencies', 'transitivePeerDependencies', 'dev', 'optional'], pkg)
+    const pkgId = packageIdFromSnapshot(depPath, pkg)
+    packages[pkgId] = pick(['resolution', 'engines', 'cpu', 'os', 'libc', 'peerDependencies', 'peerDependenciesMeta', 'hasBin', 'requiresBuild'], pkg) as any
+  }
   const newLockfile = {
     ...lockfile,
+    snapshots,
+    packages,
     lockfileVersion: lockfile.lockfileVersion.toString(),
     importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
   }

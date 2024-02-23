@@ -51,6 +51,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/merge-lockfile-changes": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "1.0.0",

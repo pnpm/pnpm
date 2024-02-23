@@ -2106,6 +2106,9 @@ importers:
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../lockfile-types
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../lockfile-utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
