@@ -103,7 +103,13 @@ async function handleMessage (
     }
     }
   } catch (e: any) { // eslint-disable-line
-    parentPort!.postMessage({ status: 'error', error: e.toString() })
+    parentPort!.postMessage({
+      status: 'error',
+      error: {
+        code: e.code,
+        message: e.message ?? e.toString(),
+      },
+    })
   }
 }
 
