@@ -242,7 +242,7 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
   const pnpmfile1 = `
     function readPackage (pkg) {
       if (pkg.optionalDependencies) {
-        pkg.optionalDependencies = {} // 'delete pkg.optionalDependencies' doesn't work here
+        delete pkg.optionalDependencies
       }
       return pkg
     }

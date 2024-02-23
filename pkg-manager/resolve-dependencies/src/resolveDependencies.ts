@@ -1252,7 +1252,6 @@ async function resolveDependency (
     hasBin = currentPkg.dependencyLockfile.hasBin === true
     pkg = {
       ...nameVerFromPkgSnapshot(currentPkg.depPath, currentPkg.dependencyLockfile),
-      ...currentPkg.dependencyLockfile,
       ...pkg,
     }
   } else {
