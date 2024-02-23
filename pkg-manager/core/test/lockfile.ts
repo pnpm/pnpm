@@ -54,10 +54,10 @@ test('lockfile has correct format', async () => {
 
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
 
-  expect(lockfile.dependencies).toBeTruthy()
-  expect(lockfile.dependencies['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
-  expect(lockfile.dependencies).toHaveProperty(['@rstacruz/tap-spec'])
-  expect(lockfile.dependencies['is-negative'].version).toContain('/') // has not shortened tarball from the non-standard registry
+  expect(lockfile.importers?.['.'].dependencies).toBeTruthy()
+  expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.importers?.['.'].dependencies).toHaveProperty(['@rstacruz/tap-spec'])
+  expect(lockfile.importers?.['.'].dependencies?.['is-negative'].version).toContain('/') // has not shortened tarball from the non-standard registry
 
   expect(lockfile.packages).toBeTruthy() // has packages field
   expect(lockfile.packages).toHaveProperty([id])
@@ -142,7 +142,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
 
   const lockfile = project.readLockfile()
 
-  expect(Object.keys(lockfile.dependencies).length).toBe(1) // resolutions not duplicated
+  expect(Object.keys(lockfile.importers!['.'].dependencies!).length).toBe(1) // resolutions not duplicated
 })
 
 test('a lockfile created even when there are no deps in package.json', async () => {
@@ -236,9 +236,9 @@ test('lockfile is fixed when it does not match package.json', async () => {
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.devDependencies['is-negative'].version).toBe('2.1.0')
-  expect(lockfile.optionalDependencies['is-positive'].version).toBe('3.1.0')
-  expect(lockfile.dependencies).toBeFalsy()
+  expect(lockfile.importers?.['.'].devDependencies?.['is-negative'].version).toBe('2.1.0')
+  expect(lockfile.importers?.['.'].optionalDependencies?.['is-positive'].version).toBe('3.1.0')
+  expect(lockfile.importers?.['.'].dependencies).toBeFalsy()
   expect(lockfile.packages).not.toHaveProperty(['/@types/semver@5.3.31'])
 })
 
@@ -398,15 +398,16 @@ test("recreates lockfile if it doesn't match the dependencies in package.json", 
   await install(manifest, testDefaults())
 
   const lockfile = project.readLockfile()
+  const importer = lockfile.importers!['.']!
 
-  expect(lockfile.dependencies['is-negative'].version).toBe('2.1.0')
-  expect(lockfile.dependencies['is-negative'].specifier).toBe('^2.1.0')
+  expect(importer.dependencies!['is-negative'].version).toBe('2.1.0')
+  expect(importer.dependencies!['is-negative'].specifier).toBe('^2.1.0')
 
-  expect(lockfile.devDependencies['is-positive'].version).toBe('2.0.0')
-  expect(lockfile.devDependencies['is-positive'].specifier).toBe('^2.0.0')
+  expect(importer.devDependencies!['is-positive'].version).toBe('2.0.0')
+  expect(importer.devDependencies!['is-positive'].specifier).toBe('^2.0.0')
 
-  expect(lockfile.optionalDependencies['map-obj'].version).toBe('1.0.1')
-  expect(lockfile.optionalDependencies['map-obj'].specifier).toBe('1.0.1')
+  expect(importer.optionalDependencies!['map-obj'].version).toBe('1.0.1')
+  expect(importer.optionalDependencies!['map-obj'].specifier).toBe('1.0.1')
 })
 
 test('repeat install with lockfile should not mutate lockfile when dependency has version specified with v prefix', async () => {
@@ -564,10 +565,10 @@ test('packages are placed in devDependencies even if they are present as non-dev
     },
   }, testDefaults({ reporter }))
 
-  const lockfile = project.readLockfile()
+  const importer = project.readLockfile().importers!['.']!
 
-  expect(lockfile.devDependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
-  expect(lockfile.devDependencies).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep'])
+  expect(importer.devDependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
+  expect(importer.devDependencies).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep'])
 
   expect(reporter.calledWithMatch({
     added: {
@@ -1228,7 +1229,7 @@ packages:
   }, testDefaults())
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
+  expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
 })
 
 test('a lockfile v6 with merge conflicts is autofixed', async () => {
@@ -1266,7 +1267,7 @@ packages:
   }, testDefaults())
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toHaveProperty('version', '100.1.0')
+  expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toHaveProperty('version', '100.1.0')
 })
 
 test('a lockfile with duplicate keys is fixed', async () => {
@@ -1295,7 +1296,7 @@ packages:
   }, testDefaults({ reporter }))
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'warn',
