@@ -45,7 +45,7 @@ describe('cafs', () => {
     const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
     const { filesIndex } = addFiles()
-    expect(filesIndex[path.join('subdir', 'should-exist.txt')]).toBeDefined()
+    expect(filesIndex['subdir/should-exist.txt']).toBeDefined()
   })
 
   it('symlinks are resolved and added as regular files', async () => {
@@ -62,8 +62,8 @@ describe('cafs', () => {
     const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
     expect(filesIndex['symlink.js']).toBeDefined()
     expect(filesIndex['symlink.js']).toStrictEqual(filesIndex['index.js'])
-    expect(filesIndex[path.join('lib', 'index.js')]).toBeDefined()
-    expect(filesIndex[path.join('lib', 'index.js')]).toStrictEqual(filesIndex[path.join('lib-symlink', 'index.js')])
+    expect(filesIndex['lib/index.js']).toBeDefined()
+    expect(filesIndex['lib/index.js']).toStrictEqual(filesIndex['lib-symlink/index.js'])
   })
 })
 
