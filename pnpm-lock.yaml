@@ -5716,6 +5716,9 @@ importers:
       '@types/ssri':
         specifier: ^7.1.5
         version: 7.1.5
+      symlink-dir:
+        specifier: ^5.2.1
+        version: 5.2.1
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -17991,3 +17994,4 @@ packages:
 time:
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'
+  /symlink-dir@5.2.1: '2023-12-24T23:15:15.543Z'
