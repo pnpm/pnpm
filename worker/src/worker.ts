@@ -136,9 +136,9 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, r
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
   const cafs = cafsCache.get(cafsDir)!
-  const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, readManifest)
+  const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, Boolean(readManifest) || !pkg?.name || !pkg.version)
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? {}, files: filesIntegrity })
+  writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? manifest ?? {}, files: filesIntegrity })
   return { status: 'success', value: { filesIndex: filesMap, manifest } }
 }
 
@@ -147,20 +147,24 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, p
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
   const cafs = cafsCache.get(cafsDir)!
-  const { filesIndex, manifest } = cafs.addFilesFromDir(dir, { files, readManifest })
+  const { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
+    files,
+    readManifest: Boolean(readManifest) || !pkg?.name || !pkg.version,
+  })
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   if (sideEffectsCacheKey) {
     let filesIndex!: PackageFilesIndex
     try {
       filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
     } catch {
-      filesIndex = { files: filesIntegrity }
+      pkg = pkg ?? manifest
+      filesIndex = { name: pkg?.name, version: pkg?.version, files: filesIntegrity }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
     filesIndex.sideEffects[sideEffectsCacheKey] = filesIntegrity
     writeJsonFile(filesIndexFile, filesIndex)
   } else {
-    writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? {}, files: filesIntegrity })
+    writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? manifest ?? {}, files: filesIntegrity })
   }
   return { status: 'success', value: { filesIndex: filesMap, manifest } }
 }
