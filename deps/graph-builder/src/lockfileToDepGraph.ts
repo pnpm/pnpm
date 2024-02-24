@@ -41,8 +41,7 @@ export interface DependenciesGraphNode {
   optional: boolean
   depPath: string // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
   isBuilt?: boolean
-  requiresBuild: boolean
-  prepare: boolean
+  requiresBuild?: boolean
   hasBin: boolean
   filesIndexFile?: string
   patchFile?: PatchFile
@@ -195,8 +194,6 @@ export async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-          prepare: pkgSnapshot.prepare === true,
-          requiresBuild: pkgSnapshot.requiresBuild === true,
           patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot

@@ -994,7 +994,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   let {
     dependenciesGraph,
     dependenciesByProjectId,
-    finishLockfileUpdates,
     linkedDependenciesByProjectId,
     newLockfile,
     outdatedDependencies,
@@ -1129,7 +1128,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     )
     stats = result.stats
-    await finishLockfileUpdates()
     if (opts.enablePnp) {
       const importerNames = Object.fromEntries(
         projects.map(({ manifest, id }) => [id, manifest.name ?? id])
@@ -1150,13 +1148,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
         ctx.pendingBuilds = ctx.pendingBuilds
           .concat(
-            await pFilter(result.newDepPaths,
-              (depPath) => {
-                const requiresBuild = dependenciesGraph[depPath].requiresBuild
-                if (typeof requiresBuild === 'function') return requiresBuild()
-                return requiresBuild
-              }
-            )
+            result.newDepPaths.filter((depPath) => {
+              const requiresBuild = dependenciesGraph[depPath].requiresBuild
+              return requiresBuild
+            })
           )
       }
       if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
@@ -1331,7 +1326,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       )
     }
   } else {
-    await finishLockfileUpdates()
     if (opts.useLockfile && !isInstallationOnlyForLockfileCheck) {
       await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
     }

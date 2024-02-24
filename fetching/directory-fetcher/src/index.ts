@@ -1,5 +1,6 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
+import { filesIncludeInstallScripts } from '@pnpm/exec.files-include-install-scripts'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import { logger } from '@pnpm/logger'
 import { packlist } from '@pnpm/fs.packlist'
@@ -55,11 +56,20 @@ async function fetchAllFilesFromDir (
     // Related PR in Bit: https://github.com/teambit/bit/pull/5251
     manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
   }
+  const requiresBuild = Boolean(
+    manifest?.scripts != null && (
+      Boolean(manifest.scripts.preinstall) ||
+      Boolean(manifest.scripts.install) ||
+      Boolean(manifest.scripts.postinstall)
+    ) ||
+    filesIncludeInstallScripts(filesIndex)
+  )
   return {
     local: true as const,
     filesIndex,
     packageImportMethod: 'hardlink' as const,
     manifest,
+    requiresBuild,
   }
 }
 
@@ -137,10 +147,19 @@ async function fetchPackageFilesFromDir (
     // Related PR in Bit: https://github.com/teambit/bit/pull/5251
     manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
   }
+  const requiresBuild = Boolean(
+    manifest?.scripts != null && (
+      Boolean(manifest.scripts.preinstall) ||
+      Boolean(manifest.scripts.install) ||
+      Boolean(manifest.scripts.postinstall)
+    ) ||
+    filesIncludeInstallScripts(filesIndex)
+  )
   return {
     local: true as const,
     filesIndex,
     packageImportMethod: 'hardlink' as const,
     manifest,
+    requiresBuild,
   }
 }

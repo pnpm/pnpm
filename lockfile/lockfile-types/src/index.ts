@@ -77,9 +77,7 @@ export interface PackageSnapshot {
   id?: string
   dev?: true | false
   optional?: true
-  requiresBuild?: true
   patched?: true
-  prepare?: true
   hasBin?: true
   // name and version are only needed
   // for packages that are hosted not in the npm registry

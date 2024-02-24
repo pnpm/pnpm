@@ -3,18 +3,21 @@ import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import { filesIncludeInstallScripts } from '@pnpm/exec.files-include-install-scripts'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
   checkPkgFilesIntegrity,
   createCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
+  type SideEffects,
   type FilesIndex,
   optimisticRenameOverwrite,
   readManifestFromStore,
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
+import { type DependencyManifest } from '@pnpm/types'
 import { sync as loadJsonFile } from 'load-json-file'
 import { parentPort } from 'worker_threads'
 import {
@@ -56,7 +59,7 @@ async function handleMessage (
       break
     }
     case 'readPkgFromCafs': {
-      const { cafsDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
+      let { cafsDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
@@ -74,6 +77,9 @@ async function handleMessage (
         return
       }
       let verifyResult: VerifyResult | undefined
+      if (!pkgFilesIndex.requiresBuild) {
+        readManifest = true
+      }
       if (verifyStoreIntegrity) {
         verifyResult = checkPkgFilesIntegrity(cafsDir, pkgFilesIndex, readManifest)
       } else {
@@ -82,12 +88,21 @@ async function handleMessage (
           manifest: readManifest ? readManifestFromStore(cafsDir, pkgFilesIndex) : undefined,
         }
       }
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? Boolean(
+        verifyResult.manifest?.scripts != null && (
+          Boolean(verifyResult.manifest.scripts.preinstall) ||
+          Boolean(verifyResult.manifest.scripts.install) ||
+          Boolean(verifyResult.manifest.scripts.postinstall)
+        ) ||
+        filesIncludeInstallScripts(pkgFilesIndex.files)
+      )
       parentPort!.postMessage({
         status: 'success',
         value: {
           verified: verifyResult.passed,
           manifest: verifyResult.manifest,
           pkgFilesIndex,
+          requiresBuild,
         },
       })
       break
@@ -136,10 +151,10 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, r
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
   const cafs = cafsCache.get(cafsDir)!
-  const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, Boolean(readManifest) || !pkg?.name || !pkg.version)
+  const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? manifest ?? {}, files: filesIntegrity })
-  return { status: 'success', value: { filesIndex: filesMap, manifest } }
+  const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
+  return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
 }
 
 function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, pkg, readManifest, files }: AddDirToStoreMessage) {
@@ -149,24 +164,36 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, p
   const cafs = cafsCache.get(cafsDir)!
   const { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
     files,
-    readManifest: Boolean(readManifest) || !pkg?.name || !pkg.version,
+    readManifest: true,
   })
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
+  let requiresBuild: boolean
   if (sideEffectsCacheKey) {
     let filesIndex!: PackageFilesIndex
     try {
       filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
     } catch {
-      pkg = pkg ?? manifest
-      filesIndex = { name: pkg?.name, version: pkg?.version, files: filesIntegrity }
+      filesIndex = { name: manifest?.name, version: manifest?.version, files: filesIntegrity }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
     filesIndex.sideEffects[sideEffectsCacheKey] = filesIntegrity
+    if (filesIndex.requiresBuild == null) {
+      requiresBuild = Boolean(
+        manifest?.scripts != null && (
+          Boolean(manifest.scripts.preinstall) ||
+          Boolean(manifest.scripts.install) ||
+          Boolean(manifest.scripts.postinstall)
+        ) ||
+        filesIncludeInstallScripts(filesIntegrity)
+      )
+    } else {
+      requiresBuild = filesIndex.requiresBuild
+    }
     writeJsonFile(filesIndexFile, filesIndex)
   } else {
-    writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? manifest ?? {}, files: filesIntegrity })
+    requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
   }
-  return { status: 'success', value: { filesIndex: filesMap, manifest } }
+  return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
 }
 
 function processFilesIndex (filesIndex: FilesIndex) {
@@ -224,16 +251,29 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage) {
 
 function writeFilesIndexFile (
   filesIndexFile: string,
-  { pkg, files }: {
-    pkg: { name?: string, version?: string }
+  { manifest, files, sideEffects }: {
+    manifest: Partial<DependencyManifest>
     files: Record<string, PackageFileInfo>
+    sideEffects?: SideEffects
   }
-) {
-  writeJsonFile(filesIndexFile, {
-    name: pkg.name,
-    version: pkg.version,
+): boolean {
+  const requiresBuild = Boolean(
+    manifest?.scripts != null && (
+      Boolean(manifest.scripts.preinstall) ||
+      Boolean(manifest.scripts.install) ||
+      Boolean(manifest.scripts.postinstall)
+    ) ||
+    filesIncludeInstallScripts(files)
+  )
+  const filesIndex: PackageFilesIndex = {
+    name: manifest.name,
+    version: manifest.version,
+    requiresBuild,
     files,
-  })
+    sideEffects,
+  }
+  writeJsonFile(filesIndexFile, filesIndex)
+  return requiresBuild
 }
 
 function writeJsonFile (filePath: string, data: unknown) {

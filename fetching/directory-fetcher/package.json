@@ -34,6 +34,7 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
+    "@pnpm/exec.files-include-install-scripts": "1.0.0",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",

@@ -546,14 +546,11 @@ test('bin specified in the directories property symlinked to .bin folder when pr
 })
 
 testOnNonWindows('building native addons', async () => {
-  const project = prepareEmpty()
+  prepareEmpty()
 
   await addDependenciesToPackage({}, ['diskusage@1.1.3'], testDefaults({ fastUnpack: false }))
 
   expect(fs.existsSync('node_modules/diskusage/build')).toBeTruthy()
-
-  const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/diskusage@1.1.3', 'requiresBuild'], true)
 })
 
 test('should update subdep on second install', async () => {

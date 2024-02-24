@@ -19,6 +19,8 @@ export interface VerifyResult {
   manifest?: DependencyManifest
 }
 
+export type SideEffects = Record<string, Record<string, PackageFileInfo>>
+
 export interface PackageFilesIndex {
   // name and version are nullable for backward compatibility
   // the initial specs of pnpm store v3 did not require these fields.
@@ -26,9 +28,10 @@ export interface PackageFilesIndex {
   // have the name/version fields, like the local tarball dependencies.
   name?: string
   version?: string
+  requiresBuild?: boolean
 
   files: Record<string, PackageFileInfo>
-  sideEffects?: Record<string, Record<string, PackageFileInfo>>
+  sideEffects?: SideEffects
 }
 
 export function checkPkgFilesIntegrity (
