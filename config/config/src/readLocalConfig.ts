@@ -24,8 +24,8 @@ export async function readLocalConfig (prefix: string) {
       }
     }
     return config
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') throw err
-    return {}
+  } catch (err: unknown) {
+    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return {}
+    throw err
   }
 }

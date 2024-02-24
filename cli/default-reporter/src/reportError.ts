@@ -236,7 +236,7 @@ function formatGenericError (errorMessage: string, stack: object) {
     let prettyStack: string | undefined
     try {
       prettyStack = new StackTracey(stack).asTable()
-    } catch (err: any) { // eslint-disable-line
+    } catch {
       prettyStack = stack.toString()
     }
     if (prettyStack) {

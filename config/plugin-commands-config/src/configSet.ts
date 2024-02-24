@@ -36,8 +36,8 @@ function settingShouldFallBackToNpm (key: string): boolean {
 async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {
   try {
     return await readIniFile(configPath) as Record<string, unknown>
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (err.code === 'ENOENT') return {}
+  } catch (err: unknown) {
+    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
 }

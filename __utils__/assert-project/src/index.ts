@@ -125,8 +125,8 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
       try {
         const store = getStoreInstance()
         store.storeHasNot(pkgName, version)
-      } catch (err: any) { // eslint-disable-line
-        if (err.message.startsWith('Cannot find module store')) {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.message.startsWith('Cannot find module store')) {
           return
         }
         throw err
@@ -138,8 +138,8 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     readCurrentLockfile () {
       try {
         return readYamlFile(path.join(getVirtualStoreDir(), 'lock.yaml'))
-      } catch (err: any) { // eslint-disable-line
-        if (err.code === 'ENOENT') return null!
+      } catch (err: unknown) {
+        if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return null!
         throw err
       }
     },
@@ -147,8 +147,8 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     readLockfile (lockfileName: string = WANTED_LOCKFILE) {
       try {
         return readYamlFile(path.join(projectPath, lockfileName))
-      } catch (err: any) { // eslint-disable-line
-        if (err.code === 'ENOENT') return null!
+      } catch (err: unknown) {
+        if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return null!
         throw err
       }
     },
@@ -161,8 +161,8 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
 function readModulesManifest (modulesDir: string) {
   try {
     return readYamlFile<Modules>(path.join(modulesDir, '.modules.yaml'))
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') return null!
+  } catch (err: unknown) {
+    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return null!
     throw err
   }
 }
