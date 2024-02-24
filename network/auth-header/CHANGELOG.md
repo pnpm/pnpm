@@ -1,5 +1,12 @@
 # @pnpm/network.auth-header
 
+## 2.2.1
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+
 ## 2.2.0
 
 ### Minor Changes

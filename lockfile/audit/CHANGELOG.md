@@ -1,5 +1,14 @@
 # @pnpm/audit
 
+## 7.0.27
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+  - @pnpm/read-project-manifest@5.0.11
+  - @pnpm/list@9.1.12
+
 ## 7.0.26
 
 ### Patch Changes

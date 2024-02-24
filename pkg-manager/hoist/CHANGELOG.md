@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 8.2.3
+
+### Patch Changes
+
+- @pnpm/link-bins@9.0.13
+
 ## 8.2.2
 
 ### Patch Changes

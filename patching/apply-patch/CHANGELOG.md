@@ -1,5 +1,12 @@
 # @pnpm/patching.apply-patch
 
+## 2.0.6
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+
 ## 2.0.5
 
 ### Patch Changes

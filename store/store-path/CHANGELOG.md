@@ -1,5 +1,12 @@
 # @pnpm/store-path
 
+## 8.0.3
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+
 ## 8.0.2
 
 ### Patch Changes

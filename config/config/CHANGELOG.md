@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 20.4.3
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+  - @pnpm/pnpmfile@5.0.21
+  - @pnpm/read-project-manifest@5.0.11
+
 ## 20.4.2
 
 ### Patch Changes

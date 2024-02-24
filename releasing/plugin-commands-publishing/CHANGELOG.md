@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.5.5
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+  - @pnpm/client@10.0.48
+  - @pnpm/cli-utils@2.1.10
+  - @pnpm/config@20.4.3
+  - @pnpm/lifecycle@16.0.13
+  - @pnpm/network.auth-header@2.2.1
+  - @pnpm/exportable-manifest@5.0.12
+
 ## 7.5.4
 
 ### Patch Changes

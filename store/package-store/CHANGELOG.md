@@ -1,5 +1,18 @@
 # @pnpm/package-store
 
+## 19.0.17
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+- Updated dependencies [8d87365d3]
+- Updated dependencies [ef3f1ade8]
+- Updated dependencies [db4966835]
+  - @pnpm/worker@0.3.15
+  - @pnpm/store.cafs@2.0.13
+  - @pnpm/package-requester@24.1.10
+  - @pnpm/create-cafs-store@6.0.14
+
 ## 19.0.16
 
 ### Patch Changes

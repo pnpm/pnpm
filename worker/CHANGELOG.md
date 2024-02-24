@@ -1,5 +1,20 @@
 # @pnpm/worker
 
+## 0.3.15
+
+### Patch Changes
+
+- 9370e6394: Print the right error code when a package fails to be added to the store [#7679](https://github.com/pnpm/pnpm/issues/7679).
+- ef3f1ade8: Always add a name and version field to the index files in the store [#7115](https://github.com/pnpm/pnpm/issues/7115).
+- Updated dependencies [9370e6394]
+- Updated dependencies [8d87365d3]
+- Updated dependencies [db4966835]
+  - @pnpm/error@5.0.3
+  - @pnpm/store.cafs@2.0.13
+  - @pnpm/create-cafs-store@6.0.14
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/symlink-dependency@7.1.4
+
 ## 0.3.14
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 31.5.1
+
+### Patch Changes
+
+- 8b957b52c: Deleting a dependencies field via a `readPackage` hook should work [#7704](https://github.com/pnpm/pnpm/pull/7704).
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+  - @pnpm/manifest-utils@5.0.8
+  - @pnpm/read-package-json@8.0.8
+  - @pnpm/npm-resolver@18.1.1
+
 ## 31.5.0
 
 ### Minor Changes

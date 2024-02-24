@@ -1,5 +1,34 @@
 # @pnpm/core
 
+## 13.5.1
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+- Updated dependencies [ef3f1ade8]
+- Updated dependencies [8b957b52c]
+  - @pnpm/error@5.0.3
+  - @pnpm/worker@0.3.15
+  - @pnpm/resolve-dependencies@31.5.1
+  - @pnpm/lifecycle@16.0.13
+  - @pnpm/hooks.read-package-hook@3.0.11
+  - @pnpm/filter-lockfile@8.1.8
+  - @pnpm/lockfile-file@8.1.8
+  - @pnpm/get-context@10.0.13
+  - @pnpm/headless@22.4.7
+  - @pnpm/link-bins@9.0.13
+  - @pnpm/package-requester@24.1.10
+  - @pnpm/manifest-utils@5.0.8
+  - @pnpm/read-package-json@8.0.8
+  - @pnpm/read-project-manifest@5.0.11
+  - @pnpm/build-modules@11.2.15
+  - @pnpm/modules-cleaner@14.0.26
+  - @pnpm/lockfile-to-pnp@3.0.19
+  - @pnpm/hoist@8.2.3
+  - @pnpm/remove-bins@5.0.8
+  - @pnpm/symlink-dependency@7.1.4
+  - @pnpm/crypto.base32-hash@2.0.0
+
 ## 13.5.0
 
 ### Minor Changes

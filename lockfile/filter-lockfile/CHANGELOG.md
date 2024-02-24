@@ -1,5 +1,13 @@
 # @pnpm/filter-lockfile
 
+## 8.1.8
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+  - @pnpm/package-is-installable@8.1.3
+
 ## 8.1.7
 
 ### Patch Changes

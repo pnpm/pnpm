@@ -1,5 +1,17 @@
 # @pnpm/outdated
 
+## 13.0.44
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+  - @pnpm/client@10.0.48
+  - @pnpm/hooks.read-package-hook@3.0.11
+  - @pnpm/lockfile-file@8.1.8
+  - @pnpm/manifest-utils@5.0.8
+  - @pnpm/npm-resolver@18.1.1
+
 ## 13.0.43
 
 ### Patch Changes

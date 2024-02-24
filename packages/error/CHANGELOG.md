@@ -1,5 +1,11 @@
 # @pnpm/error
 
+## 5.0.3
+
+### Patch Changes
+
+- 9370e6394: Print the right error code when a package fails to be added to the store [#7679](https://github.com/pnpm/pnpm/issues/7679).
+
 ## 5.0.2
 
 ### Patch Changes

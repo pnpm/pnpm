@@ -1,5 +1,11 @@
 # @pnpm-private/updater
 
+## 1.0.11
+
+### Patch Changes
+
+- @pnpm/lockfile-file@8.1.8
+
 ## 1.0.10
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-patching
 
+## 5.1.6
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+  - @pnpm/cli-utils@2.1.10
+  - @pnpm/config@20.4.3
+  - @pnpm/lockfile-file@8.1.8
+  - @pnpm/patching.apply-patch@2.0.6
+  - @pnpm/plugin-commands-installation@14.2.5
+  - @pnpm/read-package-json@8.0.8
+  - @pnpm/read-project-manifest@5.0.11
+  - @pnpm/store-connection-manager@7.0.28
+
 ## 5.1.5
 
 ### Patch Changes

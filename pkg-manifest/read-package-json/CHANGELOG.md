@@ -1,5 +1,12 @@
 # @pnpm/read-package-json
 
+## 8.0.8
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+
 ## 8.0.7
 
 ### Patch Changes

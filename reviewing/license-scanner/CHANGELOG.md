@@ -1,5 +1,19 @@
 # @pnpm/license-scanner
 
+## 2.3.2
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+- Updated dependencies [8d87365d3]
+- Updated dependencies [db4966835]
+  - @pnpm/error@5.0.3
+  - @pnpm/store.cafs@2.0.13
+  - @pnpm/package-is-installable@8.1.3
+  - @pnpm/lockfile-file@8.1.8
+  - @pnpm/read-package-json@8.0.8
+  - @pnpm/directory-fetcher@7.0.12
+
 ## 2.3.1
 
 ### Patch Changes

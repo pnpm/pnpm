@@ -1,5 +1,15 @@
 # @pnpm/lifecycle
 
+## 16.0.13
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+  - @pnpm/link-bins@9.0.13
+  - @pnpm/read-package-json@8.0.8
+  - @pnpm/directory-fetcher@7.0.12
+
 ## 16.0.12
 
 ### Patch Changes

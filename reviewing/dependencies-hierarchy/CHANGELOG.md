@@ -1,5 +1,12 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 2.1.11
+
+### Patch Changes
+
+- @pnpm/lockfile-file@8.1.8
+- @pnpm/read-package-json@8.0.8
+
 ## 2.1.10
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/tarball-fetcher
 
+## 18.0.20
+
+### Patch Changes
+
+- 9370e6394: Print the right error code when a package fails to be added to the store [#7679](https://github.com/pnpm/pnpm/issues/7679).
+- Updated dependencies [9370e6394]
+- Updated dependencies [ef3f1ade8]
+  - @pnpm/error@5.0.3
+  - @pnpm/worker@0.3.15
+  - @pnpm/prepare-package@5.0.25
+
 ## 18.0.19
 
 ### Patch Changes

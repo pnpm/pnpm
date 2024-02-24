@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-rebuild
 
+## 10.0.20
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+- Updated dependencies [8d87365d3]
+- Updated dependencies [ef3f1ade8]
+- Updated dependencies [db4966835]
+  - @pnpm/error@5.0.3
+  - @pnpm/worker@0.3.15
+  - @pnpm/store.cafs@2.0.13
+  - @pnpm/cli-utils@2.1.10
+  - @pnpm/config@20.4.3
+  - @pnpm/lifecycle@16.0.13
+  - @pnpm/get-context@10.0.13
+  - @pnpm/link-bins@9.0.13
+  - @pnpm/store-connection-manager@7.0.28
+  - @pnpm/workspace.find-packages@1.1.11
+
 ## 10.0.19
 
 ### Patch Changes

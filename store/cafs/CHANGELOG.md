@@ -1,5 +1,12 @@
 # @pnpm/store.cafs
 
+## 2.0.13
+
+### Patch Changes
+
+- 8d87365d3: Don't fail on a tarball that appears to be not a USTAR or GNU TAR archive. Still try to unpack the tarball [#7120](https://github.com/pnpm/pnpm/issues/7120).
+- db4966835: Symlinks should be resolved and uploaded to the side-effects cache [#7691](https://github.com/pnpm/pnpm/issues/7691).
+
 ## 2.0.12
 
 ### Patch Changes

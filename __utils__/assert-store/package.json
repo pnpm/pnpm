@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1.0.80",
+  "version": "1.0.81",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",

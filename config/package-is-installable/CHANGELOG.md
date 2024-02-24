@@ -1,5 +1,12 @@
 # @pnpm/package-is-installable
 
+## 8.1.3
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+
 ## 8.1.2
 
 ### Patch Changes

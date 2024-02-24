@@ -1,5 +1,11 @@
 # @pnpm/assert-project
 
+## 2.3.47
+
+### Patch Changes
+
+- @pnpm/assert-store@1.0.81
+
 ## 2.3.46
 
 ### Patch Changes

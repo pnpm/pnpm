@@ -1,5 +1,18 @@
 # @pnpm/build-modules
 
+## 11.2.15
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+- Updated dependencies [ef3f1ade8]
+  - @pnpm/worker@0.3.15
+  - @pnpm/lifecycle@16.0.13
+  - @pnpm/patching.apply-patch@2.0.6
+  - @pnpm/link-bins@9.0.13
+  - @pnpm/read-package-json@8.0.8
+  - @pnpm/fs.hard-link-dir@3.0.0
+
 ## 11.2.14
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-installation
 
+## 14.2.5
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+  - @pnpm/cli-utils@2.1.10
+  - @pnpm/config@20.4.3
+  - @pnpm/dedupe.check@1.0.8
+  - @pnpm/plugin-commands-rebuild@10.0.20
+  - @pnpm/pnpmfile@5.0.21
+  - @pnpm/core@13.5.1
+  - @pnpm/manifest-utils@5.0.8
+  - @pnpm/read-project-manifest@5.0.11
+  - @pnpm/outdated@13.0.44
+  - @pnpm/store-connection-manager@7.0.28
+  - @pnpm/filter-workspace-packages@7.2.12
+  - @pnpm/find-workspace-dir@6.0.3
+  - @pnpm/package-store@19.0.17
+  - @pnpm/workspace.find-packages@1.1.11
+  - @pnpm/workspace.pkgs-graph@2.0.15
+
 ## 14.2.4
 
 ### Patch Changes

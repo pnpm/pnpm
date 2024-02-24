@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 18.1.1
+
+### Patch Changes
+
+- Updated dependencies [9370e6394]
+  - @pnpm/error@5.0.3
+
 ## 18.1.0
 
 ### Minor Changes

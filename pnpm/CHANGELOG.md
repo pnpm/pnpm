@@ -1,5 +1,15 @@
 # pnpm
 
+## 8.15.4
+
+### Patch Changes
+
+- Print the right error code when a package fails to be added to the store [#7679](https://github.com/pnpm/pnpm/issues/7679).
+- Don't fail on a tarball that appears to be not a USTAR or GNU TAR archive. Still try to unpack the tarball [#7120](https://github.com/pnpm/pnpm/issues/7120).
+- Always add a name and version field to the index files in the store [#7115](https://github.com/pnpm/pnpm/issues/7115).
+- Deleting a dependencies field via a `readPackage` hook should work [#7704](https://github.com/pnpm/pnpm/pull/7704).
+- Symlinks should be resolved and uploaded to the side-effects cache [#7691](https://github.com/pnpm/pnpm/issues/7691).
+
 ## 8.15.3
 
 ### Patch Changes
