@@ -461,7 +461,7 @@ test('take only the files included in the package, when fetching a git-hosted pa
 
   expect(Object.keys(result.filesIndex).sort()).toStrictEqual([
     'README.md',
-    `dist${path.sep}index.js`,
+    'dist/index.js',
     'package.json',
   ])
 })
