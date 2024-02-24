@@ -34,26 +34,28 @@ function _retrieveFileIntegrities (
       _retrieveFileIntegrities(addBuffer, rootDir, fullPath, index)
       continue
     }
-    if (file.isFile()) {
-      const relativePath = path.relative(rootDir, fullPath)
-      let stat: Stats
-      try {
-        stat = fs.statSync(fullPath)
-      } catch (err: any) { // eslint-disable-line
-        if (err.code !== 'ENOENT') {
-          throw err
-        }
-        continue
+    const relativePath = path.relative(rootDir, fullPath)
+    let stat: Stats
+    try {
+      stat = fs.statSync(fullPath)
+    } catch (err: any) { // eslint-disable-line
+      if (err.code !== 'ENOENT') {
+        throw err
       }
-      const buffer = gfs.readFileSync(fullPath)
-      if (rootDir === currDir && readManifest && file.name === 'package.json') {
-        manifest = parseJsonBufferSync(buffer)
-      }
-      index[relativePath] = {
-        mode: stat.mode,
-        size: stat.size,
-        ...addBuffer(buffer, stat.mode),
-      }
+      continue
+    }
+    if (stat.isDirectory()) {
+      _retrieveFileIntegrities(addBuffer, rootDir, fullPath, index)
+      continue
+    }
+    const buffer = gfs.readFileSync(fullPath)
+    if (rootDir === currDir && readManifest && file.name === 'package.json') {
+      manifest = parseJsonBufferSync(buffer)
+    }
+    index[relativePath] = {
+      mode: stat.mode,
+      size: stat.size,
+      ...addBuffer(buffer, stat.mode),
     }
   }
   return manifest

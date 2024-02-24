@@ -5684,6 +5684,9 @@ importers:
       '@types/ssri':
         specifier: ^7.1.4
         version: 7.1.4
+      symlink-dir:
+        specifier: ^5.2.1
+        version: 5.2.1
       tempy:
         specifier: ^1.0.1
         version: 1.0.1

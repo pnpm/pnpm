@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import symlinkDir from 'symlink-dir'
 import tempy from 'tempy'
 import {
   createCafs,
@@ -45,6 +46,24 @@ describe('cafs', () => {
 
     const { filesIndex } = addFiles()
     expect(filesIndex[path.join('subdir', 'should-exist.txt')]).toBeDefined()
+  })
+
+  it('symlinks are resolved and added as regular files', async () => {
+    const storeDir = tempy.directory()
+    const srcDir = tempy.directory()
+    const filePath = path.join(srcDir, 'index.js')
+    const symlinkPath = path.join(srcDir, 'symlink.js')
+    fs.writeFileSync(filePath, '// comment', 'utf8')
+    fs.symlinkSync(filePath, symlinkPath)
+    fs.mkdirSync(path.join(srcDir, 'lib'))
+    fs.writeFileSync(path.join(srcDir, 'lib/index.js'), '// comment 2', 'utf8')
+    await symlinkDir(path.join(srcDir, 'lib'), path.join(srcDir, 'lib-symlink'))
+
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+    expect(filesIndex['symlink.js']).toBeDefined()
+    expect(filesIndex['symlink.js']).toStrictEqual(filesIndex['index.js'])
+    expect(filesIndex[path.join('lib', 'index.js')]).toBeDefined()
+    expect(filesIndex[path.join('lib', 'index.js')]).toStrictEqual(filesIndex[path.join('lib-symlink', 'index.js')])
   })
 })
 
