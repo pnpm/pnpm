@@ -4,10 +4,7 @@ import { convertToLockfileFile } from '../lib/lockfileFormatConverters'
 test('empty overrides and neverBuiltDependencies are removed during lockfile normalization', () => {
   expect(convertToLockfileFile({
     lockfileVersion: LOCKFILE_VERSION,
-    // but this should be preserved.
-    onlyBuiltDependencies: [],
     overrides: {},
-    neverBuiltDependencies: [],
     patchedDependencies: {},
     packages: {},
     importers: {
@@ -24,7 +21,6 @@ test('empty overrides and neverBuiltDependencies are removed during lockfile nor
     forceSharedFormat: false,
   })).toStrictEqual({
     lockfileVersion: LOCKFILE_VERSION,
-    onlyBuiltDependencies: [],
     importers: {
       foo: {
         dependencies: {
