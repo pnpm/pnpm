@@ -1149,12 +1149,6 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
 
-  exec/files-include-install-scripts:
-    devDependencies:
-      '@pnpm/exec.files-include-install-scripts':
-        specifier: workspace:*
-        version: 'link:'
-
   exec/lifecycle:
     dependencies:
       '@pnpm/core-loggers':
@@ -1209,6 +1203,16 @@ importers:
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
+
+  exec/pkg-requires-build:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/exec.pkg-requires-build':
+        specifier: workspace:*
+        version: 'link:'
 
   exec/plugin-commands-rebuild:
     dependencies:
@@ -1537,9 +1541,9 @@ importers:
 
   fetching/directory-fetcher:
     dependencies:
-      '@pnpm/exec.files-include-install-scripts':
-        specifier: 1.0.0
-        version: 1.0.0
+      '@pnpm/exec.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../../exec/pkg-requires-build
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
@@ -5737,9 +5741,9 @@ importers:
 
   store/create-cafs-store:
     dependencies:
-      '@pnpm/exec.files-include-install-scripts':
+      '@pnpm/exec.pkg-requires-build':
         specifier: workspace:*
-        version: link:../../exec/files-include-install-scripts
+        version: link:../../exec/pkg-requires-build
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -6260,9 +6264,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error
-      '@pnpm/exec.files-include-install-scripts':
-        specifier: 1.0.0
-        version: 1.0.0
+      '@pnpm/exec.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../exec/pkg-requires-build
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../fs/hard-link-dir
@@ -8373,11 +8377,6 @@ packages:
     engines: {node: '>=16.14'}
     dependencies:
       '@pnpm/constants': 7.1.1
-
-  /@pnpm/exec.files-include-install-scripts@1.0.0:
-    resolution: {integrity: sha512-z+/itiZSNvtnWkY/oU9pyB+4Xxt0Wuq4xWXp52Ob9olTo6v0LXCbnRBipug0XmYqtK6ZexTjca22RDB/2kieyA==}
-    engines: {node: '>=16.14'}
-    dev: false
 
   /@pnpm/exec@2.0.0:
     resolution: {integrity: sha512-b5ALfWEOFQprWKntN7MF8XWCyslBk2c8u20GEDcDDQOs6c0HyHlWxX5lig8riQKdS000U6YyS4L4b32NOleXAQ==}
@@ -18000,7 +17999,6 @@ packages:
     dev: false
 
 time:
-  /@pnpm/exec.files-include-install-scripts@1.0.0: '2023-11-01T10:34:44.772Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'
   /symlink-dir@5.2.1: '2023-12-24T23:15:15.543Z'

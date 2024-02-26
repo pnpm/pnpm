@@ -3,7 +3,7 @@ import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import { filesIncludeInstallScripts } from '@pnpm/exec.files-include-install-scripts'
+import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
   checkPkgFilesIntegrity,
@@ -88,14 +88,7 @@ async function handleMessage (
           manifest: readManifest ? readManifestFromStore(cafsDir, pkgFilesIndex) : undefined,
         }
       }
-      const requiresBuild = pkgFilesIndex.requiresBuild ?? Boolean(
-        verifyResult.manifest?.scripts != null && (
-          Boolean(verifyResult.manifest.scripts.preinstall) ||
-          Boolean(verifyResult.manifest.scripts.install) ||
-          Boolean(verifyResult.manifest.scripts.postinstall)
-        ) ||
-        filesIncludeInstallScripts(pkgFilesIndex.files)
-      )
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
       parentPort!.postMessage({
         status: 'success',
         value: {
@@ -178,14 +171,7 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, p
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
     filesIndex.sideEffects[sideEffectsCacheKey] = filesIntegrity
     if (filesIndex.requiresBuild == null) {
-      requiresBuild = Boolean(
-        manifest?.scripts != null && (
-          Boolean(manifest.scripts.preinstall) ||
-          Boolean(manifest.scripts.install) ||
-          Boolean(manifest.scripts.postinstall)
-        ) ||
-        filesIncludeInstallScripts(filesIntegrity)
-      )
+      requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
     } else {
       requiresBuild = filesIndex.requiresBuild
     }
@@ -257,14 +243,7 @@ function writeFilesIndexFile (
     sideEffects?: SideEffects
   }
 ): boolean {
-  const requiresBuild = Boolean(
-    manifest?.scripts != null && (
-      Boolean(manifest.scripts.preinstall) ||
-      Boolean(manifest.scripts.install) ||
-      Boolean(manifest.scripts.postinstall)
-    ) ||
-    filesIncludeInstallScripts(files)
-  )
+  const requiresBuild = pkgRequiresBuild(manifest, files)
   const filesIndex: PackageFilesIndex = {
     name: manifest.name,
     version: manifest.version,
