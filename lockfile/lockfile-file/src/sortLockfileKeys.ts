@@ -35,8 +35,6 @@ type RootKey = keyof LockfileFile
 const ROOT_KEYS: readonly RootKey[] = [
   'lockfileVersion',
   'settings',
-  'neverBuiltDependencies',
-  'onlyBuiltDependencies',
   'overrides',
   'packageExtensionsChecksum',
   'pnpmfileChecksum',

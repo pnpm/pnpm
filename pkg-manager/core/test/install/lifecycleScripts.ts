@@ -405,7 +405,7 @@ test('scripts have access to unlisted bins when hoisting is used', async () => {
 })
 
 test('selectively ignore scripts in some dependencies by neverBuiltDependencies', async () => {
-  const project = prepareEmpty()
+  prepareEmpty()
   const neverBuiltDependencies = ['@pnpm.e2e/pre-and-postinstall-scripts-example']
   const manifest = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
@@ -415,9 +415,6 @@ test('selectively ignore scripts in some dependencies by neverBuiltDependencies'
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
-
-  const lockfile = project.readLockfile()
-  expect(lockfile.neverBuiltDependencies).toStrictEqual(neverBuiltDependencies)
 
   rimraf('node_modules')
 
@@ -441,7 +438,7 @@ test('throw an exception when both neverBuiltDependencies and onlyBuiltDependenc
 })
 
 test('selectively allow scripts in some dependencies by onlyBuiltDependencies', async () => {
-  const project = prepareEmpty()
+  prepareEmpty()
   const onlyBuiltDependencies = ['@pnpm.e2e/install-script-example']
   const manifest = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
@@ -451,9 +448,6 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
-
-  const lockfile = project.readLockfile()
-  expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
 
   rimraf('node_modules')
 
@@ -505,68 +499,6 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
-})
-
-test('lockfile is updated if neverBuiltDependencies is changed', async () => {
-  const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage({},
-    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
-    testDefaults({ fastUnpack: false })
-  )
-
-  {
-    const lockfile = project.readLockfile()
-    expect(lockfile.neverBuiltDependencies).toBeFalsy()
-  }
-
-  const neverBuiltDependencies = ['@pnpm.e2e/pre-and-postinstall-scripts-example']
-  await mutateModulesInSingleProject({
-    manifest,
-    mutation: 'install',
-    rootDir: process.cwd(),
-  }, testDefaults({ neverBuiltDependencies }))
-
-  {
-    const lockfile = project.readLockfile()
-    expect(lockfile.neverBuiltDependencies).toStrictEqual(neverBuiltDependencies)
-  }
-})
-
-test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
-  const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage({},
-    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
-    testDefaults({ fastUnpack: false })
-  )
-
-  {
-    const lockfile = project.readLockfile()
-    expect(lockfile.onlyBuiltDependencies).toBeFalsy()
-  }
-
-  const onlyBuiltDependencies: string[] = []
-  await mutateModulesInSingleProject({
-    manifest,
-    mutation: 'install',
-    rootDir: process.cwd(),
-  }, testDefaults({ onlyBuiltDependencies }))
-
-  {
-    const lockfile = project.readLockfile()
-    expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
-  }
-
-  onlyBuiltDependencies.push('@pnpm.e2e/pre-and-postinstall-scripts-example')
-  await mutateModulesInSingleProject({
-    manifest,
-    mutation: 'install',
-    rootDir: process.cwd(),
-  }, testDefaults({ onlyBuiltDependencies }))
-
-  {
-    const lockfile = project.readLockfile()
-    expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
-  }
 })
 
 test('lifecycle scripts have access to package\'s own binary by binary name', async () => {

@@ -339,8 +339,6 @@ export async function mutateModules (
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         overrides: opts.overrides,
-        neverBuiltDependencies: opts.neverBuiltDependencies,
-        onlyBuiltDependencies: opts.onlyBuiltDependencies,
         packageExtensionsChecksum,
         patchedDependencies,
         pnpmfileChecksum,
@@ -360,8 +358,6 @@ export async function mutateModules (
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       }
       ctx.wantedLockfile.overrides = opts.overrides
-      ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
-      ctx.wantedLockfile.onlyBuiltDependencies = opts.onlyBuiltDependencies
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
       ctx.wantedLockfile.pnpmfileChecksum = pnpmfileChecksum
       ctx.wantedLockfile.patchedDependencies = patchedDependencies
@@ -711,7 +707,6 @@ async function calcPatchHashes (patches: Record<string, string>, lockfileDir: st
 function getOutdatedLockfileSetting (
   lockfile: Lockfile,
   {
-    neverBuiltDependencies,
     onlyBuiltDependencies,
     overrides,
     packageExtensionsChecksum,
@@ -720,7 +715,6 @@ function getOutdatedLockfileSetting (
     excludeLinksFromLockfile,
     pnpmfileChecksum,
   }: {
-    neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
@@ -732,12 +726,6 @@ function getOutdatedLockfileSetting (
 ) {
   if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
     return 'overrides'
-  }
-  if (!equals((lockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort())) {
-    return 'neverBuiltDependencies'
-  }
-  if (!equals(onlyBuiltDependencies?.sort(), lockfile.onlyBuiltDependencies)) {
-    return 'onlyBuiltDependencies'
   }
   if (lockfile.packageExtensionsChecksum !== packageExtensionsChecksum) {
     return 'packageExtensionsChecksum'

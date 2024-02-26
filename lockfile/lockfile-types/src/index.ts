@@ -14,8 +14,6 @@ export interface Lockfile {
   lockfileVersion: number | string
   time?: Record<string, string>
   packages?: PackageSnapshots
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
   patchedDependencies?: Record<string, PatchFile>
