@@ -128,7 +128,7 @@ async function linkAllPkgsInOrder (
             force: true,
             disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
             keepModulesDir: true,
-            requiresBuild: depNode.patchFile != null || filesResponse.requiresBuild,
+            requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
             sideEffectsCacheKey,
           })
           if (importMethod) {

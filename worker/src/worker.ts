@@ -77,7 +77,7 @@ async function handleMessage (
         return
       }
       let verifyResult: VerifyResult | undefined
-      if (!pkgFilesIndex.requiresBuild) {
+      if (pkgFilesIndex.requiresBuild == null) {
         readManifest = true
       }
       if (verifyStoreIntegrity) {

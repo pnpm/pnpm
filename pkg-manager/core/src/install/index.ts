@@ -1148,10 +1148,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
         ctx.pendingBuilds = ctx.pendingBuilds
           .concat(
-            result.newDepPaths.filter((depPath) => {
-              const requiresBuild = dependenciesGraph[depPath].requiresBuild
-              return requiresBuild
-            })
+            result.newDepPaths.filter((depPath) => dependenciesGraph[depPath].requiresBuild)
           )
       }
       if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
