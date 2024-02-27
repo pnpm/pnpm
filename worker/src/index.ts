@@ -55,7 +55,7 @@ export async function addFilesFromDir (
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
+  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
@@ -120,7 +120,7 @@ export async function addFilesFromTarball (
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
+  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
@@ -153,12 +153,12 @@ export async function readPkgFromCafs (
   verifyStoreIntegrity: boolean,
   filesIndexFile: string,
   readManifest?: boolean
-): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest }> {
+): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }>((resolve, reject) => {
+  return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, requiresBuild: boolean }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {

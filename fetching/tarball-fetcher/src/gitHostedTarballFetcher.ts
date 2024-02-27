@@ -25,7 +25,7 @@ export interface CreateGitHostedTarballFetcher {
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tempIndexFile = pathTemp(opts.filesIndexFile)
-    const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, {
+    const { filesIndex, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
       filesIndexFile: tempIndexFile,
     })
@@ -37,6 +37,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
       return {
         filesIndex: prepareResult.filesIndex,
         manifest: prepareResult.manifest ?? manifest,
+        requiresBuild,
       }
     } catch (err: any) { // eslint-disable-line
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
@@ -67,6 +68,7 @@ async function prepareGitHostedPkg (
     filesResponse: {
       filesIndex,
       resolvedFrom: 'remote',
+      requiresBuild: false,
     },
     force: true,
   })

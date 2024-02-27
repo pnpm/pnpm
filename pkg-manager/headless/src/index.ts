@@ -828,6 +828,7 @@ async function linkAllPkgs (
         throw err
       }
 
+      depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
         sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
@@ -839,7 +840,7 @@ async function linkAllPkgs (
         filesResponse,
         force: opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-        requiresBuild: depNode.patchFile != null || (depNode.optional ? (depNode.requiresBuild ? undefined : false) : depNode.requiresBuild),
+        requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
         sideEffectsCacheKey,
       })
       if (importMethod) {

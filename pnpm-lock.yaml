@@ -1149,12 +1149,6 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
 
-  exec/files-include-install-scripts:
-    devDependencies:
-      '@pnpm/exec.files-include-install-scripts':
-        specifier: workspace:*
-        version: 'link:'
-
   exec/lifecycle:
     dependencies:
       '@pnpm/core-loggers':
@@ -1209,6 +1203,16 @@ importers:
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
+
+  exec/pkg-requires-build:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/exec.pkg-requires-build':
+        specifier: workspace:*
+        version: 'link:'
 
   exec/plugin-commands-rebuild:
     dependencies:
@@ -1537,6 +1541,9 @@ importers:
 
   fetching/directory-fetcher:
     dependencies:
+      '@pnpm/exec.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../../exec/pkg-requires-build
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
@@ -4161,9 +4168,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/exec.files-include-install-scripts':
-        specifier: workspace:*
-        version: link:../../exec/files-include-install-scripts
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types
@@ -5737,9 +5741,9 @@ importers:
 
   store/create-cafs-store:
     dependencies:
-      '@pnpm/exec.files-include-install-scripts':
+      '@pnpm/exec.pkg-requires-build':
         specifier: workspace:*
-        version: link:../../exec/files-include-install-scripts
+        version: link:../../exec/pkg-requires-build
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -6260,6 +6264,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error
+      '@pnpm/exec.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../exec/pkg-requires-build
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../fs/hard-link-dir

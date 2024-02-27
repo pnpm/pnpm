@@ -372,7 +372,7 @@ test('fetchPackageToStore()', async () => {
   })
 
   const { files, bundledManifest } = await fetchResult.fetching()
-  expect(bundledManifest).toBeFalsy()
+  expect(bundledManifest).toBeTruthy() // we always read the bundled manifest
   expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 

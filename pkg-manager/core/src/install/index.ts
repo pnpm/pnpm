@@ -339,8 +339,6 @@ export async function mutateModules (
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         overrides: opts.overrides,
-        neverBuiltDependencies: opts.neverBuiltDependencies,
-        onlyBuiltDependencies: opts.onlyBuiltDependencies,
         packageExtensionsChecksum,
         patchedDependencies,
         pnpmfileChecksum,
@@ -360,8 +358,6 @@ export async function mutateModules (
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       }
       ctx.wantedLockfile.overrides = opts.overrides
-      ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
-      ctx.wantedLockfile.onlyBuiltDependencies = opts.onlyBuiltDependencies
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
       ctx.wantedLockfile.pnpmfileChecksum = pnpmfileChecksum
       ctx.wantedLockfile.patchedDependencies = patchedDependencies
@@ -711,7 +707,6 @@ async function calcPatchHashes (patches: Record<string, string>, lockfileDir: st
 function getOutdatedLockfileSetting (
   lockfile: Lockfile,
   {
-    neverBuiltDependencies,
     onlyBuiltDependencies,
     overrides,
     packageExtensionsChecksum,
@@ -720,7 +715,6 @@ function getOutdatedLockfileSetting (
     excludeLinksFromLockfile,
     pnpmfileChecksum,
   }: {
-    neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
@@ -732,12 +726,6 @@ function getOutdatedLockfileSetting (
 ) {
   if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
     return 'overrides'
-  }
-  if (!equals((lockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort())) {
-    return 'neverBuiltDependencies'
-  }
-  if (!equals(onlyBuiltDependencies?.sort(), lockfile.onlyBuiltDependencies)) {
-    return 'onlyBuiltDependencies'
   }
   if (lockfile.packageExtensionsChecksum !== packageExtensionsChecksum) {
     return 'packageExtensionsChecksum'
@@ -994,7 +982,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   let {
     dependenciesGraph,
     dependenciesByProjectId,
-    finishLockfileUpdates,
     linkedDependenciesByProjectId,
     newLockfile,
     outdatedDependencies,
@@ -1129,7 +1116,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     )
     stats = result.stats
-    await finishLockfileUpdates()
     if (opts.enablePnp) {
       const importerNames = Object.fromEntries(
         projects.map(({ manifest, id }) => [id, manifest.name ?? id])
@@ -1150,13 +1136,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
         ctx.pendingBuilds = ctx.pendingBuilds
           .concat(
-            await pFilter(result.newDepPaths,
-              (depPath) => {
-                const requiresBuild = dependenciesGraph[depPath].requiresBuild
-                if (typeof requiresBuild === 'function') return requiresBuild()
-                return requiresBuild
-              }
-            )
+            result.newDepPaths.filter((depPath) => dependenciesGraph[depPath].requiresBuild)
           )
       }
       if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
@@ -1331,7 +1311,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       )
     }
   } else {
-    await finishLockfileUpdates()
     if (opts.useLockfile && !isInstallationOnlyForLockfileCheck) {
       await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
     }

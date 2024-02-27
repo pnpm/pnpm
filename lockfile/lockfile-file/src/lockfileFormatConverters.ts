@@ -74,16 +74,6 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
   if ((lockfileToSave.patchedDependencies != null) && isEmpty(lockfileToSave.patchedDependencies)) {
     delete lockfileToSave.patchedDependencies
   }
-  if (lockfileToSave.neverBuiltDependencies != null) {
-    if (isEmpty(lockfileToSave.neverBuiltDependencies)) {
-      delete lockfileToSave.neverBuiltDependencies
-    } else {
-      lockfileToSave.neverBuiltDependencies = lockfileToSave.neverBuiltDependencies.sort()
-    }
-  }
-  if (lockfileToSave.onlyBuiltDependencies != null) {
-    lockfileToSave.onlyBuiltDependencies = lockfileToSave.onlyBuiltDependencies.sort()
-  }
   if (!lockfileToSave.packageExtensionsChecksum) {
     delete lockfileToSave.packageExtensionsChecksum
   }

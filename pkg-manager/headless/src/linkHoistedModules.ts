@@ -111,6 +111,7 @@ async function linkAllPkgsInOrder (
           throw err
         }
 
+        depNode.requiresBuild = filesResponse.requiresBuild
         let sideEffectsCacheKey: string | undefined
         if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
           sideEffectsCacheKey = _calcDepState(dir, {
@@ -127,7 +128,7 @@ async function linkAllPkgsInOrder (
             force: true,
             disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
             keepModulesDir: true,
-            requiresBuild: depNode.patchFile != null || (depNode.optional ? (depNode.requiresBuild ? undefined : false) : depNode.requiresBuild),
+            requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
             sideEffectsCacheKey,
           })
           if (importMethod) {
