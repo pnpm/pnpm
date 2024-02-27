@@ -23,4 +23,4 @@
 "pnpm": minor
 ---
 
-Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped, unless it is non-optional for some other packages.
+Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
