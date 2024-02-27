@@ -36,6 +36,7 @@ export interface GenericDependenciesGraphNode {
   isBuilt?: boolean
   isPure: boolean
   resolvedPeerNames: Set<string>
+  requiresBuild?: boolean
 }
 
 export type PartialResolvedPackage = Pick<ResolvedPackage,

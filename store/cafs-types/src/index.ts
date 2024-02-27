@@ -14,6 +14,7 @@ export type PackageFilesResponse = {
   resolvedFrom: ResolvedFrom
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
+  requiresBuild: boolean
 } & ({
   unprocessed?: false
   filesIndex: Record<string, string>

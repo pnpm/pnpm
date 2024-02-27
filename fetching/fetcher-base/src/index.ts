@@ -26,6 +26,7 @@ export interface FetchResult {
   local?: boolean
   manifest?: DependencyManifest
   filesIndex: Record<string, string>
+  requiresBuild: boolean
 }
 
 export interface GitFetcherOptions {
@@ -34,7 +35,13 @@ export interface GitFetcherOptions {
   pkg?: PkgNameVersion
 }
 
-export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, { filesIndex: Record<string, string>, manifest?: DependencyManifest }>
+export interface GitFetcherResult {
+  filesIndex: Record<string, string>
+  manifest?: DependencyManifest
+  requiresBuild: boolean
+}
+
+export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, GitFetcherResult>
 
 export interface DirectoryFetcherOptions {
   lockfileDir: string
@@ -46,6 +53,7 @@ export interface DirectoryFetcherResult {
   filesIndex: Record<string, string>
   packageImportMethod: 'hardlink'
   manifest?: DependencyManifest
+  requiresBuild: boolean
 }
 
 export type DirectoryFetcher = FetchFunction<DirectoryResolution, DirectoryFetcherOptions, DirectoryFetcherResult>

@@ -13,7 +13,7 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../exec/files-include-install-scripts"
+      "path": "../../exec/pkg-requires-build"
     },
     {
       "path": "../../fetching/fetcher-base"

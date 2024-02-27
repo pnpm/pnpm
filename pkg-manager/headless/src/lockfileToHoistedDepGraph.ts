@@ -247,8 +247,6 @@ async function fetchDeps (
       name: pkgName,
       optional: !!pkgSnapshot.optional,
       optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-      prepare: pkgSnapshot.prepare === true,
-      requiresBuild: pkgSnapshot.requiresBuild === true,
       patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
     }
     if (!opts.pkgLocationsByDepPath[depPath]) {

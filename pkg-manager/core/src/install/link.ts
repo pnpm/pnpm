@@ -447,9 +447,7 @@ async function linkAllPkgs (
     depNodes.map(async (depNode) => {
       const { files } = await depNode.fetching()
 
-      if (typeof depNode.requiresBuild === 'function') {
-        depNode.requiresBuild = await depNode.requiresBuild()
-      }
+      depNode.requiresBuild = files.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && files.sideEffects && !isEmpty(files.sideEffects)) {
         sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
@@ -462,7 +460,7 @@ async function linkAllPkgs (
         filesResponse: files,
         force: opts.force,
         sideEffectsCacheKey,
-        requiresBuild: depNode.patchFile != null || (depNode.optional ? (depNode.requiresBuild ? undefined : false) : depNode.requiresBuild),
+        requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
       })
       if (importMethod) {
         progressLogger.debug({
