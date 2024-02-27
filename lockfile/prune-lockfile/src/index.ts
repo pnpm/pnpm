@@ -108,6 +108,9 @@ export function pruneLockfile (
   if (lockfile.pnpmfileChecksum) {
     prunedLockfile.pnpmfileChecksum = lockfile.pnpmfileChecksum
   }
+  if (lockfile.ignoredOptionalDependencies && !isEmpty(lockfile.ignoredOptionalDependencies)) {
+    prunedLockfile.ignoredOptionalDependencies = lockfile.ignoredOptionalDependencies
+  }
   return pruneSharedLockfile(prunedLockfile, opts)
 }
 

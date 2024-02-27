@@ -14,6 +14,14 @@ export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile): Lockfil
     newLockfile.pnpmfileChecksum = pnpmfileChecksum
   }
 
+  const ignoredOptionalDependencies = [...new Set([
+    ...ours.ignoredOptionalDependencies ?? [],
+    ...theirs.ignoredOptionalDependencies ?? [],
+  ])]
+  if (ignoredOptionalDependencies.length) {
+    newLockfile.ignoredOptionalDependencies = ignoredOptionalDependencies
+  }
+
   for (const importerId of Array.from(new Set([...Object.keys(ours.importers), ...Object.keys(theirs.importers)]))) {
     newLockfile.importers[importerId] = {
       specifiers: {},
