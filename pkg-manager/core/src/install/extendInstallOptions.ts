@@ -70,6 +70,7 @@ export interface StrictInstallOptions {
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion: string
   packageExtensions: Record<string, PackageExtension>
+  ignoredOptionalDependencies: string[]
   pnpmfile: string
   ignorePnpmfile: boolean
   packageManager: {
@@ -197,6 +198,7 @@ const defaults = (opts: InstallOptions) => {
     ignoreCompatibilityDb: false,
     ignorePackageManifest: false,
     packageExtensions: {},
+    ignoredOptionalDependencies: [] as string[],
     packageManager,
     preferFrozenLockfile: true,
     preferWorkspacePackages: false,
@@ -272,6 +274,7 @@ export function extendOptions (
     lockfileDir: extendedOpts.lockfileDir,
     packageExtensions: extendedOpts.packageExtensions,
     peerDependencyRules: extendedOpts.peerDependencyRules,
+    ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,
   })
   if (extendedOpts.lockfileOnly) {
     extendedOpts.ignoreScripts = true
