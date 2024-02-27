@@ -339,7 +339,7 @@ export async function mutateModules (
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         overrides: opts.overrides,
-        ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
+        ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
         packageExtensionsChecksum,
         patchedDependencies,
         pnpmfileChecksum,
