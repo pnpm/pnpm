@@ -1,7 +1,7 @@
 import { type PackageManifest, type ProjectManifest, type ReadPackageHook } from '@pnpm/types'
 
 export function createOptionalDependenciesRemover (toBeRemoved: string[]): ReadPackageHook {
-  return (manifest) => removeOptionDependencies(manifest, toBeRemoved) as PackageManifest & ProjectManifest
+  return <Manifest extends PackageManifest | ProjectManifest> (manifest: Manifest) => removeOptionDependencies(manifest, toBeRemoved)
 }
 
 function removeOptionDependencies<Manifest extends PackageManifest | ProjectManifest> (manifest: Manifest, toBeRemoved: string[]): Manifest {
