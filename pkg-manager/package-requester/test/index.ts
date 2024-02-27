@@ -125,7 +125,7 @@ test('request package but skip fetching, when resolution is already available', 
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     currentPkg: {
-      id: '/is-positive/1.0.0',
+      id: '/is-positive@1.0.0',
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
