@@ -1,4 +1,4 @@
-import { type PackageManifest, type ProjectManifest, type ReadPackageHook } from '@pnpm/types'
+import type { PackageManifest, ProjectManifest, ReadPackageHook } from '@pnpm/types'
 
 export function createOptionalDependenciesRemover (toBeRemoved: string[]): ReadPackageHook {
   return <Manifest extends PackageManifest | ProjectManifest> (manifest: Manifest) => removeOptionalDependencies(manifest, toBeRemoved)
