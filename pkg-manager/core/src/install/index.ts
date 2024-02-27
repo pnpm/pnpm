@@ -746,7 +746,7 @@ function getOutdatedLockfileSetting (
   if (lockfile.packageExtensionsChecksum !== packageExtensionsChecksum) {
     return 'packageExtensionsChecksum'
   }
-  if (!equals(lockfile.ignoredOptionalDependencies?.toSorted() ?? [], ignoredOptionalDependencies?.toSorted() ?? [])) {
+  if (!equals(lockfile.ignoredOptionalDependencies?.sort() ?? [], ignoredOptionalDependencies?.sort() ?? [])) {
     return 'ignoredOptionalDependencies'
   }
   if (!equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})) {
