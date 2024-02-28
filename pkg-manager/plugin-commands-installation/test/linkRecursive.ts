@@ -43,7 +43,7 @@ test('recursive linking/unlinking', async () => {
 
   {
     const project1Lockfile = projects['project-1'].readLockfile()
-    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('link:../is-positive')
+    expect(project1Lockfile.importers['.'].devDependencies?.['is-positive'].version).toBe('link:../is-positive')
   }
 
   await unlink.handler({
@@ -63,7 +63,7 @@ test('recursive linking/unlinking', async () => {
   {
     const project1Lockfile = projects['project-1'].readLockfile()
     expect(project1Lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
-    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('1.0.0')
+    expect(project1Lockfile.importers['.'].devDependencies?.['is-positive'].version).toBe('1.0.0')
     expect(project1Lockfile.packages['/is-positive@1.0.0']).toBeTruthy()
   }
 
@@ -108,7 +108,7 @@ test('recursive unlink specific package', async () => {
 
   {
     const project1Lockfile = projects['project-1'].readLockfile()
-    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('link:../is-positive')
+    expect(project1Lockfile.importers['.'].devDependencies?.['is-positive'].version).toBe('link:../is-positive')
   }
 
   await unlink.handler({
@@ -128,7 +128,7 @@ test('recursive unlink specific package', async () => {
   {
     const project1Lockfile = projects['project-1'].readLockfile()
     expect(project1Lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
-    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('1.0.0')
+    expect(project1Lockfile.importers['.'].devDependencies?.['is-positive'].version).toBe('1.0.0')
     expect(project1Lockfile.packages['/is-positive@1.0.0']).toBeTruthy()
   }
 
