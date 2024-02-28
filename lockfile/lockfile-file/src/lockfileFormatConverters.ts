@@ -8,6 +8,9 @@ import {
   type InlineSpecifiersProjectSnapshot,
   type InlineSpecifiersResolvedDependencies,
   type PackageInfo,
+  type LockfileFileV7,
+  type PackageSnapshots,
+  type PackageSnapshot,
 } from '@pnpm/lockfile-types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
@@ -28,7 +31,7 @@ export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfi
     snapshots[depPath] = pick(['dependencies', 'optionalDependencies', 'transitivePeerDependencies', 'dev', 'optional'], pkg)
     const pkgId = packageIdFromSnapshot(depPath, pkg)
     if (!packages[pkgId]) {
-      packages[pkgId] = pick(['resolution', 'engines', 'cpu', 'os', 'libc', 'peerDependencies', 'peerDependenciesMeta', 'hasBin'], pkg) as any
+      packages[pkgId] = pick(['resolution', 'engines', 'cpu', 'os', 'libc', 'peerDependencies', 'peerDependenciesMeta', 'hasBin'], pkg)
     }
   }
   const newLockfile = {
@@ -154,25 +157,32 @@ function convertFromLockfileFileMutable (lockfileFile: LockfileFile): InlineSpec
   return lockfileFile as InlineSpecifiersLockfile
 }
 
-export function convertToLockfileObject (lockfile: any): Lockfile {
+export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV7): Lockfile {
+  if ((lockfile as LockfileFileV7).snapshots) {
+    return convertLockfileV7ToLockfileObject(lockfile as LockfileFileV7)
+  }
   const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
 
-  if (lockfile.snapshots) {
-    for (const [depPath, pkg] of Object.entries(lockfile.snapshots)) {
-      const pkgId = packageIdFromSnapshot(depPath, pkg as any)
-      Object.assign(lockfile.snapshots[depPath], lockfile.packages[pkgId])
-    }
-    return {
-      ...rest,
-      packages: lockfile.snapshots,
-      importers: mapValues(importers ?? {}, revertProjectSnapshot),
-    }
-  }
   const newLockfile = {
     ...rest,
     importers: mapValues(importers ?? {}, revertProjectSnapshot),
   }
   return newLockfile
+}
+
+export function convertLockfileV7ToLockfileObject (lockfile: LockfileFileV7): Lockfile {
+  const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
+
+  const packages: PackageSnapshots = {}
+  for (const [depPath, pkg] of Object.entries(lockfile.snapshots)) {
+    const pkgId = packageIdFromSnapshot(depPath, pkg as PackageSnapshot)
+    packages[depPath] = Object.assign(lockfile.snapshots[depPath], lockfile.packages[pkgId])
+  }
+  return {
+    ...rest,
+    packages,
+    importers: mapValues(importers ?? {}, revertProjectSnapshot),
+  }
 }
 
 function convertProjectSnapshotToInlineSpecifiersFormat (
