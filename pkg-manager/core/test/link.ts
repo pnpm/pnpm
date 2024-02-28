@@ -41,7 +41,7 @@ test('relative link', async () => {
   })
 
   const currentLockfile = project.readCurrentLockfile()
-  expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
+  expect(currentLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
     version: 'link:../hello-world-js-bin',
     specifier: '*',
   })

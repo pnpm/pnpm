@@ -182,7 +182,7 @@ test('tarball local package', async () => {
   expect(manifest.dependencies).toStrictEqual({ 'tar-pkg': pkgSpec })
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages[lockfile.dependencies['tar-pkg'].version]).toStrictEqual({
+  expect(lockfile.packages[lockfile.importers['.'].dependencies!['tar-pkg'].version]).toStrictEqual({
     dev: false,
     name: 'tar-pkg',
     resolution: {
@@ -213,7 +213,7 @@ test('tarball local package from project directory', async () => {
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['tar-pkg'].version).toBe(pkgSpec)
-  expect(lockfile.packages[lockfile.dependencies['tar-pkg'].version]).toStrictEqual({
+  expect(lockfile.packages[lockfile.importers['.'].dependencies!['tar-pkg'].version]).toStrictEqual({
     dev: false,
     name: 'tar-pkg',
     resolution: {
