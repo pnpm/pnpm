@@ -130,6 +130,7 @@ export type ProjectManifest = BaseManifest & {
     onlyBuiltDependenciesFile?: string
     overrides?: Record<string, string>
     packageExtensions?: Record<string, PackageExtension>
+    ignoredOptionalDependencies?: string[]
     peerDependencyRules?: PeerDependencyRules
     allowedDeprecatedVersions?: AllowedDeprecatedVersions
     allowNonAppliedPatches?: boolean

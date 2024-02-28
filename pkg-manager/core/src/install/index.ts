@@ -339,6 +339,7 @@ export async function mutateModules (
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         overrides: opts.overrides,
+        ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
         packageExtensionsChecksum,
         patchedDependencies,
         pnpmfileChecksum,
@@ -359,6 +360,7 @@ export async function mutateModules (
       }
       ctx.wantedLockfile.overrides = opts.overrides
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
+      ctx.wantedLockfile.ignoredOptionalDependencies = opts.ignoredOptionalDependencies
       ctx.wantedLockfile.pnpmfileChecksum = pnpmfileChecksum
       ctx.wantedLockfile.patchedDependencies = patchedDependencies
     } else if (!frozenLockfile) {
@@ -710,6 +712,7 @@ function getOutdatedLockfileSetting (
     onlyBuiltDependencies,
     overrides,
     packageExtensionsChecksum,
+    ignoredOptionalDependencies,
     patchedDependencies,
     autoInstallPeers,
     excludeLinksFromLockfile,
@@ -719,6 +722,7 @@ function getOutdatedLockfileSetting (
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
     patchedDependencies?: Record<string, PatchFile>
+    ignoredOptionalDependencies?: string[]
     autoInstallPeers?: boolean
     excludeLinksFromLockfile?: boolean
     pnpmfileChecksum?: string
@@ -729,6 +733,9 @@ function getOutdatedLockfileSetting (
   }
   if (lockfile.packageExtensionsChecksum !== packageExtensionsChecksum) {
     return 'packageExtensionsChecksum'
+  }
+  if (!equals(lockfile.ignoredOptionalDependencies?.sort() ?? [], ignoredOptionalDependencies?.sort() ?? [])) {
+    return 'ignoredOptionalDependencies'
   }
   if (!equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})) {
     return 'patchedDependencies'

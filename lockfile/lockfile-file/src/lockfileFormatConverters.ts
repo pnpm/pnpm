@@ -77,6 +77,9 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
   if (!lockfileToSave.packageExtensionsChecksum) {
     delete lockfileToSave.packageExtensionsChecksum
   }
+  if (!lockfileToSave.ignoredOptionalDependencies?.length) {
+    delete lockfileToSave.ignoredOptionalDependencies
+  }
   if (!lockfileToSave.pnpmfileChecksum) {
     delete lockfileToSave.pnpmfileChecksum
   }
