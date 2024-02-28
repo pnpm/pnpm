@@ -49,10 +49,14 @@ test('local file', async () => {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
     },
-    dependencies: {
-      'local-pkg': {
-        specifier: expectedSpecs['local-pkg'],
-        version: 'link:../local-pkg',
+    importers: {
+      '.': {
+        dependencies: {
+          'local-pkg': {
+            specifier: expectedSpecs['local-pkg'],
+            version: 'link:../local-pkg',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
@@ -107,10 +111,14 @@ test('local file via link:', async () => {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
     },
-    dependencies: {
-      'local-pkg': {
-        specifier: expectedSpecs['local-pkg'],
-        version: 'link:../local-pkg',
+    importers: {
+      '.': {
+        dependencies: {
+          'local-pkg': {
+            specifier: expectedSpecs['local-pkg'],
+            version: 'link:../local-pkg',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
@@ -139,10 +147,14 @@ test('local file with symlinked node_modules', async () => {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
     },
-    dependencies: {
-      'local-pkg': {
-        specifier: expectedSpecs['local-pkg'],
-        version: 'link:../local-pkg',
+    importers: {
+      '.': {
+        dependencies: {
+          'local-pkg': {
+            specifier: expectedSpecs['local-pkg'],
+            version: 'link:../local-pkg',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
@@ -200,7 +212,7 @@ test('tarball local package from project directory', async () => {
   expect(manifest.dependencies).toStrictEqual({ 'tar-pkg': pkgSpec })
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies['tar-pkg'].version).toBe(pkgSpec)
+  expect(lockfile.importers['.'].dependencies?.['tar-pkg'].version).toBe(pkgSpec)
   expect(lockfile.packages[lockfile.dependencies['tar-pkg'].version]).toStrictEqual({
     dev: false,
     name: 'tar-pkg',
@@ -404,10 +416,14 @@ test('re-install should update local file dependency', async () => {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
     },
-    dependencies: {
-      'local-pkg': {
-        specifier: expectedSpecs['local-pkg'],
-        version: 'file:../local-pkg',
+    importers: {
+      '.': {
+        dependencies: {
+          'local-pkg': {
+            specifier: expectedSpecs['local-pkg'],
+            version: 'file:../local-pkg',
+          },
+        },
       },
     },
     packages: {

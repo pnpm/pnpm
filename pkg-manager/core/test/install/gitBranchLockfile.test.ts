@@ -183,14 +183,18 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   // is-positive installed in the other branch
   const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
   const otherLockfileContent = {
-    dependencies: {
-      '@types/semver': {
-        specifier: '5.3.31',
-        version: '5.3.31',
-      },
-      'is-positive': {
-        specifier: '^3.1.0',
-        version: '3.1.0',
+    importers: {
+      '.': {
+        dependencies: {
+          '@types/semver': {
+            specifier: '5.3.31',
+            version: '5.3.31',
+          },
+          'is-positive': {
+            specifier: '^3.1.0',
+            version: '3.1.0',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,

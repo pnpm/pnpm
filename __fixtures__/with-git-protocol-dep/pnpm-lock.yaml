@@ -4,10 +4,13 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  is-negative:
-    specifier: github:kevva/is-negative#master
-    version: github.com/kevva/is-negative/219c424611ff4a2af15f7deeff4f93c62558c43d
+importers:
+
+  .:
+    dependencies:
+      is-negative:
+        specifier: github:kevva/is-negative#master
+        version: github.com/kevva/is-negative/219c424611ff4a2af15f7deeff4f93c62558c43d
 
 packages:
 

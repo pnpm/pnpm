@@ -44,7 +44,7 @@ test('spec not specified in package.json.dependencies', async () => {
   }, testDefaults())
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies['is-positive'].specifier).toBe('')
+  expect(lockfile.importers['.'].dependencies?.['is-positive'].specifier).toBe('')
 })
 
 test.skip('ignoring some files in the dependency', async () => {

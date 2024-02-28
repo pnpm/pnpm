@@ -197,7 +197,7 @@ test('automatically install root peer dependencies', async () => {
 
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.dependencies).toStrictEqual({
+    expect(lockfile.importers['.'].dependencies).toStrictEqual({
       'is-positive': {
         specifier: '^1.0.0',
         version: '1.0.0',
@@ -225,7 +225,7 @@ test('automatically install root peer dependencies', async () => {
 
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.dependencies).toStrictEqual({
+    expect(lockfile.importers['.'].dependencies).toStrictEqual({
       'is-odd': {
         specifier: '1.0.0',
         version: '1.0.0',
@@ -254,7 +254,7 @@ test('automatically install root peer dependencies', async () => {
 
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.dependencies).toStrictEqual({
+    expect(lockfile.importers['.'].dependencies).toStrictEqual({
       'is-positive': {
         specifier: '^1.0.0',
         version: '1.0.0',
@@ -600,5 +600,5 @@ test('do not override the direct dependency with an auto installed peer dependen
     },
   }))
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies.rxjs.version).toStrictEqual('6.6.7')
+  expect(lockfile.importers['.'].dependencies?.rxjs.version).toStrictEqual('6.6.7')
 })

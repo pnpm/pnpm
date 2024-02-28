@@ -160,7 +160,7 @@ test('uninstall package with dependencies and do not touch other deps', async ()
   expect(manifest.dependencies).toStrictEqual({ 'is-negative': '2.1.0' })
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies).toStrictEqual({
+  expect(lockfile.importers['.'].dependencies).toStrictEqual({
     'is-negative': {
       specifier: '2.1.0',
       version: '2.1.0',

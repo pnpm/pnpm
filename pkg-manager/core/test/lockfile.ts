@@ -84,9 +84,9 @@ test('lockfile has dev deps even when installing for prod only', async () => {
   const lockfile = project.readLockfile()
   const id = '/is-negative@2.1.0'
 
-  expect(lockfile.devDependencies).toBeTruthy()
+  expect(lockfile.importers['.'].devDependencies).toBeTruthy()
 
-  expect(lockfile.devDependencies['is-negative'].version).toBe('2.1.0')
+  expect(lockfile.importers['.'].devDependencies?.['is-negative'].version).toBe('2.1.0')
 
   expect(lockfile.packages[id]).toBeTruthy()
 })
@@ -388,8 +388,8 @@ test("recreates lockfile if it doesn't match the dependencies in package.json", 
   manifest = await addDependenciesToPackage(manifest, ['map-obj@1.0.0'], testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'optionalDependencies' }))
 
   const lockfile1 = project.readLockfile()
-  expect(lockfile1.dependencies['is-negative'].version).toBe('1.0.0')
-  expect(lockfile1.dependencies['is-negative'].specifier).toBe('1.0.0')
+  expect(lockfile1.importers['.'].dependencies?.['is-negative'].version).toBe('1.0.0')
+  expect(lockfile1.importers['.'].dependencies?.['is-negative'].specifier).toBe('1.0.0')
 
   manifest.dependencies!['is-negative'] = '^2.1.0'
   manifest.devDependencies!['is-positive'] = '^2.0.0'
@@ -417,7 +417,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 
   const lockfile1 = project.readLockfile()
 
-  expect(lockfile1.dependencies['highmaps-release'].version).toBe('5.0.11')
+  expect(lockfile1.importers['.'].dependencies?.['highmaps-release'].version).toBe('5.0.11')
 
   rimraf('node_modules')
 
@@ -479,18 +479,22 @@ test('scoped module from different registry', async () => {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
     },
-    dependencies: {
-      '@foo/has-dep-from-same-scope': {
-        specifier: '^1.0.0',
-        version: '1.0.0',
-      },
-      '@zkochan/foo': {
-        specifier: '^1.0.0',
-        version: '1.0.0',
-      },
-      'is-positive': {
-        specifier: '^3.1.0',
-        version: '3.1.0',
+    importers: {
+      '.': {
+        dependencies: {
+          '@foo/has-dep-from-same-scope': {
+            specifier: '^1.0.0',
+            version: '1.0.0',
+          },
+          '@zkochan/foo': {
+            specifier: '^1.0.0',
+            version: '1.0.0',
+          },
+          'is-positive': {
+            specifier: '^3.1.0',
+            version: '3.1.0',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
@@ -790,14 +794,18 @@ test('packages installed via tarball URL from the default registry are normalize
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
     },
-    dependencies: {
-      'is-positive': {
-        specifier: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-        version: '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-      },
-      '@pnpm.e2e/pkg-with-tarball-dep-from-registry': {
-        specifier: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
-        version: '1.0.0',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': {
+            specifier: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+            version: '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          },
+          '@pnpm.e2e/pkg-with-tarball-dep-from-registry': {
+            specifier: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
+            version: '1.0.0',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
@@ -1125,10 +1133,14 @@ test('tarball domain differs from registry domain', async () => {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
     },
-    dependencies: {
-      'is-positive': {
-        specifier: '^3.1.0',
-        version: '3.1.0',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': {
+            specifier: '^3.1.0',
+            version: '3.1.0',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
@@ -1172,10 +1184,14 @@ test('tarball installed through non-standard URL endpoint from the registry doma
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
     },
-    dependencies: {
-      'is-positive': {
-        specifier: 'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
-        version: '@registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': {
+            specifier: 'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
+            version: '@registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
