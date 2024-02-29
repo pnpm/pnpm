@@ -265,9 +265,9 @@ save-workspace-protocol=false
 
   {
     const lockfile = projects['project-1'].readLockfile()
-    expect(lockfile.dependencies['project-2'].version).toBe('link:../project-2')
-    expect(lockfile.devDependencies['is-negative'].version).toBe('link:../is-negative')
-    expect(lockfile.optionalDependencies['is-positive'].version).toBe('link:../is-positive')
+    expect(lockfile.importers['.'].dependencies?.['project-2'].version).toBe('link:../project-2')
+    expect(lockfile.importers['.'].devDependencies?.['is-negative'].version).toBe('link:../is-negative')
+    expect(lockfile.importers['.'].optionalDependencies?.['is-positive'].version).toBe('link:../is-positive')
   }
 
   projects['is-positive'].writePackageJson({
@@ -279,14 +279,14 @@ save-workspace-protocol=false
 
   {
     const lockfile = projects['project-1'].readLockfile()
-    expect(lockfile.optionalDependencies['is-positive'].version).toBe('1.0.0') // is-positive is unlinked and installed from registry
+    expect(lockfile.importers['.'].optionalDependencies?.['is-positive'].version).toBe('1.0.0') // is-positive is unlinked and installed from registry
   }
 
   await execPnpm(['update', 'is-negative@2.0.0'])
 
   {
     const lockfile = projects['project-1'].readLockfile()
-    expect(lockfile.devDependencies['is-negative'].version).toBe('2.0.0')
+    expect(lockfile.importers['.'].devDependencies?.['is-negative'].version).toBe('2.0.0')
   }
 })
 
@@ -594,16 +594,16 @@ test('installation with --link-workspace-packages links packages even if they we
 
   {
     const lockfile = projects.project.readLockfile()
-    expect(lockfile.dependencies['is-positive'].version).toBe('2.0.0')
-    expect(lockfile.dependencies.negative.version).toBe('/is-negative@1.0.0')
+    expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toBe('2.0.0')
+    expect(lockfile.importers['.'].dependencies?.negative.version).toBe('/is-negative@1.0.0')
   }
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages'])
 
   {
     const lockfile = projects.project.readLockfile()
-    expect(lockfile.dependencies['is-positive'].version).toBe('link:../is-positive')
-    expect(lockfile.dependencies.negative.version).toBe('link:../is-negative')
+    expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toBe('link:../is-positive')
+    expect(lockfile.importers['.'].dependencies?.negative.version).toBe('link:../is-negative')
   }
 })
 
@@ -892,7 +892,7 @@ test('local packages should be preferred when running "pnpm install" inside a wo
 
   const lockfile = projects['project-1'].readLockfile()
 
-  expect(lockfile?.dependencies?.['is-positive'].version).toBe('link:../is-positive')
+  expect(lockfile?.importers['.'].dependencies?.['is-positive'].version).toBe('link:../is-positive')
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1437

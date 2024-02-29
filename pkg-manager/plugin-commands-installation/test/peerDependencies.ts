@@ -48,7 +48,7 @@ test('root dependency that has a peer is correctly updated after its version cha
 
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.dependencies['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.4)')
+    expect(lockfile.importers['.'].dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.4)')
   }
 
   project.writePackageJson({
@@ -69,6 +69,6 @@ test('root dependency that has a peer is correctly updated after its version cha
 
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.dependencies['ajv-keywords'].version).toBe('1.5.1(ajv@4.10.4)')
+    expect(lockfile.importers['.'].dependencies?.['ajv-keywords'].version).toBe('1.5.1(ajv@4.10.4)')
   }
 })

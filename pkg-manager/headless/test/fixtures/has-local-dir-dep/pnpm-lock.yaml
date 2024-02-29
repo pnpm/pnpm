@@ -4,7 +4,10 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  example:
-    specifier: link:example
-    version: link:example
+importers:
+
+  .:
+    dependencies:
+      example:
+        specifier: link:example
+        version: link:example

@@ -78,7 +78,6 @@ export interface GetContextOptions {
   confirmModulesPurge?: boolean
   force: boolean
   forceNewModules?: boolean
-  forceSharedLockfile: boolean
   frozenLockfile?: boolean
   extraBinPaths: string[]
   extendNodePath?: boolean
@@ -185,7 +184,6 @@ export async function getContext (
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
-      forceSharedLockfile: opts.forceSharedLockfile,
       frozenLockfile: opts.frozenLockfile === true,
       lockfileDir: opts.lockfileDir,
       projects: importersContext.projects,
@@ -409,7 +407,6 @@ export async function getContextForSingleImporter (
     excludeLinksFromLockfile: boolean
     force: boolean
     forceNewModules?: boolean
-    forceSharedLockfile: boolean
     confirmModulesPurge?: boolean
     extraBinPaths: string[]
     extendNodePath?: boolean
@@ -524,7 +521,6 @@ export async function getContextForSingleImporter (
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
-      forceSharedLockfile: opts.forceSharedLockfile,
       frozenLockfile: false,
       lockfileDir: opts.lockfileDir,
       projects: [{ id: importerId, rootDir: opts.dir }],

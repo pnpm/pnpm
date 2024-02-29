@@ -474,7 +474,6 @@ Note that in CI environments, this setting is enabled by default.`,
               currentLockfileDir: ctx.virtualStoreDir,
               wantedLockfile: ctx.wantedLockfile,
               wantedLockfileDir: ctx.lockfileDir,
-              forceSharedFormat: opts.forceSharedLockfile,
               useGitBranchLockfile: opts.useGitBranchLockfile,
               mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
             })
@@ -1080,8 +1079,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   const depsStateCache: DepsStateCache = {}
   const lockfileOpts = {
-    forceSharedFormat: opts.forceSharedLockfile,
-    useInlineSpecifiersFormat: true,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
@@ -1269,7 +1266,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           wantedLockfileDir: ctx.lockfileDir,
           ...lockfileOpts,
         })
-        : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile, lockfileOpts),
+        : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile),
       (async () => {
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()

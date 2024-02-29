@@ -25,7 +25,6 @@ export type StrictRebuildOptions = {
   storeDir: string // TODO: remove this property
   storeController: StoreController
   force: boolean
-  forceSharedLockfile: boolean
   useLockfile: boolean
   registries: Registries
   dir: string
@@ -63,7 +62,6 @@ const defaults = async (opts: RebuildOptions) => {
     development: true,
     dir,
     force: false,
-    forceSharedLockfile: false,
     lockfileDir,
     nodeLinker: 'isolated',
     optional: true,

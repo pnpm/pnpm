@@ -68,7 +68,7 @@ test('from a github repo with different name via named installation', async () =
   expect(manifest.dependencies).toStrictEqual({ 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' })
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies).toStrictEqual({
+  expect(lockfile.importers['.'].dependencies).toStrictEqual({
     'say-hi': {
       specifier: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
       version: 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
@@ -111,7 +111,7 @@ test('from a github repo with different name', async () => {
   })
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies).toStrictEqual({
+  expect(lockfile.importers['.'].dependencies).toStrictEqual({
     'say-hi': {
       specifier: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
       version: 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
@@ -248,7 +248,7 @@ test('re-adding a git repo with a different tag', async () => {
   })
   expect(JSON.parse(fs.readFileSync('./node_modules/is-negative/package.json', 'utf8')).version).toBe('1.0.0')
   let lockfile = project.readLockfile()
-  expect(lockfile.dependencies['is-negative']).toEqual({
+  expect(lockfile.importers['.'].dependencies?.['is-negative']).toEqual({
     specifier: 'github:kevva/is-negative#1.0.0',
     version: 'github.com/kevva/is-negative/163360a8d3ae6bee9524541043197ff356f8ed99',
   })
@@ -267,7 +267,7 @@ test('re-adding a git repo with a different tag', async () => {
   project.has('is-negative')
   expect(JSON.parse(fs.readFileSync('./node_modules/is-negative/package.json', 'utf8')).version).toBe('1.0.1')
   lockfile = project.readLockfile()
-  expect(lockfile.dependencies['is-negative']).toEqual({
+  expect(lockfile.importers['.'].dependencies?.['is-negative']).toEqual({
     specifier: 'github:kevva/is-negative#1.0.1',
     version: 'github.com/kevva/is-negative/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72',
   })
@@ -303,7 +303,7 @@ test('should not update when adding unrelated dependency', async () => {
   const project = assertProject(withGitProtocolDepFixture)
   project.has('is-number')
   expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative+219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
-  expect((project.readLockfile()).dependencies).toEqual({
+  expect(project.readLockfile().importers['.'].dependencies).toEqual({
     'is-negative': {
       specifier: 'github:kevva/is-negative#master',
       version: 'github.com/kevva/is-negative/219c424611ff4a2af15f7deeff4f93c62558c43d',

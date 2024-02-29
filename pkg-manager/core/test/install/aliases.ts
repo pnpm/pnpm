@@ -17,14 +17,18 @@ test('installing aliased dependency', async () => {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
     },
-    dependencies: {
-      negative: {
-        specifier: 'npm:is-negative@1.0.0',
-        version: '/is-negative@1.0.0',
-      },
-      positive: {
-        specifier: 'npm:is-positive@^3.1.0',
-        version: '/is-positive@3.1.0',
+    importers: {
+      '.': {
+        dependencies: {
+          negative: {
+            specifier: 'npm:is-negative@1.0.0',
+            version: '/is-negative@1.0.0',
+          },
+          positive: {
+            specifier: 'npm:is-positive@^3.1.0',
+            version: '/is-positive@3.1.0',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
@@ -78,10 +82,14 @@ test('a dependency has an aliased subdependency', async () => {
       autoInstallPeers: true,
       excludeLinksFromLockfile: false,
     },
-    dependencies: {
-      '@pnpm.e2e/pkg-with-1-aliased-dep': {
-        specifier: '^100.0.0',
-        version: '100.0.0',
+    importers: {
+      '.': {
+        dependencies: {
+          '@pnpm.e2e/pkg-with-1-aliased-dep': {
+            specifier: '^100.0.0',
+            version: '100.0.0',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,

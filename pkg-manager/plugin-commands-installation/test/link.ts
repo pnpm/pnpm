@@ -179,13 +179,13 @@ test('relative link', async () => {
   linkedProject.isExecutable('.bin/cowsay')
 
   const wantedLockfile = project.readLockfile()
-  expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
+  expect(wantedLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
     specifier: '*', // specifier of linked dependency added to ${WANTED_LOCKFILE}
     version: 'link:../hello-world-js-bin', // link added to wanted lockfile
   })
 
   const currentLockfile = project.readCurrentLockfile()
-  expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
+  expect(currentLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin'].version).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
 })
 
 test('absolute link', async () => {
@@ -212,13 +212,13 @@ test('absolute link', async () => {
   linkedProject.isExecutable('.bin/cowsay')
 
   const wantedLockfile = project.readLockfile()
-  expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
+  expect(wantedLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
     specifier: '*', // specifier of linked dependency added to ${WANTED_LOCKFILE}
     version: 'link:../hello-world-js-bin', // link added to wanted lockfile
   })
 
   const currentLockfile = project.readCurrentLockfile()
-  expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
+  expect(currentLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin'].version).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
 })
 
 test('link --production', async () => {

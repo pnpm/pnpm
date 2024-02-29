@@ -4,13 +4,16 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  glob:
-    specifier: ^7.0.5
-    version: 7.2.3
-  rimraf:
-    specifier: ^2.6.2
-    version: 2.7.1
+importers:
+
+  .:
+    dependencies:
+      glob:
+        specifier: ^7.0.5
+        version: 7.2.3
+      rimraf:
+        specifier: ^2.6.2
+        version: 2.7.1
 
 packages:
 

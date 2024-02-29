@@ -74,10 +74,10 @@ test('dependency should not be added to package.json if it is already there', as
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.devDependencies['@pnpm.e2e/foo'].version).toBe('100.0.0')
+  expect(lockfile.importers['.'].devDependencies?.['@pnpm.e2e/foo'].version).toBe('100.0.0')
   expect(lockfile.packages['/@pnpm.e2e/foo@100.0.0'].dev).toBeTruthy()
 
-  expect(lockfile.optionalDependencies['@pnpm.e2e/bar'].version).toBe('100.0.0')
+  expect(lockfile.importers['.'].optionalDependencies?.['@pnpm.e2e/bar'].version).toBe('100.0.0')
   expect(lockfile.packages['/@pnpm.e2e/bar@100.0.0'].optional).toBeTruthy()
 })
 
@@ -151,7 +151,7 @@ test('dependency should be removed from the old field when installing it as a di
 
   {
     const lockfile = project.readCurrentLockfile()
-    expect(Object.keys(lockfile.dependencies)).toStrictEqual(['@pnpm.e2e/bar', '@pnpm.e2e/foo', '@pnpm.e2e/qar'])
+    expect(Object.keys(lockfile.importers['.'].dependencies ?? {})).toStrictEqual(['@pnpm.e2e/bar', '@pnpm.e2e/foo', '@pnpm.e2e/qar'])
   }
 
   // manually editing package.json. Converting all prod deps to dev deps
@@ -163,7 +163,7 @@ test('dependency should be removed from the old field when installing it as a di
 
   {
     const lockfile = project.readCurrentLockfile()
-    expect(Object.keys(lockfile.devDependencies)).toStrictEqual(['@pnpm.e2e/bar', '@pnpm.e2e/foo', '@pnpm.e2e/qar'])
+    expect(Object.keys(lockfile.importers['.'].devDependencies ?? {})).toStrictEqual(['@pnpm.e2e/bar', '@pnpm.e2e/foo', '@pnpm.e2e/qar'])
     expect(lockfile.dependencies).toBeFalsy()
   }
 })

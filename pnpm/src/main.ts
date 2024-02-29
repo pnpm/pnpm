@@ -82,7 +82,6 @@ export async function main (inputArgv: string[]) {
   }
 
   let config: Config & {
-    forceSharedLockfile: boolean
     argv: { remain: string[], cooked: string[], original: string[] }
     fallbackCommandUsed: boolean
   }
@@ -100,7 +99,6 @@ export async function main (inputArgv: string[]) {
     if (cmd === 'dlx') {
       config.useStderr = true
     }
-    config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
     config.argv = argv
     config.fallbackCommandUsed = fallbackCommandUsed
     // Set 'npm_command' env variable to current command name

@@ -22,7 +22,7 @@ test('update <dep>', async () => {
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0')
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
 
   const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^101.0.0')
@@ -153,9 +153,9 @@ test('update --latest', async function () {
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0')
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
-  expect(lockfile.dependencies['@pnpm.e2e/bar'].version).toBe('100.1.0')
-  expect(lockfile.dependencies['alias'].version).toBe('/@pnpm.e2e/qar@100.1.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.1.0')
+  expect(lockfile.importers['.'].dependencies?.['alias'].version).toBe('/@pnpm.e2e/qar@100.1.0')
 
   const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^101.0.0')
@@ -180,9 +180,9 @@ test('update --latest --save-exact', async function () {
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '101.0.0')
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
-  expect(lockfile.dependencies['@pnpm.e2e/bar'].version).toBe('100.1.0')
-  expect(lockfile.dependencies['alias'].version).toBe('/@pnpm.e2e/qar@100.1.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.1.0')
+  expect(lockfile.importers['.'].dependencies?.['alias'].version).toBe('/@pnpm.e2e/qar@100.1.0')
 
   const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('101.0.0')
@@ -206,10 +206,10 @@ test('update --latest specific dependency', async function () {
   await execPnpm(['update', '-L', '@pnpm.e2e/bar', 'alias', 'is-negative'])
 
   const lockfile = project.readLockfile()
-  expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
-  expect(lockfile.dependencies['@pnpm.e2e/bar'].version).toBe('100.1.0')
-  expect(lockfile.dependencies['@pnpm.e2e/foo'].version).toBe('100.0.0')
-  expect(lockfile.dependencies['alias'].version).toBe('/@pnpm.e2e/qar@100.1.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.1.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.0.0')
+  expect(lockfile.importers['.'].dependencies?.['alias'].version).toBe('/@pnpm.e2e/qar@100.1.0')
 
   const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
@@ -233,8 +233,8 @@ test('update --latest --prod', async function () {
   await execPnpm(['update', '--latest', '--prod'])
 
   const lockfile = project.readLockfile()
-  expect(lockfile.devDependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
-  expect(lockfile.dependencies['@pnpm.e2e/bar'].version).toBe('100.1.0')
+  expect(lockfile.importers['.'].devDependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.1.0')
 
   const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.devDependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
@@ -282,8 +282,8 @@ test('recursive update --latest on projects that do not share a lockfile', async
   })
 
   const lockfile1 = projects['project-1'].readLockfile()
-  expect(lockfile1.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
-  expect(lockfile1.dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
 
   const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
   expect(manifest2.dependencies).toStrictEqual({
@@ -292,8 +292,8 @@ test('recursive update --latest on projects that do not share a lockfile', async
   })
 
   const lockfile2 = projects['project-2'].readLockfile()
-  expect(lockfile2.dependencies['@pnpm.e2e/bar'].version).toBe('100.1.0')
-  expect(lockfile2.dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.1.0')
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
 })
 
 test('recursive update --latest --prod on projects that do not share a lockfile', async () => {
@@ -341,8 +341,8 @@ test('recursive update --latest --prod on projects that do not share a lockfile'
   })
 
   const lockfile1 = projects['project-1'].readLockfile()
-  expect(lockfile1.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
-  expect(lockfile1.devDependencies['@pnpm.e2e/foo'].version).toBe('100.0.0')
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('101.0.0')
+  expect(lockfile1.importers['.'].devDependencies?.['@pnpm.e2e/foo'].version).toBe('100.0.0')
 
   projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   projects['project-1'].has('@pnpm.e2e/foo')
@@ -356,8 +356,8 @@ test('recursive update --latest --prod on projects that do not share a lockfile'
   })
 
   const lockfile2 = projects['project-2'].readLockfile()
-  expect(lockfile2.devDependencies['@pnpm.e2e/bar'].version).toBe('100.0.0')
-  expect(lockfile2.dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
+  expect(lockfile2.importers['.'].devDependencies?.['@pnpm.e2e/bar'].version).toBe('100.0.0')
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
 
   projects['project-2'].has('@pnpm.e2e/bar')
   projects['project-2'].has('@pnpm.e2e/foo')
@@ -405,9 +405,9 @@ test('recursive update --latest specific dependency on projects that do not shar
   })
 
   const lockfile1 = projects['project-1'].readLockfile()
-  expect(lockfile1.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
-  expect(lockfile1.dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
-  expect(lockfile1.dependencies['alias'].version).toBe('/@pnpm.e2e/qar@100.1.0')
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile1.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
+  expect(lockfile1.importers['.'].dependencies?.['alias'].version).toBe('/@pnpm.e2e/qar@100.1.0')
 
   const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
   expect(manifest2.dependencies).toStrictEqual({
@@ -416,8 +416,8 @@ test('recursive update --latest specific dependency on projects that do not shar
   })
 
   const lockfile2 = projects['project-2'].readLockfile()
-  expect(lockfile2.dependencies['@pnpm.e2e/bar'].version).toBe('100.0.0')
-  expect(lockfile2.dependencies['@pnpm.e2e/foo'].version).toBe('100.1.0')
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/bar'].version).toBe('100.0.0')
+  expect(lockfile2.importers['.'].dependencies?.['@pnpm.e2e/foo'].version).toBe('100.1.0')
 })
 
 test('recursive update --latest on projects with a shared a lockfile', async () => {

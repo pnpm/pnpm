@@ -23,7 +23,6 @@ import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
-  forceSharedLockfile: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enablePnp: boolean
@@ -171,7 +170,6 @@ const defaults = (opts: InstallOptions) => {
     engineStrict: false,
     force: false,
     forceFullResolution: false,
-    forceSharedLockfile: false,
     frozenLockfile: false,
     hoistPattern: undefined,
     publicHoistPattern: undefined,

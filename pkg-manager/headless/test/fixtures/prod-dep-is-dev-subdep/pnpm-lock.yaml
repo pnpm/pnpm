@@ -4,18 +4,20 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  is-positive:
-    specifier: 1.0.0
-    version: 1.0.0
-  once:
-    specifier: ^1.4.0
-    version: 1.4.0
+importers:
 
-devDependencies:
-  inflight:
-    specifier: 1.0.6
-    version: 1.0.6
+  .:
+    dependencies:
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
+      once:
+        specifier: ^1.4.0
+        version: 1.4.0
+    devDependencies:
+      inflight:
+        specifier: 1.0.6
+        version: 1.0.6
 
 packages:
 

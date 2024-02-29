@@ -31,7 +31,6 @@ export async function getPeerDependencyIssues (
   const lockfileDir = opts.lockfileDir ?? process.cwd()
   const ctx = await getContext({
     force: false,
-    forceSharedLockfile: false,
     extraBinPaths: [],
     lockfileDir,
     nodeLinker: opts.nodeLinker ?? 'isolated',

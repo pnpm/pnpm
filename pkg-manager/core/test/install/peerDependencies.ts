@@ -1674,7 +1674,7 @@ test('resolve peer of peer from the dependencies of the direct dependent package
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.dependencies['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y'].version).toBe('1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))')
+  expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y'].version).toBe('1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))')
   // Even though @pnpm/y@1.0.0 is in the dependencies of the direct dependent package, we resolve y from above.
   // It might make sense to print a warning in this case and suggest to make y a peer dependency in the dependent package too.
   expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies?.['@pnpm.e2e/has-y-peer']).toBe('1.0.0(@pnpm/y@2.0.0)')
@@ -1686,8 +1686,8 @@ test('2 circular peers', async () => {
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.dependencies['@pnpm.e2e/circular-peer-a'].version).toBe('1.0.0(@pnpm.e2e/circular-peer-b@1.0.0)')
-  expect(lockfile.dependencies['@pnpm.e2e/circular-peer-b'].version).toBe('1.0.0(@pnpm.e2e/circular-peer-a@1.0.0)')
+  expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/circular-peer-a'].version).toBe('1.0.0(@pnpm.e2e/circular-peer-b@1.0.0)')
+  expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/circular-peer-b'].version).toBe('1.0.0(@pnpm.e2e/circular-peer-a@1.0.0)')
 })
 
 test('3 circular peers', async () => {
@@ -1701,9 +1701,9 @@ test('3 circular peers', async () => {
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.dependencies['@pnpm.e2e/circular-peers-1-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-2-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0)')
-  expect(lockfile.dependencies['@pnpm.e2e/circular-peers-2-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-3-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)')
-  expect(lockfile.dependencies['@pnpm.e2e/circular-peers-3-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-1-of-3@1.0.0)')
+  expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/circular-peers-1-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-2-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0)')
+  expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/circular-peers-2-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-3-of-3@1.0.0)(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)')
+  expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/circular-peers-3-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-1-of-3@1.0.0)')
 })
 
 test('3 circular peers in workspace root', async () => {

@@ -4,15 +4,17 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  '@pnpm.e2e/pkg-with-good-optional':
-    specifier: '*'
-    version: 1.0.0
+importers:
 
-optionalDependencies:
-  is-positive:
-    specifier: 1.0.0
-    version: 1.0.0
+  .:
+    dependencies:
+      '@pnpm.e2e/pkg-with-good-optional':
+        specifier: '*'
+        version: 1.0.0
+    optionalDependencies:
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
 
 packages:
 
