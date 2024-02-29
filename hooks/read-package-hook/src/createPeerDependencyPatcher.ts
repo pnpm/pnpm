@@ -16,7 +16,7 @@ export function createPeerDependencyPatcher (
   const { allowedVersionsMatchAll, allowedVersionsByParentPkgName } = parseAllowedVersions(peerDependencyRules.allowedVersions ?? {})
   const _getAllowedVersionsByParentPkg = getAllowedVersionsByParentPkg.bind(null, allowedVersionsByParentPkgName)
 
-  return ((pkg) => {
+  return (pkg) => {
     if (isEmpty(pkg.peerDependencies)) return pkg
     const allowedVersions = {
       ...allowedVersionsMatchAll,
@@ -54,7 +54,7 @@ export function createPeerDependencyPatcher (
       pkg.peerDependencies![peerName] = currentVersions.join(' || ')
     }
     return pkg
-  }) as ReadPackageHook
+  }
 }
 
 type AllowedVersionsByParentPkgName = Record<string, Array<Required<Pick<VersionOverride, 'parentPkg' | 'targetPkg'>> & { ranges: string[] }>>
