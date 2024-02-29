@@ -129,15 +129,6 @@ async function makePublishPeerDependency (depName: string, depSpec: string, dir:
     return depSpec.replace(workspaceSemverRegex, `${semverRangeToken}${manifest.version}`)
   }
 
-  if (depSpec.includes('workspace:./') || depSpec.includes('workspace:../')) {
-    const manifest = await resolveManifest(depName, path.join(dir, depSpec.replace('workspace:', '')))
-
-    if (manifest.name !== depName) {
-      throw new PnpmError('DO_NOT_SUPPORT_ALIAS_IN_PEER_DEPENDENCIES', `Workspace protocol for peerDependencies does not support aliasing of "${depName}" to "${manifest.name}"`)
-    }
-    return `${manifest.version}`
-  }
-
   depSpec = depSpec.replace('workspace:', '')
 
   return depSpec
