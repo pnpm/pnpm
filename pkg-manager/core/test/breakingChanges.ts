@@ -1,16 +1,16 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type PnpmError } from '@pnpm/error'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
 import { testDefaults } from './utils'
 
 test('fail on non-compatible node_modules', async () => {
   prepareEmpty()
-  const opts = await testDefaults()
+  const opts = testDefaults()
 
   await saveModulesYaml('0.50.0', opts.storeDir)
 
@@ -24,7 +24,7 @@ test('fail on non-compatible node_modules', async () => {
 
 test("don't fail on non-compatible node_modules when forced", async () => {
   prepareEmpty()
-  const opts = await testDefaults({ force: true })
+  const opts = testDefaults({ force: true })
 
   await saveModulesYaml('0.50.0', opts.storeDir)
 
@@ -38,22 +38,22 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
       package: {},
     },
   ])
-  const opts = await testDefaults({ force: true })
+  const opts = testDefaults({ force: true })
 
   process.chdir('pkg')
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDir: path.resolve('..') }))
-  await rimraf('node_modules')
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({ lockfileDir: path.resolve('..') }))
+  rimraf('node_modules')
 
   process.chdir('..')
 
-  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.storeDir}\nlayoutVersion: 1`)
+  fs.writeFileSync('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.storeDir}\nlayoutVersion: 1`)
 
   await install(manifest, { ...opts, dir: path.resolve('pkg'), lockfileDir: process.cwd() })
 })
 
 test('do not fail on non-compatible node_modules when forced with a named installation', async () => {
   prepareEmpty()
-  const opts = await testDefaults()
+  const opts = testDefaults()
 
   await saveModulesYaml('0.50.0', opts.storeDir)
 
@@ -73,7 +73,7 @@ test('do not fail on non-compatible node_modules when forced with a named instal
 
 test("don't fail on non-compatible store when forced", async () => {
   prepareEmpty()
-  const opts = await testDefaults({ force: true })
+  const opts = testDefaults({ force: true })
 
   await saveModulesYaml('0.32.0', opts.storeDir)
 
@@ -82,7 +82,7 @@ test("don't fail on non-compatible store when forced", async () => {
 
 test('do not fail on non-compatible store when forced during named installation', async () => {
   prepareEmpty()
-  const opts = await testDefaults()
+  const opts = testDefaults()
 
   await saveModulesYaml('0.32.0', opts.storeDir)
 
@@ -101,8 +101,8 @@ test('do not fail on non-compatible store when forced during named installation'
 })
 
 async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
-  await fs.mkdir('node_modules')
-  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`)
+  fs.mkdirSync('node_modules')
+  fs.writeFileSync('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`)
 }
 
 test(`fail on non-compatible ${WANTED_LOCKFILE} when frozen lockfile installation is used`, async () => {
@@ -112,10 +112,10 @@ test(`fail on non-compatible ${WANTED_LOCKFILE} when frozen lockfile installatio
   }
 
   prepareEmpty()
-  await fs.writeFile(WANTED_LOCKFILE, '')
+  fs.writeFileSync(WANTED_LOCKFILE, '')
 
   try {
-    await addDependenciesToPackage({}, ['is-negative'], await testDefaults({ frozenLockfile: true }))
+    await addDependenciesToPackage({}, ['is-negative'], testDefaults({ frozenLockfile: true }))
     throw new Error('should have failed')
   } catch (err: any) { // eslint-disable-line
     if (err.message === 'should have failed') throw err
@@ -125,7 +125,7 @@ test(`fail on non-compatible ${WANTED_LOCKFILE} when frozen lockfile installatio
 
 test(`don't fail on non-compatible ${WANTED_LOCKFILE} when forced`, async () => {
   prepareEmpty()
-  await fs.writeFile(WANTED_LOCKFILE, '')
+  fs.writeFileSync(WANTED_LOCKFILE, '')
 
-  await addDependenciesToPackage({}, ['is-negative'], await testDefaults({ force: true }))
+  await addDependenciesToPackage({}, ['is-negative'], testDefaults({ force: true }))
 })

@@ -8,11 +8,11 @@ const f = fixtures(__dirname)
 test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0'], testDefaults({ fastUnpack: false }))
 
-  await project.isExecutable('@pnpm.e2e/pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin')
+  project.isExecutable('@pnpm.e2e/pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin')
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(
     lockfile.packages['/@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0'].bundledDependencies
   ).toStrictEqual(
@@ -29,9 +29,9 @@ test('local tarball with bundledDependencies', async () => {
   const project = prepareEmpty()
 
   f.copy('pkg-with-bundled-dependencies/pkg-with-bundled-dependencies-1.0.0.tgz', 'pkg.tgz')
-  await addDependenciesToPackage({}, ['file:pkg.tgz'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['file:pkg.tgz'], testDefaults({ fastUnpack: false }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(
     lockfile.packages['file:pkg.tgz'].bundledDependencies
   ).toStrictEqual(
@@ -46,9 +46,9 @@ test('local tarball with bundledDependencies true', async () => {
   const project = prepareEmpty()
 
   f.copy('pkg-with-bundle-dependencies-true/pkg-with-bundle-dependencies-true-1.0.0.tgz', 'pkg.tgz')
-  await addDependenciesToPackage({}, ['file:pkg.tgz'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['file:pkg.tgz'], testDefaults({ fastUnpack: false }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(
     lockfile.packages['file:pkg.tgz'].bundledDependencies
   ).toStrictEqual(
@@ -62,11 +62,11 @@ test('local tarball with bundledDependencies true', async () => {
 test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0'], testDefaults({ fastUnpack: false }))
 
-  await project.isExecutable('@pnpm.e2e/pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin')
+  project.isExecutable('@pnpm.e2e/pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin')
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(
     lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0'].bundledDependencies
   ).toStrictEqual(
@@ -80,9 +80,9 @@ test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async () => {
 test('installing a package with bundleDependencies set to false (pkg-with-bundle-dependencies-false)', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundle-dependencies-false'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundle-dependencies-false'], testDefaults({ fastUnpack: false }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(
     typeof lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies-false@1.0.0'].bundledDependencies
   ).toEqual('undefined')
@@ -91,9 +91,9 @@ test('installing a package with bundleDependencies set to false (pkg-with-bundle
 test('installing a package with bundleDependencies set to true (pkg-with-bundle-dependencies-true)', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundle-dependencies-true@1.0.0'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundle-dependencies-true@1.0.0'], testDefaults({ fastUnpack: false }))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(
     lockfile.packages['/@pnpm.e2e/hello-world-js-bin@1.0.0']

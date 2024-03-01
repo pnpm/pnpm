@@ -14,6 +14,7 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 | 'nodeLinker'
 | 'overrides'
 | 'packageExtensions'
+| 'ignoredOptionalDependencies'
 | 'preferWorkspacePackages'
 | 'saveWorkspaceProtocol'
 | 'storeController'
@@ -30,7 +31,6 @@ export async function getPeerDependencyIssues (
   const lockfileDir = opts.lockfileDir ?? process.cwd()
   const ctx = await getContext({
     force: false,
-    forceSharedLockfile: false,
     extraBinPaths: [],
     lockfileDir,
     nodeLinker: opts.nodeLinker ?? 'isolated',
@@ -69,6 +69,7 @@ export async function getPeerDependencyIssues (
           overrides: opts.overrides,
           packageExtensions: opts.packageExtensions,
           readPackageHook: opts.hooks?.readPackage,
+          ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
         }),
       },
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),

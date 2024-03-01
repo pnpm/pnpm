@@ -1,13 +1,16 @@
-lockfileVersion: '6.0'
+lockfileVersion: '7.0'
 
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  expire-fs:
-    specifier: 2.2.3
-    version: 2.2.3
+importers:
+
+  .:
+    dependencies:
+      expire-fs:
+        specifier: 2.2.3
+        version: 2.2.3
 
 packages:
 

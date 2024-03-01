@@ -5,7 +5,7 @@ import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import { testDefaults } from '../utils'
 
@@ -18,7 +18,7 @@ test('patch package', async () => {
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -33,7 +33,7 @@ test('patch package', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   const patchFileHash = 'jnbpamcxayl5i4ehrkoext3any'
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
       path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
@@ -43,7 +43,7 @@ test('patch package', async () => {
   expect(lockfile.packages[`/is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
   const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812c5d8da8a735e94c2a1ccb77b4583808ee8405313951e7146ac83ede3671dc292-index.json')
-  const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
   const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey]['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
@@ -53,7 +53,7 @@ test('patch package', async () => {
   expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
 
   // The same with frozen lockfile
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -65,7 +65,7 @@ test('patch package', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -85,7 +85,7 @@ test('patch package', async () => {
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -105,7 +105,7 @@ test('patch package reports warning if not all patches are applied and allowNonA
     'is-positive@1.0.0': patchPath,
     'is-negative@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -134,7 +134,7 @@ test('patch package throws an exception if not all patches are applied', async (
     'is-positive@1.0.0': patchPath,
     'is-negative@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -157,7 +157,7 @@ test('the patched package is updated if the patch is modified', async () => {
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -184,7 +184,7 @@ test('patch package when scripts are ignored', async () => {
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     ignoreScripts: true,
     sideEffectsCacheRead: true,
@@ -200,7 +200,7 @@ test('patch package when scripts are ignored', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   const patchFileHash = 'jnbpamcxayl5i4ehrkoext3any'
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
       path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
@@ -210,7 +210,7 @@ test('patch package when scripts are ignored', async () => {
   expect(lockfile.packages[`/is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
   const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812c5d8da8a735e94c2a1ccb77b4583808ee8405313951e7146ac83ede3671dc292-index.json')
-  const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
   const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey]['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
@@ -220,7 +220,7 @@ test('patch package when scripts are ignored', async () => {
   expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
 
   // The same with frozen lockfile
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -232,7 +232,7 @@ test('patch package when scripts are ignored', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -252,7 +252,7 @@ test('patch package when scripts are ignored', async () => {
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     fastUnpack: false,
     ignoreScripts: true,
     sideEffectsCacheRead: true,
@@ -271,7 +271,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -287,7 +287,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   const patchFileHash = 'jnbpamcxayl5i4ehrkoext3any'
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
       path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
@@ -297,7 +297,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   expect(lockfile.packages[`/is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
   const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812c5d8da8a735e94c2a1ccb77b4583808ee8405313951e7146ac83ede3671dc292-index.json')
-  const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
   const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey]['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
@@ -307,7 +307,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
 
   // The same with frozen lockfile
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -319,7 +319,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
   // The same with frozen lockfile and hoisted node_modules
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await install({
     dependencies: {
       'is-positive': '1.0.0',
@@ -339,7 +339,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -358,7 +358,7 @@ test('patch package when the patched package has no dependencies and appears mul
   const patchedDependencies = {
     'is-positive@1.0.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -376,7 +376,7 @@ test('patch package when the patched package has no dependencies and appears mul
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
     '/is-not-positive@1.0.0',
     '/is-positive@1.0.0(patch_hash=jnbpamcxayl5i4ehrkoext3any)',
@@ -390,7 +390,7 @@ test('patch package should fail when the patch could not be applied', async () =
   const patchedDependencies = {
     'is-positive@3.1.0': patchPath,
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,

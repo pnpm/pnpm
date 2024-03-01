@@ -1,12 +1,10 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { filesIncludeInstallScripts } from '@pnpm/exec.files-include-install-scripts'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import {
-  type Lockfile,
   type ProjectSnapshot,
 } from '@pnpm/lockfile-types'
 import {
@@ -21,7 +19,6 @@ import {
   type DependencyManifest,
   type ProjectManifest,
 } from '@pnpm/types'
-import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
 import isSubdir from 'is-subdir'
@@ -270,7 +267,7 @@ export async function resolveDependencies (
     }
   }
 
-  const { newLockfile, pendingRequiresBuilds } = updateLockfile({
+  const { newLockfile } = updateLockfile({
     dependenciesGraph,
     lockfile: opts.wantedLockfile,
     prefix: opts.virtualStoreDir,
@@ -284,17 +281,6 @@ export async function resolveDependencies (
     }
   }
 
-  if (opts.forceFullResolution && opts.wantedLockfile != null) {
-    for (const [depPath, pkg] of Object.entries(dependenciesGraph)) {
-      if (
-        (opts.allowBuild != null && !opts.allowBuild(pkg.name)) ||
-        (opts.wantedLockfile.packages?.[depPath] == null) ||
-        pkg.requiresBuild === true
-      ) continue
-      pendingRequiresBuilds.push(depPath)
-    }
-  }
-
   // waiting till package requests are finished
   const waitTillAllFetchingsFinish = async () => Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ fetching }) => {
     try {
@@ -305,7 +291,6 @@ export async function resolveDependencies (
   return {
     dependenciesByProjectId,
     dependenciesGraph,
-    finishLockfileUpdates: promiseShare(finishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, newLockfile)),
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newLockfile,
@@ -336,49 +321,6 @@ function verifyPatches (
   throw new PnpmError('PATCH_NOT_APPLIED', message, {
     hint: 'Either remove them from "patchedDependencies" or update them to match packages in your dependencies.',
   })
-}
-
-async function finishLockfileUpdates (
-  dependenciesGraph: DependenciesGraph,
-  pendingRequiresBuilds: string[],
-  newLockfile: Lockfile
-) {
-  return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
-    const depNode = dependenciesGraph[depPath]
-    if (!depNode) return
-    try {
-      let requiresBuild!: boolean
-      if (depNode.optional) {
-        // We assume that all optional dependencies have to be built.
-        // Optional dependencies are not always downloaded, so there is no way to know whether they need to be built or not.
-        requiresBuild = true
-      } else {
-        // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-        const { files, bundledManifest: pkgJson } = await depNode.fetching()
-        requiresBuild = Boolean(
-          pkgJson?.scripts != null && (
-            Boolean(pkgJson.scripts.preinstall) ||
-            Boolean(pkgJson.scripts.install) ||
-            Boolean(pkgJson.scripts.postinstall)
-          ) ||
-          filesIncludeInstallScripts(files.filesIndex)
-        )
-      }
-      if (typeof depNode.requiresBuild === 'function') {
-        depNode.requiresBuild['resolve'](requiresBuild)
-      }
-
-      // TODO: try to cover with unit test the case when entry is no longer available in lockfile
-      // It is an edge that probably happens if the entry is removed during lockfile prune
-      if (requiresBuild && newLockfile.packages?.[depPath]) {
-        newLockfile.packages[depPath].requiresBuild = true
-      }
-    } catch (err: any) { // eslint-disable-line
-      if (typeof depNode.requiresBuild === 'function') {
-        depNode.requiresBuild['reject'](err)
-      }
-    }
-  }))
 }
 
 function addDirectDependenciesToLockfile (

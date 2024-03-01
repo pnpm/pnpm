@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
@@ -10,7 +11,6 @@ import {
 import { fixtures } from '@pnpm/test-fixtures'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
-import exists from 'path-exists'
 import omit from 'ramda/src/omit'
 import tempy from 'tempy'
 
@@ -155,7 +155,7 @@ test('dry run', async () => {
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
   await delay(500)
-  expect(await exists(path.join(cacheDir, resolveResult!.id, '..', 'index.json'))).toBeFalsy()
+  expect(fs.existsSync(path.join(cacheDir, resolveResult!.id, '..', 'index.json'))).toBeFalsy()
 })
 
 test('resolve to latest when no pref specified', async () => {

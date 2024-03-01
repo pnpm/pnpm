@@ -1,13 +1,16 @@
-lockfileVersion: '6.0'
+lockfileVersion: '7.0'
 
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  tar-pkg:
-    specifier: file:../tar-pkg-1.0.0.tgz
-    version: file:../tar-pkg-1.0.0.tgz
+importers:
+
+  .:
+    dependencies:
+      tar-pkg:
+        specifier: file:../tar-pkg-1.0.0.tgz
+        version: file:../tar-pkg-1.0.0.tgz
 
 packages:
 

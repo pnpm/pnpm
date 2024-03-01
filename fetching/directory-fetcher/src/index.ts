@@ -1,5 +1,6 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
+import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import { logger } from '@pnpm/logger'
 import { packlist } from '@pnpm/fs.packlist'
@@ -21,7 +22,7 @@ export function createDirectoryFetcher (
 
   const directoryFetcher: DirectoryFetcher = (cafs, resolution, opts) => {
     const dir = path.join(opts.lockfileDir, resolution.directory)
-    return fetchFromDir(dir, opts)
+    return fetchFromDir(dir)
   }
 
   return {
@@ -36,30 +37,28 @@ export async function fetchFromDir (
   opts: FetchFromDirOpts & CreateDirectoryFetcherOptions
 ) {
   if (opts.includeOnlyPackageFiles) {
-    return fetchPackageFilesFromDir(dir, opts)
+    return fetchPackageFilesFromDir(dir)
   }
   const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
-  return fetchAllFilesFromDir(readFileStat, dir, opts)
+  return fetchAllFilesFromDir(readFileStat, dir)
 }
 
 async function fetchAllFilesFromDir (
   readFileStat: ReadFileStat,
-  dir: string,
-  opts: FetchFromDirOpts
+  dir: string
 ) {
   const filesIndex = await _fetchAllFilesFromDir(readFileStat, dir)
-  let manifest: DependencyManifest | undefined
-  if (opts.readManifest) {
-    // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
-    // Safe read was added to support the Bit workspace in which the components have no package.json files.
-    // Related PR in Bit: https://github.com/teambit/bit/pull/5251
-    manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
-  }
+  // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
+  // Safe read was added to support the Bit workspace in which the components have no package.json files.
+  // Related PR in Bit: https://github.com/teambit/bit/pull/5251
+  const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
+  const requiresBuild = pkgRequiresBuild(manifest, filesIndex)
   return {
     local: true as const,
     filesIndex,
     packageImportMethod: 'hardlink' as const,
     manifest,
+    requiresBuild,
   }
 }
 
@@ -124,23 +123,19 @@ async function fileStat (filePath: string): Promise<{ filePath: string, stat: St
   }
 }
 
-async function fetchPackageFilesFromDir (
-  dir: string,
-  opts: FetchFromDirOpts
-) {
+async function fetchPackageFilesFromDir (dir: string) {
   const files = await packlist(dir)
   const filesIndex: Record<string, string> = Object.fromEntries(files.map((file) => [file, path.join(dir, file)]))
-  let manifest: DependencyManifest | undefined
-  if (opts.readManifest) {
-    // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
-    // Safe read was added to support the Bit workspace in which the components have no package.json files.
-    // Related PR in Bit: https://github.com/teambit/bit/pull/5251
-    manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
-  }
+  // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
+  // Safe read was added to support the Bit workspace in which the components have no package.json files.
+  // Related PR in Bit: https://github.com/teambit/bit/pull/5251
+  const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
+  const requiresBuild = pkgRequiresBuild(manifest, filesIndex)
   return {
     local: true as const,
     filesIndex,
     packageImportMethod: 'hardlink' as const,
     manifest,
+    requiresBuild,
   }
 }

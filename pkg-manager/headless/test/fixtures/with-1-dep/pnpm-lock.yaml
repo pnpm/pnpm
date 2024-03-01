@@ -1,13 +1,16 @@
-lockfileVersion: '6.0'
+lockfileVersion: '7.0'
 
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  rimraf:
-    specifier: 2.5.1
-    version: 2.5.1
+importers:
+
+  .:
+    dependencies:
+      rimraf:
+        specifier: 2.5.1
+        version: 2.5.1
 
 packages:
 

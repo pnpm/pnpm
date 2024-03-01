@@ -5,6 +5,7 @@ import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
+  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -320,6 +321,7 @@ export async function mutateModules (
       )
     }
     const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
+    const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
       : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies, opts.lockfileDir) : {})
@@ -337,10 +339,10 @@ export async function mutateModules (
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         overrides: opts.overrides,
-        neverBuiltDependencies: opts.neverBuiltDependencies,
-        onlyBuiltDependencies: opts.onlyBuiltDependencies,
+        ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
         packageExtensionsChecksum,
         patchedDependencies,
+        pnpmfileChecksum,
       })
       outdatedLockfileSettings = outdatedLockfileSettingName != null
       if (frozenLockfile && outdatedLockfileSettings) {
@@ -349,7 +351,7 @@ export async function mutateModules (
     }
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
-      !ctx.wantedLockfile.lockfileVersion.toString().startsWith('6.') ||
+      !ctx.wantedLockfile.lockfileVersion.toString().startsWith('7.') ||
       opts.forceFullResolution
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
@@ -357,9 +359,9 @@ export async function mutateModules (
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       }
       ctx.wantedLockfile.overrides = opts.overrides
-      ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
-      ctx.wantedLockfile.onlyBuiltDependencies = opts.onlyBuiltDependencies
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
+      ctx.wantedLockfile.ignoredOptionalDependencies = opts.ignoredOptionalDependencies
+      ctx.wantedLockfile.pnpmfileChecksum = pnpmfileChecksum
       ctx.wantedLockfile.patchedDependencies = patchedDependencies
     } else if (!frozenLockfile) {
       ctx.wantedLockfile.settings = {
@@ -381,6 +383,7 @@ export async function mutateModules (
         ctx.existsNonEmptyWantedLockfile &&
         (
           ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION ||
+          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6 ||
           ctx.wantedLockfile.lockfileVersion === '6.1'
         ) &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
@@ -471,7 +474,6 @@ Note that in CI environments, this setting is enabled by default.`,
               currentLockfileDir: ctx.virtualStoreDir,
               wantedLockfile: ctx.wantedLockfile,
               wantedLockfileDir: ctx.lockfileDir,
-              forceSharedFormat: opts.forceSharedLockfile,
               useGitBranchLockfile: opts.useGitBranchLockfile,
               mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
             })
@@ -706,34 +708,33 @@ async function calcPatchHashes (patches: Record<string, string>, lockfileDir: st
 function getOutdatedLockfileSetting (
   lockfile: Lockfile,
   {
-    neverBuiltDependencies,
     onlyBuiltDependencies,
     overrides,
     packageExtensionsChecksum,
+    ignoredOptionalDependencies,
     patchedDependencies,
     autoInstallPeers,
     excludeLinksFromLockfile,
+    pnpmfileChecksum,
   }: {
-    neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
     patchedDependencies?: Record<string, PatchFile>
+    ignoredOptionalDependencies?: string[]
     autoInstallPeers?: boolean
     excludeLinksFromLockfile?: boolean
+    pnpmfileChecksum?: string
   }
 ) {
   if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
     return 'overrides'
   }
-  if (!equals((lockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort())) {
-    return 'neverBuiltDependencies'
-  }
-  if (!equals(onlyBuiltDependencies?.sort(), lockfile.onlyBuiltDependencies)) {
-    return 'onlyBuiltDependencies'
-  }
   if (lockfile.packageExtensionsChecksum !== packageExtensionsChecksum) {
     return 'packageExtensionsChecksum'
+  }
+  if (!equals(lockfile.ignoredOptionalDependencies?.sort() ?? [], ignoredOptionalDependencies?.sort() ?? [])) {
+    return 'ignoredOptionalDependencies'
   }
   if (!equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})) {
     return 'patchedDependencies'
@@ -743,6 +744,9 @@ function getOutdatedLockfileSetting (
   }
   if (lockfile.settings?.excludeLinksFromLockfile != null && lockfile.settings.excludeLinksFromLockfile !== excludeLinksFromLockfile) {
     return 'settings.excludeLinksFromLockfile'
+  }
+  if (lockfile.pnpmfileChecksum !== pnpmfileChecksum) {
+    return 'pnpmfileChecksum'
   }
   return null
 }
@@ -984,7 +988,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   let {
     dependenciesGraph,
     dependenciesByProjectId,
-    finishLockfileUpdates,
     linkedDependenciesByProjectId,
     newLockfile,
     outdatedDependencies,
@@ -1076,8 +1079,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   const depsStateCache: DepsStateCache = {}
   const lockfileOpts = {
-    forceSharedFormat: opts.forceSharedLockfile,
-    useInlineSpecifiersFormat: true,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
@@ -1119,7 +1120,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     )
     stats = result.stats
-    await finishLockfileUpdates()
     if (opts.enablePnp) {
       const importerNames = Object.fromEntries(
         projects.map(({ manifest, id }) => [id, manifest.name ?? id])
@@ -1140,13 +1140,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
         ctx.pendingBuilds = ctx.pendingBuilds
           .concat(
-            await pFilter(result.newDepPaths,
-              (depPath) => {
-                const requiresBuild = dependenciesGraph[depPath].requiresBuild
-                if (typeof requiresBuild === 'function') return requiresBuild()
-                return requiresBuild
-              }
-            )
+            result.newDepPaths.filter((depPath) => dependenciesGraph[depPath].requiresBuild)
           )
       }
       if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
@@ -1272,7 +1266,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           wantedLockfileDir: ctx.lockfileDir,
           ...lockfileOpts,
         })
-        : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile, lockfileOpts),
+        : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile),
       (async () => {
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
@@ -1321,7 +1315,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       )
     }
   } else {
-    await finishLockfileUpdates()
     if (opts.useLockfile && !isInstallationOnlyForLockfileCheck) {
       await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
     }

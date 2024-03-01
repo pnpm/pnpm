@@ -19,21 +19,32 @@ export function addFilesFromDir (
 ): AddToStoreResult {
   const filesIndex: FilesIndex = {}
   let manifest: DependencyManifest | undefined
-  const files = opts.files ?? findFilesInDir(dirname)
-  for (const file of files) {
-    const fullPath = path.join(dirname, file)
-    const relativePath = path.relative(dirname, fullPath)
-    let stat: Stats
-    try {
-      stat = fs.statSync(fullPath)
-    } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'ENOENT') {
-        throw err
+  let files: File[]
+  if (opts.files) {
+    files = []
+    for (const file of opts.files) {
+      const absolutePath = path.join(dirname, file)
+      let stat: Stats
+      try {
+        stat = fs.statSync(absolutePath)
+      } catch (err: any) { // eslint-disable-line
+        if (err.code !== 'ENOENT') {
+          throw err
+        }
+        continue
       }
-      continue
+      files.push({
+        absolutePath,
+        relativePath: file,
+        stat,
+      })
     }
-    const buffer = gfs.readFileSync(fullPath)
-    if (opts.readManifest && file === 'package.json') {
+  } else {
+    files = findFilesInDir(dirname)
+  }
+  for (const { absolutePath, relativePath, stat } of files) {
+    const buffer = gfs.readFileSync(absolutePath)
+    if (opts.readManifest && relativePath === 'package.json') {
       manifest = parseJsonBufferSync(buffer)
     }
     filesIndex[relativePath] = {
@@ -45,14 +56,20 @@ export function addFilesFromDir (
   return { manifest, filesIndex }
 }
 
-function findFilesInDir (dir: string): string[] {
-  const files: string[] = []
+interface File {
+  relativePath: string
+  absolutePath: string
+  stat: Stats
+}
+
+function findFilesInDir (dir: string): File[] {
+  const files: File[] = []
   findFiles(files, dir)
   return files
 }
 
 function findFiles (
-  filesList: string[],
+  filesList: File[],
   dir: string,
   relativeDir = ''
 ) {
@@ -61,8 +78,26 @@ function findFiles (
     const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file.name}`
     if (file.isDirectory()) {
       findFiles(filesList, path.join(dir, file.name), relativeSubdir)
-    } else {
-      filesList.push(relativeSubdir)
+      continue
     }
+    const absolutePath = path.join(dir, file.name)
+    let stat: Stats
+    try {
+      stat = fs.statSync(absolutePath)
+    } catch (err: any) { // eslint-disable-line
+      if (err.code !== 'ENOENT') {
+        throw err
+      }
+      continue
+    }
+    if (stat.isDirectory()) {
+      findFiles(filesList, path.join(dir, file.name), relativeSubdir)
+      continue
+    }
+    filesList.push({
+      relativePath: relativeSubdir,
+      absolutePath,
+      stat,
+    })
   }
 }

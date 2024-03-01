@@ -1,15 +1,18 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`writeLockfiles() 1`] = `
-"lockfileVersion: '6.1'
+"lockfileVersion: '7.0'
 
-dependencies:
-  is-negative:
-    specifier: ^1.0.0
-    version: 1.0.0
-  is-positive:
-    specifier: ^1.0.0
-    version: 1.0.0
+importers:
+
+  .:
+    dependencies:
+      is-negative:
+        specifier: ^1.0.0
+        version: 1.0.0
+      is-positive:
+        specifier: ^1.0.0
+        version: 1.0.0
 
 packages:
 

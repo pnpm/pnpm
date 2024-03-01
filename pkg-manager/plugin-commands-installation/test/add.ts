@@ -63,7 +63,7 @@ test('installing with "workspace:" should work even if link-workspace-packages i
 
   expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
 
-  await projects['project-1'].has('project-2')
+  projects['project-1'].has('project-2')
 })
 
 test('installing with "workspace:" should work even if link-workspace-packages is off and save-workspace-protocol is "rolling"', async () => {
@@ -90,7 +90,7 @@ test('installing with "workspace:" should work even if link-workspace-packages i
 
   expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' })
 
-  await projects['project-1'].has('project-2')
+  projects['project-1'].has('project-2')
 })
 
 test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is false', async () => {
@@ -118,7 +118,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 
   expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
 
-  await projects['project-1'].has('project-2')
+  projects['project-1'].has('project-2')
 })
 
 test('add: fail when "workspace" option is true but the command runs not in a workspace', async () => {
@@ -207,7 +207,7 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
 
   expect(pkg?.dependencies).toStrictEqual({ 'project-2': '^2.0.0' })
 
-  await projects['project-1'].has('project-2')
+  projects['project-1'].has('project-2')
 })
 
 test('add: fail when --no-save option is used', async () => {
@@ -254,7 +254,7 @@ test('pnpm add --save-peer', async () => {
     )
   }
 
-  await project.has('is-positive')
+  project.has('is-positive')
 
   await remove.handler({
     ...DEFAULT_OPTIONS,
@@ -262,7 +262,7 @@ test('pnpm add --save-peer', async () => {
     linkWorkspacePackages: false,
   }, ['is-positive'])
 
-  await project.hasNot('is-positive')
+  project.hasNot('is-positive')
 
   {
     const manifest = await loadJsonFile(path.resolve('package.json'))
@@ -329,7 +329,7 @@ test('pnpm add automatically installs missing peer dependencies', async () => {
     linkWorkspacePackages: false,
   }, ['@pnpm.e2e/abc@1.0.0'])
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.packages).length).toBe(5)
 })
 

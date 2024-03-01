@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../exec/pkg-requires-build"
+    },
+    {
       "path": "../fs/graceful-fs"
     },
     {

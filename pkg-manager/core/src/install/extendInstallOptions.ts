@@ -23,7 +23,6 @@ import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
-  forceSharedLockfile: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enablePnp: boolean
@@ -70,6 +69,9 @@ export interface StrictInstallOptions {
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion: string
   packageExtensions: Record<string, PackageExtension>
+  ignoredOptionalDependencies: string[]
+  pnpmfile: string
+  ignorePnpmfile: boolean
   packageManager: {
     name: string
     version: string
@@ -79,6 +81,7 @@ export interface StrictInstallOptions {
     readPackage?: ReadPackageHook[]
     preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
     afterAllResolved?: Array<(lockfile: Lockfile) => Lockfile | Promise<Lockfile>>
+    calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
@@ -167,7 +170,6 @@ const defaults = (opts: InstallOptions) => {
     engineStrict: false,
     force: false,
     forceFullResolution: false,
-    forceSharedLockfile: false,
     frozenLockfile: false,
     hoistPattern: undefined,
     publicHoistPattern: undefined,
@@ -194,6 +196,7 @@ const defaults = (opts: InstallOptions) => {
     ignoreCompatibilityDb: false,
     ignorePackageManifest: false,
     packageExtensions: {},
+    ignoredOptionalDependencies: [] as string[],
     packageManager,
     preferFrozenLockfile: true,
     preferWorkspacePackages: false,
@@ -269,6 +272,7 @@ export function extendOptions (
     lockfileDir: extendedOpts.lockfileDir,
     packageExtensions: extendedOpts.packageExtensions,
     peerDependencyRules: extendedOpts.peerDependencyRules,
+    ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,
   })
   if (extendedOpts.lockfileOnly) {
     extendedOpts.ignoreScripts = true

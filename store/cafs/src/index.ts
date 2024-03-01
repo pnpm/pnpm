@@ -5,6 +5,7 @@ import { addFilesFromTarball } from './addFilesFromTarball'
 import {
   checkPkgFilesIntegrity,
   type PackageFilesIndex,
+  type SideEffects,
   type VerifyResult,
 } from './checkPkgFilesIntegrity'
 import { readManifestFromStore } from './readManifestFromStore'
@@ -27,6 +28,7 @@ export {
   getFilePathInCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
+  type SideEffects,
   optimisticRenameOverwrite,
   type FilesIndex,
   type VerifyResult,

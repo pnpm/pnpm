@@ -1,10 +1,10 @@
+import fs from 'fs'
 import path from 'path'
 import { getFilePathInCafs } from '@pnpm/store.cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import exists from 'path-exists'
 
 export function assertStore (
-  storePath: string | Promise<string>,
+  storePath: string,
   encodedRegistryName?: string
 ) {
   // eslint-disable-next-line
@@ -13,33 +13,33 @@ export function assertStore (
   const notOk = (value: any) => expect(value).toBeFalsy()
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const store = {
-    async getPkgIndexFilePath (pkgName: string, version?: string): Promise<string> {
-      const cafsDir = path.join(await storePath, 'files')
+    getPkgIndexFilePath (pkgName: string, version?: string): string {
+      const cafsDir = path.join(storePath, 'files')
       const integrity = version ? getIntegrity(pkgName, version) : pkgName
       return getFilePathInCafs(cafsDir, integrity, 'index')
     },
-    async cafsHas (pkgName: string, version?: string): Promise<void> {
-      const pathToCheck = await store.getPkgIndexFilePath(pkgName, version)
-      ok(await exists(pathToCheck))
+    cafsHas (pkgName: string, version?: string): void {
+      const pathToCheck = store.getPkgIndexFilePath(pkgName, version)
+      ok(fs.existsSync(pathToCheck))
     },
-    async cafsHasNot (pkgName: string, version?: string): Promise<void> {
-      const pathToCheck = await store.getPkgIndexFilePath(pkgName, version)
-      notOk(await exists(pathToCheck))
+    cafsHasNot (pkgName: string, version?: string): void {
+      const pathToCheck = store.getPkgIndexFilePath(pkgName, version)
+      notOk(fs.existsSync(pathToCheck))
     },
-    async storeHas (pkgName: string, version?: string): Promise<void> {
-      const pathToCheck = await store.resolve(pkgName, version)
-      ok(await exists(pathToCheck))
+    storeHas (pkgName: string, version?: string): void {
+      const pathToCheck = store.resolve(pkgName, version)
+      ok(fs.existsSync(pathToCheck))
     },
-    async storeHasNot (pkgName: string, version?: string): Promise<void> {
-      const pathToCheck = await store.resolve(pkgName, version)
-      notOk(await exists(pathToCheck))
+    storeHasNot (pkgName: string, version?: string): void {
+      const pathToCheck = store.resolve(pkgName, version)
+      notOk(fs.existsSync(pathToCheck))
     },
-    async resolve (pkgName: string, version?: string, relativePath?: string): Promise<string> {
+    resolve (pkgName: string, version?: string, relativePath?: string): string {
       const pkgFolder = version ? path.join(ern, pkgName, version) : pkgName
       if (relativePath) {
-        return path.join(await storePath, pkgFolder, relativePath)
+        return path.join(storePath, pkgFolder, relativePath)
       }
-      return path.join(await storePath, pkgFolder)
+      return path.join(storePath, pkgFolder)
     },
   }
   return store

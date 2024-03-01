@@ -1,21 +1,23 @@
-lockfileVersion: '6.0'
+lockfileVersion: '7.0'
 
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  is-positive:
-    specifier: ^1.0.0
-    version: 1.0.0
-  rimraf:
-    specifier: ^2.6.2
-    version: 2.7.1
+importers:
 
-devDependencies:
-  is-negative:
-    specifier: ^2.1.0
-    version: 2.1.0
+  .:
+    dependencies:
+      is-positive:
+        specifier: ^1.0.0
+        version: 1.0.0
+      rimraf:
+        specifier: ^2.6.2
+        version: 2.7.1
+    devDependencies:
+      is-negative:
+        specifier: ^2.1.0
+        version: 2.1.0
 
 packages:
 

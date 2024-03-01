@@ -1,11 +1,12 @@
-import path from 'path'
 import type { PreResolutionHook, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
 import { hookLogger } from '@pnpm/core-loggers'
+import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
 import type { Log } from '@pnpm/core-loggers'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
+import { getPnpmfilePath } from './getPnpmfilePath'
 import { requirePnpmfile } from './requirePnpmfile'
 
 interface HookContext {
@@ -36,6 +37,7 @@ export interface CookedHooks {
   filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
   importPackage?: ImportIndexedPackageAsync
   fetchers?: CustomFetchers
+  calculatePnpmfileChecksum?: () => Promise<string | undefined>
 }
 
 export function requireHooks (
@@ -48,17 +50,19 @@ export function requireHooks (
   const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
   let globalHooks: Hooks = globalPnpmfile?.hooks
 
-  const pnpmFile = opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix) ||
-    requirePnpmfile(path.join(prefix, '.pnpmfile.cjs'), prefix)
+  const pnpmfilePath = getPnpmfilePath(prefix, opts.pnpmfile)
+  const pnpmFile = requirePnpmfile(pnpmfilePath, prefix)
   let hooks: Hooks = pnpmFile?.hooks
 
   if (!globalHooks && !hooks) return { afterAllResolved: [], filterLog: [], readPackage: [] }
+  const calculatePnpmfileChecksum = hooks ? () => createBase32HashFromFile(pnpmfilePath) : undefined
   globalHooks = globalHooks || {}
   hooks = hooks || {}
   const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'filterLog'>> = {
     afterAllResolved: [],
     filterLog: [],
     readPackage: [],
+    calculatePnpmfileChecksum,
   }
   for (const hookName of ['readPackage', 'afterAllResolved'] as const) {
     if (globalHooks[hookName]) {

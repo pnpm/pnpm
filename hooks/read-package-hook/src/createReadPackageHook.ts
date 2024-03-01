@@ -8,6 +8,7 @@ import {
 } from '@pnpm/types'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
+import { createOptionalDependenciesRemover } from './createOptionalDependenciesRemover'
 import { createPackageExtender } from './createPackageExtender'
 import { createVersionsOverrider } from './createVersionsOverrider'
 import { createPeerDependencyPatcher } from './createPeerDependencyPatcher'
@@ -17,6 +18,7 @@ export function createReadPackageHook (
     ignoreCompatibilityDb,
     lockfileDir,
     overrides,
+    ignoredOptionalDependencies,
     packageExtensions,
     peerDependencyRules,
     readPackageHook,
@@ -24,6 +26,7 @@ export function createReadPackageHook (
     ignoreCompatibilityDb?: boolean
     lockfileDir: string
     overrides?: Record<string, string>
+    ignoredOptionalDependencies?: string[]
     packageExtensions?: Record<string, PackageExtension>
     peerDependencyRules?: PeerDependencyRules
     readPackageHook?: ReadPackageHook[] | ReadPackageHook
@@ -43,6 +46,9 @@ export function createReadPackageHook (
   }
   if (!isEmpty(overrides ?? {})) {
     hooks.push(createVersionsOverrider(overrides!, lockfileDir))
+  }
+  if (ignoredOptionalDependencies && !isEmpty(ignoredOptionalDependencies)) {
+    hooks.push(createOptionalDependenciesRemover(ignoredOptionalDependencies))
   }
   if (
     peerDependencyRules != null &&

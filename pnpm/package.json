@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "9.0.0-alpha.4",
+  "version": "9.0.0-alpha.5",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -32,6 +32,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/default-reporter": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",

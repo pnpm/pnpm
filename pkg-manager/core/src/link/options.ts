@@ -13,7 +13,6 @@ interface StrictLinkOptions {
   binsDir: string
   excludeLinksFromLockfile: boolean
   force: boolean
-  forceSharedLockfile: boolean
   useLockfile: boolean
   lockfileDir: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
@@ -61,7 +60,6 @@ async function defaults (opts: LinkOptions) {
     binsDir: path.join(dir, 'node_modules', '.bin'),
     dir,
     force: false,
-    forceSharedLockfile: false,
     hoistPattern: undefined,
     lockfileDir: opts.lockfileDir ?? dir,
     nodeLinker: 'isolated',

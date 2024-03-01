@@ -20,7 +20,7 @@ exports[`makeVirtualNodeModules 1`] = `
                 },
                 "ini": {
                   "entryType": "symlink",
-                  "target": "../../ini@1.3.8/node_modules/ini",
+                  "target": "../../ini@1.3.4/node_modules/ini",
                 },
               },
               "entryType": "directory",
@@ -28,12 +28,12 @@ exports[`makeVirtualNodeModules 1`] = `
           },
           "entryType": "directory",
         },
-        "ini@1.3.8": {
+        "ini@1.3.4": {
           "entries": {
             "node_modules": {
               "entries": {
                 "ini": {
-                  "depPath": "/ini@1.3.8",
+                  "depPath": "/ini@1.3.4",
                   "entryType": "index",
                 },
               },

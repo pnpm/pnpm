@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
@@ -183,7 +183,7 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
     selectedProjectsGraph,
   }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pkgname\', process.env.PNPM_PACKAGE_NAME, \'utf8\')'])
 
-  expect(await fs.readFile('foo/pkgname', 'utf8')).toBe('foo')
+  expect(fs.readFileSync('foo/pkgname', 'utf8')).toBe('foo')
 })
 
 test('testing the bail config with "pnpm recursive exec"', async () => {
@@ -455,7 +455,7 @@ test('pnpm exec shell mode', async () => {
     shellMode: true,
   }, ['echo', echoArgs])
 
-  const result = (await fs.readFile(path.resolve('name.txt'), 'utf8')).trim()
+  const result = (fs.readFileSync(path.resolve('name.txt'), 'utf8')).trim()
 
   expect(result).toBe('test_shell_mode')
 })

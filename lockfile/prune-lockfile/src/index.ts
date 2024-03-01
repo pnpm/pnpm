@@ -46,7 +46,6 @@ export function pruneLockfile (
     warn?: (msg: string) => void
   }
 ): Lockfile {
-  const packages: PackageSnapshots = {}
   const importer = lockfile.importers[importerId]
   const lockfileSpecs: ResolvedDependencies = importer.specifiers ?? {}
   const optionalDependencies = Object.keys(pkg.optionalDependencies ?? {})
@@ -97,9 +96,6 @@ export function pruneLockfile (
     lockfileVersion: lockfile.lockfileVersion || LOCKFILE_VERSION,
     packages: lockfile.packages,
   }
-  if (!isEmpty(packages)) {
-    prunedLockfile.packages = packages
-  }
   if (!isEmpty(lockfileDependencies)) {
     updatedImporter.dependencies = lockfileDependencies
   }
@@ -108,6 +104,12 @@ export function pruneLockfile (
   }
   if (!isEmpty(lockfileDevDependencies)) {
     updatedImporter.devDependencies = lockfileDevDependencies
+  }
+  if (lockfile.pnpmfileChecksum) {
+    prunedLockfile.pnpmfileChecksum = lockfile.pnpmfileChecksum
+  }
+  if (lockfile.ignoredOptionalDependencies && !isEmpty(lockfile.ignoredOptionalDependencies)) {
+    prunedLockfile.ignoredOptionalDependencies = lockfile.ignoredOptionalDependencies
   }
   return pruneSharedLockfile(prunedLockfile, opts)
 }

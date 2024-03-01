@@ -10,7 +10,7 @@ test('reports warning when installing deprecated packages', async () => {
   const project = prepareEmpty()
   const reporter = jest.fn()
 
-  const manifest = await addDependenciesToPackage({}, ['express@0.14.1'], await testDefaults({ fastUnpack: false, reporter }))
+  const manifest = await addDependenciesToPackage({}, ['express@0.14.1'], testDefaults({ fastUnpack: false, reporter }))
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     deprecated: 'express 0.x series is deprecated',
@@ -19,12 +19,12 @@ test('reports warning when installing deprecated packages', async () => {
     pkgId: '/express@0.14.1',
   } as DeprecationLog))
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
   expect(lockfile.packages['/express@0.14.1'].deprecated).toBe('express 0.x series is deprecated')
 
   reporter.mockReset()
 
-  await addDependenciesToPackage(manifest, ['express@4.16.3'], await testDefaults({ fastUnpack: false, reporter }))
+  await addDependenciesToPackage(manifest, ['express@4.16.3'], testDefaults({ fastUnpack: false, reporter }))
 
   expect(reporter).not.toBeCalledWith(expect.objectContaining({
     level: 'debug',
@@ -36,7 +36,7 @@ test('doesn\'t report a warning when the deprecated package is allowed', async (
   prepareEmpty()
   const reporter = jest.fn()
 
-  await addDependenciesToPackage({}, ['express@0.14.1'], await testDefaults({
+  await addDependenciesToPackage({}, ['express@0.14.1'], testDefaults({
     allowedDeprecatedVersions: {
       express: '0.14.1',
     },

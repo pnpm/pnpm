@@ -4,16 +4,13 @@ import {
   type LockfileResolution,
   type PackageSnapshot,
   pruneSharedLockfile,
-  type ResolvedDependencies,
 } from '@pnpm/prune-lockfile'
 import { type DirectoryResolution, type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { type KeyValuePair } from 'ramda'
-import mergeRight from 'ramda/src/mergeRight'
 import partition from 'ramda/src/partition'
-import { type SafePromiseDefer } from 'safe-promise-defer'
 import { depPathToRef } from './depPathToRef'
 import { type ResolvedPackage } from './resolveDependencies'
 import { type DependenciesGraph } from '.'
@@ -79,12 +76,10 @@ function toLockfileDependency (
     opts.lockfileIncludeTarballUrl
   )
   const newResolvedDeps = updateResolvedDeps(
-    opts.prevSnapshot?.dependencies ?? {},
     opts.updatedDeps,
     opts.depGraph
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
-    opts.prevSnapshot?.optionalDependencies ?? {},
     opts.updatedOptionalDeps,
     opts.depGraph
   )
@@ -170,41 +165,14 @@ function toLockfileDependency (
   if (pkg.patchFile) {
     result['patched'] = true
   }
-  const requiresBuildIsKnown = typeof pkg.requiresBuild === 'boolean'
-  let pending = false
-  if (requiresBuildIsKnown) {
-    if (pkg.requiresBuild) {
-      result['requiresBuild'] = true
-    }
-  } else if (opts.prevSnapshot != null) {
-    if (opts.prevSnapshot.requiresBuild) {
-      result['requiresBuild'] = opts.prevSnapshot.requiresBuild
-    }
-    if (opts.prevSnapshot.prepare) {
-      result['prepare'] = opts.prevSnapshot.prepare
-    }
-  } else if (pkg.prepare) {
-    result['prepare'] = true
-    result['requiresBuild'] = true
-  } else {
-    pendingRequiresBuilds.push(opts.depPath)
-    pending = true
-  }
-  if (!requiresBuildIsKnown && !pending) {
-    (pkg.requiresBuild as SafePromiseDefer<boolean>).resolve(result.requiresBuild ?? false)
-  }
   return result
 }
 
-// previous resolutions should not be removed from lockfile
-// as installation might not reanalyze the whole dependency graph
-// the `depth` property defines how deep should dependencies be checked
 function updateResolvedDeps (
-  prevResolvedDeps: ResolvedDependencies,
   updatedDeps: Array<{ alias: string, depPath: string }>,
   depGraph: DependenciesGraph
 ) {
-  const newResolvedDeps = Object.fromEntries(
+  return Object.fromEntries(
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
@@ -220,10 +188,6 @@ function updateResolvedDeps (
           }),
         ]
       })
-  )
-  return mergeRight(
-    prevResolvedDeps,
-    newResolvedDeps
   )
 }
 

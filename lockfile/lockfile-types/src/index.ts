@@ -14,11 +14,11 @@ export interface Lockfile {
   lockfileVersion: number | string
   time?: Record<string, string>
   packages?: PackageSnapshots
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
+  ignoredOptionalDependencies?: string[]
   patchedDependencies?: Record<string, PatchFile>
+  pnpmfileChecksum?: string
   settings?: LockfileSettings
 }
 
@@ -76,9 +76,7 @@ export interface PackageSnapshot {
   id?: string
   dev?: true | false
   optional?: true
-  requiresBuild?: true
   patched?: true
-  prepare?: true
   hasBin?: true
   // name and version are only needed
   // for packages that are hosted not in the npm registry

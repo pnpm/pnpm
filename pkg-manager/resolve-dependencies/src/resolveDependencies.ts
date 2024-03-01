@@ -56,9 +56,10 @@ import {
   splitNodeId,
 } from './nodeIdUtils'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
-import safePromiseDefer, { type SafePromiseDefer } from 'safe-promise-defer'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
+
+const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'])
 
 export function nodeIdToParents (
   nodeId: string,
@@ -222,7 +223,7 @@ export interface ResolvedPackage {
   patchFile?: PatchFile
   prepare: boolean
   depPath: string
-  requiresBuild: boolean | SafePromiseDefer<boolean>
+  requiresBuild?: boolean
   additionalInfo: {
     deprecated?: string
     bundleDependencies?: string[] | boolean
@@ -1248,11 +1249,10 @@ async function resolveDependency (
     // This can be removed if we implement something like peerDependenciesMeta.transitive: true
     (currentPkg.dependencyLockfile.peerDependencies == null)
   ) {
-    prepare = currentPkg.dependencyLockfile.prepare === true
     hasBin = currentPkg.dependencyLockfile.hasBin === true
     pkg = {
       ...nameVerFromPkgSnapshot(currentPkg.depPath, currentPkg.dependencyLockfile),
-      ...currentPkg.dependencyLockfile,
+      ...omitDepsFields(currentPkg.dependencyLockfile),
       ...pkg,
     }
   } else {
@@ -1446,10 +1446,6 @@ function getResolvedPackage (
 ): ResolvedPackage {
   const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
 
-  const requiresBuild = (options.allowBuild == null || options.allowBuild(options.pkg.name))
-    ? ((options.dependencyLockfile != null) ? Boolean(options.dependencyLockfile.requiresBuild) : safePromiseDefer<boolean>())
-    : false
-
   return {
     additionalInfo: {
       bundledDependencies: options.pkg.bundledDependencies,
@@ -1475,7 +1471,6 @@ function getResolvedPackage (
     peerDependencies,
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
-    requiresBuild,
     resolution: options.pkgResponse.body.resolution,
     version: options.pkg.version,
   }

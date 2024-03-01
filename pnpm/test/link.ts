@@ -27,5 +27,5 @@ console.log("hello world");`, 'utf8')
   const ok = (value: any) => { // eslint-disable-line
     expect(value).toBeTruthy()
   }
-  await isExecutable(ok, path.join(pnpmHome, 'cmd'))
+  isExecutable(ok, path.join(pnpmHome, 'cmd'))
 })

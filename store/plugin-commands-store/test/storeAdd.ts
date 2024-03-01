@@ -26,7 +26,7 @@ test('pnpm store add express@4.16.3', async () => {
   }, ['add', 'express@4.16.3'])
 
   const { cafsHas } = assertStore(path.join(storeDir, STORE_VERSION))
-  await cafsHas('sha512-CDaOBMB9knI6vx9SpIxEMOJ6VBbC2U/tYNILs0qv1YOZc15K9U2EcF06v10F0JX6IYcWnKYZJwIDJspEHLvUaQ==')
+  cafsHas('sha512-CDaOBMB9knI6vx9SpIxEMOJ6VBbC2U/tYNILs0qv1YOZc15K9U2EcF06v10F0JX6IYcWnKYZJwIDJspEHLvUaQ==')
 })
 
 test('pnpm store add scoped package that uses not the standard registry', async () => {
@@ -51,7 +51,7 @@ test('pnpm store add scoped package that uses not the standard registry', async 
   }, ['add', '@foo/no-deps@1.0.0'])
 
   const { cafsHas } = assertStore(path.join(storeDir, STORE_VERSION))
-  await cafsHas('@foo/no-deps', '1.0.0')
+  cafsHas('@foo/no-deps', '1.0.0')
 })
 
 test('should fail if some packages can not be added', async () => {

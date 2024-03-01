@@ -6,7 +6,7 @@ import { testDefaults } from '../utils'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch } from '@pnpm/git-utils'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 
 jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
@@ -16,7 +16,7 @@ test('install with git-branch-lockfile = true', async () => {
   const branchName: string = 'main-branch'
   ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     useGitBranchLockfile: true,
   })
 
@@ -42,14 +42,14 @@ test('install with git-branch-lockfile = true and no lockfile changes', async ()
     },
   }
 
-  const opts1 = await testDefaults({
+  const opts1 = testDefaults({
     useGitBranchLockfile: false,
   })
   await install(manifest, opts1)
 
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
 
-  const opts2 = await testDefaults({
+  const opts2 = testDefaults({
     useGitBranchLockfile: true,
   })
   await install(manifest, opts2)
@@ -88,7 +88,7 @@ test('install a workspace with git-branch-lockfile = true', async () => {
   const branchName: string = 'main-branch'
   ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     useGitBranchLockfile: true,
     allProjects: [
       {
@@ -135,14 +135,14 @@ test('install with --merge-git-branch-lockfiles', async () => {
   ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
 
   const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
-  await writeYamlFile(otherLockfilePath, {
+  writeYamlFile(otherLockfilePath, {
     whatever: 'whatever',
   })
 
   expect(fs.existsSync(otherLockfilePath)).toBe(true)
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
 
-  const opts = await testDefaults({
+  const opts = testDefaults({
     useGitBranchLockfile: true,
     mergeGitBranchLockfiles: true,
   })
@@ -160,7 +160,7 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   const project = prepareEmpty()
 
   // @types/semver installed in the main branch
-  await writeYamlFile(WANTED_LOCKFILE, {
+  writeYamlFile(WANTED_LOCKFILE, {
     dependencies: {
       '@types/semver': {
         specifier: '5.3.31',
@@ -183,14 +183,18 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   // is-positive installed in the other branch
   const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
   const otherLockfileContent = {
-    dependencies: {
-      '@types/semver': {
-        specifier: '5.3.31',
-        version: '5.3.31',
-      },
-      'is-positive': {
-        specifier: '^3.1.0',
-        version: '3.1.0',
+    importers: {
+      '.': {
+        dependencies: {
+          '@types/semver': {
+            specifier: '5.3.31',
+            version: '5.3.31',
+          },
+          'is-positive': {
+            specifier: '^3.1.0',
+            version: '3.1.0',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
@@ -207,7 +211,7 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
       },
     },
   }
-  await writeYamlFile(otherLockfilePath, otherLockfileContent, { lineWidth: 1000 })
+  writeYamlFile(otherLockfilePath, otherLockfileContent, { lineWidth: 1000 })
 
   // the other branch merged to the main branch
   const projectManifest: ProjectManifest = {
@@ -216,7 +220,7 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
       'is-positive': '^3.1.0',
     },
   }
-  const opts = await testDefaults({
+  const opts = testDefaults({
     useGitBranchLockfile: true,
     mergeGitBranchLockfiles: true,
     frozenLockfile: true,
@@ -226,6 +230,6 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   expect(fs.existsSync(otherLockfilePath)).toBe(false)
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
 
-  const wantedLockfileAfterMergeOther = await project.readLockfile()
+  const wantedLockfileAfterMergeOther = project.readLockfile()
   expect(wantedLockfileAfterMergeOther).toEqual(otherLockfileContent)
 })

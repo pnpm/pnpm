@@ -320,7 +320,7 @@ function fetchToStore (
     readPkgFromCafs: (
       filesIndexFile: string,
       readManifest?: boolean
-    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest }>
+    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     fetch: (
       packageId: string,
       resolution: Resolution,
@@ -459,7 +459,7 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        const { verified, pkgFilesIndex, manifest } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
+        const { verified, pkgFilesIndex, manifest, requiresBuild } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
         if (verified) {
           if (
             (
@@ -488,6 +488,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               filesIndex: pkgFilesIndex.files,
               resolvedFrom: 'store',
               sideEffects: pkgFilesIndex.sideEffects,
+              requiresBuild,
             },
             bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
           })
@@ -549,6 +550,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           resolvedFrom: fetchedPackage.local ? 'local-dir' : 'remote',
           filesIndex: fetchedPackage.filesIndex,
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
+          requiresBuild: fetchedPackage.requiresBuild,
         },
         bundledManifest: fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest),
       })

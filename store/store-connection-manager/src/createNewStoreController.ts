@@ -90,7 +90,7 @@ export async function createNewStoreController (
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {
-    ctrl: await createPackageStore(resolve, fetchers, {
+    ctrl: createPackageStore(resolve, fetchers, {
       cafsLocker: opts.cafsLocker,
       engineStrict: opts.engineStrict,
       force: opts.force,

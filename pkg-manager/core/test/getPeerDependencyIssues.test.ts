@@ -15,7 +15,7 @@ test('cannot resolve peer dependency for top-level dependency', async () => {
       },
       rootDir: process.cwd(),
     },
-  ], await testDefaults())
+  ], testDefaults())
 
   expect(peerDependencyIssues['.'].missing).toHaveProperty('ajv')
 })
@@ -34,7 +34,7 @@ test('a conflict is detected when the same peer is required with ranges that do 
       },
       rootDir: process.cwd(),
     },
-  ], await testDefaults())
+  ], testDefaults())
 
   expect(peerDependencyIssues['.'].conflicts.length).toBe(1)
 })
