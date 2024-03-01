@@ -46,9 +46,11 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
+    "execa": "npm:safe-execa@0.1.2",
     "@pnpm/make-dedicated-lockfile": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "0.28.20",
+    "pnpm": "workspace:^"
   },
   "exports": {
     ".": "./lib/index.js"

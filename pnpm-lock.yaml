@@ -2675,6 +2675,12 @@ importers:
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
+      execa:
+        specifier: npm:safe-execa@0.1.2
+        version: /safe-execa@0.1.2
+      pnpm:
+        specifier: workspace:^
+        version: link:../../pnpm
 
   packages/parse-wanted-dependency:
     dependencies:
@@ -9707,6 +9713,7 @@ packages:
   /@zkochan/which@2.0.3:
     resolution: {integrity: sha512-C1ReN7vt2/2O0fyTsx5xnbQuxBrmG5NMSbcIkPKCCfCTJgpZBsuRYzFXHj3nVq8vTfK7vxHUmzfCpSHgO7j4rg==}
     engines: {node: '>= 8'}
+    hasBin: true
     dependencies:
       isexe: 2.0.0
 
@@ -18004,4 +18011,5 @@ packages:
 time:
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'
+  /safe-execa@0.1.2: '2022-07-18T01:09:17.517Z'
   /symlink-dir@5.2.1: '2023-12-24T23:15:15.543Z'
