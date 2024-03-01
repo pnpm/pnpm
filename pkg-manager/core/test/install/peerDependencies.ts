@@ -48,9 +48,9 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/using-ajv@1.0.0'].dependencies!['ajv-keywords']).toBe('1.5.0(ajv@4.10.4)')
+  expect(lockfile.snapshots['/@pnpm.e2e/using-ajv@1.0.0'].dependencies!['ajv-keywords']).toBe('1.5.0(ajv@4.10.4)')
   // covers https://github.com/pnpm/pnpm/issues/1150
-  expect(lockfile.packages).toHaveProperty(['/ajv-keywords@1.5.0(ajv@4.10.4)'])
+  expect(lockfile.snapshots).toHaveProperty(['/ajv-keywords@1.5.0(ajv@4.10.4)'])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1133
@@ -99,7 +99,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   }, testDefaults({ preferFrozenLockfile: false }))
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages['/ajv-keywords@1.5.0(ajv@4.10.4)'].dependencies).toHaveProperty(['ajv'])
+  expect(lockfile.snapshots['/ajv-keywords@1.5.0(ajv@4.10.4)'].dependencies).toHaveProperty(['ajv'])
 })
 
 test('the right peer dependency is used in every workspace package', async () => {
@@ -505,7 +505,7 @@ test('the list of transitive peer dependencies is kept up to date', async () => 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))).toBeTruthy()
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)'].transitivePeerDependencies).toStrictEqual(['@pnpm.e2e/peer-c'])
+    expect(lockfile.snapshots['/@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)'].transitivePeerDependencies).toStrictEqual(['@pnpm.e2e/peer-c'])
   }
 
   await mutateModulesInSingleProject({
@@ -518,7 +518,7 @@ test('the list of transitive peer dependencies is kept up to date', async () => 
 
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/abc-grand-parent@1.0.0'].transitivePeerDependencies).toBeFalsy()
+    expect(lockfile.snapshots['/@pnpm.e2e/abc-grand-parent@1.0.0'].transitivePeerDependencies).toBeFalsy()
   }
 })
 
@@ -643,7 +643,7 @@ test.skip('peer dependencies are linked', async () => {
   expect(deepRequireCwd(['@pnpm.e2e/abc-grand-parent-with-c', '@pnpm.e2e/abc-parent-with-ab', '@pnpm.e2e/abc', '@pnpm.e2e/peer-c', './package.json']).version).toBe('1.0.0')
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages['/@pnpm.e2e/abc-parent-with-ab/1.0.0/@pnpm.e2e/peer-a@1.0.0+@pnpm.e2e+peer-b@1.0.0'].dev).toBeTruthy()
+  expect(lockfile.snapshots['/@pnpm.e2e/abc-parent-with-ab/1.0.0/@pnpm.e2e/peer-a@1.0.0+@pnpm.e2e+peer-b@1.0.0'].dev).toBeTruthy()
 })
 
 test('scoped peer dependency is linked', async () => {
@@ -1218,7 +1218,7 @@ test('peer dependency that is resolved by a dev dependency', async () => {
   }, testDefaults({ fastUnpack: false, lockfileOnly: true, strictPeerDependencies: false }))
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages['/@types/mongoose@5.7.32'].dev).toBeUndefined()
+  expect(lockfile.snapshots['/@types/mongoose@5.7.32'].dev).toBeUndefined()
 
   await mutateModulesInSingleProject({
     manifest,
@@ -1677,7 +1677,7 @@ test('resolve peer of peer from the dependencies of the direct dependent package
   expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y'].version).toBe('1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))')
   // Even though @pnpm/y@1.0.0 is in the dependencies of the direct dependent package, we resolve y from above.
   // It might make sense to print a warning in this case and suggest to make y a peer dependency in the dependent package too.
-  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies?.['@pnpm.e2e/has-y-peer']).toBe('1.0.0(@pnpm/y@2.0.0)')
+  expect(lockfile.snapshots['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies?.['@pnpm.e2e/has-y-peer']).toBe('1.0.0(@pnpm/y@2.0.0)')
 })
 
 test('2 circular peers', async () => {
