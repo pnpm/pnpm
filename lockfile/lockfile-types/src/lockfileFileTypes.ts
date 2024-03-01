@@ -8,8 +8,8 @@ Partial<Pick<InlineSpecifiersLockfile, 'importers'>>
 export type LockfileFileV7 = Omit<InlineSpecifiersLockfile, 'importers' | 'packages'> &
 Partial<InlineSpecifiersProjectSnapshot> &
 Partial<Pick<InlineSpecifiersLockfile, 'importers'>> & {
-  packages?: Record<string, Pick<PackageSnapshot, 'resolution' | 'engines' | 'cpu' | 'os' | 'hasBin' | 'name' | 'version'>>
-  snapshots?: Record<string, Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies' | 'patched' | 'dev' | 'optional'>>
+  packages?: Record<string, Pick<PackageSnapshot, 'resolution' | 'engines' | 'cpu' | 'os' | 'hasBin' | 'name' | 'version' | 'bundledDependencies' | 'peerDependencies' | 'peerDependenciesMeta'>>
+  snapshots?: Record<string, Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies' | 'patched' | 'dev' | 'optional' | 'transitivePeerDependencies' | 'id'>>
 }
 
 /**

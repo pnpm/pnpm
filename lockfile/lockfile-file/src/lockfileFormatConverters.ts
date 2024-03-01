@@ -29,10 +29,31 @@ export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfi
   const packages: Record<string, PackageInfo> = {}
   const snapshots: Record<string, PackageSnapshotV7> = {}
   for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
-    snapshots[depPath] = pick(['dependencies', 'optionalDependencies', 'transitivePeerDependencies', 'dev', 'optional'], pkg)
+    snapshots[depPath] = pick([
+      'dependencies',
+      'optionalDependencies',
+      'transitivePeerDependencies',
+      'dev',
+      'optional',
+      'id',
+    ], pkg)
     const pkgId = packageIdFromSnapshot(depPath, pkg)
     if (!packages[pkgId]) {
-      packages[pkgId] = pick(['resolution', 'engines', 'cpu', 'os', 'libc', 'peerDependencies', 'peerDependenciesMeta', 'hasBin', 'name', 'version'], pkg)
+      packages[pkgId] = pick([
+        'bundleDependencies',
+        'bundledDependencies',
+        'cpu',
+        'deprecated',
+        'engines',
+        'hasBin',
+        'libc',
+        'name',
+        'os',
+        'peerDependencies',
+        'peerDependenciesMeta',
+        'resolution',
+        'version',
+      ], pkg)
     }
   }
   const newLockfile = {

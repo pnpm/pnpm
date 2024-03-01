@@ -143,29 +143,33 @@ test('inject local packages', async () => {
         injected: true,
       },
     })
-    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
+    expect(lockfile.packages['file:project-1']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
       },
-      id: 'file:project-1',
       name: 'project-1',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
+    })
+    expect(lockfile.snapshots['file:project-1(is-positive@1.0.0)']).toEqual({
+      id: 'file:project-1',
       dependencies: {
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',
       },
       dev: false,
     })
-    expect(lockfile.packages['file:project-2(is-positive@2.0.0)']).toEqual({
+    expect(lockfile.packages['file:project-2']).toEqual({
       resolution: {
         directory: 'project-2',
         type: 'directory',
       },
-      id: 'file:project-2',
       name: 'project-2',
+    })
+    expect(lockfile.snapshots['file:project-2(is-positive@2.0.0)']).toEqual({
+      id: 'file:project-2',
       dependencies: {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
@@ -213,16 +217,18 @@ test('inject local packages', async () => {
         injected: true,
       },
     })
-    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
+    expect(lockfile.packages['file:project-1']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
       },
-      id: 'file:project-1',
       name: 'project-1',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
+    })
+    expect(lockfile.snapshots['file:project-1(is-positive@1.0.0)']).toEqual({
+      id: 'file:project-1',
       dependencies: {
         'is-negative': '2.0.0',
         'is-positive': '1.0.0',
@@ -1388,7 +1394,7 @@ test('peer dependency of injected project should be resolved correctly', async (
 
   const rootModules = assertProject(process.cwd())
   const lockfile = rootModules.readLockfile()
-  expect(lockfile.packages?.['file:project-2(project-1@project-1)'].dependencies?.['project-1']).toEqual('link:project-1')
+  expect(lockfile.snapshots?.['file:project-2(project-1@project-1)'].dependencies?.['project-1']).toEqual('link:project-1')
 })
 
 // There was a bug related to this. The manifests in the workspacePackages object were modified
