@@ -5,7 +5,7 @@ import { type RootLog } from '@pnpm/core-loggers'
 import { type PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-file'
-import { type LockfileFile } from '@pnpm/lockfile-types'
+import { type LockfileFileV7 } from '@pnpm/lockfile-types'
 import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -61,8 +61,8 @@ test('lockfile has correct format', async () => {
 
   expect(lockfile.packages).toBeTruthy() // has packages field
   expect(lockfile.packages).toHaveProperty([id])
-  expect(lockfile.packages[id].dependencies).toBeTruthy()
-  expect(lockfile.packages[id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
+  expect(lockfile.snapshots[id].dependencies).toBeTruthy()
+  expect(lockfile.snapshots[id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
   expect(lockfile.packages[id].resolution).toBeTruthy()
   expect((lockfile.packages[id].resolution as { integrity: string }).integrity).toBeTruthy()
   expect((lockfile.packages[id].resolution as TarballResolution).tarball).toBeFalsy()
@@ -371,7 +371,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
     },
   }
 
-  lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
+  lockfile.snapshots['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
 
   writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
 
@@ -444,7 +444,7 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].dev).toBeFalsy()
+  expect(lockfile.snapshots['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].dev).toBeFalsy()
 })
 
 test('package is not marked optional if it is also a subdep of a regular dependency', async () => {
@@ -458,7 +458,7 @@ test('package is not marked optional if it is also a subdep of a regular depende
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].optional).toBeFalsy()
+  expect(lockfile.snapshots['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].optional).toBeFalsy()
 })
 
 test('scoped module from different registry', async () => {
@@ -500,29 +500,21 @@ test('scoped module from different registry', async () => {
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/@foo/has-dep-from-same-scope@1.0.0': {
-        dependencies: {
-          '@foo/no-deps': '1.0.0',
-          'is-negative': '1.0.0',
-        },
-        dev: false,
         resolution: {
           integrity: getIntegrity('@foo/has-dep-from-same-scope', '1.0.0'),
         },
       },
       '/@foo/no-deps@1.0.0': {
-        dev: false,
         resolution: {
           integrity: getIntegrity('@foo/no-deps', '1.0.0'),
         },
       },
       '/@zkochan/foo@1.0.0': {
-        dev: false,
         resolution: {
           integrity: 'sha512-IFvrYpq7E6BqKex7A7czIFnFncPiUVdhSzGhAOWpp8RlkXns4y/9ZdynxaA/e0VkihRxQkihE2pTyvxjfe/wBg==',
         },
       },
       '/is-negative@1.0.0': {
-        dev: false,
         engines: {
           node: '>=0.10.0',
         },
@@ -531,13 +523,33 @@ test('scoped module from different registry', async () => {
         },
       },
       '/is-positive@3.1.0': {
-        dev: false,
         engines: {
           node: '>=0.10.0',
         },
         resolution: {
           integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
+      },
+    },
+    snapshots: {
+      '/@foo/has-dep-from-same-scope@1.0.0': {
+        dependencies: {
+          '@foo/no-deps': '1.0.0',
+          'is-negative': '1.0.0',
+        },
+        dev: false,
+      },
+      '/@foo/no-deps@1.0.0': {
+        dev: false,
+      },
+      '/@zkochan/foo@1.0.0': {
+        dev: false,
+      },
+      '/is-negative@1.0.0': {
+        dev: false,
+      },
+      '/is-positive@3.1.0': {
+        dev: false,
       },
     },
   })
@@ -645,7 +657,7 @@ test('dev properties are correctly updated on named install', async () => {
 
   const lockfile = project.readLockfile()
   expect(
-    Object.values(lockfile.packages).filter((dep) => typeof dep.dev !== 'undefined')
+    Object.values(lockfile.snapshots).filter((dep) => typeof dep.dev !== 'undefined')
   ).toStrictEqual([])
 })
 
@@ -656,7 +668,7 @@ test('optional properties are correctly updated on named install', async () => {
   await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], testDefaults({}))
 
   const lockfile = project.readLockfile()
-  expect(Object.values(lockfile.packages).filter((dep) => typeof dep.optional !== 'undefined')).toStrictEqual([])
+  expect(Object.values(lockfile.snapshots).filter((dep) => typeof dep.optional !== 'undefined')).toStrictEqual([])
 })
 
 test('dev property is correctly set for package that is duplicated to both the dependencies and devDependencies group', async () => {
@@ -666,7 +678,7 @@ test('dev property is correctly set for package that is duplicated to both the d
   await addDependenciesToPackage({}, ['overlap@2.2.8'], testDefaults())
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages['/couleurs@5.0.0'].dev === false).toBeTruthy()
+  expect(lockfile.snapshots['/couleurs@5.0.0'].dev === false).toBeTruthy()
 })
 
 test('no lockfile', async () => {
@@ -811,28 +823,36 @@ test('packages installed via tarball URL from the default registry are normalize
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
-        dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0'),
         },
       },
       '/@pnpm.e2e/pkg-with-tarball-dep-from-registry@1.0.0': {
-        dependencies: {
-          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
-        },
-        dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/pkg-with-tarball-dep-from-registry', '1.0.0'),
         },
       },
       '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
-        dev: false,
         engines: { node: '>=0.10.0' },
         name: 'is-positive',
         resolution: {
           tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
         },
         version: '1.0.0',
+      },
+    },
+    snapshots: {
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
+        dev: false,
+      },
+      '/@pnpm.e2e/pkg-with-tarball-dep-from-registry@1.0.0': {
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+        },
+        dev: false,
+      },
+      '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
+        dev: false,
       },
     },
   })
@@ -863,7 +883,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
   expect(modules.pendingBuilds.length).toBe(0)
 
   {
-    const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
+    const lockfile: LockfileFileV7 = readYamlFile(WANTED_LOCKFILE)
     const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
@@ -876,7 +896,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.importers?.project.dependencies!['@zkochan/foo']).toBeTruthy()
     expect(lockfile.importers?.project.dependencies!['is-negative'].version).toContain('/')
 
-    expect(lockfile.packages![id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
+    expect(lockfile.snapshots![id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
     expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
     expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball'])
 
@@ -897,7 +917,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
   }))
 
   {
-    const lockfile = readYamlFile<LockfileFile>(path.join('..', WANTED_LOCKFILE))
+    const lockfile = readYamlFile<LockfileFileV7>(path.join('..', WANTED_LOCKFILE))
 
     expect(lockfile.importers).toHaveProperty(['project-2'])
 
@@ -908,9 +928,9 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.importers?.project.dependencies).toHaveProperty(['@zkochan/foo'])
     expect(lockfile.importers?.project.dependencies!['is-negative'].version).toContain('/')
 
-    expect(lockfile.packages).toHaveProperty([id])
-    expect(lockfile.packages![id].dependencies).toBeTruthy()
-    expect(lockfile.packages![id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
+    expect(lockfile.snapshots).toHaveProperty([id])
+    expect(lockfile.snapshots![id].dependencies).toBeTruthy()
+    expect(lockfile.snapshots![id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
     expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
     expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball'])
 
@@ -985,7 +1005,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     })
   )
 
-  const currentLockfile = readYamlFile<LockfileFile>(path.resolve('node_modules/.pnpm/lock.yaml'))
+  const currentLockfile = readYamlFile<LockfileFileV7>(path.resolve('node_modules/.pnpm/lock.yaml'))
 
   expect(Object.keys(currentLockfile.importers ?? {})).toStrictEqual(['pkg2'])
 
@@ -1069,6 +1089,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
     const lockfile = project.readLockfile()
     expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
     delete lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
+    delete lockfile.snapshots['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
     writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
   }
 
@@ -1146,12 +1167,16 @@ test('tarball domain differs from registry domain', async () => {
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive@3.1.0': {
-        dev: false,
         engines: { node: '>=0.10.0' },
         resolution: {
           integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
           tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
         },
+      },
+    },
+    snapshots: {
+      '/is-positive@3.1.0': {
+        dev: false,
       },
     },
   })
@@ -1197,13 +1222,17 @@ test('tarball installed through non-standard URL endpoint from the registry doma
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '@registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
-        dev: false,
         engines: { node: '>=0.10.0' },
         name: 'is-positive',
         resolution: {
           tarball: 'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
         },
         version: '3.1.0',
+      },
+    },
+    snapshots: {
+      '@registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
+        dev: false,
       },
     },
   })
