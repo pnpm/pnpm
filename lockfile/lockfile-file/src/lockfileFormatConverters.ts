@@ -17,6 +17,7 @@ import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import _mapValues from 'ramda/src/map'
+import omit from 'ramda/src/omit'
 import pickBy from 'ramda/src/pickBy'
 import pick from 'ramda/src/pick'
 
@@ -60,6 +61,9 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
     if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
     }
+    if (isEmpty((lockfileToSave as LockfileFileV7).snapshots) || ((lockfileToSave as LockfileFileV7).snapshots == null)) {
+      delete (lockfileToSave as LockfileFileV7).snapshots
+    }
   } else {
     lockfileToSave = {
       ...lockfile,
@@ -81,6 +85,9 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
     }
     if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
+    }
+    if (isEmpty((lockfileToSave as LockfileFileV7).snapshots) || ((lockfileToSave as LockfileFileV7).snapshots == null)) {
+      delete (lockfileToSave as LockfileFileV7).snapshots
     }
   }
   if (lockfileToSave.time) {
@@ -174,12 +181,12 @@ export function convertLockfileV7ToLockfileObject (lockfile: LockfileFileV7): Lo
   const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
 
   const packages: PackageSnapshots = {}
-  for (const [depPath, pkg] of Object.entries(lockfile.snapshots)) {
+  for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
     const pkgId = packageIdFromSnapshot(depPath, pkg as PackageSnapshot)
-    packages[depPath] = Object.assign(lockfile.snapshots[depPath], lockfile.packages[pkgId])
+    packages[depPath] = Object.assign(pkg, lockfile.packages?.[pkgId])
   }
   return {
-    ...rest,
+    ...omit(['snapshots'], rest),
     packages,
     importers: mapValues(importers ?? {}, revertProjectSnapshot),
   }
