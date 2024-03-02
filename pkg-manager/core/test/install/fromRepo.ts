@@ -132,7 +132,7 @@ test('a subdependency is from a github repo with different name', async () => {
   expect(m).toEqual('Hi')
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages['/@pnpm.e2e/has-aliased-git-dependency@1.0.0'].dependencies).toStrictEqual({
+  expect(lockfile.snapshots['/@pnpm.e2e/has-aliased-git-dependency@1.0.0'].dependencies).toStrictEqual({
     '@pnpm.e2e/has-say-hi-peer': '1.0.0(github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)',
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
   })

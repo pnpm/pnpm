@@ -1330,7 +1330,7 @@ test('do not resolve a subdependency from the workspace by default', async () =>
   const project = assertProject(process.cwd())
 
   const wantedLockfile = project.readLockfile()
-  expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
+  expect(wantedLockfile.snapshots['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
 })
 
 test('resolve a subdependency from the workspace', async () => {
@@ -1393,7 +1393,7 @@ test('resolve a subdependency from the workspace', async () => {
   const project = assertProject(process.cwd())
 
   const wantedLockfile = project.readLockfile()
-  expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(wantedLockfile.snapshots['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   rimraf('node_modules')
 
@@ -1476,7 +1476,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
   const wantedLockfile = project.readLockfile()
   const suffix1 = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }])
   const suffix2 = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.1' }])
-  expect(Object.keys(wantedLockfile.packages).sort()).toStrictEqual(
+  expect(Object.keys(wantedLockfile.snapshots).sort()).toStrictEqual(
     [
       '/@pnpm.e2e/abc-grand-parent-with-c@1.0.0',
       '/@pnpm.e2e/abc-parent-with-ab@1.0.0',
@@ -1489,8 +1489,8 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
       '/@pnpm.e2e/peer-c@1.0.1',
     ].sort()
   )
-  expect(wantedLockfile.packages['/@pnpm.e2e/abc-parent-with-ab@1.0.0'].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
-  expect(wantedLockfile.packages[`/@pnpm.e2e/abc@1.0.0${suffix1}`].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
+  expect(wantedLockfile.snapshots['/@pnpm.e2e/abc-parent-with-ab@1.0.0'].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
+  expect(wantedLockfile.snapshots[`/@pnpm.e2e/abc@1.0.0${suffix1}`].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
 })
 
 test('resolve a subdependency from the workspace, when it uses the workspace protocol', async () => {
@@ -1561,7 +1561,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
   const project = assertProject(process.cwd())
 
   const wantedLockfile = project.readLockfile()
-  expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(wantedLockfile.snapshots['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   rimraf('node_modules')
 
