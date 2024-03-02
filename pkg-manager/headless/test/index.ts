@@ -225,7 +225,7 @@ test('installing non-prod deps then all deps', async () => {
 
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.packages['/is-positive@1.0.0'].dev === false).toBeTruthy()
+    expect(lockfile.snapshots['/is-positive@1.0.0'].dev === false).toBeTruthy()
   }
 
   {

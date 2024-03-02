@@ -275,7 +275,7 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
 
   const lockfile2 = project.readLockfile()
   expect(lockfile2.pnpmfileChecksum).toBe(createBase32Hash(pnpmfile2))
-  expect(lockfile2.packages).toMatchObject({
+  expect(lockfile2.snapshots).toMatchObject({
     '/@pnpm.e2e/foo@100.0.0': expect.any(Object),
     '/@pnpm.e2e/bar@100.0.0': expect.any(Object),
     '/@pnpm.e2e/pkg-with-good-optional@1.0.0': {

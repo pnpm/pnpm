@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type LockfileFile } from '@pnpm/lockfile-types'
+import { type LockfileFileV7 as LockfileFile } from '@pnpm/lockfile-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   prepare,
@@ -975,13 +975,17 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive@1.0.0': {
-        dev: false,
         engines: {
           node: '>=0.10.0',
         },
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
+      },
+    },
+    snapshots: {
+      '/is-positive@1.0.0': {
+        dev: false,
       },
     },
   })
@@ -1076,7 +1080,6 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative@1.0.0': {
-        dev: false,
         engines: {
           node: '>=0.10.0',
         },
@@ -1085,13 +1088,20 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
         },
       },
       '/is-positive@1.0.0': {
-        dev: false,
         engines: {
           node: '>=0.10.0',
         },
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
+      },
+    },
+    snapshots: {
+      '/is-negative@1.0.0': {
+        dev: false,
+      },
+      '/is-positive@1.0.0': {
+        dev: false,
       },
     },
   })
@@ -1847,7 +1857,7 @@ test('peer dependencies are resolved from the root of the workspace when a new d
   await execPnpm(['add', 'ajv-keywords@1.5.0', '--strict-peer-dependencies', '--config.resolve-peers-from-workspace-root=true'])
 
   const lockfile = projects['project-1'].readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/ajv-keywords@1.5.0(ajv@4.10.4)'])
+  expect(lockfile.snapshots).toHaveProperty(['/ajv-keywords@1.5.0(ajv@4.10.4)'])
 })
 
 test('overrides in workspace project should be taken into account when shared-workspace-lockfiles is false', async () => {
