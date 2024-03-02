@@ -1,6 +1,6 @@
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type LockfileV7 as Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -143,9 +143,9 @@ test('preserve subdeps when installing on a package that has one dependency spec
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)']) // preserve version of package that has resolved peer deps
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foobarqar@1.0.1'])
-  expect(lockfile.packages['/@pnpm.e2e/foobarqar@1.0.1'].dependencies).toStrictEqual({
+  expect(lockfile.snapshots).toHaveProperty(['/@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)']) // preserve version of package that has resolved peer deps
+  expect(lockfile.snapshots).toHaveProperty(['/@pnpm.e2e/foobarqar@1.0.1'])
+  expect(lockfile.snapshots['/@pnpm.e2e/foobarqar@1.0.1'].dependencies).toStrictEqual({
     '@pnpm.e2e/bar': '100.0.0',
     '@pnpm.e2e/foo': '100.0.0',
     '@pnpm.e2e/qar': '100.0.0',

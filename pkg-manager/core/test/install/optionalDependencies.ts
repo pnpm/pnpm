@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type LockfileV7 as Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import deepRequireCwd from 'deep-require-cwd'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -355,7 +355,7 @@ test('only that package is skipped which is an optional dependency only and not 
   }
 
   const lockfile = project.readLockfile()
-  expect(typeof lockfile.packages['/@pnpm.e2e/dep-of-optional-pkg@1.0.0'].optional).toBe('undefined')
+  expect(typeof lockfile.snapshots['/@pnpm.e2e/dep-of-optional-pkg@1.0.0'].optional).toBe('undefined')
 
   rimraf('node_modules')
 
@@ -528,8 +528,8 @@ test('do not fail on unsupported dependency of optional dependency', async () =>
   )
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'].optional).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/dep-of-optional-pkg@1.0.0']).toBeTruthy()
+  expect(lockfile.snapshots['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'].optional).toBeTruthy()
+  expect(lockfile.snapshots['/@pnpm.e2e/dep-of-optional-pkg@1.0.0']).toBeTruthy()
 })
 
 test('fail on unsupported dependency of optional dependency', async () => {

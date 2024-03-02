@@ -259,7 +259,6 @@ test('re-adding a git repo with a different tag', async () => {
         name: 'is-negative',
         version: '1.0.0',
         engines: { node: '>=0.10.0' },
-        dev: false,
       },
     }
   )
@@ -278,7 +277,6 @@ test('re-adding a git repo with a different tag', async () => {
         name: 'is-negative',
         version: '1.0.1',
         engines: { node: '>=0.10.0' },
-        dev: false,
       },
     }
   )
