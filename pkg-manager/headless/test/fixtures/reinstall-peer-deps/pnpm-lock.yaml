@@ -34,6 +34,7 @@ packages:
     resolution: {integrity: sha512-mIxp7K4B8IeXU/fuEP/llay2xDR+hyyhwlqL9D+/3NewrXTyvJUjp8cNagIuEOjA/1VZCDcNQfI947LjsSe3qQ==}
 
 snapshots:
+
   /@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0):
     dependencies:
       '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0
@@ -41,11 +42,15 @@ snapshots:
       '@pnpm.e2e/peer-b': 1.0.0
       '@pnpm.e2e/peer-c': 1.0.0
     dev: true
+
   /@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0:
     dev: true
+
   /@pnpm.e2e/peer-a@1.0.1:
     dev: true
+
   /@pnpm.e2e/peer-b@1.0.0:
     dev: true
+
   /@pnpm.e2e/peer-c@1.0.0:
     dev: true

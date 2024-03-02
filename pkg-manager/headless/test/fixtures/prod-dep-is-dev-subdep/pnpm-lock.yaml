@@ -35,14 +35,18 @@ packages:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
 snapshots:
+
   /inflight@1.0.6:
     dependencies:
       once: 1.4.0
       wrappy: 1.0.2
     dev: true
+
   /is-positive@1.0.0:
     dev: false
+
   /once@1.4.0:
     dependencies:
       wrappy: 1.0.2
+
   /wrappy@1.0.2: {}

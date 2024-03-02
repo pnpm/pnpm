@@ -22,8 +22,10 @@ packages:
     resolution: {integrity: sha512-o1ULljloNzGcHI+k0NuY7aZigV5F551GpY9prYIrhMjIVNyMsERQMxLYZeKQJUnhZO5VKJNtGZlrUYkmJ1qDbw==}
 
 snapshots:
+
   /@pnpm.e2e/hello-world-js-bin@1.0.0:
     dev: false
+
   /@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0:
     dependencies:
       '@pnpm.e2e/hello-world-js-bin': 1.0.0

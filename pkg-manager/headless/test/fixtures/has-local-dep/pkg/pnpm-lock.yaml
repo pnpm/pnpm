@@ -20,5 +20,6 @@ packages:
     version: 1.0.0
 
 snapshots:
+
   file:../tar-pkg-1.0.0.tgz:
     dev: false

@@ -39,17 +39,21 @@ packages:
     resolution: {integrity: sha512-W7tfG7vMOGtD30sHoZSSc/JVYiyDPEyQVso/Zz+/uQd0B0L46gtC+pHha5FFMRpil6fm/AoEcRWyOVi4+E/f8w==}
 
 snapshots:
+
   /debug@4.3.4:
     dependencies:
       ms: 2.1.2
     dev: false
+
   /diskusage@1.2.0:
     dependencies:
       es6-promise: 4.2.8
       nan: 2.18.0
     dev: false
+
   /es6-promise@4.2.8:
     dev: false
+
   /expire-fs@2.2.3:
     dependencies:
       debug: 4.3.4
@@ -57,7 +61,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
     dev: false
+
   /ms@2.1.2:
     dev: false
+
   /nan@2.18.0:
     dev: false

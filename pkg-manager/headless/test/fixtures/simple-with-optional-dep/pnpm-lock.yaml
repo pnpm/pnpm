@@ -29,14 +29,17 @@ packages:
     engines: {node: '>=0.10.0'}
 
 snapshots:
+
   /@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0:
     dev: false
+
   /@pnpm.e2e/pkg-with-good-optional@1.0.0:
     dependencies:
       '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.1.0
     optionalDependencies:
       is-positive: 1.0.0
     dev: false
+
   /is-positive@1.0.0:
     dev: false
     optional: true

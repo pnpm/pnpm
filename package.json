@@ -113,7 +113,8 @@
     },
     "patchedDependencies": {
       "pkg@5.8.1": "__patches__/pkg.patch",
-      "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch"
+      "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch",
+      "@zkochan/js-yaml@0.0.6": "__patches__/@zkochan__js-yaml@0.0.6.patch"
     },
     "updateConfig": {
       "ignoreDependencies": [

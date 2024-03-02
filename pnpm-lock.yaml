@@ -25,6 +25,9 @@ overrides:
 packageExtensionsChecksum: c10f23a87945689e805208f26d04480d
 
 patchedDependencies:
+  '@zkochan/js-yaml@0.0.6':
+    hash: wqtk5n3rzxb75j47xc7cwv6dje
+    path: __patches__/@zkochan__js-yaml@0.0.6.patch
   graceful-fs@4.2.11:
     hash: ivtm2a2cfr5pomcfbedhmr5v2q
     path: __patches__/graceful-fs@4.2.11.patch
@@ -2129,7 +2132,7 @@ importers:
         version: 1.0.0
       js-yaml:
         specifier: npm:@zkochan/js-yaml@0.0.6
-        version: /@zkochan/js-yaml@0.0.6
+        version: /@zkochan/js-yaml@0.0.6(patch_hash=wqtk5n3rzxb75j47xc7cwv6dje)
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -7846,7 +7849,7 @@ packages:
       globals: 13.24.0
       ignore: 5.3.1
       import-fresh: 3.3.0
-      js-yaml: /@zkochan/js-yaml@0.0.6
+      js-yaml: /@zkochan/js-yaml@0.0.6(patch_hash=wqtk5n3rzxb75j47xc7cwv6dje)
       minimatch: 3.1.2
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -9684,10 +9687,11 @@ packages:
       istanbul-lib-report: 3.0.1
     dev: true
 
-  /@zkochan/js-yaml@0.0.6:
+  /@zkochan/js-yaml@0.0.6(patch_hash=wqtk5n3rzxb75j47xc7cwv6dje):
     resolution: {integrity: sha512-nzvgl3VfhcELQ8LyVrYOru+UtAy1nrygk2+AGbTm8a5YcO6o8lSjAT+pfg3vJWxIoZKOUhrK6UU7xW/+00kQrg==}
     dependencies:
       argparse: 2.0.1
+    patched: true
 
   /@zkochan/retry@0.2.0:
     resolution: {integrity: sha512-WhB+2B/ZPlW2Xy/kMJBrMbqecWXcbDDgn0K0wKBAgO2OlBTz1iLJrRWduo+DGGn0Akvz1Lu4Xvls7dJojximWw==}
@@ -10897,7 +10901,7 @@ packages:
     engines: {node: '>=14'}
     dependencies:
       import-fresh: 3.3.0
-      js-yaml: /@zkochan/js-yaml@0.0.6
+      js-yaml: /@zkochan/js-yaml@0.0.6(patch_hash=wqtk5n3rzxb75j47xc7cwv6dje)
       parse-json: 5.2.0
       path-type: 4.0.0
     dev: true
@@ -10912,7 +10916,7 @@ packages:
         optional: true
     dependencies:
       import-fresh: 3.3.0
-      js-yaml: /@zkochan/js-yaml@0.0.6
+      js-yaml: /@zkochan/js-yaml@0.0.6(patch_hash=wqtk5n3rzxb75j47xc7cwv6dje)
       parse-json: 5.2.0
       path-type: 4.0.0
       typescript: 5.3.3
@@ -11856,7 +11860,7 @@ packages:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       is-path-inside: 3.0.3
-      js-yaml: /@zkochan/js-yaml@0.0.6
+      js-yaml: /@zkochan/js-yaml@0.0.6(patch_hash=wqtk5n3rzxb75j47xc7cwv6dje)
       json-stable-stringify-without-jsonify: 1.0.1
       levn: 0.4.1
       lodash.merge: 4.6.2
@@ -15785,7 +15789,7 @@ packages:
     resolution: {integrity: sha512-UkRNRIwnhG+y7hpqnycCL/xbTk7+ia9VuVTC0S+zVbwd65DI9eUpRMfsWIGrCWxTU/mi+JW8cHQCrv+zfCbEPQ==}
     engines: {node: '>=10.13'}
     dependencies:
-      js-yaml: /@zkochan/js-yaml@0.0.6
+      js-yaml: /@zkochan/js-yaml@0.0.6(patch_hash=wqtk5n3rzxb75j47xc7cwv6dje)
       strip-bom: 4.0.0
 
   /readable-stream@2.3.8:
@@ -17535,7 +17539,7 @@ packages:
       fast-safe-stringify: 2.1.1
       handlebars: 4.7.7
       http-errors: 2.0.0
-      js-yaml: /@zkochan/js-yaml@0.0.6
+      js-yaml: /@zkochan/js-yaml@0.0.6(patch_hash=wqtk5n3rzxb75j47xc7cwv6dje)
       jsonwebtoken: 9.0.0
       kleur: 4.1.5
       lodash: 4.17.21
@@ -17867,14 +17871,14 @@ packages:
     resolution: {integrity: sha512-LwyucHy0uhWqbrOkh9cBluZBeNVxzHjDaE9mwepZG3n3ZlbM4v3ndrFw51zW/NXYFFqP+QWZ72ihtLWTh05e4Q==}
     engines: {node: '>=10.13'}
     dependencies:
-      js-yaml: /@zkochan/js-yaml@0.0.6
+      js-yaml: /@zkochan/js-yaml@0.0.6(patch_hash=wqtk5n3rzxb75j47xc7cwv6dje)
       write-file-atomic: 3.0.3
 
   /write-yaml-file@5.0.0:
     resolution: {integrity: sha512-FdNA4RyH1L43TlvGG8qOMIfcEczwA5ij+zLXUy3Z83CjxhLvcV7/Q/8pk22wnCgYw7PJhtK+7lhO+qqyT4NdvQ==}
     engines: {node: '>=16.14'}
     dependencies:
-      js-yaml: /@zkochan/js-yaml@0.0.6
+      js-yaml: /@zkochan/js-yaml@0.0.6(patch_hash=wqtk5n3rzxb75j47xc7cwv6dje)
       write-file-atomic: 5.0.1
 
   /xdg-basedir@5.1.0:
