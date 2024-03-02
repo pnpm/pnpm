@@ -62,7 +62,7 @@ export async function licensesList (opts: LicensesCommandOptions) {
 
   const licensePackages = await findDependencyLicenses({
     include,
-    lockfileDir: opts.dir,
+    lockfileDir: opts.lockfileDir ?? opts.dir,
     storeDir,
     virtualStoreDir: opts.virtualStoreDir ?? '.',
     modulesDir: opts.modulesDir,
