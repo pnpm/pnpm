@@ -34,7 +34,6 @@ test('installing aliased dependency', async () => {
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative@1.0.0': {
-        dev: false,
         engines: {
           node: '>=0.10.0',
         },
@@ -43,13 +42,20 @@ test('installing aliased dependency', async () => {
         },
       },
       '/is-positive@3.1.0': {
-        dev: false,
         engines: {
           node: '>=0.10.0',
         },
         resolution: {
           integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
+      },
+    },
+    snapshots: {
+      '/is-negative@1.0.0': {
+        dev: false,
+      },
+      '/is-positive@3.1.0': {
+        dev: false,
       },
     },
   })
@@ -95,19 +101,25 @@ test('a dependency has an aliased subdependency', async () => {
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
-        dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
         },
+      },
+      '/@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0': {
+        resolution: {
+          integrity: getIntegrity('@pnpm.e2e/pkg-with-1-aliased-dep', '100.0.0'),
+        },
+      },
+    },
+    snapshots: {
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
+        dev: false,
       },
       '/@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0': {
         dependencies: {
           dep: '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0',
         },
         dev: false,
-        resolution: {
-          integrity: getIntegrity('@pnpm.e2e/pkg-with-1-aliased-dep', '100.0.0'),
-        },
       },
     },
   })
