@@ -123,6 +123,7 @@ function getHelpText () {
 
         list: [
           {
+            description: 'Create a tarball from a package',
             name: 'pack',
           },
           {
@@ -130,6 +131,7 @@ function getHelpText () {
             name: 'publish',
           },
           {
+            description: 'Prints the effective modules directory',
             name: 'root',
           },
           {
