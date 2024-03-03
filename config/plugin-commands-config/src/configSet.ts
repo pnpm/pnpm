@@ -37,7 +37,7 @@ async function safeReadIniFile (configPath: string): Promise<Record<string, unkn
   try {
     return await readIniFile(configPath) as Record<string, unknown>
   } catch (err: unknown) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return {}
+    if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
 }

@@ -34,7 +34,7 @@ function canWriteToDirAndExists (dir: string) {
   try {
     return canWriteToDir(dir)
   } catch (err: unknown) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return false
+    if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }

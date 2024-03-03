@@ -126,7 +126,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
         const store = getStoreInstance()
         store.storeHasNot(pkgName, version)
       } catch (err: unknown) {
-        if (err instanceof Error && err.message.startsWith('Cannot find module store')) {
+        if (typeof err === 'object' && err && 'message' in err && typeof err.message === 'string' && err.message.startsWith('Cannot find module store')) {
           return
         }
         throw err
@@ -139,7 +139,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
       try {
         return readYamlFile(path.join(getVirtualStoreDir(), 'lock.yaml'))
       } catch (err: unknown) {
-        if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return null!
+        if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return null!
         throw err
       }
     },
@@ -148,7 +148,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
       try {
         return readYamlFile(path.join(projectPath, lockfileName))
       } catch (err: unknown) {
-        if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return null!
+        if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return null!
         throw err
       }
     },
@@ -162,7 +162,7 @@ function readModulesManifest (modulesDir: string) {
   try {
     return readYamlFile<Modules>(path.join(modulesDir, '.modules.yaml'))
   } catch (err: unknown) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return null!
+    if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return null!
     throw err
   }
 }

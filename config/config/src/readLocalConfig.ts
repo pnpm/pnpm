@@ -25,7 +25,7 @@ export async function readLocalConfig (prefix: string) {
     }
     return config
   } catch (err: unknown) {
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') return {}
+    if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
 }
