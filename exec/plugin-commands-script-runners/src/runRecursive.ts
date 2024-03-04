@@ -1,4 +1,6 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -140,7 +142,8 @@ export async function runRecursive (
           groupEnd?.()
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
-        } catch (err: any) { // eslint-disable-line
+        } catch (err: unknown) {
+          assert(util.types.isNativeError(err))
           result[prefix] = {
             status: 'failure',
             duration: getExecutionDuration(startTime),
@@ -153,8 +156,10 @@ export async function runRecursive (
             return
           }
 
-          err['code'] = 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL'
-          err['prefix'] = prefix
+          Object.assign(err, {
+            code: 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL',
+            prefix,
+          })
           opts.reportSummary && await writeRecursiveSummary({
             dir: opts.workspaceDir ?? opts.dir,
             summary: result,

@@ -259,7 +259,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
 
     await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     if (opts.bail !== false) {
       throw err
     }

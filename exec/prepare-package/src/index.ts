@@ -1,5 +1,7 @@
+import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -47,8 +49,11 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
       // eslint-disable-next-line no-await-in-loop
       await runLifecycleHook(scriptName, manifest, execOpts)
     }
-  } catch (err: any) { // eslint-disable-line
-    err.code = 'ERR_PNPM_PREPARE_PACKAGE'
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    Object.assign(err, {
+      code: 'ERR_PNPM_PREPARE_PACKAGE',
+    })
     throw err
   }
   await rimraf(path.join(pkgDir, 'node_modules'))

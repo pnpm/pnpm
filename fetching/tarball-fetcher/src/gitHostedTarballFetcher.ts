@@ -1,4 +1,6 @@
+import assert from 'assert'
 import fs from 'node:fs/promises'
+import util from 'util'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import { packlist } from '@pnpm/fs.packlist'
@@ -39,7 +41,8 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
         manifest: prepareResult.manifest ?? manifest,
         requiresBuild,
       }
-    } catch (err: any) { // eslint-disable-line
+    } catch (err: unknown) {
+      assert(util.types.isNativeError(err))
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
       throw err
     }
