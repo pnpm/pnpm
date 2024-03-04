@@ -1,4 +1,6 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import * as micromatch from 'micromatch'
 import execa from 'execa'
@@ -54,8 +56,9 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
         workingDir,
       ], { cwd: workingDir })
     ).stdout
-  } catch (err: any) { // eslint-disable-line
-    throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${err.stderr as string}`)
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${'stderr' in err ? err.stderr as string : ''}`)
   }
   const changedDirs = new Map<string, ChangeType>()
 

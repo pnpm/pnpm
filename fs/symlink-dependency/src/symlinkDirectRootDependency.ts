@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import util from 'util'
 import {
   type DependencyType,
   rootLogger,
@@ -34,8 +35,8 @@ export async function symlinkDirectRootDependency (
   let destModulesDirReal
   try {
     destModulesDirReal = await fs.realpath(destModulesDir)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       await fs.mkdir(destModulesDir, { recursive: true })
       destModulesDirReal = await fs.realpath(destModulesDir)
     } else {

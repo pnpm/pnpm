@@ -1,4 +1,5 @@
 import path from 'path'
+import util from 'util'
 
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -48,8 +49,8 @@ export async function handler (opts: CatFileCommandOptions, params: string[]) {
 
   try {
     return gfs.readFileSync(filePath, 'utf8')
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       throw new PnpmError('INVALID_HASH', 'Corresponding hash file not found')
     }
     throw err

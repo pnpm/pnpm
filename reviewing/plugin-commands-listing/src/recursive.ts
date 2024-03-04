@@ -1,3 +1,5 @@
+import assert from 'assert'
+import util from 'util'
 import { type Config } from '@pnpm/config'
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies, type Project } from '@pnpm/types'
@@ -29,10 +31,13 @@ export async function listRecursive (
         alwaysPrintRootPackage: depth === -1,
         lockfileDir: opts.lockfileDir ?? dir,
       })
-    } catch (err: any) { // eslint-disable-line
-      logger.info(err)
-      err['prefix'] = dir
-      throw err
+    } catch (err: unknown) {
+      assert(util.types.isNativeError(err))
+      const errWithPrefix = Object.assign(err, {
+        prefix: dir,
+      })
+      logger.info(errWithPrefix)
+      throw errWithPrefix
     }
   }))).filter(Boolean)
   if (outputs.length === 0) return ''

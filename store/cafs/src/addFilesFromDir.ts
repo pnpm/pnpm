@@ -1,3 +1,4 @@
+import util from 'util'
 import fs, { type Stats } from 'fs'
 import path from 'path'
 import {
@@ -27,8 +28,8 @@ export function addFilesFromDir (
       let stat: Stats
       try {
         stat = fs.statSync(absolutePath)
-      } catch (err: any) { // eslint-disable-line
-        if (err.code !== 'ENOENT') {
+      } catch (err: unknown) {
+        if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
           throw err
         }
         continue
