@@ -1,4 +1,5 @@
 import path from 'path'
+import util from 'util'
 import { runNpm } from '@pnpm/run-npm'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
@@ -37,7 +38,7 @@ async function safeReadIniFile (configPath: string): Promise<Record<string, unkn
   try {
     return await readIniFile(configPath) as Record<string, unknown>
   } catch (err: unknown) {
-    if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return {}
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
 }

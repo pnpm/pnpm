@@ -1,4 +1,5 @@
 import path from 'path'
+import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
@@ -140,27 +141,27 @@ async function buildDependency (
           sideEffectsCacheKey,
           filesIndexFile: depNode.filesIndexFile,
         })
-      } catch (err: any) { // eslint-disable-line
-        if (err.statusCode === 403) {
+      } catch (err: unknown) {
+        if (util.types.isNativeError(err) && 'statusCode' in err && err.statusCode === 403) {
           logger.warn({
             message: `The store server disabled upload requests, could not upload ${depNode.dir}`,
             prefix: opts.lockfileDir,
           })
         } else {
           logger.warn({
-            error: err,
+            error: err as Error,
             message: `An error occurred while uploading ${depNode.dir}`,
             prefix: opts.lockfileDir,
           })
         }
       }
     }
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     if (depNode.optional) {
       // TODO: add parents field to the log
       const pkg = await readPackageJsonFromDir(path.join(depNode.dir)) as DependencyManifest
       skippedOptionalDependencyLogger.debug({
-        details: err.toString(),
+        details: (err as Error).toString(),
         package: {
           id: depNode.dir,
           name: pkg.name,

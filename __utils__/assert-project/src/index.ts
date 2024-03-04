@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type LockfileFile } from '@pnpm/lockfile-types'
@@ -126,7 +127,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
         const store = getStoreInstance()
         store.storeHasNot(pkgName, version)
       } catch (err: unknown) {
-        if (typeof err === 'object' && err && 'message' in err && typeof err.message === 'string' && err.message.startsWith('Cannot find module store')) {
+        if (util.types.isNativeError(err) && err.message.startsWith('Cannot find module store')) {
           return
         }
         throw err
@@ -139,7 +140,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
       try {
         return readYamlFile(path.join(getVirtualStoreDir(), 'lock.yaml'))
       } catch (err: unknown) {
-        if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return null!
+        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
         throw err
       }
     },
@@ -148,7 +149,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
       try {
         return readYamlFile(path.join(projectPath, lockfileName))
       } catch (err: unknown) {
-        if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return null!
+        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
         throw err
       }
     },
@@ -162,7 +163,7 @@ function readModulesManifest (modulesDir: string) {
   try {
     return readYamlFile<Modules>(path.join(modulesDir, '.modules.yaml'))
   } catch (err: unknown) {
-    if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return null!
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
     throw err
   }
 }

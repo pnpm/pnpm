@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { sync as canWriteToDir } from 'can-write-to-dir'
 import PATH from 'path-name'
@@ -34,7 +35,7 @@ function canWriteToDirAndExists (dir: string) {
   try {
     return canWriteToDir(dir)
   } catch (err: unknown) {
-    if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return false
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }

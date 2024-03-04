@@ -1,4 +1,5 @@
 import path from 'path'
+import util from 'util'
 import camelcaseKeys from 'camelcase-keys'
 import { envReplace } from '@pnpm/config.env-replace'
 import { readIniFile } from 'read-ini-file'
@@ -25,7 +26,7 @@ export async function readLocalConfig (prefix: string) {
     }
     return config
   } catch (err: unknown) {
-    if (typeof err === 'object' && err && 'code' in err && err.code === 'ENOENT') return {}
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
 }
