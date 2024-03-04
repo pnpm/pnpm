@@ -311,6 +311,18 @@ test('install should not fail for packageManager field with hash', async () => {
   expect(status).toBe(0)
 })
 
+test('install should not fail for packageManager field with url', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+
+    packageManager: 'pnpm@https://github.com/pnpm/pnpm',
+  })
+
+  const { status } = execPnpmSync(['install'])
+  expect(status).toBe(0)
+})
+
 test('engine-strict=false: install should not fail if the used Node version does not satisfy the Node version specified in engines', async () => {
   prepare({
     name: 'project',
