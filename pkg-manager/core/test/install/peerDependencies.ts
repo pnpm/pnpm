@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type LockfileV7 as Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -48,9 +48,9 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/using-ajv@1.0.0'].dependencies!['ajv-keywords']).toBe('1.5.0(ajv@4.10.4)')
+  expect(lockfile.snapshots['/@pnpm.e2e/using-ajv@1.0.0'].dependencies!['ajv-keywords']).toBe('1.5.0(ajv@4.10.4)')
   // covers https://github.com/pnpm/pnpm/issues/1150
-  expect(lockfile.packages).toHaveProperty(['/ajv-keywords@1.5.0(ajv@4.10.4)'])
+  expect(lockfile.snapshots).toHaveProperty(['/ajv-keywords@1.5.0(ajv@4.10.4)'])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1133
@@ -99,7 +99,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   }, testDefaults({ preferFrozenLockfile: false }))
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages['/ajv-keywords@1.5.0(ajv@4.10.4)'].dependencies).toHaveProperty(['ajv'])
+  expect(lockfile.snapshots['/ajv-keywords@1.5.0(ajv@4.10.4)'].dependencies).toHaveProperty(['ajv'])
 })
 
 test('the right peer dependency is used in every workspace package', async () => {
@@ -505,7 +505,7 @@ test('the list of transitive peer dependencies is kept up to date', async () => 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0_@pnpm.e2e+peer-c@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))).toBeTruthy()
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)'].transitivePeerDependencies).toStrictEqual(['@pnpm.e2e/peer-c'])
+    expect(lockfile.snapshots['/@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)'].transitivePeerDependencies).toStrictEqual(['@pnpm.e2e/peer-c'])
   }
 
   await mutateModulesInSingleProject({
@@ -518,7 +518,7 @@ test('the list of transitive peer dependencies is kept up to date', async () => 
 
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/abc-grand-parent@1.0.0'].transitivePeerDependencies).toBeFalsy()
+    expect(lockfile.snapshots['/@pnpm.e2e/abc-grand-parent@1.0.0'].transitivePeerDependencies).toBeFalsy()
   }
 })
 
@@ -643,7 +643,7 @@ test.skip('peer dependencies are linked', async () => {
   expect(deepRequireCwd(['@pnpm.e2e/abc-grand-parent-with-c', '@pnpm.e2e/abc-parent-with-ab', '@pnpm.e2e/abc', '@pnpm.e2e/peer-c', './package.json']).version).toBe('1.0.0')
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages['/@pnpm.e2e/abc-parent-with-ab/1.0.0/@pnpm.e2e/peer-a@1.0.0+@pnpm.e2e+peer-b@1.0.0'].dev).toBeTruthy()
+  expect(lockfile.snapshots['/@pnpm.e2e/abc-parent-with-ab/1.0.0/@pnpm.e2e/peer-a@1.0.0+@pnpm.e2e+peer-b@1.0.0'].dev).toBeTruthy()
 })
 
 test('scoped peer dependency is linked', async () => {
@@ -688,8 +688,8 @@ test('package that has parent as peer dependency', async () => {
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/has-alpha-as-peer@1.0.0(@pnpm.e2e/alpha@1.0.0)'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/has-alpha-as-peer@1.0.0'])
+  expect(lockfile.snapshots).toHaveProperty(['/@pnpm.e2e/has-alpha-as-peer@1.0.0(@pnpm.e2e/alpha@1.0.0)'])
+  expect(lockfile.snapshots).not.toHaveProperty(['/@pnpm.e2e/has-alpha-as-peer@1.0.0'])
 })
 
 test('own peer installed in root as well is linked to root', async () => {
@@ -936,10 +936,10 @@ test('peer dependency is resolved from parent package', async () => {
   }, testDefaults())
 
   const lockfile = readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
+  expect(Object.keys(lockfile.snapshots ?? {}).sort()).toStrictEqual([
     '/@pnpm.e2e/has-tango-as-peer-dep@1.0.0(@pnpm.e2e/tango@1.0.0)',
     '/@pnpm.e2e/tango@1.0.0',
-  ])
+  ].sort())
 })
 
 test('transitive peerDependencies field does not break the lockfile on subsequent named install', async () => {
@@ -964,7 +964,7 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
 
   const lockfile = readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
-  expect(Object.keys(lockfile.packages!['/most@1.7.3'].dependencies!)).toStrictEqual([
+  expect(Object.keys(lockfile.snapshots!['/most@1.7.3'].dependencies!)).toStrictEqual([
     '@most/multicast',
     '@most/prelude',
     'symbol-observable',
@@ -985,10 +985,10 @@ test('peer dependency is resolved from parent package via its alias', async () =
   }, testDefaults())
 
   const lockfile = readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
+  expect(Object.keys(lockfile.snapshots ?? {}).sort()).toStrictEqual([
     '/@pnpm.e2e/has-tango-as-peer-dep@1.0.0(@pnpm.e2e/tango-tango@1.0.0(@pnpm.e2e/tango-tango@1.0.0))',
     '/@pnpm.e2e/tango-tango@1.0.0(@pnpm.e2e/tango-tango@1.0.0)',
-  ])
+  ].sort())
 })
 
 test('peer dependency is saved', async () => {
@@ -1091,7 +1091,7 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-c@2.0.0)'].peerDependenciesMeta).toStrictEqual({
+  expect(lockfile.packages['/@pnpm.e2e/abc-optional-peers@1.0.0'].peerDependenciesMeta).toStrictEqual({
     '@pnpm.e2e/peer-b': {
       optional: true,
     },
@@ -1154,12 +1154,12 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/abc-optional-peers-meta-only@1.0.0(@pnpm.e2e/peer-c@2.0.0)'].peerDependencies).toStrictEqual({
+  expect(lockfile.packages['/@pnpm.e2e/abc-optional-peers-meta-only@1.0.0'].peerDependencies).toStrictEqual({
     '@pnpm.e2e/peer-a': '^1.0.0',
     '@pnpm.e2e/peer-b': '*',
     '@pnpm.e2e/peer-c': '*',
   })
-  expect(lockfile.packages['/@pnpm.e2e/abc-optional-peers-meta-only@1.0.0(@pnpm.e2e/peer-c@2.0.0)'].peerDependenciesMeta).toStrictEqual({
+  expect(lockfile.packages['/@pnpm.e2e/abc-optional-peers-meta-only@1.0.0'].peerDependenciesMeta).toStrictEqual({
     '@pnpm.e2e/peer-b': {
       optional: true,
     },
@@ -1218,7 +1218,7 @@ test('peer dependency that is resolved by a dev dependency', async () => {
   }, testDefaults({ fastUnpack: false, lockfileOnly: true, strictPeerDependencies: false }))
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages['/@types/mongoose@5.7.32'].dev).toBeUndefined()
+  expect(lockfile.snapshots['/@types/mongoose@5.7.32'].dev).toBeUndefined()
 
   await mutateModulesInSingleProject({
     manifest,
@@ -1285,7 +1285,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   await mutateModules(importers, testDefaults({ allProjects }))
 
   const lockfile = readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
-  expect(lockfile.packages?.['/ajv-keywords@1.5.0(ajv@ajv)'].dependencies?.['ajv']).toBe('link:ajv')
+  expect(lockfile.snapshots?.['/ajv-keywords@1.5.0(ajv@ajv)'].dependencies?.['ajv']).toBe('link:ajv')
 })
 
 test('deduplicate packages that have optional and non-optional peers', async () => {
@@ -1299,7 +1299,7 @@ test('deduplicate packages that have optional and non-optional peers', async () 
   )
 
   const lockfile = readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
-  const depPaths = Object.keys(lockfile.packages ?? {})
+  const depPaths = Object.keys(lockfile.snapshots ?? {})
   expect(depPaths.length).toBe(5)
   expect(depPaths).toContain(`/@pnpm.e2e/abc-optional-peers@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
@@ -1317,7 +1317,7 @@ test('deduplicate packages that have peers', async () => {
   )
 
   const lockfile = readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
-  const depPaths = Object.keys(lockfile.packages ?? {})
+  const depPaths = Object.keys(lockfile.snapshots ?? {})
   expect(depPaths.length).toBe(8)
   expect(depPaths).toContain(`/@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
   expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
@@ -1381,7 +1381,7 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   await mutateModules(importers, testDefaults({ allProjects, autoInstallPeers: false, dedupePeerDependents: true }))
 
   const lockfile = readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
-  const depPaths = Object.keys(lockfile.packages ?? {})
+  const depPaths = Object.keys(lockfile.snapshots ?? {})
   expect(depPaths.length).toBe(8)
   expect(depPaths).toContain(`/@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
   expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
@@ -1399,7 +1399,7 @@ test('resolve peer dependencies from aliased subdependencies if they are depende
   )
 
   const lockfile = readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
-  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeTruthy()
+  expect(lockfile.snapshots['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeTruthy()
 })
 
 test('resolve peer dependency from aliased direct dependency', async () => {
@@ -1410,7 +1410,7 @@ test('resolve peer dependency from aliased direct dependency', async () => {
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/abc@1.0.0'], opts)
 
   const lockfile = readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
-  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)']).toBeTruthy()
+  expect(lockfile.snapshots['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)']).toBeTruthy()
 })
 
 test('resolve peer dependency using the alias that differs from the real name of the direct dependency', async () => {
@@ -1421,9 +1421,9 @@ test('resolve peer dependency using the alias that differs from the real name of
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/abc@1.0.0'], opts)
 
   const lockfile = readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
-  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)']?.dependencies['@pnpm.e2e/peer-a']).toBe('1.0.0')
-  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)']?.dependencies['@pnpm.e2e/peer-b']).toBe('/@pnpm.e2e/peer-a@1.0.0')
+  expect(lockfile.snapshots['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)']).toBeTruthy()
+  expect(lockfile.snapshots['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)']?.dependencies['@pnpm.e2e/peer-a']).toBe('1.0.0')
+  expect(lockfile.snapshots['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)']?.dependencies['@pnpm.e2e/peer-b']).toBe('/@pnpm.e2e/peer-a@1.0.0')
 })
 
 test('when there are several aliased dependencies of the same package, pick the one with the highest version to resolve peers', async () => {
@@ -1438,7 +1438,7 @@ test('when there are several aliased dependencies of the same package, pick the 
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/abc@1.0.0'], opts)
 
   const lockfile = readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
-  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)']).toBeTruthy()
+  expect(lockfile.snapshots['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)']).toBeTruthy()
 })
 
 test('when there is an aliases dependency and a non-aliased one, prefer the non-aliased dependency to resolve peers', async () => {
@@ -1452,7 +1452,7 @@ test('when there is an aliases dependency and a non-aliased one, prefer the non-
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/abc@1.0.0'], opts)
 
   const lockfile = readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
-  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@1.0.0)']).toBeTruthy()
+  expect(lockfile.snapshots['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@1.0.0)']).toBeTruthy()
 })
 
 test('in a subdependency, when there are several aliased dependencies of the same package, pick the one with the highest version to resolve peers', async () => {
@@ -1461,7 +1461,7 @@ test('in a subdependency, when there are several aliased dependencies of the sam
   await addDependenciesToPackage({}, ['@pnpm.e2e/abc-parent-with-aliases-of-same-pkg@1.0.0'], testDefaults({ autoInstallPeers: false, strictPeerDependencies: false }))
 
   const lockfile = readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
-  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)']).toBeTruthy()
+  expect(lockfile.snapshots['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)']).toBeTruthy()
 })
 
 test('peer having peer is resolved correctly', async () => {
@@ -1527,7 +1527,7 @@ test('peer having peer is resolved correctly', async () => {
   const lockfile = readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
 
   expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer']['version']).not.toEqual(lockfile.importers['project-2'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer']['version'])
-  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@1.0.0)')
+  expect(lockfile.snapshots['/@pnpm.e2e/has-has-y-peer-only-as-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@1.0.0)')
 })
 
 test('peer having peer is resolved correctly. The peer is also in the dependencies of the dependent package', async () => {
@@ -1595,11 +1595,11 @@ test('peer having peer is resolved correctly. The peer is also in the dependenci
   expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y']['version']).toEqual('1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))')
   expect(lockfile.importers['project-2'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y']['version']).toEqual('1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))')
 
-  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm/y']).toEqual('1.0.0')
-  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies['@pnpm/y']).toEqual('1.0.0')
+  expect(lockfile.snapshots['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm/y']).toEqual('1.0.0')
+  expect(lockfile.snapshots['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies['@pnpm/y']).toEqual('1.0.0')
 
-  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@1.0.0)')
-  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@2.0.0)')
+  expect(lockfile.snapshots['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@1.0.0)')
+  expect(lockfile.snapshots['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@2.0.0)')
 })
 
 test('peer having peer is resolved correctly. The peer is also in the dependencies of the dependent package. Test #2', async () => {
@@ -1664,8 +1664,8 @@ test('peer having peer is resolved correctly. The peer is also in the dependenci
 
   const lockfile = readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
 
-  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@2.0.0)')
-  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@2.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@1.0.0)')
+  expect(lockfile.snapshots['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@2.0.0)')
+  expect(lockfile.snapshots['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@2.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))'].dependencies['@pnpm.e2e/has-y-peer']).toEqual('1.0.0(@pnpm/y@1.0.0)')
 })
 
 test('resolve peer of peer from the dependencies of the direct dependent package', async () => {
@@ -1677,7 +1677,7 @@ test('resolve peer of peer from the dependencies of the direct dependent package
   expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y'].version).toBe('1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))')
   // Even though @pnpm/y@1.0.0 is in the dependencies of the direct dependent package, we resolve y from above.
   // It might make sense to print a warning in this case and suggest to make y a peer dependency in the dependent package too.
-  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies?.['@pnpm.e2e/has-y-peer']).toBe('1.0.0(@pnpm/y@2.0.0)')
+  expect(lockfile.snapshots['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies?.['@pnpm.e2e/has-y-peer']).toBe('1.0.0(@pnpm/y@2.0.0)')
 })
 
 test('2 circular peers', async () => {

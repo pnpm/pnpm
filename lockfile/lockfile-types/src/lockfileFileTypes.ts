@@ -1,9 +1,16 @@
-import type { Lockfile, ProjectSnapshot } from '.'
+import type { Lockfile, PackageSnapshot, ProjectSnapshot } from '.'
 import type { DependenciesMeta } from '@pnpm/types'
 
 export type LockfileFile = Omit<InlineSpecifiersLockfile, 'importers'> &
 Partial<InlineSpecifiersProjectSnapshot> &
 Partial<Pick<InlineSpecifiersLockfile, 'importers'>>
+
+export type LockfileFileV7 = Omit<InlineSpecifiersLockfile, 'importers' | 'packages'> &
+Partial<InlineSpecifiersProjectSnapshot> &
+Partial<Pick<InlineSpecifiersLockfile, 'importers'>> & {
+  packages?: Record<string, Pick<PackageSnapshot, 'resolution' | 'engines' | 'cpu' | 'os' | 'hasBin' | 'name' | 'version' | 'bundledDependencies' | 'peerDependencies' | 'peerDependenciesMeta' | 'deprecated'>>
+  snapshots?: Record<string, Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies' | 'patched' | 'dev' | 'optional' | 'transitivePeerDependencies' | 'id'>>
+}
 
 /**
  * Similar to the current Lockfile importers format (lockfile version 5.4 at

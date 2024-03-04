@@ -24,8 +24,8 @@ test('versions are replaced with versions specified through overrides option', a
 
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('/@pnpm.e2e/qar@100.0.0')
-    expect(lockfile.packages['/@pnpm.e2e/foobar@100.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
+    expect(lockfile.snapshots['/@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('/@pnpm.e2e/qar@100.0.0')
+    expect(lockfile.snapshots['/@pnpm.e2e/foobar@100.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
     expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
     expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/bar@100.1.0'])
     expect(lockfile.overrides).toStrictEqual({

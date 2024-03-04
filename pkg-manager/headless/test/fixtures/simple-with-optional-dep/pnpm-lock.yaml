@@ -20,10 +20,20 @@ packages:
 
   /@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0:
     resolution: {integrity: sha512-60+yiZtuRbojMieLzg4UxzBs5fxSVfRtTRNKvdfTaLTb/2XLZTZORTSWkz8ttCGmNbMv5Li2gP4TNgVFMbnYgw==}
-    dev: false
 
   /@pnpm.e2e/pkg-with-good-optional@1.0.0:
     resolution: {integrity: sha512-KfshZeGJiii1oEMjabBfxZ/rB14oJfE7wtFIRHmElIIZZHZlDtP1u4m8nBYrFKs4b8Dku4BCMV6pO0uMIVwHpQ==}
+
+  /is-positive@1.0.0:
+    resolution: {integrity: sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==}
+    engines: {node: '>=0.10.0'}
+
+snapshots:
+
+  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0:
+    dev: false
+
+  /@pnpm.e2e/pkg-with-good-optional@1.0.0:
     dependencies:
       '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.1.0
     optionalDependencies:
@@ -31,8 +41,5 @@ packages:
     dev: false
 
   /is-positive@1.0.0:
-    resolution: {integrity: sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==}
-    engines: {node: '>=0.10.0'}
-    requiresBuild: true
     dev: false
     optional: true

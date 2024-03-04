@@ -13,7 +13,7 @@ exports[`pnpm dedupe updates old resolutions from importers block and removes ol
           },
         },
       },
-@@ -20,18 +20,6 @@
+@@ -20,99 +20,71 @@
     },
     "lockfileVersion": "7.0",
     "packages": Object {
@@ -30,22 +30,25 @@ exports[`pnpm dedupe updates old resolutions from importers block and removes ol
 -       },
 -     },
       "/ajv@6.12.6": Object {
-        "dependencies": Object {
-          "fast-deep-equal": "3.1.3",
-@@ -42,24 +30,12 @@
-        "dev": false,
+-       "dependencies": Object {
+-         "fast-deep-equal": "3.1.3",
+-         "fast-json-stable-stringify": "2.1.0",
+-         "json-schema-traverse": "0.4.1",
+-         "uri-js": "4.4.1",
+-       },
+-       "dev": false,
         "resolution": Object {
           "integrity": "sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==",
--       },
--     },
+        },
+      },
 -     "/fast-deep-equal@2.0.1": Object {
 -       "dev": false,
 -       "resolution": Object {
 -         "integrity": "sha512-bCK/2Z4zLidyB4ReuIsvALH6w31YfAQDmXMqMx6FyfHqvBxtjC0eRumeSu4Bs3XtXwpyIywtSTrVT99BxY1f9w==",
-        },
-      },
+-       },
+-     },
       "/fast-deep-equal@3.1.3": Object {
-        "dev": false,
+-       "dev": false,
         "resolution": Object {
           "integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==",
 -       },
@@ -57,46 +60,92 @@ exports[`pnpm dedupe updates old resolutions from importers block and removes ol
         },
       },
       "/fast-json-stable-stringify@2.1.0": Object {
-@@ -73,16 +49,7 @@
+-       "dev": false,
+        "resolution": Object {
+          "integrity": "sha512-lhd/wF+Lk98HZoTCtlVraHtfh5XYijIjalXck7saUtuanSDyLMxnHhSXEDJqHxD7msR8D0uCmqlkwjCV8xvwHw==",
+        },
+      },
+      "/json-schema-traverse@0.4.1": Object {
+-       "dev": false,
         "resolution": Object {
           "integrity": "sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==",
         },
--     },
+      },
 -     "/punycode@2.1.1": Object {
+-       "dev": false,
++     "/punycode@2.3.0": Object {
+        "engines": Object {
+          "node": ">=6",
+        },
+        "resolution": Object {
+-         "integrity": "sha512-XRsRjdf+j5ml+y/6GKHPZbrF/8p2Yga0JPtdqTIY2Xe5ohJPD9saDJJLPvp9+NSBprVvevdXZybnj2cv8OEd0A==",
++         "integrity": "sha512-rRV+zQD8tVFys26lAGR9WUuS4iUAngJScM+ZRSKtvl5tKeZ2t5bvdNFdNHBW9FWR4guGHlgmsZ1G7BSm2wTbuA==",
++       },
+      },
++     "/uri-js@4.4.1": Object {
++       "resolution": Object {
++         "integrity": "sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==",
+        },
+-     "/punycode@2.3.0": Object {
 -       "dev": false,
 -       "engines": Object {
 -         "node": ">=6",
       },
 -       "resolution": Object {
--         "integrity": "sha512-XRsRjdf+j5ml+y/6GKHPZbrF/8p2Yga0JPtdqTIY2Xe5ohJPD9saDJJLPvp9+NSBprVvevdXZybnj2cv8OEd0A==",
--       },
--     },
-      "/punycode@2.3.0": Object {
-        "dev": false,
-        "engines": Object {
-@@ -90,15 +57,6 @@
-        },
-        "resolution": Object {
-          "integrity": "sha512-rRV+zQD8tVFys26lAGR9WUuS4iUAngJScM+ZRSKtvl5tKeZ2t5bvdNFdNHBW9FWR4guGHlgmsZ1G7BSm2wTbuA==",
--       },
--     },
+-         "integrity": "sha512-rRV+zQD8tVFys26lAGR9WUuS4iUAngJScM+ZRSKtvl5tKeZ2t5bvdNFdNHBW9FWR4guGHlgmsZ1G7BSm2wTbuA==",
+    },
++   "settings": Object {
++     "autoInstallPeers": true,
++     "excludeLinksFromLockfile": false,
+    },
 -     "/uri-js@4.2.2": Object {
--       "dependencies": Object {
++   "snapshots": Object {
++     "/ajv@6.12.6": Object {
+        "dependencies": Object {
 -         "punycode": "2.1.1",
--       },
--       "dev": false,
++         "fast-deep-equal": "3.1.3",
++         "fast-json-stable-stringify": "2.1.0",
++         "json-schema-traverse": "0.4.1",
++         "uri-js": "4.4.1",
++       },
++       "dev": false,
+      },
++     "/fast-deep-equal@3.1.3": Object {
+        "dev": false,
 -       "resolution": Object {
 -         "integrity": "sha512-KY9Frmirql91X2Qgjry0Wd4Y+YTdrdZheS8TFwvkbLWf/G5KNJDCh6pKL5OZctEW4+0Baa5idK2ZQuELRwPznQ==",
-        },
++     },
++     "/fast-json-stable-stringify@2.1.0": Object {
++       "dev": false,
       },
-      "/uri-js@4.4.1": Object {"
++     "/json-schema-traverse@0.4.1": Object {
++       "dev": false,
+      },
++     "/punycode@2.3.0": Object {
++       "dev": false,
++     },
+      "/uri-js@4.4.1": Object {
+        "dependencies": Object {
+          "punycode": "2.3.0",
+        },
+        "dev": false,
+-       "resolution": Object {
+-         "integrity": "sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==",
+      },
+-     },
+-   },
+-   "settings": Object {
+-     "autoInstallPeers": true,
+-     "excludeLinksFromLockfile": false,
+    },
+  }"
 `;
 
 exports[`pnpm dedupe updates old resolutions from package block 1`] = `
 "- Expected
 + Received
 
-@@ -20,15 +20,6 @@
+@@ -20,17 +20,7 @@
     },
     "lockfileVersion": "7.0",
     "packages": Object {
@@ -110,15 +159,51 @@ exports[`pnpm dedupe updates old resolutions from package block 1`] = `
 -       },
 -     },
       "/punycode@2.3.0": Object {
-        "dev": false,
+-       "dev": false,
         "engines": Object {
-@@ -40,7 +31,7 @@
+          "node": ">=6",
+        },
+@@ -39,19 +29,11 @@
+        },
       },
       "/uri-js@4.2.2": Object {
-        "dependencies": Object {
+-       "dependencies": Object {
 -         "punycode": "2.1.1",
-+         "punycode": "2.3.0",
+-       },
+-       "dev": false,
+        "resolution": Object {
+          "integrity": "sha512-KY9Frmirql91X2Qgjry0Wd4Y+YTdrdZheS8TFwvkbLWf/G5KNJDCh6pKL5OZctEW4+0Baa5idK2ZQuELRwPznQ==",
         },
-        "dev": false,
-        "resolution": Object {"
+      },
+      "/uri-js@4.4.1": Object {
+-       "dependencies": Object {
+-         "punycode": "2.3.0",
+-       },
+-       "dev": false,
+        "resolution": Object {
+          "integrity": "sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==",
+        },
+@@ -60,5 +42,22 @@
+    "settings": Object {
+      "autoInstallPeers": true,
+      "excludeLinksFromLockfile": false,
++   },
++   "snapshots": Object {
++     "/punycode@2.3.0": Object {
++       "dev": false,
++     },
++     "/uri-js@4.2.2": Object {
++       "dependencies": Object {
++         "punycode": "2.3.0",
++       },
++       "dev": false,
++     },
++     "/uri-js@4.4.1": Object {
++       "dependencies": Object {
++         "punycode": "2.3.0",
++       },
++       "dev": false,
++     },
+    },
+  }"
 `;

@@ -210,6 +210,10 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
         },
       },
     },
+    snapshots: {
+      '/@types/semver@5.3.31': {},
+      '/is-positive@3.1.0': {},
+    },
   }
   writeYamlFile(otherLockfilePath, otherLockfileContent, { lineWidth: 1000 })
 

@@ -22,24 +22,39 @@ packages:
     peerDependenciesMeta:
       supports-color:
         optional: true
+
+  /diskusage@1.2.0:
+    resolution: {integrity: sha512-2u3OG3xuf5MFyzc4MctNRUKjjwK+UkovRYdD2ed/NZNZPrt0lqHnLKxGhlFVvAb4/oufIgQG3nWgwmeTbHOvXA==}
+
+  /es6-promise@4.2.8:
+    resolution: {integrity: sha512-HJDGx5daxeIvxdBxvG2cb9g4tEvwIk3i8+nhX0yGrYmZUzbkdg8QbDevheDB8gd0//uPj4c1EQua8Q+MViT0/w==}
+
+  /expire-fs@2.2.3:
+    resolution: {integrity: sha512-ofQ0zNXKProir7/dtNAJiOucthMhraUznLiPd2MpoFexVi21BfGj0owPO5wMleO5cmSVOPRPJf8+XZqLpix4Ew==}
+
+  /ms@2.1.2:
+    resolution: {integrity: sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==}
+
+  /nan@2.18.0:
+    resolution: {integrity: sha512-W7tfG7vMOGtD30sHoZSSc/JVYiyDPEyQVso/Zz+/uQd0B0L46gtC+pHha5FFMRpil6fm/AoEcRWyOVi4+E/f8w==}
+
+snapshots:
+
+  /debug@4.3.4:
     dependencies:
       ms: 2.1.2
     dev: false
 
   /diskusage@1.2.0:
-    resolution: {integrity: sha512-2u3OG3xuf5MFyzc4MctNRUKjjwK+UkovRYdD2ed/NZNZPrt0lqHnLKxGhlFVvAb4/oufIgQG3nWgwmeTbHOvXA==}
-    requiresBuild: true
     dependencies:
       es6-promise: 4.2.8
       nan: 2.18.0
     dev: false
 
   /es6-promise@4.2.8:
-    resolution: {integrity: sha512-HJDGx5daxeIvxdBxvG2cb9g4tEvwIk3i8+nhX0yGrYmZUzbkdg8QbDevheDB8gd0//uPj4c1EQua8Q+MViT0/w==}
     dev: false
 
   /expire-fs@2.2.3:
-    resolution: {integrity: sha512-ofQ0zNXKProir7/dtNAJiOucthMhraUznLiPd2MpoFexVi21BfGj0owPO5wMleO5cmSVOPRPJf8+XZqLpix4Ew==}
     dependencies:
       debug: 4.3.4
       diskusage: 1.2.0
@@ -48,9 +63,7 @@ packages:
     dev: false
 
   /ms@2.1.2:
-    resolution: {integrity: sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==}
     dev: false
 
   /nan@2.18.0:
-    resolution: {integrity: sha512-W7tfG7vMOGtD30sHoZSSc/JVYiyDPEyQVso/Zz+/uQd0B0L46gtC+pHha5FFMRpil6fm/AoEcRWyOVi4+E/f8w==}
     dev: false
