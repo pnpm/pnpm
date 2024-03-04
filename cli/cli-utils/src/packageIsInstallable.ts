@@ -24,7 +24,8 @@ export function packageIsInstallable (
     ? packageManager.version
     : undefined
   if (pkg.packageManager) {
-    const [pmName, pmVersion] = pkg.packageManager.split('@')
+    const [pmName, pmReference] = pkg.packageManager.split('@')
+    const [pmVersion] = pmReference.split('+')
     if (pmName && pmName !== 'pnpm') {
       const msg = `This project is configured to use ${pmName}`
       if (opts.packageManagerStrict) {
