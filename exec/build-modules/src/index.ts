@@ -1,3 +1,4 @@
+import assert from 'assert'
 import path from 'path'
 import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
@@ -142,14 +143,15 @@ async function buildDependency (
           filesIndexFile: depNode.filesIndexFile,
         })
       } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'statusCode' in err && err.statusCode === 403) {
+        assert(util.types.isNativeError(err))
+        if (err && 'statusCode' in err && err.statusCode === 403) {
           logger.warn({
             message: `The store server disabled upload requests, could not upload ${depNode.dir}`,
             prefix: opts.lockfileDir,
           })
         } else {
           logger.warn({
-            error: err as Error,
+            error: err,
             message: `An error occurred while uploading ${depNode.dir}`,
             prefix: opts.lockfileDir,
           })
@@ -157,11 +159,12 @@ async function buildDependency (
       }
     }
   } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
     if (depNode.optional) {
       // TODO: add parents field to the log
       const pkg = await readPackageJsonFromDir(path.join(depNode.dir)) as DependencyManifest
       skippedOptionalDependencyLogger.debug({
-        details: (err as Error).toString(),
+        details: err.toString(),
         package: {
           id: depNode.dir,
           name: pkg.name,

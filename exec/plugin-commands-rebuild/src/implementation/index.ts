@@ -1,3 +1,4 @@
+import assert from 'assert'
 import path from 'path'
 import util from 'util'
 import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
@@ -351,14 +352,15 @@ async function _rebuild (
               filesIndexFile,
             })
           } catch (err: unknown) {
-            if (util.types.isNativeError(err) && 'statusCode' in err && err.statusCode === 403) {
+            assert(util.types.isNativeError(err))
+            if ('statusCode' in err && err.statusCode === 403) {
               logger.warn({
                 message: `The store server disabled upload requests, could not upload ${pkgRoot}`,
                 prefix: opts.lockfileDir,
               })
             } else {
               logger.warn({
-                error: (err as Error),
+                error: err,
                 message: `An error occurred while uploading ${pkgRoot}`,
                 prefix: opts.lockfileDir,
               })
@@ -367,10 +369,11 @@ async function _rebuild (
         }
         pkgsThatWereRebuilt.add(depPath)
       } catch (err: unknown) {
+        assert(util.types.isNativeError(err))
         if (pkgSnapshot.optional) {
           // TODO: add parents field to the log
           skippedOptionalDependencyLogger.debug({
-            details: (err as Error).toString(),
+            details: err.toString(),
             package: {
               id: pkgSnapshot.id ?? depPath,
               name: pkgInfo.name,

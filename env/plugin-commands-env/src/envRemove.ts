@@ -1,5 +1,6 @@
 /* eslint-disable no-await-in-loop */
 import util from 'util'
+import assert from 'assert'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, logger } from '@pnpm/logger'
 import { removeBin } from '@pnpm/remove-bins'
@@ -55,7 +56,8 @@ async function removeNodeVersion (opts: NvmNodeCommandOptions, version: string):
         removeBin(npxPath),
       ])
     } catch (err: unknown) {
-      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) return err as Error
+      assert(util.types.isNativeError(err))
+      if (!('code' in err && err.code === 'ENOENT')) return err
     }
   }
 
