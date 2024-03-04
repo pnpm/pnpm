@@ -21,7 +21,7 @@ export function packageIsInstallable (
   }
 ) {
   const pnpmVersion = packageManager.name === 'pnpm'
-    ? packageManager.stableVersion
+    ? packageManager.version
     : undefined
   if (pkg.packageManager) {
     const [pmName, pmVersion] = pkg.packageManager.split('@')
