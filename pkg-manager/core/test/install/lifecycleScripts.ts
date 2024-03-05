@@ -294,7 +294,7 @@ test('run prepare script for git-hosted dependencies', async () => {
   ])
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['github.com/pnpm/test-git-fetch/d222f6bfbdea55c032fdb5f0538d52b2a484bbbf'].prepare === true).toBeTruthy()
+  expect(lockfile.packages['github.com/pnpm/test-git-fetch/6ebf1e03de0ada9e653d1f8ff82ad905ab761ad9'].prepare === true).toBeTruthy()
 })
 
 test('lifecycle scripts run before linking bins', async () => {
