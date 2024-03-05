@@ -602,3 +602,13 @@ test('do not override the direct dependency with an auto installed peer dependen
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.rxjs.version).toStrictEqual('6.6.7')
 })
+
+test('auto install peers fails if ignoreMissing is set', async () => {
+  prepareEmpty()
+  await expect(addDependenciesToPackage({}, ['is-odd@1.0.0'], testDefaults({
+    autoInstallPeers: true,
+    peerDependencyRules: {
+      ignoreMissing: ['*'],
+    },
+  }))).rejects.toThrow('Cannot have both autoInstallPeers=true and setting peerDependencyRules.ignoreMissing')
+})
