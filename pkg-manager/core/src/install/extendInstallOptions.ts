@@ -265,7 +265,7 @@ export function extendOptions (
     ...opts,
     storeDir: defaultOpts.storeDir,
   }
-  if (extendedOpts.autoInstallPeers && extendedOpts.peerDependencyRules.ignoreMissing?.length) {
+  if (extendedOpts.autoInstallPeers && extendedOpts.peerDependencyRules?.ignoreMissing?.length) {
     throw new PnpmError('IGNORE_MISSING_WITH_AUTO_INSTALL_PEERS', 'Cannot have both autoInstallPeers=true and setting peerDependencyRules.ignoreMissing')
   }
   extendedOpts.readPackageHook = createReadPackageHook({
