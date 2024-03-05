@@ -158,10 +158,7 @@
       "allowedVersions": {
         "eslint": "*",
         "@yarnpkg/core": "*"
-      },
-      "ignoreMissing": [
-        "@yarnpkg/plugin-patch"
-      ]
+      }
     },
     "patchedDependencies": {
       "pkg@5.8.1": "__patches__/pkg.patch",
