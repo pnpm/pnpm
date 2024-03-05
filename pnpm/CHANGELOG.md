@@ -1,6 +1,6 @@
 # pnpm
 
-## 9.0.0-alpha.5
+## 9.0.0-alpha.6
 
 ### Major Changes
 
@@ -98,6 +98,10 @@
 
   Related issue: [#7427](https://github.com/pnpm/pnpm/issues/7427).
   Related PR: [#7626](https://github.com/pnpm/pnpm/pull/7626).
+
+- Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped [#7714](https://github.com/pnpm/pnpm/pull/7714).
+
+- The checksum of the `.pnpmfile.cjs` is saved into the lockfile. If the pnpmfile gets modified, the lockfile is reanalyzed to apply the changes [#7662](https://github.com/pnpm/pnpm/pull/7662).
 
 ## 8.15.0
 
