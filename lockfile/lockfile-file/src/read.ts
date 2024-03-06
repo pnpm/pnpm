@@ -91,9 +91,8 @@ async function _read (
     lockfile = convertToLockfileObject(yaml.load(lockfileRawContent) as any) // eslint-disable-line
     hadConflicts = false
   } catch (err: unknown) {
-    assert(util.types.isNativeError(err))
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
-      throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${err.message}`)
+      throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${(err as Error).message}`)
     }
     hadConflicts = true
     lockfile = autofixMergeConflicts(lockfileRawContent)
