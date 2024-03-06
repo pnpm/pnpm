@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import { type Config } from '@pnpm/config'
 import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
@@ -92,8 +93,8 @@ export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommand
 async function readNodeVersionsManifest (nodesDir: string): Promise<{ default?: string }> {
   try {
     return await loadJsonFile<{ default?: string }>(path.join(nodesDir, 'versions.json'))
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return {}
     }
     throw err

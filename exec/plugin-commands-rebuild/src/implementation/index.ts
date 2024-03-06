@@ -1,4 +1,6 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
@@ -349,8 +351,9 @@ async function _rebuild (
               sideEffectsCacheKey,
               filesIndexFile,
             })
-          } catch (err: any) { // eslint-disable-line
-            if (err.statusCode === 403) {
+          } catch (err: unknown) {
+            assert(util.types.isNativeError(err))
+            if ('statusCode' in err && err.statusCode === 403) {
               logger.warn({
                 message: `The store server disabled upload requests, could not upload ${pkgRoot}`,
                 prefix: opts.lockfileDir,
@@ -365,7 +368,8 @@ async function _rebuild (
           }
         }
         pkgsThatWereRebuilt.add(depPath)
-      } catch (err: any) { // eslint-disable-line
+      } catch (err: unknown) {
+        assert(util.types.isNativeError(err))
         if (pkgSnapshot.optional) {
           // TODO: add parents field to the log
           skippedOptionalDependencyLogger.debug({

@@ -1,4 +1,6 @@
+import assert from 'assert'
 import fs from 'fs'
+import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import { type PackageManifest } from '@pnpm/types'
@@ -59,13 +61,17 @@ export function requirePnpmfile (pnpmFilePath: string, prefix: string) {
     }
     pnpmfile.filename = pnpmFilePath
     return pnpmfile
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     if (err instanceof SyntaxError) {
       console.error(chalk.red('A syntax error in the .pnpmfile.cjs\n'))
       console.error(err)
       process.exit(1)
     }
-    if (err.code !== 'MODULE_NOT_FOUND' || pnpmFileExistsSync(pnpmFilePath)) {
+    assert(util.types.isNativeError(err))
+    if (
+      !('code' in err && err.code === 'MODULE_NOT_FOUND') ||
+      pnpmFileExistsSync(pnpmFilePath)
+    ) {
       throw new PnpmFileFailError(pnpmFilePath, err)
     }
     return undefined

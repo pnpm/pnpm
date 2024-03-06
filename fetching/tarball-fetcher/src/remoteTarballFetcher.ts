@@ -1,4 +1,6 @@
+import assert from 'assert'
 import { type IncomingMessage } from 'http'
+import util from 'util'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError } from '@pnpm/error'
 import { type FetchResult, type FetchOptions } from '@pnpm/fetcher-base'
@@ -149,9 +151,12 @@ export function createDownloader (
           chunk.copy(data, offset)
           offset += chunk.length
         }
-      } catch (err: any) { // eslint-disable-line
-        err.attempts = currentAttempt
-        err.resource = url
+      } catch (err: unknown) {
+        assert(util.types.isNativeError(err))
+        Object.assign(err, {
+          attempts: currentAttempt,
+          resource: url,
+        })
         throw err
       }
       return addFilesFromTarball({

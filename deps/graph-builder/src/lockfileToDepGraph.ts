@@ -177,7 +177,7 @@ export async function lockfileToDepGraph (
               },
             }) as any // eslint-disable-line
             if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-          } catch (err: any) { // eslint-disable-line
+          } catch (err: unknown) {
             if (pkgSnapshot.optional) return
             throw err
           }
