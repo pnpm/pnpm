@@ -22,13 +22,21 @@ packages:
     cpu: [x86]
     os: [darwin]
     libc: [glibc]
-    dependencies:
-      is-positive: 2.0.0
 
   /is-positive@1.0.0:
     resolution: {integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=}
 
   /is-positive@2.0.0:
     resolution: {integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=}
+
+snapshots:
+
+  /is-negative@1.0.0:
+    dependencies:
+      is-positive: 2.0.0
+
+  /is-positive@1.0.0: {}
+
+  /is-positive@2.0.0: {}
 "
 `;

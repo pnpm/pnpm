@@ -1,25 +1,65 @@
 import {
   type Lockfile,
   type ProjectSnapshot,
+  type PackageSnapshotV7,
   type ResolvedDependencies,
   type LockfileFile,
   type InlineSpecifiersLockfile,
   type InlineSpecifiersProjectSnapshot,
   type InlineSpecifiersResolvedDependencies,
+  type PackageInfo,
+  type LockfileFileV7,
+  type PackageSnapshots,
+  type PackageSnapshot,
 } from '@pnpm/lockfile-types'
+import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import _mapValues from 'ramda/src/map'
+import omit from 'ramda/src/omit'
 import pickBy from 'ramda/src/pickBy'
+import pick from 'ramda/src/pick'
 
 export interface NormalizeLockfileOpts {
   forceSharedFormat: boolean
 }
 
 export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfileOpts): LockfileFile {
+  const packages: Record<string, PackageInfo> = {}
+  const snapshots: Record<string, PackageSnapshotV7> = {}
+  for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
+    snapshots[depPath] = pick([
+      'dependencies',
+      'optionalDependencies',
+      'transitivePeerDependencies',
+      'dev',
+      'optional',
+      'id',
+    ], pkg)
+    const pkgId = packageIdFromSnapshot(depPath, pkg)
+    if (!packages[pkgId]) {
+      packages[pkgId] = pick([
+        'bundleDependencies',
+        'bundledDependencies',
+        'cpu',
+        'deprecated',
+        'engines',
+        'hasBin',
+        'libc',
+        'name',
+        'os',
+        'peerDependencies',
+        'peerDependenciesMeta',
+        'resolution',
+        'version',
+      ], pkg)
+    }
+  }
   const newLockfile = {
     ...lockfile,
+    snapshots,
+    packages,
     lockfileVersion: lockfile.lockfileVersion.toString(),
     importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
   }
@@ -42,6 +82,9 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
     if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
     }
+    if (isEmpty((lockfileToSave as LockfileFileV7).snapshots) || ((lockfileToSave as LockfileFileV7).snapshots == null)) {
+      delete (lockfileToSave as LockfileFileV7).snapshots
+    }
   } else {
     lockfileToSave = {
       ...lockfile,
@@ -63,6 +106,9 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
     }
     if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
+    }
+    if (isEmpty((lockfileToSave as LockfileFileV7).snapshots) || ((lockfileToSave as LockfileFileV7).snapshots == null)) {
+      delete (lockfileToSave as LockfileFileV7).snapshots
     }
   }
   if (lockfileToSave.time) {
@@ -139,7 +185,10 @@ function convertFromLockfileFileMutable (lockfileFile: LockfileFile): InlineSpec
   return lockfileFile as InlineSpecifiersLockfile
 }
 
-export function convertToLockfileObject (lockfile: LockfileFile): Lockfile {
+export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV7): Lockfile {
+  if ((lockfile as LockfileFileV7).snapshots) {
+    return convertLockfileV7ToLockfileObject(lockfile as LockfileFileV7)
+  }
   const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
 
   const newLockfile = {
@@ -147,6 +196,21 @@ export function convertToLockfileObject (lockfile: LockfileFile): Lockfile {
     importers: mapValues(importers ?? {}, revertProjectSnapshot),
   }
   return newLockfile
+}
+
+export function convertLockfileV7ToLockfileObject (lockfile: LockfileFileV7): Lockfile {
+  const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
+
+  const packages: PackageSnapshots = {}
+  for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
+    const pkgId = packageIdFromSnapshot(depPath, pkg as PackageSnapshot)
+    packages[depPath] = Object.assign(pkg, lockfile.packages?.[pkgId])
+  }
+  return {
+    ...omit(['snapshots'], rest),
+    packages,
+    importers: mapValues(importers ?? {}, revertProjectSnapshot),
+  }
 }
 
 function convertProjectSnapshotToInlineSpecifiersFormat (

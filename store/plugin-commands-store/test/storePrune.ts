@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
-import { type LockfileFile } from '@pnpm/lockfile-file'
+import { type LockfileFileV7 as LockfileFile } from '@pnpm/lockfile-file'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -137,9 +137,9 @@ test('keep dependencies used by others', async () => {
 
   // all dependencies are marked as dev
   const lockfile = project.readLockfile() as LockfileFile
-  expect(isEmpty(lockfile.packages)).toBeFalsy()
+  expect(isEmpty(lockfile.snapshots)).toBeFalsy()
 
-  Object.entries(lockfile.packages ?? {}).forEach(([_, dep]) => {
+  Object.entries(lockfile.snapshots ?? {}).forEach(([_, dep]) => {
     expect(dep.dev).toBeTruthy()
   })
 

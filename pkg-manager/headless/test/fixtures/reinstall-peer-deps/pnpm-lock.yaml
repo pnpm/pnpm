@@ -14,12 +14,28 @@ importers:
 
 packages:
 
-  /@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0):
+  /@pnpm.e2e/abc@1.0.0:
     resolution: {integrity: sha512-pXCDz60zZZ33NeZpkHZtikJBbyAHjK42Nv33wgxGXV/bNDhLfXQ9yQTsVXfR1xOwJ55n2nV+Zkx/W0Lo5YL8ag==}
     peerDependencies:
       '@pnpm.e2e/peer-a': ^1.0.0
       '@pnpm.e2e/peer-b': ^1.0.0
       '@pnpm.e2e/peer-c': ^1.0.0
+
+  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0:
+    resolution: {integrity: sha512-atUXGBNAbym4OioYcKt1qTjiH23CSfZ1K2N8JgCUewSE5gY/i9YoK7Ez6+CuEZbH+O3R+HKNrRIaZfnkv/93tg==}
+
+  /@pnpm.e2e/peer-a@1.0.1:
+    resolution: {integrity: sha512-cyU9jFho5DTPXyyUuMrR4eK5r9ExqStBjoqVOTxb748Q5G9SOgqjZduUDCxA27x6j8GWCmNTt2qOI5WcAROHuQ==}
+
+  /@pnpm.e2e/peer-b@1.0.0:
+    resolution: {integrity: sha512-/xEON+6CnPFjT8WUWdDI+ZaK+/foZqWhqhzEslQvjaRUZZPD9ClSa1VQqrRLK7DctB9X01rYorCDfRrCCgNU4w==}
+
+  /@pnpm.e2e/peer-c@1.0.0:
+    resolution: {integrity: sha512-mIxp7K4B8IeXU/fuEP/llay2xDR+hyyhwlqL9D+/3NewrXTyvJUjp8cNagIuEOjA/1VZCDcNQfI947LjsSe3qQ==}
+
+snapshots:
+
+  /@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0):
     dependencies:
       '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0
       '@pnpm.e2e/peer-a': 1.0.1
@@ -28,17 +44,13 @@ packages:
     dev: true
 
   /@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0:
-    resolution: {integrity: sha512-atUXGBNAbym4OioYcKt1qTjiH23CSfZ1K2N8JgCUewSE5gY/i9YoK7Ez6+CuEZbH+O3R+HKNrRIaZfnkv/93tg==}
     dev: true
 
   /@pnpm.e2e/peer-a@1.0.1:
-    resolution: {integrity: sha512-cyU9jFho5DTPXyyUuMrR4eK5r9ExqStBjoqVOTxb748Q5G9SOgqjZduUDCxA27x6j8GWCmNTt2qOI5WcAROHuQ==}
     dev: true
 
   /@pnpm.e2e/peer-b@1.0.0:
-    resolution: {integrity: sha512-/xEON+6CnPFjT8WUWdDI+ZaK+/foZqWhqhzEslQvjaRUZZPD9ClSa1VQqrRLK7DctB9X01rYorCDfRrCCgNU4w==}
     dev: true
 
   /@pnpm.e2e/peer-c@1.0.0:
-    resolution: {integrity: sha512-mIxp7K4B8IeXU/fuEP/llay2xDR+hyyhwlqL9D+/3NewrXTyvJUjp8cNagIuEOjA/1VZCDcNQfI947LjsSe3qQ==}
     dev: true
