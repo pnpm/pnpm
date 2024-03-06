@@ -1,4 +1,3 @@
-import assert from 'assert'
 import { promises as fs } from 'fs'
 import path from 'path'
 import util from 'util'
