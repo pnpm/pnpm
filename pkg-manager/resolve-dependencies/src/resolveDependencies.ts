@@ -1083,6 +1083,9 @@ async function resolveDependency (
     }
   }
   try {
+    if (!options.update && currentPkg.version) {
+      wantedDependency.pref = currentPkg.version
+    }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
