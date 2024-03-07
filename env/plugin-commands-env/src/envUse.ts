@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import util from 'util'
 import gfs from 'graceful-fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
@@ -23,8 +24,8 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
   await symlinkDir(nodeDir, path.join(opts.pnpmHomeDir, CURRENT_NODE_DIRNAME))
   try {
     gfs.unlinkSync(dest)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') throw err
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) throw err
   }
   await symlinkOrHardLink(src, dest)
   try {
@@ -42,7 +43,7 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
     const cmdShimOpts = { createPwshFile: false }
     await cmdShim(path.join(npmBinDir, 'npm-cli.js'), path.join(opts.bin, 'npm'), cmdShimOpts)
     await cmdShim(path.join(npmBinDir, 'npx-cli.js'), path.join(opts.bin, 'npx'), cmdShimOpts)
-  } catch (err: any) { // eslint-disable-line
+  } catch {
     // ignore
   }
   return `Node.js ${nodeVersion as string} was activated

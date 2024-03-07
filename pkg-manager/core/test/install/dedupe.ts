@@ -207,7 +207,7 @@ test('when resolving dependencies, prefer versions that are used by direct depen
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/has-foo-100.0.0-range-dep'], testDefaults())
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages['/@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0']).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
+  expect(lockfile.snapshots['/@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0']).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
 })
 
 test('when resolving dependencies, prefer versions that are used by direct dependencies over versions used in subdeps', async () => {
@@ -225,5 +225,5 @@ test('when resolving dependencies, prefer versions that are used by direct depen
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/has-foo-100.0.0-range-dep'], testDefaults())
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages['/@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0']).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
+  expect(lockfile.snapshots['/@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0']).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
 })

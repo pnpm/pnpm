@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileFile } from '@pnpm/lockfile-types'
+import { type LockfileFileV7 } from '@pnpm/lockfile-types'
 import { type Modules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -30,14 +31,14 @@ export interface Project {
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readCurrentLockfile: () => Required<LockfileFile>
+  readCurrentLockfile: () => Required<LockfileFileV7>
   readModulesManifest: () => Modules | null
   /**
    * TODO: Remove the `Required<T>` cast.
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readLockfile: (lockfileName?: string) => Required<LockfileFile>
+  readLockfile: (lockfileName?: string) => Required<LockfileFileV7>
   writePackageJson: (pkgJson: object) => void
 }
 
@@ -125,8 +126,8 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
       try {
         const store = getStoreInstance()
         store.storeHasNot(pkgName, version)
-      } catch (err: any) { // eslint-disable-line
-        if (err.message.startsWith('Cannot find module store')) {
+      } catch (err: unknown) {
+        if (util.types.isNativeError(err) && err.message.startsWith('Cannot find module store')) {
           return
         }
         throw err
@@ -138,8 +139,8 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     readCurrentLockfile () {
       try {
         return readYamlFile(path.join(getVirtualStoreDir(), 'lock.yaml'))
-      } catch (err: any) { // eslint-disable-line
-        if (err.code === 'ENOENT') return null!
+      } catch (err: unknown) {
+        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
         throw err
       }
     },
@@ -147,8 +148,8 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     readLockfile (lockfileName: string = WANTED_LOCKFILE) {
       try {
         return readYamlFile(path.join(projectPath, lockfileName))
-      } catch (err: any) { // eslint-disable-line
-        if (err.code === 'ENOENT') return null!
+      } catch (err: unknown) {
+        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
         throw err
       }
     },
@@ -161,8 +162,8 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
 function readModulesManifest (modulesDir: string) {
   try {
     return readYamlFile<Modules>(path.join(modulesDir, '.modules.yaml'))
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') return null!
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
     throw err
   }
 }

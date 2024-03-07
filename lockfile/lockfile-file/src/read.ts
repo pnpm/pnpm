@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import util from 'util'
 import {
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
@@ -74,8 +75,8 @@ async function _read (
   let lockfileRawContent
   try {
     lockfileRawContent = stripBom(await fs.readFile(lockfilePath, 'utf8'))
-  } catch (err: any) { // eslint-disable-line
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
       throw err
     }
     return {
@@ -88,9 +89,9 @@ async function _read (
   try {
     lockfile = convertToLockfileObject(yaml.load(lockfileRawContent) as any) // eslint-disable-line
     hadConflicts = false
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
-      throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${err.message as string}`)
+      throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${(err as Error).message}`)
     }
     hadConflicts = true
     lockfile = autofixMergeConflicts(lockfileRawContent)

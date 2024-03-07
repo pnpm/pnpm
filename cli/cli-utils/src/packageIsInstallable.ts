@@ -21,10 +21,10 @@ export function packageIsInstallable (
   }
 ) {
   const pnpmVersion = packageManager.name === 'pnpm'
-    ? packageManager.stableVersion
+    ? packageManager.version
     : undefined
   if (pkg.packageManager) {
-    const [pmName, pmVersion] = pkg.packageManager.split('@')
+    const [pmName, pmReference] = pkg.packageManager.split('@')
     if (pmName && pmName !== 'pnpm') {
       const msg = `This project is configured to use ${pmName}`
       if (opts.packageManagerStrict) {
@@ -32,12 +32,16 @@ export function packageIsInstallable (
       } else {
         globalWarn(msg)
       }
-    } else if (pmVersion && pnpmVersion && pmVersion !== pnpmVersion) {
-      const msg = `This project is configured to use v${pmVersion} of pnpm. Your current pnpm is v${pnpmVersion}`
-      if (opts.packageManagerStrict) {
-        throw new PnpmError('BAD_PM_VERSION', msg)
-      } else {
-        globalWarn(msg)
+    } else if (!pmReference.includes(':')) {
+      // pmReference is semantic versioning, not URL
+      const [pmVersion] = pmReference.split('+')
+      if (pmVersion && pnpmVersion && pmVersion !== pnpmVersion) {
+        const msg = `This project is configured to use v${pmVersion} of pnpm. Your current pnpm is v${pnpmVersion}`
+        if (opts.packageManagerStrict) {
+          throw new PnpmError('BAD_PM_VERSION', msg)
+        } else {
+          globalWarn(msg)
+        }
       }
     }
   }

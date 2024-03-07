@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type LockfileV7 as Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -183,7 +183,6 @@ test('tarball local package', async () => {
 
   const lockfile = project.readLockfile()
   expect(lockfile.packages[lockfile.importers['.'].dependencies!['tar-pkg'].version]).toStrictEqual({
-    dev: false,
     name: 'tar-pkg',
     resolution: {
       integrity: 'sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==',
@@ -214,7 +213,6 @@ test('tarball local package from project directory', async () => {
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['tar-pkg'].version).toBe(pkgSpec)
   expect(lockfile.packages[lockfile.importers['.'].dependencies!['tar-pkg'].version]).toStrictEqual({
-    dev: false,
     name: 'tar-pkg',
     resolution: {
       integrity: 'sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==',
@@ -231,13 +229,13 @@ test('update tarball local package when its integrity changes', async () => {
   const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], testDefaults())
 
   const lockfile1 = project.readLockfile()
-  expect(lockfile1.packages['file:../tar.tgz'].dependencies!['is-positive']).toBe('1.0.0')
+  expect(lockfile1.snapshots['file:../tar.tgz'].dependencies!['is-positive']).toBe('1.0.0')
 
   f.copy('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
   await install(manifest, testDefaults())
 
   const lockfile2 = project.readLockfile()
-  expect(lockfile2.packages['file:../tar.tgz'].dependencies!['is-positive']).toBe('2.0.0')
+  expect(lockfile2.snapshots['file:../tar.tgz'].dependencies!['is-positive']).toBe('2.0.0')
 
   const manifestOfTarballDep = await import(path.resolve('node_modules/tar-pkg-with-dep/package.json'))
   expect(manifestOfTarballDep.dependencies['is-positive']).toBe('^2.0.0')
@@ -430,6 +428,10 @@ test('re-install should update local file dependency', async () => {
       'file:../local-pkg': {
         resolution: { directory: '../local-pkg', type: 'directory' },
         name: 'local-pkg',
+      },
+    },
+    snapshots: {
+      'file:../local-pkg': {
         dev: false,
       },
     },
@@ -459,14 +461,18 @@ test('re-install should update local file dependency', async () => {
   expect(fs.existsSync('./node_modules/.pnpm/is-positive@1.0.0')).toBeTruthy()
   lockfile = project.readLockfile()
   expect(lockfile).toMatchObject({
-    packages: {
+    snapshots: {
       'file:../local-pkg': {
-        resolution: { directory: '../local-pkg', type: 'directory' },
-        name: 'local-pkg',
         dev: false,
         dependencies: {
           'is-positive': '1.0.0',
         },
+      },
+    },
+    packages: {
+      'file:../local-pkg': {
+        resolution: { directory: '../local-pkg', type: 'directory' },
+        name: 'local-pkg',
       },
     },
   })
@@ -487,6 +493,10 @@ test('re-install should update local file dependency', async () => {
       'file:../local-pkg': {
         resolution: { directory: '../local-pkg', type: 'directory' },
         name: 'local-pkg',
+      },
+    },
+    snapshots: {
+      'file:../local-pkg': {
         dev: false,
         dependencies: {
           'is-positive': '2.0.0',

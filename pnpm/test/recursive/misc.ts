@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import { type LockfileV7 as Lockfile } from '@pnpm/lockfile-types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
@@ -228,7 +228,7 @@ test('recursive installation of packages in workspace ignores hooks in packages'
   await execPnpm(['install'])
 
   const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
-  const depPaths = Object.keys(lockfile.packages ?? [])
+  const depPaths = Object.keys(lockfile.snapshots ?? {})
   expect(depPaths).not.toContain('/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
   expect(depPaths).toContain('/is-number@1.0.0')
 })

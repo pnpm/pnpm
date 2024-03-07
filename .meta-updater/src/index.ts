@@ -99,7 +99,8 @@ async function updateTSConfig (
         manifest.name === '@pnpm/git-fetcher' ||
         manifest.name === '@pnpm/tarball-fetcher' ||
         manifest.name === '@pnpm/package-requester'
-      )
+      ) ||
+      depName === 'pnpm' && manifest.name === '@pnpm/make-dedicated-lockfile'
     ) {
       // This is to avoid a circular graph (which TypeScript references do not support.
       continue

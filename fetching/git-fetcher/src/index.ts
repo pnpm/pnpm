@@ -1,4 +1,6 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import type { GitFetcher } from '@pnpm/fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
@@ -41,7 +43,8 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
       if (ignoreScripts && prepareResult.shouldBeBuilt) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }
-    } catch (err: any) { // eslint-disable-line
+    } catch (err: unknown) {
+      assert(util.types.isNativeError(err))
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
       throw err
     }

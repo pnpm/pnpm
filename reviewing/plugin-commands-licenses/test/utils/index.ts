@@ -45,5 +45,6 @@ export const DEFAULT_OPTS = {
   userConfig: {},
   useRunningStoreServer: false,
   useStoreServer: false,
+  virtualStoreDir: 'node_modules/.pnpm',
   workspaceConcurrency: 4,
 }

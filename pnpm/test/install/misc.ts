@@ -296,6 +296,33 @@ test('install should fail if the project requires a different package manager', 
   expect(execPnpmSync(['install', '--config.package-manager-strict=false']).status).toBe(0)
 })
 
+test('install should not fail for packageManager field with hash', async () => {
+  const versionProcess = execPnpmSync(['--version'])
+  const pnpmVersion = versionProcess.stdout.toString().trim()
+
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+
+    packageManager: `pnpm@${pnpmVersion}+sha256.123456789`,
+  })
+
+  const { status } = execPnpmSync(['install'])
+  expect(status).toBe(0)
+})
+
+test('install should not fail for packageManager field with url', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+
+    packageManager: 'pnpm@https://github.com/pnpm/pnpm',
+  })
+
+  const { status } = execPnpmSync(['install'])
+  expect(status).toBe(0)
+})
+
 test('engine-strict=false: install should not fail if the used Node version does not satisfy the Node version specified in engines', async () => {
   prepare({
     name: 'project',

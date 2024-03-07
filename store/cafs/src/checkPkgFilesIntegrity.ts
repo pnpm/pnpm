@@ -1,4 +1,5 @@
 import fs from 'fs'
+import util from 'util'
 import type { PackageFileInfo } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
@@ -140,8 +141,8 @@ export function verifyFileIntegrity (
       }
     }
     return { passed }
-  } catch (err: any) { // eslint-disable-line
-    switch (err.code) {
+  } catch (err: unknown) {
+    switch (util.types.isNativeError(err) && 'code' in err && err.code) {
     case 'ENOENT': return { passed: false }
     case 'EINTEGRITY': {
       // Broken files are removed from the store
@@ -160,8 +161,8 @@ function checkFile (filename: string, checkedAt?: number) {
       isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
       size,
     }
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') return null
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
   }
 }
