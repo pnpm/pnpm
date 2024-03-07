@@ -22,7 +22,7 @@ test('pnpm version too old', () => {
   expect(err?.wanted.pnpm).toBe('^1.4.6')
 })
 
-test('pnpm is a prereleased version', () => {
+test('pnpm is a prerelease version', () => {
   expect(checkEngine(packageId, { pnpm: '9' }, { pnpm: '9.0.0-alpha.1', node: '0.2.1' })).toBe(null)
   expect(checkEngine(packageId, { pnpm: '>=9' }, { pnpm: '9.0.0-alpha.1', node: '0.2.1' })).toBe(null)
   expect(checkEngine(packageId, { pnpm: '>=9.0.0' }, { pnpm: '9.0.0-alpha.1', node: '0.2.1' })).toBeDefined()
