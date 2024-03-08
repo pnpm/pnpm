@@ -89,7 +89,7 @@ export async function resolveFromLocal (
     }
   }
   return {
-    id: spec.id,
+    id: spec.normalizedPref,
     manifest: localDependencyManifest,
     normalizedPref: spec.normalizedPref,
     resolution: {
