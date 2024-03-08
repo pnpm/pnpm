@@ -67,7 +67,7 @@ test('lockfile has correct format', async () => {
   expect((lockfile.packages[id].resolution as { integrity: string }).integrity).toBeTruthy()
   expect((lockfile.packages[id].resolution as TarballResolution).tarball).toBeFalsy()
 
-  const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
+  const absDepPath = 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'
   expect(lockfile.packages).toHaveProperty([absDepPath])
   expect(lockfile.packages[absDepPath].name).toBeTruthy() // github-hosted package has name specified
 })
@@ -811,7 +811,7 @@ test('packages installed via tarball URL from the default registry are normalize
         dependencies: {
           'is-positive': {
             specifier: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-            version: '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+            version: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
           },
           '@pnpm.e2e/pkg-with-tarball-dep-from-registry': {
             specifier: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
@@ -832,7 +832,7 @@ test('packages installed via tarball URL from the default registry are normalize
           integrity: getIntegrity('@pnpm.e2e/pkg-with-tarball-dep-from-registry', '1.0.0'),
         },
       },
-      '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
+      'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
         engines: { node: '>=0.10.0' },
         name: 'is-positive',
         resolution: {
@@ -851,7 +851,7 @@ test('packages installed via tarball URL from the default registry are normalize
         },
         dev: false,
       },
-      '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
+      'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
         dev: false,
       },
     },
@@ -900,7 +900,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
     expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball'])
 
-    const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
+    const absDepPath = 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'
     expect(lockfile.packages).toHaveProperty([absDepPath])
     expect(lockfile.packages![absDepPath].name).toBeTruthy()
   }
@@ -934,7 +934,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
     expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball'])
 
-    const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
+    const absDepPath = 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'
     expect(lockfile.packages).toHaveProperty([absDepPath])
     expect(lockfile.packages![absDepPath].name).toBeTruthy()
   }
@@ -1214,14 +1214,14 @@ test('tarball installed through non-standard URL endpoint from the registry doma
         dependencies: {
           'is-positive': {
             specifier: 'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
-            version: '@registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
+            version: 'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
           },
         },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '@registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
+      'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
         engines: { node: '>=0.10.0' },
         name: 'is-positive',
         resolution: {
@@ -1231,7 +1231,7 @@ test('tarball installed through non-standard URL endpoint from the registry doma
       },
     },
     snapshots: {
-      '@registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
+      'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
         dev: false,
       },
     },
