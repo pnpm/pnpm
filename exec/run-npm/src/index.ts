@@ -14,7 +14,7 @@ export function runNpm (npmPath: string | undefined, args: string[], options?: R
     cwd: options?.cwd ?? process.cwd(),
     stdio: 'inherit',
     userAgent: undefined,
-    env: options?.env ?? {},
+    env: { ...options?.env, COREPACK_ENABLE_STRICT: '0' },
   })
 }
 
