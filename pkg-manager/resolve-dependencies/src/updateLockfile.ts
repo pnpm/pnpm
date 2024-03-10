@@ -23,18 +23,14 @@ export function updateLockfile (
     registries: Registries
     lockfileIncludeTarballUrl?: boolean
   }
-): {
-    newLockfile: Lockfile
-    pendingRequiresBuilds: string[]
-  } {
+): Lockfile {
   lockfile.packages = lockfile.packages ?? {}
-  const pendingRequiresBuilds = [] as string[]
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias),
       Object.entries(depNode.children).map(([alias, depPath]) => ({ alias, depPath }))
     )
-    lockfile.packages[depPath] = toLockfileDependency(pendingRequiresBuilds, depNode, {
+    lockfile.packages[depPath] = toLockfileDependency(depNode, {
       depGraph: dependenciesGraph,
       depPath,
       prevSnapshot: lockfile.packages[depPath],
@@ -48,14 +44,10 @@ export function updateLockfile (
   const warn = (message: string) => {
     logger.warn({ message, prefix })
   }
-  return {
-    newLockfile: pruneSharedLockfile(lockfile, { warn }),
-    pendingRequiresBuilds,
-  }
+  return pruneSharedLockfile(lockfile, { warn })
 }
 
 function toLockfileDependency (
-  pendingRequiresBuilds: string[],
   pkg: ResolvedPackage & { transitivePeerDependencies: Set<string> },
   opts: {
     depPath: string
