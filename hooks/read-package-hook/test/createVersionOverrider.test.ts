@@ -1,5 +1,6 @@
 import path from 'path'
 import { createVersionsOverrider } from '../lib/createVersionsOverrider'
+import normalizePath from 'normalize-path'
 
 test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider({
@@ -164,7 +165,7 @@ test('createVersionsOverrider() overrides dependencies with absolute links', () 
     name: 'foo',
     version: '1.2.0',
     dependencies: {
-      qar: `link:${path.relative(path.resolve('pkg'), qarAbsolutePath)}`,
+      qar: `link:${normalizePath(path.relative(path.resolve('pkg'), qarAbsolutePath))}`,
     },
   })
 })
