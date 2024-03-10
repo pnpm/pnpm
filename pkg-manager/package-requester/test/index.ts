@@ -801,7 +801,7 @@ test('fetch a git package without a package.json', async () => {
     expect(pkgResponse.body).toBeTruthy()
     expect(pkgResponse.body.manifest).toBeUndefined()
     expect(pkgResponse.body.isInstallable).toBeFalsy()
-    expect(pkgResponse.body.id).toBe(`github.com/${repo}/${commit}`)
+    expect(pkgResponse.body.id).toBe(`https://codeload.github.com/${repo}/tar.gz/${commit}`)
   }
 })
 

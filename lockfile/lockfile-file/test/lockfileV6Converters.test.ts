@@ -181,3 +181,83 @@ test('convertToLockfileFile() with lockfile v6', () => {
   expect(convertToLockfileFile(lockfileV5, { forceSharedFormat: false })).toEqual(lockfileV6)
   expect(convertToLockfileObject(lockfileV6)).toEqual(lockfileV5)
 })
+
+test('convertToLockfileObject() converts package IDs', () => {
+  const lockfileFile = {
+    lockfileVersion: '6.0',
+    importers: {
+      project1: {
+        dependencies: {
+          'is-positive': {
+            specifier: 'github:kevva/is-positive',
+            version: 'github.com/kevva/is-positive/97edff6f525f192a3f83cea1944765f769ae2678(@babel/core@2.0.0)',
+          },
+          tarball: {
+            specifier: '^1.0.0',
+            version: '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          },
+          'git-hosted': {
+            specifier: 'gitlab:pnpm/git-resolver',
+            version: 'gitlab/pnpm/git-resolver/988c61e11dc8d9ca0b5580cb15291951812549dc(foo@1.0.0)',
+          },
+        },
+      },
+    },
+    packages: {
+      'github.com/kevva/is-positive/97edff6f525f192a3f83cea1944765f769ae2678(@babel/core@2.0.0)': {
+        name: 'is-positive',
+        resolution: { tarball: 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678' },
+      },
+      '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
+        name: 'is-positive',
+        resolution: { tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz', integrity: '' },
+      },
+      'gitlab/pnpm/git-resolver/988c61e11dc8d9ca0b5580cb15291951812549dc(foo@1.0.0)': {
+        id: 'gitlab/pnpm/git-resolver/988c61e11dc8d9ca0b5580cb15291951812549dc',
+        name: 'git-hosted',
+        resolution: {
+          commit: '988c61e11dc8d9ca0b5580cb15291951812549dc',
+          repo: 'ssh://git@gitlab/pnpm/git-resolver',
+          type: 'git',
+        },
+      },
+    },
+  }
+  const lockfileObject = {
+    lockfileVersion: '6.0',
+    importers: {
+      project1: {
+        dependencies: {
+          'is-positive': 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678(@babel/core@2.0.0)',
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          'git-hosted': 'git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc(foo@1.0.0)',
+        },
+        specifiers: {
+          'is-positive': 'github:kevva/is-positive',
+          tarball: '^1.0.0',
+          'git-hosted': 'gitlab:pnpm/git-resolver',
+        },
+      },
+    },
+    packages: {
+      'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678(@babel/core@2.0.0)': {
+        name: 'is-positive',
+        resolution: { tarball: 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678' },
+      },
+      'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
+        name: 'is-positive',
+        resolution: { tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz', integrity: '' },
+      },
+      'git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc(foo@1.0.0)': {
+        id: 'git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
+        name: 'git-hosted',
+        resolution: {
+          commit: '988c61e11dc8d9ca0b5580cb15291951812549dc',
+          repo: 'ssh://git@gitlab/pnpm/git-resolver',
+          type: 'git',
+        },
+      },
+    },
+  }
+  expect(convertToLockfileObject(lockfileFile as any)).toEqual(lockfileObject) // eslint-disable-line
+})
