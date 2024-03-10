@@ -21,6 +21,20 @@ export function indexOfPeersSuffix (depPath: string) {
   return -1
 }
 
+export function parseDepPath (relDepPath: string) {
+  const sepIndex = indexOfPeersSuffix(relDepPath)
+  if (sepIndex !== -1) {
+    return {
+      id: relDepPath.substring(0, sepIndex),
+      peersSuffix: relDepPath.substring(sepIndex),
+    }
+  }
+  return {
+    id: relDepPath,
+    peersSuffix: '',
+  }
+}
+
 export function tryGetPackageId (relDepPath: string) {
   if (relDepPath[0] !== '/') {
     return null
