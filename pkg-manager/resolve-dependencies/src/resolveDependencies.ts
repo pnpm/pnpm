@@ -1160,29 +1160,28 @@ async function resolveDependency (
   }
 
   if (pkgResponse.body.isLocal) {
-    const manifest = pkgResponse.body.manifest ?? (await pkgResponse.fetching!()).bundledManifest
-    if (!manifest) {
+    if (!pkgResponse.body.manifest) {
       // This should actually never happen because the local-resolver returns a manifest
       // even if no real manifest exists in the filesystem.
       throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.pref}: Missing package.json file`)
     }
     return {
-      alias: wantedDependency.alias || manifest.name || path.basename(pkgResponse.body.resolution.directory),
+      alias: wantedDependency.alias || pkgResponse.body.manifest.name || path.basename(pkgResponse.body.resolution.directory),
       depPath: pkgResponse.body.id,
       dev: wantedDependency.dev,
       isLinkedDependency: true,
-      name: manifest.name,
+      name: pkgResponse.body.manifest.name,
       normalizedPref: pkgResponse.body.normalizedPref,
       optional: wantedDependency.optional,
       pkgId: pkgResponse.body.id,
       resolution: pkgResponse.body.resolution,
-      version: manifest.version,
+      version: pkgResponse.body.manifest.version,
     }
   }
 
   let prepare!: boolean
   let hasBin!: boolean
-  let pkg: PackageManifest = await getManifestFromResponse(pkgResponse, wantedDependency)
+  let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency)
   if (!pkg.dependencies) {
     pkg.dependencies = {}
   }
@@ -1397,12 +1396,11 @@ async function resolveDependency (
   }
 }
 
-async function getManifestFromResponse (
+function getManifestFromResponse (
   pkgResponse: PackageResponse,
   wantedDependency: WantedDependency
-): Promise<PackageManifest> {
-  const pkg = pkgResponse.body.manifest ?? (await pkgResponse.fetching!()).bundledManifest
-  if (pkg) return pkg
+): PackageManifest {
+  if (pkgResponse.body.manifest) return pkgResponse.body.manifest
   return {
     name: wantedDependency.pref.split('/').pop()!,
     version: '0.0.0',
