@@ -265,8 +265,16 @@ export function extendOptions (
     ...opts,
     storeDir: defaultOpts.storeDir,
   }
-  if (extendedOpts.autoInstallPeers && extendedOpts.peerDependencyRules?.ignoreMissing?.length) {
-    throw new PnpmError('IGNORE_MISSING_WITH_AUTO_INSTALL_PEERS', 'Cannot have both autoInstallPeers=true and setting peerDependencyRules.ignoreMissing')
+  if (extendedOpts.autoInstallPeers) {
+    if (extendedOpts.peerDependencyRules?.ignoreMissing?.length) {
+      throw new PnpmError('IGNORE_MISSING_WITH_AUTO_INSTALL_PEERS', 'Cannot have both autoInstallPeers=true and setting peerDependencyRules.ignoreMissing')
+    }
+    if (extendedOpts.peerDependencyRules?.allowAny?.length) {
+      throw new PnpmError('ALLOW_ANY_WITH_AUTO_INSTALL_PEERS', 'Cannot have both autoInstallPeers=true and setting peerDependencyRules.allowAny')
+    }
+    if (Object.keys(extendedOpts.peerDependencyRules?.allowedVersions ?? {}).length) {
+      throw new PnpmError('ALLOWED_VERSIONS_WITH_AUTO_INSTALL_PEERS', 'Cannot have both autoInstallPeers=true and setting peerDependencyRules.allowedVersions')
+    }
   }
   extendedOpts.readPackageHook = createReadPackageHook({
     ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,
