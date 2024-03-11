@@ -220,7 +220,7 @@ async function resolveNpm (
     }
   }
 
-  const id = `/${pickedPackage.name}@${pickedPackage.version}`
+  const id = `${pickedPackage.name}@${pickedPackage.version}`
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
     tarball: pickedPackage.dist.tarball,

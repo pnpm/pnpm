@@ -78,9 +78,7 @@ function toLockfileDependency (
   const result = {
     resolution: lockfileResolution,
   } as PackageSnapshot
-  if (dp.isAbsolute(opts.depPath)) {
-    result['name'] = pkg.name
-
+  if (opts.depPath.includes(':')) {
     // There is no guarantee that a non-npmjs.org-hosted package is going to have a version field.
     // Also, for local directory dependencies, the version is not needed.
     if (pkg.version && (lockfileResolution as DirectoryResolution).type !== 'directory') {
@@ -194,7 +192,7 @@ function toLockfileResolution (
   registry: string,
   lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
-  if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {
+  if (resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }
   if (lockfileIncludeTarballUrl) {

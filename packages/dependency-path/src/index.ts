@@ -59,13 +59,13 @@ export function refToRelative (
   if (reference.startsWith('link:')) {
     return null
   }
-  if (reference.startsWith('file:')) {
-    return reference
-  }
-  if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
-    return `/${pkgName}@${reference}`
-  }
-  return reference
+  if (reference.startsWith('@')) return reference
+  const atIndex = reference.indexOf('@')
+  if (atIndex === -1) return `${pkgName}@${reference}`
+  const colonIndex = reference.indexOf(':')
+  const bracketIndex = reference.indexOf('(')
+  if ((colonIndex === -1 || atIndex < colonIndex) && (bracketIndex === -1 || atIndex < bracketIndex)) return reference
+  return `${pkgName}@${reference}`
 }
 
 export function parse (dependencyPath: string) {
@@ -76,11 +76,11 @@ export function parse (dependencyPath: string) {
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }
-  const sepIndex = dependencyPath.indexOf('@', 2)
+  const sepIndex = dependencyPath.indexOf('@', 1)
   if (sepIndex === -1) {
     return {}
   }
-  const name = dependencyPath.substring(1, sepIndex)
+  const name = dependencyPath.substring(0, sepIndex)
   let version = dependencyPath.substring(sepIndex + 1)
   if (version) {
     let peerSepIndex!: number

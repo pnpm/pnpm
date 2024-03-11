@@ -206,11 +206,14 @@ async function resolveAndFetch (
     normalizedPref = resolveResult.normalizedPref
   }
 
-  const id = pkgId as string
+  let id = pkgId as string
 
   if (resolution.type === 'directory' && !id.startsWith('file:')) {
     if (manifest == null) {
       throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
+    }
+    if (!id.startsWith(manifest.name)) {
+      id = `${manifest.name}@${id}`
     }
     return {
       body: {
@@ -243,6 +246,9 @@ async function resolveAndFetch (
   // We can skip fetching the package only if the manifest
   // is present after resolution
   if ((options.skipFetch === true || isInstallable === false) && (manifest != null)) {
+    if (!id.startsWith(manifest.name)) {
+      id = `${manifest.name}@${id}`
+    }
     return {
       body: {
         id,
@@ -276,13 +282,19 @@ async function resolveAndFetch (
     onFetchError: options.onFetchError,
   })
 
+  if (!manifest) {
+    manifest = (await fetchResult.fetching()).bundledManifest
+  }
+  if (manifest && !id.startsWith(manifest.name)) {
+    id = `${manifest.name}@${id}`
+  }
   return {
     body: {
       id,
       isLocal: false as const,
       isInstallable: isInstallable ?? undefined,
       latest,
-      manifest: manifest ?? (await fetchResult.fetching()).bundledManifest,
+      manifest,
       normalizedPref,
       resolution,
       resolvedVia,

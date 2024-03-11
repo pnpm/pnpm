@@ -1,7 +1,7 @@
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 
 test('nameVerFromPkgSnapshot()', () => {
-  expect(nameVerFromPkgSnapshot('/some-weird-path', {
+  expect(nameVerFromPkgSnapshot('some-weird-path', {
     name: 'foo',
     version: '1.0.0',
 
@@ -14,7 +14,7 @@ test('nameVerFromPkgSnapshot()', () => {
     version: '1.0.0',
   })
 
-  expect(nameVerFromPkgSnapshot('/foo@1.0.0', {
+  expect(nameVerFromPkgSnapshot('foo@1.0.0', {
     resolution: {
       integrity: 'AAA',
     },
@@ -24,7 +24,7 @@ test('nameVerFromPkgSnapshot()', () => {
     version: '1.0.0',
   })
 
-  expect(nameVerFromPkgSnapshot('/foo@1.0.0(bar@2.0.0)', {
+  expect(nameVerFromPkgSnapshot('foo@1.0.0(bar@2.0.0)', {
     resolution: {
       integrity: 'AAA',
     },

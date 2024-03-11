@@ -315,7 +315,7 @@ test('deep local', async () => {
   await install(manifest1, testDefaults())
 
   const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
-  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['file:../project-2', 'file:../project-2/project-3'])
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['project-2@file:../project-2', 'project-3@file:../project-2/project-3'])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/5327
