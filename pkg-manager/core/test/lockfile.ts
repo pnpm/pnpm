@@ -50,7 +50,7 @@ test('lockfile has correct format', async () => {
   expect(modules!.pendingBuilds.length).toBe(0)
 
   const lockfile = project.readLockfile()
-  const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
+  const id = '@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
 
@@ -67,9 +67,7 @@ test('lockfile has correct format', async () => {
   expect((lockfile.packages[id].resolution as { integrity: string }).integrity).toBeTruthy()
   expect((lockfile.packages[id].resolution as TarballResolution).tarball).toBeFalsy()
 
-  const absDepPath = 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'
-  expect(lockfile.packages).toHaveProperty([absDepPath])
-  expect(lockfile.packages[absDepPath].name).toBeTruthy() // github-hosted package has name specified
+  expect(lockfile.packages).toHaveProperty(['is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'])
 })
 
 test('lockfile has dev deps even when installing for prod only', async () => {
@@ -82,7 +80,7 @@ test('lockfile has dev deps even when installing for prod only', async () => {
   }, testDefaults({ production: true }))
 
   const lockfile = project.readLockfile()
-  const id = '/is-negative@2.1.0'
+  const id = 'is-negative@2.1.0'
 
   expect(lockfile.importers['.'].devDependencies).toBeTruthy()
 
@@ -103,11 +101,14 @@ test('lockfile with scoped package', async () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@types/semver@5.3.31': {
+      '@types/semver@5.3.31': {
         resolution: {
           integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
+    },
+    snapshots: {
+      '@types/semver@5.3.31': {},
     },
   }, { lineWidth: 1000 })
 
@@ -166,7 +167,7 @@ test('current lockfile removed when no deps in package.json', async () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative@2.1.0': {
+      'is-negative@2.1.0': {
         resolution: {
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
         },
@@ -200,17 +201,17 @@ test('lockfile is fixed when it does not match package.json', async () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@types/semver@5.3.31': {
+      '@types/semver@5.3.31': {
         resolution: {
           integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
-      '/is-negative@2.1.0': {
+      'is-negative@2.1.0': {
         resolution: {
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
-      '/is-positive@3.1.0': {
+      'is-positive@3.1.0': {
         resolution: {
           integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
@@ -239,7 +240,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
   expect(lockfile.importers?.['.'].devDependencies?.['is-negative'].version).toBe('2.1.0')
   expect(lockfile.importers?.['.'].optionalDependencies?.['is-positive'].version).toBe('3.1.0')
   expect(lockfile.importers?.['.'].dependencies).toBeFalsy()
-  expect(lockfile.packages).not.toHaveProperty(['/@types/semver@5.3.31'])
+  expect(lockfile.packages).not.toHaveProperty(['@types/semver@5.3.31'])
 })
 
 test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async () => {
@@ -262,17 +263,17 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@types/semver@5.3.31': {
+      '@types/semver@5.3.31': {
         resolution: {
           integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
-      '/is-negative@2.1.0': {
+      'is-negative@2.1.0': {
         resolution: {
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
-      '/is-positive@3.1.0': {
+      'is-positive@3.1.0': {
         resolution: {
           integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
@@ -361,17 +362,17 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 
-  delete lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
+  delete lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
 
-  lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'] = {
+  lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'] = {
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
     },
   }
 
-  lockfile.snapshots['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
+  lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
 
   writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
 
@@ -436,15 +437,15 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults())
 
-  console.log('installed @pnpm.e2e/pkg-with-1-dep')
+  // console.log('installed @pnpm.e2e/pkg-with-1-dep')
 
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-pkg-with-1-dep'], testDefaults({ targetDependenciesField: 'devDependencies' }))
 
-  console.log('installed optional dependency which is also a dependency of @pnpm.e2e/pkg-with-1-dep')
+  // console.log('installed optional dependency which is also a dependency of @pnpm.e2e/pkg-with-1-dep')
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.snapshots['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].dev).toBeFalsy()
+  expect(lockfile.snapshots['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].dev).toBeFalsy()
 })
 
 test('package is not marked optional if it is also a subdep of a regular dependency', async () => {
@@ -458,7 +459,7 @@ test('package is not marked optional if it is also a subdep of a regular depende
 
   const lockfile = project.readLockfile()
 
-  expect(lockfile.snapshots['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].optional).toBeFalsy()
+  expect(lockfile.snapshots['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].optional).toBeFalsy()
 })
 
 test('scoped module from different registry', async () => {
@@ -499,22 +500,22 @@ test('scoped module from different registry', async () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@foo/has-dep-from-same-scope@1.0.0': {
+      '@foo/has-dep-from-same-scope@1.0.0': {
         resolution: {
           integrity: getIntegrity('@foo/has-dep-from-same-scope', '1.0.0'),
         },
       },
-      '/@foo/no-deps@1.0.0': {
+      '@foo/no-deps@1.0.0': {
         resolution: {
           integrity: getIntegrity('@foo/no-deps', '1.0.0'),
         },
       },
-      '/@zkochan/foo@1.0.0': {
+      '@zkochan/foo@1.0.0': {
         resolution: {
           integrity: 'sha512-IFvrYpq7E6BqKex7A7czIFnFncPiUVdhSzGhAOWpp8RlkXns4y/9ZdynxaA/e0VkihRxQkihE2pTyvxjfe/wBg==',
         },
       },
-      '/is-negative@1.0.0': {
+      'is-negative@1.0.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -522,7 +523,7 @@ test('scoped module from different registry', async () => {
           integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
         },
       },
-      '/is-positive@3.1.0': {
+      'is-positive@3.1.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -532,23 +533,23 @@ test('scoped module from different registry', async () => {
       },
     },
     snapshots: {
-      '/@foo/has-dep-from-same-scope@1.0.0': {
+      '@foo/has-dep-from-same-scope@1.0.0': {
         dependencies: {
           '@foo/no-deps': '1.0.0',
           'is-negative': '1.0.0',
         },
         dev: false,
       },
-      '/@foo/no-deps@1.0.0': {
+      '@foo/no-deps@1.0.0': {
         dev: false,
       },
-      '/@zkochan/foo@1.0.0': {
+      '@zkochan/foo@1.0.0': {
         dev: false,
       },
-      '/is-negative@1.0.0': {
+      'is-negative@1.0.0': {
         dev: false,
       },
-      '/is-positive@3.1.0': {
+      'is-positive@3.1.0': {
         dev: false,
       },
     },
@@ -678,7 +679,7 @@ test('dev property is correctly set for package that is duplicated to both the d
   await addDependenciesToPackage({}, ['overlap@2.2.8'], testDefaults())
 
   const lockfile = project.readLockfile()
-  expect(lockfile.snapshots['/couleurs@5.0.0'].dev === false).toBeTruthy()
+  expect(lockfile.snapshots['couleurs@5.0.0'].dev === false).toBeTruthy()
 })
 
 test('no lockfile', async () => {
@@ -706,7 +707,7 @@ test('lockfile is ignored when lockfile = false', async () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative@2.1.0': {
+      'is-negative@2.1.0': {
         resolution: {
           integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp10=', // Invalid integrity
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
@@ -788,7 +789,7 @@ test('save tarball URL when it is non-standard', async () => {
 
   const lockfile = project.readLockfile()
 
-  expect((lockfile.packages['/esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
+  expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
 })
 
 test('packages installed via tarball URL from the default registry are normalized', async () => {
@@ -822,19 +823,18 @@ test('packages installed via tarball URL from the default registry are normalize
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0'),
         },
       },
-      '/@pnpm.e2e/pkg-with-tarball-dep-from-registry@1.0.0': {
+      '@pnpm.e2e/pkg-with-tarball-dep-from-registry@1.0.0': {
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/pkg-with-tarball-dep-from-registry', '1.0.0'),
         },
       },
-      'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
+      'is-positive@https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
         engines: { node: '>=0.10.0' },
-        name: 'is-positive',
         resolution: {
           tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
         },
@@ -842,16 +842,16 @@ test('packages installed via tarball URL from the default registry are normalize
       },
     },
     snapshots: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
         dev: false,
       },
-      '/@pnpm.e2e/pkg-with-tarball-dep-from-registry@1.0.0': {
+      '@pnpm.e2e/pkg-with-tarball-dep-from-registry@1.0.0': {
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         },
         dev: false,
       },
-      'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
+      'is-positive@https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
         dev: false,
       },
     },
@@ -884,7 +884,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   {
     const lockfile: LockfileFileV7 = readYamlFile(WANTED_LOCKFILE)
-    const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
+    const id = '@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
 
@@ -900,9 +900,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
     expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball'])
 
-    const absDepPath = 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'
-    expect(lockfile.packages).toHaveProperty([absDepPath])
-    expect(lockfile.packages![absDepPath].name).toBeTruthy()
+    expect(lockfile.packages).toHaveProperty(['is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'])
   }
 
   fs.mkdirSync('project-2')
@@ -922,7 +920,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.importers).toHaveProperty(['project-2'])
 
     // previous entries are not removed
-    const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
+    const id = '@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
     expect(lockfile.importers?.project.dependencies!['@pnpm.e2e/pkg-with-1-dep'].version).toBe('100.0.0')
     expect(lockfile.importers?.project.dependencies).toHaveProperty(['@zkochan/foo'])
@@ -934,9 +932,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
     expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball'])
 
-    const absDepPath = 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'
-    expect(lockfile.packages).toHaveProperty([absDepPath])
-    expect(lockfile.packages![absDepPath].name).toBeTruthy()
+    expect(lockfile.packages).toHaveProperty(['is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c'])
   }
 })
 
@@ -983,12 +979,12 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative@2.1.0': {
+      'is-negative@2.1.0': {
         resolution: {
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
-      '/is-positive@3.1.0': {
+      'is-positive@3.1.0': {
         resolution: {
           integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
@@ -1087,9 +1083,9 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ lockfileOnly: true }))
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-    delete lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
-    delete lockfile.snapshots['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+    delete lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
+    delete lockfile.snapshots['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
     writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
   }
 
@@ -1113,7 +1109,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
 
   project.has('@pnpm.e2e/pkg-with-1-dep')
   const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 })
 
 const REGISTRY_MIRROR_DIR = path.join(__dirname, './registry-mirror')
@@ -1166,7 +1162,7 @@ test('tarball domain differs from registry domain', async () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-positive@3.1.0': {
+      'is-positive@3.1.0': {
         engines: { node: '>=0.10.0' },
         resolution: {
           integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
@@ -1175,7 +1171,7 @@ test('tarball domain differs from registry domain', async () => {
       },
     },
     snapshots: {
-      '/is-positive@3.1.0': {
+      'is-positive@3.1.0': {
         dev: false,
       },
     },
@@ -1221,9 +1217,8 @@ test('tarball installed through non-standard URL endpoint from the registry doma
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
+      'is-positive@https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
         engines: { node: '>=0.10.0' },
-        name: 'is-positive',
         resolution: {
           tarball: 'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
         },
@@ -1231,7 +1226,7 @@ test('tarball installed through non-standard URL endpoint from the registry doma
       },
     },
     snapshots: {
-      'https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
+      'is-positive@https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
         dev: false,
       },
     },
@@ -1256,12 +1251,12 @@ importers:
 lockfileVersion: ${LOCKFILE_VERSION}
 packages:
 <<<<<<< HEAD
-  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0:
+  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0':
     dev: false
     resolution:
       integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}
 =======
-  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0:
+  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0':
     dev: false
     resolution:
       integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')}
@@ -1294,12 +1289,12 @@ importers:
 >>>>>>> next
 packages:
 <<<<<<< HEAD
-  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0:
+  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0':
     dev: false
     resolution:
       integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}
 =======
-  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0:
+  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0':
     dev: false
     resolution:
       integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')}
@@ -1327,7 +1322,7 @@ importers:
         version: 100.0.0
 lockfileVersion: ${LOCKFILE_VERSION}
 packages:
-  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0:
+  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0':
     resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
     dev: false
     resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
@@ -1363,7 +1358,7 @@ importers:
         version: 100.0.0
 lockfileVersion: ${LOCKFILE_VERSION}
 packages:
-  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0:
+  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0':
     resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
     dev: false
     resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
@@ -1396,7 +1391,7 @@ importers:
       '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0'
 lockfileVersion: ${LOCKFILE_VERSION}
 packages:
-  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0:
+  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0':
     resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
     dev: false
     resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
@@ -1428,7 +1423,7 @@ test('build metadata is always ignored in versions and the lockfile is not flick
       '@monorepolint/cli@0.5.0-alpha.51',
     ], testDefaults({ lockfileOnly: true }))
 
-  const depPath = '/@monorepolint/core@0.5.0-alpha.51'
+  const depPath = '@monorepolint/core@0.5.0-alpha.51'
   const initialLockfile = project.readLockfile()
   const initialPkgEntry = initialLockfile.packages[depPath]
   expect(initialPkgEntry?.resolution).toStrictEqual({
@@ -1448,8 +1443,8 @@ test('a broken lockfile should not break the store', async () => {
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], { ...opts, lockfileOnly: true })
 
   const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
-  lockfile.packages!['/is-positive@1.0.0'].name = 'bad-name'
-  lockfile.packages!['/is-positive@1.0.0'].version = '1.0.0'
+  lockfile.packages!['is-positive@1.0.0'].name = 'bad-name'
+  lockfile.packages!['is-positive@1.0.0'].version = '1.0.0'
 
   writeYamlFile(WANTED_LOCKFILE, lockfile)
 
@@ -1459,8 +1454,8 @@ test('a broken lockfile should not break the store', async () => {
     rootDir: process.cwd(),
   }, testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
 
-  delete lockfile.packages!['/is-positive@1.0.0'].name
-  delete lockfile.packages!['/is-positive@1.0.0'].version
+  delete lockfile.packages!['is-positive@1.0.0'].name
+  delete lockfile.packages!['is-positive@1.0.0'].version
 
   writeYamlFile(WANTED_LOCKFILE, lockfile)
   rimraf(path.resolve('node_modules'))
@@ -1479,7 +1474,7 @@ test('include tarball URL', async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
 
   const lockfile = project.readLockfile()
-  expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).tarball)
+  expect((lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).tarball)
     .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
 })
 
@@ -1491,7 +1486,7 @@ test('lockfile v6', async () => {
   {
     const lockfile = readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
   }
 
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/foo@100.0.0'], testDefaults())
@@ -1499,8 +1494,8 @@ test('lockfile v6', async () => {
   {
     const lockfile = readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo@100.0.0'])
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.0.0'])
   }
 })
 
@@ -1513,7 +1508,7 @@ test('lockfile v5 is converted to lockfile v6', async () => {
 
   const lockfile = readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
 })
 
 test('update the lockfile when a new project is added to the workspace', async () => {
