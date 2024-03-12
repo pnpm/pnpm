@@ -47,6 +47,11 @@ test('parse()', () => {
     peersSuffix: '(@types/babel__core@7.1.14)(foo@1.0.0)',
     version: '1.0.0',
   })
+
+  expect(parse('tar-pkg@file:../tar-pkg-1.0.0.tgz')).toStrictEqual({
+    name: 'tar-pkg',
+    peersSuffix: undefined,
+  })
 })
 
 test('refToRelative()', () => {

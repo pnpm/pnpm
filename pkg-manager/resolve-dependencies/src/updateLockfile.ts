@@ -99,9 +99,6 @@ function toLockfileDependency (
   if (pkg.optional) {
     result['optional'] = true
   }
-  if (opts.depPath[0] !== '/' && !pkg.id.endsWith(opts.depPath)) {
-    result['id'] = pkg.id
-  }
   if (pkg.transitivePeerDependencies.size) {
     result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies).sort()
   }

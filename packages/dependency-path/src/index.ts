@@ -99,6 +99,10 @@ export function parse (dependencyPath: string) {
         version,
       }
     }
+    return {
+      name,
+      peersSuffix,
+    }
   }
   return {
   }

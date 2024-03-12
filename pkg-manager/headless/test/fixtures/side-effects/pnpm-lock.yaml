@@ -14,19 +14,19 @@ importers:
 
 packages:
 
-  /@pnpm.e2e/hello-world-js-bin@1.0.0:
+  '@pnpm.e2e/hello-world-js-bin@1.0.0':
     resolution: {integrity: sha512-EDvJzSLCEMnUnrrIGdV+IUWP/8w+nUjOuay2u0KW20Mnfnm3lyrdquQ+gKPNAOUfAsKL1y21np1nQN0PyP+57A==}
     hasBin: true
 
-  /@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:
+  '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0':
     resolution: {integrity: sha512-0jRoMb0OT36kI9yyTeu2tUkLkxglmpL1yFS1BUm+fvt4qc22geBqALefFFv3eVWY/6c6GiRHRs6Gba9YPH7QDw==}
 
 snapshots:
 
-  /@pnpm.e2e/hello-world-js-bin@1.0.0:
+  '@pnpm.e2e/hello-world-js-bin@1.0.0':
     dev: false
 
-  /@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:
+  '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0':
     dependencies:
       '@pnpm.e2e/hello-world-js-bin': 1.0.0
     dev: false
