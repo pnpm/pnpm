@@ -3,6 +3,7 @@ import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
 import { buildDependenciesHierarchy, type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { depPathToFilename } from '@pnpm/dependency-path'
 
 const f = fixtures(__dirname)
 const generalFixture = f.find('general')
@@ -533,6 +534,7 @@ test('dependency without a package.json', async () => {
   const pkg = 'camelcase'
   const commit = 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b'
   const tree = await buildDependenciesHierarchy([withNonPackageDepFixture], { depth: 0, lockfileDir: withNonPackageDepFixture })
+  const resolved = `https://codeload.github.com/${org}/${pkg}/tar.gz/${commit}`
   expect(tree).toStrictEqual({
     [withNonPackageDepFixture]: {
       dependencies: [
@@ -543,8 +545,8 @@ test('dependency without a package.json', async () => {
           isPeer: false,
           isSkipped: false,
           name: `camelcase#${commit}`,
-          path: path.join(withNonPackageDepFixture, 'node_modules', '.pnpm', `github.com+${org}+${pkg}+${commit}`, 'node_modules', `camelcase#${commit}`),
-          resolved: `https://codeload.github.com/${org}/${pkg}/tar.gz/${commit}`,
+          path: path.join(withNonPackageDepFixture, 'node_modules', '.pnpm', depPathToFilename(resolved), 'node_modules', `camelcase#${commit}`),
+          resolved,
           version: '0.0.0',
         },
       ],

@@ -45,11 +45,21 @@ export function createGitResolver (
       resolution.path = parsedSpec.path
     }
 
+    let id: string
+    if ('tarball' in resolution) {
+      id = resolution.tarball
+      if (resolution.path) {
+        id += `#path:${resolution.path}`
+      }
+    } else {
+      id = `${resolution.repo.startsWith('git+') ? '' : 'git+'}${resolution.repo}#${resolution.commit}`
+      if (resolution.path) {
+        id += `&path:${resolution.path}`
+      }
+    }
+
     return {
-      id: parsedSpec.fetchSpec
-        .replace(/^.*:\/\/(git@)?/, '')
-        .replace(/:/g, '+')
-        .replace(/\.git$/, '') + '/' + commit + (resolution.path ? `#path:${resolution.path}` : ''),
+      id,
       normalizedPref: parsedSpec.normalizedPref,
       resolution,
       resolvedVia: 'git-repository',

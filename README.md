@@ -98,6 +98,15 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
+            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" />
+          </picture>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>

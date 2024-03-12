@@ -71,7 +71,7 @@ test('from a github repo with different name via named installation', async () =
   expect(lockfile.importers['.'].dependencies).toStrictEqual({
     'say-hi': {
       specifier: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
-      version: 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+      version: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
     },
   })
 
@@ -114,7 +114,7 @@ test('from a github repo with different name', async () => {
   expect(lockfile.importers['.'].dependencies).toStrictEqual({
     'say-hi': {
       specifier: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
-      version: 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+      version: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
     },
   })
 
@@ -133,14 +133,14 @@ test('a subdependency is from a github repo with different name', async () => {
 
   const lockfile = project.readLockfile()
   expect(lockfile.snapshots['/@pnpm.e2e/has-aliased-git-dependency@1.0.0'].dependencies).toStrictEqual({
-    '@pnpm.e2e/has-say-hi-peer': '1.0.0(github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)',
-    'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    '@pnpm.e2e/has-say-hi-peer': '1.0.0(https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)',
+    'say-hi': 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
   })
 
   project.isExecutable('@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin/hi')
   project.isExecutable('@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin/szia')
 
-  expect(fs.existsSync(path.resolve(`node_modules/.pnpm/${depPathToFilename('@pnpm.e2e/has-say-hi-peer@1.0.0(github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)')}/node_modules/@pnpm.e2e/has-say-hi-peer`))).toBeTruthy()
+  expect(fs.existsSync(path.resolve(`node_modules/.pnpm/${depPathToFilename('@pnpm.e2e/has-say-hi-peer@1.0.0(https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)')}/node_modules/@pnpm.e2e/has-say-hi-peer`))).toBeTruthy()
 })
 
 test('from a git repo', async () => {
@@ -250,11 +250,11 @@ test('re-adding a git repo with a different tag', async () => {
   let lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['is-negative']).toEqual({
     specifier: 'github:kevva/is-negative#1.0.0',
-    version: 'github.com/kevva/is-negative/163360a8d3ae6bee9524541043197ff356f8ed99',
+    version: 'https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99',
   })
   expect(lockfile.packages).toEqual(
     {
-      'github.com/kevva/is-negative/163360a8d3ae6bee9524541043197ff356f8ed99': {
+      'https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99': {
         resolution: { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99' },
         name: 'is-negative',
         version: '1.0.0',
@@ -268,11 +268,11 @@ test('re-adding a git repo with a different tag', async () => {
   lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['is-negative']).toEqual({
     specifier: 'github:kevva/is-negative#1.0.1',
-    version: 'github.com/kevva/is-negative/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72',
+    version: 'https://codeload.github.com/kevva/is-negative/tar.gz/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72',
   })
   expect(lockfile.packages).toEqual(
     {
-      'github.com/kevva/is-negative/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72': {
+      'https://codeload.github.com/kevva/is-negative/tar.gz/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72': {
         resolution: { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72' },
         name: 'is-negative',
         version: '1.0.1',
@@ -291,20 +291,20 @@ test('should not update when adding unrelated dependency', async () => {
   let manifest = JSON.parse(fs.readFileSync('./package.json', 'utf8'))
   await install(manifest, testDefaults({ preferFrozenLockfile: false, dir: withGitProtocolDepFixture, lockfileDir: withGitProtocolDepFixture }))
 
-  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative+219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
+  expect(fs.readdirSync('./node_modules/.pnpm')).toContain('https+++codeload.github.com+kevva+is-negative+tar.gz+219c424611ff4a2af15f7deeff4f93c62558c43d') // cspell:disable-line
 
-  manifest = await addDependenciesToPackage(manifest, ['is-number'], testDefaults({ preferFrozenLockfile: false }))
+  manifest = await addDependenciesToPackage(manifest, ['is-number'], testDefaults({ preferFrozenLockfile: false, modulesCacheMaxAge: 0 }))
 
   expect(manifest.dependencies).toHaveProperty('is-number')
   expect(manifest.dependencies['is-negative']).toBe('github:kevva/is-negative#master')
 
   const project = assertProject(withGitProtocolDepFixture)
   project.has('is-number')
-  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative+219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
+  expect(fs.existsSync('./node_modules/.pnpm/https+++codeload.github.com+kevva+is-negative+tar.gz+219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true) // cspell:disable-line
   expect(project.readLockfile().importers['.'].dependencies).toEqual({
     'is-negative': {
       specifier: 'github:kevva/is-negative#master',
-      version: 'github.com/kevva/is-negative/219c424611ff4a2af15f7deeff4f93c62558c43d',
+      version: 'https://codeload.github.com/kevva/is-negative/tar.gz/219c424611ff4a2af15f7deeff4f93c62558c43d',
     },
     'is-number': {
       specifier: '^7.0.0',
