@@ -29,14 +29,19 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/render-peer-issues#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/types": "workspace:*",
     "archy": "^1.0.0",
     "chalk": "^4.1.2",
-    "cli-columns": "^4.0.0"
+    "cli-columns": "^4.0.0",
+    "semver": "^7.6.0"
   },
   "devDependencies": {
     "@pnpm/render-peer-issues": "workspace:*",
     "@types/archy": "0.0.33",
+    "@types/semver": "7.5.8",
     "strip-ansi": "^6.0.1"
   },
   "exports": {

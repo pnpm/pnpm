@@ -7,6 +7,7 @@ import { filter, map } from 'rxjs/operators'
 import { reportError } from '../reportError'
 import { formatWarn } from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
+import { type PeerDependencyRules } from '@pnpm/types'
 
 // eslint-disable:object-literal-sort-keys
 export const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {
@@ -30,6 +31,7 @@ export function reportMisc (
     logLevel?: LogLevel
     config?: Config
     zoomOutCurrent: boolean
+    peerDependencyRules?: PeerDependencyRules
   }
 ) {
   const maxLogLevel = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
@@ -42,13 +44,16 @@ export function reportMisc (
       case 'warn': {
         return reportWarning(obj)
       }
-      case 'error':
+      case 'error': {
+        const errorOutput = reportError(obj, opts.config, opts.peerDependencyRules)
+        if (!errorOutput) return Rx.NEVER
         if (obj['prefix'] && obj['prefix'] !== opts.cwd) {
           return Rx.of({
-            msg: `${obj['prefix'] as string}:` + os.EOL + reportError(obj, opts.config),
+            msg: `${obj['prefix'] as string}:` + os.EOL + errorOutput,
           })
         }
-        return Rx.of({ msg: reportError(obj, opts.config) })
+        return Rx.of({ msg: errorOutput })
+      }
       default:
         return Rx.of({ msg: obj['message'] })
       }
