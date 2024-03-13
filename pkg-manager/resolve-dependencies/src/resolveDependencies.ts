@@ -1083,7 +1083,7 @@ async function resolveDependency (
     }
   }
   try {
-    if (!options.update && currentPkg.version) {
+    if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`)) {
       wantedDependency.pref = currentPkg.version
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
