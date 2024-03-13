@@ -12,7 +12,6 @@ import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageExtension,
-  type PeerDependencyRules,
   type ReadPackageHook,
   type Registries,
 } from '@pnpm/types'
@@ -105,7 +104,6 @@ export interface StrictInstallOptions {
   symlink: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
-  peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allowNonAppliedPatches: boolean
   preferSymlinkedExecutables: boolean
@@ -265,24 +263,12 @@ export function extendOptions (
     ...opts,
     storeDir: defaultOpts.storeDir,
   }
-  if (extendedOpts.autoInstallPeers) {
-    if (extendedOpts.peerDependencyRules?.ignoreMissing?.length) {
-      throw new PnpmError('IGNORE_MISSING_WITH_AUTO_INSTALL_PEERS', 'Cannot have both autoInstallPeers=true and setting peerDependencyRules.ignoreMissing')
-    }
-    if (extendedOpts.peerDependencyRules?.allowAny?.length) {
-      throw new PnpmError('ALLOW_ANY_WITH_AUTO_INSTALL_PEERS', 'Cannot have both autoInstallPeers=true and setting peerDependencyRules.allowAny')
-    }
-    if (Object.keys(extendedOpts.peerDependencyRules?.allowedVersions ?? {}).length) {
-      throw new PnpmError('ALLOWED_VERSIONS_WITH_AUTO_INSTALL_PEERS', 'Cannot have both autoInstallPeers=true and setting peerDependencyRules.allowedVersions')
-    }
-  }
   extendedOpts.readPackageHook = createReadPackageHook({
     ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,
     readPackageHook: extendedOpts.hooks?.readPackage,
     overrides: extendedOpts.overrides,
     lockfileDir: extendedOpts.lockfileDir,
     packageExtensions: extendedOpts.packageExtensions,
-    peerDependencyRules: extendedOpts.peerDependencyRules,
     ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,
   })
   if (extendedOpts.lockfileOnly) {
