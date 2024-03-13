@@ -4,7 +4,7 @@ import { renderDedupeCheckIssues } from '@pnpm/dedupe.issues-renderer'
 import { type DedupeCheckIssues } from '@pnpm/dedupe.types'
 import { type PnpmError } from '@pnpm/error'
 import { renderPeerIssues } from '@pnpm/render-peer-issues'
-import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
+import { type PeerDependencyRules, type PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import equals from 'ramda/src/equals'
 import StackTracey from 'stacktracey'
@@ -19,8 +19,9 @@ StackTracey.maxColumnWidths = {
 const highlight = chalk.yellow
 const colorPath = chalk.gray
 
-export function reportError (logObj: Log, config?: Config) {
-  const errorInfo = getErrorInfo(logObj, config)
+export function reportError (logObj: Log, config?: Config, peerDependencyRules?: PeerDependencyRules) {
+  const errorInfo = getErrorInfo(logObj, config, peerDependencyRules)
+  if (!errorInfo) return null
   let output = formatErrorSummary(errorInfo.title, (logObj as LogObjWithPossibleError).err?.code)
   if (logObj['pkgsStack'] != null) {
     if (logObj['pkgsStack'].length > 0) {
@@ -43,10 +44,10 @@ export function reportError (logObj: Log, config?: Config) {
   }
 }
 
-function getErrorInfo (logObj: Log, config?: Config): {
+function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerDependencyRules): {
   title: string
   body?: string
-} {
+} | null {
   if (logObj['err']) {
     const err = logObj['err'] as (PnpmError & { stack: object })
     switch (err.code) {
@@ -75,7 +76,7 @@ function getErrorInfo (logObj: Log, config?: Config): {
     case 'ERR_PNPM_UNSUPPORTED_ENGINE':
       return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_PEER_DEP_ISSUES':
-      return reportPeerDependencyIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      return reportPeerDependencyIssuesError(err, logObj as any, peerDependencyRules) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_DEDUPE_CHECK_ISSUES':
       return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_FETCH_401':
@@ -405,7 +406,8 @@ function hideSecureInfo (key: string, value: string) {
 
 function reportPeerDependencyIssuesError (
   err: Error,
-  msg: { issuesByProjects: PeerDependencyIssuesByProjects }
+  msg: { issuesByProjects: PeerDependencyIssuesByProjects },
+  peerDependencyRules?: PeerDependencyRules
 ) {
   const hasMissingPeers = getHasMissingPeers(msg.issuesByProjects)
   const hints: string[] = []
@@ -413,9 +415,11 @@ function reportPeerDependencyIssuesError (
     hints.push('If you want peer dependencies to be automatically installed, add "auto-install-peers=true" to an .npmrc file at the root of your project.')
   }
   hints.push('If you don\'t want pnpm to fail on peer dependency issues, add "strict-peer-dependencies=false" to an .npmrc file at the root of your project.')
+  const rendered = renderPeerIssues(msg.issuesByProjects, { rules: peerDependencyRules })
+  if (!rendered) return null
   return {
     title: err.message,
-    body: `${renderPeerIssues(msg.issuesByProjects)}
+    body: `${rendered}
 ${hints.map((hint) => `hint: ${hint}`).join('\n')}
 `,
   }
