@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-installation
 
+## 14.2.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.11
+- @pnpm/plugin-commands-rebuild@10.0.21
+- @pnpm/workspace.find-packages@1.1.12
+- @pnpm/filter-workspace-packages@7.2.13
+
 ## 14.2.5
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-config
 
+## 2.0.37
+
+### Patch Changes
+
+- Updated dependencies [3c78bbda2]
+  - @pnpm/run-npm@6.1.1
+  - @pnpm/cli-utils@2.1.11
+
 ## 2.0.36
 
 ### Patch Changes

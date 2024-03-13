@@ -1,5 +1,16 @@
 # @pnpm/default-reporter
 
+## 12.5.0
+
+### Minor Changes
+
+- 7a326142f: Filtering peer dependency issues is in the reporter.
+
+### Patch Changes
+
+- Updated dependencies [7a326142f]
+  - @pnpm/render-peer-issues@4.1.0
+
 ## 12.4.14
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-server
 
+## 6.0.60
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.11
+
 ## 6.0.59
 
 ### Patch Changes

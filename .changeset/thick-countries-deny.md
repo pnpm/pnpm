@@ -1,5 +1,4 @@
 ---
-"@pnpm/run-npm": patch
 "pnpm": patch
 ---
 

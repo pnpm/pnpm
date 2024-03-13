@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.5.6
+
+### Patch Changes
+
+- Updated dependencies [3c78bbda2]
+  - @pnpm/run-npm@6.1.1
+  - @pnpm/cli-utils@2.1.11
+
 ## 7.5.5
 
 ### Patch Changes

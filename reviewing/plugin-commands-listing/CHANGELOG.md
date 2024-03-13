@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-listing
 
+## 8.0.14
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.11
+
 ## 8.0.13
 
 ### Patch Changes

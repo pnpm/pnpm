@@ -1,5 +1,11 @@
 # @pnpm/run-npm
 
+## 6.1.1
+
+### Patch Changes
+
+- 3c78bbda2: The npm CLI executed from pnpm should not use Corepack [#7747](https://github.com/pnpm/pnpm/pull/7747).
+
 ## 6.1.0
 
 ### Minor Changes

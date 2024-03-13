@@ -1,5 +1,11 @@
 # @pnpm/render-peer-issues
 
+## 4.1.0
+
+### Minor Changes
+
+- 7a326142f: Filtering peer dependency issues is in the reporter.
+
 ## 4.0.6
 
 ### Patch Changes
