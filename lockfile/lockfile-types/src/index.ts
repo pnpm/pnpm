@@ -58,6 +58,7 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
+  path?: string
 }
 
 /**
@@ -75,6 +76,7 @@ export interface GitRepositoryResolution {
   type: 'git'
   repo: string
   commit: string
+  path?: string
 }
 
 export type Resolution =

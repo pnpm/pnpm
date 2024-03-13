@@ -64,7 +64,7 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
             depName = name
           }
           spec = npa.resolve(depName, rawSpec, pkg.dir)
-        } catch (err: any) { // eslint-disable-line
+        } catch {
           return ''
         }
 

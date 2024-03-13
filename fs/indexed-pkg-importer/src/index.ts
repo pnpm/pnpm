@@ -1,4 +1,6 @@
+import assert from 'assert'
 import { constants, type Stats, existsSync } from 'fs'
+import util from 'util'
 import fs from '@pnpm/graceful-fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
@@ -58,7 +60,7 @@ function createAutoImporter (): ImportIndexedPackage {
         packageImportMethodLogger.debug({ method: 'clone' })
         auto = _clonePkg
         return 'clone'
-      } catch (err: any) { // eslint-disable-line
+      } catch {
         // ignore
       }
     }
@@ -67,7 +69,8 @@ function createAutoImporter (): ImportIndexedPackage {
       packageImportMethodLogger.debug({ method: 'hardlink' })
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return 'hardlink'
-    } catch (err: any) { // eslint-disable-line
+    } catch (err: unknown) {
+      assert(util.types.isNativeError(err))
       if (err.message.startsWith('EXDEV: cross-device link not permitted')) {
         globalWarn(err.message)
         globalInfo('Falling back to copying packages from store')
@@ -98,7 +101,7 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
       packageImportMethodLogger.debug({ method: 'clone' })
       auto = _clonePkg
       return 'clone'
-    } catch (err: any) { // eslint-disable-line
+    } catch {
       // ignore
     }
     packageImportMethodLogger.debug({ method: 'copy' })
@@ -132,7 +135,8 @@ function createCloneFunction (): CloneFunction {
     return (fr, to) => {
       try {
         reflinkFileSync(fr, to)
-      } catch (err: any) { // eslint-disable-line
+      } catch (err: unknown) {
+        assert(util.types.isNativeError(err))
         // If the file already exists, then we just proceed.
         // This will probably only happen if the package's index file contains the same file twice.
         // For instance: { "index.js": "hash", "./index.js": "hash" }
@@ -143,8 +147,8 @@ function createCloneFunction (): CloneFunction {
   return (src: string, dest: string) => {
     try {
       fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
-    } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'EEXIST') throw err
+    } catch (err: unknown) {
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
     }
   }
 }
@@ -179,10 +183,10 @@ function shouldRelinkPkg (
 function linkOrCopy (existingPath: string, newPath: string) {
   try {
     fs.linkSync(existingPath, newPath)
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     // If a hard link to the same file already exists
     // then trying to copy it will make an empty file from it.
-    if (err['code'] === 'EEXIST') return
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') return
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
@@ -212,8 +216,8 @@ function isSameFile (filename: string, linkedPkgDir: string, filesMap: FilesMap)
   let stats0!: Stats
   try {
     stats0 = fs.statSync(linkedFile)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') return false
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
   }
   const stats1 = fs.statSync(filesMap[filename])
   if (stats0.ino === stats1.ino) return true

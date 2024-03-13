@@ -1,4 +1,6 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { type AgentOptions, fetchWithAgent, type RetryTimeoutOptions } from '@pnpm/fetch'
 import { type GetAuthHeader } from '@pnpm/fetching-types'
@@ -54,8 +56,9 @@ export async function audit (
       lockfileDir: opts.lockfileDir,
       include: opts.include,
     })
-  } catch (err: any) { // eslint-disable-line
-    globalWarn(`Failed to extend audit report with dependency paths: ${err.message as string}`)
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    globalWarn(`Failed to extend audit report with dependency paths: ${err.message}`)
     return auditReport
   }
 }

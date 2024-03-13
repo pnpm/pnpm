@@ -267,7 +267,7 @@ export async function resolveDependencies (
     }
   }
 
-  const { newLockfile } = updateLockfile({
+  const newLockfile = updateLockfile({
     dependenciesGraph,
     lockfile: opts.wantedLockfile,
     prefix: opts.virtualStoreDir,

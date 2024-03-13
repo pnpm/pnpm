@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
@@ -110,8 +111,8 @@ export async function handler (
       stdio: 'inherit',
       shell: opts.shellMode ?? false,
     })
-  } catch (err: any) { // eslint-disable-line
-    if (err.exitCode != null) {
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'exitCode' in err && err.exitCode != null) {
       return {
         exitCode: err.exitCode,
       }

@@ -1,5 +1,6 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
+import util from 'util'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import { logger } from '@pnpm/logger'
@@ -97,9 +98,9 @@ async function realFileStat (filePath: string): Promise<{ filePath: string, stat
     filePath = await fs.realpath(filePath)
     stat = await fs.stat(filePath)
     return { filePath, stat }
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  } catch (err: unknown) {
     // Broken symlinks are skipped
-    if (err.code === 'ENOENT') {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
       return { filePath: null, stat: null }
     }
@@ -113,9 +114,9 @@ async function fileStat (filePath: string): Promise<{ filePath: string, stat: St
       filePath,
       stat: await fs.stat(filePath),
     }
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  } catch (err: unknown) {
     // Broken symlinks are skipped
-    if (err.code === 'ENOENT') {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
       return { filePath: null, stat: null }
     }

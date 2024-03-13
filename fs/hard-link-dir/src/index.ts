@@ -1,4 +1,6 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import fs from 'fs'
 import { globalWarn } from '@pnpm/logger'
 
@@ -13,8 +15,8 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
   let files: string[] = []
   try {
     files = fs.readdirSync(src)
-  } catch (err: any) { // eslint-disable-line
-    if (!isRoot || err.code !== 'ENOENT') throw err
+  } catch (err: unknown) {
+    if (!isRoot || !((util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT'))) throw err
     globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
     for (const dir of destDirs) {
       fs.mkdirSync(dir, { recursive: true })
@@ -29,8 +31,8 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
         const destSubdir = path.join(destDir, file)
         try {
           fs.mkdirSync(destSubdir, { recursive: true })
-        } catch (err: any) { // eslint-disable-line
-          if (err.code !== 'EEXIST') throw err
+        } catch (err: unknown) {
+          if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
         }
         return destSubdir
       })
@@ -41,8 +43,8 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
       const destFile = path.join(destDir, file)
       try {
         linkOrCopyFile(srcFile, destFile)
-      } catch (err: any) { // eslint-disable-line
-        if (err.code === 'ENOENT') {
+      } catch (err: unknown) {
+        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
           // Ignore broken symlinks
           continue
         }
@@ -55,13 +57,14 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
 function linkOrCopyFile (srcFile: string, destFile: string) {
   try {
     linkOrCopy(srcFile, destFile)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    if ('code' in err && err.code === 'ENOENT') {
       fs.mkdirSync(path.dirname(destFile), { recursive: true })
       linkOrCopy(srcFile, destFile)
       return
     }
-    if (err.code !== 'EEXIST') {
+    if (!('code' in err && err.code === 'EEXIST')) {
       throw err
     }
   }
@@ -74,8 +77,8 @@ function linkOrCopyFile (srcFile: string, destFile: string) {
 function linkOrCopy (srcFile: string, destFile: string) {
   try {
     fs.linkSync(srcFile, destFile)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'EXDEV') throw err
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
     fs.copyFileSync(srcFile, destFile)
   }
 }

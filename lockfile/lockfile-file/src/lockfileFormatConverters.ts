@@ -1,3 +1,4 @@
+import { parseDepPath } from '@pnpm/dependency-path'
 import {
   type Lockfile,
   type ProjectSnapshot,
@@ -189,6 +190,7 @@ export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV7
   if ((lockfile as LockfileFileV7).snapshots) {
     return convertLockfileV7ToLockfileObject(lockfile as LockfileFileV7)
   }
+  convertPkgIds(lockfile)
   const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
 
   const newLockfile = {
@@ -196,6 +198,69 @@ export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV7
     importers: mapValues(importers ?? {}, revertProjectSnapshot),
   }
   return newLockfile
+}
+
+function convertPkgIds (lockfile: LockfileFile) {
+  const oldIdToNewId: Record<string, string> = {}
+  if (lockfile.packages == null || isEmpty(lockfile.packages)) return
+  for (const [pkgId, pkg] of Object.entries(lockfile.packages ?? {})) {
+    if (pkg.name) {
+      let newId: string
+      if ('tarball' in pkg.resolution) {
+        newId = pkg.resolution.tarball
+        if (pkg.resolution.path) {
+          newId += `#path:${pkg.resolution.path}`
+        }
+      } else if ('repo' in pkg.resolution) {
+        newId = `${pkg.resolution.repo.startsWith('git+') ? '' : 'git+'}${pkg.resolution.repo}#${pkg.resolution.commit}`
+        if (pkg.resolution.path) {
+          newId += `&path:${pkg.resolution.path}`
+        }
+      } else {
+        continue
+      }
+      const { id, peersSuffix } = parseDepPath(pkgId)
+      oldIdToNewId[pkgId] = `${newId}${peersSuffix}`
+      if (id !== pkgId) {
+        oldIdToNewId[id] = newId
+      }
+    }
+  }
+  const newLockfilePackages: PackageSnapshots = {}
+  for (const [pkgId, pkg] of Object.entries(lockfile.packages ?? {})) {
+    if (oldIdToNewId[pkgId]) {
+      if (pkg.id) {
+        pkg.id = oldIdToNewId[pkg.id]
+      }
+      newLockfilePackages[oldIdToNewId[pkgId]] = pkg
+    } else {
+      newLockfilePackages[pkgId] = pkg
+    }
+    for (const depType of ['dependencies', 'optionalDependencies'] as const) {
+      for (const [alias, depPath] of Object.entries(pkg[depType] ?? {})) {
+        if (oldIdToNewId[depPath]) {
+          pkg[depType]![alias] = oldIdToNewId[depPath]
+        }
+      }
+    }
+  }
+  lockfile.packages = newLockfilePackages
+  for (const importer of Object.values(lockfile.importers ?? {})) {
+    for (const depType of ['dependencies', 'optionalDependencies', 'devDependencies'] as const) {
+      for (const [alias, { version }] of Object.entries(importer[depType] ?? {})) {
+        if (oldIdToNewId[version]) {
+          importer[depType]![alias].version = oldIdToNewId[version]
+        }
+      }
+    }
+  }
+  for (const depType of ['dependencies', 'optionalDependencies', 'devDependencies'] as const) {
+    for (const [alias, { version }] of Object.entries(lockfile[depType] ?? {})) {
+      if (oldIdToNewId[version]) {
+        lockfile[depType]![alias].version = oldIdToNewId[version]
+      }
+    }
+  }
 }
 
 export function convertLockfileV7ToLockfileObject (lockfile: LockfileFileV7): Lockfile {
@@ -217,6 +282,7 @@ function convertProjectSnapshotToInlineSpecifiersFormat (
   projectSnapshot: ProjectSnapshot
 ): InlineSpecifiersProjectSnapshot {
   const { specifiers, ...rest } = projectSnapshot
+  if (specifiers == null) return projectSnapshot as InlineSpecifiersProjectSnapshot
   const convertBlock = (block?: ResolvedDependencies) =>
     block != null
       ? convertResolvedDependenciesToInlineSpecifiersFormat(block, { specifiers })
