@@ -212,7 +212,7 @@ async function resolveAndFetch (
     if (manifest == null) {
       throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
     }
-    if (!id.startsWith(manifest.name)) {
+    if (!id.startsWith(manifest.name) && !id.startsWith('link:')) {
       id = `${manifest.name}@${id}`
     }
     return {
@@ -246,7 +246,7 @@ async function resolveAndFetch (
   // We can skip fetching the package only if the manifest
   // is present after resolution
   if ((options.skipFetch === true || isInstallable === false) && (manifest != null)) {
-    if (!id.startsWith(manifest.name)) {
+    if (!id.startsWith(manifest.name) && !id.startsWith('link:')) {
       id = `${manifest.name}@${id}`
     }
     return {
@@ -285,7 +285,7 @@ async function resolveAndFetch (
   if (!manifest) {
     manifest = (await fetchResult.fetching()).bundledManifest
   }
-  if (manifest && !id.startsWith(manifest.name)) {
+  if (manifest && !id.startsWith(manifest.name) && !id.startsWith('link:')) {
     id = `${manifest.name}@${id}`
   }
   return {

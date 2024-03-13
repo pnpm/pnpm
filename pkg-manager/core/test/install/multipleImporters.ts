@@ -162,7 +162,7 @@ test('install only the dependencies of the specified importer. The current lockf
   const rootModules = assertProject(process.cwd())
   const currentLockfile = rootModules.readCurrentLockfile()
   expect(currentLockfile.importers).toHaveProperty(['project-3'])
-  expect(currentLockfile.packages).toHaveProperty(['/@pnpm.e2e/foobar@100.0.0'])
+  expect(currentLockfile.packages).toHaveProperty(['@pnpm.e2e/foobar@100.0.0'])
 })
 
 test('some projects were removed from the workspace and the ones that are left depend on them', async () => {
@@ -304,8 +304,8 @@ test('dependencies of other importers are not pruned when installing for a subse
   const lockfile = rootModules.readCurrentLockfile()
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
   expect(Object.keys(lockfile.packages)).toStrictEqual([
-    '/is-negative@1.0.0',
-    '/is-positive@2.0.0',
+    'is-negative@1.0.0',
+    'is-positive@2.0.0',
   ])
 })
 
@@ -658,7 +658,7 @@ test('current lockfile contains only installed dependencies when adding a new im
 
   const currentLockfile = await readCurrentLockfile(path.resolve('node_modules/.pnpm'), { ignoreIncompatible: false })
 
-  expect(Object.keys(currentLockfile?.packages ?? {})).toStrictEqual(['/is-negative@1.0.0'])
+  expect(Object.keys(currentLockfile?.packages ?? {})).toStrictEqual(['is-negative@1.0.0'])
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace projects', async () => {
@@ -718,13 +718,13 @@ test('partial installation in a monorepo does not remove dependencies of other w
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
         dev: false,
         resolution: {
           integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw==',
         },
       },
-      '/is-positive@1.0.0': {
+      'is-positive@1.0.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',
@@ -733,7 +733,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
-      '/@pnpm.e2e/pkg-with-1-dep@100.0.0': {
+      '@pnpm.e2e/pkg-with-1-dep@100.0.0': {
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         },
@@ -817,14 +817,12 @@ test('partial installation in a monorepo does not remove dependencies of other w
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
-        dev: false,
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
         resolution: {
           integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw==',
         },
       },
-      '/is-positive@1.0.0': {
-        dev: false,
+      'is-positive@1.0.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -832,14 +830,24 @@ test('partial installation in a monorepo does not remove dependencies of other w
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
-      '/@pnpm.e2e/pkg-with-1-dep@100.0.0': {
+      '@pnpm.e2e/pkg-with-1-dep@100.0.0': {
+        resolution: {
+          integrity: 'sha512-OStTw86MRiQHB1JTSy6wl+9GT46aK8w4ghZT3e8ZN899J+FUsfD1nFl5gANa4Qol1LTBRqXeKomgXIAo9R/RZA==',
+        },
+      },
+    },
+    snapshots: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
+        dev: false,
+      },
+      'is-positive@1.0.0': {
+        dev: false,
+      },
+      '@pnpm.e2e/pkg-with-1-dep@100.0.0': {
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         },
         dev: false,
-        resolution: {
-          integrity: 'sha512-OStTw86MRiQHB1JTSy6wl+9GT46aK8w4ghZT3e8ZN899J+FUsfD1nFl5gANa4Qol1LTBRqXeKomgXIAo9R/RZA==',
-        },
       },
     },
   }, { lineWidth: 1000 })
@@ -1244,11 +1252,11 @@ test('remove dependencies of a project that was removed from the workspace (duri
   {
     const wantedLockfile = project.readLockfile()
     expect(Object.keys(wantedLockfile.importers)).toStrictEqual(['project-1'])
-    expect(Object.keys(wantedLockfile.packages)).toStrictEqual(['/is-positive@1.0.0'])
+    expect(Object.keys(wantedLockfile.packages)).toStrictEqual(['is-positive@1.0.0'])
 
     const currentLockfile = project.readCurrentLockfile()
     expect(Object.keys(currentLockfile.importers)).toStrictEqual(['project-1', 'project-2'])
-    expect(Object.keys(currentLockfile.packages)).toStrictEqual(['/is-negative@1.0.0', '/is-positive@1.0.0'])
+    expect(Object.keys(currentLockfile.packages)).toStrictEqual(['is-negative@1.0.0', 'is-positive@1.0.0'])
 
     project.has('.pnpm/is-positive@1.0.0')
     project.has('.pnpm/is-negative@1.0.0')
@@ -1262,7 +1270,7 @@ test('remove dependencies of a project that was removed from the workspace (duri
   {
     const currentLockfile = project.readCurrentLockfile()
     expect(Object.keys(currentLockfile.importers)).toStrictEqual(['project-1'])
-    expect(Object.keys(currentLockfile.packages)).toStrictEqual(['/is-positive@1.0.0'])
+    expect(Object.keys(currentLockfile.packages)).toStrictEqual(['is-positive@1.0.0'])
 
     project.has('.pnpm/is-positive@1.0.0')
     project.hasNot('.pnpm/is-negative@1.0.0')
@@ -1330,7 +1338,7 @@ test('do not resolve a subdependency from the workspace by default', async () =>
   const project = assertProject(process.cwd())
 
   const wantedLockfile = project.readLockfile()
-  expect(wantedLockfile.snapshots['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
+  expect(wantedLockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
 })
 
 test('resolve a subdependency from the workspace', async () => {
@@ -1393,7 +1401,8 @@ test('resolve a subdependency from the workspace', async () => {
   const project = assertProject(process.cwd())
 
   const wantedLockfile = project.readLockfile()
-  expect(wantedLockfile.snapshots['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
+  console.log(JSON.stringify(wantedLockfile, null, 2))
+  expect(wantedLockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   rimraf('node_modules')
 
@@ -1478,19 +1487,19 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
   const suffix2 = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.1' }])
   expect(Object.keys(wantedLockfile.snapshots).sort()).toStrictEqual(
     [
-      '/@pnpm.e2e/abc-grand-parent-with-c@1.0.0',
-      '/@pnpm.e2e/abc-parent-with-ab@1.0.0',
-      '/@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.1)',
-      `/@pnpm.e2e/abc@1.0.0${suffix1}`,
-      `/@pnpm.e2e/abc@1.0.0${suffix2}`,
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
-      '/is-positive@1.0.0',
-      '/@pnpm.e2e/peer-b@1.0.0',
-      '/@pnpm.e2e/peer-c@1.0.1',
+      '@pnpm.e2e/abc-grand-parent-with-c@1.0.0',
+      '@pnpm.e2e/abc-parent-with-ab@1.0.0',
+      '@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.1)',
+      `@pnpm.e2e/abc@1.0.0${suffix1}`,
+      `@pnpm.e2e/abc@1.0.0${suffix2}`,
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+      'is-positive@1.0.0',
+      '@pnpm.e2e/peer-b@1.0.0',
+      '@pnpm.e2e/peer-c@1.0.1',
     ].sort()
   )
-  expect(wantedLockfile.snapshots['/@pnpm.e2e/abc-parent-with-ab@1.0.0'].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
-  expect(wantedLockfile.snapshots[`/@pnpm.e2e/abc@1.0.0${suffix1}`].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
+  expect(wantedLockfile.snapshots['@pnpm.e2e/abc-parent-with-ab@1.0.0'].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
+  expect(wantedLockfile.snapshots[`@pnpm.e2e/abc@1.0.0${suffix1}`].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
 })
 
 test('resolve a subdependency from the workspace, when it uses the workspace protocol', async () => {
@@ -1561,7 +1570,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
   const project = assertProject(process.cwd())
 
   const wantedLockfile = project.readLockfile()
-  expect(wantedLockfile.snapshots['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(wantedLockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   rimraf('node_modules')
 
@@ -1728,8 +1737,8 @@ test('do not update dependency that has the same name as a dependency in the wor
   const rootModules = assertProject(process.cwd())
   const currentLockfile = rootModules.readCurrentLockfile()
   expect(Object.keys(currentLockfile.packages)).toStrictEqual([
-    '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
-    '/is-negative@2.1.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+    'is-negative@2.1.0',
   ])
 })
 
