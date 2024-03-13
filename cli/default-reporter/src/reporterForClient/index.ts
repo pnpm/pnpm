@@ -96,6 +96,7 @@ export function reporterForClient (
         cwd,
         logLevel: opts.logLevel,
         zoomOutCurrent: opts.isRecursive,
+        peerDependencyRules: opts.peerDependencyRules,
       }
     ),
     reportInstallChecks(log$.installCheck, { cwd }),

@@ -21,6 +21,7 @@ const colorPath = chalk.gray
 
 export function reportError (logObj: Log, config?: Config, peerDependencyRules?: PeerDependencyRules) {
   const errorInfo = getErrorInfo(logObj, config, peerDependencyRules)
+  if (!errorInfo) return null
   let output = formatErrorSummary(errorInfo.title, (logObj as LogObjWithPossibleError).err?.code)
   if (logObj['pkgsStack'] != null) {
     if (logObj['pkgsStack'].length > 0) {
@@ -46,7 +47,7 @@ export function reportError (logObj: Log, config?: Config, peerDependencyRules?:
 function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerDependencyRules): {
   title: string
   body?: string
-} {
+} | null {
   if (logObj['err']) {
     const err = logObj['err'] as (PnpmError & { stack: object })
     switch (err.code) {
@@ -414,9 +415,11 @@ function reportPeerDependencyIssuesError (
     hints.push('If you want peer dependencies to be automatically installed, add "auto-install-peers=true" to an .npmrc file at the root of your project.')
   }
   hints.push('If you don\'t want pnpm to fail on peer dependency issues, add "strict-peer-dependencies=false" to an .npmrc file at the root of your project.')
+  const rendered = renderPeerIssues(msg.issuesByProjects, { rules: peerDependencyRules })
+  if (!rendered) return null
   return {
     title: err.message,
-    body: `${renderPeerIssues(msg.issuesByProjects, { rules: peerDependencyRules })}
+    body: `${rendered}
 ${hints.map((hint) => `hint: ${hint}`).join('\n')}
 `,
   }

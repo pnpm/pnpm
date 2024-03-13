@@ -13,10 +13,16 @@ export function reportPeerDependencyIssues (
 ) {
   return log$.peerDependencyIssues.pipe(
     take(1),
-    map((log) => Rx.of({
-      msg: `${formatWarn('Issues with peer dependencies found')}\n${renderPeerIssues(log.issuesByProjects, {
+    map((log) => {
+      const renderedPeerIssues = renderPeerIssues(log.issuesByProjects, {
         rules: peerDependencyRules,
-      })}`,
-    }))
+      })
+      if (!renderedPeerIssues) {
+        return Rx.NEVER
+      }
+      return Rx.of({
+        msg: `${formatWarn('Issues with peer dependencies found')}\n${renderedPeerIssues}`,
+      })
+    })
   )
 }
