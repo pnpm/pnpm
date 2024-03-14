@@ -1,4 +1,4 @@
-import { parseDepPath } from '@pnpm/dependency-path'
+import { parseDepPath, removePeersSuffix } from '@pnpm/dependency-path'
 import {
   type Lockfile,
   type ProjectSnapshot,
@@ -11,9 +11,7 @@ import {
   type PackageInfo,
   type LockfileFileV7,
   type PackageSnapshots,
-  type PackageSnapshot,
 } from '@pnpm/lockfile-types'
-import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
@@ -38,7 +36,7 @@ export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfi
       'optional',
       'id',
     ], pkg)
-    const pkgId = packageIdFromSnapshot(depPath, pkg)
+    const pkgId = removePeersSuffix(depPath)
     if (!packages[pkgId]) {
       packages[pkgId] = pick([
         'bundleDependencies',
@@ -275,7 +273,7 @@ export function convertLockfileV7ToLockfileObject (lockfile: LockfileFileV7): Lo
 
   const packages: PackageSnapshots = {}
   for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
-    const pkgId = packageIdFromSnapshot(depPath, pkg as PackageSnapshot)
+    const pkgId = removePeersSuffix(depPath)
     packages[depPath] = Object.assign(pkg, lockfile.packages?.[pkgId])
   }
   return {

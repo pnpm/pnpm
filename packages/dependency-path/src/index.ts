@@ -35,13 +35,21 @@ export function parseDepPath (relDepPath: string) {
   }
 }
 
-export function tryGetPackageId (relDepPath: string) {
-  if (relDepPath[0] !== '/') {
-    return null
-  }
+export function removePeersSuffix (relDepPath: string) {
   const sepIndex = indexOfPeersSuffix(relDepPath)
   if (sepIndex !== -1) {
     return relDepPath.substring(0, sepIndex)
+  }
+  return relDepPath
+}
+
+export function tryGetPackageId (relDepPath: string) {
+  const sepIndex = indexOfPeersSuffix(relDepPath)
+  if (sepIndex !== -1) {
+    relDepPath = relDepPath.substring(0, sepIndex)
+  }
+  if (relDepPath.includes(':')) {
+    relDepPath = relDepPath.substring(relDepPath.indexOf('@', 1) + 1)
   }
   return relDepPath
 }
