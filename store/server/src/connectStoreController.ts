@@ -95,6 +95,9 @@ async function requestPackage (
     options,
     wantedDependency,
   })
+  if (options.skipFetch === true) {
+    return { body: packageResponseBody }
+  }
   const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
     msgId,
   })
