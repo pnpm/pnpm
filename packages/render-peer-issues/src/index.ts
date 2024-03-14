@@ -1,19 +1,36 @@
-import { type BadPeerDependencyIssue, type PeerDependencyIssuesByProjects } from '@pnpm/types'
+import { PnpmError } from '@pnpm/error'
+import { createMatcher } from '@pnpm/matcher'
+import {
+  type BadPeerDependencyIssue,
+  type PeerDependencyIssuesByProjects,
+  type PeerDependencyRules,
+} from '@pnpm/types'
+import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 import archy from 'archy'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
+import semver from 'semver'
 
 export function renderPeerIssues (
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,
-  opts?: { width?: number }
+  opts?: {
+    rules?: PeerDependencyRules
+    width?: number
+  }
 ) {
+  const ignoreMissingPatterns = [...new Set(opts?.rules?.ignoreMissing ?? [])]
+  const ignoreMissingMatcher = createMatcher(ignoreMissingPatterns)
+  const allowAnyPatterns = [...new Set(opts?.rules?.allowAny ?? [])]
+  const allowAnyMatcher = createMatcher(allowAnyPatterns)
+  const { allowedVersionsMatchAll, allowedVersionsByParentPkgName } = parseAllowedVersions(opts?.rules?.allowedVersions ?? {})
   const projects = {} as Record<string, PkgNode>
   for (const [projectId, { bad, missing, conflicts, intersections }] of Object.entries(peerDependencyIssuesByProjects)) {
     projects[projectId] = { dependencies: {}, peerIssues: [] }
     for (const [peerName, issues] of Object.entries(missing)) {
       if (
         !conflicts.includes(peerName) &&
-        intersections[peerName] == null
+        intersections[peerName] == null ||
+        ignoreMissingMatcher(peerName)
       ) {
         continue
       }
@@ -22,7 +39,21 @@ export function renderPeerIssues (
       }
     }
     for (const [peerName, issues] of Object.entries(bad)) {
+      if (allowAnyMatcher(peerName)) continue
       for (const issue of issues) {
+        if (allowedVersionsMatchAll[peerName]?.some((range) => semver.satisfies(issue.foundVersion, range))) continue
+        const currentParentPkg = issue.parents.at(-1)
+        if (currentParentPkg && allowedVersionsByParentPkgName[peerName]?.[currentParentPkg.name]) {
+          const allowedVersionsByParent = allowedVersionsByParentPkgName[peerName][currentParentPkg.name]
+            .reduce((acc, { targetPkg, parentPkg, ranges }) => {
+              if (!parentPkg.pref || currentParentPkg.version &&
+                (isSubRange(parentPkg.pref, currentParentPkg.version) || semver.satisfies(currentParentPkg.version, parentPkg.pref))) {
+                acc[targetPkg.name] = ranges
+              }
+              return acc
+            }, {} as Record<string, string[]>)
+          if (allowedVersionsByParent[peerName]?.some((range) => semver.satisfies(issue.foundVersion, range))) continue
+        }
         createTree(projects[projectId], issue.parents, formatUnmetPeerMessage({
           peerName,
           ...issue,
@@ -108,4 +139,55 @@ function toArchyData (depName: string, pkgNode: PkgNode): archy.Data {
     result.nodes.push(toArchyData(depName, node))
   }
   return result
+}
+
+type AllowedVersionsByParentPkgName = Record<string, Record<string, Array<Required<Pick<VersionOverride, 'parentPkg' | 'targetPkg'>> & { ranges: string[] }>>>
+
+function parseAllowedVersions (allowedVersions: Record<string, string>) {
+  const overrides = tryParseAllowedVersions(allowedVersions)
+  const allowedVersionsMatchAll: Record<string, string[]> = {}
+  const allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName = {}
+  for (const { parentPkg, targetPkg, newPref } of overrides) {
+    const ranges = parseVersions(newPref)
+    if (!parentPkg) {
+      allowedVersionsMatchAll[targetPkg.name] = ranges
+      continue
+    }
+    if (!allowedVersionsByParentPkgName[targetPkg.name]) {
+      allowedVersionsByParentPkgName[targetPkg.name] = {}
+    }
+    if (!allowedVersionsByParentPkgName[targetPkg.name][parentPkg.name]) {
+      allowedVersionsByParentPkgName[targetPkg.name][parentPkg.name] = []
+    }
+    allowedVersionsByParentPkgName[targetPkg.name][parentPkg.name].push({
+      parentPkg,
+      targetPkg,
+      ranges,
+    })
+  }
+  return {
+    allowedVersionsMatchAll,
+    allowedVersionsByParentPkgName,
+  }
+}
+
+function tryParseAllowedVersions (allowedVersions: Record<string, string>): VersionOverride[] {
+  try {
+    return parseOverrides(allowedVersions ?? {})
+  } catch (err) {
+    throw new PnpmError('INVALID_ALLOWED_VERSION_SELECTOR',
+      `${(err as PnpmError).message} in pnpm.peerDependencyRules.allowedVersions`)
+  }
+}
+
+function parseVersions (versions: string): string[] {
+  return versions.split('||').map(v => v.trim())
+}
+
+function isSubRange (superRange: string | undefined, subRange: string) {
+  return !superRange ||
+  subRange === superRange ||
+  semver.validRange(subRange) != null &&
+  semver.validRange(superRange) != null &&
+  semver.subset(subRange, superRange)
 }

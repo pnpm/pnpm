@@ -19,6 +19,7 @@ import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDepend
 import { reportStats } from './reportStats'
 import { reportSummary, type FilterPkgsDiff } from './reportSummary'
 import { reportUpdateCheck } from './reportUpdateCheck'
+import { type PeerDependencyRules } from '@pnpm/types'
 
 const PRINT_EXECUTION_TIME_IN_COMMANDS = {
   install: true,
@@ -58,6 +59,7 @@ export function reporterForClient (
     config?: Config
     env: NodeJS.ProcessEnv
     filterPkgsDiff?: FilterPkgsDiff
+    peerDependencyRules?: PeerDependencyRules
     process: NodeJS.Process
     isRecursive: boolean
     logLevel?: LogLevel
@@ -94,6 +96,7 @@ export function reporterForClient (
         cwd,
         logLevel: opts.logLevel,
         zoomOutCurrent: opts.isRecursive,
+        peerDependencyRules: opts.peerDependencyRules,
       }
     ),
     reportInstallChecks(log$.installCheck, { cwd }),
@@ -116,7 +119,7 @@ export function reporterForClient (
 
   if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
     outputs.push(
-      reportPeerDependencyIssues(log$),
+      reportPeerDependencyIssues(log$, opts.peerDependencyRules),
       reportDeprecations({
         deprecation: log$.deprecation,
         stage: log$.stage,

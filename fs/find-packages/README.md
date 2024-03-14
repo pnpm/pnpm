@@ -3,7 +3,7 @@
 > Find all packages inside a directory
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/find-packages.svg)](https://www.npmjs.com/package/@pnpm/fs.find-packages)
+[![npm version](https://img.shields.io/npm/v/@pnpm/fs.find-packages.svg)](https://www.npmjs.com/package/@pnpm/fs.find-packages)
 <!--/@-->
 
 ## Installation
