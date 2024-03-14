@@ -1083,6 +1083,9 @@ async function resolveDependency (
     }
   }
   try {
+    if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`)) {
+      wantedDependency.pref = currentPkg.version
+    }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
@@ -1107,9 +1110,7 @@ async function resolveDependency (
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref) || ctx.registries.default,
-      // Unfortunately, even when run with --lockfile-only, we need the *real* package.json
-      // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
-      skipFetch: false,
+      skipFetch: ctx.dryRun,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,

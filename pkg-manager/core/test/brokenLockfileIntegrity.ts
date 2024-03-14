@@ -19,9 +19,10 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     [
       '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ],
-    testDefaults({ lockfileOnly: true })
+    testDefaults()
   )
 
+  rimraf('node_modules')
   const corruptedLockfile = project.readLockfile()
   const correctLockfile = clone(corruptedLockfile)
   // breaking the lockfile
