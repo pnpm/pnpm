@@ -334,7 +334,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative@1.0.0': {
+      'is-negative@1.0.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -344,7 +344,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
       },
     },
     snapshots: {
-      '/is-negative@1.0.0': {
+      'is-negative@1.0.0': {
         dev: false,
       },
     },
