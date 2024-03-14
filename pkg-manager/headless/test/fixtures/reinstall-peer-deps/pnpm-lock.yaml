@@ -14,7 +14,7 @@ importers:
 
 packages:
 
-  '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.1)':
+  '@pnpm.e2e/abc@1.0.0':
     resolution: {integrity: sha512-pXCDz60zZZ33NeZpkHZtikJBbyAHjK42Nv33wgxGXV/bNDhLfXQ9yQTsVXfR1xOwJ55n2nV+Zkx/W0Lo5YL8ag==}
     peerDependencies:
       '@pnpm.e2e/peer-a': ^1.0.0
