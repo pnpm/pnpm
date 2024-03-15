@@ -6,6 +6,7 @@ import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+import { getSystemNodeVersion } from '@pnpm/package-is-installable'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
 import {
@@ -187,7 +188,7 @@ const defaults = (opts: InstallOptions) => {
     },
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
-    nodeVersion: process.version,
+    nodeVersion: opts.nodeVersion ?? getSystemNodeVersion(),
     nodeLinker: 'isolated',
     overrides: {},
     ownLifecycleHooksStdio: 'inherit',

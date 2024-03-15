@@ -11,6 +11,7 @@ export type { Engine } from './checkEngine'
 export type { Platform, WantedPlatform } from './checkPlatform'
 
 export {
+  getSystemNodeVersion,
   UnsupportedEngineError,
   UnsupportedPlatformError,
   type WantedEngine,
