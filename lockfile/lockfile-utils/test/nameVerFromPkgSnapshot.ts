@@ -1,8 +1,7 @@
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 
 test('nameVerFromPkgSnapshot()', () => {
-  expect(nameVerFromPkgSnapshot('some-weird-path', {
-    name: 'foo',
+  expect(nameVerFromPkgSnapshot('foo@some-weird-path', {
     version: '1.0.0',
 
     resolution: {
