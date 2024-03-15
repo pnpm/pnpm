@@ -37,8 +37,8 @@ test('rebuilds dependencies', async () => {
 
   let modules = project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
-    '/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
-    'https://codeload.github.com/pnpm/test-git-fetch/tar.gz/6ebf1e03de0ada9e653d1f8ff82ad905ab761ad9',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    'test-git-fetch@https://codeload.github.com/pnpm/test-git-fetch/tar.gz/6ebf1e03de0ada9e653d1f8ff82ad905ab761ad9',
   ])
 
   const modulesManifest = project.readModulesManifest()
@@ -111,7 +111,7 @@ test('skipIfHasSideEffectsCache', async () => {
 
   let modules = project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
-    '/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
   ])
 
   const modulesManifest = project.readModulesManifest()
@@ -225,8 +225,8 @@ test('rebuild with pending option', async () => {
 
   let modules = project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
-    '/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
-    'https://codeload.github.com/pnpm-e2e/install-scripts-example/tar.gz/b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    'install-scripts-example-for-pnpm@https://codeload.github.com/pnpm-e2e/install-scripts-example/tar.gz/b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b',
   ])
 
   project.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
