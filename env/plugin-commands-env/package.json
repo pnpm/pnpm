@@ -57,7 +57,7 @@
     "@types/graceful-fs": "^4.1.9",
     "@types/is-windows": "^1.0.2",
     "@types/semver": "7.5.3",
-    "adm-zip": "^0.5.10",
+    "adm-zip": "^0.5.12",
     "execa": "npm:safe-execa@0.1.2",
     "nock": "13.3.4",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0",

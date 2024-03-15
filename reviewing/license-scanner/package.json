@@ -54,7 +54,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/license-scanner": "workspace:*",
     "@types/ramda": "0.28.20",
-    "@types/semver": "^7.5.7"
+    "@types/semver": "^7.5.8"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
