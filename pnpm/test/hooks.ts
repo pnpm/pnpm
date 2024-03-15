@@ -236,8 +236,8 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
 
   const lockfile0 = project.readLockfile()
   expect(lockfile0.pnpmfileChecksum).toBeUndefined()
-  expect(lockfile0.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-good-optional@1.0.0'])
-  expect(lockfile0.packages).toHaveProperty(['/is-positive@1.0.0'])
+  expect(lockfile0.packages).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+  expect(lockfile0.packages).toHaveProperty(['is-positive@1.0.0'])
 
   const pnpmfile1 = `
     function readPackage (pkg) {
@@ -254,8 +254,8 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
 
   const lockfile1 = project.readLockfile()
   expect(lockfile1.pnpmfileChecksum).toBe(createBase32Hash(pnpmfile1))
-  expect(lockfile1.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-good-optional@1.0.0'])
-  expect(lockfile1.packages).not.toHaveProperty(['/is-positive@1.0.0']) // this should be removed due to being optional dependency
+  expect(lockfile1.packages).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+  expect(lockfile1.packages).not.toHaveProperty(['is-positive@1.0.0']) // this should be removed due to being optional dependency
 
   const pnpmfile2 = `
     function readPackage (pkg) {
@@ -276,14 +276,14 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
   const lockfile2 = project.readLockfile()
   expect(lockfile2.pnpmfileChecksum).toBe(createBase32Hash(pnpmfile2))
   expect(lockfile2.snapshots).toMatchObject({
-    '/@pnpm.e2e/foo@100.0.0': expect.any(Object),
-    '/@pnpm.e2e/bar@100.0.0': expect.any(Object),
-    '/@pnpm.e2e/pkg-with-good-optional@1.0.0': {
+    '@pnpm.e2e/foo@100.0.0': expect.any(Object),
+    '@pnpm.e2e/bar@100.0.0': expect.any(Object),
+    '@pnpm.e2e/pkg-with-good-optional@1.0.0': {
       dependencies: {
         '@pnpm.e2e/foo': '100.0.0',
       },
     },
-    '/is-positive@1.0.0': {
+    'is-positive@1.0.0': {
       dependencies: {
         '@pnpm.e2e/bar': '100.0.0',
       },

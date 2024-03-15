@@ -176,10 +176,10 @@ test('recursive installation of packages with hooks', async () => {
   await execPnpm(['recursive', 'install'])
 
   const lockfile1 = projects['project-1'].readLockfile()
-  expect(lockfile1.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile1.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   const lockfile2 = projects['project-2'].readLockfile()
-  expect(lockfile2.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile2.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('recursive installation of packages in workspace ignores hooks in packages', async () => {
@@ -229,8 +229,8 @@ test('recursive installation of packages in workspace ignores hooks in packages'
 
   const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
   const depPaths = Object.keys(lockfile.snapshots ?? {})
-  expect(depPaths).not.toContain('/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
-  expect(depPaths).toContain('/is-number@1.0.0')
+  expect(depPaths).not.toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  expect(depPaths).toContain('is-number@1.0.0')
 })
 
 test('ignores .pnpmfile.cjs during recursive installation when --ignore-pnpmfile is used', async () => {
@@ -274,10 +274,10 @@ test('ignores .pnpmfile.cjs during recursive installation when --ignore-pnpmfile
   await execPnpm(['recursive', 'install', '--ignore-pnpmfile'])
 
   const lockfile1 = projects['project-1'].readLockfile()
-  expect(lockfile1.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile1.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   const lockfile2 = projects['project-2'].readLockfile()
-  expect(lockfile2.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile2.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('recursive command with filter from config', async () => {
