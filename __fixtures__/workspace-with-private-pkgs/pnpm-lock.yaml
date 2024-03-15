@@ -18,7 +18,11 @@ importers:
 
 packages:
 
-  /is-positive@1.0.0:
+  is-positive@1.0.0:
     resolution: {integrity: sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==}
     engines: {node: '>=0.10.0'}
+
+snapshots:
+
+  is-positive@1.0.0:
     dev: false

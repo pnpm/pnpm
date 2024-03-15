@@ -1,16 +1,27 @@
 lockfileVersion: '7.0'
 
-dependencies:
-  general:
-    specifier: link:../general
-    version: link:../general
-  is-positive:
-    specifier: ^3.1.0
-    version: 3.1.0
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      general:
+        specifier: link:../general
+        version: link:../general
+      is-positive:
+        specifier: ^3.1.0
+        version: 3.1.0
 
 packages:
 
-  /is-positive@3.1.0:
+  is-positive@3.1.0:
     resolution: {integrity: sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==}
     engines: {node: '>=0.10.0'}
+
+snapshots:
+
+  is-positive@3.1.0:
     dev: false
