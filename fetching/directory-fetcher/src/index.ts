@@ -1,5 +1,6 @@
-import { promises as fs, type Stats } from 'fs'
-import path from 'path'
+import '@total-typescript/ts-reset'
+import { promises as fs, type Stats } from 'node:fs'
+import path from 'node:path'
 import type {
   DirectoryFetcher,
   DirectoryFetcherOptions,
@@ -7,16 +8,18 @@ import type {
 import { logger } from '@pnpm/logger'
 import { packlist } from '@pnpm/fs.packlist'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 
 export interface CreateDirectoryFetcherOptions {
-  includeOnlyPackageFiles?: boolean
-  resolveSymlinks?: boolean
+  includeOnlyPackageFiles?: boolean | undefined
+  resolveSymlinks?: boolean | undefined
 }
 
-export function createDirectoryFetcher(opts?: CreateDirectoryFetcherOptions) {
+export function createDirectoryFetcher(opts?: CreateDirectoryFetcherOptions | undefined): {
+  directory: DirectoryFetcher;
+} {
   const readFileStat: ReadFileStat =
     opts?.resolveSymlinks === true ? realFileStat : fileStat
   const fetchFromDir = opts?.includeOnlyPackageFiles
@@ -38,7 +41,12 @@ type FetchFromDirOpts = Omit<DirectoryFetcherOptions, 'lockfileDir'>
 export async function fetchFromDir(
   dir: string,
   opts: FetchFromDirOpts & CreateDirectoryFetcherOptions
-) {
+): Promise<{
+    local: true;
+    filesIndex: Record<string, string>;
+    packageImportMethod: 'hardlink';
+    manifest?: DependencyManifest | undefined;
+  }> {
   if (opts.includeOnlyPackageFiles) {
     return fetchPackageFilesFromDir(dir, opts)
   }
@@ -51,7 +59,12 @@ async function fetchAllFilesFromDir(
   readFileStat: ReadFileStat,
   dir: string,
   opts: FetchFromDirOpts
-) {
+): Promise<{
+    local: true;
+    filesIndex: Record<string, string>;
+    packageImportMethod: 'hardlink';
+    manifest?: DependencyManifest | undefined;
+  }> {
   const filesIndex = await _fetchAllFilesFromDir(readFileStat, dir)
   let manifest: DependencyManifest | undefined
   if (opts.readManifest) {
@@ -144,7 +157,12 @@ async function fileStat(
   }
 }
 
-async function fetchPackageFilesFromDir(dir: string, opts: FetchFromDirOpts) {
+async function fetchPackageFilesFromDir(dir: string, opts: FetchFromDirOpts): Promise<{
+  local: true;
+  filesIndex: Record<string, string>;
+  packageImportMethod: 'hardlink';
+  manifest: DependencyManifest | undefined;
+}> {
   const files = await packlist(dir)
   const filesIndex: Record<string, string> = Object.fromEntries(
     files.map((file) => [file, path.join(dir, file)])

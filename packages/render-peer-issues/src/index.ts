@@ -1,9 +1,10 @@
+import '@total-typescript/ts-reset'
 import { PnpmError } from '@pnpm/error'
 import { createMatcher } from '@pnpm/matcher'
-import {
-  type BadPeerDependencyIssue,
-  type PeerDependencyIssuesByProjects,
-  type PeerDependencyRules,
+import type {
+  BadPeerDependencyIssue,
+  PeerDependencyIssuesByProjects,
+  PeerDependencyRules,
 } from '@pnpm/types'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 import archy from 'archy'

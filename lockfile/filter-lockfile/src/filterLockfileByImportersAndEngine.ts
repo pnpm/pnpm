@@ -1,12 +1,12 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { LockfileMissingDependencyError } from '@pnpm/error'
-import { type Lockfile, type PackageSnapshots } from '@pnpm/lockfile-types'
+import type { Lockfile, PackageSnapshots } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import {
-  type SupportedArchitectures,
-  type DependenciesField,
+import type {
+  SupportedArchitectures,
+  DependenciesField,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import mapValues from 'ramda/src/map'
@@ -19,7 +19,10 @@ const lockfileLogger = logger('lockfile')
 export function filterLockfileByEngine(
   lockfile: Lockfile,
   opts: FilterLockfileOptions
-) {
+): {
+    lockfile: Lockfile;
+    selectedImporterIds: string[];
+  } {
   const importerIds = Object.keys(lockfile.importers)
   return filterLockfileByImportersAndEngine(lockfile, importerIds, opts)
 }
@@ -31,11 +34,11 @@ export interface FilterLockfileOptions {
   }
   engineStrict: boolean
   include: { [dependenciesField in DependenciesField]: boolean }
-  includeIncompatiblePackages?: boolean
+  includeIncompatiblePackages?: boolean | undefined
   failOnMissingDependencies: boolean
   lockfileDir: string
   skipped: Set<string>
-  supportedArchitectures?: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures | undefined
 }
 
 export function filterLockfileByImportersAndEngine(
@@ -103,7 +106,7 @@ function pickPkgsWithAllDeps(
     skipped: Set<string>
     supportedArchitectures?: SupportedArchitectures
   }
-) {
+): PackageSnapshots {
   const pickedPackages = {} as PackageSnapshots
   pkgAllDeps({ lockfile, pickedPackages, importerIdSet }, depPaths, true, opts)
   return pickedPackages
@@ -130,7 +133,7 @@ function pkgAllDeps(
     skipped: Set<string>
     supportedArchitectures?: SupportedArchitectures
   }
-) {
+): void {
   for (const depPath of depPaths) {
     if (ctx.pickedPackages[depPath]) continue
     const pkgSnapshot = ctx.lockfile.packages![depPath]
@@ -234,7 +237,10 @@ function toImporterDepPaths(
 function parseDepRefs(
   refsByPkgNames: Array<[string, string]>,
   lockfile: Lockfile
-) {
+): {
+    depPaths: string[];
+    importerIds: string[];
+  } {
   return refsByPkgNames.reduce(
     (acc, [pkgName, ref]) => {
       if (ref.startsWith('link:')) {

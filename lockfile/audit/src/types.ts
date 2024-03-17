@@ -35,7 +35,7 @@ export interface AuditAdvisory {
   id: number
   created: string
   updated: string
-  deleted?: boolean
+  deleted?: boolean | undefined
   title: string
   found_by: {
     name: string

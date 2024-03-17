@@ -2,7 +2,9 @@ import { type AuditReport, type AuditAdvisory } from '@pnpm/audit'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import difference from 'ramda/src/difference'
 
-export async function fix(dir: string, auditReport: AuditReport) {
+export async function fix(dir: string, auditReport: AuditReport): Promise<{
+  [k: string]: string;
+}> {
   const { manifest, writeProjectManifest } = await readProjectManifest(dir)
   const vulnOverrides = createOverrides(
     Object.values(auditReport.advisories),
@@ -22,7 +24,9 @@ export async function fix(dir: string, auditReport: AuditReport) {
   return vulnOverrides
 }
 
-function createOverrides(advisories: AuditAdvisory[], ignoreCves?: string[]) {
+function createOverrides(advisories: AuditAdvisory[], ignoreCves?: string[]): {
+  [k: string]: string;
+} {
   if (ignoreCves) {
     advisories = advisories.filter(
       ({ cves }) => difference(cves, ignoreCves).length > 0

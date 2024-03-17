@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import {
   docsUrl,
   getConfig,
@@ -18,7 +18,7 @@ import {
   arrayOfWorkspacePackagesToMap,
   findWorkspacePackages,
 } from '@pnpm/workspace.find-packages'
-import { type StoreController } from '@pnpm/package-store'
+import type { StoreController } from '@pnpm/package-store'
 import {
   createOrConnectStoreControllerCached,
   type CreateStoreControllerOptions,
@@ -125,10 +125,10 @@ async function checkPeerDeps(linkCwdDir: string, opts: LinkOpts) {
 
     logger.warn({
       message: `The package ${packageName}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:
-      
+
 ${peerDeps}
 
-The linked in dependency will not resolve the peer dependencies from the target node_modules. 
+The linked in dependency will not resolve the peer dependencies from the target node_modules.
 This might cause issues in your project. To resolve this, you may use the "file:" protocol to reference the local dependency.`,
       prefix: opts.dir,
     })

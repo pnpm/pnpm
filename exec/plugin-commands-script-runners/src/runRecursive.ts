@@ -1,6 +1,6 @@
-import path from 'path'
+import path from 'node:path'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,
@@ -20,7 +20,7 @@ import {
 } from './exec'
 import { runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
-import { type PackageScripts } from '@pnpm/types'
+import type { PackageScripts } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<
   Config,
@@ -50,12 +50,12 @@ export type RecursiveRunOpts = Pick<
       | 'workspaceConcurrency'
     >
   > & {
-    ifPresent?: boolean
-    resumeFrom?: string
-    reportSummary?: boolean
+    ifPresent?: boolean | undefined
+    resumeFrom?: string | undefined
+    reportSummary?: boolean | undefined
   }
 
-export async function runRecursive(params: string[], opts: RecursiveRunOpts) {
+export async function runRecursive(params: string[], opts: RecursiveRunOpts): Promise<void> {
   const [scriptName, ...passedThruArgs] = params
   if (!scriptName) {
     throw new PnpmError(
@@ -266,7 +266,7 @@ function formatSectionName({
 export function getSpecifiedScripts(
   scripts: PackageScripts,
   scriptName: string
-) {
+): string[] {
   // if scripts in package.json has script which is equal to scriptName a user passes, return it.
   if (scripts[scriptName]) {
     return [scriptName]

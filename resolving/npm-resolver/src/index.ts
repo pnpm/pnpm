@@ -1,20 +1,19 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import '@total-typescript/ts-reset'
 import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
-import {
-  type FetchFromRegistry,
-  type GetAuthHeader,
-  type RetryTimeoutOptions,
+import type {
+  FetchFromRegistry,
+  GetAuthHeader,
+  RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
-import {
-  type PreferredVersions,
-  type ResolveResult,
-  type WantedDependency,
-  type WorkspacePackages,
+import type {
+  PreferredVersions,
+  ResolveResult,
+  WantedDependency,
+  WorkspacePackages,
 } from '@pnpm/resolver-base'
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'

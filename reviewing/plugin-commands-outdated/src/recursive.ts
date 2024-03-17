@@ -1,10 +1,10 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
 import { outdatedDepsOfProjects, type OutdatedPackage } from '@pnpm/outdated'
-import {
-  type DependenciesField,
-  type IncludedDependencies,
-  type ProjectManifest,
+import type {
+  DependenciesField,
+  IncludedDependencies,
+  ProjectManifest,
 } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'

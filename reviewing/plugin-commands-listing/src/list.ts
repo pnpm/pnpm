@@ -6,7 +6,7 @@ import {
 } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { list, listForPackages } from '@pnpm/list'
-import { type IncludedDependencies } from '@pnpm/types'
+import type { IncludedDependencies } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { listRecursive } from './recursive'

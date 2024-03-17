@@ -1,31 +1,31 @@
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
+import type { Lockfile, TarballResolution } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
 } from '@pnpm/lockfile-walker'
-import {
-  type SupportedArchitectures,
-  type DependenciesField,
-  type Registries,
+import type {
+  SupportedArchitectures,
+  DependenciesField,
+  Registries,
 } from '@pnpm/types'
 import { getPkgInfo } from './getPkgInfo'
 import mapValues from 'ramda/src/map'
 
 export interface LicenseNode {
-  name?: string
-  version?: string
+  name?: string | undefined
+  version?: string | undefined
   license: string
-  licenseContents?: string
+  licenseContents?: string | undefined
   dir: string
-  author?: string
-  homepage?: string
-  description?: string
-  repository?: string
-  integrity?: string
-  requires?: Record<string, string>
-  dependencies?: { [name: string]: LicenseNode }
+  author?: string | undefined
+  homepage?: string | undefined
+  description?: string | undefined
+  repository?: string | undefined
+  integrity?: string | undefined
+  requires?: Record<string, string> | undefined
+  dependencies?: { [name: string]: LicenseNode } | undefined
   dev: boolean
 }
 
@@ -37,10 +37,10 @@ export type LicenseNodeTree = Omit<
 export interface LicenseExtractOptions {
   storeDir: string
   virtualStoreDir: string
-  modulesDir?: string
+  modulesDir?: string | undefined
   dir: string
   registries: Registries
-  supportedArchitectures?: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures | undefined
 }
 
 export async function lockfileToLicenseNode(

@@ -1,5 +1,5 @@
 // cspell:ignore sshurl
-import urlLib, { URL } from 'url'
+import { URL, format } from 'node:url'
 import { fetch } from '@pnpm/fetch'
 
 import git from 'graceful-git'
@@ -58,7 +58,7 @@ export async function parsePref(
 
 function urlToFetchSpec(url: URL) {
   url.hash = ''
-  const fetchSpec = urlLib.format(url)
+  const fetchSpec = format(url)
   if (fetchSpec.startsWith('git+')) {
     return fetchSpec.slice(4)
   }
@@ -178,7 +178,7 @@ function setGitCommittish(committish: string | null) {
 // handle SCP-like URLs
 // see https://github.com/yarnpkg/yarn/blob/5682d55/src/util/git.js#L103
 function correctUrl(gitUrl: string) {
-  const parsed = urlLib.parse(gitUrl.replace(/^git\+/, '')) // eslint-disable-line n/no-deprecated-api
+  const parsed = new URL(gitUrl.replace(/^git\+/, ''))
 
   if (
     parsed.protocol === 'ssh:' &&
@@ -188,7 +188,7 @@ function correctUrl(gitUrl: string) {
     parsed.port === null
   ) {
     parsed.pathname = parsed.pathname.replace(/^\/:/, '')
-    return urlLib.format(parsed)
+    return format(parsed)
   }
 
   return gitUrl

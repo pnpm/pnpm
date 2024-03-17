@@ -1,4 +1,4 @@
-import { type PackageNode } from './PackageNode'
+import type { PackageNode } from './PackageNode'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId'
 
 export interface GetDependenciesCacheEntryArgs {

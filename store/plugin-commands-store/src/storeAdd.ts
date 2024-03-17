@@ -2,19 +2,19 @@ import { PnpmError } from '@pnpm/error'
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { type StoreController } from '@pnpm/store-controller-types'
-import { type SupportedArchitectures, type Registries } from '@pnpm/types'
-import { type ReporterFunction } from './types'
+import type { StoreController } from '@pnpm/store-controller-types'
+import type { SupportedArchitectures, Registries } from '@pnpm/types'
+import type { ReporterFunction } from './types'
 
 export async function storeAdd(
   fuzzyDeps: string[],
   opts: {
-    prefix?: string
-    registries?: Registries
-    reporter?: ReporterFunction
+    prefix?: string | undefined
+    registries?: Registries | undefined
+    reporter?: ReporterFunction | undefined
     storeController: StoreController
-    tag?: string
-    supportedArchitectures?: SupportedArchitectures
+    tag?: string | undefined
+    supportedArchitectures?: SupportedArchitectures | undefined
   }
 ) {
   const reporter = opts?.reporter

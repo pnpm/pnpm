@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
@@ -14,9 +14,9 @@ import {
   extendStoreStatusOptions,
   type StoreStatusOptions,
 } from './extendStoreStatusOptions'
-import { type TarballResolution } from '@pnpm/store-controller-types'
+import type { TarballResolution } from '@pnpm/store-controller-types'
 
-export async function storeStatus(maybeOpts: StoreStatusOptions) {
+export async function storeStatus(maybeOpts: StoreStatusOptions): Promise<string[]> {
   const reporter = maybeOpts?.reporter
   if (reporter != null && typeof reporter === 'function') {
     streamParser.on('data', reporter)

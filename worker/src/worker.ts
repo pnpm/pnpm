@@ -1,7 +1,7 @@
-import path from 'path'
-import fs from 'fs'
+import path from 'node:path'
+import fs from 'node:fs'
 import gfs from '@pnpm/graceful-fs'
-import * as crypto from 'crypto'
+import * as crypto from 'node:crypto'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
@@ -17,13 +17,13 @@ import {
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import { sync as loadJsonFile } from 'load-json-file'
 import { parentPort } from 'worker_threads'
-import {
-  type AddDirToStoreMessage,
-  type ReadPkgFromCafsMessage,
-  type LinkPkgMessage,
-  type SymlinkAllModulesMessage,
-  type TarballExtractMessage,
-  type HardLinkDirMessage,
+import type {
+  AddDirToStoreMessage,
+  ReadPkgFromCafsMessage,
+  LinkPkgMessage,
+  SymlinkAllModulesMessage,
+  TarballExtractMessage,
+  HardLinkDirMessage,
 } from './types'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/

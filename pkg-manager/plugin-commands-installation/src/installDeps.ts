@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import {
   readProjectManifestOnly,
   tryReadProjectManifest,
@@ -17,10 +17,10 @@ import {
   createOrConnectStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import {
-  type IncludedDependencies,
-  type Project,
-  type ProjectsGraph,
+import type {
+  IncludedDependencies,
+  Project,
+  ProjectsGraph,
 } from '@pnpm/types'
 import {
   install,

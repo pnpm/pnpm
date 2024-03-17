@@ -9,12 +9,12 @@ import {
 } from '@pnpm/store.cafs'
 import type { Cafs, PackageFilesResponse } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
-import {
-  type ImportIndexedPackage,
-  type ImportIndexedPackageAsync,
-  type ImportPackageFunction,
-  type ImportPackageFunctionAsync,
-  type PackageFileInfo,
+import type {
+  ImportIndexedPackage,
+  ImportIndexedPackageAsync,
+  ImportPackageFunction,
+  ImportPackageFunctionAsync,
+  PackageFileInfo,
 } from '@pnpm/store-controller-types'
 import memoize from 'mem'
 import pathTemp from 'path-temp'

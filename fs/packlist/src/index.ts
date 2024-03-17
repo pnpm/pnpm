@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import npmPacklist from 'npm-packlist'
 
 export async function packlist(

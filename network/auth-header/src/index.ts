@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import nerfDart from 'nerf-dart'
 import { getAuthHeadersFromConfig, loadToken } from './getAuthHeadersFromConfig'
 import { removePort } from './helpers/removePort'

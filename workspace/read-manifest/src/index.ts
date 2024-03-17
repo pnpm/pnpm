@@ -88,7 +88,7 @@ function assertValidWorkspaceManifestPackages(manifest: {
  * make sure the validation logic in this file is correct as it's refactored in
  * the future.
  */
-function checkWorkspaceManifestAssignability(_manifest: WorkspaceManifest) {}
+function checkWorkspaceManifestAssignability(_manifest: WorkspaceManifest): void {}
 
 class InvalidWorkspaceManifestError extends PnpmError {
   constructor(message: string) {

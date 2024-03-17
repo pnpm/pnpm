@@ -11,20 +11,22 @@ export type OutdatedWithVersionDiff = OutdatedPackage & {
  */
 export const DEFAULT_COMPARATORS = [
   sortBySemverChange,
-  (o1: OutdatedWithVersionDiff, o2: OutdatedWithVersionDiff) =>
-    o1.packageName.localeCompare(o2.packageName),
-  (o1: OutdatedWithVersionDiff, o2: OutdatedWithVersionDiff) =>
-    o1.current && o2.current ? o1.current.localeCompare(o2.current) : 0,
+  (o1: OutdatedWithVersionDiff, o2: OutdatedWithVersionDiff): number => {
+    return o1.packageName.localeCompare(o2.packageName);
+  },
+  (o1: OutdatedWithVersionDiff, o2: OutdatedWithVersionDiff): number => {
+    return o1.current && o2.current ? o1.current.localeCompare(o2.current) : 0;
+  },
 ]
 
 export function sortBySemverChange(
   outdated1: OutdatedWithVersionDiff,
   outdated2: OutdatedWithVersionDiff
-) {
+): number {
   return pkgPriority(outdated1) - pkgPriority(outdated2)
 }
 
-function pkgPriority(pkg: OutdatedWithVersionDiff) {
+function pkgPriority(pkg: OutdatedWithVersionDiff): 0 | 1 | 2 | 3 | 4 {
   switch (pkg.change) {
     case null:
       return 0

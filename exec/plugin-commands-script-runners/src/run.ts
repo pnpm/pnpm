@@ -1,11 +1,11 @@
-import path from 'path'
+import path from 'node:path'
 import pLimit from 'p-limit'
 import {
   docsUrl,
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
-import { type CompletionFunc } from '@pnpm/command'
+import { Completion, type CompletionFunc } from '@pnpm/command'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -78,13 +78,29 @@ export const shorthands = {
   sequential: ['--workspace-concurrency=1'],
 }
 
-export function rcOptionsTypes() {
+export function rcOptionsTypes(): {
+  'npm-path': StringConstructor;
+  'use-node-version': StringConstructor;
+} {
   return {
     ...pick(['npm-path', 'use-node-version'], allTypes),
   }
 }
 
-export function cliOptionsTypes() {
+export function cliOptionsTypes(): {
+  recursive: BooleanConstructor;
+  reverse: BooleanConstructor;
+  'resume-from': StringConstructor;
+  'report-summary': BooleanConstructor;
+  'reporter-hide-prefix': BooleanConstructor;
+  'if-present': BooleanConstructor;
+  bail: BooleanConstructor;
+  sort: BooleanConstructor;
+  'unsafe-perm': BooleanConstructor;
+  'use-node-version': StringConstructor;
+  'workspace-concurrency': NumberConstructor;
+  'scripts-prepend-node-path': (string | boolean)[];
+} {
   return {
     ...pick(
       [
@@ -106,7 +122,7 @@ export function cliOptionsTypes() {
   }
 }
 
-export const completion: CompletionFunc = async (cliOpts, params) => {
+export const completion: CompletionFunc = async (cliOpts, params): Promise<Completion[]> => {
   if (params.length > 0) {
     return []
   }
@@ -119,7 +135,7 @@ export const completion: CompletionFunc = async (cliOpts, params) => {
 
 export const commandNames = ['run', 'run-script']
 
-export function help() {
+export function help(): string {
   return renderHelp({
     aliases: ['run-script'],
     description: 'Runs a defined package script.',
@@ -187,7 +203,9 @@ export type RunOpts = Omit<
     fallbackCommandUsed?: boolean
   }
 
-export async function handler(opts: RunOpts, params: string[]) {
+export async function handler(opts: RunOpts, params: string[]): Promise<string | void | {
+  exitCode: number;
+}> {
   let dir: string
   const [scriptName, ...passedThruArgs] = params
   if (opts.recursive) {
@@ -354,7 +372,7 @@ const ALL_LIFECYCLE_SCRIPTS = new Set([
 function printProjectCommands(
   manifest: ProjectManifest,
   rootManifest?: ProjectManifest
-) {
+): string {
   const lifecycleScripts = [] as string[][]
   const otherScripts = [] as string[][]
 
@@ -403,7 +421,7 @@ export const runScript: (
     passedThruArgs: string[]
   },
   scriptName: string
-) => Promise<void> = async function (opts, scriptName) {
+) => Promise<void> = async (opts, scriptName) => {
   if (
     opts.runScriptOptions.enablePrePostScripts &&
     opts.manifest.scripts?.[`pre${scriptName}`] &&
@@ -432,13 +450,13 @@ export const runScript: (
   }
 }
 
-function renderCommands(commands: string[][]) {
+function renderCommands(commands: string[][]): string {
   return commands
     .map(([scriptName, script]) => `  ${scriptName}\n    ${script}`)
     .join('\n')
 }
 
-function getSpecifiedScripts(scripts: PackageScripts, scriptName: string) {
+function getSpecifiedScripts(scripts: PackageScripts, scriptName: string): string[] {
   const specifiedSelector = getSpecifiedScriptWithoutStartCommand(
     scripts,
     scriptName

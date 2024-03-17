@@ -7,7 +7,7 @@ import {
   createOrConnectStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import { type Project, type ProjectManifest } from '@pnpm/types'
+import type { Project, ProjectManifest } from '@pnpm/types'
 import mem from 'mem'
 import pLimit from 'p-limit'
 import {
@@ -41,7 +41,7 @@ export async function recursiveRebuild(
   opts: RecursiveRebuildOpts & {
     ignoredPackages?: Set<string>
   } & Required<Pick<Config, 'selectedProjectsGraph' | 'workspaceDir'>>
-) {
+): Promise<void> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
     return

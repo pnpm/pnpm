@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 export const WANTED_LOCKFILE = 'pnpm-lock.yaml'
 export const LOCKFILE_VERSION = 5.4
 export const LOCKFILE_VERSION_V6 = '6.0'

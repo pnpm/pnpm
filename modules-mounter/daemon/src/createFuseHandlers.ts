@@ -1,5 +1,5 @@
 // cspell:ignore ents
-import fs from 'fs'
+import fs from 'node:fs'
 import {
   getFilePathInCafs,
   getFilePathByModeInCafs,
@@ -19,6 +19,7 @@ import * as cafsExplorer from './cafsExplorer'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules'
 
 const TIME = new Date()
+
 const STAT_DEFAULT = {
   mtime: TIME,
   atime: TIME,
@@ -28,7 +29,14 @@ const STAT_DEFAULT = {
   gid: process.getgid ? process.getgid() : 0,
 }
 
-export async function createFuseHandlers(lockfileDir: string, cafsDir: string) {
+export async function createFuseHandlers(lockfileDir: string, cafsDir: string): Promise<{
+  open(p: string, flags: string | number, cb: (exitCode: number, fd?: number | undefined) => void): void;
+  release(p: string, fd: number, cb: (exitCode: number) => void): void;
+  read(p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void): void;
+  readlink(p: string, cb: (returnCode: number, target?: string | undefined) => void): void;
+  getattr(p: string, cb: (returnCode: number, files?: string[] | undefined) => void): void;
+  readdir: (p: string, cb: (returnCode: number, files?: string[] | undefined) => void) => void;
+}> {
   const lockfile = await readWantedLockfile(lockfileDir, {
     ignoreIncompatible: true,
   })
@@ -40,7 +48,14 @@ export async function createFuseHandlers(lockfileDir: string, cafsDir: string) {
 export function createFuseHandlersFromLockfile(
   lockfile: Lockfile,
   cafsDir: string
-) {
+): {
+    open(p: string, flags: string | number, cb: (exitCode: number, fd?: number | undefined) => void): void;
+    release(p: string, fd: number, cb: (exitCode: number) => void): void;
+    read(p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void): void;
+    readlink(p: string, cb: (returnCode: number, target?: string | undefined) => void): void;
+    getattr(p: string, cb: (returnCode: number, files?: string[] | undefined) => void): void;
+    readdir: (p: string, cb: (returnCode: number, files?: string[] | undefined) => void) => void;
+  } {
   const pkgSnapshotCache = new Map<
     string,
     {

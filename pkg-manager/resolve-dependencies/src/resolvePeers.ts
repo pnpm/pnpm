@@ -1,5 +1,5 @@
 import filenamify from 'filenamify'
-import path from 'path'
+import path from 'node:path'
 import semver from 'semver'
 import { semverUtils } from '@yarnpkg/core'
 import type {
@@ -14,13 +14,13 @@ import mapValues from 'ramda/src/map'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import scan from 'ramda/src/scan'
-import {
-  type PeerDependencies,
-  type DependenciesTree,
-  type DependenciesTreeNode,
-  type ResolvedPackage,
+import type {
+  PeerDependencies,
+  DependenciesTree,
+  DependenciesTreeNode,
+  ResolvedPackage,
 } from './resolveDependencies'
-import { type ResolvedImporters } from './resolveDependencyTree'
+import type { ResolvedImporters } from './resolveDependencyTree'
 import { mergePeers } from './mergePeers'
 import { createNodeId, splitNodeId } from './nodeIdUtils'
 import { dedupeInjectedDeps } from './dedupeInjectedDeps'

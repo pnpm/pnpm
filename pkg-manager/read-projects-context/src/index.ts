@@ -1,11 +1,12 @@
-import path from 'path'
+import '@total-typescript/ts-reset'
+import path from 'node:path'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
-import {
-  type DependenciesField,
-  type HoistedDependencies,
-  type Registries,
+import type {
+  DependenciesField,
+  HoistedDependencies,
+  Registries,
 } from '@pnpm/types'
 import realpathMissing from 'realpath-missing'
 

@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import { type Lockfile, nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import * as dp from '@pnpm/dependency-path'

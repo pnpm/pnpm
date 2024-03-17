@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'

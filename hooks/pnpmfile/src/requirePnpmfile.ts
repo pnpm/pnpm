@@ -1,7 +1,7 @@
-import fs from 'fs'
+import fs from 'node:fs'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { type PackageManifest } from '@pnpm/types'
+import type { PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
 
 export class BadReadPackageHookError extends PnpmError {
@@ -30,9 +30,12 @@ class PnpmFileFailError extends PnpmError {
   }
 }
 
-export function requirePnpmfile(pnpmFilePath: string, prefix: string) {
+export async function requirePnpmfile<T>(pnpmFilePath: string, prefix: string): Promise<T | undefined> {
   try {
-    const pnpmfile = require(pnpmFilePath) // eslint-disable-line
+    const pnpmfile = await import(pnpmFilePath).then((mod) => mod.default ?? mod).catch((err) => {
+      console.error(err)
+    })
+
     if (typeof pnpmfile === 'undefined') {
       logger.warn({
         message: `Ignoring the pnpmfile at "${pnpmFilePath}". It exports "undefined".`,

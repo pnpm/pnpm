@@ -1,18 +1,18 @@
-import fs, { type Stats } from 'fs'
-import path from 'path'
-import {
-  type AddToStoreResult,
-  type FilesIndex,
-  type FileWriteResult,
+import fs, { type Stats } from 'node:fs'
+import path from 'node:path'
+import type {
+  AddToStoreResult,
+  FilesIndex,
+  FileWriteResult,
 } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 import { parseJsonBufferSync } from './parseJson'
 
 export function addFilesFromDir(
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
   dirname: string,
-  readManifest?: boolean
+  readManifest?: boolean | undefined
 ): AddToStoreResult {
   const filesIndex: FilesIndex = {}
   const manifest = _retrieveFileIntegrities(

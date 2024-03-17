@@ -8,7 +8,7 @@ const MERGE_CONFLICT_END = '>>>>>>>'
 const MERGE_CONFLICT_THEIRS = '======='
 const MERGE_CONFLICT_OURS = '<<<<<<<'
 
-export function autofixMergeConflicts(fileContent: string) {
+export function autofixMergeConflicts(fileContent: string): Lockfile {
   const { ours, theirs } = parseMergeFile(fileContent)
   return mergeLockfileChanges(
     revertFromInlineSpecifiersFormatIfNecessary(yaml.load(ours) as Lockfile),
@@ -16,7 +16,10 @@ export function autofixMergeConflicts(fileContent: string) {
   )
 }
 
-function parseMergeFile(fileContent: string) {
+function parseMergeFile(fileContent: string): {
+  ours: string;
+  theirs: string;
+} {
   const lines = fileContent.split(/[\n\r]+/g)
   let state: 'top' | 'ours' | 'theirs' | 'parent' = 'top'
   const ours = []
@@ -45,7 +48,7 @@ function parseMergeFile(fileContent: string) {
   return { ours: ours.join('\n'), theirs: theirs.join('\n') }
 }
 
-export function isDiff(fileContent: string) {
+export function isDiff(fileContent: string): boolean {
   return (
     fileContent.includes(MERGE_CONFLICT_OURS) &&
     fileContent.includes(MERGE_CONFLICT_THEIRS) &&

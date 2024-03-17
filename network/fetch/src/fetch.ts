@@ -22,28 +22,28 @@ const NO_RETRY_ERROR_CODES = new Set([
 export type RequestInfo = string | URLLike | Request
 
 export interface RequestInit extends NodeRequestInit {
-  retry?: RetryTimeoutOptions
-  timeout?: number
+  retry?: RetryTimeoutOptions | undefined
+  timeout?: number | undefined
 }
 
 export async function fetch(
   url: RequestInfo,
-  opts: RequestInit = {}
+  opts: RequestInit | undefined = {}
 ): Promise<Response> {
   const retryOpts = opts.retry ?? {}
   const maxRetries = retryOpts.retries ?? 2
 
   const op = operation({
     factor: retryOpts.factor ?? 10,
-    maxTimeout: retryOpts.maxTimeout ?? 60000,
-    minTimeout: retryOpts.minTimeout ?? 10000,
+    maxTimeout: retryOpts.maxTimeout ?? 60_000,
+    minTimeout: retryOpts.minTimeout ?? 10_000,
     randomize: false,
     retries: maxRetries,
   })
 
   try {
-    return await new Promise((resolve, reject) => {
-      op.attempt(async (attempt) => {
+    return await new Promise((resolve: (value: nodeFetch.Response | PromiseLike<nodeFetch.Response>) => void, reject: (reason?: Error | null | undefined) => void): void => {
+      op.attempt(async (attempt: number): Promise<void> => {
         try {
           // this will be retried
           const res = await nodeFetch(url as any, opts) // eslint-disable-line

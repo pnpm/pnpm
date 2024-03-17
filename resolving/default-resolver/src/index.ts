@@ -1,8 +1,8 @@
 import '@total-typescript/ts-reset'
 import { PnpmError } from '@pnpm/error'
-import {
-  type FetchFromRegistry,
-  type GetAuthHeader,
+import type {
+  FetchFromRegistry,
+  GetAuthHeader,
 } from '@pnpm/fetching-types'
 import { createGitResolver } from '@pnpm/git-resolver'
 import { resolveFromLocal } from '@pnpm/local-resolver'
@@ -13,7 +13,7 @@ import {
   type ResolveFromNpmOptions,
   type ResolverFactoryOptions,
 } from '@pnpm/npm-resolver'
-import { type ResolveFunction } from '@pnpm/resolver-base'
+import type { ResolveFunction } from '@pnpm/resolver-base'
 import { resolveFromTarball } from '@pnpm/tarball-resolver'
 
 export type {

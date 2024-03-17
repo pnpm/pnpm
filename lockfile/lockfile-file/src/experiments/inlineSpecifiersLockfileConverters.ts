@@ -104,7 +104,7 @@ export function convertToInlineSpecifiersFormat(
   return newLockfile
 }
 
-function convertOldDepPathToNewDepPath(oldDepPath: string) {
+function convertOldDepPathToNewDepPath(oldDepPath: string): string {
   const parsedDepPath = dp.parse(oldDepPath)
   if (!parsedDepPath.name || !parsedDepPath.version) return oldDepPath
   let newDepPath = `/${parsedDepPath.name}@${parsedDepPath.version}`
@@ -121,7 +121,7 @@ function convertOldDepPathToNewDepPath(oldDepPath: string) {
   return newDepPath
 }
 
-function convertOldRefToNewRef(oldRef: string) {
+function convertOldRefToNewRef(oldRef: string): string {
   if (oldRef.startsWith('link:') || oldRef.startsWith('file:')) {
     return oldRef
   }
@@ -224,7 +224,7 @@ export function revertFromInlineSpecifiersFormat(
   return newLockfile
 }
 
-export function convertLockfileV6DepPathToV5DepPath(newDepPath: string) {
+export function convertLockfileV6DepPathToV5DepPath(newDepPath: string): string {
   if (!newDepPath.includes('@', 2) || newDepPath.startsWith('file:'))
     return newDepPath
   const index = newDepPath.indexOf('@', newDepPath.indexOf('/@') + 2)
@@ -233,7 +233,7 @@ export function convertLockfileV6DepPathToV5DepPath(newDepPath: string) {
   return `${newDepPath.substring(0, index)}/${newDepPath.substring(index + 1)}`
 }
 
-function convertNewRefToOldRef(oldRef: string) {
+function convertNewRefToOldRef(oldRef: string): string {
   if (oldRef.startsWith('link:') || oldRef.startsWith('file:')) {
     return oldRef
   }

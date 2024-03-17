@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import renameOverwrite from 'rename-overwrite'
 import type ssri from 'ssri'
 import { verifyFileIntegrity } from './checkPkgFilesIntegrity'

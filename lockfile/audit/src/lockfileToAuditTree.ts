@@ -1,11 +1,11 @@
-import path from 'path'
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
+import path from 'node:path'
+import type { Lockfile, TarballResolution } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
 } from '@pnpm/lockfile-walker'
-import { type DependenciesField } from '@pnpm/types'
+import type { DependenciesField } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import mapValues from 'ramda/src/map'
 

@@ -7,7 +7,9 @@ import * as dlx from './dlx'
 
 export const commandNames = ['create']
 
-export async function handler(_opts: dlx.DlxCommandOptions, params: string[]) {
+export async function handler(_opts: dlx.DlxCommandOptions, params: string[]): Promise<{
+  exitCode: number;
+}> {
   const [packageName, ...packageArgs] = params
   if (packageName === undefined) {
     throw new PnpmError(

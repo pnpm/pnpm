@@ -23,7 +23,7 @@ function getOptionType(
   return optionTypes[Object.entries(result)[0]?.[0]]
 }
 
-function optionTypeToCompletion(optionType: unknown): undefined | string[] {
+function optionTypeToCompletion(optionType: undefined | boolean | string | number | string[] | unknown): undefined | string[] {
   switch (optionType) {
     // In this case the option is complete
     case undefined:
@@ -38,7 +38,7 @@ function optionTypeToCompletion(optionType: unknown): undefined | string[] {
   if (optionType.length === 1) {
     return optionTypeToCompletion(optionType)
   }
-  return optionType.filter((ot) => typeof ot === 'string')
+  return optionType.filter((ot): ot is string => typeof ot === 'string')
 }
 
 export function getOptionCompletions(

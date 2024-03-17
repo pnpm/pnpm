@@ -1,7 +1,7 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 
-export async function getGitBranchLockfileNames(lockfileDir: string) {
+export async function getGitBranchLockfileNames(lockfileDir: string): Promise<string[]> {
   const files = await fs.readdir(lockfileDir)
   const gitBranchLockfileNames: string[] = files.filter((file) =>
     file.match(/^pnpm-lock.(?:.*).yaml$/)
@@ -9,11 +9,11 @@ export async function getGitBranchLockfileNames(lockfileDir: string) {
   return gitBranchLockfileNames
 }
 
-export async function cleanGitBranchLockfiles(lockfileDir: string) {
+export async function cleanGitBranchLockfiles(lockfileDir: string): Promise<void> {
   const gitBranchLockfiles: string[] =
     await getGitBranchLockfileNames(lockfileDir)
   await Promise.all(
-    gitBranchLockfiles.map(async (file) => {
+    gitBranchLockfiles.map(async (file: string): Promise<void> => {
       const filepath: string = path.join(lockfileDir, file)
       await fs.unlink(filepath)
     })

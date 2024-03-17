@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { removalLogger } from '@pnpm/core-loggers'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'

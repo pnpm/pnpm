@@ -1,11 +1,12 @@
+import '@total-typescript/ts-reset'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import {
-  type Lockfile,
-  type PackageSnapshots,
-  type ProjectSnapshot,
-  type ResolvedDependencies,
+import type {
+  Lockfile,
+  PackageSnapshots,
+  ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile-types'
-import { type PackageManifest } from '@pnpm/types'
+import type { PackageManifest } from '@pnpm/types'
 import { refToRelative } from '@pnpm/dependency-path'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
@@ -18,7 +19,7 @@ export function pruneSharedLockfile(
   opts?: {
     warn?: (msg: string) => void
   }
-) {
+): Lockfile {
   const copiedPackages =
     lockfile.packages == null
       ? {}
@@ -168,7 +169,7 @@ function copyPackageSnapshots(
   return copiedSnapshots
 }
 
-function resolvedDepsToDepPaths(deps: ResolvedDependencies) {
+function resolvedDepsToDepPaths(deps: ResolvedDependencies): string[] {
   return Object.entries(deps)
     .map(([alias, ref]) => refToRelative(ref, alias))
     .filter((depPath) => depPath !== null) as string[]
@@ -188,7 +189,7 @@ function copyDependencySubGraph(
     dev: boolean
     optional: boolean
   }
-) {
+): void {
   for (const depPath of depPaths) {
     const key = `${depPath}:${opts.optional.toString()}:${opts.dev.toString()}`
     if (ctx.walked.has(key)) continue

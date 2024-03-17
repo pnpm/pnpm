@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
 import * as micromatch from 'micromatch'
 import execa from 'execa'
@@ -16,8 +16,8 @@ export async function getChangedPackages(
   commit: string,
   opts: {
     workspaceDir: string
-    testPattern?: string[]
-    changedFilesIgnorePattern?: string[]
+    testPattern?: string[] | undefined
+    changedFilesIgnorePattern?: string[] | undefined
   }
 ): Promise<[string[], string[]]> {
   const repoRoot = path.resolve(

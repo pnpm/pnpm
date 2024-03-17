@@ -1,11 +1,12 @@
+import '@total-typescript/ts-reset'
 import type { Resolution } from '@pnpm/resolver-base'
-import type { DirectoryFetcher, FetchFunction, FetchOptions, FetchResult, Fetchers, FetchersKeys, GitFetcher } from '@pnpm/fetcher-base'
+import type { DirectoryFetcher, FetchFunction, FetchOptions, FetchResult, Fetchers, GitFetcher } from '@pnpm/fetcher-base'
 
 export function pickFetcher(
   fetcherByHostingType: Partial<Fetchers>,
   resolution: Resolution
 ): DirectoryFetcher | GitFetcher | FetchFunction<Resolution, FetchOptions, FetchResult> {
-  let fetcherType: FetchersKeys | undefined = resolution.type
+  let fetcherType: keyof Fetchers | undefined = resolution.type
 
   if (resolution.type == null) {
     if (resolution.tarball.startsWith('file:')) {

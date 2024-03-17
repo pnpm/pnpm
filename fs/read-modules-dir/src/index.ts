@@ -1,10 +1,11 @@
-import path from 'path'
-import util from 'util'
+import '@total-typescript/ts-reset'
+import path from 'node:path'
+import util from 'node:util'
 import gracefulFs from 'graceful-fs'
 
 const readdir = util.promisify(gracefulFs.readdir)
 
-export async function readModulesDir(modulesDir: string) {
+export async function readModulesDir(modulesDir: string): Promise<string[] | null> {
   try {
     return await _readModulesDir(modulesDir)
   } catch (err: any) { // eslint-disable-line
@@ -13,7 +14,7 @@ export async function readModulesDir(modulesDir: string) {
   }
 }
 
-async function _readModulesDir(modulesDir: string, scope?: string) {
+async function _readModulesDir(modulesDir: string, scope?: string): Promise<string[]> {
   const pkgNames: string[] = []
   const parentDir = scope ? path.join(modulesDir, scope) : modulesDir
   await Promise.all(

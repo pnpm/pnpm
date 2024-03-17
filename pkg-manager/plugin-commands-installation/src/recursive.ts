@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import {
   type Config,
@@ -18,12 +18,12 @@ import {
   createOrConnectStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import {
-  type IncludedDependencies,
-  type PackageManifest,
-  type Project,
-  type ProjectManifest,
-  type ProjectsGraph,
+import type {
+  IncludedDependencies,
+  PackageManifest,
+  Project,
+  ProjectManifest,
+  ProjectsGraph,
 } from '@pnpm/types'
 import {
   addDependenciesToPackage,
@@ -47,7 +47,7 @@ import {
 } from './updateWorkspaceDependencies'
 import { getSaveType } from './getSaveType'
 import { getPinnedVersion } from './getPinnedVersion'
-import { type PreferredVersions } from '@pnpm/resolver-base'
+import type { PreferredVersions } from '@pnpm/resolver-base'
 
 type RecursiveOptions = CreateStoreControllerOptions &
   Pick<

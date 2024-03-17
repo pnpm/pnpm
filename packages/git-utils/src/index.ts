@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import execa from 'execa'
 
 // git checks logic is from https://github.com/sindresorhus/np/blob/master/source/git-tasks.js

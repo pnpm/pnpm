@@ -1,7 +1,7 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { type Lockfile, type ProjectSnapshot } from '@pnpm/lockfile-types'
+import type { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import * as dp from '@pnpm/dependency-path'
@@ -16,9 +16,9 @@ import { sortLockfileKeys } from './sortLockfileKeys'
 import { getWantedLockfileName } from './lockfileName'
 import { convertToInlineSpecifiersFormat } from './experiments/inlineSpecifiersLockfileConverters'
 
-async function writeFileAtomic(filename: string, data: string) {
-  return new Promise<void>((resolve, reject) => {
-    writeFileAtomicCB(filename, data, {}, (err?: Error | undefined) => {
+async function writeFileAtomic(filename: string, data: string): Promise<void> {
+  return new Promise<void>((resolve, reject): void => {
+    writeFileAtomicCB(filename, data, {}, (err?: Error | undefined): void => {
       if (typeof err !== 'undefined') {
         reject(err)
         return
@@ -43,8 +43,8 @@ export async function writeWantedLockfile(
     forceSharedFormat?: boolean
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
-  }
-) {
+  } | undefined
+): Promise<void> {
   const wantedLockfileName: string = await getWantedLockfileName(opts)
   return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile, opts)
 }
@@ -54,8 +54,8 @@ export async function writeCurrentLockfile(
   currentLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean
-  }
-) {
+  } | undefined
+): Promise<void> {
   // empty lockfile is not saved
   if (isEmptyLockfile(currentLockfile)) {
     await rimraf(path.join(virtualStoreDir, 'lock.yaml'))
@@ -66,15 +66,15 @@ export async function writeCurrentLockfile(
 }
 
 interface LockfileFormatOptions {
-  forceSharedFormat?: boolean
+  forceSharedFormat?: boolean | undefined
 }
 
 async function writeLockfile(
   lockfileFilename: string,
   pkgPath: string,
   wantedLockfile: Lockfile,
-  opts?: LockfileFormatOptions
-) {
+  opts?: LockfileFormatOptions | undefined
+): Promise<void> {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
   const isLockfileV6 = wantedLockfile.lockfileVersion
@@ -92,16 +92,17 @@ async function writeLockfile(
   return writeFileAtomic(lockfilePath, yamlDoc)
 }
 
-function yamlStringify(lockfile: Lockfile, opts: NormalizeLockfileOpts) {
+function yamlStringify(lockfile: Lockfile, opts: NormalizeLockfileOpts): string {
   let normalizedLockfile = normalizeLockfile(lockfile, opts)
   normalizedLockfile = sortLockfileKeys(normalizedLockfile)
   return yaml.dump(normalizedLockfile, LOCKFILE_YAML_FORMAT)
 }
 
-export function isEmptyLockfile(lockfile: Lockfile) {
+export function isEmptyLockfile(lockfile: Lockfile): boolean {
   return Object.values(lockfile.importers).every(
-    (importer) =>
-      isEmpty(importer.specifiers ?? {}) && isEmpty(importer.dependencies ?? {})
+    (importer: ProjectSnapshot): boolean => {
+      return isEmpty(importer.specifiers ?? {}) && isEmpty(importer.dependencies ?? {});
+    }
   )
 }
 
@@ -117,7 +118,7 @@ export interface NormalizeLockfileOpts {
 export function normalizeLockfile(
   lockfile: Lockfile,
   opts: NormalizeLockfileOpts
-) {
+): LockfileFile {
   let lockfileToSave!: LockfileFile
   if (
     !opts.forceSharedFormat &&
@@ -221,7 +222,9 @@ function pruneTimeInLockfileV6(
       }
     }
   }
-  return pickBy((_, depPath) => rootDepPaths.has(depPath), time)
+  return pickBy((_, depPath): boolean => {
+    return rootDepPaths.has(depPath);
+  }, time)
 }
 
 function refToRelative(reference: string, pkgName: string): string | null {
@@ -263,14 +266,14 @@ function pruneTime(
 }
 
 export async function writeLockfiles(opts: {
-  forceSharedFormat?: boolean
+  forceSharedFormat?: boolean | undefined
   wantedLockfile: Lockfile
   wantedLockfileDir: string
   currentLockfile: Lockfile
   currentLockfileDir: string
-  useGitBranchLockfile?: boolean
-  mergeGitBranchLockfiles?: boolean
-}) {
+  useGitBranchLockfile?: boolean | undefined
+  mergeGitBranchLockfiles?: boolean | undefined
+}): Promise<void> {
   const wantedLockfileName: string = await getWantedLockfileName(opts)
   const wantedLockfilePath = path.join(
     opts.wantedLockfileDir,

@@ -13,7 +13,7 @@ import {
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
-import { type Registries } from '@pnpm/types'
+import type { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import difference from 'ramda/src/difference'
@@ -71,7 +71,7 @@ export const shorthands = {
 
 export const commandNames = ['audit']
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description:
       'Checks for known security issues with the installed packages.',

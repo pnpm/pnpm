@@ -1,12 +1,12 @@
-import path from 'path'
+import path from 'node:path'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
-import { type LogBase } from '@pnpm/logger'
+import type { LogBase } from '@pnpm/logger'
 import {
   normalizeRegistries,
   DEFAULT_REGISTRIES,
 } from '@pnpm/normalize-registries'
-import { type StoreController } from '@pnpm/store-controller-types'
-import { type Registries } from '@pnpm/types'
+import type { StoreController } from '@pnpm/store-controller-types'
+import type { Registries } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 
 export interface StrictRebuildOptions {
@@ -18,13 +18,13 @@ export interface StrictRebuildOptions {
   extraEnv: Record<string, string>
   lockfileDir: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-  preferSymlinkedExecutables?: boolean
-  scriptShell?: string
+  preferSymlinkedExecutables?: boolean | undefined
+  scriptShell?: string | undefined
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
   scriptsPrependNodePath: boolean | 'warn-only'
   shellEmulator: boolean
-  skipIfHasSideEffectsCache?: boolean
+  skipIfHasSideEffectsCache?: boolean | undefined
   storeDir: string // TODO: remove this property
   storeController: StoreController
   force: boolean
@@ -49,15 +49,15 @@ export interface StrictRebuildOptions {
   pending: boolean
   shamefullyHoist: boolean
   deployAllFiles: boolean
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
+  neverBuiltDependencies?: string[] | undefined
+  onlyBuiltDependencies?: string[] | undefined
 }
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
   Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> &
   Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
 
-const defaults = async (opts: RebuildOptions) => {
+const defaults = async (opts: RebuildOptions): Promise<StrictRebuildOptions> => {
   const packageManager =
     opts.packageManager ??
     (await loadJsonFile<{ name: string; version: string }>(

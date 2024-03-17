@@ -1,4 +1,4 @@
-import { type ProjectManifest } from './package'
+import type { ProjectManifest } from './package'
 
 export interface Project {
   dir: string

@@ -1,8 +1,9 @@
-import fs from 'fs'
-import path from 'path'
+import '@total-typescript/ts-reset'
+import fs from 'node:fs'
+import path from 'node:path'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type PackageManifest } from '@pnpm/types'
+import type { PackageManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import preferredPM from 'preferred-pm'
 import omit from 'ramda/src/omit'
@@ -13,9 +14,9 @@ import omit from 'ramda/src/omit'
 const PREPUBLISH_SCRIPTS = ['prepublish', 'prepack', 'publish']
 
 export interface PreparePackageOptions {
-  ignoreScripts?: boolean
   rawConfig: object
-  unsafePerm?: boolean
+  unsafePerm?: boolean | undefined
+  ignoreScripts?: boolean | undefined
 }
 
 export async function preparePackage(
@@ -65,13 +66,19 @@ function packageShouldBeBuilt(
   manifest: PackageManifest,
   pkgDir: string
 ): boolean {
-  if (manifest.scripts == null) return false
+  if (manifest.scripts == null) {
+    return false
+  }
   const scripts = manifest.scripts
-  if (scripts.prepare != null && scripts.prepare !== '') return true
+  if (scripts.prepare != null && scripts.prepare !== '') {
+    return true
+  }
   const hasPrepublishScript = PREPUBLISH_SCRIPTS.some(
     (scriptName) => scripts[scriptName] != null && scripts[scriptName] !== ''
   )
-  if (!hasPrepublishScript) return false
+  if (!hasPrepublishScript) {
+    return false
+  }
   const mainFile = manifest.main ?? 'index.js'
   return !fs.existsSync(path.join(pkgDir, mainFile))
 }

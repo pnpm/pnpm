@@ -1,11 +1,11 @@
-import path from 'path'
-import {
-  type PackageSnapshots,
-  type ProjectSnapshot,
+import path from 'node:path'
+import type {
+  PackageSnapshots,
+  ProjectSnapshot,
 } from '@pnpm/lockfile-file'
-import { type Registries } from '@pnpm/types'
-import { type SearchFunction } from './types'
-import { type PackageNode } from './PackageNode'
+import type { Registries } from '@pnpm/types'
+import type { SearchFunction } from './types'
+import type { PackageNode } from './PackageNode'
 import { getPkgInfo } from './getPkgInfo'
 import { getTreeNodeChildId } from './getTreeNodeChildId'
 import { DependenciesCache } from './DependenciesCache'

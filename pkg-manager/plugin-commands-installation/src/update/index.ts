@@ -3,7 +3,7 @@ import {
   readDepNameCompletions,
   readProjectManifestOnly,
 } from '@pnpm/cli-utils'
-import { type CompletionFunc } from '@pnpm/command'
+import type { CompletionFunc } from '@pnpm/command'
 import {
   FILTERING,
   OPTIONS,
@@ -20,10 +20,11 @@ import pick from 'ramda/src/pick'
 import pluck from 'ramda/src/pluck'
 import unnest from 'ramda/src/unnest'
 import renderHelp from 'render-help'
-import { type InstallCommandOptions } from '../install'
+import type { InstallCommandOptions } from '../install'
 import { installDeps } from '../installDeps'
 import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices'
 import { parseUpdateParam } from '../recursive'
+
 export function rcOptionsTypes() {
   return pick(
     [

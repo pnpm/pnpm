@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import path from 'node:path'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
@@ -9,9 +10,9 @@ import {
   readPackageJsonFromDir,
   safeReadPackageJsonFromDir,
 } from '@pnpm/read-package-json'
-import { type StoreController } from '@pnpm/store-controller-types'
+import type { StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import pickBy from 'ramda/src/pickBy'
 import runGroups from 'run-groups'

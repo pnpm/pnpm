@@ -55,7 +55,7 @@ export async function readProjects(
     linkWorkspacePackages?: boolean
     changedFilesIgnorePattern?: string[]
     supportedArchitectures?: SupportedArchitectures
-  }
+  } | undefined
 ): Promise<ReadProjectsResult> {
   const allProjects = await findWorkspacePackages(workspaceDir, {
     engineStrict: opts?.engineStrict,
@@ -75,23 +75,23 @@ export async function readProjects(
 }
 
 export interface FilterPackagesOptions {
-  linkWorkspacePackages?: boolean
+  linkWorkspacePackages?: boolean | undefined
   prefix: string
   workspaceDir: string
-  testPattern?: string[]
-  changedFilesIgnorePattern?: string[]
-  useGlobDirFiltering?: boolean
-  sharedWorkspaceLockfile?: boolean
+  testPattern?: string[] | undefined
+  changedFilesIgnorePattern?: string[] | undefined
+  useGlobDirFiltering?: boolean | undefined
+  sharedWorkspaceLockfile?: boolean | undefined
 }
 
 export async function filterPackagesFromDir(
   workspaceDir: string,
   filter: WorkspaceFilter[],
   opts: FilterPackagesOptions & {
-    engineStrict?: boolean
-    nodeVersion?: string
+    engineStrict?: boolean | undefined
+    nodeVersion?: string | undefined
     patterns: string[]
-    supportedArchitectures?: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures | undefined
   }
 ) {
   const allProjects = await findWorkspacePackages(workspaceDir, {
@@ -128,11 +128,11 @@ export async function filterPkgsBySelectorObjects<T>(
   pkgs: Array<Package & T>,
   packageSelectors: PackageSelector[],
   opts: {
-    linkWorkspacePackages?: boolean
+    linkWorkspacePackages?: boolean | undefined
     workspaceDir: string
-    testPattern?: string[]
-    changedFilesIgnorePattern?: string[]
-    useGlobDirFiltering?: boolean
+    testPattern?: string[] | undefined
+    changedFilesIgnorePattern?: string[] | undefined
+    useGlobDirFiltering?: boolean | undefined
   }
 ): Promise<{
     allProjectsGraph: PackageGraph<T>
@@ -140,7 +140,9 @@ export async function filterPkgsBySelectorObjects<T>(
     unmatchedFilters: string[]
   }> {
   const [prodPackageSelectors, allPackageSelectors] = partition(
-    ({ followProdDepsOnly }) => !!followProdDepsOnly,
+    ({ followProdDepsOnly }: PackageSelector): boolean => {
+      return !!followProdDepsOnly;
+    },
     packageSelectors
   )
 
@@ -212,9 +214,9 @@ export async function filterWorkspacePackages<T>(
   packageSelectors: PackageSelector[],
   opts: {
     workspaceDir: string
-    testPattern?: string[]
-    changedFilesIgnorePattern?: string[]
-    useGlobDirFiltering?: boolean
+    testPattern?: string[] | undefined
+    changedFilesIgnorePattern?: string[] | undefined
+    useGlobDirFiltering?: boolean | undefined
   }
 ): Promise<{
     selectedProjectsGraph: PackageGraph<T>
@@ -246,9 +248,9 @@ async function _filterGraph<T>(
   pkgGraph: PackageGraph<T>,
   opts: {
     workspaceDir: string
-    testPattern?: string[]
-    changedFilesIgnorePattern?: string[]
-    useGlobDirFiltering?: boolean
+    testPattern?: string[] | undefined
+    changedFilesIgnorePattern?: string[] | undefined
+    useGlobDirFiltering?: boolean | undefined
   },
   packageSelectors: PackageSelector[]
 ): Promise<{
@@ -331,7 +333,7 @@ async function _filterGraph<T>(
     unmatchedFilters,
   }
 
-  function selectEntries(selector: PackageSelector, entryPackages: string[]) {
+  function selectEntries(selector: PackageSelector, entryPackages: string[]): void {
     if (selector.includeDependencies) {
       pickSubgraph(graph, entryPackages, walkedDependencies, {
         includeRoot: !selector.excludeSelf,
@@ -371,12 +373,12 @@ function pkgGraphToGraph<T>(pkgGraph: PackageGraph<T>): Graph {
 
 function reverseGraph(graph: Graph): Graph {
   const reversedGraph: Graph = {}
-  Object.keys(graph).forEach((dependentNodeId) => {
-    graph[dependentNodeId].forEach((dependencyNodeId) => {
-      if (!reversedGraph[dependencyNodeId]) {
-        reversedGraph[dependencyNodeId] = [dependentNodeId]
-      } else {
+  Object.keys(graph).forEach((dependentNodeId): void => {
+    graph[dependentNodeId].forEach((dependencyNodeId): void => {
+      if (reversedGraph[dependencyNodeId]) {
         reversedGraph[dependencyNodeId].push(dependentNodeId)
+      } else {
+        reversedGraph[dependencyNodeId] = [dependentNodeId]
       }
     })
   })
@@ -399,20 +401,22 @@ function matchPackages<T>(graph: PackageGraph<T>, pattern: string): string[] {
 function matchPackagesByExactPath<T>(
   graph: PackageGraph<T>,
   pathStartsWith: string
-) {
-  return Object.keys(graph).filter((parentDir) =>
-    isSubdir(pathStartsWith, parentDir)
+): string[] {
+  return Object.keys(graph).filter((parentDir: string): boolean => {
+    return isSubdir(pathStartsWith, parentDir);
+  }
   )
 }
 
 function matchPackagesByGlob<T>(
   graph: PackageGraph<T>,
   pathStartsWith: string
-) {
+): string[] {
   const format = (str: string) => str.replace(/\/$/, '')
   const formattedFilter = pathStartsWith.replace(/\\/g, '/').replace(/\/$/, '')
-  return Object.keys(graph).filter((parentDir) =>
-    micromatch.isMatch(parentDir, formattedFilter, { format })
+  return Object.keys(graph).filter((parentDir: string): boolean => {
+    return micromatch.isMatch(parentDir, formattedFilter, { format });
+  }
   )
 }
 
@@ -423,7 +427,7 @@ function pickSubgraph(
   opts: {
     includeRoot: boolean
   }
-) {
+): void {
   for (const nextNodeId of nextNodeIds) {
     if (!walked.has(nextNodeId)) {
       if (opts.includeRoot) {

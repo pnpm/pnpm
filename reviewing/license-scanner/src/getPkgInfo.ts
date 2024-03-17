@@ -1,10 +1,10 @@
-import path from 'path'
+import path from 'node:path'
+import { readFile } from 'node:fs/promises'
 import pathAbsolute from 'path-absolute'
-import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import pLimit from 'p-limit'
-import { type PackageManifest, type Registries } from '@pnpm/types'
+import type { PackageManifest, Registries } from '@pnpm/types'
 import {
   getFilePathByModeInCafs,
   getFilePathInCafs,
@@ -13,7 +13,7 @@ import {
 } from '@pnpm/store.cafs'
 import loadJsonFile from 'load-json-file'
 import { PnpmError } from '@pnpm/error'
-import { type LicensePackage } from './licenses'
+import type { LicensePackage } from './licenses'
 import {
   type DirectoryResolution,
   type PackageSnapshot,
@@ -124,12 +124,15 @@ function coerceToString(field: unknown): string | null {
  * @param field the value to parse
  * @returns string
  */
-function parseLicenseManifestField(field: unknown) {
+function parseLicenseManifestField(field: string | { type: string; name: string;} | { type: string; name: string;}[] | undefined) {
   if (Array.isArray(field)) {
-    const licenses = field
-    const licenseTypes = licenses.reduce((listOfLicenseTypes, license) => {
+    const licenseTypes = field.reduce((listOfLicenseTypes: string[], license: {
+      type: string;
+      name: string;
+    }) => {
       const type = coerceToString(license.type) ?? coerceToString(license.name)
-      if (type) {
+
+      if (type !== null) {
         listOfLicenseTypes.push(type)
       }
       return listOfLicenseTypes
@@ -141,8 +144,10 @@ function parseLicenseManifestField(field: unknown) {
     }
 
     return licenseTypes[0] ?? null
+  } else if (typeof field === 'string') {
+    return field
   } else {
-    return (field as { type: string })?.type ?? coerceToString(field)
+    return typeof field === 'undefined' ? coerceToString(field) : field.type
   }
 }
 
@@ -168,13 +173,10 @@ async function parseLicense(
   },
   opts: { cafsDir: string }
 ): Promise<LicenseInfo> {
-  let licenseField: unknown = pkg.manifest.license
+  let licenseField: string | { type: string; name: string; }[] | undefined = pkg.manifest.license
+
   if ('licenses' in pkg.manifest) {
-    licenseField = (
-      pkg.manifest as PackageManifest & {
-        licenses: unknown
-      }
-    ).licenses
+    licenseField = pkg.manifest.licenses as { type: string; name: string; }[]
   }
   const license = parseLicenseManifestField(licenseField)
 

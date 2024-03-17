@@ -1,5 +1,6 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import '@total-typescript/ts-reset'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { buildModules } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'

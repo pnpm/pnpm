@@ -1,6 +1,6 @@
-import {
-  type ProjectManifest,
-  type DependenciesOrPeersField,
+import type {
+  ProjectManifest,
+  DependenciesOrPeersField,
 } from '@pnpm/types'
 
 export function getDependencyTypeFromManifest(

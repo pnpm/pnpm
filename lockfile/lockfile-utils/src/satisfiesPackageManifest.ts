@@ -1,4 +1,4 @@
-import { type ProjectSnapshot } from '@pnpm/lockfile-types'
+import type { ProjectSnapshot } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS, type ProjectManifest } from '@pnpm/types'
 import equals from 'ramda/src/equals'
 import pickBy from 'ramda/src/pickBy'
@@ -12,7 +12,9 @@ export function satisfiesPackageManifest(
   importer: ProjectSnapshot | undefined,
   pkg: ProjectManifest
 ): { satisfies: boolean; detailedReason?: string } {
-  if (!importer) return { satisfies: false, detailedReason: 'no importer' }
+  if (!importer) {
+    return { satisfies: false, detailedReason: 'no importer' }
+  }
   let existingDeps: Record<string, string> = {
     ...pkg.devDependencies,
     ...pkg.dependencies,
@@ -113,6 +115,8 @@ function countOfNonLinkedDeps(lockfileDeps: {
   [depName: string]: string
 }): number {
   return Object.values(lockfileDeps).filter(
-    (ref) => !ref.includes('link:') && !ref.includes('file:')
+    (ref): boolean => {
+      return !ref.includes('link:') && !ref.includes('file:');
+    }
   ).length
 }

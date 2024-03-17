@@ -7,7 +7,7 @@ import {
 } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { isCI } from 'ci-info'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'

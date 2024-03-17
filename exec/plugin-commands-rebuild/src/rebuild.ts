@@ -1,7 +1,7 @@
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { type LogBase } from '@pnpm/logger'
+import type { LogBase } from '@pnpm/logger'
 import {
   createOrConnectStoreController,
   type CreateStoreControllerOptions,
@@ -26,7 +26,15 @@ export function rcOptionsTypes() {
   }
 }
 
-export function cliOptionsTypes() {
+export function cliOptionsTypes(): {
+  pending: BooleanConstructor;
+  recursive: BooleanConstructor;
+  reporter: StringConstructor;
+  'npm-path': StringConstructor;
+  'scripts-prepend-node-path': (string | boolean)[];
+  'unsafe-perm': BooleanConstructor;
+  'store-dir': StringConstructor;
+} {
   return {
     ...rcOptionsTypes(),
     pending: Boolean,
@@ -36,7 +44,7 @@ export function cliOptionsTypes() {
 
 export const commandNames = ['rebuild', 'rb']
 
-export function help() {
+export function help(): string {
   return renderHelp({
     aliases: ['rb'],
     description: 'Rebuild a package.',
@@ -103,7 +111,7 @@ export async function handler(
       onlyBuiltDependencies?: string[]
     },
   params: string[]
-) {
+): Promise<void> {
   if (
     opts.recursive &&
     opts.allProjects != null &&

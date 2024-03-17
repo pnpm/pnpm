@@ -1,9 +1,9 @@
-import fs from 'fs'
+import fs from 'node:fs'
+import path from 'node:path'
 import { linkBins } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
-import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { type StoreController } from '@pnpm/store-controller-types'
+import type { StoreController } from '@pnpm/store-controller-types'
 import type { ProjectManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
 import {
@@ -15,10 +15,10 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<
   RunLifecycleHookOptions,
   'depPath' | 'pkgRoot' | 'rootModulesDir'
 > & {
-  resolveSymlinksInInjectedDirs?: boolean
+  resolveSymlinksInInjectedDirs?: boolean | undefined
   storeController: StoreController
-  extraNodePaths?: string[]
-  preferSymlinkedExecutables?: boolean
+  extraNodePaths?: string[] | undefined
+  preferSymlinkedExecutables?: boolean | undefined
 }
 
 export interface Importer {
@@ -26,8 +26,8 @@ export interface Importer {
   manifest: ProjectManifest
   rootDir: string
   modulesDir: string
-  stages?: string[]
-  targetDirs?: string[]
+  stages?: string[] | undefined
+  targetDirs?: string[] | undefined
 }
 
 export async function runLifecycleHooksConcurrently(

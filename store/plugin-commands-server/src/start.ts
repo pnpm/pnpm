@@ -6,9 +6,9 @@ import {
   promises as fs,
   unlinkSync,
   write as _write,
-} from 'fs'
-import { promisify } from 'util'
-import path from 'path'
+} from 'node:fs'
+import { promisify } from 'node:util'
+import path from 'node:path'
 import { packageManager } from '@pnpm/cli-meta'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'

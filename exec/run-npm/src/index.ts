@@ -1,5 +1,6 @@
-import type childProcess from 'child_process'
-import path from 'path'
+import '@total-typescript/ts-reset'
+import type childProcess from 'node:child_process'
+import path from 'node:path'
 import spawn from 'cross-spawn'
 import PATH from 'path-name'
 
@@ -11,8 +12,8 @@ export interface RunNPMOptions {
 export function runNpm(
   npmPath: string | undefined,
   args: string[],
-  options?: RunNPMOptions
-) {
+  options?: RunNPMOptions | undefined
+): childProcess.SpawnSyncReturns<Buffer> {
   const npm = npmPath ?? 'npm'
   return runScriptSync(npm, args, {
     cwd: options?.cwd ?? process.cwd(),
@@ -31,7 +32,7 @@ export function runScriptSync(
     userAgent?: string
     env: Record<string, string>
   }
-) {
+): childProcess.SpawnSyncReturns<Buffer> {
   const env = {
     ...createEnv(opts),
     ...opts.env,
@@ -44,7 +45,10 @@ export function runScriptSync(
   return result
 }
 
-function createEnv(opts: { cwd: string; userAgent?: string }) {
+function createEnv(opts: { cwd: string; userAgent?: string }): {
+  [x: string]: string | undefined;
+  TZ?: string | undefined;
+} {
   const env = { ...process.env }
 
   env[PATH] = [

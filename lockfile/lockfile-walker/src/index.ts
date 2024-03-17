@@ -1,5 +1,6 @@
-import { type Lockfile, type PackageSnapshot } from '@pnpm/lockfile-types'
-import { type DependenciesField } from '@pnpm/types'
+import '@total-typescript/ts-reset'
+import type { Lockfile, PackageSnapshot } from '@pnpm/lockfile-types'
+import type { DependenciesField } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 
 export interface LockedDependency {

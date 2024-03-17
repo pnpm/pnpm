@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { spawnSync } from 'child_process'
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import nerfDart from 'nerf-dart'
 
 export function getAuthHeadersFromConfig({
@@ -60,7 +60,7 @@ export function getAuthHeadersFromConfig({
   return authHeaderValueByURI
 }
 
-function splitKey(key: string) {
+function splitKey(key: string): string[] {
   const index = key.lastIndexOf(':')
   if (index === -1) {
     return [key, '']

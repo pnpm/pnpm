@@ -1,12 +1,12 @@
-import path from 'path'
+import path from 'node:path'
 import normalize from 'normalize-path'
-import { type ResolvedImporters } from './resolveDependencyTree'
-import { type LinkedDependency } from './resolveDependencies'
-import {
-  type DependenciesByProjectId,
-  type GenericDependenciesGraph,
-  type PartialResolvedPackage,
-  type ProjectToResolve,
+import type { ResolvedImporters } from './resolveDependencyTree'
+import type { LinkedDependency } from './resolveDependencies'
+import type {
+  DependenciesByProjectId,
+  GenericDependenciesGraph,
+  PartialResolvedPackage,
+  ProjectToResolve,
 } from './resolvePeers'
 
 export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {

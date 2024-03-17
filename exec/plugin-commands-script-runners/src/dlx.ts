@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
@@ -20,19 +20,28 @@ export const shorthands = {
   c: '--shell-mode',
 }
 
-export function rcOptionsTypes() {
+export function rcOptionsTypes(): {
+  'shell-mode': BooleanConstructor;
+  'use-node-version': StringConstructor;
+} {
   return {
     ...pick(['use-node-version'], types),
     'shell-mode': Boolean,
   }
 }
 
-export const cliOptionsTypes = () => ({
-  ...rcOptionsTypes(),
-  package: [String, Array],
-})
+export function cliOptionsTypes(): {
+  package: (StringConstructor | ArrayConstructor)[];
+  'shell-mode': BooleanConstructor;
+  'use-node-version': StringConstructor;
+} {
+  return {
+    ...rcOptionsTypes(),
+    package: [String, Array],
+  };
+}
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description: 'Run a package in a temporary environment.',
     descriptionLists: [
@@ -59,15 +68,17 @@ export function help() {
 }
 
 export type DlxCommandOptions = {
-  package?: string[]
-  shellMode?: boolean
+  package?: string[] | undefined
+  shellMode?: boolean | undefined
 } & Pick<Config, 'reporter' | 'userAgent'> &
   add.AddCommandOptions
 
 export async function handler(
   opts: DlxCommandOptions,
   [command, ...args]: string[]
-) {
+): Promise<{
+    exitCode: number;
+  }> {
   const dlxDir = await getDlxDir({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
@@ -126,7 +137,7 @@ export async function handler(
   return { exitCode: 0 }
 }
 
-async function getPkgName(pkgDir: string) {
+async function getPkgName(pkgDir: string): Promise<string> {
   const manifest = await readPackageJsonFromDir(pkgDir)
   const dependencyNames = Object.keys(manifest.dependencies ?? {})
   if (dependencyNames.length === 0) {
@@ -166,8 +177,8 @@ ${binNames.map((name) => `pnpm --package=${pkgName} dlx ${name}`).join('\n')}
   )
 }
 
-function scopeless(pkgName: string) {
-  if (pkgName[0] === '@') {
+function scopeless(pkgName: string): string {
+  if (pkgName.startsWith('@')) {
     return pkgName.split('/')[1]
   }
   return pkgName

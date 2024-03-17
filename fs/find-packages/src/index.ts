@@ -1,4 +1,5 @@
-import path from 'path'
+import '@total-typescript/ts-reset'
+import path from 'node:path'
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
 import type { ProjectManifest } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -13,9 +14,9 @@ const DEFAULT_IGNORE = [
 ]
 
 export interface Options {
-  ignore?: string[]
-  includeRoot?: boolean
-  patterns?: string[]
+  ignore?: string[] | undefined
+  includeRoot?: boolean | undefined
+  patterns?: string[] | undefined
 }
 
 export interface Project {
@@ -30,7 +31,7 @@ export interface Project {
 
 export async function findPackages(
   root: string,
-  opts?: Options
+  opts?: Options | undefined
 ): Promise<Project[]> {
   opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
@@ -77,7 +78,7 @@ export async function findPackages(
   )
 }
 
-function normalizePatterns(patterns: readonly string[]) {
+function normalizePatterns(patterns: readonly string[]): string[] {
   const normalizedPatterns: string[] = []
   for (const pattern of patterns) {
     // We should add separate pattern for each extension

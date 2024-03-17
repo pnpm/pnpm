@@ -28,7 +28,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/run-npm#readme",
   "devDependencies": {
     "@pnpm/run-npm": "workspace:*",
-    "@types/cross-spawn": "^6.0.6"
+    "@types/cross-spawn": "^6.0.6",
+    "@total-typescript/ts-reset": "0.5.1"
+
   },
   "dependencies": {
     "cross-spawn": "^7.0.3",

@@ -1,7 +1,7 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { type DependencyType, rootLogger } from '@pnpm/core-loggers'
-import { type DependenciesField } from '@pnpm/types'
+import type { DependenciesField } from '@pnpm/types'
 import symlinkDir from 'symlink-dir'
 
 const DEP_TYPE_BY_DEPS_FIELD_NAME = {
@@ -15,14 +15,14 @@ export async function symlinkDirectRootDependency(
   destModulesDir: string,
   importAs: string,
   opts: {
-    fromDependenciesField?: DependenciesField
+    fromDependenciesField?: DependenciesField | undefined
     linkedPackage: {
       name: string
       version: string
     }
     prefix: string
   }
-) {
+): Promise<void> {
   // `opts.destModulesDir` may be a non-existent `node_modules` dir
   // so `fs.realpath` would throw.
   // Even though `symlinkDir` creates the dir if it doesn't exist,

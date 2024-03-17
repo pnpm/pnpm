@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import {
   createResolver as _createResolver,
   type ResolveFunction,

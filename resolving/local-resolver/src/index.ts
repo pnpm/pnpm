@@ -4,12 +4,12 @@ import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/graceful-fs'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
-import {
-  type DirectoryResolution,
-  type ResolveResult,
-  type TarballResolution,
+import type {
+  DirectoryResolution,
+  ResolveResult,
+  TarballResolution,
 } from '@pnpm/resolver-base'
-import { type DependencyManifest } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 import ssri from 'ssri'
 import { logger } from '@pnpm/logger'
 import { parsePref, type WantedLocalDependency } from './parsePref'

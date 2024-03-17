@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import { promisify } from 'util'
 import gfs from 'graceful-fs'
 

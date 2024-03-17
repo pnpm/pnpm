@@ -1,8 +1,8 @@
-import path from 'path'
+import path from 'node:path'
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile-file'
 import { createMatcher } from '@pnpm/matcher'
 import { readModulesManifest } from '@pnpm/modules-yaml'
-import { type IncludedDependencies, type ProjectManifest } from '@pnpm/types'
+import type { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 import unnest from 'ramda/src/unnest'
 import {
   createManifestGetter,

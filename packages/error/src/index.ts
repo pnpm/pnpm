@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 
 export class PnpmError extends Error {

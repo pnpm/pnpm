@@ -4,9 +4,9 @@ import {
   type PreferredVersions,
   type WorkspacePackages,
 } from '@pnpm/resolver-base'
-import { type Dependencies, type ProjectManifest } from '@pnpm/types'
+import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
-import { type ImporterToResolve } from '.'
+import type { ImporterToResolve } from '.'
 import {
   getWantedDependencies,
   type WantedDependency,
@@ -17,10 +17,10 @@ export async function toResolveImporter(
   opts: {
     defaultUpdateDepth: number
     lockfileOnly: boolean
-    preferredVersions?: PreferredVersions
+    preferredVersions?: PreferredVersions | undefined
     virtualStoreDir: string
     workspacePackages: WorkspacePackages
-    updateToLatest?: boolean
+    updateToLatest?: boolean | undefined
     noDependencySelectors: boolean
   },
   project: ImporterToResolve

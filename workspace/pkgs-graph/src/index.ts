@@ -6,17 +6,17 @@ import { parsePref, workspacePrefToNpm } from '@pnpm/npm-resolver'
 import mapValues from 'ramda/src/map'
 
 export interface Manifest {
-  name?: string
-  version?: string
+  name?: string | undefined
+  version?: string | undefined
   dependencies?: {
     [name: string]: string
-  }
+  } | undefined
   devDependencies?: {
     [name: string]: string
-  }
+  } | undefined
   optionalDependencies?: {
     [name: string]: string
-  }
+  } | undefined
 }
 
 export interface Package {
@@ -149,7 +149,7 @@ function createPkgMap(pkgs: Package[]): Record<string, Package> {
   return pkgMap
 }
 
-function getPkgMapByManifestName(pkgMapValues: Package[]) {
+function getPkgMapByManifestName(pkgMapValues: Package[]): Record<string, Package[] | undefined> {
   const pkgMapByManifestName: Record<string, Package[] | undefined> = {}
   for (const pkg of pkgMapValues) {
     if (pkg.manifest.name) {
@@ -159,7 +159,7 @@ function getPkgMapByManifestName(pkgMapValues: Package[]) {
   return pkgMapByManifestName
 }
 
-function getPkgMapByDir(pkgMapValues: Package[]) {
+function getPkgMapByDir(pkgMapValues: Package[]): Record<string, Package | undefined> {
   const pkgMapByDir: Record<string, Package | undefined> = {}
   for (const pkg of pkgMapValues) {
     pkgMapByDir[path.resolve(pkg.dir)] = pkg

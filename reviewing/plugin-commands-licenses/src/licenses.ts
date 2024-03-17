@@ -1,5 +1,5 @@
 import { docsUrl, readDepNameCompletions } from '@pnpm/cli-utils'
-import { type CompletionFunc } from '@pnpm/command'
+import type { CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'

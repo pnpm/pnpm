@@ -1,5 +1,5 @@
-import { URL } from 'url'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import { URL } from 'node:url'
+import type { FetchFromRegistry } from '@pnpm/fetching-types'
 import { getAgent, type AgentOptions } from '@pnpm/network.agent'
 import {
   fetch,

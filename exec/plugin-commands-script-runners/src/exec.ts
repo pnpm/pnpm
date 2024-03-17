@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import {
   docsUrl,
   type RecursiveSummary,
@@ -10,7 +10,7 @@ import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { sortPackages } from '@pnpm/sort-packages'
-import { type Project, type ProjectsGraph } from '@pnpm/types'
+import type { Project, ProjectsGraph } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
 import PATH from 'path-name'
@@ -36,7 +36,16 @@ export const shorthands = {
 
 export const commandNames = ['exec']
 
-export function rcOptionsTypes() {
+export function rcOptionsTypes(): {
+  'shell-mode': BooleanConstructor;
+  'resume-from': StringConstructor;
+  'report-summary': BooleanConstructor;
+  bail: BooleanConstructor;
+  sort: BooleanConstructor;
+  'use-node-version': StringConstructor;
+  'unsafe-perm': BooleanConstructor;
+  'workspace-concurrency': NumberConstructor;
+} {
   return {
     ...pick(
       [
@@ -54,13 +63,26 @@ export function rcOptionsTypes() {
   }
 }
 
-export const cliOptionsTypes = () => ({
-  ...rcOptionsTypes(),
-  recursive: Boolean,
-  reverse: Boolean,
-})
+export function cliOptionsTypes(): {
+  recursive: BooleanConstructor;
+  reverse: BooleanConstructor;
+  'shell-mode': BooleanConstructor;
+  'resume-from': StringConstructor;
+  'report-summary': BooleanConstructor;
+  bail: BooleanConstructor;
+  sort: BooleanConstructor;
+  'use-node-version': StringConstructor;
+  'unsafe-perm': BooleanConstructor;
+  'workspace-concurrency': NumberConstructor;
+} {
+  return {
+    ...rcOptionsTypes(),
+    recursive: Boolean,
+    reverse: Boolean,
+  };
+}
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description: 'Run a shell command in the context of a project.',
     descriptionLists: [
@@ -125,7 +147,7 @@ export function getResumedPackageChunks({
 export async function writeRecursiveSummary(opts: {
   dir: string
   summary: RecursiveSummary
-}) {
+}): Promise<void> {
   await writeJsonFile(path.join(opts.dir, 'pnpm-exec-summary.json'), {
     executionStatus: opts.summary,
   })
@@ -142,23 +164,23 @@ export function createEmptyRecursiveSummary(
   }, {})
 }
 
-export function getExecutionDuration(start: [number, number]) {
+export function getExecutionDuration(start: [number, number]): number {
   const end = process.hrtime(start)
   return (end[0] * 1e9 + end[1]) / 1e6
 }
 
 export async function handler(
   opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
-    bail?: boolean
-    unsafePerm?: boolean
+    bail?: boolean | undefined
+    unsafePerm?: boolean | undefined
     rawConfig: object
-    reverse?: boolean
-    sort?: boolean
-    workspaceConcurrency?: number
-    shellMode?: boolean
-    resumeFrom?: string
-    reportSummary?: boolean
-    implicitlyFellbackFromRun?: boolean
+    reverse?: boolean | undefined
+    sort?: boolean | undefined
+    workspaceConcurrency?: number | undefined
+    shellMode?: boolean | undefined
+    resumeFrom?: string | undefined
+    reportSummary?: boolean | undefined
+    implicitlyFellbackFromRun?: boolean | undefined
   } & Pick<
       Config, // eslint-disable-line @stylistic/ts/indent
       | 'extraBinPaths'
@@ -171,7 +193,9 @@ export async function handler(
       | 'workspaceDir'
     >, // eslint-disable-line @stylistic/ts/indent
   params: string[]
-) {
+): Promise<{
+    exitCode: number;
+  }> {
   // For backward compatibility
   if (params[0] === '--') {
     params.shift()
@@ -370,7 +394,7 @@ function isErrorCommandNotFound(
   command: string,
   error: CommandError,
   prependPaths: string[]
-) {
+): boolean {
   // Mac/Linux
   if (process.platform === 'linux' || process.platform === 'darwin') {
     return error.originalMessage === `spawn ${command} ENOENT`

@@ -1,7 +1,7 @@
 import '@total-typescript/ts-reset'
 import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
-import { type PackageManifest } from '@pnpm/types'
+import type { PackageManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import normalizePackageData from 'normalize-package-data'
 

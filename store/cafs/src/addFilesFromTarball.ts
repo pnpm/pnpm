@@ -1,7 +1,7 @@
-import {
-  type AddToStoreResult,
-  type FilesIndex,
-  type FileWriteResult,
+import type {
+  AddToStoreResult,
+  FilesIndex,
+  FileWriteResult,
 } from '@pnpm/cafs-types'
 import isGzip from 'is-gzip'
 import { gunzipSync } from 'zlib'

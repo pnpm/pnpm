@@ -1569,6 +1569,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@total-typescript/ts-reset':
+        specifier: 0.5.1
+        version: 0.5.1
       '@types/is-windows':
         specifier: ^1.0.2
         version: 1.0.2
@@ -1621,6 +1624,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@total-typescript/ts-reset':
+        specifier: 0.5.1
+        version: 0.5.1
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -1640,6 +1646,9 @@ importers:
       '@pnpm/run-npm':
         specifier: workspace:*
         version: 'link:'
+      '@total-typescript/ts-reset':
+        specifier: 0.5.1
+        version: 0.5.1
       '@types/cross-spawn':
         specifier: ^6.0.6
         version: 6.0.6
@@ -1733,6 +1742,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@total-typescript/ts-reset':
+        specifier: 0.5.1
+        version: 0.5.1
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -1748,6 +1760,9 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
+      '@total-typescript/ts-reset':
+        specifier: 0.5.1
+        version: 0.5.1
 
   fetching/tarball-fetcher:
     dependencies:
@@ -1812,6 +1827,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@total-typescript/ts-reset':
+        specifier: 0.5.1
+        version: 0.5.1
       '@types/lodash.throttle':
         specifier: 4.1.9
         version: 4.1.9
@@ -5470,6 +5488,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@total-typescript/ts-reset':
+        specifier: 0.5.1
+        version: 0.5.1
       '@types/normalize-path':
         specifier: ^3.0.2
         version: 3.0.2

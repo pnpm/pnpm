@@ -1,14 +1,14 @@
-import path from 'path'
+import path from 'node:path'
 
 export interface PackageSelector {
-  diff?: string
-  exclude?: boolean
-  excludeSelf?: boolean
-  includeDependencies?: boolean
-  includeDependents?: boolean
-  namePattern?: string
-  parentDir?: string
-  followProdDepsOnly?: boolean
+  diff?: string | undefined
+  exclude?: boolean | undefined
+  excludeSelf?: boolean | undefined
+  includeDependencies?: boolean | undefined
+  includeDependents?: boolean | undefined
+  namePattern?: string | undefined
+  parentDir?: string | undefined
+  followProdDepsOnly?: boolean | undefined
 }
 
 export function parsePackageSelector(
@@ -16,7 +16,7 @@ export function parsePackageSelector(
   prefix: string
 ): PackageSelector {
   let exclude = false
-  if (rawSelector[0] === '!') {
+  if (rawSelector.startsWith('!')) {
     exclude = true
     rawSelector = rawSelector.substring(1)
   }
@@ -66,7 +66,7 @@ export function parsePackageSelector(
 }
 
 function isSelectorByLocation(rawSelector: string) {
-  if (rawSelector[0] !== '.') return false
+  if (!rawSelector.startsWith('.')) return false
 
   // . or ./ or .\
   if (

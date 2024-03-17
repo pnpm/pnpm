@@ -1,7 +1,7 @@
 import '@total-typescript/ts-reset'
 import path from 'node:path'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DependenciesField, type Registries } from '@pnpm/types'
+import type { DependenciesField, Registries } from '@pnpm/types'
 import {
   type PackageNode,
   buildDependenciesHierarchy,
@@ -11,7 +11,7 @@ import {
 import { renderJson } from './renderJson'
 import { renderParseable } from './renderParseable'
 import { renderTree } from './renderTree'
-import { type PackageDependencyHierarchy } from './types'
+import type { PackageDependencyHierarchy } from './types'
 import { pruneDependenciesTrees } from './pruneTree'
 
 export type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'

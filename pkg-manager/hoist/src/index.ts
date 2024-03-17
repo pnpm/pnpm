@@ -1,5 +1,6 @@
-import fs from 'fs'
-import path from 'path'
+import '@total-typescript/ts-reset'
+import fs from 'node:fs'
+import path from 'node:path'
 import { linkLogger } from '@pnpm/core-loggers'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/link-bins'

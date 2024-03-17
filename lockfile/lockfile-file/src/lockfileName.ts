@@ -2,8 +2,8 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { getCurrentBranch } from '@pnpm/git-utils'
 
 export interface GetWantedLockfileNameOptions {
-  useGitBranchLockfile?: boolean
-  mergeGitBranchLockfiles?: boolean
+  useGitBranchLockfile?: boolean | undefined
+  mergeGitBranchLockfiles?: boolean | undefined
 }
 
 export async function getWantedLockfileName(
@@ -28,6 +28,6 @@ export async function getWantedLockfileName(
  * 1. Git branch name may contains slashes, which is not allowed in filenames
  * 2. Filesystem may be case-insensitive, so we need to convert branch name to lowercase
  */
-function stringifyBranchName(branchName: string = '') {
+function stringifyBranchName(branchName: string = ''): string {
   return branchName.replace(/[^a-zA-Z0-9-_.]/g, '!').toLowerCase()
 }

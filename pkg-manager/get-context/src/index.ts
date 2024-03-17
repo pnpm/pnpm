@@ -1,5 +1,6 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import '@total-typescript/ts-reset'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { contextLogger, packageManifestLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { type Lockfile } from '@pnpm/lockfile-file'

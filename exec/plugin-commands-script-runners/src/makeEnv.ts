@@ -3,10 +3,14 @@ import path from 'node:path'
 import PATH from 'path-name'
 
 export function makeEnv(opts: {
-  extraEnv?: NodeJS.ProcessEnv
-  userAgent?: string
+  extraEnv?: NodeJS.ProcessEnv | undefined
+  userAgent?: string | undefined
   prependPaths: string[]
-}) {
+}): {
+    [x: string]: string | undefined;
+    npm_config_user_agent: string;
+    TZ?: string | undefined;
+  } {
   for (const prependPath of opts.prependPaths) {
     if (prependPath.includes(path.delimiter)) {
       // Unfortunately, there is no way to escape the PATH delimiter,

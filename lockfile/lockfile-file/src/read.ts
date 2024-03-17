@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { mergeLockfileChanges } from '@pnpm/merge-lockfile-changes'
@@ -12,7 +12,7 @@ import stripBom from 'strip-bom'
 import { LockfileBreakingChangeError } from './errors'
 import { autofixMergeConflicts, isDiff } from './gitMergeFile'
 import { lockfileLogger as logger } from './logger'
-import { type LockfileFile } from './write'
+import type { LockfileFile } from './write'
 import { getWantedLockfileName } from './lockfileName'
 import { getGitBranchLockfileNames } from './gitBranchLockfile'
 import { revertFromInlineSpecifiersFormatIfNecessary } from './experiments/inlineSpecifiersLockfileConverters'
@@ -20,7 +20,7 @@ import { revertFromInlineSpecifiersFormatIfNecessary } from './experiments/inlin
 export async function readCurrentLockfile(
   virtualStoreDir: string,
   opts: {
-    wantedVersions?: string[]
+    wantedVersions?: string[] | undefined
     ignoreIncompatible: boolean
   }
 ): Promise<Lockfile | null> {

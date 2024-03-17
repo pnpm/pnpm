@@ -1,4 +1,3 @@
-// eslint-disable
 export const shorthands = {
   s: '--reporter=silent',
   d: '--loglevel=info',
@@ -33,4 +32,3 @@ export const shorthands = {
   i: '--interactive',
   F: '--filter',
 }
-// eslint-enable

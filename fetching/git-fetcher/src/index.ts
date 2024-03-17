@@ -1,20 +1,23 @@
-import path from 'path'
+import '@total-typescript/ts-reset'
+import path from 'node:path'
 import type { GitFetcher } from '@pnpm/fetcher-base'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { addFilesFromDir } from '@pnpm/worker'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import { URL } from 'url'
+import { URL } from 'node:url'
 
 export interface CreateGitFetcherOptions {
-  gitShallowHosts?: string[]
+  gitShallowHosts?: string[] | undefined
   rawConfig: object
-  unsafePerm?: boolean
-  ignoreScripts?: boolean
+  unsafePerm?: boolean | undefined
+  ignoreScripts?: boolean | undefined
 }
 
-export function createGitFetcher(createOpts: CreateGitFetcherOptions) {
+export function createGitFetcher(createOpts: CreateGitFetcherOptions): {
+  git: GitFetcher;
+} {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
   const ignoreScripts = createOpts.ignoreScripts ?? false
   const preparePkg = preparePackage.bind(null, {

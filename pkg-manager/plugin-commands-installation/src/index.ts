@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import * as add from './add'
 import * as ci from './ci'
 import * as dedupe from './dedupe'

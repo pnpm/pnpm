@@ -1,5 +1,5 @@
 import '@total-typescript/ts-reset'
-import type{
+import type {
   FileWriteResult,
   PackageFileInfo,
   FilesIndex,

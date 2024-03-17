@@ -1,9 +1,9 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { LockfileMissingDependencyError } from '@pnpm/error'
-import { type Lockfile, type PackageSnapshots } from '@pnpm/lockfile-types'
+import type { Lockfile, PackageSnapshots } from '@pnpm/lockfile-types'
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger } from '@pnpm/logger'
-import { type DependenciesField } from '@pnpm/types'
+import type { DependenciesField } from '@pnpm/types'
 import { filterImporter } from './filterImporter'
 
 const lockfileLogger = logger('lockfile')
@@ -55,7 +55,7 @@ function pkgAllDeps(
   opts: {
     failOnMissingDependencies: boolean
   }
-) {
+): void {
   for (const { pkgSnapshot, depPath, next } of step.dependencies) {
     pickedPackages[depPath] = pkgSnapshot
     pkgAllDeps(next(), pickedPackages, opts)

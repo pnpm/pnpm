@@ -1,12 +1,13 @@
-import {
-  type Lockfile,
-  type PackageSnapshot,
-  type PackageSnapshots,
+import '@total-typescript/ts-reset'
+import type {
+  Lockfile,
+  PackageSnapshot,
+  PackageSnapshots,
 } from '@pnpm/lockfile-types'
 import comverToSemver from 'comver-to-semver'
 import semver from 'semver'
 
-export function mergeLockfileChanges(ours: Lockfile, theirs: Lockfile) {
+export function mergeLockfileChanges(ours: Lockfile, theirs: Lockfile): Lockfile {
   const newLockfile: Lockfile = {
     importers: {},
     lockfileVersion: semver.gt(
@@ -82,7 +83,7 @@ function mergeDict<T>(
   ourDict: Record<string, T>,
   theirDict: Record<string, T>,
   valueMerger: ValueMerger<T>
-) {
+): Record<string, T> {
   const newDict: Record<string, T> = {}
   for (const key of Object.keys(ourDict).concat(Object.keys(theirDict))) {
     const changedValue = valueMerger(ourDict[key], theirDict[key])
@@ -98,7 +99,7 @@ function takeChangedValue<T>(ourValue: T, theirValue: T): T {
   return theirValue
 }
 
-function mergeVersions(ourValue: string, theirValue: string) {
+function mergeVersions(ourValue: string, theirValue: string): string {
   if (ourValue === theirValue || !theirValue) return ourValue
   if (!ourValue) return theirValue
   const [ourVersion] = ourValue.split('_')

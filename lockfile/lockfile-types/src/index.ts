@@ -1,54 +1,55 @@
-import { type DependenciesMeta, type PatchFile } from '@pnpm/types'
+import '@total-typescript/ts-reset'
+import type { DependenciesMeta, PatchFile } from '@pnpm/types'
 
 export type { PatchFile }
 
 export interface LockfileSettings {
-  autoInstallPeers?: boolean
-  excludeLinksFromLockfile?: boolean
+  autoInstallPeers?: boolean | undefined
+  excludeLinksFromLockfile?: boolean | undefined
 }
 
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
   lockfileVersion: number | string
-  time?: Record<string, string>
-  packages?: PackageSnapshots
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  overrides?: Record<string, string>
-  packageExtensionsChecksum?: string
-  patchedDependencies?: Record<string, PatchFile>
-  settings?: LockfileSettings
+  time?: Record<string, string> | undefined
+  packages?: PackageSnapshots | undefined
+  neverBuiltDependencies?: string[] | undefined
+  onlyBuiltDependencies?: string[] | undefined
+  overrides?: Record<string, string> | undefined
+  packageExtensionsChecksum?: string | undefined
+  patchedDependencies?: Record<string, PatchFile> | undefined
+  settings?: LockfileSettings | undefined
 }
 
 export interface ProjectSnapshot {
   specifiers: ResolvedDependencies
-  dependencies?: ResolvedDependencies
-  optionalDependencies?: ResolvedDependencies
-  devDependencies?: ResolvedDependencies
-  dependenciesMeta?: DependenciesMeta
-  publishDirectory?: string
+  dependencies?: ResolvedDependencies | undefined
+  optionalDependencies?: ResolvedDependencies | undefined
+  devDependencies?: ResolvedDependencies | undefined
+  dependenciesMeta?: DependenciesMeta | undefined
+  publishDirectory?: string | undefined
 }
 
 export interface LockfileV6 {
   importers: Record<string, ProjectSnapshotV6>
   lockfileVersion: number | string
-  time?: Record<string, string>
-  packages?: PackageSnapshots
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  overrides?: Record<string, string>
-  packageExtensionsChecksum?: string
-  patchedDependencies?: Record<string, PatchFile>
-  settings?: LockfileSettings
+  time?: Record<string, string> | undefined
+  packages?: PackageSnapshots | undefined
+  neverBuiltDependencies?: string[] | undefined
+  onlyBuiltDependencies?: string[] | undefined
+  overrides?: Record<string, string> | undefined
+  packageExtensionsChecksum?: string | undefined
+  patchedDependencies?: Record<string, PatchFile> | undefined
+  settings?: LockfileSettings | undefined
 }
 
 export interface ProjectSnapshotV6 {
   specifiers: ResolvedDependenciesOfImporters
-  dependencies?: ResolvedDependenciesOfImporters
-  optionalDependencies?: ResolvedDependenciesOfImporters
-  devDependencies?: ResolvedDependenciesOfImporters
-  dependenciesMeta?: DependenciesMeta
-  publishDirectory?: string
+  dependencies?: ResolvedDependenciesOfImporters | undefined
+  optionalDependencies?: ResolvedDependenciesOfImporters | undefined
+  devDependencies?: ResolvedDependenciesOfImporters | undefined
+  dependenciesMeta?: DependenciesMeta | undefined
+  publishDirectory?: string | undefined
 }
 
 export type ResolvedDependenciesOfImporters = Record<
@@ -64,9 +65,9 @@ export interface PackageSnapshots {
  * tarball hosted remotely
  */
 export interface TarballResolution {
-  type?: undefined
+  type?: string | undefined
   tarball: string
-  integrity?: string
+  integrity?: string | undefined
 }
 
 /**
@@ -98,37 +99,37 @@ export type LockfileResolution =
   }
 
 export interface PackageSnapshot {
-  id?: string
-  dev?: true | false
-  optional?: true
-  requiresBuild?: true
-  patched?: true
-  prepare?: true
-  hasBin?: true
+  id?: string | undefined
+  dev?: boolean | undefined
+  optional?: boolean | undefined
+  requiresBuild?: boolean | undefined
+  patched?: boolean | undefined
+  prepare?: boolean | undefined
+  hasBin?: boolean | undefined
   // name and version are only needed
   // for packages that are hosted not in the npm registry
-  name?: string
-  version?: string
+  name?: string | undefined
+  version?: string | undefined
   resolution: LockfileResolution
-  dependencies?: ResolvedDependencies
-  optionalDependencies?: ResolvedDependencies
+  dependencies?: ResolvedDependencies | undefined
+  optionalDependencies?: ResolvedDependencies | undefined
   peerDependencies?: {
     [name: string]: string
-  }
+  } | undefined
   peerDependenciesMeta?: {
     [name: string]: {
       optional: true
     }
-  }
-  transitivePeerDependencies?: string[]
-  bundledDependencies?: string[] | boolean
-  engines?: Record<string, string> & {
+  } | undefined
+  transitivePeerDependencies?: string[] | undefined
+  bundledDependencies?: string[] | boolean | undefined
+  engines?: (Record<string, string> & {
     node: string
-  }
-  os?: string[]
-  cpu?: string[]
-  libc?: string[]
-  deprecated?: string
+  }) | undefined
+  os?: string[] | undefined
+  cpu?: string[] | undefined
+  libc?: string[] | undefined
+  deprecated?: string | undefined
 }
 
 export interface Dependencies {

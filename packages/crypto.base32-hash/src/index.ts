@@ -1,5 +1,6 @@
-import crypto from 'crypto'
-import fs from 'fs'
+import '@total-typescript/ts-reset'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
 import { base32 } from 'rfc4648'
 
 export function createBase32Hash(str: string): string {

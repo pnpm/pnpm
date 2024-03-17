@@ -1,4 +1,5 @@
-import path from 'path'
+import '@total-typescript/ts-reset'
+import path from 'node:path'
 import {
   type DependenciesField,
   type HoistedDependencies,

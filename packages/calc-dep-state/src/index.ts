@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { refToRelative } from '@pnpm/dependency-path'
 import type { Lockfile } from '@pnpm/lockfile-types'

@@ -1,5 +1,5 @@
 import type { ProjectManifest } from '@pnpm/types'
-import path from 'path'
+import path from 'node:path'
 import { readPkg } from './readPkg'
 
 interface PkgData {
@@ -7,7 +7,7 @@ interface PkgData {
   name: string
   version: string
   path: string
-  resolved?: string
+  resolved?: string | undefined
 }
 
 export type PkgInfo = Omit<PkgData, 'name'> &

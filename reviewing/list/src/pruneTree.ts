@@ -1,8 +1,8 @@
-import {
-  type DependenciesHierarchy,
-  type PackageNode,
+import type {
+  DependenciesHierarchy,
+  PackageNode,
 } from '@pnpm/reviewing.dependencies-hierarchy'
-import { type PackageDependencyHierarchy } from './types'
+import type { PackageDependencyHierarchy } from './types'
 import { createHash } from 'crypto'
 
 export function pruneDependenciesTrees(

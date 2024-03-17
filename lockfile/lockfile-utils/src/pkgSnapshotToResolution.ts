@@ -1,10 +1,10 @@
-import url from 'url'
-import {
-  type PackageSnapshot,
-  type TarballResolution,
+import url from 'node:url'
+import type {
+  PackageSnapshot,
+  TarballResolution,
 } from '@pnpm/lockfile-types'
-import { type Resolution } from '@pnpm/resolver-base'
-import { type Registries } from '@pnpm/types'
+import type { Resolution } from '@pnpm/resolver-base'
+import type { Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'

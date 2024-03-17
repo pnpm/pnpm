@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import type {
   PreResolutionHook,
   PreResolutionHookContext,
@@ -9,7 +9,7 @@ import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
 import type { Log } from '@pnpm/core-loggers'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
-import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
+import type { ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
 import { requirePnpmfile } from './requirePnpmfile'
 
 interface HookContext {
@@ -46,22 +46,24 @@ export interface CookedHooks {
   fetchers?: CustomFetchers | undefined
 }
 
-export function requireHooks(
+export async function requireHooks(
   prefix: string,
   opts: {
     globalPnpmfile?: string | undefined
     pnpmfile?: string | undefined
   }
-): CookedHooks {
+): Promise<CookedHooks> {
   const globalPnpmfile =
-    opts.globalPnpmfile &&
-    requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
+    typeof opts.globalPnpmfile === 'string' &&
+    await requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
+
   let globalHooks: Hooks = globalPnpmfile?.hooks
 
   const pnpmFile =
     (opts.pnpmfile &&
-      requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix)) ||
-    requirePnpmfile(path.join(prefix, '.pnpmfile.cjs'), prefix)
+      await requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix)) ||
+    await requirePnpmfile(path.join(prefix, '.pnpmfile.cjs'), prefix)
+
   let hooks: Hooks = pnpmFile?.hooks
 
   if (!globalHooks && !hooks)
@@ -77,7 +79,7 @@ export function requireHooks(
     if (globalHooks[hookName]) {
       const globalHook = globalHooks[hookName]
       const context = createReadPackageHookContext(
-        globalPnpmfile.filename,
+        globalPnpmfile?.filename,
         prefix,
         hookName
       )
@@ -89,7 +91,7 @@ export function requireHooks(
     if (hooks[hookName]) {
       const hook = hooks[hookName]
       const context = createReadPackageHookContext(
-        pnpmFile.filename,
+        pnpmFile?.filename,
         prefix,
         hookName
       )

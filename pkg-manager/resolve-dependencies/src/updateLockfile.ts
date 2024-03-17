@@ -6,17 +6,17 @@ import {
   pruneSharedLockfile,
   type ResolvedDependencies,
 } from '@pnpm/prune-lockfile'
-import { type DirectoryResolution, type Resolution } from '@pnpm/resolver-base'
-import { type Registries } from '@pnpm/types'
+import type { DirectoryResolution, Resolution } from '@pnpm/resolver-base'
+import type { Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import { type KeyValuePair } from 'ramda'
+import type { KeyValuePair } from 'ramda'
 import mergeRight from 'ramda/src/mergeRight'
 import partition from 'ramda/src/partition'
-import { type SafePromiseDefer } from 'safe-promise-defer'
+import type { SafePromiseDefer } from 'safe-promise-defer'
 import { depPathToRef } from './depPathToRef'
-import { type ResolvedPackage } from './resolveDependencies'
-import { type DependenciesGraph } from '.'
+import type { ResolvedPackage } from './resolveDependencies'
+import type { DependenciesGraph } from '.'
 
 export function updateLockfile({
   dependenciesGraph,
@@ -29,7 +29,7 @@ export function updateLockfile({
   lockfile: Lockfile
   prefix: string
   registries: Registries
-  lockfileIncludeTarballUrl?: boolean
+  lockfileIncludeTarballUrl?: boolean | undefined
 }): {
     newLockfile: Lockfile
     pendingRequiresBuilds: string[]

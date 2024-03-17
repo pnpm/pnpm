@@ -1,25 +1,25 @@
-import { constants, type Stats, existsSync } from 'fs'
+import '@total-typescript/ts-reset'
+import { constants, type Stats, existsSync } from 'node:fs'
 import fs from '@pnpm/graceful-fs'
-import path from 'path'
+import path from 'node:path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
-import {
-  type FilesMap,
-  type ImportOptions,
-  type ImportIndexedPackage,
+import type {
+  FilesMap,
+  ImportOptions,
+  ImportIndexedPackage,
 } from '@pnpm/store-controller-types'
 import { importIndexedDir, type ImportFile } from './importIndexedDir'
 
 export function createIndexedPkgImporter(
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 ): ImportIndexedPackage {
-  const importPackage = createImportPackage(packageImportMethod)
-  return importPackage
+  return createImportPackage(packageImportMethod)
 }
 
 function createImportPackage(
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-) {
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy' | undefined
+): ImportIndexedPackage {
   // this works in the following way:
   // - hardlink: hardlink the packages, no fallback
   // - clone: clone the packages, no fallback
@@ -111,7 +111,7 @@ function createCloneOrCopyImporter(): ImportIndexedPackage {
 
 type CloneFunction = (src: string, dest: string) => void
 
-function clonePkg(clone: CloneFunction, to: string, opts: ImportOptions) {
+function clonePkg(clone: CloneFunction, to: string, opts: ImportOptions): 'clone' | undefined {
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
@@ -151,7 +151,7 @@ function createCloneFunction(): CloneFunction {
   }
 }
 
-function hardlinkPkg(importFile: ImportFile, to: string, opts: ImportOptions) {
+function hardlinkPkg(importFile: ImportFile, to: string, opts: ImportOptions): 'hardlink' | undefined {
   if (opts.force || shouldRelinkPkg(to, opts)) {
     importIndexedDir(importFile, to, opts.filesMap, opts)
     return 'hardlink'
@@ -159,7 +159,7 @@ function hardlinkPkg(importFile: ImportFile, to: string, opts: ImportOptions) {
   return undefined
 }
 
-function shouldRelinkPkg(to: string, opts: ImportOptions) {
+function shouldRelinkPkg(to: string, opts: ImportOptions): boolean {
   if (opts.disableRelinkLocalDirDeps && opts.resolvedFrom === 'local-dir') {
     try {
       const files = fs.readdirSync(to)
@@ -174,7 +174,7 @@ function shouldRelinkPkg(to: string, opts: ImportOptions) {
   return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)
 }
 
-function linkOrCopy(existingPath: string, newPath: string) {
+function linkOrCopy(existingPath: string, newPath: string): void {
   try {
     fs.linkSync(existingPath, newPath)
   } catch (err: any) { // eslint-disable-line
@@ -188,7 +188,7 @@ function linkOrCopy(existingPath: string, newPath: string) {
   }
 }
 
-function pkgLinkedToStore(filesMap: FilesMap, to: string) {
+function pkgLinkedToStore(filesMap: FilesMap, to: string): boolean {
   if (filesMap['package.json']) {
     if (isSameFile('package.json', to, filesMap)) {
       return true
@@ -206,7 +206,7 @@ function isSameFile(
   filename: string,
   linkedPkgDir: string,
   filesMap: FilesMap
-) {
+): boolean {
   const linkedFile = path.join(linkedPkgDir, filename)
   let stats0!: Stats
   try {
@@ -220,7 +220,7 @@ function isSameFile(
   return false
 }
 
-export function copyPkg(to: string, opts: ImportOptions) {
+export function copyPkg(to: string, opts: ImportOptions): 'copy' | undefined {
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {

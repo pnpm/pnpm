@@ -9,7 +9,7 @@ export function sequenceGraph(
   const keys = Object.keys(pkgGraph)
   const setOfKeys = new Set(keys)
   const graph = new Map(
-    keys.map((pkgPath) => [
+    keys.map((pkgPath: string): [string, string[]] => [
       pkgPath,
       pkgGraph[pkgPath].dependencies.filter(
         (d) => d !== pkgPath && setOfKeys.has(d)

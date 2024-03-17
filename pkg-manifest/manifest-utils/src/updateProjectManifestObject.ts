@@ -9,10 +9,10 @@ import {
 
 export interface PackageSpecObject {
   alias: string
-  nodeExecPath?: string
-  peer?: boolean
-  pref?: string
-  saveType?: DependenciesField
+  nodeExecPath?: string | undefined
+  peer?: boolean | undefined
+  pref?: string | undefined
+  saveType?: DependenciesField | undefined
 }
 
 export async function updateProjectManifestObject(

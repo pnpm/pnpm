@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 export type {
   BadPeerDependencyIssue,
   MissingPeerDependencyIssue,

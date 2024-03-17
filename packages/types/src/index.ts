@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 export * from './misc'
 export * from './options'
 export * from './package'

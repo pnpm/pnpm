@@ -1,27 +1,27 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
-import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
-import { existsSync } from 'fs'
+import { existsSync } from 'node:fs'
 
 function noop() {} // eslint-disable-line:no-empty
 
 export interface RunLifecycleHookOptions {
-  args?: string[]
+  args?: string[] | undefined
   depPath: string
-  extraBinPaths?: string[]
-  extraEnv?: Record<string, string>
-  initCwd?: string
-  optional?: boolean
+  extraBinPaths?: string[] | undefined
+  extraEnv?: Record<string, string> | undefined
+  initCwd?: string | undefined
+  optional?: boolean | undefined
   pkgRoot: string
   rawConfig: object
   rootModulesDir: string
-  scriptShell?: string
-  silent?: boolean
-  scriptsPrependNodePath?: boolean | 'warn-only'
-  shellEmulator?: boolean
-  stdio?: string
+  scriptShell?: string | undefined
+  silent?: boolean | undefined
+  scriptsPrependNodePath?: boolean | 'warn-only' | undefined
+  shellEmulator?: boolean | undefined
+  stdio?: string | undefined
   unsafePerm: boolean
 }
 
@@ -29,7 +29,7 @@ export async function runLifecycleHook(
   stage: string,
   manifest: ProjectManifest | DependencyManifest,
   opts: RunLifecycleHookOptions
-) {
+): Promise<void> {
   const optional = opts.optional === true
 
   const m = { _id: getId(manifest), ...manifest }
@@ -96,11 +96,11 @@ export async function runLifecycleHook(
   })
 
   function npmLog(
-    prefix: string,
-    logId: string,
+    _prefix: string,
+    _logId: string,
     stdtype: string,
     line: string
-  ) {
+  ): void {
     switch (stdtype) {
       case 'stdout':
       case 'stderr':
@@ -130,6 +130,6 @@ export async function runLifecycleHook(
   }
 }
 
-function getId(manifest: ProjectManifest | DependencyManifest) {
+function getId(manifest: ProjectManifest | DependencyManifest): string {
   return `${manifest.name ?? ''}@${manifest.version ?? ''}`
 }

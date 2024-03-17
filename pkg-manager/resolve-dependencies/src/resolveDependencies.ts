@@ -1,14 +1,14 @@
-import path from 'path'
+import path from 'node:path'
 import {
   deprecationLogger,
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import {
-  type Lockfile,
-  type PackageSnapshot,
-  type ResolvedDependencies,
+import type {
+  Lockfile,
+  PackageSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile-types'
 import {
   nameVerFromPkgSnapshot,
@@ -24,18 +24,18 @@ import {
   type Resolution,
   type WorkspacePackages,
 } from '@pnpm/resolver-base'
-import {
-  type PkgRequestFetchResult,
-  type PackageResponse,
-  type StoreController,
+import type {
+  PkgRequestFetchResult,
+  PackageResponse,
+  StoreController,
 } from '@pnpm/store-controller-types'
-import {
-  type SupportedArchitectures,
-  type AllowedDeprecatedVersions,
-  type PackageManifest,
-  type PatchFile,
-  type ReadPackageHook,
-  type Registries,
+import type {
+  SupportedArchitectures,
+  AllowedDeprecatedVersions,
+  PackageManifest,
+  PatchFile,
+  ReadPackageHook,
+  Registries,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import normalizePath from 'normalize-path'

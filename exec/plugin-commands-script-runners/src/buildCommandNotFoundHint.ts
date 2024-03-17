@@ -1,7 +1,7 @@
 import { type PackageScripts } from '@pnpm/types'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
-import { readdirSync } from 'fs'
-import path from 'path'
+import { readdirSync } from 'node:fs'
+import path from 'node:path'
 
 export function getNearestProgram({
   dir,
@@ -40,7 +40,7 @@ function readProgramsFromDir(binDir: string): string[] {
 export function buildCommandNotFoundHint(
   scriptName: string,
   scripts?: PackageScripts | undefined
-) {
+): string {
   let hint = `Command "${scriptName}" not found.`
 
   const nearestCommand = getNearestScript(scriptName, scripts)
@@ -55,7 +55,7 @@ export function buildCommandNotFoundHint(
 export function getNearestScript(
   scriptName: string,
   scripts?: PackageScripts | undefined
-) {
+): string | null {
   return getNearest(scriptName, Object.keys(scripts ?? []))
 }
 

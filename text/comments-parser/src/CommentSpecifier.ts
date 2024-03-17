@@ -2,8 +2,8 @@ export interface CommentSpecifier {
   type: string
   content: string
   lineNumber: number
-  after?: string
+  after?: string | undefined
   on: string
   whitespace: string
-  before?: string
+  before?: string | undefined
 }

@@ -1,4 +1,4 @@
-import { type Completion } from '@pnpm/command'
+import type { Completion } from '@pnpm/command'
 
 export function optionTypesToCompletions(optionTypes: Record<string, unknown>) {
   const completions: Completion[] = []

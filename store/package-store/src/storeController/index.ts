@@ -3,12 +3,12 @@ import {
   createPackageImporterAsync,
   type CafsLocker,
 } from '@pnpm/create-cafs-store'
-import { type Fetchers } from '@pnpm/fetcher-base'
+import type { Fetchers } from '@pnpm/fetcher-base'
 import { createPackageRequester } from '@pnpm/package-requester'
-import { type ResolveFunction } from '@pnpm/resolver-base'
-import {
-  type ImportIndexedPackageAsync,
-  type StoreController,
+import type { ResolveFunction } from '@pnpm/resolver-base'
+import type {
+  ImportIndexedPackageAsync,
+  StoreController,
 } from '@pnpm/store-controller-types'
 import { addFilesFromDir, importPackage } from '@pnpm/worker'
 import { prune } from './prune'

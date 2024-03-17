@@ -8,9 +8,9 @@ import {
 import versionSelectorType from 'version-selector-type'
 import semver from 'semver'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
-import { type TarballResolution } from '@pnpm/resolver-base'
-import { type ResolvedDirectDependency } from './resolveDependencyTree'
-import { type ImporterToResolve } from '.'
+import type { TarballResolution } from '@pnpm/resolver-base'
+import type { ResolvedDirectDependency } from './resolveDependencyTree'
+import type { ImporterToResolve } from '.'
 
 export async function updateProjectManifest(
   importer: ImporterToResolve,

@@ -1,7 +1,7 @@
-import {
-  type Dependencies,
-  type DependencyManifest,
-  type DependenciesMeta,
+import type {
+  Dependencies,
+  DependencyManifest,
+  DependenciesMeta,
 } from '@pnpm/types'
 import pickBy from 'ramda/src/pickBy'
 
@@ -10,7 +10,7 @@ export interface WantedDependency {
   pref: string // package reference
   dev: boolean
   optional: boolean
-  injected?: boolean
+  injected?: boolean | undefined
 }
 
 export function getNonDevWantedDependencies(

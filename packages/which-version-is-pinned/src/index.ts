@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import { parseRange } from 'semver-utils'
 
 export function whichVersionIsPinned(spec: string) {
@@ -12,13 +13,20 @@ export function whichVersionIsPinned(spec: string) {
   if (parsedRange.length !== 1) return undefined
   const versionObject = parsedRange[0]
   switch (versionObject.operator) {
-    case '~':
+    case '~': {
       return 'minor'
-    case '^':
+    }
+    case '^': {
       return 'major'
-    case undefined:
-      if (versionObject.patch) return 'patch'
-      if (versionObject.minor) return 'minor'
+    }
+    case undefined: {
+      if (versionObject.patch) {
+        return 'patch'
+      }
+      if (versionObject.minor) {
+        return 'minor'
+      }
+    }
   }
   return undefined
 }

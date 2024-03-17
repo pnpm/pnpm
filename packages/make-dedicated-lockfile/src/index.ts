@@ -1,4 +1,5 @@
-import path from 'path'
+import '@total-typescript/ts-reset'
+import path from 'node:path'
 import pnpmExec from '@pnpm/exec'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 import {

@@ -1,5 +1,6 @@
+import '@total-typescript/ts-reset'
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
-import { type Registries } from '@pnpm/types'
+import type { Registries } from '@pnpm/types'
 import encodeRegistry from 'encode-registry'
 import semver from 'semver'
 

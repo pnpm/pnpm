@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import validateNpmPackageName from 'validate-npm-package-name'
 
 export interface ParsedWantedDependency {

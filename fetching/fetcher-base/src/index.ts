@@ -1,10 +1,11 @@
+import '@total-typescript/ts-reset'
 import type {
   Resolution,
   GitResolution,
   DirectoryResolution,
 } from '@pnpm/resolver-base'
-import type{ Cafs } from '@pnpm/cafs-types'
-import type{ DependencyManifest } from '@pnpm/types'
+import type { Cafs } from '@pnpm/cafs-types'
+import type { DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {
   name?: string
@@ -14,9 +15,9 @@ export interface PkgNameVersion {
 export interface FetchOptions {
   filesIndexFile: string
   lockfileDir: string
-  onStart?: (totalSize: number | null, attempt: number) => void
-  onProgress?: (downloaded: number) => void
-  readManifest?: boolean
+  onStart?: ((totalSize: number | null, attempt: number) => void) | undefined
+  onProgress?: ((downloaded: number) => void | undefined)
+  readManifest?: boolean | undefined
   pkg: PkgNameVersion
 }
 
@@ -31,33 +32,33 @@ export type FetchFunction<
 ) => Promise<Result>
 
 export interface FetchResult {
-  local?: boolean
-  manifest?: DependencyManifest
+  local?: boolean | undefined
+  manifest?: DependencyManifest | undefined
   filesIndex: Record<string, string>
 }
 
 export interface GitFetcherOptions {
-  readManifest?: boolean
+  readManifest?: boolean | undefined
   filesIndexFile: string
-  pkg?: PkgNameVersion
+  pkg?: PkgNameVersion | undefined
 }
 
 export type GitFetcher = FetchFunction<
   GitResolution,
   GitFetcherOptions,
-  { filesIndex: Record<string, string>; manifest?: DependencyManifest }
+  { filesIndex: Record<string, string>; manifest?: DependencyManifest | undefined }
 >
 
 export interface DirectoryFetcherOptions {
-  lockfileDir: string
-  readManifest?: boolean
+  lockfileDir: string | undefined
+  readManifest?: boolean | undefined
 }
 
 export interface DirectoryFetcherResult {
   local: true
   filesIndex: Record<string, string>
   packageImportMethod: 'hardlink'
-  manifest?: DependencyManifest
+  manifest?: DependencyManifest | undefined
 }
 
 export type DirectoryFetcher = FetchFunction<
@@ -74,8 +75,6 @@ export interface Fetchers {
   git: GitFetcher
 }
 
-export type FetchersKeys = keyof Fetchers
-
 interface CustomFetcherFactoryOptions {
   defaultFetchers: Fetchers
 }
@@ -85,9 +84,9 @@ export type CustomFetcherFactory<Fetcher> = (
 ) => Fetcher
 
 export interface CustomFetchers {
-  localTarball?: CustomFetcherFactory<FetchFunction>
-  remoteTarball?: CustomFetcherFactory<FetchFunction>
-  gitHostedTarball?: CustomFetcherFactory<FetchFunction>
-  directory?: CustomFetcherFactory<DirectoryFetcher>
-  git?: CustomFetcherFactory<GitFetcher>
+  localTarball?: CustomFetcherFactory<FetchFunction> | undefined
+  remoteTarball?: CustomFetcherFactory<FetchFunction> | undefined
+  gitHostedTarball?: CustomFetcherFactory<FetchFunction> | undefined
+  directory?: CustomFetcherFactory<DirectoryFetcher> | undefined
+  git?: CustomFetcherFactory<GitFetcher> | undefined
 }

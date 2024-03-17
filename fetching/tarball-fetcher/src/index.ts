@@ -1,10 +1,11 @@
+import '@total-typescript/ts-reset'
 import { PnpmError } from '@pnpm/error'
-import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
+import type { FetchFunction, FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
-import {
-  type FetchFromRegistry,
-  type GetAuthHeader,
-  type RetryTimeoutOptions,
+import type {
+  FetchFromRegistry,
+  GetAuthHeader,
+  RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { TarballIntegrityError } from '@pnpm/worker'
 import { createDownloader, type DownloadFunction } from './remoteTarballFetcher'

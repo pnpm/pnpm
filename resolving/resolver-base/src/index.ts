@@ -1,10 +1,11 @@
 import '@total-typescript/ts-reset'
 import type { DependencyManifest } from '@pnpm/types'
+import type { Fetchers } from '@pnpm/fetcher-base'
 /**
  * tarball hosted remotely
  */
 export interface TarballResolution {
-  type?: FetchersKeys | undefined
+  type?: keyof Fetchers | undefined
   tarball: string
   integrity?: string
 }
@@ -27,7 +28,7 @@ export type Resolution =
   | TarballResolution
   | DirectoryResolution
   | GitResolution
-  | ({ type: string } & object)
+  | ({ type: keyof Fetchers } & object)
 
 export interface ResolveResult {
   id: string

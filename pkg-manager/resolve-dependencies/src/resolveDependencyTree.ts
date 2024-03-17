@@ -1,20 +1,20 @@
-import { type Lockfile, type PatchFile } from '@pnpm/lockfile-types'
-import {
-  type PreferredVersions,
-  type Resolution,
-  type WorkspacePackages,
+import type { Lockfile, PatchFile } from '@pnpm/lockfile-types'
+import type {
+  PreferredVersions,
+  Resolution,
+  WorkspacePackages,
 } from '@pnpm/resolver-base'
-import { type StoreController } from '@pnpm/store-controller-types'
-import {
-  type SupportedArchitectures,
-  type AllowedDeprecatedVersions,
-  type ProjectManifest,
-  type ReadPackageHook,
-  type Registries,
+import type { StoreController } from '@pnpm/store-controller-types'
+import type {
+  SupportedArchitectures,
+  AllowedDeprecatedVersions,
+  ProjectManifest,
+  ReadPackageHook,
+  Registries,
 } from '@pnpm/types'
 import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
-import { type WantedDependency } from './getNonDevWantedDependencies'
+import type { WantedDependency } from './getNonDevWantedDependencies'
 import { createNodeId, nodeIdContainsSequence } from './nodeIdUtils'
 import {
   type ChildrenByParentDepPath,

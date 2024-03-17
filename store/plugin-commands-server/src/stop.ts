@@ -1,5 +1,5 @@
-import { promisify } from 'util'
-import path from 'path'
+import { promisify } from 'node:util'
+import path from 'node:path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { connectStoreController } from '@pnpm/server'
 import {
@@ -14,7 +14,7 @@ import killcb from 'tree-kill'
 const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 
 export async function stop(opts: {
-  storeDir?: string
+  storeDir?: string | undefined
   dir: string
   pnpmHomeDir: string
 }) {
@@ -49,7 +49,9 @@ export async function stop(opts: {
 }
 
 async function serverGracefullyStops(pid: number) {
-  if (!(await processExists(pid))) return true
+  if (!(await processExists(pid))) {
+    return true
+  }
 
   await delay(5000)
 

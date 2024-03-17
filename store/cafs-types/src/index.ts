@@ -3,7 +3,7 @@ import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 
 export interface PackageFileInfo {
-  checkedAt?: number // Nullable for backward compatibility
+  checkedAt?: number | undefined // Nullable for backward compatibility
   integrity: string
   mode: number
   size: number
@@ -17,7 +17,7 @@ export type PackageFilesResponse = {
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
 } & (
   | {
-    unprocessed?: false
+    unprocessed?: false | undefined
     filesIndex: Record<string, string>
   }
   | {
@@ -27,23 +27,23 @@ export type PackageFilesResponse = {
 )
 
 export interface ImportPackageOpts {
-  disableRelinkLocalDirDeps?: boolean
-  requiresBuild?: boolean
-  sideEffectsCacheKey?: string
+  disableRelinkLocalDirDeps?: boolean | undefined
+  requiresBuild?: boolean | undefined
+  sideEffectsCacheKey?: string | undefined
   filesResponse: PackageFilesResponse
   force: boolean
-  keepModulesDir?: boolean
+  keepModulesDir?: boolean | undefined
 }
 
 export type ImportPackageFunction = (
   to: string,
   opts: ImportPackageOpts
-) => { isBuilt: boolean; importMethod: undefined | string }
+) => { isBuilt: boolean; importMethod?: undefined | string }
 
 export type ImportPackageFunctionAsync = (
   to: string,
   opts: ImportPackageOpts
-) => Promise<{ isBuilt: boolean; importMethod: undefined | string }>
+) => Promise<{ isBuilt: boolean; importMethod?: undefined | string }>
 
 export type FileType = 'exec' | 'nonexec' | 'index'
 
@@ -62,7 +62,7 @@ export interface FileWriteResult {
 
 export interface AddToStoreResult {
   filesIndex: FilesIndex
-  manifest?: DependencyManifest
+  manifest?: DependencyManifest | undefined
 }
 
 export interface Cafs {

@@ -24,7 +24,7 @@ import {
   createOrConnectStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import { type DependenciesField } from '@pnpm/types'
+import type { DependenciesField } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'

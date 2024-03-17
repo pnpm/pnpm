@@ -4,7 +4,7 @@ import {
   type ResolveFunction,
 } from '@pnpm/client'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { type DependencyManifest, type Registries } from '@pnpm/types'
+import type { DependencyManifest, Registries } from '@pnpm/types'
 
 interface GetManifestOpts {
   dir: string

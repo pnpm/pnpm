@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import {
   getLockfileImporterId,
   type Lockfile,
@@ -18,12 +18,12 @@ import {
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
-import { type PackageNode } from './PackageNode'
-import { type SearchFunction } from './types'
+import type { PackageNode } from './PackageNode'
+import type { SearchFunction } from './types'
 import { getTree } from './getTree'
 import { getTreeNodeChildId } from './getTreeNodeChildId'
 import { getPkgInfo } from './getPkgInfo'
-import { type TreeNodeId } from './TreeNodeId'
+import type { TreeNodeId } from './TreeNodeId'
 
 export interface DependenciesHierarchy {
   dependencies?: PackageNode[]
