@@ -43,7 +43,6 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/npm-package-arg": "^1.0.0",
-    "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",

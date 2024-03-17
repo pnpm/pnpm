@@ -6,7 +6,6 @@ import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
-import { getSystemNodeVersion } from '@pnpm/package-is-installable'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
 import {
@@ -67,7 +66,7 @@ export interface StrictInstallOptions {
   onlyBuiltDependenciesFile?: string
   nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-  nodeVersion: string
+  nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
   ignoredOptionalDependencies: string[]
   pnpmfile: string
@@ -188,7 +187,7 @@ const defaults = (opts: InstallOptions) => {
     },
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
-    nodeVersion: opts.nodeVersion ?? getSystemNodeVersion(),
+    nodeVersion: opts.nodeVersion,
     nodeLinker: 'isolated',
     overrides: {},
     ownLifecycleHooksStdio: 'inherit',

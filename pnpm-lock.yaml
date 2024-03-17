@@ -3091,9 +3091,6 @@ importers:
       '@pnpm/npm-package-arg':
         specifier: ^1.0.0
         version: 1.0.0
-      '@pnpm/package-is-installable':
-        specifier: workspace:*
-        version: link:../../config/package-is-installable
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../package-requester
