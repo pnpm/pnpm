@@ -28,7 +28,7 @@ test('rebuilds dependencies', async () => {
     'add',
     '--save-dev',
     '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
-    'pnpm/test-git-fetch#6ebf1e03de0ada9e653d1f8ff82ad905ab761ad9',
+    'pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf',
     `--registry=${REGISTRY}`,
     `--store-dir=${storeDir}`,
     '--ignore-scripts',
@@ -38,7 +38,7 @@ test('rebuilds dependencies', async () => {
   let modules = project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
     '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
-    'test-git-fetch@https://codeload.github.com/pnpm/test-git-fetch/tar.gz/6ebf1e03de0ada9e653d1f8ff82ad905ab761ad9',
+    'test-git-fetch@https://codeload.github.com/pnpm/test-git-fetch/tar.gz/8b333f12d5357f4f25a654c305c826294cb073bf',
   ])
 
   const modulesManifest = project.readModulesManifest()
