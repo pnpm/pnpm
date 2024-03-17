@@ -2,7 +2,7 @@ import { packageManager } from '@pnpm/cli-meta'
 import { getConfig as _getConfig, type CliOptions } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 
-export async function getConfig (
+export async function getConfig(
   cliOptions: CliOptions,
   opts: {
     excludeReporter: boolean
@@ -27,7 +27,13 @@ export async function getConfig (
   }
 
   if (warnings.length > 0) {
-    console.log(warnings.map((warning) => formatWarn(warning)).join('\n'))
+    console.log(
+      warnings
+        .map((warning: string): string => {
+          return formatWarn(warning)
+        })
+        .join('\n')
+    )
   }
 
   return config

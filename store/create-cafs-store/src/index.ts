@@ -21,24 +21,26 @@ import mapValues from 'ramda/src/map'
 
 export { type CafsLocker }
 
-export function createPackageImporterAsync (
-  opts: {
-    importIndexedPackage?: ImportIndexedPackageAsync
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-    cafsDir: string
-  }
-): ImportPackageFunctionAsync {
+export function createPackageImporterAsync(opts: {
+  importIndexedPackage?: ImportIndexedPackageAsync
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+  cafsDir: string
+}): ImportPackageFunctionAsync {
   const cachedImporterCreator = opts.importIndexedPackage
     ? () => opts.importIndexedPackage!
     : memoize(createIndexedPkgImporter)
   const packageImportMethod = opts.packageImportMethod
   const gfm = getFlatMap.bind(null, opts.cafsDir)
   return async (to, opts) => {
-    const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    const willBeBuilt = !isBuilt && (opts.requiresBuild ?? pkgRequiresBuild(filesMap))
+    const { filesMap, isBuilt } = gfm(
+      opts.filesResponse,
+      opts.sideEffectsCacheKey
+    )
+    const willBeBuilt =
+      !isBuilt && (opts.requiresBuild ?? pkgRequiresBuild(filesMap))
     const pkgImportMethod = willBeBuilt
       ? 'clone-or-copy'
-      : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
+      : opts.filesResponse.packageImportMethod ?? packageImportMethod
     const impPkg = cachedImporterCreator(pkgImportMethod)
     const importMethod = await impPkg(to, {
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
@@ -51,24 +53,26 @@ export function createPackageImporterAsync (
   }
 }
 
-function createPackageImporter (
-  opts: {
-    importIndexedPackage?: ImportIndexedPackage
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-    cafsDir: string
-  }
-): ImportPackageFunction {
+function createPackageImporter(opts: {
+  importIndexedPackage?: ImportIndexedPackage
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+  cafsDir: string
+}): ImportPackageFunction {
   const cachedImporterCreator = opts.importIndexedPackage
     ? () => opts.importIndexedPackage!
     : memoize(createIndexedPkgImporter)
   const packageImportMethod = opts.packageImportMethod
   const gfm = getFlatMap.bind(null, opts.cafsDir)
   return (to, opts) => {
-    const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    const willBeBuilt = !isBuilt && (opts.requiresBuild ?? pkgRequiresBuild(filesMap))
+    const { filesMap, isBuilt } = gfm(
+      opts.filesResponse,
+      opts.sideEffectsCacheKey
+    )
+    const willBeBuilt =
+      !isBuilt && (opts.requiresBuild ?? pkgRequiresBuild(filesMap))
     const pkgImportMethod = willBeBuilt
       ? 'clone-or-copy'
-      : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
+      : opts.filesResponse.packageImportMethod ?? packageImportMethod
     const impPkg = cachedImporterCreator(pkgImportMethod)
     const importMethod = impPkg(to, {
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
@@ -81,14 +85,14 @@ function createPackageImporter (
   }
 }
 
-function getFlatMap (
+function getFlatMap(
   cafsDir: string,
   filesResponse: PackageFilesResponse,
   targetEngine?: string
-): { filesMap: Record<string, string>, isBuilt: boolean } {
+): { filesMap: Record<string, string>; isBuilt: boolean } {
   let isBuilt!: boolean
   let filesIndex!: Record<string, PackageFileInfo>
-  if (targetEngine && ((filesResponse.sideEffects?.[targetEngine]) != null)) {
+  if (targetEngine && filesResponse.sideEffects?.[targetEngine] != null) {
     filesIndex = filesResponse.sideEffects?.[targetEngine]
     isBuilt = true
   } else if (!filesResponse.unprocessed) {
@@ -100,16 +104,24 @@ function getFlatMap (
     filesIndex = filesResponse.filesIndex
     isBuilt = false
   }
-  const filesMap = mapValues(({ integrity, mode }) => getFilePathByModeInCafs(cafsDir, integrity, mode), filesIndex)
+  const filesMap = mapValues(
+    ({ integrity, mode }) => getFilePathByModeInCafs(cafsDir, integrity, mode),
+    filesIndex
+  )
   return { filesMap, isBuilt }
 }
 
-export function createCafsStore (
+export function createCafsStore(
   storeDir: string,
   opts?: {
     ignoreFile?: (filename: string) => boolean
     importPackage?: ImportIndexedPackage
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+    packageImportMethod?:
+      | 'auto'
+      | 'hardlink'
+      | 'copy'
+      | 'clone'
+      | 'clone-or-copy'
     cafsLocker?: CafsLocker
   }
 ): Cafs {
@@ -132,15 +144,20 @@ export function createCafsStore (
   }
 }
 
-function pkgRequiresBuild (filesMap: Record<string, string>) {
-  return filesIncludeInstallScripts(filesMap) ||
-    filesMap['package.json'] && pkgJsonHasInstallScripts(filesMap['package.json'])
+function pkgRequiresBuild(filesMap: Record<string, string>) {
+  return (
+    filesIncludeInstallScripts(filesMap) ||
+    (filesMap['package.json'] &&
+      pkgJsonHasInstallScripts(filesMap['package.json']))
+  )
 }
 
-function pkgJsonHasInstallScripts (file: string): boolean {
+function pkgJsonHasInstallScripts(file: string): boolean {
   const pkgJson = JSON.parse(readFileSync(file, 'utf8'))
   if (!pkgJson.scripts) return false
-  return Boolean(pkgJson.scripts.preinstall) ||
+  return (
+    Boolean(pkgJson.scripts.preinstall) ||
     Boolean(pkgJson.scripts.install) ||
     Boolean(pkgJson.scripts.postinstall)
+  )
 }

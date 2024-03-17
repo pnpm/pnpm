@@ -1,7 +1,4 @@
-import {
-  type LogBase,
-  logger,
-} from '@pnpm/logger'
+import { type LogBase, logger } from '@pnpm/logger'
 
 export const installCheckLogger = logger<InstallCheckMessage>('install-check')
 
@@ -10,4 +7,5 @@ export interface InstallCheckMessage {
   pkgId: string
 }
 
-export type InstallCheckLog = { name: 'pnpm:install-check' } & LogBase & InstallCheckMessage
+export type InstallCheckLog = { name: 'pnpm:install-check' } & LogBase &
+  InstallCheckMessage

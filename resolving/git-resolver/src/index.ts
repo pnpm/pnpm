@@ -5,23 +5,26 @@ import { parsePref, type HostedPackageSpec } from './parsePref'
 
 export type { HostedPackageSpec }
 
-export function createGitResolver (
-  opts: unknown
-) {
-  return async function resolveGit (
-    wantedDependency: { pref: string }
-  ): Promise<ResolveResult | null> {
+export function createGitResolver(opts: unknown) {
+  return async function resolveGit(wantedDependency: {
+    pref: string
+  }): Promise<ResolveResult | null> {
     const parsedSpec = await parsePref(wantedDependency.pref)
 
     if (parsedSpec == null) return null
 
-    const pref = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
-      ? 'HEAD'
-      : parsedSpec.gitCommittish
-    const commit = await resolveRef(parsedSpec.fetchSpec, pref, parsedSpec.gitRange)
+    const pref =
+      parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
+        ? 'HEAD'
+        : parsedSpec.gitCommittish
+    const commit = await resolveRef(
+      parsedSpec.fetchSpec,
+      pref,
+      parsedSpec.gitRange
+    )
     let resolution
 
-    if ((parsedSpec.hosted != null) && !isSsh(parsedSpec.fetchSpec)) {
+    if (parsedSpec.hosted != null && !isSsh(parsedSpec.fetchSpec)) {
       // don't use tarball for ssh url, they are likely private repo
       const hosted = parsedSpec.hosted
       // use resolved committish
@@ -38,14 +41,17 @@ export function createGitResolver (
         commit,
         repo: parsedSpec.fetchSpec,
         type: 'git',
-      } as ({ type: string } & object)
+      } as { type: string } & object
     }
 
     return {
-      id: parsedSpec.fetchSpec
-        .replace(/^.*:\/\/(git@)?/, '')
-        .replace(/:/g, '+')
-        .replace(/\.git$/, '') + '/' + commit,
+      id:
+        parsedSpec.fetchSpec
+          .replace(/^.*:\/\/(git@)?/, '')
+          .replace(/:/g, '+')
+          .replace(/\.git$/, '') +
+        '/' +
+        commit,
       normalizedPref: parsedSpec.normalizedPref,
       resolution,
       resolvedVia: 'git-repository',
@@ -53,11 +59,11 @@ export function createGitResolver (
   }
 }
 
-function resolveVTags (vTags: string[], range: string) {
+function resolveVTags(vTags: string[], range: string) {
   return semver.maxSatisfying(vTags, range, true)
 }
 
-async function getRepoRefs (repo: string, ref: string | null) {
+async function getRepoRefs(repo: string, ref: string | null) {
   const gitArgs = [repo]
   if (ref !== 'HEAD') {
     gitArgs.unshift('--refs')
@@ -67,15 +73,17 @@ async function getRepoRefs (repo: string, ref: string | null) {
   }
   // graceful-git by default retries 10 times, reduce to single retry
   const result = await git(['ls-remote', ...gitArgs], { retries: 1 })
-  const refs = result.stdout.split('\n').reduce((obj: Record<string, string>, line: string) => {
-    const [commit, refName] = line.split('\t')
-    obj[refName] = commit
-    return obj
-  }, {})
+  const refs = result.stdout
+    .split('\n')
+    .reduce((obj: Record<string, string>, line: string) => {
+      const [commit, refName] = line.split('\t')
+      obj[refName] = commit
+      return obj
+    }, {})
   return refs
 }
 
-async function resolveRef (repo: string, ref: string, range?: string) {
+async function resolveRef(repo: string, ref: string, range?: string) {
   if (ref.match(/^[0-9a-f]{7,40}$/) != null) {
     return ref
   }
@@ -83,7 +91,12 @@ async function resolveRef (repo: string, ref: string, range?: string) {
   return resolveRefFromRefs(refs, repo, ref, range)
 }
 
-function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref: string, range?: string) {
+function resolveRefFromRefs(
+  refs: { [ref: string]: string },
+  repo: string,
+  ref: string,
+  range?: string
+) {
   if (!range) {
     const commitId =
       refs[ref] ||
@@ -98,30 +111,31 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
 
     return commitId
   } else {
-    const vTags =
-      Object.keys(refs)
-        // using the same semantics of version tags as https://github.com/zkat/pacote
-        .filter((key: string) => /^refs\/tags\/v?(\d+\.\d+\.\d+(?:[-+].+)?)(\^{})?$/.test(key))
-        .map((key: string) => {
-          return key
-            .replace(/^refs\/tags\//, '')
-            .replace(/\^{}$/, '') // accept annotated tags
-        })
-        .filter((key: string) => semver.valid(key, true))
+    const vTags = Object.keys(refs)
+      // using the same semantics of version tags as https://github.com/zkat/pacote
+      .filter((key: string) =>
+        /^refs\/tags\/v?(\d+\.\d+\.\d+(?:[-+].+)?)(\^{})?$/.test(key)
+      )
+      .map((key: string) => {
+        return key.replace(/^refs\/tags\//, '').replace(/\^{}$/, '') // accept annotated tags
+      })
+      .filter((key: string) => semver.valid(key, true))
     const refVTag = resolveVTags(vTags, range)
-    const commitId = refVTag &&
+    const commitId =
+      refVTag &&
       (refs[`refs/tags/${refVTag}^{}`] || // prefer annotated tags
-      refs[`refs/tags/${refVTag}`])
+        refs[`refs/tags/${refVTag}`])
 
     if (!commitId) {
-      throw new Error(`Could not resolve ${range} to a commit of ${repo}. Available versions are: ${vTags.join(', ')}`)
+      throw new Error(
+        `Could not resolve ${range} to a commit of ${repo}. Available versions are: ${vTags.join(', ')}`
+      )
     }
 
     return commitId
   }
 }
 
-function isSsh (gitSpec: string): boolean {
-  return gitSpec.slice(0, 10) === 'git+ssh://' ||
-    gitSpec.slice(0, 4) === 'git@'
+function isSsh(gitSpec: string): boolean {
+  return gitSpec.slice(0, 10) === 'git+ssh://' || gitSpec.slice(0, 4) === 'git@'
 }

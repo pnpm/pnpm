@@ -10,7 +10,9 @@ const rootModulesDir = path.join(__dirname, '..', 'node_modules')
 
 test('runLifecycleHook()', async () => {
   const pkgRoot = f.find('simple')
-  await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
+  await using server = await createTestIpcServer(
+    path.join(pkgRoot, 'test.sock')
+  )
   const pkg = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
     depPath: '/simple/1.0.0',
@@ -36,12 +38,16 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
     args: ['Revert "feature (#1)"'],
   })
 
-  expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['Revert "feature (#1)"'])
+  expect(
+    (await import(path.join(pkgRoot, 'output.json'))).default
+  ).toStrictEqual(['Revert "feature (#1)"'])
 })
 
 test('runLifecycleHook() sets frozen-lockfile to false', async () => {
   const pkgRoot = f.find('inspect-frozen-lockfile')
-  await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
+  await using server = await createTestIpcServer(
+    path.join(pkgRoot, 'test.sock')
+  )
   const pkg = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
     depPath: '/inspect-frozen-lockfile/1.0.0',
@@ -58,7 +64,9 @@ test('runLifecycleHook() sets frozen-lockfile to false', async () => {
 
 test('runPostinstallHooks()', async () => {
   const pkgRoot = f.find('with-many-scripts')
-  await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
+  await using server = await createTestIpcServer(
+    path.join(pkgRoot, 'test.sock')
+  )
   await runPostinstallHooks({
     depPath: '/with-many-scripts/1.0.0',
     optional: false,
@@ -68,7 +76,11 @@ test('runPostinstallHooks()', async () => {
     unsafePerm: true,
   })
 
-  expect(server.getLines()).toStrictEqual(['preinstall', 'install', 'postinstall'])
+  expect(server.getLines()).toStrictEqual([
+    'preinstall',
+    'install',
+    'postinstall',
+  ])
 })
 
 test('runLifecycleHook() should throw an error while missing script start or file server.js', async () => {
@@ -83,12 +95,19 @@ test('runLifecycleHook() should throw an error while missing script start or fil
       rootModulesDir,
       unsafePerm: true,
     })
-  ).rejects.toThrow(new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js'))
+  ).rejects.toThrow(
+    new PnpmError(
+      'NO_SCRIPT_OR_SERVER',
+      'Missing script start or file server.js'
+    )
+  )
 })
 
 test('preinstall script does not trigger node-gyp rebuild', async () => {
   const pkgRoot = f.find('gyp-with-preinstall')
-  await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
+  await using server = await createTestIpcServer(
+    path.join(pkgRoot, 'test.sock')
+  )
   await runPostinstallHooks({
     depPath: '/gyp-with-preinstall/1.0.0',
     optional: false,

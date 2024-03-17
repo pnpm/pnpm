@@ -16,22 +16,20 @@ import {
 } from './extendStoreStatusOptions'
 import { type TarballResolution } from '@pnpm/store-controller-types'
 
-export async function storeStatus (maybeOpts: StoreStatusOptions) {
+export async function storeStatus(maybeOpts: StoreStatusOptions) {
   const reporter = maybeOpts?.reporter
-  if ((reporter != null) && typeof reporter === 'function') {
+  if (reporter != null && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendStoreStatusOptions(maybeOpts)
-  const {
-    registries,
-    storeDir,
-    skipped,
-    virtualStoreDir,
-    wantedLockfile,
-  } = await getContextForSingleImporter({}, {
-    ...opts,
-    extraBinPaths: [], // ctx.extraBinPaths is not needed, so this is fine
-  })
+  const { registries, storeDir, skipped, virtualStoreDir, wantedLockfile } =
+    await getContextForSingleImporter(
+      {},
+      {
+        ...opts,
+        extraBinPaths: [], // ctx.extraBinPaths is not needed, so this is fine
+      }
+    )
   if (!wantedLockfile) return []
 
   const pkgs = Object.entries(wantedLockfile.packages ?? {})
@@ -48,15 +46,29 @@ export async function storeStatus (maybeOpts: StoreStatusOptions) {
     })
 
   const cafsDir = path.join(storeDir, 'files')
-  const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
-    const pkgIndexFilePath = integrity
-      ? getFilePathInCafs(cafsDir, integrity, 'index')
-      : path.join(storeDir, dp.depPathToFilename(id), 'integrity.json')
-    const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
-    return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules', name), files)) === false
-  }, { concurrency: 8 })
+  const modified = await pFilter(
+    pkgs,
+    async ({ id, integrity, depPath, name }) => {
+      const pkgIndexFilePath = integrity
+        ? getFilePathInCafs(cafsDir, integrity, 'index')
+        : path.join(storeDir, dp.depPathToFilename(id), 'integrity.json')
+      const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
+      return (
+        (await dint.check(
+          path.join(
+            virtualStoreDir,
+            dp.depPathToFilename(depPath),
+            'node_modules',
+            name
+          ),
+          files
+        )) === false
+      )
+    },
+    { concurrency: 8 }
+  )
 
-  if ((reporter != null) && typeof reporter === 'function') {
+  if (reporter != null && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
 

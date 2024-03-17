@@ -4,12 +4,26 @@ import {
   readProjectManifest,
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
+import {
+  FILTERING,
+  OPTIONS,
+  UNIVERSAL_OPTIONS,
+} from '@pnpm/common-cli-options-help'
+import {
+  type Config,
+  getOptionsFromRootManifest,
+  types as allTypes,
+} from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import {
+  arrayOfWorkspacePackagesToMap,
+  findWorkspacePackages,
+} from '@pnpm/workspace.find-packages'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import {
+  createOrConnectStoreController,
+  type CreateStoreControllerOptions,
+} from '@pnpm/store-connection-manager'
 import { type DependenciesField } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import pick from 'ramda/src/pick'
@@ -19,15 +33,13 @@ import { getSaveType } from './getSaveType'
 import { recursive } from './recursive'
 
 class RemoveMissingDepsError extends PnpmError {
-  constructor (
-    opts: {
-      availableDependencies: string[]
-      nonMatchedDependencies: string[]
-      targetDependenciesField?: DependenciesField
-    }
-  ) {
+  constructor(opts: {
+    availableDependencies: string[]
+    nonMatchedDependencies: string[]
+    targetDependenciesField?: DependenciesField
+  }) {
     let message = 'Cannot remove '
-    message += `${opts.nonMatchedDependencies.map(dep => `'${dep}'`).join(', ')}: `
+    message += `${opts.nonMatchedDependencies.map((dep) => `'${dep}'`).join(', ')}: `
     if (opts.availableDependencies.length > 0) {
       message += `no such ${opts.nonMatchedDependencies.length > 1 ? 'dependencies' : 'dependency'} `
       message += `found${opts.targetDependenciesField ? ` in '${opts.targetDependenciesField}'` : ''}`
@@ -42,29 +54,34 @@ class RemoveMissingDepsError extends PnpmError {
   }
 }
 
-export function rcOptionsTypes () {
-  return pick([
-    'cache-dir',
-    'global-dir',
-    'global-pnpmfile',
-    'global',
-    'lockfile-dir',
-    'lockfile-directory',
-    'lockfile-only',
-    'lockfile',
-    'node-linker',
-    'package-import-method',
-    'pnpmfile',
-    'reporter',
-    'save-dev',
-    'save-optional',
-    'save-prod',
-    'shared-workspace-lockfile',
-    'store',
-    'store-dir',
-    'strict-peer-dependencies',
-    'virtual-store-dir',
-  ], allTypes)
+export function rcOptionsTypes() {
+  return pick(
+    [
+      'cache-dir',
+      'global-dir',
+      'global-pnpmfile',
+      'global',
+      'lockfile-dir',
+      'lockfile-directory',
+      'lockfile-only',
+      'lockfile',
+      'node-linker',
+      'package-import-method',
+      'pnpmfile',
+      'reporter',
+      'save-dev',
+      'save-optional',
+      'save-prod',
+      'shared-workspace-lockfile',
+
+      // @ts-ignore
+      'store',
+      'store-dir',
+      'strict-peer-dependencies',
+      'virtual-store-dir',
+    ],
+    allTypes
+  )
 }
 
 export const cliOptionsTypes = () => ({
@@ -73,17 +90,19 @@ export const cliOptionsTypes = () => ({
   recursive: Boolean,
 })
 
-export function help () {
+export function help() {
   return renderHelp({
     aliases: ['rm', 'uninstall', 'un'],
-    description: 'Removes packages from `node_modules` and from the project\'s `package.json`.',
+    description:
+      "Removes packages from `node_modules` and from the project's `package.json`.",
     descriptionLists: [
       {
         title: 'Options',
 
         list: [
           {
-            description: 'Remove from every package found in subdirectories \
+            description:
+              'Remove from every package found in subdirectories \
 or from every workspace package, when executed inside a workspace. \
 For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
@@ -95,7 +114,8 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             shortAlias: '-D',
           },
           {
-            description: 'Remove the dependency only from "optionalDependencies"',
+            description:
+              'Remove the dependency only from "optionalDependencies"',
             name: '--save-optional',
             shortAlias: '-O',
           },
@@ -123,69 +143,88 @@ export const completion: CompletionFunc = async (cliOpts, params) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
-export async function handler (
-  opts: CreateStoreControllerOptions & Pick<Config,
-  | 'allProjects'
-  | 'allProjectsGraph'
-  | 'bail'
-  | 'bin'
-  | 'dev'
-  | 'engineStrict'
-  | 'globalPnpmfile'
-  | 'hooks'
-  | 'ignorePnpmfile'
-  | 'linkWorkspacePackages'
-  | 'lockfileDir'
-  | 'optional'
-  | 'pnpmfile'
-  | 'production'
-  | 'rawLocalConfig'
-  | 'registries'
-  | 'rootProjectManifest'
-  | 'rootProjectManifestDir'
-  | 'saveDev'
-  | 'saveOptional'
-  | 'saveProd'
-  | 'selectedProjectsGraph'
-  | 'workspaceDir'
-  | 'sharedWorkspaceLockfile'
-  > & {
-    recursive?: boolean
-  },
+export async function handler(
+  opts: CreateStoreControllerOptions &
+    Pick<
+      Config,
+      | 'allProjects'
+      | 'allProjectsGraph'
+      | 'bail'
+      | 'bin'
+      | 'dev'
+      | 'engineStrict'
+      | 'globalPnpmfile'
+      | 'hooks'
+      | 'ignorePnpmfile'
+      | 'linkWorkspacePackages'
+      | 'lockfileDir'
+      | 'optional'
+      | 'pnpmfile'
+      | 'production'
+      | 'rawLocalConfig'
+      | 'registries'
+      | 'rootProjectManifest'
+      | 'rootProjectManifestDir'
+      | 'saveDev'
+      | 'saveOptional'
+      | 'saveProd'
+      | 'selectedProjectsGraph'
+      | 'workspaceDir'
+      | 'sharedWorkspaceLockfile'
+    > & {
+      recursive?: boolean
+    },
   params: string[]
 ) {
-  if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')
+  if (params.length === 0)
+    throw new PnpmError(
+      'MUST_REMOVE_SOMETHING',
+      'At least one dependency name should be specified for removal'
+    )
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
-    await recursive(opts.allProjects, params, {
-      ...opts,
-      allProjectsGraph: opts.allProjectsGraph!,
-      include,
-      selectedProjectsGraph: opts.selectedProjectsGraph,
-      workspaceDir: opts.workspaceDir,
-    }, 'remove')
+  if (
+    opts.recursive &&
+    opts.allProjects != null &&
+    opts.selectedProjectsGraph != null &&
+    opts.workspaceDir
+  ) {
+    await recursive(
+      opts.allProjects,
+      params,
+      {
+        ...opts,
+        allProjectsGraph: opts.allProjectsGraph!,
+        include,
+        selectedProjectsGraph: opts.selectedProjectsGraph,
+        workspaceDir: opts.workspaceDir,
+      },
+      'remove'
+    )
     return
   }
   const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
+    ...getOptionsFromRootManifest(
+      opts.rootProjectManifestDir,
+      opts.rootProjectManifest ?? {}
+    ),
     storeController: store.ctrl,
     storeDir: store.dir,
     include,
   })
   // @ts-expect-error
-  removeOpts['workspacePackages'] = opts.workspaceDir
-    ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
+  removeOpts.workspacePackages = opts.workspaceDir
+    ? arrayOfWorkspacePackagesToMap(
+      await findWorkspacePackages(opts.workspaceDir, opts)
+    )
     : undefined
   const targetDependenciesField = getSaveType(opts)
-  const {
-    manifest: currentManifest,
-    writeProjectManifest,
-  } = await readProjectManifest(opts.dir, opts)
+  const { manifest: currentManifest, writeProjectManifest } =
+    await readProjectManifest(opts.dir, opts)
   const availableDependencies = Object.keys(
     targetDependenciesField === undefined
       ? getAllDependenciesFromManifest(currentManifest)

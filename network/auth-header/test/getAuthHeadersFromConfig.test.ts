@@ -26,7 +26,9 @@ describe('getAuthHeadersFromConfig()', () => {
       '//localhost:3000/:_auth': 'foobar',
     }
     const userSettings = {}
-    expect(getAuthHeadersFromConfig({ allSettings, userSettings })).toStrictEqual({
+    expect(
+      getAuthHeadersFromConfig({ allSettings, userSettings })
+    ).toStrictEqual({
       '//registry.npmjs.org/': 'Bearer abc123',
       '//registry.foobar.eu/': 'Basic Zm9vYmFyOmZvb2Jhcg==',
       '//registry.hu/': 'Basic foobar',
@@ -39,7 +41,9 @@ describe('getAuthHeadersFromConfig()', () => {
         registry: 'https://reg.com/',
         _auth: 'foobar',
       }
-      expect(getAuthHeadersFromConfig({ allSettings, userSettings: {} })).toStrictEqual({
+      expect(
+        getAuthHeadersFromConfig({ allSettings, userSettings: {} })
+      ).toStrictEqual({
         '//reg.com/': 'Basic foobar',
       })
     })
@@ -49,7 +53,9 @@ describe('getAuthHeadersFromConfig()', () => {
         username: 'foo',
         _password: 'bar',
       }
-      expect(getAuthHeadersFromConfig({ allSettings, userSettings: {} })).toStrictEqual({
+      expect(
+        getAuthHeadersFromConfig({ allSettings, userSettings: {} })
+      ).toStrictEqual({
         '//reg.com/': `Basic ${encodeBase64('foo:bar')}`,
       })
     })
@@ -60,7 +66,9 @@ describe('getAuthHeadersFromConfig()', () => {
       const userSettings = {
         tokenHelper: osTokenHelper[osFamily],
       }
-      expect(getAuthHeadersFromConfig({ allSettings, userSettings })).toStrictEqual({
+      expect(
+        getAuthHeadersFromConfig({ allSettings, userSettings })
+      ).toStrictEqual({
         '//reg.com/': 'Bearer token-from-spawn',
       })
     })
@@ -69,49 +77,61 @@ describe('getAuthHeadersFromConfig()', () => {
         registry: 'https://reg.com/',
         tokenHelper: osTokenHelper[osFamily],
       }
-      expect(getAuthHeadersFromConfig({ allSettings, userSettings: {} })).toStrictEqual({})
+      expect(
+        getAuthHeadersFromConfig({ allSettings, userSettings: {} })
+      ).toStrictEqual({})
     })
   })
   it('should get tokenHelper', () => {
     const userSettings = {
       '//registry.foobar.eu/:tokenHelper': osTokenHelper[osFamily],
     }
-    expect(getAuthHeadersFromConfig({ allSettings: {}, userSettings })).toStrictEqual({
+    expect(
+      getAuthHeadersFromConfig({ allSettings: {}, userSettings })
+    ).toStrictEqual({
       '//registry.foobar.eu/': 'Bearer token-from-spawn',
     })
   })
   it('should throw an error if the token helper is not an absolute path', () => {
-    expect(() => getAuthHeadersFromConfig({
-      allSettings: {},
-      userSettings: {
-        '//reg.com:tokenHelper': './utils/text-exec.js',
-      },
-    })).toThrowError('must be an absolute path, without arguments')
+    expect(() =>
+      getAuthHeadersFromConfig({
+        allSettings: {},
+        userSettings: {
+          '//reg.com:tokenHelper': './utils/text-exec.js',
+        },
+      })
+    ).toThrowError('must be an absolute path, without arguments')
   })
   it('should throw an error if the token helper is not an absolute path with args', () => {
-    expect(() => getAuthHeadersFromConfig({
-      allSettings: {},
-      userSettings: {
-        '//reg.com:tokenHelper': `${osTokenHelper[osFamily]} arg1`,
-      },
-    })).toThrowError('must be an absolute path, without arguments')
+    expect(() =>
+      getAuthHeadersFromConfig({
+        allSettings: {},
+        userSettings: {
+          '//reg.com:tokenHelper': `${osTokenHelper[osFamily]} arg1`,
+        },
+      })
+    ).toThrowError('must be an absolute path, without arguments')
   })
   it('should throw an error if the token helper fails', () => {
-    expect(() => getAuthHeadersFromConfig({
-      allSettings: {},
-      userSettings: {
-        '//reg.com:tokenHelper': osErrorTokenHelper[osFamily],
-      },
-    })).toThrowError('Exit code')
+    expect(() =>
+      getAuthHeadersFromConfig({
+        allSettings: {},
+        userSettings: {
+          '//reg.com:tokenHelper': osErrorTokenHelper[osFamily],
+        },
+      })
+    ).toThrowError('Exit code')
   })
   it('only read token helper from user config', () => {
     const allSettings = {
       '//reg.com:tokenHelper': osTokenHelper[osFamily],
     }
-    expect(getAuthHeadersFromConfig({ allSettings, userSettings: {} })).toStrictEqual({})
+    expect(
+      getAuthHeadersFromConfig({ allSettings, userSettings: {} })
+    ).toStrictEqual({})
   })
 })
 
-function encodeBase64 (s: string) {
+function encodeBase64(s: string) {
   return Buffer.from(s, 'utf8').toString('base64')
 }

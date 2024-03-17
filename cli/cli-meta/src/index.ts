@@ -1,14 +1,17 @@
-import path from 'path'
+import path from 'node:path'
 import { type DependencyManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 
 const defaultManifest = {
-  name: process.env.npm_package_name != null && process.env.npm_package_name !== ''
-    ? process.env.npm_package_name
-    : 'pnpm',
-  version: process.env.npm_package_version != null && process.env.npm_package_version !== ''
-    ? process.env.npm_package_version
-    : '0.0.0',
+  name:
+    process.env.npm_package_name != null && process.env.npm_package_name !== ''
+      ? process.env.npm_package_name
+      : 'pnpm',
+  version:
+    process.env.npm_package_version != null &&
+    process.env.npm_package_version !== ''
+      ? process.env.npm_package_version
+      : '0.0.0',
 }
 let pkgJson
 if (require.main == null) {
@@ -21,7 +24,7 @@ if (require.main == null) {
         path.join(path.dirname(require.main.filename), '../package.json')
       ),
     }
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     pkgJson = defaultManifest
   }
 }

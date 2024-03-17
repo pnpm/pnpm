@@ -1,6 +1,6 @@
-import path from 'path'
+import path from 'node:path'
 import { packageManager } from '@pnpm/cli-meta'
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { updateCheckLogger } from '@pnpm/core-loggers'
@@ -13,7 +13,7 @@ interface State {
 
 const UPDATE_CHECK_FREQUENCY = 24 * 60 * 60 * 1000 // 1 day
 
-export async function checkForUpdates (config: Config) {
+export async function checkForUpdates(config: Config) {
   const stateFile = path.join(config.stateDir, 'pnpm-state.json')
   let state: State | undefined
   try {
@@ -22,8 +22,10 @@ export async function checkForUpdates (config: Config) {
 
   if (
     state?.lastUpdateCheck &&
-    (Date.now() - new Date(state.lastUpdateCheck).valueOf()) < UPDATE_CHECK_FREQUENCY
-  ) return
+    Date.now() - new Date(state.lastUpdateCheck).valueOf() <
+      UPDATE_CHECK_FREQUENCY
+  )
+    return
 
   const resolve = createResolver({
     ...config,
@@ -32,12 +34,19 @@ export async function checkForUpdates (config: Config) {
       retries: 0,
     },
   })
-  const resolution = await resolve({ alias: packageManager.name, pref: 'latest' }, {
-    lockfileDir: config.lockfileDir ?? config.dir,
-    preferredVersions: {},
-    projectDir: config.dir,
-    registry: pickRegistryForPackage(config.registries, packageManager.name, 'latest'),
-  })
+  const resolution = await resolve(
+    { alias: packageManager.name, pref: 'latest' },
+    {
+      lockfileDir: config.lockfileDir ?? config.dir,
+      preferredVersions: {},
+      projectDir: config.dir,
+      registry: pickRegistryForPackage(
+        config.registries,
+        packageManager.name,
+        'latest'
+      ),
+    }
+  )
   if (resolution?.manifest?.version) {
     updateCheckLogger.debug({
       currentVersion: packageManager.version,

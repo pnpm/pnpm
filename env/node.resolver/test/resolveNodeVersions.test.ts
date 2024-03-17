@@ -6,7 +6,7 @@ const fetch = createFetchFromRegistry({})
 test('resolve specified version list', async () => {
   const versions = await resolveNodeVersions(fetch, '16')
   expect(versions.length).toBeGreaterThan(1)
-  expect(versions.every(version => version.match(/^16.+/))).toBeTruthy()
+  expect(versions.every((version) => version.match(/^16.+/))).toBeTruthy()
 })
 
 test('resolve latest version', async () => {

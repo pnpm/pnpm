@@ -1,8 +1,8 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { tempDir } from '@pnpm/prepare'
 
-export function fixtures (searchFromDir: string) {
+export function fixtures(searchFromDir: string) {
   return {
     copy: copyFixture.bind(null, searchFromDir),
     find: findFixture.bind(null, searchFromDir),
@@ -10,13 +10,13 @@ export function fixtures (searchFromDir: string) {
   }
 }
 
-function prepareFixture (searchFromDir: string, name: string): string {
+function prepareFixture(searchFromDir: string, name: string): string {
   const dir = tempDir()
   copyFixture(searchFromDir, name, dir)
   return dir
 }
 
-function copyFixture (searchFromDir: string, name: string, dest: string): void {
+function copyFixture(searchFromDir: string, name: string, dest: string): void {
   const fixturePath = findFixture(searchFromDir, name)
   if (!fixturePath) throw new Error(`${name} not found`)
   const stats = fs.statSync(fixturePath)
@@ -29,12 +29,15 @@ function copyFixture (searchFromDir: string, name: string, dest: string): void {
   }
 }
 
-function copyAndRename (src: string, dest: string) {
+function copyAndRename(src: string, dest: string) {
   const entries = fs.readdirSync(src)
 
-  entries.forEach(entry => {
+  entries.forEach((entry) => {
     const srcPath = path.join(src, entry)
-    const destPath = path.join(dest, entry.startsWith('_') ? entry.substring(1) : entry)
+    const destPath = path.join(
+      dest,
+      entry.startsWith('_') ? entry.substring(1) : entry
+    )
     const stats = fs.statSync(srcPath)
 
     if (stats.isDirectory()) {
@@ -49,7 +52,7 @@ function copyAndRename (src: string, dest: string) {
   })
 }
 
-function findFixture (dir: string, name: string): string {
+function findFixture(dir: string, name: string): string {
   const { root } = path.parse(dir)
   while (true) {
     let checkDir = path.join(dir, 'fixtures', name)

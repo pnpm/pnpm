@@ -2,7 +2,10 @@ import { promisify } from 'util'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { connectStoreController } from '@pnpm/server'
-import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'
+import {
+  serverConnectionInfoDir,
+  tryLoadServerJson,
+} from '@pnpm/store-connection-manager'
 import { getStorePath } from '@pnpm/store-path'
 import delay from 'delay'
 import processExists from 'process-exists'
@@ -10,13 +13,11 @@ import killcb from 'tree-kill'
 
 const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 
-export async function stop (
-  opts: {
-    storeDir?: string
-    dir: string
-    pnpmHomeDir: string
-  }
-) {
+export async function stop(opts: {
+  storeDir?: string
+  dir: string
+  pnpmHomeDir: string
+}) {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
@@ -28,10 +29,14 @@ export async function stop (
     shouldRetryOnNoent: false,
   })
   if (serverJson === null) {
-    globalInfo(`Nothing to stop. No server is running for the store at ${storeDir}`)
+    globalInfo(
+      `Nothing to stop. No server is running for the store at ${storeDir}`
+    )
     return
   }
-  const storeController = await connectStoreController(serverJson.connectionOptions)
+  const storeController = await connectStoreController(
+    serverJson.connectionOptions
+  )
   await storeController.stop()
 
   if (await serverGracefullyStops(serverJson.pid)) {
@@ -43,10 +48,10 @@ export async function stop (
   globalInfo('Server process terminated')
 }
 
-async function serverGracefullyStops (pid: number) {
-  if (!await processExists(pid)) return true
+async function serverGracefullyStops(pid: number) {
+  if (!(await processExists(pid))) return true
 
   await delay(5000)
 
-  return !await processExists(pid)
+  return !(await processExists(pid))
 }

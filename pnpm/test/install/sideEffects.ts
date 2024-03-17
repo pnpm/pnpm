@@ -12,7 +12,10 @@ test.skip('caching side effects of native package', async function () {
 
   await execPnpm(['add', '--side-effects-cache', 'diskusage@1.1.3'])
   const storePath = await project.getStorePath()
-  const cacheBuildDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(
+    storePath,
+    `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`
+  )
   const stat1 = await fs.stat(cacheBuildDir)
 
   expect(existsSync(path.join('node_modules/diskusage/build'))).toBeTruthy()
@@ -32,14 +35,34 @@ test.skip('using side effects cache', async function () {
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
-  await execPnpm(['add', 'diskusage@1.1.3', '--side-effects-cache', '--no-verify-store-integrity', '--package-import-method', 'copy'])
+  await execPnpm([
+    'add',
+    'diskusage@1.1.3',
+    '--side-effects-cache',
+    '--no-verify-store-integrity',
+    '--package-import-method',
+    'copy',
+  ])
   const storePath = await project.getStorePath()
 
-  const cacheBuildDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
-  await fs.writeFile(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
+  const cacheBuildDir = path.join(
+    storePath,
+    `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`
+  )
+  await fs.writeFile(
+    path.join(cacheBuildDir, 'new-file.txt'),
+    'some new content'
+  )
 
   await rimraf('node_modules')
-  await execPnpm(['add', 'diskusage@1.1.3', '--side-effects-cache', '--no-verify-store-integrity', '--package-import-method', 'copy'])
+  await execPnpm([
+    'add',
+    'diskusage@1.1.3',
+    '--side-effects-cache',
+    '--no-verify-store-integrity',
+    '--package-import-method',
+    'copy',
+  ])
 
   expect(existsSync('node_modules/diskusage/build/new-file.txt')).toBeTruthy()
 })
@@ -47,22 +70,54 @@ test.skip('using side effects cache', async function () {
 test.skip('readonly side effects cache', async function () {
   const project = prepare()
 
-  await execPnpm(['add', 'diskusage@1.1.2', '--side-effects-cache', '--no-verify-store-integrity'])
+  await execPnpm([
+    'add',
+    'diskusage@1.1.2',
+    '--side-effects-cache',
+    '--no-verify-store-integrity',
+  ])
   const storePath = await project.getStorePath()
 
   // Modify the side effects cache to make sure we are using it
-  const cacheBuildDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.2/side_effects/${ENGINE_DIR}/package/build`)
-  await fs.writeFile(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
+  const cacheBuildDir = path.join(
+    storePath,
+    `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.2/side_effects/${ENGINE_DIR}/package/build`
+  )
+  await fs.writeFile(
+    path.join(cacheBuildDir, 'new-file.txt'),
+    'some new content'
+  )
 
   await rimraf('node_modules')
-  await execPnpm(['add', 'diskusage@1.1.2', '--side-effects-cache-readonly', '--no-verify-store-integrity', '--package-import-method', 'copy'])
+  await execPnpm([
+    'add',
+    'diskusage@1.1.2',
+    '--side-effects-cache-readonly',
+    '--no-verify-store-integrity',
+    '--package-import-method',
+    'copy',
+  ])
 
   expect(existsSync('node_modules/diskusage/build/new-file.txt')).toBeTruthy()
 
   await rimraf('node_modules')
   // changing version to make sure we don't create the cache
-  await execPnpm(['add', 'diskusage@1.1.3', '--side-effects-cache-readonly', '--no-verify-store-integrity', '--package-import-method', 'copy'])
+  await execPnpm([
+    'add',
+    'diskusage@1.1.3',
+    '--side-effects-cache-readonly',
+    '--no-verify-store-integrity',
+    '--package-import-method',
+    'copy',
+  ])
 
   expect(existsSync('node_modules/diskusage/build')).toBeTruthy()
-  expect(existsSync(path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`))).not.toBeTruthy()
+  expect(
+    existsSync(
+      path.join(
+        storePath,
+        `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`
+      )
+    )
+  ).not.toBeTruthy()
 })

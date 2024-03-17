@@ -13,8 +13,13 @@ import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import pickBy from 'ramda/src/pickBy'
 import renameOverwrite from 'rename-overwrite'
 
-export async function makeDedicatedLockfile (lockfileDir: string, projectDir: string) {
-  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
+export async function makeDedicatedLockfile(
+  lockfileDir: string,
+  projectDir: string
+) {
+  const lockfile = await readWantedLockfile(lockfileDir, {
+    ignoreIncompatible: false,
+  })
   if (lockfile == null) {
     throw new Error('no lockfile found')
   }
@@ -24,7 +29,8 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   for (const [importerId, importer] of Object.entries(allImporters)) {
     if (importerId.startsWith(`${baseImporterId}/`)) {
       const newImporterId = importerId.slice(baseImporterId.length + 1)
-      lockfile.importers[newImporterId] = projectSnapshotWithoutLinkedDeps(importer)
+      lockfile.importers[newImporterId] =
+        projectSnapshotWithoutLinkedDeps(importer)
       continue
     }
     if (importerId === baseImporterId) {
@@ -35,7 +41,8 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
 
   await writeWantedLockfile(projectDir, dedicatedLockfile)
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(projectDir)
+  const { manifest, writeProjectManifest } =
+    await readProjectManifest(projectDir)
   const publishManifest = await createExportableManifest(projectDir, manifest)
   await writeProjectManifest(publishManifest)
 
@@ -48,21 +55,24 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     await renameOverwrite(tmp, tempModulesDir)
     modulesRenamed = true
   } catch (err: any) { // eslint-disable-line
-    if (err['code'] !== 'ENOENT') throw err
+    if (err.code !== 'ENOENT') throw err
   }
 
   try {
-    await pnpmExec([
-      'install',
-      '--frozen-lockfile',
-      '--lockfile-dir=.',
-      '--fix-lockfile',
-      '--filter=.',
-      '--no-link-workspace-packages',
-      '--config.dedupe-peer-dependents=false', // TODO: remove this. It should work without it
-    ], {
-      cwd: projectDir,
-    })
+    await pnpmExec(
+      [
+        'install',
+        '--frozen-lockfile',
+        '--lockfile-dir=.',
+        '--fix-lockfile',
+        '--filter=.',
+        '--no-link-workspace-packages',
+        '--config.dedupe-peer-dependents=false', // TODO: remove this. It should work without it
+      ],
+      {
+        cwd: projectDir,
+      }
+    )
   } finally {
     if (modulesRenamed) {
       await renameOverwrite(tempModulesDir, tmp)
@@ -72,13 +82,16 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   }
 }
 
-function projectSnapshotWithoutLinkedDeps (projectSnapshot: ProjectSnapshot) {
+function projectSnapshotWithoutLinkedDeps(projectSnapshot: ProjectSnapshot) {
   const newProjectSnapshot: ProjectSnapshot = {
     specifiers: projectSnapshot.specifiers,
   }
   for (const depField of DEPENDENCIES_FIELDS) {
     if (projectSnapshot[depField] == null) continue
-    newProjectSnapshot[depField] = pickBy((depVersion) => !depVersion.startsWith('link:'), projectSnapshot[depField])
+    newProjectSnapshot[depField] = pickBy(
+      (depVersion) => !depVersion.startsWith('link:'),
+      projectSnapshot[depField]
+    )
   }
   return newProjectSnapshot
 }

@@ -6,9 +6,14 @@ import {
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import type { ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 
-export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries'>
+export type WritePackageOptions = CreateStoreControllerOptions &
+  Pick<Config, 'registries'>
 
-export async function writePackage (dep: ParseWantedDependencyResult, dest: string, opts: WritePackageOptions) {
+export async function writePackage(
+  dep: ParseWantedDependencyResult,
+  dest: string,
+  opts: WritePackageOptions
+) {
   const store = await createOrConnectStoreController({
     ...opts,
     packageImportMethod: 'clone-or-copy',
@@ -18,7 +23,9 @@ export async function writePackage (dep: ParseWantedDependencyResult, dest: stri
     lockfileDir: opts.dir,
     preferredVersions: {},
     projectDir: opts.dir,
-    registry: (dep.alias && pickRegistryForPackage(opts.registries, dep.alias)) ?? opts.registries.default,
+    registry:
+      (dep.alias && pickRegistryForPackage(opts.registries, dep.alias)) ??
+      opts.registries.default,
   })
   const { files } = await pkgResponse.fetching!()
   await store.ctrl.importPackage(dest, {

@@ -18,24 +18,29 @@ import {
   type PackageManifest,
 } from '@pnpm/types'
 
-export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
+export type {
+  PackageFileInfo,
+  PackageFilesResponse,
+  ImportPackageFunction,
+  ImportPackageFunctionAsync,
+}
 
 export * from '@pnpm/resolver-base'
 export type BundledManifest = Pick<
-DependencyManifest,
-| 'bin'
-| 'bundledDependencies'
-| 'bundleDependencies'
-| 'dependencies'
-| 'directories'
-| 'engines'
-| 'name'
-| 'optionalDependencies'
-| 'os'
-| 'peerDependencies'
-| 'peerDependenciesMeta'
-| 'scripts'
-| 'version'
+  DependencyManifest,
+  | 'bin'
+  | 'bundledDependencies'
+  | 'bundleDependencies'
+  | 'dependencies'
+  | 'directories'
+  | 'engines'
+  | 'name'
+  | 'optionalDependencies'
+  | 'os'
+  | 'peerDependencies'
+  | 'peerDependenciesMeta'
+  | 'scripts'
+  | 'version'
 >
 
 export interface UploadPkgToStoreOpts {
@@ -43,7 +48,10 @@ export interface UploadPkgToStoreOpts {
   sideEffectsCacheKey: string
 }
 
-export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<void>
+export type UploadPkgToStore = (
+  builtPkgLocation: string,
+  opts: UploadPkgToStoreOpts
+) => Promise<void>
 
 export interface StoreController {
   requestPackage: RequestPackageFunction
@@ -74,7 +82,9 @@ export type FetchPackageToStoreFunctionAsync = (
   fetching: () => Promise<PkgRequestFetchResult>
 }>
 
-export type GetFilesIndexFilePath = (opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>) => {
+export type GetFilesIndexFilePath = (
+  opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>
+) => {
   filesIndexFile: string
   target: string
 }
@@ -157,10 +167,11 @@ export interface PackageResponse {
     // resolved package, it is out-of-date.
     latest?: string
   } & (
-    {
+    | {
       isLocal: true
       resolution: DirectoryResolution
-    } | {
+    }
+    | {
       isLocal: false
     }
   )
@@ -176,6 +187,12 @@ export interface ImportOptions {
   keepModulesDir?: boolean
 }
 
-export type ImportIndexedPackage = (to: string, opts: ImportOptions) => string | undefined
+export type ImportIndexedPackage = (
+  to: string,
+  opts: ImportOptions
+) => string | undefined
 
-export type ImportIndexedPackageAsync = (to: string, opts: ImportOptions) => Promise<string | undefined>
+export type ImportIndexedPackageAsync = (
+  to: string,
+  opts: ImportOptions
+) => Promise<string | undefined>

@@ -4,8 +4,10 @@ import { PnpmError } from '@pnpm/error'
 import normalize from 'normalize-path'
 
 // @ts-expect-error
-const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
-const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
+const isWindows = process.platform === 'win32' || global.FAKE_WINDOWS
+const isFilespec = isWindows
+  ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/
+  : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
 const isFilename = /[.](?:tgz|tar.gz|tar)$/i
 const isAbsolutePath = /^[/]|^[A-Za-z]:/
 
@@ -22,7 +24,7 @@ export interface WantedLocalDependency {
   injected?: boolean
 }
 
-export function parsePref (
+export function parsePref(
   wd: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string
@@ -30,7 +32,8 @@ export function parsePref (
   if (wd.pref.startsWith('link:') || wd.pref.startsWith('workspace:')) {
     return fromLocal(wd, projectDir, lockfileDir, 'directory')
   }
-  if (wd.pref.endsWith('.tgz') ||
+  if (
+    wd.pref.endsWith('.tgz') ||
     wd.pref.endsWith('.tar.gz') ||
     wd.pref.endsWith('.tar') ||
     wd.pref.includes(path.sep) ||
@@ -41,25 +44,29 @@ export function parsePref (
     return fromLocal(wd, projectDir, lockfileDir, type)
   }
   if (wd.pref.startsWith('path:')) {
-    const err = new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
-      'Use the `link:` protocol for folder dependencies and `file:` for local tarballs')
+    const err = new PnpmError(
+      'PATH_IS_UNSUPPORTED_PROTOCOL',
+      'Local dependencies via `path:` protocol are not supported. ' +
+        'Use the `link:` protocol for folder dependencies and `file:` for local tarballs'
+    )
     // @ts-expect-error
-    err['pref'] = wd.pref
+    err.pref = wd.pref
     // @ts-expect-error
-    err['protocol'] = 'path:'
+    err.protocol = 'path:'
 
     throw err
   }
   return null
 }
 
-function fromLocal (
+function fromLocal(
   { pref, injected }: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string,
   type: 'file' | 'directory'
 ): LocalPackageSpec {
-  const spec = pref.replace(/\\/g, '/')
+  const spec = pref
+    .replace(/\\/g, '/')
     .replace(/^(file|link|workspace):[/]*([A-Za-z]:)/, '$2') // drive name paths on windows
     .replace(/^(file|link|workspace):(?:[/]*([~./]))?/, '$2')
 
@@ -90,9 +97,10 @@ function fromLocal (
   const dependencyPath = injected
     ? normalize(path.relative(lockfileDir, fetchSpec))
     : normalize(path.resolve(fetchSpec))
-  const id = !injected && (type === 'directory' || projectDir === lockfileDir)
-    ? `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
-    : `${protocol}${normalize(path.relative(lockfileDir, fetchSpec))}`
+  const id =
+    !injected && (type === 'directory' || projectDir === lockfileDir)
+      ? `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
+      : `${protocol}${normalize(path.relative(lockfileDir, fetchSpec))}`
 
   return {
     dependencyPath,
@@ -103,12 +111,12 @@ function fromLocal (
   }
 }
 
-function resolvePath (where: string, spec: string) {
+function resolvePath(where: string, spec: string) {
   if (isAbsolutePath.test(spec)) return spec
   return path.resolve(where, spec)
 }
 
-function isAbsolute (dir: string) {
+function isAbsolute(dir: string) {
   if (dir[0] === '/') return true
   if (/^[A-Za-z]:/.test(dir)) return true
   return false

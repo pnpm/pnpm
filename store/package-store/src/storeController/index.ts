@@ -1,4 +1,8 @@
-import { createCafsStore, createPackageImporterAsync, type CafsLocker } from '@pnpm/create-cafs-store'
+import {
+  createCafsStore,
+  createPackageImporterAsync,
+  type CafsLocker,
+} from '@pnpm/create-cafs-store'
 import { type Fetchers } from '@pnpm/fetcher-base'
 import { createPackageRequester } from '@pnpm/package-requester'
 import { type ResolveFunction } from '@pnpm/resolver-base'
@@ -11,7 +15,7 @@ import { prune } from './prune'
 
 export { type CafsLocker }
 
-export async function createPackageStore (
+export async function createPackageStore(
   resolve: ResolveFunction,
   fetchers: Fetchers,
   initOpts: {
@@ -25,7 +29,12 @@ export async function createPackageStore (
     cacheDir: string
     storeDir: string
     networkConcurrency?: number
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+    packageImportMethod?:
+      | 'auto'
+      | 'hardlink'
+      | 'copy'
+      | 'clone'
+      | 'clone-or-copy'
     verifyStoreIntegrity: boolean
   }
 ): Promise<StoreController> {
@@ -53,19 +62,26 @@ export async function createPackageStore (
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
     importPackage: initOpts.importPackage
-      ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, cafsDir: cafs.cafsDir })
-      : (targetDir, opts) => importPackage({
-        ...opts,
-        packageImportMethod: initOpts.packageImportMethod,
-        storeDir: initOpts.storeDir,
-        targetDir,
-      }),
+      ? createPackageImporterAsync({
+        importIndexedPackage: initOpts.importPackage,
+        cafsDir: cafs.cafsDir,
+      })
+      : (targetDir, opts) =>
+        importPackage({
+          ...opts,
+          packageImportMethod: initOpts.packageImportMethod,
+          storeDir: initOpts.storeDir,
+          targetDir,
+        }),
     prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
     requestPackage: packageRequester.requestPackage,
     upload,
   }
 
-  async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) {
+  async function upload(
+    builtPkgLocation: string,
+    opts: { filesIndexFile: string; sideEffectsCacheKey: string }
+  ) {
     await addFilesFromDir({
       cafsDir: cafs.cafsDir,
       dir: builtPkgLocation,

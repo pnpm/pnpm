@@ -2,32 +2,37 @@ import nerfDart from 'nerf-dart'
 import { getAuthHeadersFromConfig, loadToken } from './getAuthHeadersFromConfig'
 import { removePort } from './helpers/removePort'
 
-export {
-  loadToken,
-}
+export { loadToken }
 
-export function createGetAuthHeaderByURI (
-  opts: {
-    allSettings: Record<string, string>
-    userSettings?: Record<string, string>
-  }
-) {
+export function createGetAuthHeaderByURI(opts: {
+  allSettings: Record<string, string>
+  userSettings?: Record<string, string>
+}) {
   const authHeaders = getAuthHeadersFromConfig({
     allSettings: opts.allSettings,
     userSettings: opts.userSettings ?? {},
   })
-  if (Object.keys(authHeaders).length === 0) return (uri: string) => basicAuth(new URL(uri))
-  return getAuthHeaderByURI.bind(null, authHeaders, getMaxParts(Object.keys(authHeaders)))
+  if (Object.keys(authHeaders).length === 0)
+    return (uri: string) => basicAuth(new URL(uri))
+  return getAuthHeaderByURI.bind(
+    null,
+    authHeaders,
+    getMaxParts(Object.keys(authHeaders))
+  )
 }
 
-function getMaxParts (uris: string[]) {
+function getMaxParts(uris: string[]) {
   return uris.reduce((max, uri) => {
     const parts = uri.split('/').length
     return parts > max ? parts : max
   }, 0)
 }
 
-function getAuthHeaderByURI (authHeaders: Record<string, string>, maxParts: number, uri: string): string | undefined {
+function getAuthHeaderByURI(
+  authHeaders: Record<string, string>,
+  maxParts: number,
+  uri: string
+): string | undefined {
   if (!uri.endsWith('/')) {
     uri += '/'
   }
@@ -47,7 +52,7 @@ function getAuthHeaderByURI (authHeaders: Record<string, string>, maxParts: numb
   return undefined
 }
 
-function basicAuth (uri: URL): string | undefined {
+function basicAuth(uri: URL): string | undefined {
   if (!uri.username && !uri.password) return undefined
   const auth64 = btoa(`${uri.username}:${uri.password}`)
   return `Basic ${auth64}`

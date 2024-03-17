@@ -1,22 +1,17 @@
 import { type Completion, type CompletionFunc } from '@pnpm/command'
 import { split as splitCmd } from 'split-cmd'
 import tabtab from '@pnpm/tabtab'
-import {
-  currentTypedWordType,
-  getLastOption,
-} from '../getOptionType'
+import { currentTypedWordType, getLastOption } from '../getOptionType'
 import { parseCliArgs } from '../parseCliArgs'
 import { complete } from './complete'
 
-export function createCompletion (
-  opts: {
-    cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>>
-    completionByCommandName: Record<string, CompletionFunc>
-    initialCompletion: () => Completion[]
-    shorthandsByCommandName: Record<string, Record<string, string | string[]>>
-    universalOptionsTypes: Record<string, unknown>
-  }
-) {
+export function createCompletion(opts: {
+  cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>>
+  completionByCommandName: Record<string, CompletionFunc>
+  initialCompletion: () => Completion[]
+  shorthandsByCommandName: Record<string, Record<string, string | string[]>>
+  universalOptionsTypes: Record<string, unknown>
+}) {
   return async () => {
     const env = tabtab.parseEnv(process.env)
     if (!env.complete) return
@@ -29,16 +24,13 @@ export function createCompletion (
     if (inputArgv.includes('--')) return
     const { params, options, cmd } = await parseCliArgs(inputArgv)
     return tabtab.log(
-      await complete(
-        opts,
-        {
-          cmd,
-          currentTypedWordType: currentTypedWordType(env),
-          lastOption: getLastOption(env),
-          options,
-          params,
-        }
-      )
+      await complete(opts, {
+        cmd,
+        currentTypedWordType: currentTypedWordType(env),
+        lastOption: getLastOption(env),
+        options,
+        params,
+      })
     )
   }
 }

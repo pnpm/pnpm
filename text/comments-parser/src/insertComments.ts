@@ -1,6 +1,6 @@
 import { type CommentSpecifier } from './CommentSpecifier'
 
-export function insertComments (json: string, comments: CommentSpecifier[]) {
+export function insertComments(json: string, comments: CommentSpecifier[]) {
   // We need to reintroduce the comments. So create an index of
   // the lines of the manifest so we can try to match them up.
   // We eliminate whitespace and quotes in the index entries,
@@ -35,7 +35,7 @@ export function insertComments (json: string, comments: CommentSpecifier[]) {
     }
     // Next, try to put it before something; note the comment extractor
     // used the convention that position 0 is before the first line:
-    let location = (comment.lineNumber === 0) ? 0 : -1
+    let location = comment.lineNumber === 0 ? 0 : -1
     if (location < 0) {
       key = comment.before.replace(canonicalizer, '')
       if (key && index[key] !== undefined) {
@@ -69,7 +69,9 @@ export function insertComments (json: string, comments: CommentSpecifier[]) {
       location = jsonLines.length - 1
       separator = '\n'
     }
-    jsonLines[location] += separator + comment.content +
+    jsonLines[location] +=
+      separator +
+      comment.content +
       ' /* [comment possibly relocated by pnpm] */'
   }
   // Insert the accumulated prefixes:

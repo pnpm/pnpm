@@ -12,7 +12,7 @@ const SEMVER_OPTS = {
   loose: true,
 }
 
-export async function resolveNodeVersion (
+export async function resolveNodeVersion(
   fetch: FetchFromRegistry,
   versionSpec: string,
   nodeMirrorBaseUrl?: string
@@ -25,7 +25,7 @@ export async function resolveNodeVersion (
   return semver.maxSatisfying(versions, versionRange, SEMVER_OPTS) ?? null
 }
 
-export async function resolveNodeVersions (
+export async function resolveNodeVersions(
   fetch: FetchFromRegistry,
   versionSpec?: string,
   nodeMirrorBaseUrl?: string
@@ -38,18 +38,25 @@ export async function resolveNodeVersions (
     return [allVersions[0].version]
   }
   const { versions, versionRange } = filterVersions(allVersions, versionSpec)
-  return versions.filter(version => semver.satisfies(version, versionRange, SEMVER_OPTS))
+  return versions.filter((version) =>
+    semver.satisfies(version, versionRange, SEMVER_OPTS)
+  )
 }
 
-async function fetchAllVersions (fetch: FetchFromRegistry, nodeMirrorBaseUrl?: string): Promise<NodeVersion[]> {
-  const response = await fetch(`${nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'}index.json`)
+async function fetchAllVersions(
+  fetch: FetchFromRegistry,
+  nodeMirrorBaseUrl?: string
+): Promise<NodeVersion[]> {
+  const response = await fetch(
+    `${nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'}index.json`
+  )
   return ((await response.json()) as NodeVersion[]).map(({ version, lts }) => ({
     version: version.substring(1),
     lts,
   }))
 }
 
-function filterVersions (versions: NodeVersion[], versionSelector: string) {
+function filterVersions(versions: NodeVersion[], versionSelector: string) {
   if (versionSelector === 'lts') {
     return {
       versions: versions
@@ -63,7 +70,10 @@ function filterVersions (versions: NodeVersion[], versionSelector: string) {
     const wantedLtsVersion = vst.normalized.toLowerCase()
     return {
       versions: versions
-        .filter(({ lts }) => typeof lts === 'string' && lts.toLowerCase() === wantedLtsVersion)
+        .filter(
+          ({ lts }) =>
+            typeof lts === 'string' && lts.toLowerCase() === wantedLtsVersion
+        )
         .map(({ version }) => version),
       versionRange: '*',
     }

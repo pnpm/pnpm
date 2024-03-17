@@ -13,7 +13,10 @@ export interface PruneOptions {
   storeDir: string
 }
 
-export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFiles?: boolean) {
+export async function prune(
+  { cacheDir, storeDir }: PruneOptions,
+  removeAlienFiles?: boolean
+) {
   const cafsDir = path.join(storeDir, 'files')
   await Promise.all([
     rimraf(path.join(cacheDir, 'metadata')),
@@ -25,45 +28,58 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
   const pkgIndexFiles = [] as string[]
   const removedHashes = new Set<string>()
   const dirs = (await fs.readdir(cafsDir, { withFileTypes: true }))
-    .filter(entry => entry.isDirectory())
-    .map(dir => dir.name)
+    .filter((entry) => entry.isDirectory())
+    .map((dir) => dir.name)
   let fileCounter = 0
-  await Promise.all(dirs.map(async (dir) => {
-    const subdir = path.join(cafsDir, dir)
-    await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
-      const filePath = path.join(subdir, fileName)
-      if (fileName.endsWith('-index.json')) {
-        pkgIndexFiles.push(filePath)
-        return
-      }
-      const stat = await fs.stat(filePath)
-      if (stat.isDirectory()) {
-        if (removeAlienFiles) {
-          await rimraf(filePath)
-          globalWarn(`An alien directory has been removed from the store: ${filePath}`)
-          fileCounter++
-          return
-        } else {
-          globalWarn(`An alien directory is present in the store: ${filePath}`)
-          return
-        }
-      }
-      if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
-        await fs.unlink(filePath)
-        fileCounter++
-        removedHashes.add(ssri.fromHex(`${dir}${fileName}`, 'sha512').toString())
-      }
-    }))
-  }))
+  await Promise.all(
+    dirs.map(async (dir) => {
+      const subdir = path.join(cafsDir, dir)
+      await Promise.all(
+        (await fs.readdir(subdir)).map(async (fileName) => {
+          const filePath = path.join(subdir, fileName)
+          if (fileName.endsWith('-index.json')) {
+            pkgIndexFiles.push(filePath)
+            return
+          }
+          const stat = await fs.stat(filePath)
+          if (stat.isDirectory()) {
+            if (removeAlienFiles) {
+              await rimraf(filePath)
+              globalWarn(
+                `An alien directory has been removed from the store: ${filePath}`
+              )
+              fileCounter++
+              return
+            } else {
+              globalWarn(
+                `An alien directory is present in the store: ${filePath}`
+              )
+              return
+            }
+          }
+          if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
+            await fs.unlink(filePath)
+            fileCounter++
+            removedHashes.add(
+              ssri.fromHex(`${dir}${fileName}`, 'sha512').toString()
+            )
+          }
+        })
+      )
+    })
+  )
   globalInfo(`Removed ${fileCounter} file${fileCounter === 1 ? '' : 's'}`)
 
   let pkgCounter = 0
-  await Promise.all(pkgIndexFiles.map(async (pkgIndexFilePath) => {
-    const { files: pkgFilesIndex } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
-    if (removedHashes.has(pkgFilesIndex['package.json'].integrity)) {
-      await fs.unlink(pkgIndexFilePath)
-      pkgCounter++
-    }
-  }))
+  await Promise.all(
+    pkgIndexFiles.map(async (pkgIndexFilePath) => {
+      const { files: pkgFilesIndex } =
+        await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
+      if (removedHashes.has(pkgFilesIndex['package.json'].integrity)) {
+        await fs.unlink(pkgIndexFilePath)
+        pkgCounter++
+      }
+    })
+  )
   globalInfo(`Removed ${pkgCounter} package${pkgCounter === 1 ? '' : 's'}`)
 }

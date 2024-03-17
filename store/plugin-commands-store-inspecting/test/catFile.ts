@@ -28,7 +28,12 @@ test('print hash file content', async () => {
         version: '8.12.1',
       },
     })
-    const output = await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa08Cs/D+e2BPzGSnOn5aCyWiJbwlMm3HqKMK6qKrBg+/u6LduS/a1mc8IsNQ=='])
+    const output = await catFile.handler(
+      config as catFile.CatFileCommandOptions,
+      [
+        'sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa08Cs/D+e2BPzGSnOn5aCyWiJbwlMm3HqKMK6qKrBg+/u6LduS/a1mc8IsNQ==',
+      ]
+    )
 
     expect(output).toBe(`# Bytes utility
 
@@ -196,7 +201,9 @@ test('print hash file content error', async () => {
         version: '8.12.1',
       },
     })
-    await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa08'])
+    await catFile.handler(config as catFile.CatFileCommandOptions, [
+      'sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa08',
+    ])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }

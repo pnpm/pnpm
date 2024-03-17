@@ -108,8 +108,7 @@ test('createPackageExtender() should works for odd names', () => {
   expect(
     extender({
       name: 'constructor',
-      dependencies: {
-      },
+      dependencies: {},
     })
   ).toStrictEqual({
     name: 'constructor',

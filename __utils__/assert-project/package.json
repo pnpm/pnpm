@@ -18,8 +18,8 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/isexe": "2.0.2",
-    "@types/node": "^18.14.6"
+    "@types/isexe": "2.0.4",
+    "@types/node": "^20.11.28"
   },
   "directories": {
     "test": "test"
@@ -44,10 +44,11 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
-    "@pnpm/registry-mock": "3.20.0",
+    "@pnpm/registry-mock": "3.26.0",
     "@pnpm/types": "workspace:*",
+    "type-fest": "^0.4.1",
     "is-windows": "^1.0.2",
-    "isexe": "2.0.0",
+    "isexe": "3.1.1",
     "path-exists": "^4.0.0",
     "read-yaml-file": "^2.1.0",
     "write-pkg": "4.0.0"

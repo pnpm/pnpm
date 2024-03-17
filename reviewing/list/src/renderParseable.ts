@@ -5,7 +5,7 @@ import { type PackageDependencyHierarchy } from './types'
 
 const sortPackages = sortBy(prop('name'))
 
-export async function renderParseable (
+export async function renderParseable(
   pkgs: PackageDependencyHierarchy[],
   opts: {
     long: boolean
@@ -17,11 +17,11 @@ export async function renderParseable (
   const depPaths = new Set<string>()
   return pkgs
     .map(renderParseableForPackage.bind(null, depPaths, opts))
-    .filter(p => p.length !== 0)
+    .filter((p) => p.length !== 0)
     .join('\n')
 }
 
-function renderParseableForPackage (
+function renderParseableForPackage(
   depPaths: Set<string>,
   opts: {
     long: boolean
@@ -32,17 +32,14 @@ function renderParseableForPackage (
   pkg: PackageDependencyHierarchy
 ) {
   const pkgs = sortPackages(
-    flatten(
-      depPaths,
-      [
-        ...(pkg.optionalDependencies ?? []),
-        ...(pkg.dependencies ?? []),
-        ...(pkg.devDependencies ?? []),
-        ...(pkg.unsavedDependencies ?? []),
-      ]
-    )
+    flatten(depPaths, [
+      ...(pkg.optionalDependencies ?? []),
+      ...(pkg.dependencies ?? []),
+      ...(pkg.devDependencies ?? []),
+      ...(pkg.unsavedDependencies ?? []),
+    ])
   )
-  if (!opts.alwaysPrintRootPackage && (pkgs.length === 0)) return ''
+  if (!opts.alwaysPrintRootPackage && pkgs.length === 0) return ''
   if (opts.long) {
     let firstLine = pkg.path
     if (pkg.name) {
@@ -59,10 +56,7 @@ function renderParseableForPackage (
       ...pkgs.map((pkg) => `${pkg.path}:${pkg.name}@${pkg.version}`),
     ].join('\n')
   }
-  return [
-    pkg.path,
-    ...pkgs.map((pkg) => pkg.path),
-  ].join('\n')
+  return [pkg.path, ...pkgs.map((pkg) => pkg.path)].join('\n')
 }
 
 interface PackageInfo {
@@ -71,10 +65,7 @@ interface PackageInfo {
   path: string
 }
 
-function flatten (
-  depPaths: Set<string>,
-  nodes: PackageNode[]
-): PackageInfo[] {
+function flatten(depPaths: Set<string>, nodes: PackageNode[]): PackageInfo[] {
   let packages: PackageInfo[] = []
   for (const node of nodes) {
     // The content output by renderParseable is flat,

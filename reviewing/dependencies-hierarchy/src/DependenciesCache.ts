@@ -73,14 +73,20 @@ export interface CacheHit {
  * downstream commands.
  */
 export class DependenciesCache {
-  private readonly fullyVisitedCache = new Map<string, TraversalResultFullyVisited>()
+  private readonly fullyVisitedCache = new Map<
+    string,
+    TraversalResultFullyVisited
+  >()
 
   /**
    *  Maps cacheKey -> visitedDepth -> dependencies
    */
-  private readonly partiallyVisitedCache = new Map<string, Map<number, PackageNode[]>>()
+  private readonly partiallyVisitedCache = new Map<
+    string,
+    Map<number, PackageNode[]>
+  >()
 
-  public get (args: GetDependenciesCacheEntryArgs): CacheHit | undefined {
+  public get(args: GetDependenciesCacheEntryArgs): CacheHit | undefined {
     const cacheKey = serializeTreeNodeId(args.parentId)
 
     // The fully visited cache is only usable if the height doesn't exceed the
@@ -90,7 +96,10 @@ export class DependenciesCache {
     // If that is the case, the partially visited cache should be checked to see
     // if dependencies were requested at that exact depth before.
     const fullyVisitedEntry = this.fullyVisitedCache.get(cacheKey)
-    if (fullyVisitedEntry !== undefined && fullyVisitedEntry.height <= args.requestedDepth) {
+    if (
+      fullyVisitedEntry !== undefined &&
+      fullyVisitedEntry.height <= args.requestedDepth
+    ) {
       return {
         dependencies: fullyVisitedEntry.dependencies,
         height: fullyVisitedEntry.height,
@@ -98,7 +107,9 @@ export class DependenciesCache {
       }
     }
 
-    const partiallyVisitedEntry = this.partiallyVisitedCache.get(cacheKey)?.get(args.requestedDepth)
+    const partiallyVisitedEntry = this.partiallyVisitedCache
+      .get(cacheKey)
+      ?.get(args.requestedDepth)
     if (partiallyVisitedEntry != null) {
       return {
         dependencies: partiallyVisitedEntry,
@@ -110,14 +121,21 @@ export class DependenciesCache {
     return undefined
   }
 
-  public addFullyVisitedResult (treeNodeId: TreeNodeId, result: TraversalResultFullyVisited): void {
+  public addFullyVisitedResult(
+    treeNodeId: TreeNodeId,
+    result: TraversalResultFullyVisited
+  ): void {
     const cacheKey = serializeTreeNodeId(treeNodeId)
     this.fullyVisitedCache.set(cacheKey, result)
   }
 
-  public addPartiallyVisitedResult (treeNodeId: TreeNodeId, result: TraversalResultPartiallyVisited): void {
+  public addPartiallyVisitedResult(
+    treeNodeId: TreeNodeId,
+    result: TraversalResultPartiallyVisited
+  ): void {
     const cacheKey = serializeTreeNodeId(treeNodeId)
-    const dependenciesByDepth = this.partiallyVisitedCache.get(cacheKey) ?? new Map()
+    const dependenciesByDepth =
+      this.partiallyVisitedCache.get(cacheKey) ?? new Map()
     if (!this.partiallyVisitedCache.has(cacheKey)) {
       this.partiallyVisitedCache.set(cacheKey, dependenciesByDepth)
     }

@@ -28,42 +28,43 @@
     "dev-setup": "pnpm -C=./pnpm/dev link -g"
   },
   "devDependencies": {
-    "@babel/core": "^7.23.3",
+    "@babel/core": "^7.24.0",
     "@babel/plugin-proposal-dynamic-import": "^7.18.6",
+    "@babel/plugin-transform-dynamic-import": "^7.23.4",
     "@babel/plugin-transform-modules-commonjs": "^7.23.3",
     "@babel/preset-typescript": "^7.23.3",
-    "@babel/types": "^7.23.3",
-    "@changesets/cli": "^2.26.2",
+    "@babel/types": "^7.24.0",
+    "@changesets/cli": "^2.27.1",
     "@commitlint/cli": "^17.8.1",
     "@commitlint/config-conventional": "^17.8.1",
     "@commitlint/prompt-cli": "^17.8.1",
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/meta-updater": "1.0.0",
-    "@pnpm/registry-mock": "3.20.0",
+    "@pnpm/registry-mock": "3.26.0",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/worker": "workspace:*",
-    "@types/jest": "^29.5.8",
-    "@types/node": "^18.14.6",
-    "c8": "^7.14.0",
-    "concurrently": "8.2.1",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.28",
+    "c8": "^9.1.0",
+    "concurrently": "8.2.2",
     "cross-env": "^7.0.3",
-    "cspell": "7.3.8",
-    "eslint": "^8.56.0",
+    "cspell": "^7.3.9",
+    "eslint": "^8.57.0",
     "husky": "^8.0.3",
     "jest": "^29.7.0",
     "keyv": "4.5.4",
-    "lcov-result-merger": "^3.3.0",
+    "lcov-result-merger": "^5.0.0",
     "publish-packed": "^4.1.2",
-    "rimraf": "^3.0.2",
+    "rimraf": "^5.0.5",
     "shx": "^0.3.4",
-    "syncpack": "^8.5.14",
-    "ts-jest": "29.1.1",
+    "syncpack": "^12.3.0",
+    "ts-jest": "29.1.2",
     "ts-node": "^10.9.2",
-    "typescript": "5.3.3",
-    "verdaccio": "5.20.1"
+    "typescript": "5.4.2",
+    "verdaccio": "5.29.2"
   },
   "engines": {
-    "pnpm": ">=9"
+    "pnpm": ">=8"
   },
   "pnpm": {
     "overrides": {
@@ -74,11 +75,11 @@
       "glob-parent@<5.1.2": ">=5.1.2",
       "hosted-git-info@1": "npm:@pnpm/hosted-git-info@1.0.0",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
-      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.6",
+      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.7",
       "json5@<2.2.2": ">=2.2.2",
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
       "nopt@5": "npm:@pnpm/nopt@^0.2.1",
-      "verdaccio": "5.20.1",
+      "verdaccio": "5.29.2",
       "yaml@<2.2.2": ">=2.2.2",
       "semver@<7.5.2": ">=7.5.2",
       "@yarnpkg/core": "4.0.0-rc.45",
@@ -149,7 +150,7 @@
       },
       "@yarnpkg/nm": {
         "dependencies": {
-          "@yarnpkg/pnp": "^4.0.0-rc.25"
+          "@yarnpkg/pnp": "^4.0.2"
         }
       }
     },

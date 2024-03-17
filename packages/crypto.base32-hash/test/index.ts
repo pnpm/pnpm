@@ -1,6 +1,9 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
-import { createBase32Hash, createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
+import {
+  createBase32Hash,
+  createBase32HashFromFile,
+} from '@pnpm/crypto.base32-hash'
 import { tempDir } from '@pnpm/prepare'
 
 test('createBase32Hash()', () => {
@@ -11,5 +14,7 @@ test('createBase32HashFromFile normalizes line endings before calculating the ha
   tempDir()
   fs.writeFileSync('win-eol.txt', 'a\r\nb\r\nc')
   fs.writeFileSync('posix-eol.txt', 'a\nb\r\nc')
-  expect(await createBase32HashFromFile('win-eol.txt')).toEqual(await createBase32HashFromFile('posix-eol.txt'))
+  expect(await createBase32HashFromFile('win-eol.txt')).toEqual(
+    await createBase32HashFromFile('posix-eol.txt')
+  )
 })

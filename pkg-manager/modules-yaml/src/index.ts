@@ -1,5 +1,9 @@
 import path from 'path'
-import { type DependenciesField, type HoistedDependencies, type Registries } from '@pnpm/types'
+import {
+  type DependenciesField,
+  type HoistedDependencies,
+  type Registries,
+} from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import mapValues from 'ramda/src/map'
 import isWindows from 'is-windows'
@@ -33,7 +37,9 @@ export interface Modules {
   hoistedLocations?: Record<string, string[]>
 }
 
-export async function readModulesManifest (modulesDir: string): Promise<Modules | null> {
+export async function readModulesManifest(
+  modulesDir: string
+): Promise<Modules | null> {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   let modules!: Modules
   try {
@@ -51,31 +57,32 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
     modules.virtualStoreDir = path.join(modulesDir, modules.virtualStoreDir)
   }
   switch (modules.shamefullyHoist) {
-  case true:
-    if (modules.publicHoistPattern == null) {
-      modules.publicHoistPattern = ['*']
-    }
-    if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
-      modules.hoistedDependencies = mapValues(
-        (aliases) => Object.fromEntries(aliases.map((alias) => [alias, 'public'])),
-        modules.hoistedAliases
-      )
-    }
-    break
-  case false:
-    if (modules.publicHoistPattern == null) {
-      modules.publicHoistPattern = []
-    }
-    if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
-      modules.hoistedDependencies = {}
-      for (const depPath of Object.keys(modules.hoistedAliases)) {
-        modules.hoistedDependencies[depPath] = {}
-        for (const alias of modules.hoistedAliases[depPath]) {
-          modules.hoistedDependencies[depPath][alias] = 'private'
+    case true:
+      if (modules.publicHoistPattern == null) {
+        modules.publicHoistPattern = ['*']
+      }
+      if (modules.hoistedAliases != null && !modules.hoistedDependencies) {
+        modules.hoistedDependencies = mapValues(
+          (aliases) =>
+            Object.fromEntries(aliases.map((alias) => [alias, 'public'])),
+          modules.hoistedAliases
+        )
+      }
+      break
+    case false:
+      if (modules.publicHoistPattern == null) {
+        modules.publicHoistPattern = []
+      }
+      if (modules.hoistedAliases != null && !modules.hoistedDependencies) {
+        modules.hoistedDependencies = {}
+        for (const depPath of Object.keys(modules.hoistedAliases)) {
+          modules.hoistedDependencies[depPath] = {}
+          for (const alias of modules.hoistedAliases[depPath]) {
+            modules.hoistedDependencies[depPath][alias] = 'private'
+          }
         }
       }
-    }
-    break
+      break
   }
   if (!modules.prunedAt) {
     modules.prunedAt = new Date().toUTCString()
@@ -90,7 +97,7 @@ const YAML_OPTS = {
   sortKeys: true,
 }
 
-export async function writeModulesManifest (
+export async function writeModulesManifest(
   modulesDir: string,
   modules: Modules & { registries: Registries },
   opts?: {
@@ -101,14 +108,20 @@ export async function writeModulesManifest (
   const saveModules = { ...modules }
   if (saveModules.skipped) saveModules.skipped.sort()
 
-  if (saveModules.hoistPattern == null || (saveModules.hoistPattern as unknown) === '') {
+  if (
+    saveModules.hoistPattern == null ||
+    (saveModules.hoistPattern as unknown) === ''
+  ) {
     // Because the YAML writer fails on undefined fields
     delete saveModules.hoistPattern
   }
   if (saveModules.publicHoistPattern == null) {
     delete saveModules.publicHoistPattern
   }
-  if ((saveModules.hoistedAliases == null) || (saveModules.hoistPattern == null) && (saveModules.publicHoistPattern == null)) {
+  if (
+    saveModules.hoistedAliases == null ||
+    (saveModules.hoistPattern == null && saveModules.publicHoistPattern == null)
+  ) {
     delete saveModules.hoistedAliases
   }
   // We should store the absolute virtual store directory path on Windows
@@ -116,7 +129,10 @@ export async function writeModulesManifest (
   // the relative path to the virtual store remains the same after moving
   // a project.
   if (!isWindows()) {
-    saveModules.virtualStoreDir = path.relative(modulesDir, saveModules.virtualStoreDir)
+    saveModules.virtualStoreDir = path.relative(
+      modulesDir,
+      saveModules.virtualStoreDir
+    )
   }
   try {
     await writeYamlFile(modulesYamlPath, saveModules, {

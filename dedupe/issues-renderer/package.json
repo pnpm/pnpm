@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@pnpm/dedupe.issues-renderer": "workspace:*",
-    "@types/archy": "0.0.33",
+    "@types/archy": "0.0.36",
     "strip-ansi": "^6.0.1"
   },
   "exports": {

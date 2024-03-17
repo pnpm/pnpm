@@ -1,11 +1,13 @@
 import { PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDependenciesToPackage, mutateModulesInSingleProject, install } from '@pnpm/core'
+import {
+  addDependenciesToPackage,
+  mutateModulesInSingleProject,
+  install,
+} from '@pnpm/core'
 import { type PackageExtension, type ProjectManifest } from '@pnpm/types'
 import { createObjectChecksum } from '../../lib/install/index'
-import {
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
 test('manifests are extended with fields specified by packageExtensions', async () => {
   const project = prepareEmpty()
@@ -25,70 +27,96 @@ test('manifests are extended with fields specified by packageExtensions', async 
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/is-positive@1.0.0'].dependencies?.['@pnpm.e2e/bar']).toBe('100.1.0')
-    expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
-      'is-positive': {
-        dependencies: {
-          '@pnpm.e2e/bar': '100.1.0',
+    expect(
+      lockfile.packages['/is-positive@1.0.0'].dependencies?.['@pnpm.e2e/bar']
+    ).toBe('100.1.0')
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(
+      createObjectChecksum({
+        'is-positive': {
+          dependencies: {
+            '@pnpm.e2e/bar': '100.1.0',
+          },
         },
-      },
-    }))
+      })
+    )
     const currentLockfile = await project.readCurrentLockfile()
-    expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(
+      currentLockfile.packageExtensionsChecksum
+    )
   }
 
   // The lockfile is updated if the overrides are changed
   packageExtensions['is-positive'].dependencies!['@pnpm.e2e/foobar'] = '100.0.0'
-  await mutateModulesInSingleProject({
-    manifest,
-    mutation: 'install',
-    rootDir: process.cwd(),
-  }, await testDefaults({ packageExtensions }))
+  await mutateModulesInSingleProject(
+    {
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    await testDefaults({ packageExtensions })
+  )
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/is-positive@1.0.0'].dependencies?.['@pnpm.e2e/foobar']).toBe('100.0.0')
-    expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
-      'is-positive': {
-        dependencies: {
-          '@pnpm.e2e/bar': '100.1.0',
-          '@pnpm.e2e/foobar': '100.0.0',
+    expect(
+      lockfile.packages['/is-positive@1.0.0'].dependencies?.['@pnpm.e2e/foobar']
+    ).toBe('100.0.0')
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(
+      createObjectChecksum({
+        'is-positive': {
+          dependencies: {
+            '@pnpm.e2e/bar': '100.1.0',
+            '@pnpm.e2e/foobar': '100.0.0',
+          },
         },
-      },
-    }))
+      })
+    )
     const currentLockfile = await project.readCurrentLockfile()
-    expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(
+      currentLockfile.packageExtensionsChecksum
+    )
   }
 
-  await mutateModulesInSingleProject({
-    manifest,
-    mutation: 'install',
-    rootDir: process.cwd(),
-  }, await testDefaults({ frozenLockfile: true, packageExtensions }))
+  await mutateModulesInSingleProject(
+    {
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    await testDefaults({ frozenLockfile: true, packageExtensions })
+  )
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
-      'is-positive': {
-        dependencies: {
-          '@pnpm.e2e/bar': '100.1.0',
-          '@pnpm.e2e/foobar': '100.0.0',
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(
+      createObjectChecksum({
+        'is-positive': {
+          dependencies: {
+            '@pnpm.e2e/bar': '100.1.0',
+            '@pnpm.e2e/foobar': '100.0.0',
+          },
         },
-      },
-    }))
+      })
+    )
     const currentLockfile = await project.readCurrentLockfile()
-    expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(
+      currentLockfile.packageExtensionsChecksum
+    )
   }
 
   packageExtensions['is-positive'].dependencies!['@pnpm.e2e/bar'] = '100.0.1'
   await expect(
-    mutateModulesInSingleProject({
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    }, await testDefaults({ frozenLockfile: true, packageExtensions }))
+    mutateModulesInSingleProject(
+      {
+        manifest,
+        mutation: 'install',
+        rootDir: process.cwd(),
+      },
+      await testDefaults({ frozenLockfile: true, packageExtensions })
+    )
   ).rejects.toThrow(
-    new PnpmError('LOCKFILE_CONFIG_MISMATCH',
+    new PnpmError(
+      'LOCKFILE_CONFIG_MISMATCH',
       'Cannot proceed with the frozen installation. The current "packageExtensionsChecksum" configuration doesn\'t match the value found in the lockfile'
     )
   )
@@ -130,15 +158,21 @@ test('packageExtensionsChecksum does not change regardless of keys order', async
     },
   })
 
-  await install(manifest(), await testDefaults({
-    packageExtensions: packageExtensions1,
-  }))
+  await install(
+    manifest(),
+    await testDefaults({
+      packageExtensions: packageExtensions1,
+    })
+  )
   const lockfile1 = await project.readLockfile()
   const checksum1 = lockfile1.packageExtensionsChecksum
 
-  await install(manifest(), await testDefaults({
-    packageExtensions: packageExtensions2,
-  }))
+  await install(
+    manifest(),
+    await testDefaults({
+      packageExtensions: packageExtensions2,
+    })
+  )
   const lockfile2 = await project.readLockfile()
   const checksum2 = lockfile2.packageExtensionsChecksum
 
@@ -149,14 +183,13 @@ test('packageExtensionsChecksum does not change regardless of keys order', async
 test('manifests are patched by extensions from the compatibility database', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage(
-    {},
-    ['debug@4.0.0'],
-    await testDefaults()
-  )
+  await addDependenciesToPackage({}, ['debug@4.0.0'], await testDefaults())
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/debug@4.0.0'].peerDependenciesMeta?.['supports-color']?.optional).toBe(true)
+  expect(
+    lockfile.packages['/debug@4.0.0'].peerDependenciesMeta?.['supports-color']
+      ?.optional
+  ).toBe(true)
 })
 
 test('manifests are not patched by extensions from the compatibility database when ignoreCompatibilityDb is true', async () => {

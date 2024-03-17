@@ -25,6 +25,9 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
+      "path": "../../pnpm"
+    },
+    {
       "path": "../../workspace/find-workspace-dir"
     },
     {

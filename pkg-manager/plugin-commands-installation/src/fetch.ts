@@ -1,7 +1,10 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import {
+  createOrConnectStoreController,
+  type CreateStoreControllerOptions,
+} from '@pnpm/store-connection-manager'
 import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
 import renderHelp from 'render-help'
 import { cliOptionsTypes } from './install'
@@ -17,9 +20,10 @@ export const shorthands = {
 
 export const commandNames = ['fetch']
 
-export function help () {
+export function help() {
   return renderHelp({
-    description: 'Fetch packages from a lockfile into virtual store, package manifest is ignored. WARNING! This is an experimental command. Breaking changes may be introduced in non-major versions of the CLI',
+    description:
+      'Fetch packages from a lockfile into virtual store, package manifest is ignored. WARNING! This is an experimental command. Breaking changes may be introduced in non-major versions of the CLI',
     descriptionLists: [
       {
         title: 'Options',
@@ -44,8 +48,12 @@ export function help () {
   })
 }
 
-export async function handler (
-  opts: Pick<Config, 'production' | 'dev' | 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
+export async function handler(
+  opts: Pick<
+    Config,
+    'production' | 'dev' | 'rootProjectManifest' | 'rootProjectManifestDir'
+  > &
+    CreateStoreControllerOptions
 ) {
   const store = await createOrConnectStoreController(opts)
   const include = {
@@ -54,19 +62,25 @@ export async function handler (
     // when including optional deps, production is also required when perform headless install
     optionalDependencies: opts.production !== false,
   }
-  await mutateModulesInSingleProject({
-    manifest: {},
-    mutation: 'install',
-    pruneDirectDependencies: true,
-    rootDir: process.cwd(),
-  }, {
-    ...opts,
-    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
-    ignorePackageManifest: true,
-    include,
-    modulesCacheMaxAge: 0,
-    pruneStore: true,
-    storeController: store.ctrl,
-    storeDir: store.dir,
-  } as InstallOptions)
+  await mutateModulesInSingleProject(
+    {
+      manifest: {},
+      mutation: 'install',
+      pruneDirectDependencies: true,
+      rootDir: process.cwd(),
+    },
+    {
+      ...opts,
+      ...getOptionsFromRootManifest(
+        opts.rootProjectManifestDir,
+        opts.rootProjectManifest ?? {}
+      ),
+      ignorePackageManifest: true,
+      include,
+      modulesCacheMaxAge: 0,
+      pruneStore: true,
+      storeController: store.ctrl,
+      storeDir: store.dir,
+    } as InstallOptions
+  )
 }

@@ -16,4 +16,7 @@ export interface PreResolutionHookLogger {
   warn: (message: string) => void
 }
 
-export type PreResolutionHook = (ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) => Promise<void>
+export type PreResolutionHook = (
+  ctx: PreResolutionHookContext,
+  logger: PreResolutionHookLogger
+) => Promise<void>

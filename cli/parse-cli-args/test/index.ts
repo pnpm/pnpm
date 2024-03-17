@@ -13,201 +13,273 @@ const DEFAULT_OPTS = {
 }
 
 test('a command is recursive if it has a --filter option', async () => {
-  const { options, cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { filter: [String, Array] },
-  }, ['--filter', 'foo', 'update'])
+  const { options, cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      universalOptionsTypes: { filter: [String, Array] },
+    },
+    ['--filter', 'foo', 'update']
+  )
   expect(cmd).toBe('update')
   expect(options).toHaveProperty(['recursive'])
 })
 
 test('a command is recursive if it has a --filter-prod option', async () => {
-  const { options, cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { 'filter-prod': [String, Array] },
-  }, ['--filter-prod', 'foo', 'update'])
+  const { options, cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      universalOptionsTypes: { 'filter-prod': [String, Array] },
+    },
+    ['--filter-prod', 'foo', 'update']
+  )
   expect(cmd).toBe('update')
   expect(options).toHaveProperty(['recursive'])
 })
 
 test('a command is recursive if -r option is used', async () => {
-  const { options, cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { recursive: Boolean },
-    universalShorthands: { r: '--recursive' },
-  }, ['-r', 'update'])
+  const { options, cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      universalOptionsTypes: { recursive: Boolean },
+      universalShorthands: { r: '--recursive' },
+    },
+    ['-r', 'update']
+  )
   expect(cmd).toBe('update')
   expect(options).toHaveProperty(['recursive'])
 })
 
 test('a command is recursive if --recursive option is used', async () => {
-  const { options, cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { recursive: Boolean },
-  }, ['-r', 'update'])
+  const { options, cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      universalOptionsTypes: { recursive: Boolean },
+    },
+    ['-r', 'update']
+  )
   expect(cmd).toBe('update')
   expect(options).toHaveProperty(['recursive'])
 })
 
 test('recursive is returned as the command name if no subcommand passed', async () => {
-  const { options, cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { filter: [String, Array] },
-  }, ['recursive'])
+  const { options, cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      universalOptionsTypes: { filter: [String, Array] },
+    },
+    ['recursive']
+  )
   expect(cmd).toBe('recursive')
   expect(options).toHaveProperty(['recursive'])
 })
 
 test('when running a global command inside a workspace, the workspace should be ignored', async () => {
-  const { workspaceDir } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { global: Boolean },
-  }, ['--global', 'add', 'foo'])
+  const { workspaceDir } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      universalOptionsTypes: { global: Boolean },
+    },
+    ['--global', 'add', 'foo']
+  )
   expect(workspaceDir).toBeFalsy()
 })
 
 test('when running with --ignore-workspace option inside a workspace, the workspace should be ignored', async () => {
-  const { workspaceDir } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: { global: Boolean },
-  }, ['--ignore-workspace', 'add', 'foo'])
+  const { workspaceDir } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      universalOptionsTypes: { global: Boolean },
+    },
+    ['--ignore-workspace', 'add', 'foo']
+  )
   expect(workspaceDir).toBeFalsy()
 })
 
 test('command is used recursively', async () => {
-  const { cmd, options } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    universalOptionsTypes: {},
-  }, ['recursive', 'outdated'])
+  const { cmd, options } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      universalOptionsTypes: {},
+    },
+    ['recursive', 'outdated']
+  )
   expect(cmd).toBe('outdated')
   expect(options.recursive).toBe(true)
 })
 
 test('the install command is converted to add when called with args', async () => {
-  const { params, cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-  }, ['install', 'rimraf@1'])
+  const { params, cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+    },
+    ['install', 'rimraf@1']
+  )
   expect(cmd).toBe('add')
   expect(params).toStrictEqual(['rimraf@1'])
 })
 
 test('the "i" command is converted to add when called with args', async () => {
-  const { params, cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    getCommandLongName: (commandName) => commandName === 'i' ? 'install' : commandName,
-  }, ['i', 'rimraf@1'])
+  const { params, cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      getCommandLongName: (commandName) =>
+        commandName === 'i' ? 'install' : commandName,
+    },
+    ['i', 'rimraf@1']
+  )
   expect(cmd).toBe('add')
   expect(params).toStrictEqual(['rimraf@1'])
 })
 
 test('detect unknown options', async () => {
-  const { unknownOptions } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    getTypesByCommandName: (commandName: string) => {
-      if (commandName === 'install') {
-        return {
-          bar: Boolean,
-          recursive: Boolean,
-          registry: String,
+  const { unknownOptions } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      getTypesByCommandName: (commandName: string) => {
+        if (commandName === 'install') {
+          return {
+            bar: Boolean,
+            recursive: Boolean,
+            registry: String,
+          }
         }
-      }
-      return {}
+        return {}
+      },
+      universalOptionsTypes: { filter: [String, Array] },
     },
-    universalOptionsTypes: { filter: [String, Array] },
-  }, ['install', '--save-dev', '--registry=https://example.com', '--qar', '--filter=packages'])
-  expect(Array.from(unknownOptions.entries())).toStrictEqual([['save-dev', []], ['qar', ['bar']]])
+    [
+      'install',
+      '--save-dev',
+      '--registry=https://example.com',
+      '--qar',
+      '--filter=packages',
+    ]
+  )
+  expect(Array.from(unknownOptions.entries())).toStrictEqual([
+    ['save-dev', []],
+    ['qar', ['bar']],
+  ])
 })
 
 test('allow any option that starts with "config."', async () => {
-  const { options, unknownOptions } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    getTypesByCommandName: (commandName: string) => {
-      if (commandName === 'install') {
-        return {
-          bar: Boolean,
-          recursive: Boolean,
-          registry: String,
+  const { options, unknownOptions } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      getTypesByCommandName: (commandName: string) => {
+        if (commandName === 'install') {
+          return {
+            bar: Boolean,
+            recursive: Boolean,
+            registry: String,
+          }
         }
-      }
-      return {}
+        return {}
+      },
+      universalOptionsTypes: { filter: [String, Array] },
     },
-    universalOptionsTypes: { filter: [String, Array] },
-  }, ['install', '--config.save-dev', '--registry=https://example.com', '--config.qar', '--filter=packages'])
+    [
+      'install',
+      '--config.save-dev',
+      '--registry=https://example.com',
+      '--config.qar',
+      '--filter=packages',
+    ]
+  )
   expect(Array.from(unknownOptions.entries())).toStrictEqual([])
   expect(options.qar).toBe(true)
   expect(options['save-dev']).toBe(true)
 })
 
 test('do not incorrectly change "install" command to "add"', async () => {
-  const { cmd, fallbackCommandUsed } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    getTypesByCommandName: (commandName: string) => {
-      switch (commandName) {
-      case 'install': return { 'network-concurrency': Number }
-      default: return {}
-      }
+  const { cmd, fallbackCommandUsed } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      getTypesByCommandName: (commandName: string) => {
+        switch (commandName) {
+          case 'install':
+            return { 'network-concurrency': Number }
+          default:
+            return {}
+        }
+      },
+      universalOptionsTypes: {
+        prefix: String,
+      },
+      universalShorthands: {
+        C: '--prefix',
+        r: '--recursive',
+      },
     },
-    universalOptionsTypes: {
-      prefix: String,
-    },
-    universalShorthands: {
-      C: '--prefix',
-      r: '--recursive',
-    },
-  }, ['install', '-C', os.homedir(), '--network-concurrency', '1'])
+    ['install', '-C', os.homedir(), '--network-concurrency', '1']
+  )
   expect(cmd).toBe('install')
   expect(fallbackCommandUsed).toBeFalsy()
 })
 
 test('if a help option is used, set cmd to "help"', async () => {
-  const { cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-  }, ['install', '--help'])
+  const { cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+    },
+    ['install', '--help']
+  )
   expect(cmd).toBe('help')
 })
 
 test('if a help option is used with an unknown command, do not set cmd to "help"', async () => {
-  const { cmd, fallbackCommandUsed } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    getCommandLongName: () => null,
-    fallbackCommand: 'run',
-  }, ['eslint', '--help'])
+  const { cmd, fallbackCommandUsed } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      getCommandLongName: () => null,
+      fallbackCommand: 'run',
+    },
+    ['eslint', '--help']
+  )
   expect(cmd).toBe('run')
   expect(fallbackCommandUsed).toBeTruthy()
 })
 
 test('no command', async () => {
-  const { cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-  }, ['--version'])
+  const { cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+    },
+    ['--version']
+  )
   expect(cmd).toBe(null)
 })
 
 test('use command-specific shorthands', async () => {
-  const { options } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    getTypesByCommandName: (commandName: string) => {
-      if (commandName === 'install') {
-        return {
-          dev: Boolean,
+  const { options } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      getTypesByCommandName: (commandName: string) => {
+        if (commandName === 'install') {
+          return {
+            dev: Boolean,
+          }
         }
-      }
-      return {}
+        return {}
+      },
+      shorthandsByCommandName: {
+        install: { D: '--dev' },
+      },
     },
-    shorthandsByCommandName: {
-      install: { D: '--dev' },
-    },
-  }, ['install', '-D'])
+    ['install', '-D']
+  )
   expect(options).toHaveProperty(['dev'])
 })
 
 test('any unknown command is treated as a script', async () => {
-  const { options, cmd, params, fallbackCommandUsed } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    fallbackCommand: 'run',
-    getCommandLongName: () => null,
-    universalOptionsTypes: { filter: [String, Array] },
-  }, ['--recursive', 'foo'])
+  const { options, cmd, params, fallbackCommandUsed } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      fallbackCommand: 'run',
+      getCommandLongName: () => null,
+      universalOptionsTypes: { filter: [String, Array] },
+    },
+    ['--recursive', 'foo']
+  )
   expect(cmd).toBe('run')
   expect(params).toStrictEqual(['foo'])
   expect(options).toHaveProperty(['recursive'])
@@ -215,10 +287,13 @@ test('any unknown command is treated as a script', async () => {
 })
 
 test('run script with --help before script name is help command', async () => {
-  const { cmd, params } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    fallbackCommand: 'run',
-  }, ['run', '--help', 'foo'])
+  const { cmd, params } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      fallbackCommand: 'run',
+    },
+    ['run', '--help', 'foo']
+  )
   expect(cmd).toBe('help')
   expect(params).toStrictEqual(['run', 'foo'])
 })
@@ -227,10 +302,16 @@ test.each([
   ['foo', { params: 'foo', options: {} }],
   ['foo --bar baz --qux', { params: 'foo --bar baz --qux', options: {} }],
   ['-r foo', { params: 'foo', options: { recursive: true } }],
-  ['-r foo --bar baz --qux', { params: 'foo --bar baz --qux', options: { recursive: true } }],
+  [
+    '-r foo --bar baz --qux',
+    { params: 'foo --bar baz --qux', options: { recursive: true } },
+  ],
 
   // Edge case where option value is the script name. Fortunately nopt handles this correctly.
-  ['--test-pattern test test foo', { params: 'test foo', options: { 'test-pattern': ['test'] } }],
+  [
+    '--test-pattern test test foo',
+    { params: 'test foo', options: { 'test-pattern': ['test'] } },
+  ],
 
   // Ensure even builtin flags are passed to the script.
   ['foo -r', { params: 'foo -r', options: {} }],
@@ -242,15 +323,24 @@ test.each([
   for (const testWithCommandFallback of [true, false]) {
     // Whether or not the leading "run" portion of the command is written
     // shouldn't affect its arg parsing. Test both scenarios for good measure.
-    const input = [...(testWithCommandFallback ? [] : ['run']), ...testInput.split(' ')]
+    const input = [
+      ...(testWithCommandFallback ? [] : ['run']),
+      ...testInput.split(' '),
+    ]
 
     // eslint-disable-next-line no-await-in-loop
-    const { options, cmd, params, fallbackCommandUsed } = await parseCliArgs({
-      ...DEFAULT_OPTS,
-      fallbackCommand: 'run',
-      getCommandLongName: (name) => name === 'run' ? 'run' : null,
-      universalOptionsTypes: { filter: [String, Array], 'test-pattern': [String, Array] },
-    }, input)
+    const { options, cmd, params, fallbackCommandUsed } = await parseCliArgs(
+      {
+        ...DEFAULT_OPTS,
+        fallbackCommand: 'run',
+        getCommandLongName: (name) => (name === 'run' ? 'run' : null),
+        universalOptionsTypes: {
+          filter: [String, Array],
+          'test-pattern': [String, Array],
+        },
+      },
+      input
+    )
     expect(cmd).toBe('run')
     expect(params).toStrictEqual(expected.params.split(' '))
     expect(options).toStrictEqual(expected.options)
@@ -262,18 +352,23 @@ test.each([
 })
 
 test("don't use the fallback command if no command is present", async () => {
-  const { cmd, params } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    fallbackCommand: 'run',
-    getCommandLongName: () => null,
-    universalOptionsTypes: { filter: [String, Array] },
-  }, [])
+  const { cmd, params } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      fallbackCommand: 'run',
+      getCommandLongName: () => null,
+      universalOptionsTypes: { filter: [String, Array] },
+    },
+    []
+  )
   expect(cmd).toBe(null)
   expect(params).toStrictEqual([])
 })
 
 test('--workspace-root changes the directory to the workspace root', async () => {
-  const { options, workspaceDir } = await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root'])
+  const { options, workspaceDir } = await parseCliArgs({ ...DEFAULT_OPTS }, [
+    '--workspace-root',
+  ])
   expect(workspaceDir).toBeTruthy()
   expect(options.dir).toBe(workspaceDir)
 })
@@ -302,37 +397,49 @@ test('--workspace-root fails if used outside of a workspace', async () => {
 })
 
 test('everything after an escape arg is a parameter', async () => {
-  const { params, options, cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    escapeArgs: ['exec'],
-  }, ['-r', 'exec', 'rm', '-rf', 'node_modules'])
+  const { params, options, cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      escapeArgs: ['exec'],
+    },
+    ['-r', 'exec', 'rm', '-rf', 'node_modules']
+  )
   expect(cmd).toBe('exec')
   expect(options).toHaveProperty(['recursive'])
   expect(params).toStrictEqual(['rm', '-rf', 'node_modules'])
 })
 
 test('everything after an escape arg is a parameter, even if it has a help option', async () => {
-  const { params, cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    escapeArgs: ['exec'],
-  }, ['exec', 'rm', '--help'])
+  const { params, cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+      escapeArgs: ['exec'],
+    },
+    ['exec', 'rm', '--help']
+  )
   expect(cmd).toBe('exec')
   expect(params).toStrictEqual(['rm', '--help'])
 })
 
 test('`pnpm install ""` is going to be just `pnpm install`', async () => {
-  const { params, cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-  }, ['install', ''])
+  const { params, cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+    },
+    ['install', '']
+  )
   expect(cmd).toBe('add')
   // empty string in params will be filtered at: https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation/src/installDeps.ts#L196
   expect(params).toStrictEqual([''])
 })
 
 test('should not swallows empty string in params', async () => {
-  const { params, cmd } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-  }, ['run', 'echo', '', 'foo', '', 'bar'])
+  const { params, cmd } = await parseCliArgs(
+    {
+      ...DEFAULT_OPTS,
+    },
+    ['run', 'echo', '', 'foo', '', 'bar']
+  )
   expect(cmd).toBe('run')
   expect(params).toStrictEqual(['echo', '', 'foo', '', 'bar'])
 })

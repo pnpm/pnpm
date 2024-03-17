@@ -1,14 +1,24 @@
 import { createMatcher } from '@pnpm/matcher'
-import { type SupportedArchitectures } from '@pnpm/types'
-import { findWorkspacePackages, type Project } from '@pnpm/workspace.find-packages'
-import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.pkgs-graph'
+import type { SupportedArchitectures } from '@pnpm/types'
+import {
+  findWorkspacePackages,
+  type Project,
+} from '@pnpm/workspace.find-packages'
+import {
+  createPkgGraph,
+  type Package,
+  type PackageNode,
+} from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
 import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import * as micromatch from 'micromatch'
 import { getChangedPackages } from './getChangedPackages'
-import { parsePackageSelector, type PackageSelector } from './parsePackageSelector'
+import {
+  parsePackageSelector,
+  type PackageSelector,
+} from './parsePackageSelector'
 
 export { parsePackageSelector, type PackageSelector }
 
@@ -36,7 +46,7 @@ export interface ReadProjectsResult {
   selectedProjectsGraph: PackageGraph<Project>
 }
 
-export async function readProjects (
+export async function readProjects(
   workspaceDir: string,
   pkgSelectors: PackageSelector[],
   opts?: {
@@ -46,16 +56,20 @@ export async function readProjects (
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<ReadProjectsResult> {
-  const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict, supportedArchitectures: opts?.supportedArchitectures ?? { os: ['current'], cpu: ['current'], libc: ['current'] } })
-  const { allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjects(
-    allProjects,
-    pkgSelectors,
-    {
+  const allProjects = await findWorkspacePackages(workspaceDir, {
+    engineStrict: opts?.engineStrict,
+    supportedArchitectures: opts?.supportedArchitectures ?? {
+      os: ['current'],
+      cpu: ['current'],
+      libc: ['current'],
+    },
+  })
+  const { allProjectsGraph, selectedProjectsGraph } =
+    await filterPkgsBySelectorObjects(allProjects, pkgSelectors, {
       linkWorkspacePackages: opts?.linkWorkspacePackages,
       workspaceDir,
       changedFilesIgnorePattern: opts?.changedFilesIgnorePattern,
-    }
-  )
+    })
   return { allProjects, allProjectsGraph, selectedProjectsGraph }
 }
 
@@ -69,7 +83,7 @@ export interface FilterPackagesOptions {
   sharedWorkspaceLockfile?: boolean
 }
 
-export async function filterPackagesFromDir (
+export async function filterPackagesFromDir(
   workspaceDir: string,
   filter: WorkspaceFilter[],
   opts: FilterPackagesOptions & {
@@ -92,7 +106,7 @@ export async function filterPackagesFromDir (
   }
 }
 
-export async function filterPackages<T> (
+export async function filterPackages<T>(
   pkgs: Array<Package & T>,
   filter: WorkspaceFilter[],
   opts: FilterPackagesOptions
@@ -101,12 +115,15 @@ export async function filterPackages<T> (
     selectedProjectsGraph: PackageGraph<T>
     unmatchedFilters: string[]
   }> {
-  const packageSelectors = filter.map(({ filter: f, followProdDepsOnly }) => ({ ...parsePackageSelector(f, opts.prefix), followProdDepsOnly }))
+  const packageSelectors = filter.map(({ filter: f, followProdDepsOnly }) => ({
+    ...parsePackageSelector(f, opts.prefix),
+    followProdDepsOnly,
+  }))
 
   return filterPkgsBySelectorObjects(pkgs, packageSelectors, opts)
 }
 
-export async function filterPkgsBySelectorObjects<T> (
+export async function filterPkgsBySelectorObjects<T>(
   pkgs: Array<Package & T>,
   packageSelectors: PackageSelector[],
   opts: {
@@ -121,31 +138,47 @@ export async function filterPkgsBySelectorObjects<T> (
     selectedProjectsGraph: PackageGraph<T>
     unmatchedFilters: string[]
   }> {
-  const [prodPackageSelectors, allPackageSelectors] = partition(({ followProdDepsOnly }) => !!followProdDepsOnly, packageSelectors)
+  const [prodPackageSelectors, allPackageSelectors] = partition(
+    ({ followProdDepsOnly }) => !!followProdDepsOnly,
+    packageSelectors
+  )
 
-  if ((allPackageSelectors.length > 0) || (prodPackageSelectors.length > 0)) {
+  if (allPackageSelectors.length > 0 || prodPackageSelectors.length > 0) {
     let filteredGraph: FilteredGraph<T> | undefined
-    const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createPkgGraph<T>(pkgs, {
+      linkWorkspacePackages: opts.linkWorkspacePackages,
+    })
 
     if (allPackageSelectors.length > 0) {
-      filteredGraph = await filterWorkspacePackages(graph, allPackageSelectors, {
-        workspaceDir: opts.workspaceDir,
-        testPattern: opts.testPattern,
-        changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
-        useGlobDirFiltering: opts.useGlobDirFiltering,
-      })
+      filteredGraph = await filterWorkspacePackages(
+        graph,
+        allPackageSelectors,
+        {
+          workspaceDir: opts.workspaceDir,
+          testPattern: opts.testPattern,
+          changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
+          useGlobDirFiltering: opts.useGlobDirFiltering,
+        }
+      )
     }
 
     let prodFilteredGraph: FilteredGraph<T> | undefined
 
     if (prodPackageSelectors.length > 0) {
-      const { graph } = createPkgGraph<T>(pkgs, { ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages })
-      prodFilteredGraph = await filterWorkspacePackages(graph, prodPackageSelectors, {
-        workspaceDir: opts.workspaceDir,
-        testPattern: opts.testPattern,
-        changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
-        useGlobDirFiltering: opts.useGlobDirFiltering,
+      const { graph } = createPkgGraph<T>(pkgs, {
+        ignoreDevDeps: true,
+        linkWorkspacePackages: opts.linkWorkspacePackages,
       })
+      prodFilteredGraph = await filterWorkspacePackages(
+        graph,
+        prodPackageSelectors,
+        {
+          workspaceDir: opts.workspaceDir,
+          testPattern: opts.testPattern,
+          changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
+          useGlobDirFiltering: opts.useGlobDirFiltering,
+        }
+      )
     }
 
     return {
@@ -155,17 +188,25 @@ export async function filterPkgsBySelectorObjects<T> (
         ...filteredGraph?.selectedProjectsGraph,
       },
       unmatchedFilters: [
-        ...(prodFilteredGraph !== undefined ? prodFilteredGraph.unmatchedFilters : []),
+        ...(prodFilteredGraph !== undefined
+          ? prodFilteredGraph.unmatchedFilters
+          : []),
         ...(filteredGraph !== undefined ? filteredGraph.unmatchedFilters : []),
       ],
     }
   } else {
-    const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
-    return { allProjectsGraph: graph, selectedProjectsGraph: graph, unmatchedFilters: [] }
+    const { graph } = createPkgGraph<T>(pkgs, {
+      linkWorkspacePackages: opts.linkWorkspacePackages,
+    })
+    return {
+      allProjectsGraph: graph,
+      selectedProjectsGraph: graph,
+      unmatchedFilters: [],
+    }
   }
 }
 
-export async function filterWorkspacePackages<T> (
+export async function filterWorkspacePackages<T>(
   pkgGraph: PackageGraph<T>,
   packageSelectors: PackageSelector[],
   opts: {
@@ -183,20 +224,24 @@ export async function filterWorkspacePackages<T> (
     packageSelectors
   )
   const fg = _filterGraph.bind(null, pkgGraph, opts)
-  const include = includeSelectors.length === 0
-    ? { selected: Object.keys(pkgGraph), unmatchedFilters: [] }
-    : await fg(includeSelectors)
+  const include =
+    includeSelectors.length === 0
+      ? { selected: Object.keys(pkgGraph), unmatchedFilters: [] }
+      : await fg(includeSelectors)
   const exclude = await fg(excludeSelectors)
   return {
     selectedProjectsGraph: pick(
       difference(include.selected, exclude.selected),
       pkgGraph
     ),
-    unmatchedFilters: [...include.unmatchedFilters, ...exclude.unmatchedFilters],
+    unmatchedFilters: [
+      ...include.unmatchedFilters,
+      ...exclude.unmatchedFilters,
+    ],
   }
 }
 
-async function _filterGraph<T> (
+async function _filterGraph<T>(
   pkgGraph: PackageGraph<T>,
   opts: {
     workspaceDir: string
@@ -216,9 +261,10 @@ async function _filterGraph<T> (
   const graph = pkgGraphToGraph(pkgGraph)
   const unmatchedFilters = [] as string[]
   let reversedGraph: Graph | undefined
-  const matchPackagesByPath = opts.useGlobDirFiltering === true
-    ? matchPackagesByGlob
-    : matchPackagesByExactPath
+  const matchPackagesByPath =
+    opts.useGlobDirFiltering === true
+      ? matchPackagesByGlob
+      : matchPackagesByExactPath
   for (const selector of packageSelectors) {
     let entryPackages: string[] | null = null
     if (selector.diff) {
@@ -233,10 +279,13 @@ async function _filterGraph<T> (
           workspaceDir: selector.parentDir ?? opts.workspaceDir,
         }
       )
-      selectEntries({
-        ...selector,
-        includeDependents: false,
-      }, ignoreDependentForPkgs)
+      selectEntries(
+        {
+          ...selector,
+          includeDependents: false,
+        },
+        ignoreDependentForPkgs
+      )
     } else if (selector.parentDir) {
       entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
     }
@@ -244,12 +293,17 @@ async function _filterGraph<T> (
       if (entryPackages == null) {
         entryPackages = matchPackages(pkgGraph, selector.namePattern)
       } else {
-        entryPackages = matchPackages(pick(entryPackages, pkgGraph), selector.namePattern)
+        entryPackages = matchPackages(
+          pick(entryPackages, pkgGraph),
+          selector.namePattern
+        )
       }
     }
 
     if (entryPackages == null) {
-      throw new Error(`Unsupported package selector: ${JSON.stringify(selector)}`)
+      throw new Error(
+        `Unsupported package selector: ${JSON.stringify(selector)}`
+      )
     }
 
     if (entryPackages.length === 0) {
@@ -263,26 +317,41 @@ async function _filterGraph<T> (
 
     selectEntries(selector, entryPackages)
   }
-  const walked = new Set([...walkedDependencies, ...walkedDependents, ...walkedDependentsDependencies])
-  cherryPickedPackages.forEach((cherryPickedPackage) => walked.add(cherryPickedPackage))
+  const walked = new Set([
+    ...walkedDependencies,
+    ...walkedDependents,
+    ...walkedDependentsDependencies,
+  ])
+  cherryPickedPackages.forEach((cherryPickedPackage) =>
+    walked.add(cherryPickedPackage)
+  )
   return {
     selected: Array.from(walked),
     unmatchedFilters,
   }
 
-  function selectEntries (selector: PackageSelector, entryPackages: string[]) {
+  function selectEntries(selector: PackageSelector, entryPackages: string[]) {
     if (selector.includeDependencies) {
-      pickSubgraph(graph, entryPackages, walkedDependencies, { includeRoot: !selector.excludeSelf })
+      pickSubgraph(graph, entryPackages, walkedDependencies, {
+        includeRoot: !selector.excludeSelf,
+      })
     }
     if (selector.includeDependents) {
       if (reversedGraph == null) {
         reversedGraph = reverseGraph(graph)
       }
-      pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !selector.excludeSelf })
+      pickSubgraph(reversedGraph, entryPackages, walkedDependents, {
+        includeRoot: !selector.excludeSelf,
+      })
     }
 
     if (selector.includeDependencies && selector.includeDependents) {
-      pickSubgraph(graph, Array.from(walkedDependents), walkedDependentsDependencies, { includeRoot: false })
+      pickSubgraph(
+        graph,
+        Array.from(walkedDependents),
+        walkedDependentsDependencies,
+        { includeRoot: false }
+      )
     }
 
     if (!selector.includeDependencies && !selector.includeDependents) {
@@ -291,7 +360,7 @@ async function _filterGraph<T> (
   }
 }
 
-function pkgGraphToGraph<T> (pkgGraph: PackageGraph<T>): Graph {
+function pkgGraphToGraph<T>(pkgGraph: PackageGraph<T>): Graph {
   const graph: Graph = {}
   Object.keys(pkgGraph).forEach((nodeId) => {
     graph[nodeId] = pkgGraph[nodeId].dependencies
@@ -299,7 +368,7 @@ function pkgGraphToGraph<T> (pkgGraph: PackageGraph<T>): Graph {
   return graph
 }
 
-function reverseGraph (graph: Graph): Graph {
+function reverseGraph(graph: Graph): Graph {
   const reversedGraph: Graph = {}
   Object.keys(graph).forEach((dependentNodeId) => {
     graph[dependentNodeId].forEach((dependencyNodeId) => {
@@ -313,12 +382,12 @@ function reverseGraph (graph: Graph): Graph {
   return reversedGraph
 }
 
-function matchPackages<T> (
-  graph: PackageGraph<T>,
-  pattern: string
-): string[] {
+function matchPackages<T>(graph: PackageGraph<T>, pattern: string): string[] {
   const match = createMatcher(pattern)
-  const matches = Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
+  const matches = Object.keys(graph).filter(
+    (id: string) =>
+      graph[id].package.manifest.name && match(graph[id].package.manifest.name!)
+  )
   if (matches.length === 0 && !(pattern[0] === '@') && !pattern.includes('/')) {
     const scopedMatches = matchPackages(graph, `@*/${pattern}`)
     return scopedMatches.length !== 1 ? [] : scopedMatches
@@ -326,23 +395,27 @@ function matchPackages<T> (
   return matches
 }
 
-function matchPackagesByExactPath<T> (
+function matchPackagesByExactPath<T>(
   graph: PackageGraph<T>,
   pathStartsWith: string
 ) {
-  return Object.keys(graph).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
+  return Object.keys(graph).filter((parentDir) =>
+    isSubdir(pathStartsWith, parentDir)
+  )
 }
 
-function matchPackagesByGlob<T> (
+function matchPackagesByGlob<T>(
   graph: PackageGraph<T>,
   pathStartsWith: string
 ) {
   const format = (str: string) => str.replace(/\/$/, '')
   const formattedFilter = pathStartsWith.replace(/\\/g, '/').replace(/\/$/, '')
-  return Object.keys(graph).filter((parentDir) => micromatch.isMatch(parentDir, formattedFilter, { format }))
+  return Object.keys(graph).filter((parentDir) =>
+    micromatch.isMatch(parentDir, formattedFilter, { format })
+  )
 }
 
-function pickSubgraph (
+function pickSubgraph(
   graph: Graph,
   nextNodeIds: string[],
   walked: Set<string>,
@@ -356,7 +429,8 @@ function pickSubgraph (
         walked.add(nextNodeId)
       }
 
-      if (graph[nextNodeId]) pickSubgraph(graph, graph[nextNodeId], walked, { includeRoot: true })
+      if (graph[nextNodeId])
+        pickSubgraph(graph, graph[nextNodeId], walked, { includeRoot: true })
     }
   }
 }

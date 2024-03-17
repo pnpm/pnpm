@@ -1,9 +1,12 @@
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type Dependencies } from '@pnpm/types'
 import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
-import { type PinnedVersion, type WantedDependency } from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
+import {
+  type PinnedVersion,
+  type WantedDependency,
+} from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
 
-export function parseWantedDependencies (
+export function parseWantedDependencies(
   rawWantedDependencies: string[],
   opts: {
     allowNew: boolean
@@ -21,8 +24,8 @@ export function parseWantedDependencies (
   return rawWantedDependencies
     .map((rawWantedDependency) => {
       const parsed = parseWantedDependency(rawWantedDependency)
-      const alias = parsed['alias']
-      let pref = parsed['pref']
+      const alias = parsed.alias
+      let pref = parsed.pref
       let pinnedVersion!: PinnedVersion | undefined
 
       if (!opts.allowNew && (!alias || !opts.currentPrefs[alias])) {
@@ -30,18 +33,25 @@ export function parseWantedDependencies (
       }
       if (alias && opts.currentPrefs[alias]) {
         if (!pref) {
-          pref = (opts.currentPrefs[alias].startsWith('workspace:') && opts.updateWorkspaceDependencies === true)
-            ? 'workspace:*'
-            : opts.currentPrefs[alias]
+          pref =
+            opts.currentPrefs[alias].startsWith('workspace:') &&
+            opts.updateWorkspaceDependencies === true
+              ? 'workspace:*'
+              : opts.currentPrefs[alias]
         }
         pinnedVersion = whichVersionIsPinned(opts.currentPrefs[alias])
       }
       const result = {
         alias,
-        dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
-        optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
+        dev: Boolean(opts.dev || (alias && !!opts.devDependencies[alias])),
+        optional: Boolean(
+          opts.optional || (alias && !!opts.optionalDependencies[alias])
+        ),
         pinnedVersion,
-        raw: alias && opts.currentPrefs?.[alias]?.startsWith('workspace:') ? `${alias}@${opts.currentPrefs[alias]}` : rawWantedDependency,
+        raw:
+          alias && opts.currentPrefs?.[alias]?.startsWith('workspace:')
+            ? `${alias}@${opts.currentPrefs[alias]}`
+            : rawWantedDependency,
       }
       if (pref) {
         return {

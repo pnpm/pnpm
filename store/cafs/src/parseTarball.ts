@@ -29,7 +29,7 @@ const FILE_TYPE_OFFSET: 156 = 156
 const PREFIX_OFFSET: 345 = 345
 
 // See TAR specification here: https://www.gnu.org/software/tar/manual/html_node/Standard.html
-export function parseTarball (buffer: Buffer): IParseResult {
+export function parseTarball(buffer: Buffer): IParseResult {
   const files = new Map<string, IFile>()
 
   let pathTrimmed: boolean = false
@@ -113,37 +113,45 @@ export function parseTarball (buffer: Buffer): IParseResult {
     // Treat all other file types as non-existent
     // However, we still need to parse the name to handle collisions
     switch (fileType) {
-    case 0:
-    case ZERO:
-    case FILE_TYPE_HARD_LINK:
-      // The file mode is an octal number encoded as UTF-8. It is terminated by a NUL or space. Maximum length 8 characters.
-      mode = parseOctal(blockStart + MODE_OFFSET, 8)
+      case 0:
+      case ZERO:
+      case FILE_TYPE_HARD_LINK:
+        // The file mode is an octal number encoded as UTF-8. It is terminated by a NUL or space. Maximum length 8 characters.
+        mode = parseOctal(blockStart + MODE_OFFSET, 8)
 
-      // The TAR format is an append-only data structure; as such later entries with the same name supercede earlier ones.
-      files.set(fileName.replaceAll('//', '/'), { offset: blockStart + 512, mode, size: fileSize })
-      break
-    case FILE_TYPE_DIRECTORY:
-    case FILE_TYPE_SYMLINK:
-      // Skip
-      break
-    case FILE_TYPE_PAX_HEADER:
-      parsePaxHeader(blockStart + 512, fileSize, false)
-      break
-    case FILE_TYPE_PAX_GLOBAL_HEADER:
-      parsePaxHeader(blockStart + 512, fileSize, true)
-      break
-    case FILE_TYPE_LONGLINK: {
-      // Read the long filename
-      longLinkPath = buffer.toString('utf8', blockStart + 512, blockStart + 512 + fileSize).replace(/\0.*/, '')
-      // Remove the first path segment
-      const slashIndex = longLinkPath.indexOf('/')
-      if (slashIndex >= 0) {
-        longLinkPath = longLinkPath.slice(slashIndex + 1)
+        // The TAR format is an append-only data structure; as such later entries with the same name supercede earlier ones.
+        files.set(fileName.replaceAll('//', '/'), {
+          offset: blockStart + 512,
+          mode,
+          size: fileSize,
+        })
+        break
+      case FILE_TYPE_DIRECTORY:
+      case FILE_TYPE_SYMLINK:
+        // Skip
+        break
+      case FILE_TYPE_PAX_HEADER:
+        parsePaxHeader(blockStart + 512, fileSize, false)
+        break
+      case FILE_TYPE_PAX_GLOBAL_HEADER:
+        parsePaxHeader(blockStart + 512, fileSize, true)
+        break
+      case FILE_TYPE_LONGLINK: {
+        // Read the long filename
+        longLinkPath = buffer
+          .toString('utf8', blockStart + 512, blockStart + 512 + fileSize)
+          .replace(/\0.*/, '')
+        // Remove the first path segment
+        const slashIndex = longLinkPath.indexOf('/')
+        if (slashIndex >= 0) {
+          longLinkPath = longLinkPath.slice(slashIndex + 1)
+        }
+        break
       }
-      break
-    }
-    default:
-      throw new Error(`Unsupported file type ${fileType} for file ${fileName}.`)
+      default:
+        throw new Error(
+          `Unsupported file type ${fileType} for file ${fileName}.`
+        )
     }
 
     // Move to the next record in the TAR archive.
@@ -157,7 +165,7 @@ export function parseTarball (buffer: Buffer): IParseResult {
    * @param offset - The current offset into the tar buffer
    * @returns The header checksum
    */
-  function checkSum (offset: number): number {
+  function checkSum(offset: number): number {
     let sum: number = 256
     let i: number = offset
 
@@ -184,7 +192,11 @@ export function parseTarball (buffer: Buffer): IParseResult {
    * @param global - Whether this is a global PAX header
    * @returns The path field, if present
    */
-  function parsePaxHeader (offset: number, length: number, global: boolean): void {
+  function parsePaxHeader(
+    offset: number,
+    length: number,
+    global: boolean
+  ): void {
     const end: number = offset + length
     let i: number = offset
     while (i < end) {
@@ -217,7 +229,9 @@ export function parseTarball (buffer: Buffer): IParseResult {
         if (global) {
           throw new Error(`Unexpected global PAX path: ${record}`)
         }
-        paxHeaderPath = record.slice(slashIndex >= 0 ? slashIndex + 1 : equalSign + 1)
+        paxHeaderPath = record.slice(
+          slashIndex >= 0 ? slashIndex + 1 : equalSign + 1
+        )
       } else if (keyword === 'size') {
         const size: number = parseInt(record.slice(equalSign + 1), 10)
         if (isNaN(size) || size < 0) {
@@ -238,10 +252,14 @@ export function parseTarball (buffer: Buffer): IParseResult {
    * Parses a UTF-8 string at the specified `offset`, up to `length` characters. If it ends early, it will be terminated by a NUL.
    * Will trim the first segment if `pathTrimmed` is currently false and the string contains a `/` or `\\`.
    */
-  function parseString (offset: number, length: number): string {
+  function parseString(offset: number, length: number): string {
     let end: number = offset
     const max: number = length + offset
-    for (let char: number = buffer[end]; char !== 0 && end !== max; char = buffer[++end]) {
+    for (
+      let char: number = buffer[end];
+      char !== 0 && end !== max;
+      char = buffer[++end]
+    ) {
       if (!pathTrimmed && (char === SLASH || char === BACKSLASH)) {
         pathTrimmed = true
         offset = end + 1
@@ -254,13 +272,17 @@ export function parseTarball (buffer: Buffer): IParseResult {
    * Parses an octal number at the specified `offset`, up to `length` characters. If it ends early, it will be terminated by either
    * a NUL or a space.
    */
-  function parseOctal (offset: number, length: number) {
+  function parseOctal(offset: number, length: number) {
     const val = buffer.subarray(offset, offset + length)
     offset = 0
 
     // Older versions of tar can prefix with spaces
     while (offset < val.length && val[offset] === SPACE) offset++
-    const end = clamp(indexOf(val, SPACE, offset, val.length), val.length, val.length)
+    const end = clamp(
+      indexOf(val, SPACE, offset, val.length),
+      val.length,
+      val.length
+    )
     while (offset < end && val[offset] === 0) offset++
     if (end === offset) return 0
     return parseInt(val.slice(offset, end).toString(), 8)
@@ -268,14 +290,14 @@ export function parseTarball (buffer: Buffer): IParseResult {
   // eslint-enable no-var
 }
 
-function indexOf (block: Buffer, num: number, offset: number, end: number) {
+function indexOf(block: Buffer, num: number, offset: number, end: number) {
   for (; offset < end; offset++) {
     if (block[offset] === num) return offset
   }
   return end
 }
 
-function clamp (index: number, len: number, defaultValue: number) {
+function clamp(index: number, len: number, defaultValue: number) {
   if (typeof index !== 'number') return defaultValue
   index = ~~index // Coerce to integer.
   if (index >= len) return len

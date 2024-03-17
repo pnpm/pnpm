@@ -3,19 +3,19 @@ import { type Registries } from '@pnpm/types'
 import encodeRegistry from 'encode-registry'
 import semver from 'semver'
 
-export function isAbsolute (dependencyPath: string) {
+export function isAbsolute(dependencyPath: string) {
   return dependencyPath[0] !== '/'
 }
 
-export function resolve (
-  registries: Registries,
-  resolutionLocation: string
-) {
+export function resolve(registries: Registries, resolutionLocation: string) {
   if (!isAbsolute(resolutionLocation)) {
     let registryUrl!: string
     if (resolutionLocation[1] === '@') {
       const slashIndex = resolutionLocation.indexOf('/', 1)
-      const scope = resolutionLocation.slice(1, slashIndex !== -1 ? slashIndex : 0)
+      const scope = resolutionLocation.slice(
+        1,
+        slashIndex !== -1 ? slashIndex : 0
+      )
       registryUrl = registries[scope] || registries.default
     } else {
       registryUrl = registries.default
@@ -26,7 +26,7 @@ export function resolve (
   return resolutionLocation
 }
 
-export function indexOfPeersSuffix (depPath: string) {
+export function indexOfPeersSuffix(depPath: string) {
   if (!depPath.endsWith(')')) return -1
   let open = 1
   for (let i = depPath.length - 2; i >= 0; i--) {
@@ -41,7 +41,7 @@ export function indexOfPeersSuffix (depPath: string) {
   return -1
 }
 
-export function tryGetPackageId (registries: Registries, relDepPath: string) {
+export function tryGetPackageId(registries: Registries, relDepPath: string) {
   if (relDepPath[0] !== '/') {
     return null
   }
@@ -56,7 +56,7 @@ export function tryGetPackageId (registries: Registries, relDepPath: string) {
   return resolve(registries, relDepPath)
 }
 
-export function refToAbsolute (
+export function refToAbsolute(
   reference: string,
   pkgName: string,
   registries: Registries
@@ -64,27 +64,40 @@ export function refToAbsolute (
   if (reference.startsWith('link:')) {
     return null
   }
-  if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
-    const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
+  if (
+    !reference.includes('/') ||
+    (reference.includes('(') &&
+      reference.lastIndexOf('/', reference.indexOf('(')) === -1)
+  ) {
+    const registryName = encodeRegistry(
+      getRegistryByPackageName(registries, pkgName)
+    )
     return `${registryName}/${pkgName}/${reference}`
   }
   if (reference[0] !== '/') return reference
-  const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
+  const registryName = encodeRegistry(
+    getRegistryByPackageName(registries, pkgName)
+  )
   return `${registryName}${reference}`
 }
 
-export function getRegistryByPackageName (registries: Registries, packageName: string) {
+export function getRegistryByPackageName(
+  registries: Registries,
+  packageName: string
+) {
   if (packageName[0] !== '@') return registries.default
   const scope = packageName.substring(0, packageName.indexOf('/'))
   return registries[scope] || registries.default
 }
 
-export function relative (
+export function relative(
   registries: Registries,
   packageName: string,
   absoluteResolutionLoc: string
 ) {
-  const registryName = encodeRegistry(getRegistryByPackageName(registries, packageName))
+  const registryName = encodeRegistry(
+    getRegistryByPackageName(registries, packageName)
+  )
 
   if (absoluteResolutionLoc.startsWith(`${registryName}/`)) {
     return absoluteResolutionLoc.slice(absoluteResolutionLoc.indexOf('/'))
@@ -92,7 +105,7 @@ export function relative (
   return absoluteResolutionLoc
 }
 
-export function refToRelative (
+export function refToRelative(
   reference: string,
   pkgName: string
 ): string | null {
@@ -102,31 +115,37 @@ export function refToRelative (
   if (reference.startsWith('file:')) {
     return reference
   }
-  if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
+  if (
+    !reference.includes('/') ||
+    (reference.includes('(') &&
+      reference.lastIndexOf('/', reference.indexOf('(')) === -1)
+  ) {
     return `/${pkgName}/${reference}`
   }
   return reference
 }
 
-export function parse (dependencyPath: string) {
+export function parse(dependencyPath: string) {
   // eslint-disable-next-line: strict-type-predicates
   if (typeof dependencyPath !== 'string') {
-    throw new TypeError(`Expected \`dependencyPath\` to be of type \`string\`, got \`${
-      // eslint-disable-next-line: strict-type-predicates
-      dependencyPath === null ? 'null' : typeof dependencyPath
-    }\``)
+    throw new TypeError(
+      `Expected \`dependencyPath\` to be of type \`string\`, got \`${
+        // eslint-disable-next-line: strict-type-predicates
+        dependencyPath === null ? 'null' : typeof dependencyPath
+      }\``
+    )
   }
   const _isAbsolute = isAbsolute(dependencyPath)
   const parts = dependencyPath.split('/')
   if (!_isAbsolute) parts.shift()
   const host = _isAbsolute ? parts.shift() : undefined
-  if (parts.length === 0) return {
-    host,
-    isAbsolute: _isAbsolute,
-  }
-  const name = parts[0][0] === '@'
-    ? `${parts.shift()}/${parts.shift()}`
-    : parts.shift()
+  if (parts.length === 0)
+    return {
+      host,
+      isAbsolute: _isAbsolute,
+    }
+  const name =
+    parts[0][0] === '@' ? `${parts.shift()}/${parts.shift()}` : parts.shift()
   let version = parts.join('/')
   if (version) {
     let peerSepIndex!: number
@@ -154,7 +173,8 @@ export function parse (dependencyPath: string) {
       }
     }
   }
-  if (!_isAbsolute) throw new Error(`${dependencyPath} is an invalid relative dependency path`)
+  if (!_isAbsolute)
+    throw new Error(`${dependencyPath} is an invalid relative dependency path`)
   return {
     host,
     isAbsolute: _isAbsolute,
@@ -163,25 +183,32 @@ export function parse (dependencyPath: string) {
 
 const MAX_LENGTH_WITHOUT_HASH = 120 - 26 - 1
 
-export function depPathToFilename (depPath: string) {
-  let filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|]/g, '+')
+export function depPathToFilename(depPath: string) {
+  let filename = depPathToFilenameUnescaped(depPath).replace(
+    /[\\/:*?"<>|]/g,
+    '+'
+  )
   if (filename.includes('(')) {
-    filename = filename
-      .replace(/\)$/, '')
-      .replace(/(\)\()|\(|\)/g, '_')
+    filename = filename.replace(/\)$/, '').replace(/(\)\()|\(|\)/g, '_')
   }
-  if (filename.length > 120 || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
+  if (
+    filename.length > 120 ||
+    (filename !== filename.toLowerCase() && !filename.startsWith('file+'))
+  ) {
     return `${filename.substring(0, MAX_LENGTH_WITHOUT_HASH)}_${createBase32Hash(filename)}`
   }
   return filename
 }
 
-function depPathToFilenameUnescaped (depPath: string) {
+function depPathToFilenameUnescaped(depPath: string) {
   if (depPath.indexOf('file:') !== 0) {
     if (depPath[0] === '/') {
       depPath = depPath.substring(1)
     }
-    const index = depPath.lastIndexOf('/', depPath.includes('(') ? depPath.indexOf('(') - 1 : depPath.length)
+    const index = depPath.lastIndexOf(
+      '/',
+      depPath.includes('(') ? depPath.indexOf('(') - 1 : depPath.length
+    )
     const name = depPath.substring(0, index)
     if (!name) return depPath
     return `${name}@${depPath.slice(index + 1)}`
@@ -189,7 +216,12 @@ function depPathToFilenameUnescaped (depPath: string) {
   return depPath.replace(':', '+')
 }
 
-export function createPeersFolderSuffix (peers: Array<{ name: string, version: string }>): string {
-  const folderName = peers.map(({ name, version }) => `${name}@${version}`).sort().join(')(')
+export function createPeersFolderSuffix(
+  peers: Array<{ name: string; version: string }>
+): string {
+  const folderName = peers
+    .map(({ name, version }) => `${name}@${version}`)
+    .sort()
+    .join(')(')
   return `(${folderName})`
 }

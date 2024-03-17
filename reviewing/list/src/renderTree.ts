@@ -27,19 +27,21 @@ export interface RenderTreeOptions {
   showExtraneous: boolean
 }
 
-export async function renderTree (
+export async function renderTree(
   packages: PackageDependencyHierarchy[],
   opts: RenderTreeOptions
 ) {
   const output = (
-    await Promise.all(packages.map(async (pkg) => renderTreeForPackage(pkg, opts)))
+    await Promise.all(
+      packages.map(async (pkg) => renderTreeForPackage(pkg, opts))
+    )
   )
     .filter(Boolean)
     .join('\n\n')
-  return `${(opts.depth > -1 && output ? LEGEND : '')}${output}`
+  return `${opts.depth > -1 && output ? LEGEND : ''}${output}`
 }
 
-async function renderTreeForPackage (
+async function renderTreeForPackage(
   pkg: PackageDependencyHierarchy,
   opts: RenderTreeOptions
 ) {
@@ -49,7 +51,8 @@ async function renderTreeForPackage (
     !pkg.devDependencies?.length &&
     !pkg.optionalDependencies?.length &&
     (!opts.showExtraneous || !pkg.unsavedDependencies?.length)
-  ) return ''
+  )
+    return ''
 
   let label = ''
   if (pkg.name) {
@@ -71,38 +74,51 @@ async function renderTreeForPackage (
   if (opts.showExtraneous) {
     dependenciesFields.push('unsavedDependencies')
   }
-  const output = (await Promise.all(
-    dependenciesFields.map(async (dependenciesField) => {
-      if (pkg[dependenciesField]?.length) {
-        const depsLabel = chalk.cyanBright(
-          dependenciesField !== 'unsavedDependencies'
-            ? `${dependenciesField}:`
-            : 'not saved (you should add these dependencies to package.json if you need them):'
-        )
-        let output = `${depsLabel}\n`
-        const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
-        if (useColumns && pkg[dependenciesField]!.length > 10) {
-          output += cliColumns(pkg[dependenciesField]!.map(printLabel.bind(printLabel, gPkgColor))) + '\n'
+  const output = (
+    await Promise.all(
+      dependenciesFields.map(async (dependenciesField) => {
+        if (pkg[dependenciesField]?.length) {
+          const depsLabel = chalk.cyanBright(
+            dependenciesField !== 'unsavedDependencies'
+              ? `${dependenciesField}:`
+              : 'not saved (you should add these dependencies to package.json if you need them):'
+          )
+          let output = `${depsLabel}\n`
+          const gPkgColor =
+            dependenciesField === 'unsavedDependencies'
+              ? () => NOT_SAVED_DEP_CLR
+              : getPkgColor
+          if (useColumns && pkg[dependenciesField]!.length > 10) {
+            output +=
+              cliColumns(
+                pkg[dependenciesField]!.map(
+                  printLabel.bind(printLabel, gPkgColor)
+                )
+              ) + '\n'
+            return output
+          }
+          const data = await toArchyTree(gPkgColor, pkg[dependenciesField]!, {
+            long: opts.long,
+            modules: path.join(pkg.path, 'node_modules'),
+          })
+          for (const d of data) {
+            output += archy(d)
+          }
           return output
         }
-        const data = await toArchyTree(gPkgColor, pkg[dependenciesField]!, {
-          long: opts.long,
-          modules: path.join(pkg.path, 'node_modules'),
-        })
-        for (const d of data) {
-          output += archy(d)
-        }
-        return output
-      }
-      return null
-    }))).filter(Boolean).join('\n')
+        return null
+      })
+    )
+  )
+    .filter(Boolean)
+    .join('\n')
 
   return `${chalk.bold.underline(label)}\n\n${output}`.replace(/(\n)+$/, '')
 }
 
 type GetPkgColor = (node: PackageNode) => (s: string) => string
 
-export async function toArchyTree (
+export async function toArchyTree(
   getPkgColor: GetPkgColor,
   entryNodes: PackageNode[],
   opts: {
@@ -112,13 +128,14 @@ export async function toArchyTree (
 ): Promise<archy.Data[]> {
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
-      const nodes = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
+      const nodes = await toArchyTree(
+        getPkgColor,
+        node.dependencies ?? [],
+        opts
+      )
       if (opts.long) {
         const pkg = await getPkgInfo(node)
-        const labelLines = [
-          printLabel(getPkgColor, node),
-          pkg.description,
-        ]
+        const labelLines = [printLabel(getPkgColor, node), pkg.description]
         if (pkg.repository) {
           labelLines.push(pkg.repository)
         }
@@ -142,7 +159,7 @@ export async function toArchyTree (
   )
 }
 
-function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
+function printLabel(getPkgColor: GetPkgColor, node: PackageNode) {
   const color = getPkgColor(node)
   let txt = `${color(node.name)} ${chalk.gray(node.version)}`
   if (node.isPeer) {
@@ -154,7 +171,7 @@ function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
   return node.searched ? chalk.bold(txt) : txt
 }
 
-function getPkgColor (node: PackageNode) {
+function getPkgColor(node: PackageNode) {
   if (node.dev === true) return DEV_DEP_ONLY_CLR
   if (node.optional) return OPTIONAL_DEP_CLR
   return PROD_DEP_CLR

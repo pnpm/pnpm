@@ -107,8 +107,12 @@ test('writeWantedLockfile()', async () => {
     registry: 'https://registry.npmjs.org',
   }
   await writeWantedLockfile(projectPath, wantedLockfile)
-  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toBeNull()
-  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+  expect(
+    await readCurrentLockfile(projectPath, { ignoreIncompatible: false })
+  ).toBeNull()
+  expect(
+    await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+  ).toEqual(wantedLockfile)
 })
 
 test('writeCurrentLockfile()', async () => {
@@ -150,8 +154,12 @@ test('writeCurrentLockfile()', async () => {
     registry: 'https://registry.npmjs.org',
   }
   await writeCurrentLockfile(projectPath, wantedLockfile)
-  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toBeNull()
-  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+  expect(
+    await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+  ).toBeNull()
+  expect(
+    await readCurrentLockfile(projectPath, { ignoreIncompatible: false })
+  ).toEqual(wantedLockfile)
 })
 
 test('existsNonEmptyWantedLockfile()', async () => {
@@ -196,7 +204,7 @@ test('existsNonEmptyWantedLockfile()', async () => {
 })
 
 test('readWantedLockfile() when useGitBranchLockfile', async () => {
-  (getCurrentBranch as jest.Mock).mockReturnValue('branch')
+  ;(getCurrentBranch as jest.Mock).mockReturnValue('branch')
   const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
     ignoreIncompatible: false,
   })
@@ -215,10 +223,13 @@ test('readWantedLockfile() when useGitBranchLockfile', async () => {
     },
   })
 
-  const gitBranchLockfile = await readWantedLockfile(path.join('fixtures', '6'), {
-    ignoreIncompatible: false,
-    useGitBranchLockfile: true,
-  })
+  const gitBranchLockfile = await readWantedLockfile(
+    path.join('fixtures', '6'),
+    {
+      ignoreIncompatible: false,
+      useGitBranchLockfile: true,
+    }
+  )
   expect(gitBranchLockfile?.importers).toEqual({
     '.': {
       specifiers: {
@@ -236,7 +247,7 @@ test('readWantedLockfile() when useGitBranchLockfile', async () => {
 })
 
 test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles', async () => {
-  (getCurrentBranch as jest.Mock).mockReturnValue('branch')
+  ;(getCurrentBranch as jest.Mock).mockReturnValue('branch')
   const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
     ignoreIncompatible: false,
     useGitBranchLockfile: true,
@@ -285,7 +296,9 @@ test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
     registry: 'https://registry.npmjs.org',
   }
 
-  const lockfile = await readWantedLockfile(path.join('fixtures', '7'), { ignoreIncompatible: false })
+  const lockfile = await readWantedLockfile(path.join('fixtures', '7'), {
+    ignoreIncompatible: false,
+  })
   expect(lockfile?.importers).toEqual(wantedLockfile.importers)
   expect(lockfile?.packages).toEqual(wantedLockfile.packages)
 })

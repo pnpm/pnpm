@@ -2,7 +2,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type PnpmError } from '@pnpm/error'
+import type { PnpmError } from '@pnpm/error'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { prepare, tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -12,7 +12,10 @@ import stripAnsi from 'strip-ansi'
 const f = fixtures(__dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 const has2OutdatedDepsFixture = f.find('has-2-outdated-deps')
-const hasOutdatedDepsFixtureAndExternalLockfile = path.join(f.find('has-outdated-deps-and-external-shrinkwrap'), 'pkg')
+const hasOutdatedDepsFixtureAndExternalLockfile = path.join(
+  f.find('has-outdated-deps-and-external-shrinkwrap'),
+  'pkg'
+)
 const hasNotOutdatedDepsFixture = f.find('has-not-outdated-deps')
 const hasMajorOutdatedDepsFixture = f.find('has-major-outdated-deps')
 const hasNoLockfileFixture = f.find('has-no-lockfile')
@@ -41,8 +44,14 @@ test('pnpm outdated: show details', async () => {
   tempDir()
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'),
+    path.resolve('node_modules/.pnpm/lock.yaml')
+  )
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'package.json'),
+    path.resolve('package.json')
+  )
 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
@@ -71,8 +80,14 @@ test('pnpm outdated: show details (using the public registry to verify that full
   tempDir()
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(has2OutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(has2OutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  await fs.copyFile(
+    path.join(has2OutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'),
+    path.resolve('node_modules/.pnpm/lock.yaml')
+  )
+  await fs.copyFile(
+    path.join(has2OutdatedDepsFixture, 'package.json'),
+    path.resolve('package.json')
+  )
 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
@@ -98,8 +113,14 @@ test('pnpm outdated: showing only prod or dev dependencies', async () => {
   tempDir()
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'),
+    path.resolve('node_modules/.pnpm/lock.yaml')
+  )
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'package.json'),
+    path.resolve('package.json')
+  )
 
   {
     const { output, exitCode } = await outdated.handler({
@@ -142,8 +163,14 @@ test('pnpm outdated: no table', async () => {
   tempDir()
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'),
+    path.resolve('node_modules/.pnpm/lock.yaml')
+  )
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'package.json'),
+    path.resolve('package.json')
+  )
 
   {
     const { output, exitCode } = await outdated.handler({
@@ -195,8 +222,14 @@ test('pnpm outdated: format json', async () => {
   tempDir()
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'),
+    path.resolve('node_modules/.pnpm/lock.yaml')
+  )
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'package.json'),
+    path.resolve('package.json')
+  )
 
   {
     const { output, exitCode } = await outdated.handler({
@@ -206,29 +239,35 @@ test('pnpm outdated: format json', async () => {
     })
 
     expect(exitCode).toBe(1)
-    expect(stripAnsi(output)).toBe(JSON.stringify({
-      '@pnpm.e2e/deprecated': {
-        current: '1.0.0',
-        latest: '1.0.0',
-        wanted: '1.0.0',
-        isDeprecated: true,
-        dependencyType: 'dependencies',
-      },
-      'is-negative': {
-        current: '1.0.0',
-        latest: '2.1.0',
-        wanted: '1.0.0',
-        isDeprecated: false,
-        dependencyType: 'dependencies',
-      },
-      'is-positive': {
-        current: '1.0.0',
-        latest: '3.1.0',
-        wanted: '1.0.0',
-        isDeprecated: false,
-        dependencyType: 'devDependencies',
-      },
-    }, null, 2))
+    expect(stripAnsi(output)).toBe(
+      JSON.stringify(
+        {
+          '@pnpm.e2e/deprecated': {
+            current: '1.0.0',
+            latest: '1.0.0',
+            wanted: '1.0.0',
+            isDeprecated: true,
+            dependencyType: 'dependencies',
+          },
+          'is-negative': {
+            current: '1.0.0',
+            latest: '2.1.0',
+            wanted: '1.0.0',
+            isDeprecated: false,
+            dependencyType: 'dependencies',
+          },
+          'is-positive': {
+            current: '1.0.0',
+            latest: '3.1.0',
+            wanted: '1.0.0',
+            isDeprecated: false,
+            dependencyType: 'devDependencies',
+          },
+        },
+        null,
+        2
+      )
+    )
   }
 })
 
@@ -249,8 +288,14 @@ test('pnpm outdated: only current lockfile is available', async () => {
   tempDir()
 
   await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'),
+    path.resolve('node_modules/.pnpm/lock.yaml')
+  )
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'package.json'),
+    path.resolve('package.json')
+  )
 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
@@ -274,8 +319,14 @@ test('pnpm outdated: only current lockfile is available', async () => {
 test('pnpm outdated: only wanted lockfile is available', async () => {
   tempDir()
 
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'),
+    path.resolve('pnpm-lock.yaml')
+  )
+  await fs.copyFile(
+    path.join(hasOutdatedDepsFixture, 'package.json'),
+    path.resolve('package.json')
+  )
 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,

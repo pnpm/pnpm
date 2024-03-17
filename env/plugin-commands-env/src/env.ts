@@ -7,11 +7,11 @@ import { type NvmNodeCommandOptions } from './node'
 import { envList } from './envList'
 import { envAdd } from './envAdd'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes() {
   return {}
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return {
     global: Boolean,
     remote: Boolean,
@@ -20,7 +20,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['env']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: 'Manage Node.js versions.',
     descriptionLists: [
@@ -28,11 +28,13 @@ export function help () {
         title: 'Commands',
         list: [
           {
-            description: 'Installs the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well. This sets this version of Node.js as the current version.',
+            description:
+              'Installs the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well. This sets this version of Node.js as the current version.',
             name: 'use',
           },
           {
-            description: 'Installs the specified version(s) of Node.js without activating them as the current version.',
+            description:
+              'Installs the specified version(s) of Node.js without activating them as the current version.',
             name: 'add',
           },
           {
@@ -87,36 +89,43 @@ export function help () {
   })
 }
 
-export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
+export async function handler(opts: NvmNodeCommandOptions, params: string[]) {
   if (params.length === 0) {
     throw new PnpmError('ENV_NO_SUBCOMMAND', 'Please specify the subcommand', {
       hint: help(),
     })
   }
   if (opts.global && !opts.bin) {
-    throw new PnpmError('CANNOT_MANAGE_NODE', 'Unable to manage Node.js because pnpm was not installed using the standalone installation script', {
-      hint: 'If you want to manage Node.js with pnpm, you need to remove any Node.js that was installed by other tools, then install pnpm using one of the standalone scripts that are provided on the installation page: https://pnpm.io/installation',
-    })
+    throw new PnpmError(
+      'CANNOT_MANAGE_NODE',
+      'Unable to manage Node.js because pnpm was not installed using the standalone installation script',
+      {
+        hint: 'If you want to manage Node.js with pnpm, you need to remove any Node.js that was installed by other tools, then install pnpm using one of the standalone scripts that are provided on the installation page: https://pnpm.io/installation',
+      }
+    )
   }
   switch (params[0]) {
-  case 'add': {
-    return envAdd(opts, params.slice(1))
-  }
-  case 'use': {
-    return envUse(opts, params.slice(1))
-  }
-  case 'remove':
-  case 'rm':
-  case 'uninstall':
-  case 'un': {
-    return envRemove(opts, params.slice(1))
-  }
-  case 'list':
-  case 'ls': {
-    return envList(opts, params.slice(1))
-  }
-  default: {
-    throw new PnpmError('ENV_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
-  }
+    case 'add': {
+      return envAdd(opts, params.slice(1))
+    }
+    case 'use': {
+      return envUse(opts, params.slice(1))
+    }
+    case 'remove':
+    case 'rm':
+    case 'uninstall':
+    case 'un': {
+      return envRemove(opts, params.slice(1))
+    }
+    case 'list':
+    case 'ls': {
+      return envList(opts, params.slice(1))
+    }
+    default: {
+      throw new PnpmError(
+        'ENV_UNKNOWN_SUBCOMMAND',
+        'This subcommand is not known'
+      )
+    }
   }
 }

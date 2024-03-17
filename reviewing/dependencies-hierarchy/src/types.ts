@@ -1,1 +1,1 @@
-export type SearchFunction = (pkg: { name: string, version: string }) => boolean
+export type SearchFunction = (pkg: { name: string; version: string }) => boolean

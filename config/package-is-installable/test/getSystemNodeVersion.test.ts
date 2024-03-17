@@ -9,13 +9,13 @@ jest.mock('execa', () => ({
 
 test('getSystemNodeVersion() executed from an executable pnpm CLI', () => {
   // @ts-expect-error
-  process['pkg'] = {}
+  process.pkg = {}
   expect(getSystemNodeVersionNonCached()).toBe('v10.0.0')
   expect(execa.sync).toHaveBeenCalledWith('node', ['--version'])
 })
 
 test('getSystemNodeVersion() from a non-executable pnpm CLI', () => {
   // @ts-expect-error
-  delete process['pkg']
+  delete process.pkg
   expect(getSystemNodeVersionNonCached()).toBe(process.version)
 })

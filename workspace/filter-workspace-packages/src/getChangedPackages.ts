@@ -6,12 +6,36 @@ import findUp from 'find-up'
 
 type ChangeType = 'source' | 'test'
 
-interface ChangedDir { dir: string, changeType: ChangeType }
+interface ChangedDir {
+  dir: string
+  changeType: ChangeType
+}
 
-export async function getChangedPackages (packageDirs: string[], commit: string, opts: { workspaceDir: string, testPattern?: string[], changedFilesIgnorePattern?: string[] }): Promise<[string[], string[]]> {
-  const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ?? opts.workspaceDir, '..')
-  const changedDirs = (await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPattern ?? [], opts.changedFilesIgnorePattern ?? []))
-    .map(changedDir => ({ ...changedDir, dir: path.join(repoRoot, changedDir.dir) }))
+export async function getChangedPackages(
+  packageDirs: string[],
+  commit: string,
+  opts: {
+    workspaceDir: string
+    testPattern?: string[]
+    changedFilesIgnorePattern?: string[]
+  }
+): Promise<[string[], string[]]> {
+  const repoRoot = path.resolve(
+    (await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' })) ??
+      opts.workspaceDir,
+    '..'
+  )
+  const changedDirs = (
+    await getChangedDirsSinceCommit(
+      commit,
+      opts.workspaceDir,
+      opts.testPattern ?? [],
+      opts.changedFilesIgnorePattern ?? []
+    )
+  ).map((changedDir) => ({
+    ...changedDir,
+    dir: path.join(repoRoot, changedDir.dir),
+  }))
   const pkgChangeTypes = new Map<string, ChangeType | undefined>()
   for (const pkgDir of packageDirs) {
     pkgChangeTypes.set(pkgDir, undefined)
@@ -31,31 +55,35 @@ export async function getChangedPackages (packageDirs: string[], commit: string,
   const ignoreDependentForPkgs = [] as string[]
   for (const [changedDir, changeType] of pkgChangeTypes.entries()) {
     switch (changeType) {
-    case 'source':
-      changedPkgs.push(changedDir)
-      break
-    case 'test':
-      ignoreDependentForPkgs.push(changedDir)
-      break
+      case 'source':
+        changedPkgs.push(changedDir)
+        break
+      case 'test':
+        ignoreDependentForPkgs.push(changedDir)
+        break
     }
   }
   return [changedPkgs, ignoreDependentForPkgs]
 }
 
-async function getChangedDirsSinceCommit (commit: string, workingDir: string, testPattern: string[], changedFilesIgnorePattern: string[]): Promise<ChangedDir[]> {
+async function getChangedDirsSinceCommit(
+  commit: string,
+  workingDir: string,
+  testPattern: string[],
+  changedFilesIgnorePattern: string[]
+): Promise<ChangedDir[]> {
   let diff!: string
   try {
     diff = (
-      await execa('git', [
-        'diff',
-        '--name-only',
-        commit,
-        '--',
-        workingDir,
-      ], { cwd: workingDir })
+      await execa('git', ['diff', '--name-only', commit, '--', workingDir], {
+        cwd: workingDir,
+      })
     ).stdout
   } catch (err: any) { // eslint-disable-line
-    throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${err.stderr as string}`)
+    throw new PnpmError(
+      'FILTER_CHANGED',
+      `Filtering by changed packages failed. ${err.stderr as string}`
+    )
   }
   const changedDirs = new Map<string, ChangeType>()
 
@@ -63,28 +91,33 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
     return []
   }
 
-  const allChangedFiles = diff.split('\n')
+  const allChangedFiles = diff
+    .split('\n')
     // The prefix and suffix '"' are appended to the Korean path
-    .map(line => line.replace(/^"/, '').replace(/"$/, ''))
-  const patterns = changedFilesIgnorePattern.filter(
-    (pattern) => pattern.length
-  )
-  const changedFiles = (patterns.length > 0)
-    ? micromatch.not(allChangedFiles, patterns, {
-      dot: true,
-    })
-    : allChangedFiles
+    .map((line) => line.replace(/^"/, '').replace(/"$/, ''))
+  const patterns = changedFilesIgnorePattern.filter((pattern) => pattern.length)
+  const changedFiles =
+    patterns.length > 0
+      ? micromatch.not(allChangedFiles, patterns, {
+        dot: true,
+      })
+      : allChangedFiles
 
   for (const changedFile of changedFiles) {
     const dir = path.dirname(changedFile)
 
     if (changedDirs.get(dir) === 'source') continue
 
-    const changeType: ChangeType = testPattern.some(pattern => micromatch.isMatch(changedFile, pattern))
+    const changeType: ChangeType = testPattern.some((pattern) =>
+      micromatch.isMatch(changedFile, pattern)
+    )
       ? 'test'
       : 'source'
     changedDirs.set(dir, changeType)
   }
 
-  return Array.from(changedDirs.entries()).map(([dir, changeType]) => ({ dir, changeType }))
+  return Array.from(changedDirs.entries()).map(([dir, changeType]) => ({
+    dir,
+    changeType,
+  }))
 }

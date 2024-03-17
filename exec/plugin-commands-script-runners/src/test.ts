@@ -5,7 +5,7 @@ import * as run from './run'
 
 export const commandNames = ['test', 't', 'tst']
 
-export function help () {
+export function help() {
   return renderHelp({
     aliases: ['t', 'tst'],
     description: 'Runs a package\'s "test" script, if one was provided.',
@@ -15,7 +15,8 @@ export function help () {
 
         list: [
           {
-            description: '\
+            description:
+              '\
 Run the tests in every package found in subdirectories \
 or every workspace package, when executed inside a workspace. \
 For options that may be used with `-r`, see "pnpm help recursive"',
@@ -31,9 +32,6 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   })
 }
 
-export async function handler (
-  opts: run.RunOpts,
-  params: string[] = []
-) {
+export async function handler(opts: run.RunOpts, params: string[] = []) {
   return run.handler(opts, ['test', ...params])
 }

@@ -19,7 +19,10 @@ export interface Result<T> {
  * @param {T[]} includedNodes - An array of nodes that should be included in the sorting process. Other nodes will be ignored.
  * @returns {Result<T>} An object containing the result of the sorting, including safe, chunks, and cycles.
  */
-export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...graph.keys()]): Result<T> {
+export function graphSequencer<T>(
+  graph: Graph<T>,
+  includedNodes: T[] = [...graph.keys()]
+): Result<T> {
   // Initialize reverseGraph with empty arrays for all nodes.
   const reverseGraph = new Map<T, T[]>()
   for (const key of graph.keys()) {
@@ -35,7 +38,7 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
     for (const to of edges) {
       if (nodes.has(from) && nodes.has(to)) {
         changeOutDegree(from, 1)
-        reverseGraph.get(to)!.push(from)
+        reverseGraph.get(to)?.push(from)
       }
     }
     if (!nodes.has(from)) {
@@ -81,13 +84,13 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
   return { safe, chunks, cycles }
 
   // Function to update the outDegree of a node.
-  function changeOutDegree (node: T, value: number) {
+  function changeOutDegree(node: T, value: number) {
     const degree = outDegree.get(node) ?? 0
     outDegree.set(node, degree + value)
   }
 
   // Function to remove a node from the graph.
-  function removeNode (node: T) {
+  function removeNode(node: T) {
     for (const from of reverseGraph.get(node)!) {
       changeOutDegree(from, -1)
     }
@@ -95,7 +98,7 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
     nodes.delete(node)
   }
 
-  function findCycle (startNode: T): T[] {
+  function findCycle(startNode: T): T[] {
     const queue: Array<[T, T[]]> = [[startNode, [startNode]]]
     const cycleVisited = new Set<T>()
     while (queue.length) {

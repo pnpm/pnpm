@@ -1,21 +1,19 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import type { Lockfile } from '@pnpm/lockfile-types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createPeersFolderSuffix } from '@pnpm/dependency-path'
 import readYamlFile from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
-import {
-  addDistTag,
-  execPnpm,
-  execPnpmSync,
-} from '../utils'
+import { addDistTag, execPnpm, execPnpmSync } from '../utils'
 
 test('readPackage hook', async () => {
   const project = prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -27,7 +25,9 @@ test('readPackage hook', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
@@ -40,7 +40,9 @@ test('readPackage hook', async () => {
 test('readPackage async hook', async () => {
   const project = prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -52,7 +54,9 @@ test('readPackage async hook', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
@@ -65,14 +69,18 @@ test('readPackage async hook', async () => {
 test('readPackage hook makes installation fail if it does not return the modified package manifests', async () => {
   prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
         readPackage (pkg) {}
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   const result = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep'])
 
@@ -82,7 +90,9 @@ test('readPackage hook makes installation fail if it does not return the modifie
 test('readPackage hook from custom location', async () => {
   const project = prepare()
 
-  await fs.writeFile('pnpm.js', `
+  await fs.writeFile(
+    'pnpm.js',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -94,12 +104,19 @@ test('readPackage hook from custom location', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm(['install', '@pnpm.e2e/pkg-with-1-dep', '--pnpmfile', 'pnpm.js'])
+  await execPnpm([
+    'install',
+    '@pnpm.e2e/pkg-with-1-dep',
+    '--pnpmfile',
+    'pnpm.js',
+  ])
 
   await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -107,7 +124,9 @@ test('readPackage hook from custom location', async () => {
 test('readPackage hook from global pnpmfile', async () => {
   const project = prepare()
 
-  await fs.writeFile('../.pnpmfile.cjs', `
+  await fs.writeFile(
+    '../.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -119,12 +138,19 @@ test('readPackage hook from global pnpmfile', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm(['install', '@pnpm.e2e/pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', '.pnpmfile.cjs')])
+  await execPnpm([
+    'install',
+    '@pnpm.e2e/pkg-with-1-dep',
+    '--global-pnpmfile',
+    path.resolve('..', '.pnpmfile.cjs'),
+  ])
 
   await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -132,7 +158,9 @@ test('readPackage hook from global pnpmfile', async () => {
 test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
   const project = prepare()
 
-  await fs.writeFile('../.pnpmfile.cjs', `
+  await fs.writeFile(
+    '../.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -145,9 +173,13 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -159,12 +191,19 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm(['install', '@pnpm.e2e/pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', '.pnpmfile.cjs')])
+  await execPnpm([
+    'install',
+    '@pnpm.e2e/pkg-with-1-dep',
+    '--global-pnpmfile',
+    path.resolve('..', '.pnpmfile.cjs'),
+  ])
 
   await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
   await project.storeHas('is-positive', '1.0.0')
@@ -173,7 +212,9 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async () => {
 test('readPackage async hook from global pnpmfile and local pnpmfile', async () => {
   const project = prepare()
 
-  await fs.writeFile('../.pnpmfile.cjs', `
+  await fs.writeFile(
+    '../.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -186,9 +227,13 @@ test('readPackage async hook from global pnpmfile and local pnpmfile', async () 
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -200,12 +245,19 @@ test('readPackage async hook from global pnpmfile and local pnpmfile', async () 
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm(['install', '@pnpm.e2e/pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', '.pnpmfile.cjs')])
+  await execPnpm([
+    'install',
+    '@pnpm.e2e/pkg-with-1-dep',
+    '--global-pnpmfile',
+    path.resolve('..', '.pnpmfile.cjs'),
+  ])
 
   await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
   await project.storeHas('is-positive', '1.0.0')
@@ -264,7 +316,9 @@ test('readPackage hook during update', async () => {
     },
   })
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -276,7 +330,9 @@ test('readPackage hook during update', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
@@ -293,14 +349,20 @@ test('prints meaningful error when there is syntax error in .pnpmfile.cjs', asyn
 
   const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep'])
 
-  expect(proc.stderr.toString()).toContain('SyntaxError: Invalid regular expression: missing /')
+  expect(proc.stderr.toString()).toContain(
+    'SyntaxError: Invalid regular expression: missing /'
+  )
   expect(proc.status).toBe(1)
 })
 
 test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
   prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', 'module.exports = require("./this-does-node-exist")', 'utf8')
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    'module.exports = require("./this-does-node-exist")',
+    'utf8'
+  )
 
   const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep'])
 
@@ -311,7 +373,9 @@ test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
 test('ignore .pnpmfile.cjs when --ignore-pnpmfile is used', async () => {
   const project = prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -323,7 +387,9 @@ test('ignore .pnpmfile.cjs when --ignore-pnpmfile is used', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
@@ -339,7 +405,9 @@ test('ignore .pnpmfile.cjs during update when --ignore-pnpmfile is used', async 
     },
   })
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -351,7 +419,9 @@ test('ignore .pnpmfile.cjs during update when --ignore-pnpmfile is used', async 
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
@@ -363,7 +433,9 @@ test('ignore .pnpmfile.cjs during update when --ignore-pnpmfile is used', async 
 test('pnpmfile: pass log function to readPackage hook', async () => {
   const project = prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -376,18 +448,26 @@ test('pnpmfile: pass log function to readPackage hook', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep', '--reporter', 'ndjson'])
+  const proc = execPnpmSync([
+    'install',
+    '@pnpm.e2e/pkg-with-1-dep',
+    '--reporter',
+    'ndjson',
+  ])
 
   await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 
   const outputs = proc.stdout.toString().split(/\r?\n/)
 
-  const hookLog = outputs.filter(Boolean)
+  const hookLog = outputs
+    .filter(Boolean)
     .map((output) => JSON.parse(output))
     .find((log) => log.name === 'pnpm:hook')
 
@@ -395,13 +475,17 @@ test('pnpmfile: pass log function to readPackage hook', async () => {
   expect(hookLog.prefix).toBeTruthy()
   expect(hookLog.from).toBeTruthy()
   expect(hookLog.hook).toBe('readPackage')
-  expect(hookLog.message).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0')
+  expect(hookLog.message).toBe(
+    '@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0'
+  )
 })
 
 test('pnpmfile: pass log function to readPackage hook of global and local pnpmfile', async () => {
   const project = prepare()
 
-  await fs.writeFile('../.pnpmfile.cjs', `
+  await fs.writeFile(
+    '../.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -415,9 +499,13 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -430,19 +518,29 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', '.pnpmfile.cjs'), '--reporter', 'ndjson'])
+  const proc = execPnpmSync([
+    'install',
+    '@pnpm.e2e/pkg-with-1-dep',
+    '--global-pnpmfile',
+    path.resolve('..', '.pnpmfile.cjs'),
+    '--reporter',
+    'ndjson',
+  ])
 
   await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
   await project.storeHas('is-positive', '1.0.0')
 
   const outputs = proc.stdout.toString().split(/\r?\n/)
 
-  const hookLogs = outputs.filter(Boolean)
+  const hookLogs = outputs
+    .filter(Boolean)
     .map((output) => JSON.parse(output))
     .filter((log) => log.name === 'pnpm:hook')
 
@@ -465,7 +563,9 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
 test('pnpmfile: run afterAllResolved hook', async () => {
   prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -475,13 +575,21 @@ test('pnpmfile: run afterAllResolved hook', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
-  const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep', '--reporter', 'ndjson'])
+  const proc = execPnpmSync([
+    'install',
+    '@pnpm.e2e/pkg-with-1-dep',
+    '--reporter',
+    'ndjson',
+  ])
 
   const outputs = proc.stdout.toString().split(/\r?\n/)
 
-  const hookLog = outputs.filter(Boolean)
+  const hookLog = outputs
+    .filter(Boolean)
     .map((output) => JSON.parse(output))
     .find((log) => log.name === 'pnpm:hook')
 
@@ -495,7 +603,9 @@ test('pnpmfile: run afterAllResolved hook', async () => {
 test('pnpmfile: run async afterAllResolved hook', async () => {
   prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -505,13 +615,21 @@ test('pnpmfile: run async afterAllResolved hook', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
-  const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep', '--reporter', 'ndjson'])
+  const proc = execPnpmSync([
+    'install',
+    '@pnpm.e2e/pkg-with-1-dep',
+    '--reporter',
+    'ndjson',
+  ])
 
   const outputs = proc.stdout.toString().split(/\r?\n/)
 
-  const hookLog = outputs.filter(Boolean)
+  const hookLog = outputs
+    .filter(Boolean)
     .map((output) => JSON.parse(output))
     .find((log) => log.name === 'pnpm:hook')
 
@@ -525,7 +643,9 @@ test('pnpmfile: run async afterAllResolved hook', async () => {
 test('readPackage hook normalizes the package manifest', async () => {
   prepare()
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -540,7 +660,9 @@ test('readPackage hook normalizes the package manifest', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   await execPnpm(['install', '@pnpm.e2e/dep-of-pkg-with-1-dep'])
 })
@@ -550,7 +672,9 @@ test('readPackage hook overrides project package', async () => {
     name: 'test-read-package-hook',
   })
 
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -564,7 +688,9 @@ test('readPackage hook overrides project package', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   await execPnpm(['install'])
 
@@ -591,7 +717,9 @@ test('readPackage hook is used during removal inside a workspace', async () => {
 
   await fs.writeFile('.npmrc', 'auto-install-peers=false', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
-  await fs.writeFile('.pnpmfile.cjs', `
+  await fs.writeFile(
+    '.pnpmfile.cjs',
+    `
     'use strict'
     module.exports = {
       hooks: {
@@ -605,7 +733,9 @@ test('readPackage hook is used during removal inside a workspace', async () => {
         }
       }
     }
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   process.chdir('project')
   await execPnpm(['install', '--no-strict-peer-dependencies'])
@@ -613,8 +743,15 @@ test('readPackage hook is used during removal inside a workspace', async () => {
 
   process.chdir('..')
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
-  const suffix = createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: 'is-negative', version: '1.0.0' }])
-  expect(lockfile.packages![`/@pnpm.e2e/abc@1.0.0${suffix}`].peerDependencies!['is-negative']).toBe('1.0.0')
+  const suffix = createPeersFolderSuffix([
+    { name: '@pnpm.e2e/peer-a', version: '1.0.0' },
+    { name: 'is-negative', version: '1.0.0' },
+  ])
+  expect(
+    lockfile.packages![`/@pnpm.e2e/abc@1.0.0${suffix}`].peerDependencies![
+      'is-negative'
+    ]
+  ).toBe('1.0.0')
 })
 
 test('preResolution hook', async () => {

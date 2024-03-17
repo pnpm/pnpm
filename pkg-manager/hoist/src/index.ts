@@ -3,10 +3,7 @@ import path from 'path'
 import { linkLogger } from '@pnpm/core-loggers'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/link-bins'
-import {
-  type Lockfile,
-  nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+import { type Lockfile, nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
@@ -26,7 +23,7 @@ export interface HoistOpts extends GetHoistedDependenciesOpts {
   virtualStoreDir: string
 }
 
-export async function hoist (opts: HoistOpts) {
+export async function hoist(opts: HoistOpts) {
   const result = getHoistedDependencies(opts)
   if (!result) return {}
   const { hoistedDependencies, hoistedAliasesWithBins } = result
@@ -68,7 +65,9 @@ export interface HoistedWorkspaceProject {
   dir: string
 }
 
-export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): HoistGraphResult | null {
+export function getHoistedDependencies(
+  opts: GetHoistedDependenciesOpts
+): HoistGraphResult | null {
   if (opts.lockfile.packages == null) return null
 
   const { directDeps, step } = lockfileWalker(
@@ -80,20 +79,23 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
   // That is why we can't just simply use the lockfile walker to include links to local workspace packages too.
   // We have to explicitly include all the workspace packages.
   const hoistedWorkspaceDeps = Object.fromEntries(
-    Object.entries(opts.hoistedWorkspacePackages ?? {})
-      .map(([id, { name }]) => [name, id])
+    Object.entries(opts.hoistedWorkspacePackages ?? {}).map(
+      ([id, { name }]) => [name, id]
+    )
   )
   const deps = [
     {
       children: {
         ...hoistedWorkspaceDeps,
-        ...directDeps
-          .reduce((acc, { alias, depPath }) => {
+        ...directDeps.reduce(
+          (acc, { alias, depPath }) => {
             if (!acc[alias]) {
               acc[alias] = depPath
             }
             return acc
-          }, {} as Record<string, string>),
+          },
+          {} as Record<string, string>
+        ),
       },
       depPath: '',
       depth: -1,
@@ -101,7 +103,10 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
     ...getDependencies(0, step),
   ]
 
-  const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
+  const getAliasHoistType = createGetAliasHoistType(
+    opts.publicHoistPattern,
+    opts.privateHoistPattern
+  )
 
   return hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
     getAliasHoistType,
@@ -111,7 +116,7 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
 
 type GetAliasHoistType = (alias: string) => 'private' | 'public' | false
 
-function createGetAliasHoistType (
+function createGetAliasHoistType(
   publicHoistPattern: string[],
   privateHoistPattern: string[]
 ): GetAliasHoistType {
@@ -130,7 +135,7 @@ interface LinkAllBinsOptions {
   preferSymlinkedExecutables?: boolean
 }
 
-async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions) {
+async function linkAllBins(modulesDir: string, opts: LinkAllBinsOptions) {
   const bin = path.join(modulesDir, '.bin')
   const warn: WarnFunction = (message, code) => {
     if (code === 'BINARIES_CONFLICT') return
@@ -152,7 +157,7 @@ async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions) {
   }
 }
 
-function getDependencies (
+function getDependencies(
   depth: number,
   step: LockfileWalkerStep
 ): Dependency[] {
@@ -164,7 +169,10 @@ function getDependencies (
       ...pkgSnapshot.optionalDependencies,
     }
     deps.push({
-      children: mapObjIndexed(dp.refToRelative, allDeps) as Record<string, string>,
+      children: mapObjIndexed(dp.refToRelative, allDeps) as Record<
+        string,
+        string
+      >,
       depPath,
       depth,
     })
@@ -178,10 +186,7 @@ function getDependencies (
     logger.debug({ message: `No entry for "${depPath}" in ${WANTED_LOCKFILE}` })
   }
 
-  return [
-    ...deps,
-    ...nextSteps.flatMap(getDependencies.bind(null, depth + 1)),
-  ]
+  return [...deps, ...nextSteps.flatMap(getDependencies.bind(null, depth + 1))]
 }
 
 export interface Dependency {
@@ -195,7 +200,7 @@ interface HoistGraphResult {
   hoistedAliasesWithBins: string[]
 }
 
-function hoistGraph (
+function hoistGraph(
   depNodes: Dependency[],
   currentSpecifiers: Record<string, string>,
   opts: {
@@ -234,10 +239,13 @@ function hoistGraph (
       }
     })
 
-  return { hoistedDependencies, hoistedAliasesWithBins: Array.from(hoistedAliasesWithBins) }
+  return {
+    hoistedDependencies,
+    hoistedAliasesWithBins: Array.from(hoistedAliasesWithBins),
+  }
 }
 
-async function symlinkHoistedDependencies (
+async function symlinkHoistedDependencies(
   hoistedDependencies: HoistedDependencies,
   opts: {
     lockfile: Lockfile
@@ -249,13 +257,17 @@ async function symlinkHoistedDependencies (
 ) {
   const symlink = symlinkHoistedDependency.bind(null, opts)
   await Promise.all(
-    Object.entries(hoistedDependencies)
-      .map(async ([hoistedDepId, pkgAliases]) => {
+    Object.entries(hoistedDependencies).map(
+      async ([hoistedDepId, pkgAliases]) => {
         const pkgSnapshot = opts.lockfile.packages![hoistedDepId]
         let depLocation!: string
         if (pkgSnapshot) {
           const pkgName = nameVerFromPkgSnapshot(hoistedDepId, pkgSnapshot).name
-          const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(hoistedDepId), 'node_modules')
+          const modules = path.join(
+            opts.virtualStoreDir,
+            dp.depPathToFilename(hoistedDepId),
+            'node_modules'
+          )
           depLocation = path.join(modules, pkgName as string)
         } else {
           if (!opts.lockfile.importers[hoistedDepId]) {
@@ -265,18 +277,22 @@ async function symlinkHoistedDependencies (
           }
           depLocation = opts.hoistedWorkspacePackages![hoistedDepId].dir
         }
-        await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
-          const targetDir = hoistType === 'public'
-            ? opts.publicHoistedModulesDir
-            : opts.privateHoistedModulesDir
-          const dest = path.join(targetDir, pkgAlias)
-          return symlink(depLocation, dest)
-        }))
-      })
+        await Promise.all(
+          Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
+            const targetDir =
+              hoistType === 'public'
+                ? opts.publicHoistedModulesDir
+                : opts.privateHoistedModulesDir
+            const dest = path.join(targetDir, pkgAlias)
+            return symlink(depLocation, dest)
+          })
+        )
+      }
+    )
   )
 }
 
-async function symlinkHoistedDependency (
+async function symlinkHoistedDependency(
   opts: { virtualStoreDir: string },
   depLocation: string,
   dest: string

@@ -28,7 +28,7 @@ const PRINT_EXECUTION_TIME_IN_COMMANDS = {
   remove: true,
 }
 
-export function reporterForClient (
+export function reporterForClient(
   log$: {
     context: Rx.Observable<logs.ContextLog>
     fetchingProgress: Rx.Observable<logs.FetchingProgressLog>
@@ -76,29 +76,32 @@ export function reporterForClient (
 ): Array<Rx.Observable<Rx.Observable<{ msg: string }>>> {
   const width = opts.width ?? process.stdout.columns ?? 80
   const cwd = opts.pnpmConfig?.dir ?? process.cwd()
-  const throttle = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
-    ? throttleTime(opts.throttleProgress, undefined, { leading: true, trailing: true })
-    : undefined
+  const throttle =
+    typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
+      ? throttleTime(opts.throttleProgress, undefined, {
+          leading: true, // eslint-disable-line @stylistic/ts/indent
+          trailing: true, // eslint-disable-line @stylistic/ts/indent
+        }) // eslint-disable-line @stylistic/ts/indent
+      : undefined
 
   const outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>> = [
     reportLifecycleScripts(log$, {
-      appendOnly: (opts.appendOnly === true || opts.streamLifecycleOutput) && !opts.hideLifecycleOutput,
+      appendOnly:
+        (opts.appendOnly === true || opts.streamLifecycleOutput) &&
+        !opts.hideLifecycleOutput,
       aggregateOutput: opts.aggregateOutput,
       hideLifecyclePrefix: opts.hideLifecyclePrefix,
       cwd,
       width,
     }),
-    reportMisc(
-      log$,
-      {
-        appendOnly: opts.appendOnly === true,
-        config: opts.config,
-        cwd,
-        logLevel: opts.logLevel,
-        zoomOutCurrent: opts.isRecursive,
-        peerDependencyRules: opts.peerDependencyRules,
-      }
-    ),
+    reportMisc(log$, {
+      appendOnly: opts.appendOnly === true,
+      config: opts.config,
+      cwd,
+      logLevel: opts.logLevel,
+      zoomOutCurrent: opts.isRecursive,
+      peerDependencyRules: opts.peerDependencyRules,
+    }),
     reportInstallChecks(log$.installCheck, { cwd }),
     reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
@@ -115,15 +118,19 @@ export function reporterForClient (
   }
 
   // logLevelNumber: 0123 = error warn info debug
-  const logLevelNumber = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
+  const logLevelNumber =
+    LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER.info
 
   if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
     outputs.push(
       reportPeerDependencyIssues(log$, opts.peerDependencyRules),
-      reportDeprecations({
-        deprecation: log$.deprecation,
-        stage: log$.stage,
-      }, { cwd, isRecursive: opts.isRecursive }),
+      reportDeprecations(
+        {
+          deprecation: log$.deprecation,
+          stage: log$.stage,
+        },
+        { cwd, isRecursive: opts.isRecursive }
+      ),
       reportRequestRetry(log$.requestRetry)
     )
   }
@@ -151,13 +158,15 @@ export function reporterForClient (
   }
 
   if (!opts.isRecursive) {
-    outputs.push(reportSummary(log$, {
-      cmd: opts.cmd,
-      cwd,
-      env: opts.env,
-      filterPkgsDiff: opts.filterPkgsDiff,
-      pnpmConfig: opts.pnpmConfig,
-    }))
+    outputs.push(
+      reportSummary(log$, {
+        cmd: opts.cmd,
+        cwd,
+        env: opts.env,
+        filterPkgsDiff: opts.filterPkgsDiff,
+        pnpmConfig: opts.pnpmConfig,
+      })
+    )
   }
 
   return outputs

@@ -9,13 +9,13 @@ import { parseRawConfig } from './utils'
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return {}
 }
 
 export const commandNames = ['init']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: 'Create a package.json file',
     descriptionLists: [],
@@ -24,14 +24,18 @@ export function help () {
   })
 }
 
-export async function handler (
+export async function handler(
   opts: Pick<UniversalOptions, 'rawConfig'>,
   params?: string[]
 ) {
   if (params?.length) {
-    throw new PnpmError('INIT_ARG', 'init command does not accept any arguments', {
-      hint: `Maybe you wanted to run "pnpm create ${params.join(' ')}"`,
-    })
+    throw new PnpmError(
+      'INIT_ARG',
+      'init command does not accept any arguments',
+      {
+        hint: `Maybe you wanted to run "pnpm create ${params.join(' ')}"`,
+      }
+    )
   }
   // Using cwd instead of the dir option because the dir option
   // is set to the first parent directory that has a package.json file.

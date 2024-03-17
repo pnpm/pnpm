@@ -19,7 +19,7 @@ export const shorthands = {}
 
 export const commandNames = ['setup']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: 'Sets up pnpm',
     descriptionLists: [
@@ -28,7 +28,8 @@ export function help () {
 
         list: [
           {
-            description: 'Override the PNPM_HOME env variable in case it already exists',
+            description:
+              'Override the PNPM_HOME env variable in case it already exists',
             name: '--force',
             shortAlias: '-f',
           },
@@ -40,18 +41,18 @@ export function help () {
   })
 }
 
-function getExecPath () {
+function getExecPath() {
   // @ts-expect-error
-  if (process['pkg'] != null) {
+  if (process.pkg != null) {
     // If the pnpm CLI was bundled by vercel/pkg then we cannot use the js path for npm_execpath
     // because in that case the js is in a virtual filesystem inside the executor.
     // Instead, we use the path to the exe file.
     return process.execPath
   }
-  return (require.main != null) ? require.main.filename : process.cwd()
+  return require.main != null ? require.main.filename : process.cwd()
 }
 
-function copyCli (currentLocation: string, targetDir: string) {
+function copyCli(currentLocation: string, targetDir: string) {
   const newExecPath = path.join(targetDir, path.basename(currentLocation))
   if (path.relative(newExecPath, currentLocation) === '') return
   logger.info({
@@ -62,12 +63,7 @@ function copyCli (currentLocation: string, targetDir: string) {
   fs.copyFileSync(currentLocation, newExecPath)
 }
 
-export async function handler (
-  opts: {
-    force?: boolean
-    pnpmHomeDir: string
-  }
-) {
+export async function handler(opts: { force?: boolean; pnpmHomeDir: string }) {
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
     copyCli(execPath, opts.pnpmHomeDir)
@@ -82,18 +78,20 @@ export async function handler (
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
-    case 'ERR_PNPM_BAD_ENV_FOUND':
-      err.hint = 'If you want to override the existing env variable, use the --force option'
-      break
-    case 'ERR_PNPM_BAD_SHELL_SECTION':
-      err.hint = 'If you want to override the existing configuration section, use the --force option'
-      break
+      case 'ERR_PNPM_BAD_ENV_FOUND':
+        err.hint =
+          'If you want to override the existing env variable, use the --force option'
+        break
+      case 'ERR_PNPM_BAD_SHELL_SECTION':
+        err.hint =
+          'If you want to override the existing configuration section, use the --force option'
+        break
     }
     throw err
   }
 }
 
-function renderSetupOutput (report: PathExtenderReport) {
+function renderSetupOutput(report: PathExtenderReport) {
   if (report.oldSettings === report.newSettings) {
     return 'No changes to the environment were made. Everything is already up to date.'
   }
@@ -113,11 +111,15 @@ source ${report.configFile.path}
   return output.join('\n\n')
 }
 
-function reportConfigChange (configReport: ConfigReport): string {
+function reportConfigChange(configReport: ConfigReport): string {
   switch (configReport.changeType) {
-  case 'created': return `Created ${configReport.path}`
-  case 'appended': return `Appended new lines to ${configReport.path}`
-  case 'modified': return `Replaced configuration in ${configReport.path}`
-  case 'skipped': return `Configuration already up to date in ${configReport.path}`
+    case 'created':
+      return `Created ${configReport.path}`
+    case 'appended':
+      return `Appended new lines to ${configReport.path}`
+    case 'modified':
+      return `Replaced configuration in ${configReport.path}`
+    case 'skipped':
+      return `Configuration already up to date in ${configReport.path}`
   }
 }

@@ -12,26 +12,26 @@ import { createPackageExtender } from './createPackageExtender'
 import { createVersionsOverrider } from './createVersionsOverrider'
 import { createPeerDependencyPatcher } from './createPeerDependencyPatcher'
 
-export function createReadPackageHook (
-  {
-    ignoreCompatibilityDb,
-    lockfileDir,
-    overrides,
-    packageExtensions,
-    peerDependencyRules,
-    readPackageHook,
-  }: {
-    ignoreCompatibilityDb?: boolean
-    lockfileDir: string
-    overrides?: Record<string, string>
-    packageExtensions?: Record<string, PackageExtension>
-    peerDependencyRules?: PeerDependencyRules
-    readPackageHook?: ReadPackageHook[] | ReadPackageHook
-  }
-): ReadPackageHook | undefined {
+export function createReadPackageHook({
+  ignoreCompatibilityDb,
+  lockfileDir,
+  overrides,
+  packageExtensions,
+  peerDependencyRules,
+  readPackageHook,
+}: {
+  ignoreCompatibilityDb?: boolean
+  lockfileDir: string
+  overrides?: Record<string, string>
+  packageExtensions?: Record<string, PackageExtension>
+  peerDependencyRules?: PeerDependencyRules
+  readPackageHook?: ReadPackageHook[] | ReadPackageHook
+}): ReadPackageHook | undefined {
   const hooks: ReadPackageHook[] = []
   if (!ignoreCompatibilityDb) {
-    hooks.push(createPackageExtender(Object.fromEntries(compatPackageExtensions)))
+    hooks.push(
+      createPackageExtender(Object.fromEntries(compatPackageExtensions))
+    )
   }
   if (!isEmpty(packageExtensions ?? {})) {
     hooks.push(createPackageExtender(packageExtensions!))
@@ -46,11 +46,9 @@ export function createReadPackageHook (
   }
   if (
     peerDependencyRules != null &&
-    (
-      !isEmpty(peerDependencyRules.ignoreMissing) ||
+    (!isEmpty(peerDependencyRules.ignoreMissing) ||
       !isEmpty(peerDependencyRules.allowedVersions) ||
-      !isEmpty(peerDependencyRules.allowAny)
-    )
+      !isEmpty(peerDependencyRules.allowAny))
   ) {
     hooks.push(createPeerDependencyPatcher(peerDependencyRules))
   }
@@ -58,8 +56,13 @@ export function createReadPackageHook (
   if (hooks.length === 0) {
     return undefined
   }
-  const readPackageAndExtend = hooks.length === 1
-    ? hooks[0]
-    : ((pkg: PackageManifest | ProjectManifest, dir: string) => pipeWith(async (f, res) => f(await res, dir), hooks as any)(pkg, dir)) as ReadPackageHook // eslint-disable-line @typescript-eslint/no-explicit-any
+  const readPackageAndExtend =
+    hooks.length === 1
+      ? hooks[0]
+      : (((pkg: PackageManifest | ProjectManifest, dir: string) =>
+        pipeWith(async (f, res) => f(await res, dir), hooks as any)(
+          pkg,
+          dir
+        )) as ReadPackageHook)
   return readPackageAndExtend
 }

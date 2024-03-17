@@ -1,7 +1,4 @@
-import {
-  docsUrl,
-  readDepNameCompletions,
-} from '@pnpm/cli-utils'
+import { docsUrl, readDepNameCompletions } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -10,7 +7,7 @@ import renderHelp from 'render-help'
 import { licensesList, type LicensesCommandOptions } from './licensesList'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes() {
   return {
     ...pick(
       ['dev', 'global-dir', 'global', 'json', 'long', 'optional', 'production'],
@@ -33,7 +30,7 @@ export const shorthands = {
 
 export const commandNames = ['licenses']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: 'Check the licenses of the installed packages.',
     descriptionLists: [
@@ -83,21 +80,28 @@ export const completion: CompletionFunc = async (cliOpts) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
-export async function handler (
+export async function handler(
   opts: LicensesCommandOptions,
   params: string[] = []
 ) {
   if (params.length === 0) {
-    throw new PnpmError('LICENCES_NO_SUBCOMMAND', 'Please specify the subcommand', {
-      hint: help(),
-    })
+    throw new PnpmError(
+      'LICENCES_NO_SUBCOMMAND',
+      'Please specify the subcommand',
+      {
+        hint: help(),
+      }
+    )
   }
   switch (params[0]) {
-  case 'list':
-  case 'ls':
-    return licensesList(opts)
-  default: {
-    throw new PnpmError('LICENSES_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
-  }
+    case 'list':
+    case 'ls':
+      return licensesList(opts)
+    default: {
+      throw new PnpmError(
+        'LICENSES_UNKNOWN_SUBCOMMAND',
+        'This subcommand is not known'
+      )
+    }
   }
 }

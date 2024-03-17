@@ -9,23 +9,34 @@ import { type StoreController } from '@pnpm/package-store'
 import { connectStoreController } from '@pnpm/server'
 import { getStorePath } from '@pnpm/store-path'
 import delay from 'delay'
-import { createNewStoreController, type CreateNewStoreControllerOptions } from './createNewStoreController'
+import {
+  createNewStoreController,
+  type CreateNewStoreControllerOptions,
+} from './createNewStoreController'
 import { runServerInBackground } from './runServerInBackground'
 import { serverConnectionInfoDir } from './serverConnectionInfoDir'
 
 export { createNewStoreController, serverConnectionInfoDir }
 
-export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions, 'storeDir'> & Pick<Config,
-| 'storeDir'
-| 'dir'
-| 'pnpmHomeDir'
-| 'useRunningStoreServer'
-| 'useStoreServer'
-| 'workspaceDir'
->
+export type CreateStoreControllerOptions = Omit<
+  CreateNewStoreControllerOptions,
+  'storeDir'
+> &
+  Pick<
+    Config,
+    | 'storeDir'
+    | 'dir'
+    | 'pnpmHomeDir'
+    | 'useRunningStoreServer'
+    | 'useStoreServer'
+    | 'workspaceDir'
+  >
 
-export async function createOrConnectStoreControllerCached (
-  storeControllerCache: Map<string, Promise<{ ctrl: StoreController, dir: string }>>,
+export async function createOrConnectStoreControllerCached(
+  storeControllerCache: Map<
+    string,
+    Promise<{ ctrl: StoreController; dir: string }>
+  >,
   opts: CreateStoreControllerOptions
 ) {
   const storeDir = await getStorePath({
@@ -36,10 +47,13 @@ export async function createOrConnectStoreControllerCached (
   if (!storeControllerCache.has(storeDir)) {
     storeControllerCache.set(storeDir, createOrConnectStoreController(opts))
   }
-  return await storeControllerCache.get(storeDir) as { ctrl: StoreController, dir: string }
+  return (await storeControllerCache.get(storeDir)) as {
+    ctrl: StoreController
+    dir: string
+  }
 }
 
-export async function createOrConnectStoreController (
+export async function createOrConnectStoreController(
   opts: CreateStoreControllerOptions
 ): Promise<{
     ctrl: StoreController
@@ -52,7 +66,10 @@ export async function createOrConnectStoreController (
   })
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJsonPath = path.join(connectionInfoDir, 'server.json')
-  let serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: false })
+  let serverJson = await tryLoadServerJson({
+    serverJsonPath,
+    shouldRetryOnNoent: false,
+  })
   if (serverJson !== null) {
     if (serverJson.pnpmVersion !== packageManager.version) {
       logger.warn({
@@ -61,7 +78,8 @@ export async function createOrConnectStoreController (
       })
     }
     logger.info({
-      message: 'A store server is running. All store manipulations are delegated to it.',
+      message:
+        'A store server is running. All store manipulations are delegated to it.',
       prefix: opts.dir,
     })
     return {
@@ -74,9 +92,13 @@ export async function createOrConnectStoreController (
   }
   if (opts.useStoreServer) {
     runServerInBackground(storeDir)
-    serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: true })
+    serverJson = await tryLoadServerJson({
+      serverJsonPath,
+      shouldRetryOnNoent: true,
+    })
     logger.info({
-      message: 'A store server has been started. To stop it, use `pnpm server stop`',
+      message:
+        'A store server has been started. To stop it, use `pnpm server stop`',
       prefix: opts.dir,
     })
     return {
@@ -84,23 +106,23 @@ export async function createOrConnectStoreController (
       dir: storeDir,
     }
   }
-  return createNewStoreController(Object.assign(opts, {
-    storeDir,
-  }))
+  return createNewStoreController(
+    Object.assign(opts, {
+      storeDir,
+    })
+  )
 }
 
-export async function tryLoadServerJson (
-  options: {
-    serverJsonPath: string
-    shouldRetryOnNoent: boolean
+export async function tryLoadServerJson(options: {
+  serverJsonPath: string
+  shouldRetryOnNoent: boolean
+}): Promise<null | {
+  connectionOptions: {
+    remotePrefix: string
   }
-): Promise<null | {
-    connectionOptions: {
-      remotePrefix: string
-    }
-    pid: number
-    pnpmVersion: string
-  }> {
+  pid: number
+  pnpmVersion: string
+}> {
   let beforeFirstAttempt = true
   const startHRTime = process.hrtime()
   /* eslint-disable no-await-in-loop */

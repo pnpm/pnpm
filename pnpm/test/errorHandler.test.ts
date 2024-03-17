@@ -18,7 +18,9 @@ test('should print json format error when publish --json failed', async () => {
   expect(status).toBe(1)
   const { error } = JSON.parse(stdout.toString())
   expect(error?.code).toBe('ERR_PNPM_PACKAGE_VERSION_NOT_FOUND')
-  expect(error?.message).toBe('Package version is not defined in the package.json.')
+  expect(error?.message).toBe(
+    'Package version is not defined in the package.json.'
+  )
 })
 
 test('should print json format error when add dependency on workspace root', async () => {

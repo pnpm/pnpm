@@ -1,7 +1,4 @@
-import {
-  type LogBase,
-  logger,
-} from '@pnpm/logger'
+import { type LogBase, logger } from '@pnpm/logger'
 
 export const updateCheckLogger = logger('update-check')
 
@@ -10,4 +7,5 @@ export interface UpdateCheckMessage {
   latestVersion: string
 }
 
-export type UpdateCheckLog = { name: 'pnpm:update-check' } & LogBase & UpdateCheckMessage
+export type UpdateCheckLog = { name: 'pnpm:update-check' } & LogBase &
+  UpdateCheckMessage

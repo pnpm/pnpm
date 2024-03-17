@@ -1,8 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import {
-  type FetchFunction,
-  type FetchOptions,
-} from '@pnpm/fetcher-base'
+import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import {
   type FetchFromRegistry,
@@ -10,10 +7,7 @@ import {
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { TarballIntegrityError } from '@pnpm/worker'
-import {
-  createDownloader,
-  type DownloadFunction,
-} from './remoteTarballFetcher'
+import { createDownloader, type DownloadFunction } from './remoteTarballFetcher'
 import { createLocalTarballFetcher } from './localTarballFetcher'
 import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher'
 
@@ -27,7 +21,7 @@ export interface TarballFetchers {
   gitHostedTarball: FetchFunction
 }
 
-export function createTarballFetcher (
+export function createTarballFetcher(
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: {
@@ -57,7 +51,7 @@ export function createTarballFetcher (
   }
 }
 
-async function fetchFromTarball (
+async function fetchFromTarball(
   ctx: {
     download: DownloadFunction
     getAuthHeaderByURI: (registry: string) => string | undefined
@@ -72,8 +66,10 @@ async function fetchFromTarball (
   opts: FetchOptions
 ) {
   if (ctx.offline) {
-    throw new PnpmError('NO_OFFLINE_TARBALL',
-      `A package is missing from the store but cannot download it in offline mode. The missing package may be downloaded from ${resolution.tarball}.`)
+    throw new PnpmError(
+      'NO_OFFLINE_TARBALL',
+      `A package is missing from the store but cannot download it in offline mode. The missing package may be downloaded from ${resolution.tarball}.`
+    )
   }
   return ctx.download(resolution.tarball, {
     getAuthHeaderByURI: ctx.getAuthHeaderByURI,

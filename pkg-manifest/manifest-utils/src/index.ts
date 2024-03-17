@@ -11,7 +11,7 @@ export * from './getDependencyTypeFromManifest'
 
 export { getSpecFromPackageManifest }
 
-export function filterDependenciesByType (
+export function filterDependenciesByType(
   manifest: ProjectManifest,
   include: IncludedDependencies
 ): Dependencies {
@@ -22,8 +22,11 @@ export function filterDependenciesByType (
   }
 }
 
-export function getAllDependenciesFromManifest (
-  manifest: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>
+export function getAllDependenciesFromManifest(
+  manifest: Pick<
+    ProjectManifest,
+    'devDependencies' | 'dependencies' | 'optionalDependencies'
+  >
 ): Dependencies {
   return {
     ...manifest.devDependencies,

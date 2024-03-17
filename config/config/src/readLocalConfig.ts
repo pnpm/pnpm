@@ -1,12 +1,17 @@
-import path from 'path'
+import path from 'node:path'
 import camelcaseKeys from 'camelcase-keys'
 import { envReplace } from '@pnpm/config.env-replace'
 import { readIniFile } from 'read-ini-file'
 
-export async function readLocalConfig (prefix: string) {
+export async function readLocalConfig(prefix: string) {
   try {
-    const ini = await readIniFile(path.join(prefix, '.npmrc')) as Record<string, string>
-    const config = camelcaseKeys(ini) as (Record<string, string> & { hoist?: boolean })
+    const ini = (await readIniFile(path.join(prefix, '.npmrc'))) as Record<
+      string,
+      string
+    >
+    const config = camelcaseKeys(ini) as Record<string, string> & {
+      hoist?: boolean
+    }
     if (config.shamefullyFlatten) {
       config.hoistPattern = '*'
       // TODO: print a warning

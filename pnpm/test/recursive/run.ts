@@ -46,11 +46,17 @@ test('pnpm recursive run finds bins from the root of the workspace', async () =>
   await execPnpm(['run', 'build'])
   process.chdir('..')
 
-  expect(serverForBuild.getLines()).toStrictEqual(['project-build', 'project-build'])
+  expect(serverForBuild.getLines()).toStrictEqual([
+    'project-build',
+    'project-build',
+  ])
 
   await execPnpm(['recursive', 'rebuild'])
 
-  expect(serverForPostInstall.getLines()).toStrictEqual(['project-postinstall', 'project-postinstall'])
+  expect(serverForPostInstall.getLines()).toStrictEqual([
+    'project-postinstall',
+    'project-postinstall',
+  ])
 
   await execPnpm(['recursive', 'run', 'testBinPriority'])
 

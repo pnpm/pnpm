@@ -2,7 +2,14 @@ import cliTruncate from 'cli-truncate'
 import path from 'path'
 import { type LifecycleLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
-import { buffer, filter, groupBy, map, mergeAll, mergeMap } from 'rxjs/operators'
+import {
+  buffer,
+  filter,
+  groupBy,
+  map,
+  mergeAll,
+  mergeMap,
+} from 'rxjs/operators'
 import chalk from 'chalk'
 import prettyTime from 'pretty-ms'
 import { EOL } from '../constants'
@@ -21,7 +28,7 @@ let currentColor = 0
 
 type ColorByPkg = Map<string, (txt: string) => string>
 
-export function reportLifecycleScripts (
+export function reportLifecycleScripts(
   log$: {
     lifecycle: Rx.Observable<LifecycleLog>
   },
@@ -41,11 +48,16 @@ export function reportLifecycleScripts (
       lifecycle$ = lifecycle$.pipe(aggregateOutput)
     }
 
-    const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd, !!opts.hideLifecyclePrefix)
+    const streamLifecycleOutput = createStreamLifecycleOutput(
+      opts.cwd,
+      !!opts.hideLifecyclePrefix
+    )
     return lifecycle$.pipe(
-      map((log: LifecycleLog) => Rx.of({
-        msg: streamLifecycleOutput(log),
-      }))
+      map((log: LifecycleLog) =>
+        Rx.of({
+          msg: streamLifecycleOutput(log),
+        })
+      )
     )
   }
   const lifecycleMessages: {
@@ -63,43 +75,48 @@ export function reportLifecycleScripts (
   const lifecyclePushStream = new Rx.Subject<Rx.Observable<{ msg: string }>>()
 
   // TODO: handle promise of .forEach?!
-  log$.lifecycle // eslint-disable-line
-    .forEach((log: LifecycleLog) => {
-      const key = `${log.stage}:${log.depPath}`
-      lifecycleMessages[key] = lifecycleMessages[key] || {
-        collapsed: log.wd.includes(NODE_MODULES) || log.wd.includes(TMP_DIR_IN_STORE),
-        output: [],
-        startTime: process.hrtime(),
-        status: formatIndentedStatus(chalk.magentaBright('Running...')),
-      }
-      const exit = typeof log['exitCode'] === 'number'
-      let msg: string
-      if (lifecycleMessages[key].collapsed) {
-        msg = renderCollapsedScriptOutput(log, lifecycleMessages[key], { cwd: opts.cwd, exit, maxWidth: opts.width })
-      } else {
-        msg = renderScriptOutput(log, lifecycleMessages[key], { cwd: opts.cwd, exit, maxWidth: opts.width })
-      }
-      if (exit) {
-        delete lifecycleMessages[key]
-      }
-      if (!lifecycleStreamByDepPath[key]) {
-        lifecycleStreamByDepPath[key] = new Rx.Subject<{ msg: string }>()
-        lifecyclePushStream.next(Rx.from(lifecycleStreamByDepPath[key]))
-      }
-      lifecycleStreamByDepPath[key].next({ msg })
-      if (exit) {
-        lifecycleStreamByDepPath[key].complete()
-      }
-    })
+  log$.lifecycle.forEach((log: LifecycleLog) => {
+    const key = `${log.stage}:${log.depPath}`
+    lifecycleMessages[key] = lifecycleMessages[key] || {
+      collapsed:
+        log.wd.includes(NODE_MODULES) || log.wd.includes(TMP_DIR_IN_STORE),
+      output: [],
+      startTime: process.hrtime(),
+      status: formatIndentedStatus(chalk.magentaBright('Running...')),
+    }
+    const exit = 'exitCode' in log && typeof log.exitCode === 'number'
+    const msg: string = lifecycleMessages[key].collapsed
+      ? renderCollapsedScriptOutput(log, lifecycleMessages[key], {
+          cwd: opts.cwd, // eslint-disable-line @stylistic/ts/indent
+          exit, // eslint-disable-line @stylistic/ts/indent
+          maxWidth: opts.width, // eslint-disable-line @stylistic/ts/indent
+        }) // eslint-disable-line @stylistic/ts/indent
+      : renderScriptOutput(log, lifecycleMessages[key], {
+          cwd: opts.cwd, // eslint-disable-line @stylistic/ts/indent
+          exit, // eslint-disable-line @stylistic/ts/indent
+          maxWidth: opts.width, // eslint-disable-line @stylistic/ts/indent
+        }) // eslint-disable-line @stylistic/ts/indent
+    if (exit) {
+      delete lifecycleMessages[key]
+    }
+    if (!lifecycleStreamByDepPath[key]) {
+      lifecycleStreamByDepPath[key] = new Rx.Subject<{ msg: string }>()
+      lifecyclePushStream.next(Rx.from(lifecycleStreamByDepPath[key]))
+    }
+    lifecycleStreamByDepPath[key].next({ msg })
+    if (exit) {
+      lifecycleStreamByDepPath[key].complete()
+    }
+  })
 
   return Rx.from(lifecyclePushStream)
 }
 
-function toNano (time: [number, number]) {
-  return (time[0] + (time[1] / 1e9)) * 1e3
+function toNano(time: [number, number]) {
+  return (time[0] + time[1] / 1e9) * 1e3
 }
 
-function renderCollapsedScriptOutput (
+function renderCollapsedScriptOutput(
   log: LifecycleLog,
   messageCache: {
     collapsed: boolean
@@ -116,7 +133,9 @@ function renderCollapsedScriptOutput (
   }
 ) {
   if (!messageCache.label) {
-    messageCache.label = highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))
+    messageCache.label = highlightLastFolder(
+      formatPrefixNoTrim(opts.cwd, log.wd)
+    )
     if (log.wd.includes(TMP_DIR_IN_STORE)) {
       messageCache.label += ` [${log.depPath}]`
     }
@@ -127,16 +146,16 @@ function renderCollapsedScriptOutput (
     return `${messageCache.label}...`
   }
   const time = prettyTime(toNano(process.hrtime(messageCache.startTime)))
-  if (log['exitCode'] === 0) {
+  if ('exitCode' in log && log.exitCode === 0) {
     return `${messageCache.label}, done in ${time}`
   }
-  if (log['optional'] === true) {
+  if ('optional' in log && log.optional === true) {
     return `${messageCache.label}, failed in ${time} (skipped as optional)`
   }
   return `${messageCache.label}, failed in ${time}${EOL}${renderScriptOutput(log, messageCache, opts)}`
 }
 
-function renderScriptOutput (
+function renderScriptOutput(
   log: LifecycleLog,
   messageCache: {
     collapsed: boolean
@@ -152,7 +171,7 @@ function renderScriptOutput (
   }
 ) {
   updateMessageCache(log, messageCache, opts)
-  if (opts.exit && log['exitCode'] !== 0) {
+  if (opts.exit && 'exitCode' in log && log.exitCode !== 0) {
     return [
       messageCache.script,
       ...messageCache.output,
@@ -174,7 +193,7 @@ function renderScriptOutput (
   ].join(EOL)
 }
 
-function updateMessageCache (
+function updateMessageCache(
   log: LifecycleLog,
   messageCache: {
     collapsed: boolean
@@ -189,65 +208,83 @@ function updateMessageCache (
     maxWidth: number
   }
 ) {
-  if (log['script']) {
+  if ('script' in log && typeof log.script === 'string') {
     const prefix = `${formatPrefix(opts.cwd, log.wd)} ${hlValue(log.stage)}`
-    const maxLineWidth = opts.maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
-    messageCache.script = `${prefix}$ ${cutLine(log['script'], maxLineWidth)}`
+    const maxLineWidth =
+      opts.maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
+    messageCache.script = `${prefix}$ ${cutLine(log.script, maxLineWidth)}`
   } else if (opts.exit) {
     const time = prettyTime(toNano(process.hrtime(messageCache.startTime)))
-    if (log['exitCode'] === 0) {
-      messageCache.status = formatIndentedStatus(chalk.magentaBright(`Done in ${time}`))
+    if ('exitCode' in log && log.exitCode === 0) {
+      messageCache.status = formatIndentedStatus(
+        chalk.magentaBright(`Done in ${time}`)
+      )
     } else {
-      messageCache.status = formatIndentedStatus(chalk.red(`Failed in ${time} at ${log.wd}`))
+      messageCache.status = formatIndentedStatus(
+        chalk.red(`Failed in ${time} at ${log.wd}`)
+      )
     }
   } else {
     messageCache.output.push(formatIndentedOutput(opts.maxWidth, log))
   }
 }
 
-function formatIndentedStatus (status: string) {
+function formatIndentedStatus(status: string) {
   return `${chalk.magentaBright('└─')} ${status}`
 }
 
-function highlightLastFolder (p: string) {
+function highlightLastFolder(p: string) {
   const lastSlash = p.lastIndexOf('/') + 1
   return `${chalk.gray(p.slice(0, lastSlash))}${p.slice(lastSlash)}`
 }
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 
-function createStreamLifecycleOutput (cwd: string, hideLifecyclePrefix: boolean) {
+function createStreamLifecycleOutput(
+  cwd: string,
+  hideLifecyclePrefix: boolean
+) {
   currentColor = 0
   const colorByPrefix: ColorByPkg = new Map()
-  return streamLifecycleOutput.bind(null, colorByPrefix, cwd, hideLifecyclePrefix)
+  return streamLifecycleOutput.bind(
+    null,
+    colorByPrefix,
+    cwd,
+    hideLifecyclePrefix
+  )
 }
 
-function streamLifecycleOutput (
+function streamLifecycleOutput(
   colorByPkg: ColorByPkg,
   cwd: string,
   hideLifecyclePrefix: boolean,
   logObj: LifecycleLog
 ) {
-  const prefix = formatLifecycleScriptPrefix(colorByPkg, cwd, logObj.wd, logObj.stage)
-  if (typeof logObj['exitCode'] === 'number') {
-    if (logObj['exitCode'] === 0) {
+  const prefix = formatLifecycleScriptPrefix(
+    colorByPkg,
+    cwd,
+    logObj.wd,
+    logObj.stage
+  )
+  if ('exitCode' in logObj && typeof logObj.exitCode === 'number') {
+    if (logObj.exitCode === 0) {
       return `${prefix}: Done`
     } else {
       return `${prefix}: Failed`
     }
   }
-  if (logObj['script']) {
-    return `${prefix}$ ${logObj['script'] as string}`
+  if ('script' in logObj && typeof logObj.script === 'string') {
+    return `${prefix}$ ${logObj.script}`
   }
   const line = formatLine(Infinity, logObj)
   return hideLifecyclePrefix ? line : `${prefix}: ${line}`
 }
 
-function formatIndentedOutput (maxWidth: number, logObj: LifecycleLog) {
+function formatIndentedOutput(maxWidth: number, logObj: LifecycleLog) {
   return `${chalk.magentaBright('│')} ${formatLine(maxWidth - 2, logObj)}`
 }
 
-function formatLifecycleScriptPrefix (
+function formatLifecycleScriptPrefix(
   colorByPkg: ColorByPkg,
   cwd: string,
   wd: string,
@@ -263,34 +300,33 @@ function formatLifecycleScriptPrefix (
   return `${color(formatPrefix(cwd, wd))} ${hlValue(stage)}`
 }
 
-function formatLine (maxWidth: number, logObj: LifecycleLog) {
-  const line = cutLine(logObj['line'], maxWidth)
+function formatLine(maxWidth: number, logObj: LifecycleLog) {
+  const line = cutLine(
+    'line' in logObj && typeof logObj.line === 'string' ? logObj.line : '',
+    maxWidth
+  )
 
   // TODO: strip only the non-color/style ansi escape codes
-  if (logObj['stdio'] === 'stderr') {
+  if ('stdio' in logObj && logObj.stdio === 'stderr') {
     return chalk.gray(line)
   }
   return line
 }
 
-function cutLine (line: string, maxLength: number) {
+function cutLine(line: string, maxLength: number) {
   if (!line) return '' // This actually should never happen but it is better to be safe
   return cliTruncate(line, maxLength)
 }
 
-function aggregateOutput (source: Rx.Observable<LifecycleLog>) {
+function aggregateOutput(source: Rx.Observable<LifecycleLog>) {
   return source.pipe(
     // The '\0' is a null character which delimits these strings. This works since JS doesn't use
     // null-terminated strings.
     groupBy((data) => `${data.depPath}\0${data.stage}`),
-    mergeMap(group => {
-      return group.pipe(
-        buffer(
-          group.pipe(filter(msg => 'exitCode' in msg))
-        )
-      )
+    mergeMap((group) => {
+      return group.pipe(buffer(group.pipe(filter((msg) => 'exitCode' in msg))))
     }),
-    map(ar => Rx.from(ar)),
+    map((ar) => Rx.from(ar)),
     mergeAll()
   )
 }

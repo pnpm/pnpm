@@ -9,7 +9,11 @@ test('repeat install with corrupted `store.json` should work', async () => {
   const project = prepareEmpty()
 
   const opts = await testDefaults()
-  const manifest = await addDependenciesToPackage({}, ['is-negative@1.0.0'], opts)
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['is-negative@1.0.0'],
+    opts
+  )
 
   await rimraf('node_modules')
 

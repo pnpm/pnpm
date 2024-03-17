@@ -1,7 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { rootLogger } from '@pnpm/core-loggers'
-import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
+import {
+  symlinkDependency,
+  symlinkDirectRootDependency,
+} from '@pnpm/symlink-dependency'
 import omit from 'ramda/src/omit'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import rimraf from '@zkochan/rimraf'
@@ -24,7 +27,7 @@ export interface ProjectToLink {
   dependencies: LinkedDirectDep[]
 }
 
-export async function linkDirectDeps (
+export async function linkDirectDeps(
   projects: Record<string, ProjectToLink>,
   opts: {
     dedupe: boolean
@@ -33,11 +36,13 @@ export async function linkDirectDeps (
   if (opts.dedupe && projects['.'] && Object.keys(projects).length > 1) {
     return linkDirectDepsAndDedupe(projects['.'], omit(['.'], projects))
   }
-  const numberOfLinkedDeps = await Promise.all(Object.values(projects).map(linkDirectDepsOfProject))
+  const numberOfLinkedDeps = await Promise.all(
+    Object.values(projects).map(linkDirectDepsOfProject)
+  )
   return numberOfLinkedDeps.reduce((sum, count) => sum + count, 0)
 }
 
-async function linkDirectDepsAndDedupe (
+async function linkDirectDepsAndDedupe(
   rootProject: ProjectToLink,
   projects: Record<string, ProjectToLink>
 ): Promise<number> {
@@ -45,8 +50,14 @@ async function linkDirectDepsAndDedupe (
   const pkgsLinkedToRoot = await readLinkedDeps(rootProject.modulesDir)
   await Promise.all(
     Object.values(projects).map(async (project) => {
-      const deletedAll = await deletePkgsPresentInRoot(project.modulesDir, pkgsLinkedToRoot)
-      const dependencies = omitDepsFromRoot(project.dependencies, pkgsLinkedToRoot)
+      const deletedAll = await deletePkgsPresentInRoot(
+        project.modulesDir,
+        pkgsLinkedToRoot
+      )
+      const dependencies = omitDepsFromRoot(
+        project.dependencies,
+        pkgsLinkedToRoot
+      )
       if (dependencies.length > 0) {
         await linkDirectDepsOfProject({
           ...project,
@@ -62,83 +73,103 @@ async function linkDirectDepsAndDedupe (
   return linkedDeps
 }
 
-function omitDepsFromRoot (deps: LinkedDirectDep[], pkgsLinkedToRoot: string[]) {
-  return deps.filter(({ dir }) => !pkgsLinkedToRoot.some(pathsEqual.bind(null, dir)))
+function omitDepsFromRoot(deps: LinkedDirectDep[], pkgsLinkedToRoot: string[]) {
+  return deps.filter(
+    ({ dir }) => !pkgsLinkedToRoot.some(pathsEqual.bind(null, dir))
+  )
 }
 
-function pathsEqual (path1: string, path2: string) {
+function pathsEqual(path1: string, path2: string) {
   return path.relative(path1, path2) === ''
 }
 
-async function readLinkedDeps (modulesDir: string): Promise<string[]> {
+async function readLinkedDeps(modulesDir: string): Promise<string[]> {
   const deps = (await readModulesDir(modulesDir)) ?? []
   return Promise.all(
     deps.map((alias) => resolveLinkTargetOrFile(path.join(modulesDir, alias)))
   )
 }
 
-async function deletePkgsPresentInRoot (
+async function deletePkgsPresentInRoot(
   modulesDir: string,
   pkgsLinkedToRoot: string[]
 ): Promise<boolean> {
-  const pkgsLinkedToCurrentProject = await readLinkedDepsWithRealLocations(modulesDir)
-  const pkgsToDelete = pkgsLinkedToCurrentProject
-    .filter(({ linkedFrom }) => pkgsLinkedToRoot.some(pathsEqual.bind(null, linkedFrom)))
-  await Promise.all(pkgsToDelete.map(({ linkedTo }) => fs.promises.unlink(linkedTo)))
+  const pkgsLinkedToCurrentProject =
+    await readLinkedDepsWithRealLocations(modulesDir)
+  const pkgsToDelete = pkgsLinkedToCurrentProject.filter(({ linkedFrom }) =>
+    pkgsLinkedToRoot.some(pathsEqual.bind(null, linkedFrom))
+  )
+  await Promise.all(
+    pkgsToDelete.map(({ linkedTo }) => fs.promises.unlink(linkedTo))
+  )
   return pkgsToDelete.length === pkgsLinkedToCurrentProject.length
 }
 
-async function readLinkedDepsWithRealLocations (modulesDir: string) {
+async function readLinkedDepsWithRealLocations(modulesDir: string) {
   const deps = (await readModulesDir(modulesDir)) ?? []
-  return Promise.all(deps.map(async (alias) => {
-    const linkedTo = path.join(modulesDir, alias)
-    return {
-      linkedTo,
-      linkedFrom: await resolveLinkTargetOrFile(linkedTo),
-    }
-  }))
+  return Promise.all(
+    deps.map(async (alias) => {
+      const linkedTo = path.join(modulesDir, alias)
+      return {
+        linkedTo,
+        linkedFrom: await resolveLinkTargetOrFile(linkedTo),
+      }
+    })
+  )
 }
 
-async function resolveLinkTargetOrFile (filePath: string) {
+async function resolveLinkTargetOrFile(filePath: string) {
   try {
     return await resolveLinkTarget(filePath)
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  } catch (err: any) {
     if (err.code !== 'EINVAL' && err.code !== 'UNKNOWN') throw err
     return filePath
   }
 }
 
-async function linkDirectDepsOfProject (project: ProjectToLink): Promise<number> {
+async function linkDirectDepsOfProject(
+  project: ProjectToLink
+): Promise<number> {
   let linkedDeps = 0
-  await Promise.all(project.dependencies.map(async (dep) => {
-    if (dep.isExternalLink) {
-      await symlinkDirectRootDependency(dep.dir, project.modulesDir, dep.alias, {
-        fromDependenciesField: dep.dependencyType === 'dev' && 'devDependencies' ||
-          dep.dependencyType === 'optional' && 'optionalDependencies' ||
-          'dependencies',
-        linkedPackage: {
-          name: dep.name,
+  await Promise.all(
+    project.dependencies.map(async (dep) => {
+      if (dep.isExternalLink) {
+        await symlinkDirectRootDependency(
+          dep.dir,
+          project.modulesDir,
+          dep.alias,
+          {
+            fromDependenciesField:
+              (dep.dependencyType === 'dev' && 'devDependencies') ||
+              (dep.dependencyType === 'optional' && 'optionalDependencies') ||
+              'dependencies',
+            linkedPackage: {
+              name: dep.name,
+              version: dep.version,
+            },
+            prefix: project.dir,
+          }
+        )
+        return
+      }
+      if (
+        (await symlinkDependency(dep.dir, project.modulesDir, dep.alias)).reused
+      ) {
+        return
+      }
+      rootLogger.debug({
+        added: {
+          dependencyType: dep.dependencyType,
+          id: dep.id,
+          latest: dep.latest,
+          name: dep.alias,
+          realName: dep.name,
           version: dep.version,
         },
         prefix: project.dir,
       })
-      return
-    }
-    if ((await symlinkDependency(dep.dir, project.modulesDir, dep.alias)).reused) {
-      return
-    }
-    rootLogger.debug({
-      added: {
-        dependencyType: dep.dependencyType,
-        id: dep.id,
-        latest: dep.latest,
-        name: dep.alias,
-        realName: dep.name,
-        version: dep.version,
-      },
-      prefix: project.dir,
+      linkedDeps++
     })
-    linkedDeps++
-  }))
+  )
   return linkedDeps
 }

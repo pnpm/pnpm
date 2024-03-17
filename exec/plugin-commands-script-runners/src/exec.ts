@@ -1,5 +1,10 @@
 import path from 'path'
-import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
+import {
+  docsUrl,
+  type RecursiveSummary,
+  throwOnCommandFail,
+  readProjectManifestOnly,
+} from '@pnpm/cli-utils'
 import { type Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
@@ -31,15 +36,18 @@ export const shorthands = {
 
 export const commandNames = ['exec']
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes() {
   return {
-    ...pick([
-      'bail',
-      'sort',
-      'use-node-version',
-      'unsafe-perm',
-      'workspace-concurrency',
-    ], types),
+    ...pick(
+      [
+        'bail',
+        'sort',
+        'use-node-version',
+        'unsafe-perm',
+        'workspace-concurrency',
+      ],
+      types
+    ),
     'shell-mode': Boolean,
     'resume-from': String,
     'report-summary': Boolean,
@@ -52,7 +60,7 @@ export const cliOptionsTypes = () => ({
   reverse: Boolean,
 })
 
-export function help () {
+export function help() {
   return renderHelp({
     description: 'Run a shell command in the context of a project.',
     descriptionLists: [
@@ -62,14 +70,16 @@ export function help () {
         list: [
           PARALLEL_OPTION_HELP,
           {
-            description: 'Run the shell command in every package found in subdirectories \
+            description:
+              'Run the shell command in every package found in subdirectories \
 or every workspace package, when executed inside a workspace. \
 For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
           {
-            description: 'If exist, runs file inside of a shell. \
+            description:
+              'If exist, runs file inside of a shell. \
 Uses /bin/sh on UNIX and \\cmd.exe on Windows. \
 The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
             name: '--shell-mode',
@@ -85,7 +95,7 @@ The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
   })
 }
 
-export function getResumedPackageChunks ({
+export function getResumedPackageChunks({
   resumeFrom,
   chunks,
   selectedProjectsGraph,
@@ -94,36 +104,50 @@ export function getResumedPackageChunks ({
   chunks: string[][]
   selectedProjectsGraph: ProjectsGraph
 }) {
-  const resumeFromPackagePrefix = Object.keys(selectedProjectsGraph)
-    .find((prefix) => selectedProjectsGraph[prefix]?.package.manifest.name === resumeFrom)
+  const resumeFromPackagePrefix = Object.keys(selectedProjectsGraph).find(
+    (prefix) =>
+      selectedProjectsGraph[prefix]?.package.manifest.name === resumeFrom
+  )
 
   if (!resumeFromPackagePrefix) {
-    throw new PnpmError('RESUME_FROM_NOT_FOUND', `Cannot find package ${resumeFrom}. Could not determine where to resume from.`)
+    throw new PnpmError(
+      'RESUME_FROM_NOT_FOUND',
+      `Cannot find package ${resumeFrom}. Could not determine where to resume from.`
+    )
   }
 
-  const chunkPosition = chunks.findIndex(chunk => chunk.includes(resumeFromPackagePrefix))
+  const chunkPosition = chunks.findIndex((chunk) =>
+    chunk.includes(resumeFromPackagePrefix)
+  )
   return chunks.slice(chunkPosition)
 }
 
-export async function writeRecursiveSummary (opts: { dir: string, summary: RecursiveSummary }) {
+export async function writeRecursiveSummary(opts: {
+  dir: string
+  summary: RecursiveSummary
+}) {
   await writeJsonFile(path.join(opts.dir, 'pnpm-exec-summary.json'), {
     executionStatus: opts.summary,
   })
 }
 
-export function createEmptyRecursiveSummary (chunks: string[][]) {
-  return chunks.flat().reduce<RecursiveSummary>((acc, prefix) => {
+export function createEmptyRecursiveSummary(
+  chunks: string[][]
+): RecursiveSummary {
+  return chunks
+    .flat()
+    .reduce<RecursiveSummary>((acc, prefix): RecursiveSummary => {
     acc[prefix] = { status: 'queued' }
     return acc
   }, {})
 }
 
-export function getExecutionDuration (start: [number, number]) {
+export function getExecutionDuration(start: [number, number]) {
   const end = process.hrtime(start)
   return (end[0] * 1e9 + end[1]) / 1e6
 }
 
-export async function handler (
+export async function handler(
   opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
     bail?: boolean
     unsafePerm?: boolean
@@ -135,7 +159,17 @@ export async function handler (
     resumeFrom?: string
     reportSummary?: boolean
     implicitlyFellbackFromRun?: boolean
-  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
+  } & Pick<
+      Config, // eslint-disable-line @stylistic/ts/indent
+      | 'extraBinPaths'
+      | 'extraEnv'
+      | 'lockfileDir'
+      | 'modulesDir'
+      | 'dir'
+      | 'userAgent'
+      | 'recursive'
+      | 'workspaceDir'
+    >, // eslint-disable-line @stylistic/ts/indent
   params: string[]
 ) {
   // For backward compatibility
@@ -178,92 +212,113 @@ export async function handler (
 
   const result = createEmptyRecursiveSummary(chunks)
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
-  const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
+  const workspacePnpPath =
+    opts.workspaceDir && (await existsPnp(opts.workspaceDir))
 
   let exitCode = 0
-  const prependPaths = [
-    './node_modules/.bin',
-    ...opts.extraBinPaths,
-  ]
+  const prependPaths = ['./node_modules/.bin', ...opts.extraBinPaths]
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
-    await Promise.all(chunk.map(async (prefix: string) =>
-      limitRun(async () => {
-        result[prefix].status = 'running'
-        const startTime = process.hrtime()
-        try {
-          const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
-          const extraEnv = {
-            ...opts.extraEnv,
-            ...(pnpPath ? makeNodeRequireOption(pnpPath) : {}),
-          }
-          const env = makeEnv({
-            extraEnv: {
-              ...extraEnv,
-              PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
-            },
-            prependPaths,
-            userAgent: opts.userAgent,
-          })
-          await execa(params[0], params.slice(1), {
-            cwd: prefix,
-            env,
-            stdio: 'inherit',
-            shell: opts.shellMode ?? false,
-          })
-          result[prefix].status = 'passed'
-          result[prefix].duration = getExecutionDuration(startTime)
-        } catch (err: any) { // eslint-disable-line
-          if (isErrorCommandNotFound(params[0], err, prependPaths)) {
-            err.message = `Command "${params[0]}" not found`
-            err.hint = await createExecCommandNotFoundHint(params[0], {
-              implicitlyFellbackFromRun: opts.implicitlyFellbackFromRun ?? false,
-              dir: opts.dir,
-              workspaceDir: opts.workspaceDir,
-              modulesDir: opts.modulesDir ?? 'node_modules',
+    await Promise.all(
+      chunk.map(async (prefix: string) =>
+        limitRun(async () => {
+          result[prefix].status = 'running'
+          const startTime = process.hrtime()
+          try {
+            const pnpPath = workspacePnpPath ?? (await existsPnp(prefix))
+            const extraEnv = {
+              ...opts.extraEnv,
+              ...(pnpPath ? makeNodeRequireOption(pnpPath) : {}),
+            }
+            const env = makeEnv({
+              extraEnv: {
+                ...extraEnv,
+                PNPM_PACKAGE_NAME:
+                  opts.selectedProjectsGraph[prefix]?.package.manifest.name,
+              },
+              prependPaths,
+              userAgent: opts.userAgent,
             })
-          } else if (!opts.recursive && typeof err.exitCode === 'number') {
-            exitCode = err.exitCode
-            return
-          }
-          logger.info(err)
+            await execa(params[0], params.slice(1), {
+              cwd: prefix,
+              env,
+              stdio: 'inherit',
+              shell: opts.shellMode ?? false,
+            })
+            result[prefix].status = 'passed'
 
-          result[prefix] = {
-            status: 'failure',
-            duration: getExecutionDuration(startTime),
-            error: err,
-            message: err.message,
-            prefix,
-          }
+            // Add the 'duration' property to the 'Actions' type and the 'ActionQueued' type
+            // @ts-ignore
+            result[prefix].duration = getExecutionDuration(startTime) as number
+          } catch (err: unknown) {
+            // @ts-ignore
+            if (err && isErrorCommandNotFound(params[0], err, prependPaths)) {
+              // @ts-ignore
+              err.message = `Command "${params[0]}" not found`
+              // @ts-ignore
+              err.hint = await createExecCommandNotFoundHint(params[0], {
+                implicitlyFellbackFromRun:
+                  opts.implicitlyFellbackFromRun ?? false,
+                dir: opts.dir,
+                workspaceDir: opts.workspaceDir,
+                modulesDir: opts.modulesDir ?? 'node_modules',
+              })
+              // @ts-ignore
+            } else if (!opts.recursive && typeof err.exitCode === 'number') {
+              // @ts-ignore
+              exitCode = err.exitCode
+              return
+            }
+            // @ts-ignore
+            logger.info(err)
 
-          if (!opts.bail) {
-            return
-          }
+            result[prefix] = {
+              status: 'failure',
+              duration: getExecutionDuration(startTime),
+              // @ts-ignore
+              error: err,
+              // @ts-ignore
+              message: err.message,
+              prefix,
+            }
 
-          if (!err['code']?.startsWith('ERR_PNPM_')) {
-            err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
-          }
-          err['prefix'] = prefix
-          opts.reportSummary && await writeRecursiveSummary({
-            dir: opts.lockfileDir ?? opts.dir,
-            summary: result,
-          })
+            if (!opts.bail) {
+              return
+            }
 
-          throw err
-        }
-      }
-      )))
+            // @ts-ignore
+            if (!err.code?.startsWith('ERR_PNPM_')) {
+              // @ts-ignore
+              err.code = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
+            }
+            // @ts-ignore
+            err.prefix = prefix
+            // @ts-ignore
+            if (opts.reportSummary) {
+              await writeRecursiveSummary({
+                dir: opts.lockfileDir ?? opts.dir,
+                summary: result,
+              })
+            }
+
+            throw err
+          }
+        })
+      )
+    )
   }
 
-  opts.reportSummary && await writeRecursiveSummary({
-    dir: opts.lockfileDir ?? opts.dir,
-    summary: result,
-  })
+  if (opts.reportSummary) {
+    await writeRecursiveSummary({
+      dir: opts.lockfileDir ?? opts.dir,
+      summary: result,
+    })
+  }
   throwOnCommandFail('pnpm recursive exec', result)
   return { exitCode }
 }
 
-async function createExecCommandNotFoundHint (
+async function createExecCommandNotFoundHint(
   programName: string,
   opts: {
     dir: string
@@ -275,7 +330,10 @@ async function createExecCommandNotFoundHint (
   if (opts.implicitlyFellbackFromRun) {
     let nearestScript: string | null | undefined
     try {
-      nearestScript = getNearestScript(programName, (await readProjectManifestOnly(opts.dir)).scripts)
+      nearestScript = getNearestScript(
+        programName,
+        (await readProjectManifestOnly(opts.dir)).scripts
+      )
     } catch (_err) {}
     if (nearestScript) {
       return `Did you mean "pnpm ${nearestScript}"?`
@@ -308,7 +366,11 @@ interface CommandError extends Error {
   shortMessage: string
 }
 
-function isErrorCommandNotFound (command: string, error: CommandError, prependPaths: string[]) {
+function isErrorCommandNotFound(
+  command: string,
+  error: CommandError,
+  prependPaths: string[]
+) {
   // Mac/Linux
   if (process.platform === 'linux' || process.platform === 'darwin') {
     return error.originalMessage === `spawn ${command} ENOENT`
@@ -317,7 +379,9 @@ function isErrorCommandNotFound (command: string, error: CommandError, prependPa
   // Windows
   if (process.platform === 'win32') {
     const prepend = prependPaths.join(path.delimiter)
-    const whichPath = process.env[PATH] ? `${prepend}${path.delimiter}${process.env[PATH] as string}` : prepend
+    const whichPath = process.env[PATH]
+      ? `${prepend}${path.delimiter}${process.env[PATH] as string}`
+      : prepend
     return !which.sync(command, {
       nothrow: true,
       path: whichPath,

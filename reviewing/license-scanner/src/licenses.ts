@@ -32,7 +32,7 @@ export interface LicensePackage {
  * @param licenseNode the license node
  * @returns LicensePackage[]
  */
-function getDependenciesFromLicenseNode (
+function getDependenciesFromLicenseNode(
   licenseNode: LicenseNode
 ): LicensePackage[] {
   if (!licenseNode.dependencies) {
@@ -65,7 +65,7 @@ function getDependenciesFromLicenseNode (
   return dependencies
 }
 
-export async function findDependencyLicenses (opts: {
+export async function findDependencyLicenses(opts: {
   ignoreDependencies?: Set<string>
   include?: IncludedDependencies
   lockfileDir: string

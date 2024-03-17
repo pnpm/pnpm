@@ -1,6 +1,10 @@
-import { type Dependencies, type DependenciesField, type ProjectManifest } from '@pnpm/types'
+import {
+  type Dependencies,
+  type DependenciesField,
+  type ProjectManifest,
+} from '@pnpm/types'
 
-export function getAllDependenciesFromManifest (
+export function getAllDependenciesFromManifest(
   pkg: Pick<ProjectManifest, DependenciesField>
 ): Dependencies {
   return {

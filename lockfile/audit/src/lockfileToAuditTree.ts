@@ -1,7 +1,10 @@
 import path from 'path'
 import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
+import {
+  lockfileWalkerGroupImporterSteps,
+  type LockfileWalkerStep,
+} from '@pnpm/lockfile-walker'
 import { type DependenciesField } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import mapValues from 'ramda/src/map'
@@ -21,14 +24,18 @@ export type AuditTree = AuditNode & {
   metadata: unknown
 }
 
-export async function lockfileToAuditTree (
+export async function lockfileToAuditTree(
   lockfile: Lockfile,
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     lockfileDir: string
   }
 ): Promise<AuditTree> {
-  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers), { include: opts?.include })
+  const importerWalkers = lockfileWalkerGroupImporterSteps(
+    lockfile,
+    Object.keys(lockfile.importers),
+    { include: opts?.include }
+  )
   const dependencies: Record<string, AuditNode> = {}
   await Promise.all(
     importerWalkers.map(async (importerWalker) => {
@@ -36,7 +43,9 @@ export async function lockfileToAuditTree (
       // For some reason the registry responds with 500 if the keys in dependencies have slashes
       // see issue: https://github.com/pnpm/pnpm/issues/2848
       const depName = importerWalker.importerId.replace(/\//g, '__')
-      const manifest = await safeReadProjectManifestOnly(path.join(opts.lockfileDir, importerWalker.importerId))
+      const manifest = await safeReadProjectManifestOnly(
+        path.join(opts.lockfileDir, importerWalker.importerId)
+      )
       dependencies[depName] = {
         dependencies: importerDeps,
         dev: false,
@@ -60,7 +69,9 @@ export async function lockfileToAuditTree (
   return auditTree
 }
 
-function lockfileToAuditNode (step: LockfileWalkerStep): Record<string, AuditNode> {
+function lockfileToAuditNode(
+  step: LockfileWalkerStep
+): Record<string, AuditNode> {
   const dependencies: Record<string, AuditNode> = {}
   for (const { depPath, pkgSnapshot, next } of step.dependencies) {
     const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
@@ -79,6 +90,8 @@ function lockfileToAuditNode (step: LockfileWalkerStep): Record<string, AuditNod
   return dependencies
 }
 
-function toRequires (auditNodesByDepName: Record<string, AuditNode>): Record<string, string> {
+function toRequires(
+  auditNodesByDepName: Record<string, AuditNode>
+): Record<string, string> {
   return mapValues((auditNode) => auditNode.version!, auditNodesByDepName)
 }

@@ -8,15 +8,20 @@ test('remove should fail if no dependency is specified for removal', async () =>
 
   let err!: PnpmError
   try {
-    await remove.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-    }, [])
+    await remove.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+      },
+      []
+    )
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_MUST_REMOVE_SOMETHING')
-  expect(err.message).toBe('At least one dependency name should be specified for removal')
+  expect(err.message).toBe(
+    'At least one dependency name should be specified for removal'
+  )
 })
 
 test('remove should fail if the project has no dependencies at all', async () => {
@@ -25,57 +30,77 @@ test('remove should fail if the project has no dependencies at all', async () =>
   {
     let err!: PnpmError
     try {
-      await remove.handler({
-        ...DEFAULT_OPTS,
-        dir: process.cwd(),
-      }, ['express'])
+      await remove.handler(
+        {
+          ...DEFAULT_OPTS,
+          dir: process.cwd(),
+        },
+        ['express']
+      )
     } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    expect(err.message).toBe("Cannot remove 'express': project has no dependencies of any kind")
+    expect(err.message).toBe(
+      "Cannot remove 'express': project has no dependencies of any kind"
+    )
   }
   {
     let err!: PnpmError
     try {
-      await remove.handler({
-        ...DEFAULT_OPTS,
-        dir: process.cwd(),
-        saveProd: true,
-      }, ['express'])
+      await remove.handler(
+        {
+          ...DEFAULT_OPTS,
+          dir: process.cwd(),
+          saveProd: true,
+        },
+        ['express']
+      )
     } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    expect(err.message).toBe("Cannot remove 'express': project has no 'dependencies'")
+    expect(err.message).toBe(
+      "Cannot remove 'express': project has no 'dependencies'"
+    )
   }
   {
     let err!: PnpmError
     try {
-      await remove.handler({
-        ...DEFAULT_OPTS,
-        dir: process.cwd(),
-        saveDev: true,
-      }, ['express'])
+      await remove.handler(
+        {
+          ...DEFAULT_OPTS,
+          dir: process.cwd(),
+          saveDev: true,
+        },
+        ['express']
+      )
     } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    expect(err.message).toBe("Cannot remove 'express': project has no 'devDependencies'")
+    expect(err.message).toBe(
+      "Cannot remove 'express': project has no 'devDependencies'"
+    )
   }
   {
     let err!: PnpmError
     try {
-      await remove.handler({
-        ...DEFAULT_OPTS,
-        dir: process.cwd(),
-        saveOptional: true,
-      }, ['express'])
+      await remove.handler(
+        {
+          ...DEFAULT_OPTS,
+          dir: process.cwd(),
+          saveOptional: true,
+        },
+        ['express']
+      )
     } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    expect(err.message).toBe("Cannot remove 'express': project has no 'optionalDependencies'")
+    expect(err.message).toBe(
+      "Cannot remove 'express': project has no 'optionalDependencies'"
+    )
   }
 })
 
@@ -98,64 +123,88 @@ test('remove should fail if the project does not have one of the removed depende
   {
     let err!: PnpmError
     try {
-      await remove.handler({
-        ...DEFAULT_OPTS,
-        dir: process.cwd(),
-        saveProd: true,
-      }, ['prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
+      await remove.handler(
+        {
+          ...DEFAULT_OPTS,
+          dir: process.cwd(),
+          saveProd: true,
+        },
+        ['prod-dep-1', 'dev-dep-1', 'optional-dep-1']
+      )
     } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    expect(err.message).toBe('Cannot remove \'dev-dep-1\', \'optional-dep-1\': \
-no such dependencies found in \'dependencies\'')
+    expect(err.message).toBe(
+      "Cannot remove 'dev-dep-1', 'optional-dep-1': \
+no such dependencies found in 'dependencies'"
+    )
     expect(err.hint).toBe('Available dependencies: prod-dep-1, prod-dep-2')
   }
   {
     let err!: PnpmError
     try {
-      await remove.handler({
-        ...DEFAULT_OPTS,
-        dir: process.cwd(),
-        saveDev: true,
-      }, ['prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
+      await remove.handler(
+        {
+          ...DEFAULT_OPTS,
+          dir: process.cwd(),
+          saveDev: true,
+        },
+        ['prod-dep-1', 'dev-dep-1', 'optional-dep-1']
+      )
     } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    expect(err.message).toBe('Cannot remove \'prod-dep-1\', \'optional-dep-1\': \
-no such dependencies found in \'devDependencies\'')
+    expect(err.message).toBe(
+      "Cannot remove 'prod-dep-1', 'optional-dep-1': \
+no such dependencies found in 'devDependencies'"
+    )
     expect(err.hint).toBe('Available dependencies: dev-dep-1, dev-dep-2')
   }
   {
     let err!: PnpmError
     try {
-      await remove.handler({
-        ...DEFAULT_OPTS,
-        dir: process.cwd(),
-        saveOptional: true,
-      }, ['prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
+      await remove.handler(
+        {
+          ...DEFAULT_OPTS,
+          dir: process.cwd(),
+          saveOptional: true,
+        },
+        ['prod-dep-1', 'dev-dep-1', 'optional-dep-1']
+      )
     } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    expect(err.message).toBe('Cannot remove \'prod-dep-1\', \'dev-dep-1\': \
-no such dependencies found in \'optionalDependencies\'')
-    expect(err.hint).toBe('Available dependencies: optional-dep-1, optional-dep-2')
+    expect(err.message).toBe(
+      "Cannot remove 'prod-dep-1', 'dev-dep-1': \
+no such dependencies found in 'optionalDependencies'"
+    )
+    expect(err.hint).toBe(
+      'Available dependencies: optional-dep-1, optional-dep-2'
+    )
   }
   {
     let err!: PnpmError
     try {
-      await remove.handler({
-        ...DEFAULT_OPTS,
-        dir: process.cwd(),
-      }, ['express', 'prod-dep-1', 'dev-dep-1', 'optional-dep-1'])
+      await remove.handler(
+        {
+          ...DEFAULT_OPTS,
+          dir: process.cwd(),
+        },
+        ['express', 'prod-dep-1', 'dev-dep-1', 'optional-dep-1']
+      )
     } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
-    expect(err.message).toBe("Cannot remove 'express': no such dependency found")
-    expect(err.hint).toBe('Available dependencies: dev-dep-1, dev-dep-2, \
-prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2')
+    expect(err.message).toBe(
+      "Cannot remove 'express': no such dependency found"
+    )
+    expect(err.hint).toBe(
+      'Available dependencies: dev-dep-1, dev-dep-2, \
+prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2'
+    )
   }
 })

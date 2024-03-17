@@ -1,4 +1,4 @@
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import isEmpty from 'ramda/src/isEmpty'
 
 // property keys that are copied from publishConfig into the manifest
@@ -26,7 +26,7 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
   'typesVersions',
 ])
 
-export function overridePublishConfig (publishManifest: ProjectManifest): void {
+export function overridePublishConfig(publishManifest: ProjectManifest): void {
   const { publishConfig } = publishManifest
   if (!publishConfig) return
 

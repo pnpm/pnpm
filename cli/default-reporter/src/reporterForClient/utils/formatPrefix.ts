@@ -1,8 +1,8 @@
-import path from 'path'
+import path from 'node:path'
 import normalize from 'normalize-path'
 import { PREFIX_MAX_LENGTH } from '../outputConstants'
 
-export function formatPrefix (cwd: string, prefix: string) {
+export function formatPrefix(cwd: string, prefix: string) {
   prefix = formatPrefixNoTrim(cwd, prefix)
 
   if (prefix.length <= PREFIX_MAX_LENGTH) {
@@ -20,6 +20,6 @@ export function formatPrefix (cwd: string, prefix: string) {
   return `...${shortPrefix.slice(separatorLocation)}`
 }
 
-export function formatPrefixNoTrim (cwd: string, prefix: string) {
+export function formatPrefixNoTrim(cwd: string, prefix: string) {
   return normalize(path.relative(cwd, prefix) || '.')
 }

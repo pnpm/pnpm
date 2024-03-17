@@ -48,7 +48,7 @@ test('prints execution time for install command', (done) => {
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe('Done in 10.8s')
     },
   })

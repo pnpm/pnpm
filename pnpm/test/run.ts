@@ -1,33 +1,39 @@
-import { promises as fs, mkdirSync } from 'fs'
-import path from 'path'
+import { promises as fs, mkdirSync } from 'node:fs'
+import path from 'node:path'
 import PATH_NAME from 'path-name'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { execPnpm, execPnpmSync } from './utils'
 
-const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
+const RECORD_ARGS_FILE =
+  "require('fs').writeFileSync('args.json', JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')"
 const testOnPosix = isWindows() ? test.skip : test
 
 test('run -r: pass the args to the command that is specified in the build script', async () => {
-  preparePackages([{
-    name: 'project',
-    scripts: {
-      foo: 'node recordArgs',
-      postfoo: 'node recordArgs',
-      prefoo: 'node recordArgs',
+  preparePackages([
+    {
+      name: 'project',
+      scripts: {
+        foo: 'node recordArgs',
+        postfoo: 'node recordArgs',
+        prefoo: 'node recordArgs',
+      },
     },
-  }])
+  ])
   await fs.writeFile('project/args.json', '[]', 'utf8')
   await fs.writeFile('project/recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await execPnpm(['run', '-r', '--config.enable-pre-post-scripts', 'foo', 'arg', '--flag=true'])
+  await execPnpm([
+    'run',
+    '-r',
+    '--config.enable-pre-post-scripts',
+    'foo',
+    'arg',
+    '--flag=true',
+  ])
 
   const { default: args } = await import(path.resolve('project/args.json'))
-  expect(args).toStrictEqual([
-    [],
-    ['arg', '--flag=true'],
-    [],
-  ])
+  expect(args).toStrictEqual([[], ['arg', '--flag=true'], []])
 })
 
 test('run: pass the args to the command that is specified in the build script', async () => {
@@ -45,9 +51,7 @@ test('run: pass the args to the command that is specified in the build script', 
   await execPnpm(['run', 'foo', 'arg', '--flag=true'])
 
   const { default: args } = await import(path.resolve('args.json'))
-  expect(args).toStrictEqual([
-    ['arg', '--flag=true'],
-  ])
+  expect(args).toStrictEqual([['arg', '--flag=true']])
 })
 
 // Before pnpm v7, `--` was required to pass flags to a build script. Now all
@@ -68,22 +72,24 @@ test('run: pass all arguments after script name to the build script, even --', a
   await execPnpm(['run', 'foo', 'arg', '--', '--flag=true'])
 
   const { default: args } = await import(path.resolve('args.json'))
-  expect(args).toStrictEqual([
-    ['arg', '--', '--flag=true'],
-  ])
+  expect(args).toStrictEqual([['arg', '--', '--flag=true']])
 })
 
 test('test -r: pass the args to the command that is specified in the build script of a package.json manifest', async () => {
-  preparePackages([{
-    name: 'project',
-    scripts: {
-      test: 'ts-node test',
+  preparePackages([
+    {
+      name: 'project',
+      scripts: {
+        test: 'ts-node test',
+      },
     },
-  }])
+  ])
 
   const result = execPnpmSync(['test', '-r', 'arg', '--', '--flag=true'])
 
-  expect((result.stdout as Buffer).toString('utf8')).toMatch(/ts-node test "arg" "--flag=true"/)
+  expect((result.stdout as Buffer).toString('utf8')).toMatch(
+    /ts-node test "arg" "--flag=true"/
+  )
 })
 
 test('start: run "node server.js" by default', async () => {
@@ -97,11 +103,14 @@ test('start: run "node server.js" by default', async () => {
 })
 
 test('install-test: install dependencies and runs tests', async () => {
-  prepare({
-    scripts: {
-      test: 'node -e "process.stdout.write(\'test\')" > ./output.txt',
+  prepare(
+    {
+      scripts: {
+        test: 'node -e "process.stdout.write(\'test\')" > ./output.txt',
+      },
     },
-  }, { manifestFormat: 'JSON5' })
+    { manifestFormat: 'JSON5' }
+  )
 
   await execPnpm(['install-test'])
 
@@ -176,27 +185,34 @@ testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
 
   const result = execPnpmSync(['run', 'build'])
 
-  expect(result.stdout.toString()).toContain(`project${path.sep}node_modules${path.sep}.pnpm${path.sep}node_modules`)
+  expect(result.stdout.toString()).toContain(
+    `project${path.sep}node_modules${path.sep}.pnpm${path.sep}node_modules`
+  )
 })
 
-testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir', async () => {
-  prepare({
-    scripts: {
-      build: 'node -e "console.log(process.env.NODE_PATH)"',
-    },
-  })
+testOnPosix(
+  'pnpm run with preferSymlinkedExecutables and custom virtualStoreDir',
+  async () => {
+    prepare({
+      scripts: {
+        build: 'node -e "console.log(process.env.NODE_PATH)"',
+      },
+    })
 
-  const npmrc = `
+    const npmrc = `
     virtual-store-dir=/foo/bar
     prefer-symlinked-executables=true=true
   `
 
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
+    await fs.writeFile('.npmrc', npmrc, 'utf8')
 
-  const result = execPnpmSync(['run', 'build'])
+    const result = execPnpmSync(['run', 'build'])
 
-  expect(result.stdout.toString()).toContain(`${path.sep}foo${path.sep}bar${path.sep}node_modules`)
-})
+    expect(result.stdout.toString()).toContain(
+      `${path.sep}foo${path.sep}bar${path.sep}node_modules`
+    )
+  }
+)
 
 test('collapse output when running multiple scripts in one project', async () => {
   prepare({
@@ -221,7 +237,11 @@ test('do not collapse output when running multiple scripts in one project sequen
     },
   })
 
-  const result = execPnpmSync(['--workspace-concurrency=1', 'run', '/script[12]/'])
+  const result = execPnpmSync([
+    '--workspace-concurrency=1',
+    'run',
+    '/script[12]/',
+  ])
 
   const output = result.stdout.toString()
   expect(output).not.toContain('script1: 1')
@@ -251,7 +271,12 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
     },
   })
 
-  const result = execPnpmSync(['--parallel', '--reporter-hide-prefix', 'run', '/script[12]/'])
+  const result = execPnpmSync([
+    '--parallel',
+    '--reporter-hide-prefix',
+    'run',
+    '/script[12]/',
+  ])
 
   const output = result.stdout.toString()
   expect(output).toContain('1')

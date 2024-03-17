@@ -1,4 +1,4 @@
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { createPeerDependencyPatcher } from '../lib/createPeerDependencyPatcher'
 
 test('createPeerDependencyPatcher() ignores missing', () => {
@@ -188,9 +188,13 @@ test('createPeerDependencyPatcher() corner case correctly applies override', () 
 })
 
 test('createPeerDependencyPatcher() throws expected error if parent>child selector cannot parse', () => {
-  expect(() => createPeerDependencyPatcher({
-    allowedVersions: {
-      'foo > bar': '2',
-    },
-  })).toThrowError('Cannot parse the "foo > bar" selector in pnpm.peerDependencyRules.allowedVersions')
+  expect(() =>
+    createPeerDependencyPatcher({
+      allowedVersions: {
+        'foo > bar': '2',
+      },
+    })
+  ).toThrowError(
+    'Cannot parse the "foo > bar" selector in pnpm.peerDependencyRules.allowedVersions'
+  )
 })

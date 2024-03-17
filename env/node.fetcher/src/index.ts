@@ -21,12 +21,26 @@ export interface FetchNodeOptions {
   retry?: RetryTimeoutOptions
 }
 
-export async function fetchNode (fetch: FetchFromRegistry, version: string, targetDir: string, opts: FetchNodeOptions) {
+export async function fetchNode(
+  fetch: FetchFromRegistry,
+  version: string,
+  targetDir: string,
+  opts: FetchNodeOptions
+) {
   if (await isNonGlibcLinux()) {
-    throw new PnpmError('MUSL', 'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
+    throw new PnpmError(
+      'MUSL',
+      'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc'
+    )
   }
-  const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'
-  const { tarball, pkgName } = getNodeTarball(version, nodeMirrorBaseUrl, process.platform, process.arch)
+  const nodeMirrorBaseUrl =
+    opts.nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'
+  const { tarball, pkgName } = getNodeTarball(
+    version,
+    nodeMirrorBaseUrl,
+    process.platform,
+    process.arch
+  )
   if (tarball.endsWith('.zip')) {
     await downloadAndUnpackZip(fetch, tarball, targetDir, pkgName)
     return
@@ -41,7 +55,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   })
   const cafs = createCafsStore(opts.cafsDir)
   const fetchTarball = pickFetcher(fetchers, { tarball })
-  const { filesIndex } = await fetchTarball(cafs, { tarball } as any, { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { filesIndex } = await fetchTarball(cafs, {}, {
     filesIndexFile: path.join(opts.cafsDir, encodeURIComponent(tarball)), // TODO: change the name or don't save an index file for node.js tarballs
     lockfileDir: process.cwd(),
     pkg: {},
@@ -55,7 +69,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   })
 }
 
-async function downloadAndUnpackZip (
+async function downloadAndUnpackZip(
   fetchFromRegistry: FetchFromRegistry,
   zipUrl: string,
   targetDir: string,
@@ -65,7 +79,7 @@ async function downloadAndUnpackZip (
   const tmp = path.join(tempy.directory(), 'pnpm.zip')
   const dest = fs.createWriteStream(tmp)
   await new Promise((resolve, reject) => {
-    response.body!.pipe(dest).on('error', reject).on('close', resolve)
+    response.body?.pipe(dest).on('error', reject).on('close', resolve)
   })
   const zip = new AdmZip(tmp)
   const nodeDir = path.dirname(targetDir)

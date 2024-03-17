@@ -15,5 +15,5 @@ test('importing a package with invalid files', () => {
     force: false,
     resolvedFrom: 'remote',
   })
-  expect((fs.readdirSync(target)).length).toBe(2)
+  expect(fs.readdirSync(target).length).toBe(2)
 })

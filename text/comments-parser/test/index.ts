@@ -11,9 +11,14 @@ test('extract and insert JSON5 comments', () => {
 }
 /* And it should preserve comments at the end of the file. Note no newline. */`
   const { comments } = extractComments(json5WithComments)
-  expect(insertComments(`{
+  expect(
+    insertComments(
+      `{
     name: 'foo',
     version: '1.0.0',
     type: 'commonjs',
-}`, comments!))
+}`,
+      comments!
+    )
+  )
 })

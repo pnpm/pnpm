@@ -7,18 +7,22 @@ export interface WorkspaceManifest {
   packages?: string[]
 }
 
-export async function readWorkspaceManifest (dir: string): Promise<WorkspaceManifest | undefined> {
+export async function readWorkspaceManifest(
+  dir: string
+): Promise<WorkspaceManifest | undefined> {
   const manifest = await readManifestRaw(dir)
   validateWorkspaceManifest(manifest)
   return manifest
 }
 
-async function readManifestRaw (dir: string): Promise<unknown> {
+async function readManifestRaw(dir: string): Promise<unknown> {
   try {
-    return await readYamlFile<WorkspaceManifest>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
+    return await readYamlFile<WorkspaceManifest>(
+      path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+    )
   } catch (err: any) { // eslint-disable-line
     // File not exists is the same as empty file (undefined)
-    if (err['code'] === 'ENOENT') {
+    if (err.code === 'ENOENT') {
       return undefined
     }
 
@@ -27,14 +31,18 @@ async function readManifestRaw (dir: string): Promise<unknown> {
   }
 }
 
-function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
+function validateWorkspaceManifest(
+  manifest: unknown
+): asserts manifest is WorkspaceManifest | undefined {
   if (manifest === undefined || manifest === null) {
     // Empty or null manifest is ok
     return
   }
 
   if (typeof manifest !== 'object') {
-    throw new InvalidWorkspaceManifestError(`Expected object but found - ${typeof manifest}`)
+    throw new InvalidWorkspaceManifestError(
+      `Expected object but found - ${typeof manifest}`
+    )
   }
 
   if (Array.isArray(manifest)) {
@@ -50,7 +58,9 @@ function validateWorkspaceManifest (manifest: unknown): asserts manifest is Work
   checkWorkspaceManifestAssignability(manifest)
 }
 
-function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {
+function assertValidWorkspaceManifestPackages(manifest: {
+  packages?: unknown
+}): asserts manifest is { packages: string[] } {
   if (!manifest.packages) {
     throw new InvalidWorkspaceManifestError('packages field missing or empty')
   }
@@ -77,10 +87,10 @@ function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown })
  * make sure the validation logic in this file is correct as it's refactored in
  * the future.
  */
-function checkWorkspaceManifestAssignability (_manifest: WorkspaceManifest) {}
+function checkWorkspaceManifestAssignability(_manifest: WorkspaceManifest) {}
 
 class InvalidWorkspaceManifestError extends PnpmError {
-  constructor (message: string) {
+  constructor(message: string) {
     super('INVALID_WORKSPACE_CONFIGURATION', message)
   }
 }

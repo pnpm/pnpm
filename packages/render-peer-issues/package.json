@@ -40,7 +40,7 @@
   },
   "devDependencies": {
     "@pnpm/render-peer-issues": "workspace:*",
-    "@types/archy": "0.0.33",
+    "@types/archy": "0.0.36",
     "@types/semver": "7.5.8",
     "strip-ansi": "^6.0.1"
   },

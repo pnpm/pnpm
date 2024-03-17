@@ -39,14 +39,13 @@
   "devDependencies": {
     "@pnpm/mount-modules": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "rimraf": "^3.0.2"
+    "rimraf": "^5.0.5"
   },
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
-    "@pnpm/logger": "^5.0.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",

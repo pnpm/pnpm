@@ -2,10 +2,11 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
-export function computeHandlePath (handle?: string) {
-  const handleFilePath = handle != null
-    ? path.resolve(handle)
-    : path.join(os.tmpdir(), `${crypto.randomUUID()}.sock`)
+export function computeHandlePath(handle?: string) {
+  const handleFilePath =
+    handle != null
+      ? path.resolve(handle)
+      : path.join(os.tmpdir(), `${crypto.randomUUID()}.sock`)
 
   // Node.js and libuv do not yet support unix sockets on Windows.
   // https://github.com/libuv/libuv/issues/2537

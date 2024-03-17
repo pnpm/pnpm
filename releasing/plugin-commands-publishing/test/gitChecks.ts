@@ -39,11 +39,14 @@ test('publish: fails git check if branch is not on master or main', async () => 
   })
 
   await expect(
-    publish.handler({
-      ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
-      dir: process.cwd(),
-    }, [])
+    publish.handler(
+      {
+        ...DEFAULT_OPTS,
+        argv: { original: ['publish', ...CREDENTIALS] },
+        dir: process.cwd(),
+      },
+      []
+    )
   ).rejects.toThrow(
     new PnpmError('GIT_NOT_CORRECT_BRANCH', "Branch is not on 'master|main'.")
   )
@@ -67,12 +70,15 @@ test('publish: fails git check if branch is not on specified branch', async () =
   })
 
   await expect(
-    publish.handler({
-      ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
-      dir: process.cwd(),
-      publishBranch: 'latest',
-    }, [])
+    publish.handler(
+      {
+        ...DEFAULT_OPTS,
+        argv: { original: ['publish', ...CREDENTIALS] },
+        dir: process.cwd(),
+        publishBranch: 'latest',
+      },
+      []
+    )
   ).rejects.toThrow(
     new PnpmError('GIT_NOT_CORRECT_BRANCH', "Branch is not on 'latest'.")
   )
@@ -93,13 +99,19 @@ test('publish: fails git check if branch is not clean', async () => {
   await fs.writeFile('LICENSE', 'workspace license', 'utf8')
 
   await expect(
-    publish.handler({
-      ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
-      dir: process.cwd(),
-    }, [])
+    publish.handler(
+      {
+        ...DEFAULT_OPTS,
+        argv: { original: ['publish', ...CREDENTIALS] },
+        dir: process.cwd(),
+      },
+      []
+    )
   ).rejects.toThrow(
-    new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.')
+    new PnpmError(
+      'GIT_UNCLEAN',
+      'Unclean working tree. Commit or stash changes first.'
+    )
   )
 })
 
@@ -117,19 +129,32 @@ test('publish: fails git check if branch is not up to date', async () => {
   await execa('git', ['init', '--bare'], { cwd: remote })
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
-  await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
+  await execa('git', [
+    'commit',
+    '--allow-empty',
+    '--allow-empty-message',
+    '-m',
+    '',
+    '--no-gpg-sign',
+  ])
   await execa('git', ['remote', 'add', 'origin', remote])
   await execa('git', ['push', '-u', 'origin', 'main'])
   await execa('git', ['reset', '--hard', 'HEAD~1'])
 
   await expect(
-    publish.handler({
-      ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
-      dir: process.cwd(),
-    }, [])
+    publish.handler(
+      {
+        ...DEFAULT_OPTS,
+        argv: { original: ['publish', ...CREDENTIALS] },
+        dir: process.cwd(),
+      },
+      []
+    )
   ).rejects.toThrow(
-    new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.')
+    new PnpmError(
+      'GIT_NOT_LATEST',
+      'Remote history differs. Please pull changes.'
+    )
   )
 })
 
@@ -144,16 +169,29 @@ test('publish: fails git check if HEAD is detached', async () => {
   await execa('git', ['config', 'user.name', 'xyz'])
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
-  await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
+  await execa('git', [
+    'commit',
+    '--allow-empty',
+    '--allow-empty-message',
+    '-m',
+    '',
+    '--no-gpg-sign',
+  ])
   await execa('git', ['checkout', 'HEAD~1'])
 
   await expect(
-    publish.handler({
-      ...DEFAULT_OPTS,
-      argv: { original: ['publish', ...CREDENTIALS] },
-      dir: process.cwd(),
-    }, [])
+    publish.handler(
+      {
+        ...DEFAULT_OPTS,
+        argv: { original: ['publish', ...CREDENTIALS] },
+        dir: process.cwd(),
+      },
+      []
+    )
   ).rejects.toThrow(
-    new PnpmError('GIT_UNKNOWN_BRANCH', 'The Git HEAD may not attached to any branch, but your "publish-branch" is set to "master|main".')
+    new PnpmError(
+      'GIT_UNKNOWN_BRANCH',
+      'The Git HEAD may not attached to any branch, but your "publish-branch" is set to "master|main".'
+    )
   )
 })

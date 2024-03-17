@@ -14,7 +14,7 @@ const COMMANDS_THAT_REPORT_SCOPE = new Set([
   'test',
 ])
 
-export function reportScope (
+export function reportScope(
   scope$: Rx.Observable<ScopeLog>,
   opts: {
     isRecursive: boolean

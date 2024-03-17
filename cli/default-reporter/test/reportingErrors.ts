@@ -1,17 +1,15 @@
 import path from 'path'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { PnpmError } from '@pnpm/error'
-import {
-  createStreamParser,
-  logger,
-} from '@pnpm/logger'
+import { createStreamParser, logger } from '@pnpm/logger'
 import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import loadJsonFile from 'load-json-file'
 import normalizeNewline from 'normalize-newline'
 import StackTracey from 'stacktracey'
 
-const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)
+const formatErrorCode = (code: string) =>
+  chalk.bgRed.black(`\u2009${code}\u2009`)
 const formatError = (code: string, message: string) => {
   return `${formatErrorCode(code)} ${chalk.red(message)}`
 }
@@ -31,7 +29,7 @@ test('prints generic error', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`${formatError('ERROR', 'some error')}
 ${ERROR_PAD}${(new StackTracey(err.stack).asTable() as string).split('\n').join(`\n${ERROR_PAD}`)}`)
     },
@@ -45,7 +43,7 @@ test('prints generic error when recursive install fails', (done) => {
   })
 
   const err = new Error('some error')
-  err['prefix'] = '/home/src/'
+  err.prefix = '/home/src/'
   logger.error(err, err)
 
   expect.assertions(1)
@@ -53,7 +51,7 @@ test('prints generic error when recursive install fails', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`/home/src/:
 ${formatError('ERROR', 'some error')}
 ${ERROR_PAD}
@@ -73,8 +71,9 @@ test('prints no matching version error when many dist-tags exist', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`${formatError('ERR_PNPM_NO_MATCHING_VERSION', 'No matching version found for pnpm@1000.0.0')}
+    next: (output) => {
+      expect(output)
+        .toBe(`${formatError('ERR_PNPM_NO_MATCHING_VERSION', 'No matching version found for pnpm@1000.0.0')}
 ${ERROR_PAD}
 ${ERROR_PAD}The latest release of pnpm is "2.4.0".
 ${ERROR_PAD}
@@ -87,8 +86,11 @@ ${ERROR_PAD}If you need the full list of all 281 published versions run "$ pnpm 
     },
   })
 
-  const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for pnpm@1000.0.0')
-  err['packageMeta'] = loadJsonFile.sync(path.join(__dirname, 'pnpm-meta.json'))
+  const err = new PnpmError(
+    'NO_MATCHING_VERSION',
+    'No matching version found for pnpm@1000.0.0'
+  )
+  err.packageMeta = loadJsonFile.sync(path.join(__dirname, 'pnpm-meta.json'))
   logger.error(err, err)
 })
 
@@ -103,8 +105,9 @@ test('prints no matching version error when only the latest dist-tag exists', (d
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`${formatError('ERR_PNPM_NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0')}
+    next: (output) => {
+      expect(output)
+        .toBe(`${formatError('ERR_PNPM_NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0')}
 ${ERROR_PAD}
 ${ERROR_PAD}The latest release of is-positive is "3.1.0".
 ${ERROR_PAD}
@@ -112,8 +115,13 @@ ${ERROR_PAD}If you need the full list of all 4 published versions run "$ pnpm vi
     },
   })
 
-  const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0')
-  err['packageMeta'] = loadJsonFile.sync(path.join(__dirname, 'is-positive-meta.json'))
+  const err = new PnpmError(
+    'NO_MATCHING_VERSION',
+    'No matching version found for is-positive@1000.0.0'
+  )
+  err.packageMeta = loadJsonFile.sync(
+    path.join(__dirname, 'is-positive-meta.json')
+  )
   logger.error(err, err)
 })
 
@@ -128,9 +136,9 @@ test('prints suggestions when an internet-connection related error happens', (do
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`/project-dir:
-${formatError('ERR_PNPM_BAD_TARBALL_SIZE', 'Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')}
+${formatError('ERR_PNPM_BAD_TARBALL_SIZE', "Actual size (99) of tarball (https://foo) did not match the one specified in 'Content-Length' header (100)")}
 ${ERROR_PAD}
 ${ERROR_PAD}This error happened while installing the dependencies of foo@1.0.0
 ${ERROR_PAD}
@@ -151,7 +159,10 @@ ${ERROR_PAD}For instance, \`pnpm install --fetch-retries 5 --network-concurrency
     },
   })
 
-  const err = new PnpmError('BAD_TARBALL_SIZE', 'Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')
+  const err = new PnpmError(
+    'BAD_TARBALL_SIZE',
+    "Actual size (99) of tarball (https://foo) did not match the one specified in 'Content-Length' header (100)"
+  )
   err.prefix = '/project-dir'
   err.pkgsStack = [
     {
@@ -160,8 +171,8 @@ ${ERROR_PAD}For instance, \`pnpm install --fetch-retries 5 --network-concurrency
       version: '1.0.0',
     },
   ]
-  err['expectedSize'] = 100
-  err['receivedSize'] = 99
+  err.expectedSize = 100
+  err.receivedSize = 99
   logger.error(err, err)
 })
 
@@ -176,8 +187,10 @@ test('prints test error', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`${formatError('ELIFECYCLE', 'Test failed. See above for more details.')}`)
+    next: (output) => {
+      expect(output).toBe(
+        `${formatError('ELIFECYCLE', 'Test failed. See above for more details.')}`
+      )
     },
   })
 
@@ -199,15 +212,17 @@ test('prints command error with exit code', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`${formatError('ELIFECYCLE', 'Command failed with exit code 100.')}`)
+    next: (output) => {
+      expect(output).toBe(
+        `${formatError('ELIFECYCLE', 'Command failed with exit code 100.')}`
+      )
     },
   })
 
   const err = new Error('Command failed')
-  err['errno'] = 100
-  err['stage'] = 'lint'
-  err['code'] = 'ELIFECYCLE'
+  err.errno = 100
+  err.stage = 'lint'
+  err.code = 'ELIFECYCLE'
   logger.error(err, err)
 })
 
@@ -222,14 +237,14 @@ test('prints command error without exit code', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`${formatError('ELIFECYCLE', 'Command failed.')}`)
     },
   })
 
   const err = new Error('Command failed')
-  err['stage'] = 'lint'
-  err['code'] = 'ELIFECYCLE'
+  err.stage = 'lint'
+  err.code = 'ELIFECYCLE'
   logger.error(err, err)
 })
 
@@ -244,8 +259,9 @@ test('prints unsupported pnpm version error', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`${formatError('ERR_PNPM_UNSUPPORTED_ENGINE', 'Unsupported environment (bad pnpm and/or Node.js version)')}
+    next: (output) => {
+      expect(output)
+        .toBe(`${formatError('ERR_PNPM_UNSUPPORTED_ENGINE', 'Unsupported environment (bad pnpm and/or Node.js version)')}
 ${ERROR_PAD}
 ${ERROR_PAD}Your pnpm version is incompatible with "/home/zoltan/project".
 ${ERROR_PAD}
@@ -261,9 +277,9 @@ ${ERROR_PAD}To check your pnpm version, run "pnpm -v".`)
   })
 
   const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
-  err['packageId'] = '/home/zoltan/project'
-  err['wanted'] = { pnpm: '2' }
-  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
+  err.packageId = '/home/zoltan/project'
+  err.wanted = { pnpm: '2' }
+  err.current = { pnpm: '3.0.0', node: '10.0.0' }
   logger.error(err, err)
 })
 
@@ -278,8 +294,9 @@ test('prints unsupported Node version error', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`${formatError('ERR_PNPM_UNSUPPORTED_ENGINE', 'Unsupported environment (bad pnpm and/or Node.js version)')}
+    next: (output) => {
+      expect(output)
+        .toBe(`${formatError('ERR_PNPM_UNSUPPORTED_ENGINE', 'Unsupported environment (bad pnpm and/or Node.js version)')}
 ${ERROR_PAD}
 ${ERROR_PAD}Your Node version is incompatible with "/home/zoltan/project".
 ${ERROR_PAD}
@@ -292,9 +309,9 @@ ${ERROR_PAD}To fix this issue, install the required Node version.`)
   })
 
   const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
-  err['packageId'] = '/home/zoltan/project'
-  err['wanted'] = { node: '>=12' }
-  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
+  err.packageId = '/home/zoltan/project'
+  err.wanted = { node: '>=12' }
+  err.current = { pnpm: '3.0.0', node: '10.0.0' }
   logger.error(err, err)
 })
 
@@ -309,8 +326,9 @@ test('prints unsupported pnpm and Node versions error', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`${formatError('ERR_PNPM_UNSUPPORTED_ENGINE', 'Unsupported environment (bad pnpm and/or Node.js version)')}
+    next: (output) => {
+      expect(output).toBe(
+        `${formatError('ERR_PNPM_UNSUPPORTED_ENGINE', 'Unsupported environment (bad pnpm and/or Node.js version)')}
 ${ERROR_PAD}
 ${ERROR_PAD}Your pnpm version is incompatible with "/home/zoltan/project".
 ${ERROR_PAD}
@@ -321,21 +339,24 @@ ${ERROR_PAD}This is happening because the package's manifest has an engines.pnpm
 ${ERROR_PAD}To fix this issue, install the required pnpm version globally.
 ${ERROR_PAD}
 ${ERROR_PAD}To install the latest version of pnpm, run "pnpm i -g pnpm".
-${ERROR_PAD}To check your pnpm version, run "pnpm -v".` + '\n\n' + `\
+${ERROR_PAD}To check your pnpm version, run "pnpm -v".` +
+          '\n\n' +
+          `\
 ${ERROR_PAD}Your Node version is incompatible with "/home/zoltan/project".
 ${ERROR_PAD}
 ${ERROR_PAD}Expected version: >=12
 ${ERROR_PAD}Got: 10.0.0
 ${ERROR_PAD}
 ${ERROR_PAD}This is happening because the package's manifest has an engines.node field specified.
-${ERROR_PAD}To fix this issue, install the required Node version.`)
+${ERROR_PAD}To fix this issue, install the required Node version.`
+      )
     },
   })
 
   const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
-  err['packageId'] = '/home/zoltan/project'
-  err['wanted'] = { pnpm: '2', node: '>=12' }
-  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
+  err.packageId = '/home/zoltan/project'
+  err.wanted = { pnpm: '2', node: '>=12' }
+  err.current = { pnpm: '3.0.0', node: '10.0.0' }
   logger.error(err, err)
 })
 
@@ -353,7 +374,7 @@ test('prints error even if the error object not passed in through the message ob
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(formatError('ERR_PNPM_SOME_ERROR', 'some error'))
     },
   })
@@ -375,7 +396,7 @@ test('prints error without packages stacktrace when pkgsStack is empty but do pr
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`/project-dir:
 ${formatError('ERR_PNPM_SOME_ERROR', 'some error')}
 ${ERROR_PAD}
@@ -405,7 +426,7 @@ test('prints error with packages stacktrace - depth 1 and hint', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`${formatError('ERR_PNPM_SOME_ERROR', 'some error')}
 ${ERROR_PAD}
 ${ERROR_PAD}This error happened while installing the dependencies of foo@1.0.0
@@ -441,7 +462,7 @@ test('prints error with packages stacktrace - depth 2', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`/project-dir:
 ${formatError('ERR_PNPM_SOME_ERROR', 'some error')}
 ${ERROR_PAD}
@@ -465,10 +486,14 @@ test('prints error and hint', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(formatErrorCode('ERR_PNPM_SOME_ERROR') + ' ' + `${chalk.red('some error')}
+    next: (output) => {
+      expect(output).toBe(
+        formatErrorCode('ERR_PNPM_SOME_ERROR') +
+          ' ' +
+          `${chalk.red('some error')}
 
-some hint`)
+some hint`
+      )
     },
   })
 })
@@ -498,7 +523,7 @@ test('prints authorization error with auth settings', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`${formatError('ERR_PNPM_FETCH_401', 'some error')}
 ${ERROR_PAD}
 ${ERROR_PAD}some hint
@@ -531,7 +556,7 @@ test('prints authorization error without auth settings, where there are none', (
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`${formatError('ERR_PNPM_FETCH_401', 'some error')}
 ${ERROR_PAD}
 ${ERROR_PAD}some hint

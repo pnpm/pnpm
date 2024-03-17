@@ -1,4 +1,4 @@
-import { cpus } from 'os'
+import { cpus } from 'node:os'
 import { getWorkspaceConcurrency } from '../lib/concurrency'
 
 const hostCores = cpus().length

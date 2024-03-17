@@ -3,7 +3,7 @@ export interface EnvSpecifier {
   versionSpecifier: string
 }
 
-export function parseEnvSpecifier (specifier: string): EnvSpecifier {
+export function parseEnvSpecifier(specifier: string): EnvSpecifier {
   if (specifier.includes('/')) {
     const [releaseChannel, versionSpecifier] = specifier.split('/')
     return { releaseChannel, versionSpecifier }

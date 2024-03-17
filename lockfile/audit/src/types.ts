@@ -30,7 +30,7 @@ export interface AuditAdvisory {
       dev: boolean
       optional: boolean
       bundled: boolean
-    }
+    },
   ]
   id: number
   created: string

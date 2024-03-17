@@ -1,6 +1,6 @@
 import { createObjectChecksum } from './index'
 
-function assets () {
+function assets() {
   const sorted = {
     abc: {
       a: 0,

@@ -64,7 +64,7 @@ interface YarnPackageLock {
 
 enum YarnLockType {
   yarn = 'yarn',
-  yarn2 = 'yarn2'
+  yarn2 = 'yarn2',
 }
 
 // copy from yarn v1
@@ -75,38 +75,36 @@ interface YarnLock2Struct {
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return {}
 }
 
-export function help () {
+export function help() {
   return renderHelp({
     description: `Generates ${WANTED_LOCKFILE} from an npm package-lock.json (or npm-shrinkwrap.json, yarn.lock) file.`,
     url: docsUrl('import'),
-    usages: [
-      'pnpm import',
-    ],
+    usages: ['pnpm import'],
   })
 }
 
 export const commandNames = ['import']
 
-export type ImportCommandOptions = Pick<Config,
-| 'allProjects'
-| 'allProjectsGraph'
-| 'selectedProjectsGraph'
-| 'workspaceDir'
-| 'ignoreWorkspaceCycles'
-| 'disallowWorkspaceCycles'
-| 'sharedWorkspaceLockfile'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
-> & CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
+export type ImportCommandOptions = Pick<
+  Config,
+  | 'allProjects'
+  | 'allProjectsGraph'
+  | 'selectedProjectsGraph'
+  | 'workspaceDir'
+  | 'ignoreWorkspaceCycles'
+  | 'disallowWorkspaceCycles'
+  | 'sharedWorkspaceLockfile'
+  | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
+> &
+  CreateStoreControllerOptions &
+  Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
 
-export async function handler (
-  opts: ImportCommandOptions,
-  params: string[]
-) {
+export async function handler(opts: ImportCommandOptions, params: string[]) {
   // Removing existing pnpm lockfile
   // it should not influence the new one
   await rimraf(path.join(opts.dir, WANTED_LOCKFILE))
@@ -116,8 +114,8 @@ export async function handler (
     const yarnPackageLockFile = await readYarnLockFile(opts.dir)
     getAllVersionsFromYarnLockFile(yarnPackageLockFile, versionsByPackageNames)
   } else if (
-    await exists(path.join(opts.dir, 'package-lock.json')) ||
-    await exists(path.join(opts.dir, 'npm-shrinkwrap.json'))
+    (await exists(path.join(opts.dir, 'package-lock.json'))) ||
+    (await exists(path.join(opts.dir, 'npm-shrinkwrap.json')))
   ) {
     const npmPackageLock = await readNpmLockfile(opts.dir)
     if (npmPackageLock.lockfileVersion < 3) {
@@ -132,18 +130,24 @@ export async function handler (
 
   // For a workspace with shared lockfile
   if (opts.workspaceDir) {
-    const allProjects = opts.allProjects ?? await findWorkspacePackages(opts.workspaceDir, opts)
-    const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
+    const allProjects =
+      opts.allProjects ?? (await findWorkspacePackages(opts.workspaceDir, opts))
+    const selectedProjectsGraph =
+      opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
     if (selectedProjectsGraph != null) {
       const sequencedGraph = sequenceGraph(selectedProjectsGraph)
       // Check and warn if there are cyclic dependencies
       if (!opts.ignoreWorkspaceCycles && !sequencedGraph.safe) {
-        const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
-          ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
-          : ''
+        const cyclicDependenciesInfo =
+          sequencedGraph.cycles.length > 0
+            ? `: ${sequencedGraph.cycles.map((deps) => deps.join(', ')).join('; ')}`
+            : ''
 
         if (opts.disallowWorkspaceCycles) {
-          throw new PnpmError('DISALLOW_WORKSPACE_CYCLES', `There are cyclic workspace dependencies${cyclicDependenciesInfo}`)
+          throw new PnpmError(
+            'DISALLOW_WORKSPACE_CYCLES',
+            `There are cyclic workspace dependencies${cyclicDependenciesInfo}`
+          )
         }
 
         logger.warn({
@@ -151,7 +155,8 @@ export async function handler (
           prefix: opts.workspaceDir,
         })
       }
-      await recursive(allProjects,
+      await recursive(
+        allProjects,
         params,
         // @ts-expect-error
         {
@@ -169,7 +174,12 @@ export async function handler (
 
   const store = await createOrConnectStoreController(opts)
   const manifest = await readProjectManifestOnly(opts.dir)
-  const manifestOpts = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}
+  const manifestOpts = opts.rootProjectManifest
+    ? getOptionsFromRootManifest(
+      opts.rootProjectManifestDir,
+      opts.rootProjectManifest
+    )
+    : {}
   const installOpts = {
     ...opts,
     ...manifestOpts,
@@ -181,7 +191,7 @@ export async function handler (
   await install(manifest, installOpts)
 }
 
-async function readYarnLockFile (dir: string): Promise<LockFileObject> {
+async function readYarnLockFile(dir: string): Promise<LockFileObject> {
   try {
     const yarnLockFile = await gfs.readFile(path.join(dir, 'yarn.lock'), 'utf8')
     const yarnLockFileType = getYarnLockfileType(yarnLockFile)
@@ -190,7 +200,10 @@ async function readYarnLockFile (dir: string): Promise<LockFileObject> {
       if (lockJsonFile.type === 'success') {
         return lockJsonFile.object
       } else {
-        throw new PnpmError('YARN_LOCKFILE_PARSE_FAILED', `Yarn.lock file was ${lockJsonFile.type}`)
+        throw new PnpmError(
+          'YARN_LOCKFILE_PARSE_FAILED',
+          `Yarn.lock file was ${lockJsonFile.type}`
+        )
       }
     } else if (yarnLockFileType === YarnLockType.yarn2) {
       const lockJsonFile = parseYarn2Lock(yarnLockFile)
@@ -199,12 +212,12 @@ async function readYarnLockFile (dir: string): Promise<LockFileObject> {
       }
     }
   } catch (err: any) { // eslint-disable-line
-    if (err['code'] !== 'ENOENT') throw err
+    if (err.code !== 'ENOENT') throw err
   }
   throw new PnpmError('YARN_LOCKFILE_NOT_FOUND', 'No yarn.lock found')
 }
 
-function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
+function parseYarn2Lock(lockFileContents: string): YarnLock2Struct {
   const parseYarnLock = parseSyml(lockFileContents)
 
   delete parseYarnLock.__metadata
@@ -212,10 +225,7 @@ function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
 
   const { structUtils } = yarnCore
   const { parseDescriptor, parseRange } = structUtils
-  const keyNormalizer = yarnLockFileKeyNormalizer(
-    parseDescriptor,
-    parseRange
-  )
+  const keyNormalizer = yarnLockFileKeyNormalizer(parseDescriptor, parseRange)
 
   Object.entries(parseYarnLock).forEach(
     // eslint-disable-next-line
@@ -231,23 +241,33 @@ function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
   }
 }
 
-async function readNpmLockfile (dir: string) {
+async function readNpmLockfile(dir: string) {
   try {
-    return await loadJsonFile<LockedPackage>(path.join(dir, 'package-lock.json'))
+    return await loadJsonFile<LockedPackage>(
+      path.join(dir, 'package-lock.json')
+    )
   } catch (err: any) { // eslint-disable-line
-    if (err['code'] !== 'ENOENT') throw err
+    if (err.code !== 'ENOENT') throw err
   }
   try {
-    return await loadJsonFile<LockedPackage>(path.join(dir, 'npm-shrinkwrap.json'))
+    return await loadJsonFile<LockedPackage>(
+      path.join(dir, 'npm-shrinkwrap.json')
+    )
   } catch (err: any) { // eslint-disable-line
-    if (err['code'] !== 'ENOENT') throw err
+    if (err.code !== 'ENOENT') throw err
   }
-  throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No package-lock.json or npm-shrinkwrap.json found')
+  throw new PnpmError(
+    'NPM_LOCKFILE_NOT_FOUND',
+    'No package-lock.json or npm-shrinkwrap.json found'
+  )
 }
 
-function getPreferredVersions (versionsByPackageNames: VersionsByPackageNames) {
+function getPreferredVersions(versionsByPackageNames: VersionsByPackageNames) {
   const preferredVersions = mapValues(
-    (versions) => Object.fromEntries(Array.from(versions).map((version) => [version, 'version'])),
+    (versions) =>
+      Object.fromEntries(
+        Array.from(versions).map((version) => [version, 'version'])
+      ),
     versionsByPackageNames
   )
   return preferredVersions
@@ -255,12 +275,14 @@ function getPreferredVersions (versionsByPackageNames: VersionsByPackageNames) {
 
 type VersionsByPackageNames = Record<string, Set<string>>
 
-function getAllVersionsByPackageNamesPreV3 (
+function getAllVersionsByPackageNamesPreV3(
   npmPackageLock: NpmPackageLock | LockedPackage,
   versionsByPackageNames: VersionsByPackageNames
 ) {
   if (npmPackageLock.dependencies == null) return
-  for (const [packageName, { version }] of Object.entries(npmPackageLock.dependencies)) {
+  for (const [packageName, { version }] of Object.entries(
+    npmPackageLock.dependencies
+  )) {
     if (!versionsByPackageNames[packageName]) {
       versionsByPackageNames[packageName] = new Set()
     }
@@ -271,19 +293,22 @@ function getAllVersionsByPackageNamesPreV3 (
   }
 }
 
-function getAllVersionsByPackageNames (
+function getAllVersionsByPackageNames(
   pkg: NpmPackageLock | LockedPackage,
   versionsByPackageNames: VersionsByPackageNames
 ): void {
   if (pkg.dependencies) {
-    extractDependencies(versionsByPackageNames, pkg.dependencies as LockedPackagesMap)
+    extractDependencies(
+      versionsByPackageNames,
+      pkg.dependencies as LockedPackagesMap
+    )
   }
   if ('packages' in pkg && pkg.packages) {
     extractDependencies(versionsByPackageNames, pkg.packages)
   }
 }
 
-function extractDependencies (
+function extractDependencies(
   versionsByPackageNames: VersionsByPackageNames,
   dependencies: LockedPackagesMap
 ): void {
@@ -302,7 +327,9 @@ function extractDependencies (
       extractDependencies(versionsByPackageNames, pkgDetails.packages)
     }
     if (pkgDetails.dependencies) {
-      for (const [pkgName1, version] of Object.entries(pkgDetails.dependencies)) {
+      for (const [pkgName1, version] of Object.entries(
+        pkgDetails.dependencies
+      )) {
         if (!versionsByPackageNames[pkgName1]) {
           versionsByPackageNames[pkgName1] = new Set<string>()
         }
@@ -312,7 +339,7 @@ function extractDependencies (
   }
 }
 
-function getAllVersionsFromYarnLockFile (
+function getAllVersionsFromYarnLockFile(
   yarnPackageLock: LockFileObject,
   versionsByPackageNames: {
     [packageName: string]: Set<string>
@@ -327,15 +354,15 @@ function getAllVersionsFromYarnLockFile (
   }
 }
 
-function selectProjectByDir (projects: Project[], searchedDir: string) {
-  const project = projects.find(({ dir }) => path.relative(dir, searchedDir) === '')
+function selectProjectByDir(projects: Project[], searchedDir: string) {
+  const project = projects.find(
+    ({ dir }) => path.relative(dir, searchedDir) === ''
+  )
   if (project == null) return undefined
   return { [searchedDir]: { dependencies: [], package: project } }
 }
 
-function getYarnLockfileType (
-  lockFileContents: string
-): YarnLockType {
+function getYarnLockfileType(lockFileContents: string): YarnLockType {
   return lockFileContents.includes('__metadata')
     ? YarnLockType.yarn2
     : YarnLockType.yarn

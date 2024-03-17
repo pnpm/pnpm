@@ -6,7 +6,7 @@ import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 const NPM_CONFIG_WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
 const FAKE_PATH = 'FAKE_PATH'
 
-function isFileSystemCaseSensitive () {
+function isFileSystemCaseSensitive() {
   try {
     fs.realpathSync.native(process.cwd().toUpperCase())
     return false
@@ -17,7 +17,9 @@ function isFileSystemCaseSensitive () {
 
 // We don't need to validate case-sensitive systems
 // because it is not possible to reach process.cwd() with wrong case there.
-const testOnCaseInSensitiveSystems = isFileSystemCaseSensitive() ? test.skip : test
+const testOnCaseInSensitiveSystems = isFileSystemCaseSensitive()
+  ? test.skip
+  : test
 
 test('finds actual workspace dir', async () => {
   const workspaceDir = await findWorkspaceDir(process.cwd())
@@ -25,11 +27,14 @@ test('finds actual workspace dir', async () => {
   expect(workspaceDir).toBe(path.resolve(__dirname, '..', '..', '..'))
 })
 
-testOnCaseInSensitiveSystems('finds workspace dir with wrong case from cwd', async () => {
-  const workspaceDir = await findWorkspaceDir(process.cwd().toUpperCase())
+testOnCaseInSensitiveSystems(
+  'finds workspace dir with wrong case from cwd',
+  async () => {
+    const workspaceDir = await findWorkspaceDir(process.cwd().toUpperCase())
 
-  expect(workspaceDir).toBe(path.resolve(__dirname, '..', '..', '..'))
-})
+    expect(workspaceDir).toBe(path.resolve(__dirname, '..', '..', '..'))
+  }
+)
 
 test('finds overridden workspace dir', async () => {
   const oldValue = process.env[NPM_CONFIG_WORKSPACE_DIR_ENV_VAR]

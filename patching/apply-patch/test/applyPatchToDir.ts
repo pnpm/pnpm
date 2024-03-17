@@ -12,7 +12,9 @@ describe('applyPatchToDir()', () => {
         patchFilePath,
         patchedDir: tempDir(),
       })
-    }).toThrowError(`Applying patch "${patchFilePath}" failed: hunk header integrity check failed`)
+    }).toThrowError(
+      `Applying patch "${patchFilePath}" failed: hunk header integrity check failed`
+    )
   })
   it('should fail if the patch file is not found', () => {
     expect(() => {

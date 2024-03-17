@@ -22,14 +22,14 @@ import { getStorePath } from '@pnpm/store-path'
 import Diable from '@zkochan/diable'
 import getPort from 'get-port'
 import isWindows from 'is-windows'
-import onExit from 'signal-exit'
+import { onExit } from 'signal-exit'
 
 const storeServerLogger = logger('store-server')
 const write = promisify(_write)
 const close = promisify(_close)
 const open = promisify(_open)
 
-export async function start (
+export async function start(
   opts: CreateStoreControllerOptions & {
     background?: boolean
     protocol?: 'auto' | 'tcp' | 'ipc'
@@ -63,39 +63,55 @@ export async function start (
     if (error.code !== 'EEXIST') {
       throw error
     }
-    throw new PnpmError('SERVER_MANIFEST_LOCKED', `Canceling startup of server (pid ${process.pid}) because another process got exclusive access to server.json`)
+    throw new PnpmError(
+      'SERVER_MANIFEST_LOCKED',
+      `Canceling startup of server (pid ${process.pid}) because another process got exclusive access to server.json`
+    )
   }
   let server: null | ReturnType<typeof createServer> = null
   onExit(() => {
     if (server !== null) {
       // Note that server.close returns a Promise, but we cannot wait for it because we may be
       // inside the 'exit' even of process.
-      server.close() // eslint-disable-line @typescript-eslint/no-floating-promises
+      server.close()
     }
     if (fd !== null) {
       try {
         closeSync(fd)
-      } catch (error: any) { // eslint-disable-line
-        storeServerLogger.error(error, 'Got error while closing file descriptor of server.json, but the process is already exiting')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (error: any) {
+        storeServerLogger.error(
+          error,
+          'Got error while closing file descriptor of server.json, but the process is already exiting'
+        )
       }
     }
     try {
       unlinkSync(serverJsonPath)
     } catch (error: any) { // eslint-disable-line
       if (error.code !== 'ENOENT') {
-        storeServerLogger.error(error, 'Got error unlinking server.json, but the process is already exiting')
+        storeServerLogger.error(
+          error,
+          'Got error unlinking server.json, but the process is already exiting'
+        )
       }
     }
   })
-  const store = await createNewStoreController(Object.assign(opts, {
-    storeDir,
-  }))
+  const store = await createNewStoreController(
+    Object.assign(opts, {
+      storeDir,
+    })
+  )
   const protocol = opts.protocol ?? (opts.port ? 'tcp' : 'auto')
-  const serverOptions = await getServerOptions(connectionInfoDir, { protocol, port: opts.port })
+  const serverOptions = await getServerOptions(connectionInfoDir, {
+    protocol,
+    port: opts.port,
+  })
   const connectionOptions = {
-    remotePrefix: serverOptions.path != null
-      ? `http://unix:${serverOptions.path}:`
-      : `http://${serverOptions.hostname!}:${serverOptions.port!}`,
+    remotePrefix:
+      serverOptions.path != null
+        ? `http://unix:${serverOptions.path}:`
+        : `http://${serverOptions.hostname!}:${serverOptions.port!}`,
   }
   server = createServer(store.ctrl, {
     ...serverOptions,
@@ -126,43 +142,46 @@ export async function start (
   await server.waitForClose
 }
 
-async function getServerOptions (
+async function getServerOptions(
   connectionInfoDir: string,
   opts: {
     protocol: 'auto' | 'tcp' | 'ipc'
     port?: number
   }
-): Promise<(
-    {
+): Promise<
+  (
+    | {
       hostname: string
       port: number
-    } | { path: string }
-  ) & { hostname?: string, port?: number, path?: string }> {
+    }
+    | { path: string }
+  ) & { hostname?: string; port?: number; path?: string }
+  > {
   switch (opts.protocol) {
-  case 'tcp':
-    return getTcpOptions()
-  case 'ipc':
-    if (isWindows()) {
-      throw new Error('IPC protocol is not supported on Windows currently')
-    }
-    return getIpcOptions()
-  case 'auto':
-    if (isWindows()) {
+    case 'tcp':
       return getTcpOptions()
-    }
-    return getIpcOptions()
-  default:
-    throw new Error(`Protocol ${opts.protocol as string} is not supported`)
+    case 'ipc':
+      if (isWindows()) {
+        throw new Error('IPC protocol is not supported on Windows currently')
+      }
+      return getIpcOptions()
+    case 'auto':
+      if (isWindows()) {
+        return getTcpOptions()
+      }
+      return getIpcOptions()
+    default:
+      throw new Error(`Protocol ${opts.protocol as string} is not supported`)
   }
 
-  async function getTcpOptions () {
+  async function getTcpOptions() {
     return {
       hostname: 'localhost',
-      port: opts.port || await getPort({ port: 5813 }), // eslint-disable-line
+      port: opts.port || (await getPort({ port: 5813 })),
     }
   }
 
-  function getIpcOptions () {
+  function getIpcOptions() {
     return {
       path: path.join(connectionInfoDir, 'socket'),
     }

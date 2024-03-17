@@ -14,7 +14,7 @@ export interface LockfileWalkerStep {
   missing: string[]
 }
 
-export function lockfileWalkerGroupImporterSteps (
+export function lockfileWalkerGroupImporterSteps(
   lockfile: Lockfile,
   importerIds: string[],
   opts?: {
@@ -22,29 +22,41 @@ export function lockfileWalkerGroupImporterSteps (
     skipped?: Set<string>
   }
 ) {
-  const walked = new Set<string>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
+  const walked = new Set<string>(
+    opts?.skipped != null ? Array.from(opts?.skipped) : []
+  )
 
   return importerIds.map((importerId) => {
     const projectSnapshot = lockfile.importers[importerId]
     const entryNodes = Object.entries({
-      ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
-      ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
-      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
+      ...(opts?.include?.devDependencies === false
+        ? {}
+        : projectSnapshot.devDependencies),
+      ...(opts?.include?.dependencies === false
+        ? {}
+        : projectSnapshot.dependencies),
+      ...(opts?.include?.optionalDependencies === false
+        ? {}
+        : projectSnapshot.optionalDependencies),
     })
       .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
       .filter((nodeId) => nodeId !== null) as string[]
     return {
       importerId,
-      step: step({
-        includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
-        lockfile,
-        walked,
-      }, entryNodes),
+      step: step(
+        {
+          includeOptionalDependencies:
+            opts?.include?.optionalDependencies !== false,
+          lockfile,
+          walked,
+        },
+        entryNodes
+      ),
     }
   })
 }
 
-export function lockfileWalker (
+export function lockfileWalker(
   lockfile: Lockfile,
   importerIds: string[],
   opts?: {
@@ -52,35 +64,46 @@ export function lockfileWalker (
     skipped?: Set<string>
   }
 ) {
-  const walked = new Set<string>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
+  const walked = new Set<string>(
+    opts?.skipped != null ? Array.from(opts?.skipped) : []
+  )
   const entryNodes = [] as string[]
-  const directDeps = [] as Array<{ alias: string, depPath: string }>
+  const directDeps = [] as Array<{ alias: string; depPath: string }>
 
   importerIds.forEach((importerId) => {
     const projectSnapshot = lockfile.importers[importerId]
     Object.entries({
-      ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
-      ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
-      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
+      ...(opts?.include?.devDependencies === false
+        ? {}
+        : projectSnapshot.devDependencies),
+      ...(opts?.include?.dependencies === false
+        ? {}
+        : projectSnapshot.dependencies),
+      ...(opts?.include?.optionalDependencies === false
+        ? {}
+        : projectSnapshot.optionalDependencies),
+    }).forEach(([pkgName, reference]) => {
+      const depPath = dp.refToRelative(reference, pkgName)
+      if (depPath === null) return
+      entryNodes.push(depPath)
+      directDeps.push({ alias: pkgName, depPath })
     })
-      .forEach(([pkgName, reference]) => {
-        const depPath = dp.refToRelative(reference, pkgName)
-        if (depPath === null) return
-        entryNodes.push(depPath)
-        directDeps.push({ alias: pkgName, depPath })
-      })
   })
   return {
     directDeps,
-    step: step({
-      includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
-      lockfile,
-      walked,
-    }, entryNodes),
+    step: step(
+      {
+        includeOptionalDependencies:
+          opts?.include?.optionalDependencies !== false,
+        lockfile,
+        walked,
+      },
+      entryNodes
+    ),
   }
 }
 
-function step (
+function step(
   ctx: {
     includeOptionalDependencies: boolean
     lockfile: Lockfile
@@ -107,14 +130,24 @@ function step (
     }
     result.dependencies.push({
       depPath,
-      next: () => step(ctx, next({ includeOptionalDependencies: ctx.includeOptionalDependencies }, pkgSnapshot)),
+      next: () =>
+        step(
+          ctx,
+          next(
+            { includeOptionalDependencies: ctx.includeOptionalDependencies },
+            pkgSnapshot
+          )
+        ),
       pkgSnapshot,
     })
   }
   return result
 }
 
-function next (opts: { includeOptionalDependencies: boolean }, nextPkg: PackageSnapshot) {
+function next(
+  opts: { includeOptionalDependencies: boolean },
+  nextPkg: PackageSnapshot
+) {
   return Object.entries({
     ...nextPkg.dependencies,
     ...(opts.includeOptionalDependencies ? nextPkg.optionalDependencies : {}),

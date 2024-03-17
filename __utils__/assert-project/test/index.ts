@@ -12,11 +12,14 @@ test('assertProject()', async () => {
 })
 
 test('assertProject() store functions', async () => {
-  const project = assertProject(path.join(__dirname, 'fixture/project'), 'registry.npmjs.org')
+  const project = assertProject(
+    path.join(__dirname, 'fixture/project'),
+    'registry.npmjs.org'
+  )
 
-  expect(typeof await project.getStorePath()).toBe('string')
+  expect(typeof (await project.getStorePath())).toBe('string')
   await project.storeHas('is-positive', '3.1.0')
-  expect(typeof await project.resolve('is-positive', '3.1.0')).toBe('string')
+  expect(typeof (await project.resolve('is-positive', '3.1.0'))).toBe('string')
   await project.storeHasNot('is-positive', '3.100.0')
   expect(await project.readLockfile()).toBeTruthy()
   expect(await project.readCurrentLockfile()).toBeTruthy()

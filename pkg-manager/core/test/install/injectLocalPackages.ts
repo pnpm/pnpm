@@ -1,7 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
-import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
+import {
+  type MutatedProject,
+  mutateModules,
+  type ProjectOptions,
+} from '@pnpm/core'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import pathExists from 'path-exists'
@@ -118,11 +122,14 @@ test('inject local packages', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      workspacePackages,
+    })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -176,8 +183,12 @@ test('inject local packages', async () => {
 
     const modulesState = await rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
-    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
-    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
+    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
   }
 
   await rimraf('node_modules')
@@ -185,12 +196,15 @@ test('inject local packages', async () => {
   await rimraf('project-2/node_modules')
   await rimraf('project-3/node_modules')
 
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    frozenLockfile: true,
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      frozenLockfile: true,
+      workspacePackages,
+    })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -206,7 +220,14 @@ test('inject local packages', async () => {
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  await mutateModules(importers, await testDefaults({ autoInstallPeers: false, allProjects, workspacePackages }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      workspacePackages,
+    })
+  )
   {
     const lockfile = await rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
@@ -232,8 +253,12 @@ test('inject local packages', async () => {
     })
     const modulesState = await rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
-    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
-    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
+    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
   }
 })
 
@@ -347,11 +372,14 @@ test('inject local packages declared via file protocol', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      workspacePackages,
+    })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -405,8 +433,12 @@ test('inject local packages declared via file protocol', async () => {
 
     const modulesState = await rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
-    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
-    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
+    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
   }
 
   await rimraf('node_modules')
@@ -414,12 +446,15 @@ test('inject local packages declared via file protocol', async () => {
   await rimraf('project-2/node_modules')
   await rimraf('project-3/node_modules')
 
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    frozenLockfile: true,
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      frozenLockfile: true,
+      workspacePackages,
+    })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -436,7 +471,14 @@ test('inject local packages declared via file protocol', async () => {
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
   writeJsonFile('project-1/package.json', allProjects[0].manifest)
-  await mutateModules(importers, await testDefaults({ autoInstallPeers: false, allProjects, workspacePackages }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      workspacePackages,
+    })
+  )
   {
     const lockfile = await rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
@@ -462,8 +504,12 @@ test('inject local packages declared via file protocol', async () => {
     })
     const modulesState = await rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
-    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
-    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
+    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
   }
 })
 
@@ -567,11 +613,14 @@ test('inject local packages when the file protocol is used', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      workspacePackages,
+    })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -620,8 +669,12 @@ test('inject local packages when the file protocol is used', async () => {
 
     const modulesState = await rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
-    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
-    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
+    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
   }
 
   await rimraf('node_modules')
@@ -629,12 +682,15 @@ test('inject local packages when the file protocol is used', async () => {
   await rimraf('project-2/node_modules')
   await rimraf('project-3/node_modules')
 
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    frozenLockfile: true,
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      frozenLockfile: true,
+      workspacePackages,
+    })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -651,11 +707,14 @@ test('inject local packages when the file protocol is used', async () => {
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
   writeJsonFile('project-1/package.json', allProjects[0].manifest)
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      workspacePackages,
+    })
+  )
   {
     const lockfile = await rootModules.readLockfile()
     expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
@@ -676,8 +735,12 @@ test('inject local packages when the file protocol is used', async () => {
     })
     const modulesState = await rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
-    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
-    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
+    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
   }
 })
 
@@ -758,11 +821,14 @@ test('inject local packages and relink them after build', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      workspacePackages,
+    })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -771,7 +837,9 @@ test('inject local packages and relink them after build', async () => {
   await projects['project-2'].has('is-positive')
   await projects['project-2'].has('project-1')
 
-  expect(await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
+  expect(
+    await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))
+  ).toBeTruthy()
 
   const rootModules = assertProject(process.cwd())
   const lockfile = await rootModules.readLockfile()
@@ -802,12 +870,15 @@ test('inject local packages and relink them after build', async () => {
   await rimraf('project-1/node_modules')
   await rimraf('project-2/node_modules')
 
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    frozenLockfile: true,
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      frozenLockfile: true,
+      workspacePackages,
+    })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -816,7 +887,9 @@ test('inject local packages and relink them after build', async () => {
   await projects['project-2'].has('is-positive')
   await projects['project-2'].has('project-1')
 
-  expect(await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
+  expect(
+    await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))
+  ).toBeTruthy()
 })
 
 test('inject local packages and relink them after build (file protocol is used)', async () => {
@@ -877,7 +950,10 @@ test('inject local packages and relink them after build (file protocol is used)'
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ autoInstallPeers: false, allProjects }))
+  await mutateModules(
+    importers,
+    await testDefaults({ autoInstallPeers: false, allProjects })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -886,7 +962,9 @@ test('inject local packages and relink them after build (file protocol is used)'
   await projects['project-2'].has('is-positive')
   await projects['project-2'].has('project-1')
 
-  expect(await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
+  expect(
+    await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))
+  ).toBeTruthy()
 
   const rootModules = assertProject(process.cwd())
   const lockfile = await rootModules.readLockfile()
@@ -912,11 +990,14 @@ test('inject local packages and relink them after build (file protocol is used)'
   await rimraf('project-1/node_modules')
   await rimraf('project-2/node_modules')
 
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    frozenLockfile: true,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      frozenLockfile: true,
+    })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -925,7 +1006,9 @@ test('inject local packages and relink them after build (file protocol is used)'
   await projects['project-2'].has('is-positive')
   await projects['project-2'].has('project-1')
 
-  expect(await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))).toBeTruthy()
+  expect(
+    await pathExists(path.resolve('project-2/node_modules/project-1/main.js'))
+  ).toBeTruthy()
 })
 
 test('inject local packages when node-linker is hoisted', async () => {
@@ -1037,12 +1120,15 @@ test('inject local packages when node-linker is hoisted', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    nodeLinker: 'hoisted',
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      nodeLinker: 'hoisted',
+      workspacePackages,
+    })
+  )
 
   const rootModules = assertProject(process.cwd())
   await rootModules.has('is-negative')
@@ -1050,7 +1136,9 @@ test('inject local packages when node-linker is hoisted', async () => {
   await rootModules.has('is-positive')
 
   await projects['project-2'].has('project-1')
-  await projects['project-2'].has('project-1/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await projects['project-2'].has(
+    'project-1/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'
+  )
 
   await projects['project-3'].has('project-1')
   await projects['project-3'].has('project-2')
@@ -1097,8 +1185,12 @@ test('inject local packages when node-linker is hoisted', async () => {
 
     const modulesState = await rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
-    expect(modulesState?.injectedDeps?.['project-1'][0]).toEqual(path.join('project-2', 'node_modules', 'project-1'))
-    expect(modulesState?.injectedDeps?.['project-1'][1]).toEqual(path.join('project-3', 'node_modules', 'project-1'))
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toEqual(
+      path.join('project-2', 'node_modules', 'project-1')
+    )
+    expect(modulesState?.injectedDeps?.['project-1'][1]).toEqual(
+      path.join('project-3', 'node_modules', 'project-1')
+    )
   }
 })
 
@@ -1201,30 +1293,32 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    nodeLinker: 'hoisted',
-    workspacePackages,
-    hooks: {
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      nodeLinker: 'hoisted',
+      workspacePackages,
+      hooks: {
       readPackage: (manifest: any) => { // eslint-disable-line
-        if (manifest.name === 'project-2') {
-          manifest.dependenciesMeta = {
-            'project-1': {
-              injected: true,
-            },
+          if (manifest.name === 'project-2') {
+            manifest.dependenciesMeta = {
+              'project-1': {
+                injected: true,
+              },
+            }
           }
-        }
-        if (manifest.name === 'project-3') {
-          manifest.dependenciesMeta = {
-            'project-2': {
-              injected: true,
-            },
+          if (manifest.name === 'project-3') {
+            manifest.dependenciesMeta = {
+              'project-2': {
+                injected: true,
+              },
+            }
           }
-        }
-        return manifest
+          return manifest
+        },
       },
-    },
   } as any)) // eslint-disable-line
 
   const rootModules = assertProject(process.cwd())
@@ -1233,7 +1327,9 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
   await rootModules.has('is-positive')
 
   await projects['project-2'].has('project-1')
-  await projects['project-2'].has('project-1/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await projects['project-2'].has(
+    'project-1/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'
+  )
 
   await projects['project-3'].has('project-1')
   await projects['project-3'].has('project-2')
@@ -1280,8 +1376,12 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
 
     const modulesState = await rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
-    expect(modulesState?.injectedDeps?.['project-1'][0]).toEqual(path.join('project-2', 'node_modules', 'project-1'))
-    expect(modulesState?.injectedDeps?.['project-1'][1]).toEqual(path.join('project-3', 'node_modules', 'project-1'))
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toEqual(
+      path.join('project-2', 'node_modules', 'project-1')
+    )
+    expect(modulesState?.injectedDeps?.['project-1'][1]).toEqual(
+      path.join('project-3', 'node_modules', 'project-1')
+    )
   }
 })
 
@@ -1380,16 +1480,23 @@ test('peer dependency of injected project should be resolved correctly', async (
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    nodeLinker: 'hoisted',
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: false,
+      allProjects,
+      nodeLinker: 'hoisted',
+      workspacePackages,
+    })
+  )
 
   const rootModules = assertProject(process.cwd())
   const lockfile = await rootModules.readLockfile()
-  expect(lockfile.packages?.['file:project-2(project-1@project-1)'].dependencies?.['project-1']).toEqual('link:project-1')
+  expect(
+    lockfile.packages?.['file:project-2(project-1@project-1)'].dependencies?.[
+      'project-1'
+    ]
+  ).toEqual('link:project-1')
 })
 
 // There was a bug related to this. The manifests in the workspacePackages object were modified
@@ -1466,11 +1573,16 @@ test('do not modify the manifest of the injected workspace project', async () =>
       },
     },
   }
-  const [project1] = (await mutateModules(importers, await testDefaults({
-    autoInstallPeers: false,
-    allProjects,
-    workspacePackages,
-  }))).updatedProjects
+  const [project1] = (
+    await mutateModules(
+      importers,
+      await testDefaults({
+        autoInstallPeers: false,
+        allProjects,
+        workspacePackages,
+      })
+    )
+  ).updatedProjects
   expect(project1.manifest).toStrictEqual({
     name: 'project-1',
     version: '1.0.0',
@@ -1521,7 +1633,8 @@ test('injected package is kept up-to-date when it is hoisted to multiple places'
     name: 'is-positive',
     version: '1.0.0',
     scripts: {
-      prepare: 'node -e "require(\'fs\').writeFileSync(\'prepare.txt\', \'prepare\', \'utf8\')"',
+      prepare:
+        "node -e \"require('fs').writeFileSync('prepare.txt', 'prepare', 'utf8')\"",
     },
   }
   const projects = preparePackages([
@@ -1591,11 +1704,14 @@ test('injected package is kept up-to-date when it is hoisted to multiple places'
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
-    allProjects,
-    nodeLinker: 'hoisted',
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      allProjects,
+      nodeLinker: 'hoisted',
+      workspacePackages,
+    })
+  )
 
   await projects['project-1'].has('is-positive/prepare.txt')
   await projects['project-2'].has('is-positive/prepare.txt')
@@ -1603,8 +1719,12 @@ test('injected package is kept up-to-date when it is hoisted to multiple places'
   const rootModules = assertProject(process.cwd())
   const modulesState = await rootModules.readModulesManifest()
   expect(modulesState?.injectedDeps?.['project-3'].length).toEqual(2)
-  expect(modulesState?.injectedDeps?.['project-3'][0]).toEqual(path.join('project-1', 'node_modules', 'is-positive'))
-  expect(modulesState?.injectedDeps?.['project-3'][1]).toEqual(path.join('project-2', 'node_modules', 'is-positive'))
+  expect(modulesState?.injectedDeps?.['project-3'][0]).toEqual(
+    path.join('project-1', 'node_modules', 'is-positive')
+  )
+  expect(modulesState?.injectedDeps?.['project-3'][1]).toEqual(
+    path.join('project-2', 'node_modules', 'is-positive')
+  )
 })
 
 test('relink injected dependency on install by default', async () => {
@@ -1665,12 +1785,15 @@ test('relink injected dependency on install by default', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
-    allProjects,
-    workspacePackages,
-    packageImportMethod: 'hardlink',
-    fastUnpack: false,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      allProjects,
+      workspacePackages,
+      packageImportMethod: 'hardlink',
+      fastUnpack: false,
+    })
+  )
 
   const indexJsPath = path.resolve('main/node_modules/dep/index.js')
   const getInode = () => fs.statSync(indexJsPath).ino
@@ -1682,12 +1805,15 @@ test('relink injected dependency on install by default', async () => {
 
   expect(storeInode).not.toEqual(getInode())
 
-  await mutateModules(importers, await testDefaults({
-    allProjects,
-    workspacePackages,
-    packageImportMethod: 'hardlink',
-    fastUnpack: false,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      allProjects,
+      workspacePackages,
+      packageImportMethod: 'hardlink',
+      fastUnpack: false,
+    })
+  )
 
   expect(storeInode).toEqual(getInode())
 })
@@ -1750,12 +1876,15 @@ test('do not relink injected dependency on install when disableRelinkLocalDirDep
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
-    allProjects,
-    workspacePackages,
-    packageImportMethod: 'hardlink',
-    fastUnpack: false,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      allProjects,
+      workspacePackages,
+      packageImportMethod: 'hardlink',
+      fastUnpack: false,
+    })
+  )
 
   const pkgJsonPath = path.resolve('main/node_modules/dep/package.json')
   const getInode = () => fs.statSync(pkgJsonPath).ino
@@ -1770,13 +1899,16 @@ test('do not relink injected dependency on install when disableRelinkLocalDirDep
 
   expect(storeInode).not.toEqual(newInode)
 
-  await mutateModules(importers, await testDefaults({
-    allProjects,
-    workspacePackages,
-    packageImportMethod: 'hardlink',
-    fastUnpack: false,
-    disableRelinkLocalDirDeps: true,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      allProjects,
+      workspacePackages,
+      packageImportMethod: 'hardlink',
+      fastUnpack: false,
+      disableRelinkLocalDirDeps: true,
+    })
+  )
 
   expect(newInode).toEqual(getInode())
 })
@@ -1953,12 +2085,15 @@ test('injected local packages are deduped', async () => {
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: true,
-    allProjects,
-    dedupeInjectedDeps: true,
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: true,
+      allProjects,
+      dedupeInjectedDeps: true,
+      workspacePackages,
+    })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -1997,7 +2132,9 @@ test('injected local packages are deduped', async () => {
 
     const modulesState = await rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(1)
-    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
   }
 
   await rimraf('node_modules')
@@ -2005,13 +2142,16 @@ test('injected local packages are deduped', async () => {
   await rimraf('project-2/node_modules')
   await rimraf('project-3/node_modules')
 
-  await mutateModules(importers, await testDefaults({
-    autoInstallPeers: true,
-    allProjects,
-    dedupeInjectedDeps: true,
-    frozenLockfile: true,
-    workspacePackages,
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: true,
+      allProjects,
+      dedupeInjectedDeps: true,
+      frozenLockfile: true,
+      workspacePackages,
+    })
+  )
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -2027,7 +2167,15 @@ test('injected local packages are deduped', async () => {
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  await mutateModules(importers, await testDefaults({ autoInstallPeers: true, allProjects, dedupeInjectedDeps: true, workspacePackages }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      autoInstallPeers: true,
+      allProjects,
+      dedupeInjectedDeps: true,
+      workspacePackages,
+    })
+  )
   {
     const lockfile = await rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
@@ -2038,6 +2186,8 @@ test('injected local packages are deduped', async () => {
     expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toBeFalsy()
     const modulesState = await rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(1)
-    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(
+      `node_modules${path.sep}.pnpm`
+    )
   }
 })

@@ -18,11 +18,11 @@ export const commandNames = ['cat-index']
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return {}
 }
 
-export function help () {
+export function help() {
   return renderHelp({
     description: 'Prints the index file of a specific package from the store.',
     descriptionLists: [],
@@ -31,25 +31,21 @@ export function help () {
 }
 
 export type CatIndexCommandOptions = Pick<
-Config,
-| 'rawConfig'
-| 'pnpmHomeDir'
-| 'storeDir'
-| 'lockfileDir'
-| 'dir'
-| 'registries'
-| 'cacheDir'
+  Config,
+  | 'rawConfig'
+  | 'pnpmHomeDir'
+  | 'storeDir'
+  | 'lockfileDir'
+  | 'dir'
+  | 'registries'
+  | 'cacheDir'
 >
 
-export async function handler (opts: CatIndexCommandOptions, params: string[]) {
+export async function handler(opts: CatIndexCommandOptions, params: string[]) {
   if (!params || params.length === 0) {
-    throw new PnpmError(
-      'MISSING_PACKAGE_NAME',
-      'Specify a package',
-      {
-        hint: help(),
-      }
-    )
+    throw new PnpmError('MISSING_PACKAGE_NAME', 'Specify a package', {
+      hint: help(),
+    })
   }
 
   const wantedDependency = params[0]

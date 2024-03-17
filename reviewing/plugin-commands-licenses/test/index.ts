@@ -23,15 +23,18 @@ test('pnpm licenses', async () => {
   })
 
   // Attempt to run the licenses command now
-  const { output, exitCode } = await licenses.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    long: false,
-    // we need to prefix it with v3 otherwise licenses tool can't find anything
-    // in the content-addressable directory
-    storeDir: path.resolve(storeDir, 'v3'),
-  }, ['list'])
+  const { output, exitCode } = await licenses.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      pnpmHomeDir: '',
+      long: false,
+      // we need to prefix it with v3 otherwise licenses tool can't find anything
+      // in the content-addressable directory
+      storeDir: path.resolve(storeDir, 'v3'),
+    },
+    ['list']
+  )
 
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toMatchSnapshot('show-packages')
@@ -50,15 +53,18 @@ test('pnpm licenses: show details', async () => {
   })
 
   // Attempt to run the licenses command now
-  const { output, exitCode } = await licenses.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    long: true,
-    // we need to prefix it with v3 otherwise licenses tool can't find anything
-    // in the content-addressable directory
-    storeDir: path.resolve(storeDir, 'v3'),
-  }, ['list'])
+  const { output, exitCode } = await licenses.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      pnpmHomeDir: '',
+      long: true,
+      // we need to prefix it with v3 otherwise licenses tool can't find anything
+      // in the content-addressable directory
+      storeDir: path.resolve(storeDir, 'v3'),
+    },
+    ['list']
+  )
 
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toMatchSnapshot('show-packages-details')
@@ -77,23 +83,26 @@ test('pnpm licenses: output as json', async () => {
   })
 
   // Attempt to run the licenses command now
-  const { output, exitCode } = await licenses.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    long: false,
-    json: true,
-    // we need to prefix it with v3 otherwise licenses tool can't find anything
-    // in the content-addressable directory
-    storeDir: path.resolve(storeDir, 'v3'),
-  }, ['list'])
+  const { output, exitCode } = await licenses.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      pnpmHomeDir: '',
+      long: false,
+      json: true,
+      // we need to prefix it with v3 otherwise licenses tool can't find anything
+      // in the content-addressable directory
+      storeDir: path.resolve(storeDir, 'v3'),
+    },
+    ['list']
+  )
 
   expect(exitCode).toBe(0)
   expect(output).not.toHaveLength(0)
   expect(output).not.toBe('No licenses in packages found')
   const parsedOutput = JSON.parse(output)
   expect(Object.keys(parsedOutput)).toMatchSnapshot('found-license-types')
-  const packagesWithMIT = parsedOutput['MIT']
+  const packagesWithMIT = parsedOutput.MIT
   expect(packagesWithMIT.length).toBeGreaterThan(0)
   expect(Object.keys(packagesWithMIT[0])).toEqual([
     'name',
@@ -139,7 +148,8 @@ test('pnpm licenses: filter outputs', async () => {
         )
       ),
       storeDir: path.resolve(storeDir, 'v3'),
-    }, ['list']
+    },
+    ['list']
   )
 
   expect(exitCode).toBe(0)
@@ -148,12 +158,15 @@ test('pnpm licenses: filter outputs', async () => {
 
 test('pnpm licenses: fails when lockfile is missing', async () => {
   await expect(
-    licenses.handler({
-      ...DEFAULT_OPTS,
-      dir: path.resolve('./test/fixtures/invalid'),
-      pnpmHomeDir: '',
-      long: true,
-    }, ['list'])
+    licenses.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: path.resolve('./test/fixtures/invalid'),
+        pnpmHomeDir: '',
+        long: true,
+      },
+      ['list']
+    )
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     '"No pnpm-lock.yaml found: Cannot check a project without a lockfile"'
   )
@@ -172,15 +185,18 @@ test('pnpm licenses: should correctly read LICENSE file with executable file mod
   })
 
   // Attempt to run the licenses command now
-  const { output, exitCode } = await licenses.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    long: true,
-    // we need to prefix it with v3 otherwise licenses tool can't find anything
-    // in the content-addressable directory
-    storeDir: path.resolve(storeDir, 'v3'),
-  }, ['list'])
+  const { output, exitCode } = await licenses.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      pnpmHomeDir: '',
+      long: true,
+      // we need to prefix it with v3 otherwise licenses tool can't find anything
+      // in the content-addressable directory
+      storeDir: path.resolve(storeDir, 'v3'),
+    },
+    ['list']
+  )
 
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toMatchSnapshot('show-packages-details')
@@ -198,13 +214,16 @@ test('pnpm licenses should work with file protocol dependency', async () => {
     storeDir,
   })
 
-  const { output, exitCode } = await licenses.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    long: false,
-    storeDir: path.resolve(storeDir, 'v3'),
-  }, ['list'])
+  const { output, exitCode } = await licenses.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      pnpmHomeDir: '',
+      long: false,
+      storeDir: path.resolve(storeDir, 'v3'),
+    },
+    ['list']
+  )
 
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toMatchSnapshot('show-packages')
@@ -222,13 +241,16 @@ test('pnpm licenses should work with git protocol dep that have patches', async 
     storeDir,
   })
 
-  const { exitCode } = await licenses.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    long: false,
-    storeDir: path.resolve(storeDir, 'v3'),
-  }, ['list'])
+  const { exitCode } = await licenses.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      pnpmHomeDir: '',
+      long: false,
+      storeDir: path.resolve(storeDir, 'v3'),
+    },
+    ['list']
+  )
 
   expect(exitCode).toBe(0)
 })
@@ -245,13 +267,16 @@ test('pnpm licenses should work with git protocol dep that have peerDependencies
     storeDir,
   })
 
-  const { exitCode } = await licenses.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    long: false,
-    storeDir: path.resolve(storeDir, 'v3'),
-  }, ['list'])
+  const { exitCode } = await licenses.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      pnpmHomeDir: '',
+      long: false,
+      storeDir: path.resolve(storeDir, 'v3'),
+    },
+    ['list']
+  )
 
   expect(exitCode).toBe(0)
 })
@@ -268,13 +293,16 @@ test('pnpm licenses should work git repository name containing capital letters',
     storeDir,
   })
 
-  const { exitCode } = await licenses.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    long: false,
-    storeDir: path.resolve(storeDir, 'v3'),
-  }, ['list'])
+  const { exitCode } = await licenses.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      pnpmHomeDir: '',
+      long: false,
+      storeDir: path.resolve(storeDir, 'v3'),
+    },
+    ['list']
+  )
 
   expect(exitCode).toBe(0)
 })

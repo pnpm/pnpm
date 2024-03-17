@@ -1,10 +1,11 @@
 import path from 'path'
 import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
-  LAYOUT_VERSION,
-  WANTED_LOCKFILE,
-} from '@pnpm/constants'
+  calcDepState,
+  lockfileToDepGraph,
+  type DepsStateCache,
+} from '@pnpm/calc-dep-state'
+import { LAYOUT_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
@@ -24,7 +25,7 @@ import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import * as dp from '@pnpm/dependency-path'
 import { hardLinkDir } from '@pnpm/worker'
@@ -42,55 +43,63 @@ import {
 
 export type { RebuildOptions }
 
-function findPackages (
+function findPackages(
   packages: PackageSnapshots,
   searched: PackageSelector[],
   opts: {
     prefix: string
   }
 ): string[] {
-  return Object.keys(packages)
-    .filter((relativeDepPath) => {
-      const pkgLockfile = packages[relativeDepPath]
-      const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgLockfile)
-      if (!pkgInfo.name) {
-        logger.warn({
-          message: `Skipping ${relativeDepPath} because cannot get the package name from ${WANTED_LOCKFILE}.
+  return Object.keys(packages).filter((relativeDepPath) => {
+    const pkgLockfile = packages[relativeDepPath]
+    const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgLockfile)
+    if (!pkgInfo.name) {
+      logger.warn({
+        message: `Skipping ${relativeDepPath} because cannot get the package name from ${WANTED_LOCKFILE}.
             Try to run run \`pnpm update --depth 100\` to create a new ${WANTED_LOCKFILE} with all the necessary info.`,
-          prefix: opts.prefix,
-        })
-        return false
-      }
-      return matches(searched, pkgInfo)
-    })
+        prefix: opts.prefix,
+      })
+      return false
+    }
+    return matches(searched, pkgInfo)
+  })
 }
 
 // TODO: move this logic to separate package as this is also used in dependencies-hierarchy
-function matches (
+function matches(
   searched: PackageSelector[],
-  manifest: { name: string, version?: string }
+  manifest: { name: string; version?: string }
 ) {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
       return manifest.name === searchedPkg
     }
-    return searchedPkg.name === manifest.name && !!manifest.version &&
+    return (
+      searchedPkg.name === manifest.name &&
+      !!manifest.version &&
       semver.satisfies(manifest.version, searchedPkg.range)
+    )
   })
 }
 
-type PackageSelector = string | {
-  name: string
-  range: string
-}
+type PackageSelector =
+  | string
+  | {
+    name: string
+    range: string
+  }
 
-export async function rebuildSelectedPkgs (
-  projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
+export async function rebuildSelectedPkgs(
+  projects: Array<{
+    buildIndex: number
+    manifest: ProjectManifest
+    rootDir: string
+  }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
 ) {
   const reporter = maybeOpts?.reporter
-  if ((reporter != null) && typeof reporter === 'function') {
+  if (reporter != null && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendRebuildOptions(maybeOpts)
@@ -105,7 +114,9 @@ export async function rebuildSelectedPkgs (
       return name
     }
     if (type !== 'version' && type !== 'range') {
-      throw new Error(`Invalid argument - ${arg}. Rebuild can only select by version or range`)
+      throw new Error(
+        `Invalid argument - ${arg}. Rebuild can only select by version or range`
+      )
     }
     return {
       name,
@@ -115,10 +126,7 @@ export async function rebuildSelectedPkgs (
 
   let pkgs = [] as string[]
   for (const { rootDir } of projects) {
-    pkgs = [
-      ...pkgs,
-      ...findPackages(packages, searched, { prefix: rootDir }),
-    ]
+    pkgs = [...pkgs, ...findPackages(packages, searched, { prefix: rootDir })]
   }
 
   await _rebuild(
@@ -130,12 +138,16 @@ export async function rebuildSelectedPkgs (
   )
 }
 
-export async function rebuildProjects (
-  projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
+export async function rebuildProjects(
+  projects: Array<{
+    buildIndex: number
+    manifest: ProjectManifest
+    rootDir: string
+  }>,
   maybeOpts: RebuildOptions
 ) {
   const reporter = maybeOpts?.reporter
-  if ((reporter != null) && typeof reporter === 'function') {
+  if (reporter != null && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
   const opts = await extendRebuildOptions(maybeOpts)
@@ -145,7 +157,7 @@ export async function rebuildProjects (
 
   if (opts.pending) {
     idsToRebuild = ctx.pendingBuilds
-  } else if ((ctx.currentLockfile?.packages) != null) {
+  } else if (ctx.currentLockfile?.packages != null) {
     idsToRebuild = Object.keys(ctx.currentLockfile.packages)
   }
 
@@ -157,7 +169,9 @@ export async function rebuildProjects (
     opts
   )
 
-  ctx.pendingBuilds = ctx.pendingBuilds.filter((depPath) => !pkgsThatWereRebuilt.has(depPath))
+  ctx.pendingBuilds = ctx.pendingBuilds.filter(
+    (depPath) => !pkgsThatWereRebuilt.has(depPath)
+  )
 
   const store = await createOrConnectStoreController(opts)
   const scriptsOpts = {
@@ -179,7 +193,10 @@ export async function rebuildProjects (
     scriptsOpts
   )
   for (const { id, manifest } of Object.values(ctx.projects)) {
-    if (((manifest?.scripts) != null) && (!opts.pending || ctx.pendingBuilds.includes(id))) {
+    if (
+      manifest?.scripts != null &&
+      (!opts.pending || ctx.pendingBuilds.includes(id))
+    ) {
       ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(id), 1)
     }
   }
@@ -201,7 +218,7 @@ export async function rebuildProjects (
   })
 }
 
-function getSubgraphToBuild (
+function getSubgraphToBuild(
   step: LockfileWalkerStep,
   nodesToBuildAndTransitive: Set<string>,
   opts: {
@@ -214,7 +231,8 @@ function getSubgraphToBuild (
       currentShouldBeBuilt = true
     }
 
-    const childShouldBeBuilt = getSubgraphToBuild(next(), nodesToBuildAndTransitive, opts) ||
+    const childShouldBeBuilt =
+      getSubgraphToBuild(next(), nodesToBuildAndTransitive, opts) ||
       opts.pkgsToRebuild.has(depPath)
     if (childShouldBeBuilt) {
       nodesToBuildAndTransitive.add(depPath)
@@ -231,14 +249,14 @@ function getSubgraphToBuild (
 
 const limitLinking = pLimit(16)
 
-async function _rebuild (
+async function _rebuild(
   ctx: {
     pkgsToRebuild: Set<string>
     skipped: Set<string>
     virtualStoreDir: string
     rootModulesDir: string
     currentLockfile: Lockfile
-    projects: Record<string, { id: string, rootDir: string }>
+    projects: Record<string, { id: string; rootDir: string }>
     extraBinPaths: string[]
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
@@ -271,9 +289,18 @@ async function _rebuild (
 
   for (const depPath of nodesToBuildAndTransitiveArray) {
     const pkgSnapshot = pkgSnapshots[depPath]
-    graph.set(depPath, Object.entries({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
-      .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
-      .filter((childRelDepPath) => childRelDepPath && nodesToBuildAndTransitive.has(childRelDepPath)))
+    graph.set(
+      depPath,
+      Object.entries({
+        ...pkgSnapshot.dependencies,
+        ...pkgSnapshot.optionalDependencies,
+      })
+        .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
+        .filter(
+          (childRelDepPath) =>
+            childRelDepPath && nodesToBuildAndTransitive.has(childRelDepPath)
+        )
+    )
   }
   const graphSequencerResult = graphSequencer(
     graph,
@@ -287,137 +314,211 @@ async function _rebuild (
   const allowBuild = createAllowBuildFunction(opts) ?? (() => true)
   const builtDepPaths = new Set<string>()
 
-  const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
-    async () => {
-      const pkgSnapshot = pkgSnapshots[depPath]
-      const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const pkgRoots = opts.nodeLinker === 'hoisted'
-        ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? []).map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
-        : [path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules', pkgInfo.name)]
-      if (pkgRoots.length === 0) {
-        if (pkgSnapshot.optional) return
-        throw new PnpmError('MISSING_HOISTED_LOCATIONS', `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml`, {
-          hint: 'If you installed your node_modules with pnpm older than v7.19.0, you may need to remove it and run "pnpm install"',
-        })
-      }
-      const pkgRoot = pkgRoots[0]
-      try {
-        const extraBinPaths = ctx.extraBinPaths
-        if (opts.nodeLinker !== 'hoisted') {
-          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-          const binPath = path.join(pkgRoot, 'node_modules', '.bin')
-          await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
-        } else {
-          extraBinPaths.push(...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir))
+  const groups = chunks.map((chunk) =>
+    chunk
+      .filter(
+        (depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)
+      )
+      .map((depPath) => async () => {
+        const pkgSnapshot = pkgSnapshots[depPath]
+        const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+        const pkgRoots =
+          opts.nodeLinker === 'hoisted'
+            ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? []).map(
+              (hoistedLocation: string): string => {
+                return path.join(opts.lockfileDir, hoistedLocation)
+              }
+            )
+            : [
+              path.join(
+                ctx.virtualStoreDir,
+                dp.depPathToFilename(depPath),
+                'node_modules',
+                pkgInfo.name
+              ),
+            ]
+        if (pkgRoots.length === 0) {
+          if (pkgSnapshot.optional) return
+          throw new PnpmError(
+            'MISSING_HOISTED_LOCATIONS',
+            `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml`,
+            {
+              hint: 'If you installed your node_modules with pnpm older than v7.19.0, you may need to remove it and run "pnpm install"',
+            }
+          )
         }
-        const resolution = (pkgSnapshot.resolution as TarballResolution)
-        let sideEffectsCacheKey: string | undefined
-        if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
-          const filesIndexFile = getFilePathInCafs(cafsDir, resolution.integrity!.toString(), 'index')
-          const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
-          sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-            isBuilt: true,
-          })
-          if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
-            pkgsThatWereRebuilt.add(depPath)
+        const pkgRoot = pkgRoots[0]
+        try {
+          const extraBinPaths = ctx.extraBinPaths
+          if (opts.nodeLinker !== 'hoisted') {
+            const modules = path.join(
+              ctx.virtualStoreDir,
+              dp.depPathToFilename(depPath),
+              'node_modules'
+            )
+            const binPath = path.join(pkgRoot, 'node_modules', '.bin')
+            await linkBins(modules, binPath, {
+              extraNodePaths: ctx.extraNodePaths,
+              warn,
+            })
+          } else {
+            extraBinPaths.push(
+              ...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir)
+            )
+          }
+          const resolution = pkgSnapshot.resolution as TarballResolution
+          let sideEffectsCacheKey: string | undefined
+          if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
+            const filesIndexFile = getFilePathInCafs(
+              cafsDir,
+              resolution.integrity!.toString(),
+              'index'
+            )
+            const pkgFilesIndex =
+              await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+            sideEffectsCacheKey = calcDepState(
+              depGraph,
+              depsStateCache,
+              depPath,
+              {
+                isBuilt: true,
+              }
+            )
+            if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
+              pkgsThatWereRebuilt.add(depPath)
+              return
+            }
+          }
+
+          const hasSideEffects =
+            allowBuild(pkgInfo.name) &&
+            (await runPostinstallHooks({
+              depPath,
+              extraBinPaths,
+              extraEnv: opts.extraEnv,
+              optional: pkgSnapshot.optional === true,
+              pkgRoot,
+              rawConfig: opts.rawConfig,
+              rootModulesDir: ctx.rootModulesDir,
+              scriptsPrependNodePath: opts.scriptsPrependNodePath,
+              shellEmulator: opts.shellEmulator,
+              unsafePerm: opts.unsafePerm || false,
+            }))
+          if (
+            hasSideEffects &&
+            (opts.sideEffectsCacheWrite ?? true) &&
+            resolution.integrity
+          ) {
+            builtDepPaths.add(depPath)
+            const filesIndexFile = getFilePathInCafs(
+              cafsDir,
+              resolution.integrity!.toString(),
+              'index'
+            )
+            try {
+              if (!sideEffectsCacheKey) {
+                sideEffectsCacheKey = calcDepState(
+                  depGraph,
+                  depsStateCache,
+                  depPath,
+                  {
+                    isBuilt: true,
+                  }
+                )
+              }
+              await opts.storeController.upload(pkgRoot, {
+                sideEffectsCacheKey,
+                filesIndexFile,
+              })
+            } catch (err: unknown) {
+              // @ts-ignore
+              if (err.statusCode === 403) {
+                logger.warn({
+                  message: `The store server disabled upload requests, could not upload ${pkgRoot}`,
+                  prefix: opts.lockfileDir,
+                })
+              } else {
+                logger.warn({
+                  // @ts-ignore
+                  error: err,
+                  message: `An error occurred while uploading ${pkgRoot}`,
+                  prefix: opts.lockfileDir,
+                })
+              }
+            }
+          }
+          pkgsThatWereRebuilt.add(depPath)
+        } catch (err: unknown) {
+          if (pkgSnapshot.optional) {
+            // TODO: add parents field to the log
+            skippedOptionalDependencyLogger.debug({
+              // @ts-ignore
+              details: err.toString(),
+              package: {
+                id: pkgSnapshot.id ?? depPath,
+                name: pkgInfo.name,
+                version: pkgInfo.version,
+              },
+              prefix: opts.dir,
+              reason: 'build_failure',
+            })
             return
           }
+          throw err
         }
-
-        const hasSideEffects = allowBuild(pkgInfo.name) && await runPostinstallHooks({
-          depPath,
-          extraBinPaths,
-          extraEnv: opts.extraEnv,
-          optional: pkgSnapshot.optional === true,
-          pkgRoot,
-          rawConfig: opts.rawConfig,
-          rootModulesDir: ctx.rootModulesDir,
-          scriptsPrependNodePath: opts.scriptsPrependNodePath,
-          shellEmulator: opts.shellEmulator,
-          unsafePerm: opts.unsafePerm || false,
-        })
-        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
-          builtDepPaths.add(depPath)
-          const filesIndexFile = getFilePathInCafs(cafsDir, resolution.integrity!.toString(), 'index')
-          try {
-            if (!sideEffectsCacheKey) {
-              sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-                isBuilt: true,
-              })
-            }
-            await opts.storeController.upload(pkgRoot, {
-              sideEffectsCacheKey,
-              filesIndexFile,
-            })
-          } catch (err: any) { // eslint-disable-line
-            if (err.statusCode === 403) {
-              logger.warn({
-                message: `The store server disabled upload requests, could not upload ${pkgRoot}`,
-                prefix: opts.lockfileDir,
-              })
-            } else {
-              logger.warn({
-                error: err,
-                message: `An error occurred while uploading ${pkgRoot}`,
-                prefix: opts.lockfileDir,
-              })
-            }
-          }
+        if (pkgRoots.length > 1) {
+          await hardLinkDir(pkgRoot, pkgRoots.slice(1))
         }
-        pkgsThatWereRebuilt.add(depPath)
-      } catch (err: any) { // eslint-disable-line
-        if (pkgSnapshot.optional) {
-          // TODO: add parents field to the log
-          skippedOptionalDependencyLogger.debug({
-            details: err.toString(),
-            package: {
-              id: pkgSnapshot.id ?? depPath,
-              name: pkgInfo.name,
-              version: pkgInfo.version,
-            },
-            prefix: opts.dir,
-            reason: 'build_failure',
-          })
-          return
-        }
-        throw err
-      }
-      if (pkgRoots.length > 1) {
-        await hardLinkDir(pkgRoot, pkgRoots.slice(1))
-      }
-    }
-  ))
+      })
+  )
 
   await runGroups(opts.childConcurrency || 5, groups)
 
   if (builtDepPaths.size > 0) {
     // It may be optimized because some bins were already linked before running lifecycle scripts
     await Promise.all(
-      Object
-        .keys(pkgSnapshots)
+      Object.keys(pkgSnapshots)
         .filter((depPath) => !packageIsIndependent(pkgSnapshots[depPath]))
-        .map(async (depPath) => limitLinking(async () => {
-          const pkgSnapshot = pkgSnapshots[depPath]
-          const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-          const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
-          return linkBins(modules, binPath, { warn })
-        }))
+        .map(async (depPath) =>
+          limitLinking(async () => {
+            const pkgSnapshot = pkgSnapshots[depPath]
+            const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+            const modules = path.join(
+              ctx.virtualStoreDir,
+              dp.depPathToFilename(depPath),
+              'node_modules'
+            )
+            const binPath = path.join(
+              modules,
+              pkgInfo.name,
+              'node_modules',
+              '.bin'
+            )
+            return linkBins(modules, binPath, { warn })
+          })
+        )
     )
-    await Promise.all(Object.values(ctx.projects).map(async ({ rootDir }) => limitLinking(async () => {
-      const modules = path.join(rootDir, 'node_modules')
-      const binPath = path.join(modules, '.bin')
-      return linkBins(modules, binPath, {
-        allowExoticManifests: true,
-        warn,
-      })
-    })))
+    await Promise.all(
+      Object.values(ctx.projects).map(async ({ rootDir }) =>
+        limitLinking(async () => {
+          const modules = path.join(rootDir, 'node_modules')
+          const binPath = path.join(modules, '.bin')
+          return linkBins(modules, binPath, {
+            allowExoticManifests: true,
+            warn,
+          })
+        })
+      )
+    )
   }
 
   return pkgsThatWereRebuilt
 }
 
-function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[] {
+function binDirsInAllParentDirs(
+  pkgRoot: string,
+  lockfileDir: string
+): string[] {
   const binDirs: string[] = []
   let dir = pkgRoot
   do {

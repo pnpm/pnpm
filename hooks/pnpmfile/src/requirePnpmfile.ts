@@ -7,8 +7,11 @@ import chalk from 'chalk'
 export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
 
-  constructor (pnpmfile: string, message: string) {
-    super('BAD_READ_PACKAGE_HOOK_RESULT', `${message} Hook imported via ${pnpmfile}`)
+  constructor(pnpmfile: string, message: string) {
+    super(
+      'BAD_READ_PACKAGE_HOOK_RESULT',
+      `${message} Hook imported via ${pnpmfile}`
+    )
     this.pnpmfile = pnpmfile
   }
 }
@@ -17,14 +20,17 @@ class PnpmFileFailError extends PnpmError {
   public readonly pnpmfile: string
   public readonly originalError: Error
 
-  constructor (pnpmfile: string, originalError: Error) {
-    super('PNPMFILE_FAIL', `Error during pnpmfile execution. pnpmfile: "${pnpmfile}". Error: "${originalError.message}".`)
+  constructor(pnpmfile: string, originalError: Error) {
+    super(
+      'PNPMFILE_FAIL',
+      `Error during pnpmfile execution. pnpmfile: "${pnpmfile}". Error: "${originalError.message}".`
+    )
     this.pnpmfile = pnpmfile
     this.originalError = originalError
   }
 }
 
-export function requirePnpmfile (pnpmFilePath: string, prefix: string) {
+export function requirePnpmfile(pnpmFilePath: string, prefix: string) {
   try {
     const pnpmfile = require(pnpmFilePath) // eslint-disable-line
     if (typeof pnpmfile === 'undefined') {
@@ -34,7 +40,10 @@ export function requirePnpmfile (pnpmFilePath: string, prefix: string) {
       })
       return undefined
     }
-    if (pnpmfile?.hooks?.readPackage && typeof pnpmfile.hooks.readPackage !== 'function') {
+    if (
+      pnpmfile?.hooks?.readPackage &&
+      typeof pnpmfile.hooks.readPackage !== 'function'
+    ) {
       throw new TypeError('hooks.readPackage should be a function')
     }
     if (pnpmfile?.hooks?.readPackage) {
@@ -46,12 +55,22 @@ export function requirePnpmfile (pnpmFilePath: string, prefix: string) {
         pkg.peerDependencies = pkg.peerDependencies ?? {}
         const newPkg = await readPackage(pkg, ...args)
         if (!newPkg) {
-          throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
+          throw new BadReadPackageHookError(
+            pnpmFilePath,
+            'readPackage hook did not return a package manifest object.'
+          )
         }
-        const dependencies = ['dependencies', 'optionalDependencies', 'peerDependencies']
+        const dependencies = [
+          'dependencies',
+          'optionalDependencies',
+          'peerDependencies',
+        ]
         for (const dep of dependencies) {
           if (newPkg[dep] && typeof newPkg[dep] !== 'object') {
-            throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned package manifest object's property '${dep}' must be an object.`)
+            throw new BadReadPackageHookError(
+              pnpmFilePath,
+              `readPackage hook returned package manifest object's property '${dep}' must be an object.`
+            )
           }
         }
         return newPkg
@@ -72,7 +91,7 @@ export function requirePnpmfile (pnpmFilePath: string, prefix: string) {
   }
 }
 
-function pnpmFileExistsSync (pnpmFilePath: string) {
+function pnpmFileExistsSync(pnpmFilePath: string) {
   const pnpmFileRealName = pnpmFilePath.endsWith('.cjs')
     ? pnpmFilePath
     : `${pnpmFilePath}.cjs`

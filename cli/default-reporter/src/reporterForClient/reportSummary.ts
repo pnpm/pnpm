@@ -16,10 +16,7 @@ import {
   type PackageDiff,
   propertyByDependencyType,
 } from './pkgsDiff'
-import {
-  ADDED_CHAR,
-  REMOVED_CHAR,
-} from './outputConstants'
+import { ADDED_CHAR, REMOVED_CHAR } from './outputConstants'
 
 const CONFIG_BY_DEP_TYPE = {
   prod: 'production',
@@ -27,7 +24,7 @@ const CONFIG_BY_DEP_TYPE = {
   optional: 'optional',
 }
 
-export function reportSummary (
+export function reportSummary(
   log$: {
     deprecation: Rx.Observable<DeprecationLog>
     summary: Rx.Observable<SummaryLog>
@@ -45,50 +42,60 @@ export function reportSummary (
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
 
   const summaryLog$ = log$.summary.pipe(take(1))
-  const _printDiffs = printDiffs.bind(null, { cmd: opts.cmd, prefix: opts.cwd, pnpmConfig: opts.pnpmConfig })
+  const _printDiffs = printDiffs.bind(null, {
+    cmd: opts.cmd,
+    prefix: opts.cwd,
+    pnpmConfig: opts.pnpmConfig,
+  })
 
-  return Rx.combineLatest(
-    pkgsDiff$,
-    summaryLog$
-  )
-    .pipe(
-      take(1),
-      map(([pkgsDiff]) => {
-        let msg = ''
-        for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly'] as const) {
-          let diffs: PackageDiff[] = Object.values(pkgsDiff[depType as keyof typeof pkgsDiff])
-          if (opts.filterPkgsDiff) {
-            // This filtering is only used by Bit CLI currently.
-            // Related PR: https://github.com/teambit/bit/pull/7176
-            diffs = diffs.filter((pkgDiff) => opts.filterPkgsDiff!(pkgDiff))
-          }
-          if (diffs.length > 0) {
-            msg += EOL
-            if (opts.pnpmConfig?.global) {
-              msg += chalk.cyanBright(`${opts.cwd}:`)
-            } else {
-              msg += chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)
-            }
-            msg += EOL
-            msg += _printDiffs(diffs, depType)
-            msg += EOL
-          } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
-            msg += EOL
-            msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
-            if (opts.env.NODE_ENV === 'production' && depType === 'dev') {
-              msg += ' because NODE_ENV is set to production'
-            }
-            msg += EOL
-          }
+  return Rx.combineLatest(pkgsDiff$, summaryLog$).pipe(
+    take(1),
+    map(([pkgsDiff]) => {
+      let msg = ''
+      for (const depType of [
+        'prod',
+        'optional',
+        'peer',
+        'dev',
+        'nodeModulesOnly',
+      ] as const) {
+        let diffs: PackageDiff[] = Object.values(
+          pkgsDiff[depType as keyof typeof pkgsDiff]
+        )
+        if (opts.filterPkgsDiff) {
+          // This filtering is only used by Bit CLI currently.
+          // Related PR: https://github.com/teambit/bit/pull/7176
+          diffs = diffs.filter((pkgDiff) => opts.filterPkgsDiff!(pkgDiff))
         }
-        return Rx.of({ msg })
-      })
-    )
+        if (diffs.length > 0) {
+          msg += EOL
+          if (opts.pnpmConfig?.global) {
+            msg += chalk.cyanBright(`${opts.cwd}:`)
+          } else {
+            msg += chalk.cyanBright(
+              `${propertyByDependencyType[depType] as string}:`
+            )
+          }
+          msg += EOL
+          msg += _printDiffs(diffs, depType)
+          msg += EOL
+        } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
+          msg += EOL
+          msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
+          if (opts.env.NODE_ENV === 'production' && depType === 'dev') {
+            msg += ' because NODE_ENV is set to production'
+          }
+          msg += EOL
+        }
+      }
+      return Rx.of({ msg })
+    })
+  )
 }
 
 export type FilterPkgsDiff = (pkgsDiff: PackageDiff) => boolean
 
-function printDiffs (
+function printDiffs(
   opts: {
     cmd: string
     prefix: string
@@ -101,32 +108,40 @@ function printDiffs (
   // + ava 0.10.0
   // - chalk 1.0.0
   // + chalk 2.0.0
-  pkgsDiff.sort((a, b) => (a.name.localeCompare(b.name) * 10 + (Number(!b.added) - Number(!a.added))))
-  const msg = pkgsDiff.map((pkg) => {
-    let result = pkg.added
-      ? ADDED_CHAR
-      : REMOVED_CHAR
-    if (!pkg.realName || pkg.name === pkg.realName) {
-      result += ` ${pkg.name}`
-    } else {
-      result += ` ${pkg.name} <- ${pkg.realName}`
-    }
-    if (pkg.version) {
-      result += ` ${chalk.grey(pkg.version)}`
-      if (pkg.latest && semver.lt(pkg.version, pkg.latest)) {
-        result += ` ${chalk.grey(`(${pkg.latest} is available)`)}`
+  pkgsDiff.sort(
+    (a, b) =>
+      a.name.localeCompare(b.name) * 10 + (Number(!b.added) - Number(!a.added))
+  )
+  const msg = pkgsDiff
+    .map((pkg) => {
+      let result = pkg.added ? ADDED_CHAR : REMOVED_CHAR
+      if (!pkg.realName || pkg.name === pkg.realName) {
+        result += ` ${pkg.name}`
+      } else {
+        result += ` ${pkg.name} <- ${pkg.realName}`
       }
-    }
-    if (pkg.deprecated) {
-      result += ` ${chalk.red('deprecated')}`
-    }
-    if (pkg.from) {
-      result += ` ${chalk.grey(`<- ${pkg.from && path.relative(opts.prefix, pkg.from) || '???'}`)}`
-    }
-    if (pkg.added && depType === 'dev' && opts.pnpmConfig?.saveDev === false && opts.cmd === 'add') {
-      result += `${chalk.yellow(' already in devDependencies, was not moved to dependencies.')}`
-    }
-    return result
-  }).join(EOL)
+      if (pkg.version) {
+        result += ` ${chalk.grey(pkg.version)}`
+        if (pkg.latest && semver.lt(pkg.version, pkg.latest)) {
+          result += ` ${chalk.grey(`(${pkg.latest} is available)`)}`
+        }
+      }
+      if (pkg.deprecated) {
+        result += ` ${chalk.red('deprecated')}`
+      }
+      if (pkg.from) {
+        result += ` ${chalk.grey(`<- ${(pkg.from && path.relative(opts.prefix, pkg.from)) || '???'}`)}`
+      }
+      if (
+        pkg.added &&
+        depType === 'dev' &&
+        opts.pnpmConfig?.saveDev === false &&
+        opts.cmd === 'add'
+      ) {
+        result += `${chalk.yellow(' already in devDependencies, was not moved to dependencies.')}`
+      }
+      return result
+    })
+    .join(EOL)
   return msg
 }

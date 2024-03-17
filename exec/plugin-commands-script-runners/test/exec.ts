@@ -11,16 +11,23 @@ test('exec should set npm_config_user_agent', async () => {
   prepareEmpty()
   const userAgent = 'pnpm/0.0.0'
 
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    selectedProjectsGraph: {},
-    userAgent,
-  }, ['eslint'])
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      selectedProjectsGraph: {},
+      userAgent,
+    },
+    ['eslint']
+  )
 
-  expect(execa).toBeCalledWith('eslint', [], expect.objectContaining({
-    env: expect.objectContaining({
-      npm_config_user_agent: userAgent,
-    }),
-  }))
+  expect(execa).toBeCalledWith(
+    'eslint',
+    [],
+    expect.objectContaining({
+      env: expect.objectContaining({
+        npm_config_user_agent: userAgent,
+      }),
+    })
+  )
 })

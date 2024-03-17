@@ -5,14 +5,14 @@ import type ssri from 'ssri'
 import { verifyFileIntegrity } from './checkPkgFilesIntegrity'
 import { writeFile } from './writeFile'
 
-export function writeBufferToCafs (
+export function writeBufferToCafs(
   locker: Map<string, number>,
   cafsDir: string,
   buffer: Buffer,
   fileDest: string,
   mode: number | undefined,
   integrity: ssri.IntegrityLike
-): { checkedAt: number, filePath: string } {
+): { checkedAt: number; filePath: string } {
   fileDest = path.join(cafsDir, fileDest)
   if (locker.has(fileDest)) {
     return {
@@ -54,7 +54,7 @@ export function writeBufferToCafs (
   }
 }
 
-export function optimisticRenameOverwrite (temp: string, fileDest: string) {
+export function optimisticRenameOverwrite(temp: string, fileDest: string) {
   try {
     renameOverwrite.sync(temp, fileDest)
   } catch (err: any) { // eslint-disable-line
@@ -78,12 +78,12 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string) {
  * If the process fails, on rerun the new temp file may get a filename the got left over.
  * That is fine, the file will be overridden.
  */
-export function pathTemp (file: string): string {
+export function pathTemp(file: string): string {
   const basename = removeSuffix(path.basename(file))
   return path.join(path.dirname(file), `${basename}${process.pid}`)
 }
 
-function removeSuffix (filePath: string): string {
+function removeSuffix(filePath: string): string {
   const dashPosition = filePath.indexOf('-')
   if (dashPosition === -1) return filePath
   const withoutSuffix = filePath.substring(0, dashPosition)
@@ -93,7 +93,7 @@ function removeSuffix (filePath: string): string {
   return withoutSuffix
 }
 
-function existsSame (filename: string, integrity: ssri.IntegrityLike) {
+function existsSame(filename: string, integrity: ssri.IntegrityLike) {
   const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
   if (!existingFile) return false
   return verifyFileIntegrity(filename, {

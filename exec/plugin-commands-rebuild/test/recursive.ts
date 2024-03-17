@@ -31,38 +31,64 @@ test('pnpm recursive rebuild', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('node', [
-    pnpmBin,
-    'install',
-    '-r',
-    `--registry=${REGISTRY}`,
-    `--store-dir=${path.resolve(DEFAULT_OPTS.storeDir)}`,
-    `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
-    '--ignore-scripts',
-    '--reporter=append-only',
-  ], { stdout: 'inherit' })
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
+  await execa(
+    'node',
+    [
+      pnpmBin,
+      'install',
+      '-r',
+      `--registry=${REGISTRY}`,
+      `--store-dir=${path.resolve(DEFAULT_OPTS.storeDir)}`,
+      `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
+      '--ignore-scripts',
+      '--reporter=append-only',
+    ],
+    { stdout: 'inherit' }
+  )
 
-  await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
 
   const modulesManifest = await projects['project-1'].readModulesManifest()
-  await rebuild.handler({
-    ...DEFAULT_OPTS,
-    allProjects,
-    dir: process.cwd(),
-    recursive: true,
-    registries: modulesManifest!.registries!,
-    selectedProjectsGraph,
-    workspaceDir: process.cwd(),
-  }, [])
+  await rebuild.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      registries: modulesManifest!.registries!,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    },
+    []
+  )
 
-  await projects['project-1'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-1'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-2'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-2'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-1'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-1'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-2'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-2'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
 })
 
 test('pnpm recursive rebuild with hoisted node linker', async () => {
@@ -101,51 +127,93 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
-  await execa('node', [
-    pnpmBin,
-    'install',
-    '-r',
-    `--registry=${REGISTRY}`,
-    `--store-dir=${path.resolve(DEFAULT_OPTS.storeDir)}`,
-    `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
-    '--ignore-scripts',
-    '--reporter=append-only',
-    '--config.node-linker=hoisted',
-  ], { stdout: 'inherit' })
+  await execa(
+    'node',
+    [
+      pnpmBin,
+      'install',
+      '-r',
+      `--registry=${REGISTRY}`,
+      `--store-dir=${path.resolve(DEFAULT_OPTS.storeDir)}`,
+      `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
+      '--ignore-scripts',
+      '--reporter=append-only',
+      '--config.node-linker=hoisted',
+    ],
+    { stdout: 'inherit' }
+  )
 
   const rootProject = assertProject(process.cwd())
-  await rootProject.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await rootProject.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-3'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-3'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-4'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-4'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await rootProject.hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await rootProject.hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-3'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-3'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-4'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-4'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
 
   const modulesManifest = await rootProject.readModulesManifest()
-  await rebuild.handler({
-    ...DEFAULT_OPTS,
-    allProjects,
-    dir: process.cwd(),
-    nodeLinker: 'hoisted',
-    recursive: true,
-    registries: modulesManifest!.registries!,
-    selectedProjectsGraph,
-    lockfileDir: process.cwd(),
-    workspaceDir: process.cwd(),
-  }, [])
+  await rebuild.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      nodeLinker: 'hoisted',
+      recursive: true,
+      registries: modulesManifest!.registries!,
+      selectedProjectsGraph,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    },
+    []
+  )
 
-  await rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await rootProject.has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await rootProject.has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-3'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-3'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-4'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-4'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
 })
 
 test('rebuild multiple packages in correct order', async () => {
@@ -191,9 +259,14 @@ test('rebuild multiple packages in correct order', async () => {
     },
   ]
   preparePackages(pkgs)
-  await writeYamlFile('pnpm-workspace.yaml', { packages: pkgs.map(pkg => pkg.name) })
+  await writeYamlFile('pnpm-workspace.yaml', {
+    packages: pkgs.map((pkg) => pkg.name),
+  })
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
   await execa('node', [
     pnpmBin,
     'install',
@@ -205,14 +278,17 @@ test('rebuild multiple packages in correct order', async () => {
     '--ignore-scripts',
   ])
 
-  await rebuild.handler({
-    ...DEFAULT_OPTS,
-    allProjects,
-    dir: process.cwd(),
-    recursive: true,
-    selectedProjectsGraph,
-    workspaceDir: process.cwd(),
-  }, [])
+  await rebuild.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    },
+    []
+  )
 
   expect(server1.getLines()).toStrictEqual(['project-1', 'project-2'])
   expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])

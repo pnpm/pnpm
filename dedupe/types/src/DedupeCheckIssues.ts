@@ -11,7 +11,10 @@ export interface SnapshotsChanges {
 
 export type ResolutionChangesByAlias = Record<string, ResolutionChange>
 
-export type ResolutionChange = ResolutionAdded | ResolutionDeleted | ResolutionUpdated
+export type ResolutionChange =
+  | ResolutionAdded
+  | ResolutionDeleted
+  | ResolutionUpdated
 
 export interface ResolutionAdded {
   readonly type: 'added'

@@ -5,10 +5,7 @@ import { LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import exists from 'path-exists'
-import {
-  addDistTag,
-  execPnpm,
-} from '../utils'
+import { addDistTag, execPnpm } from '../utils'
 
 test('global installation', async () => {
   prepare()
@@ -16,7 +13,11 @@ test('global installation', async () => {
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = {
+    [PATH_NAME]: pnpmHome,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
 
   await execPnpm(['install', '--global', 'is-positive'], { env })
 
@@ -26,10 +27,14 @@ test('global installation', async () => {
 
   const globalPrefix = path.join(global, `pnpm/global/${LAYOUT_VERSION}`)
 
-  const { default: isPositive } = await import(path.join(globalPrefix, 'node_modules', 'is-positive'))
+  const { default: isPositive } = await import(
+    path.join(globalPrefix, 'node_modules', 'is-positive')
+  )
   expect(typeof isPositive).toBe('function')
 
-  const { default: isNegative } = await import(path.join(globalPrefix, 'node_modules', 'is-negative'))
+  const { default: isNegative } = await import(
+    path.join(globalPrefix, 'node_modules', 'is-negative')
+  )
   expect(typeof isNegative).toBe('function')
 })
 
@@ -39,9 +44,13 @@ test('global installation to custom directory with --global-dir', async () => {
   const pnpmHome = path.join(global, 'pnpm')
   const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome }
 
-  await execPnpm(['add', '--global', '--global-dir=../global', 'is-positive'], { env })
+  await execPnpm(['add', '--global', '--global-dir=../global', 'is-positive'], {
+    env,
+  })
 
-  const { default: isPositive } = await import(path.resolve(`../global/${LAYOUT_VERSION}/node_modules/is-positive`))
+  const { default: isPositive } = await import(
+    path.resolve(`../global/${LAYOUT_VERSION}/node_modules/is-positive`)
+  )
   expect(typeof isPositive).toBe('function')
 })
 
@@ -53,7 +62,11 @@ test('always install latest when doing global installation without spec', async 
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = {
+    [PATH_NAME]: pnpmHome,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
 
   await execPnpm(['install', '-g', '@pnpm.e2e/peer-c@1'], { env })
   await execPnpm(['install', '-g', '@pnpm.e2e/peer-c'], { env })
@@ -62,7 +75,13 @@ test('always install latest when doing global installation without spec', async 
 
   process.chdir(globalPrefix)
 
-  expect((await import(path.resolve('node_modules', '@pnpm.e2e/peer-c', 'package.json'))).default.version).toBe('2.0.0')
+  expect(
+    (
+      await import(
+        path.resolve('node_modules', '@pnpm.e2e/peer-c', 'package.json')
+      )
+    ).default.version
+  ).toBe('2.0.0')
 })
 
 test('run lifecycle events of global packages in correct working directory', async () => {
@@ -82,9 +101,18 @@ test('run lifecycle events of global packages in correct working directory', asy
     XDG_DATA_HOME: global,
   }
 
-  await execPnpm(['install', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
+  await execPnpm(['install', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], {
+    env,
+  })
 
-  expect(await exists(path.join(global, `pnpm/global/${LAYOUT_VERSION}/node_modules/@pnpm.e2e/postinstall-calls-pnpm/created-by-postinstall`))).toBeTruthy()
+  expect(
+    await exists(
+      path.join(
+        global,
+        `pnpm/global/${LAYOUT_VERSION}/node_modules/@pnpm.e2e/postinstall-calls-pnpm/created-by-postinstall`
+      )
+    )
+  ).toBeTruthy()
 })
 
 test('global update to latest', async () => {
@@ -93,13 +121,19 @@ test('global update to latest', async () => {
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
 
-  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+  const env = {
+    [PATH_NAME]: pnpmHome,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
 
   await execPnpm(['install', '--global', 'is-positive@1'], { env })
   await execPnpm(['update', '--global', '--latest'], { env })
 
   const globalPrefix = path.join(global, `pnpm/global/${LAYOUT_VERSION}`)
 
-  const { default: isPositive } = await import(path.join(globalPrefix, 'node_modules/is-positive/package.json'))
+  const { default: isPositive } = await import(
+    path.join(globalPrefix, 'node_modules/is-positive/package.json')
+  )
   expect(isPositive.version).toBe('3.1.0')
 })

@@ -5,10 +5,13 @@ import * as Rx from 'rxjs'
 import { filter, map, take } from 'rxjs/operators'
 import semver from 'semver'
 
-export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
-  env: NodeJS.ProcessEnv
-  process: NodeJS.Process
-}) {
+export function reportUpdateCheck(
+  log$: Rx.Observable<UpdateCheckLog>,
+  opts: {
+    env: NodeJS.ProcessEnv
+    process: NodeJS.Process
+  }
+) {
   return log$.pipe(
     take(1),
     filter((log) => semver.gt(log.latestVersion, log.currentVersion)),
@@ -19,19 +22,20 @@ export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
         env: opts.env,
       })
       return Rx.of({
-        msg: boxen(`\
+        msg: boxen(
+          `\
 Update available! ${chalk.red(log.currentVersion)} → ${chalk.green(log.latestVersion)}.
 ${chalk.magenta('Changelog:')} https://github.com/pnpm/pnpm/releases/tag/v${log.latestVersion}
 ${updateMessage}
 
 Follow ${chalk.magenta('@pnpmjs')} for updates: https://twitter.com/pnpmjs`,
-        {
-          padding: 1,
-          margin: 1,
-          align: 'center',
-          borderColor: 'yellow',
-          borderStyle: 'round',
-        }
+          {
+            padding: 1,
+            margin: 1,
+            align: 'center',
+            borderColor: 'yellow',
+            borderStyle: 'round',
+          }
         ),
       })
     })
@@ -44,7 +48,7 @@ interface UpdateMessageOptions {
   latestVersion: string
 }
 
-function renderUpdateMessage (opts: UpdateMessageOptions) {
+function renderUpdateMessage(opts: UpdateMessageOptions) {
   if (opts.currentPkgIsExecutable && opts.env.PNPM_HOME) {
     return 'Run a script from: https://pnpm.io/installation'
   }
@@ -52,7 +56,7 @@ function renderUpdateMessage (opts: UpdateMessageOptions) {
   return `Run "${chalk.magenta(updateCommand)}" to update.`
 }
 
-function renderUpdateCommand (opts: UpdateMessageOptions) {
+function renderUpdateCommand(opts: UpdateMessageOptions) {
   if (opts.env.COREPACK_ROOT) {
     return `corepack prepare pnpm@${opts.latestVersion} --activate`
   }
@@ -60,6 +64,6 @@ function renderUpdateCommand (opts: UpdateMessageOptions) {
   return `pnpm add -g ${pkgName}`
 }
 
-function detectIfCurrentPkgIsExecutable (process: NodeJS.Process) {
-  return process['pkg'] != null
+function detectIfCurrentPkgIsExecutable(process: NodeJS.Process) {
+  return process.pkg != null
 }

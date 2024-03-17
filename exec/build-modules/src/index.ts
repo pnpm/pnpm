@@ -1,22 +1,29 @@
-import path from 'path'
+import path from 'node:path'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
 import { hardLinkDir } from '@pnpm/worker'
-import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import {
+  readPackageJsonFromDir,
+  safeReadPackageJsonFromDir,
+} from '@pnpm/read-package-json'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { type DependencyManifest } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import pickBy from 'ramda/src/pickBy'
 import runGroups from 'run-groups'
-import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence'
+import {
+  buildSequence,
+  type DependenciesGraph,
+  type DependenciesGraphNode,
+} from './buildSequence'
 
 export type { DepsStateCache }
 
-export async function buildModules (
+export async function buildModules(
   depGraph: DependenciesGraph,
   rootDepPaths: string[],
   opts: {
@@ -61,22 +68,24 @@ export async function buildModules (
       return (node.requiresBuild || node.patchFile != null) && !node.isBuilt
     })
     if (opts.depsToBuild != null) {
-      chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
+      chunk = chunk.filter((depPath): boolean => {
+        return opts.depsToBuild?.has(depPath) ?? false;
+      })
     }
 
-    return chunk.map((depPath: string) =>
-      async () => {
-        return buildDependency(depPath, depGraph, {
-          ...buildDepOpts,
-          ignoreScripts: Boolean(buildDepOpts.ignoreScripts) || !allowBuild(depGraph[depPath].name),
-        })
-      }
-    )
+    return chunk.map((depPath: string) => async () => {
+      return buildDependency(depPath, depGraph, {
+        ...buildDepOpts,
+        ignoreScripts:
+          Boolean(buildDepOpts.ignoreScripts) ||
+          !allowBuild(depGraph[depPath].name),
+      })
+    })
   })
   await runGroups(opts.childConcurrency ?? 4, groups)
 }
 
-async function buildDependency (
+async function buildDependency(
   depPath: string,
   depGraph: DependenciesGraph,
   opts: {
@@ -114,28 +123,38 @@ async function buildDependency (
     await linkBinsOfDependencies(depNode, depGraph, opts)
     const isPatched = depNode.patchFile?.path != null
     if (isPatched) {
-      applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patchFile!.path })
+      applyPatchToDir({
+        patchedDir: depNode.dir,
+        patchFilePath: depNode.patchFile!.path,
+      })
     }
-    const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
-      depPath,
-      extraBinPaths: opts.extraBinPaths,
-      extraEnv: opts.extraEnv,
-      initCwd: opts.lockfileDir,
-      optional: depNode.optional,
-      pkgRoot: depNode.dir,
-      rawConfig: opts.rawConfig,
-      rootModulesDir: opts.rootModulesDir,
-      scriptsPrependNodePath: opts.scriptsPrependNodePath,
-      scriptShell: opts.scriptShell,
-      shellEmulator: opts.shellEmulator,
-      unsafePerm: opts.unsafePerm || false,
-    })
+    const hasSideEffects =
+      !opts.ignoreScripts &&
+      (await runPostinstallHooks({
+        depPath,
+        extraBinPaths: opts.extraBinPaths,
+        extraEnv: opts.extraEnv,
+        initCwd: opts.lockfileDir,
+        optional: depNode.optional,
+        pkgRoot: depNode.dir,
+        rawConfig: opts.rawConfig,
+        rootModulesDir: opts.rootModulesDir,
+        scriptsPrependNodePath: opts.scriptsPrependNodePath,
+        scriptShell: opts.scriptShell,
+        shellEmulator: opts.shellEmulator,
+        unsafePerm: opts.unsafePerm || false,
+      }))
     if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite) {
       try {
-        const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
-          patchFileHash: depNode.patchFile?.hash,
-          isBuilt: hasSideEffects,
-        })
+        const sideEffectsCacheKey = calcDepState(
+          depGraph,
+          opts.depsStateCache,
+          depPath,
+          {
+            patchFileHash: depNode.patchFile?.hash,
+            isBuilt: hasSideEffects,
+          }
+        )
         await opts.storeController.upload(depNode.dir, {
           sideEffectsCacheKey,
           filesIndexFile: depNode.filesIndexFile,
@@ -158,7 +177,9 @@ async function buildDependency (
   } catch (err: any) { // eslint-disable-line
     if (depNode.optional) {
       // TODO: add parents field to the log
-      const pkg = await readPackageJsonFromDir(path.join(depNode.dir)) as DependencyManifest
+      const pkg = (await readPackageJsonFromDir(
+        path.join(depNode.dir)
+      )) as DependencyManifest
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: {
@@ -177,8 +198,13 @@ async function buildDependency (
     if (hoistedLocationsOfDep) {
       // There is no need to build the same package in every location.
       // We just copy the built package to every location where it is present.
-      const currentHoistedLocation = path.relative(opts.lockfileDir, depNode.dir)
-      const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter((hoistedLocation) => hoistedLocation !== currentHoistedLocation)
+      const currentHoistedLocation = path.relative(
+        opts.lockfileDir,
+        depNode.dir
+      )
+      const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter(
+        (hoistedLocation) => hoistedLocation !== currentHoistedLocation
+      )
       await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
     }
     if (opts.builtHoistedDeps) {
@@ -187,7 +213,7 @@ async function buildDependency (
   }
 }
 
-export async function linkBinsOfDependencies (
+export async function linkBinsOfDependencies(
   depNode: DependenciesGraphNode,
   depGraph: DependenciesGraph,
   opts: {
@@ -199,7 +225,10 @@ export async function linkBinsOfDependencies (
 ) {
   const childrenToLink: Record<string, string> = opts.optional
     ? depNode.children
-    : pickBy((child, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
+    : pickBy(
+      (child, childAlias) => !depNode.optionalDependencies.has(childAlias),
+      depNode.children
+    )
 
   const binPath = path.join(depNode.dir, 'node_modules/.bin')
 
@@ -209,7 +238,9 @@ export async function linkBinsOfDependencies (
       .filter(({ alias, dep }) => {
         if (!dep) {
           // TODO: Try to reproduce this issue with a test in @pnpm/core
-          logger.debug({ message: `Failed to link bins of "${alias}" to "${binPath}". This is probably not an issue.` })
+          logger.debug({
+            message: `Failed to link bins of "${alias}" to "${binPath}". This is probably not an issue.`,
+          })
           return false
         }
         return dep.hasBin && dep.installable !== false
@@ -217,10 +248,13 @@ export async function linkBinsOfDependencies (
       .map(({ dep }) => dep),
     depNode,
   ]
-  const pkgs = await Promise.all(pkgNodes
-    .map(async (dep) => ({
+  const pkgs = await Promise.all(
+    pkgNodes.map(async (dep) => ({
       location: dep.dir,
-      manifest: await dep.fetchingBundledManifest?.() ?? (await safeReadPackageJsonFromDir(dep.dir) as DependencyManifest) ?? {},
+      manifest:
+        (await dep.fetchingBundledManifest?.()) ??
+        ((await safeReadPackageJsonFromDir(dep.dir)) as DependencyManifest) ??
+        {},
     }))
   )
 

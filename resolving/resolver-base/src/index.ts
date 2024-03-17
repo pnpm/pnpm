@@ -1,10 +1,10 @@
-import { type DependencyManifest } from '@pnpm/types'
-
+import type { DependencyManifest } from '@pnpm/types'
+import type { FetchersKeys } from '@pnpm/fetcher-base'
 /**
  * tarball hosted remotely
  */
 export interface TarballResolution {
-  type?: undefined
+  type?: FetchersKeys | undefined
   tarball: string
   integrity?: string
 }
@@ -24,10 +24,10 @@ export interface GitResolution {
 }
 
 export type Resolution =
-  TarballResolution |
-  DirectoryResolution |
-  GitResolution |
-  ({ type: string } & object)
+  | TarballResolution
+  | DirectoryResolution
+  | GitResolution
+  | ({ type: string } & object)
 
 export interface ResolveResult {
   id: string
@@ -36,7 +36,12 @@ export interface ResolveResult {
   manifest?: DependencyManifest
   normalizedPref?: string // is null for npm-hosted dependencies
   resolution: Resolution
-  resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'url' | string
+  resolvedVia:
+    | 'npm-registry'
+    | 'git-repository'
+    | 'local-filesystem'
+    | 'url'
+    | string
 }
 
 export interface WorkspacePackages {
@@ -83,12 +88,18 @@ export interface ResolveOptions {
 
 export type WantedDependency = {
   injected?: boolean
-} & ({
-  alias?: string
-  pref: string
-} | {
-  alias: string
-  pref?: string
-})
+} & (
+  | {
+    alias?: string
+    pref: string
+  }
+  | {
+    alias: string
+    pref?: string
+  }
+)
 
-export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>
+export type ResolveFunction = (
+  wantedDependency: WantedDependency,
+  opts: ResolveOptions
+) => Promise<ResolveResult>

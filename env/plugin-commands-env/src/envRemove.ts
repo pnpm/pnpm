@@ -9,9 +9,12 @@ import { getNodeVersion } from './downloadNodeVersion'
 import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
 import { getNodeExecPathAndTargetDir } from './utils'
 
-export async function envRemove (opts: NvmNodeCommandOptions, params: string[]) {
+export async function envRemove(opts: NvmNodeCommandOptions, params: string[]) {
   if (!opts.global) {
-    throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env remove <version>" can only be used with the "--global" option currently')
+    throw new PnpmError(
+      'NOT_IMPLEMENTED_YET',
+      '"pnpm env remove <version>" can only be used with the "--global" option currently'
+    )
   }
 
   let failed = false
@@ -25,24 +28,37 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]) 
   return { exitCode: failed ? 1 : 0 }
 }
 
-async function removeNodeVersion (opts: NvmNodeCommandOptions, version: string): Promise<Error | undefined> {
+async function removeNodeVersion(
+  opts: NvmNodeCommandOptions,
+  version: string
+): Promise<Error | undefined> {
   const { nodeVersion } = await getNodeVersion(opts, version)
   const nodeDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
 
   if (!nodeVersion) {
-    return new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${version}`)
+    return new PnpmError(
+      'COULD_NOT_RESOLVE_NODEJS',
+      `Couldn't find Node.js version matching ${version}`
+    )
   }
 
   const versionDir = path.resolve(nodeDir, nodeVersion)
 
   if (!existsSync(versionDir)) {
-    return new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${versionDir}`)
+    return new PnpmError(
+      'ENV_NO_NODE_DIRECTORY',
+      `Couldn't find Node.js directory in ${versionDir}`
+    )
   }
 
-  const { nodePath, nodeLink } = await getNodeExecPathAndTargetDir(opts.pnpmHomeDir)
+  const { nodePath, nodeLink } = await getNodeExecPathAndTargetDir(
+    opts.pnpmHomeDir
+  )
 
   if (nodeLink?.includes(versionDir)) {
-    globalInfo(`Node.js ${nodeVersion as string} was detected as the default one, removing ...`)
+    globalInfo(
+      `Node.js ${nodeVersion as string} was detected as the default one, removing ...`
+    )
 
     const npmPath = path.resolve(opts.pnpmHomeDir, 'npm')
     const npxPath = path.resolve(opts.pnpmHomeDir, 'npx')

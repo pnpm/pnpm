@@ -8,7 +8,11 @@ export interface RunNPMOptions {
   env?: Record<string, string>
 }
 
-export function runNpm (npmPath: string | undefined, args: string[], options?: RunNPMOptions) {
+export function runNpm(
+  npmPath: string | undefined,
+  args: string[],
+  options?: RunNPMOptions
+) {
   const npm = npmPath ?? 'npm'
   return runScriptSync(npm, args, {
     cwd: options?.cwd ?? process.cwd(),
@@ -18,7 +22,7 @@ export function runNpm (npmPath: string | undefined, args: string[], options?: R
   })
 }
 
-export function runScriptSync (
+export function runScriptSync(
   command: string,
   args: string[],
   opts: {
@@ -40,12 +44,7 @@ export function runScriptSync (
   return result
 }
 
-function createEnv (
-  opts: {
-    cwd: string
-    userAgent?: string
-  }
-) {
+function createEnv(opts: { cwd: string; userAgent?: string }) {
   const env = { ...process.env }
 
   env[PATH] = [

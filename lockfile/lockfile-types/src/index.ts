@@ -51,7 +51,10 @@ export interface ProjectSnapshotV6 {
   publishDirectory?: string
 }
 
-export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>
+export type ResolvedDependenciesOfImporters = Record<
+  string,
+  { version: string; specifier: string }
+>
 
 export interface PackageSnapshots {
   [packagePath: string]: PackageSnapshot
@@ -84,13 +87,15 @@ export interface GitRepositoryResolution {
 }
 
 export type Resolution =
-  TarballResolution |
-  GitRepositoryResolution |
-  DirectoryResolution
+  | TarballResolution
+  | GitRepositoryResolution
+  | DirectoryResolution
 
-export type LockfileResolution = Resolution | {
-  integrity: string
-}
+export type LockfileResolution =
+  | Resolution
+  | {
+    integrity: string
+  }
 
 export interface PackageSnapshot {
   id?: string

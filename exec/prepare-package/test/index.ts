@@ -11,9 +11,7 @@ test('prepare package runs the prepublish script', async () => {
   await using server = await createTestIpcServer(path.join(tmp, 'test.sock'))
   f.copy('has-prepublish-script', tmp)
   await preparePackage({ rawConfig: {} }, tmp)
-  expect(server.getLines()).toStrictEqual([
-    'prepublish',
-  ])
+  expect(server.getLines()).toStrictEqual(['prepublish'])
 })
 
 test('prepare package does not run the prepublish script if the main file is present', async () => {
@@ -21,7 +19,5 @@ test('prepare package does not run the prepublish script if the main file is pre
   await using server = await createTestIpcServer(path.join(tmp, 'test.sock'))
   f.copy('has-prepublish-script-and-main-file', tmp)
   await preparePackage({ rawConfig: {} }, tmp)
-  expect(server.getLines()).toStrictEqual([
-    'prepublish',
-  ])
+  expect(server.getLines()).toStrictEqual(['prepublish'])
 })

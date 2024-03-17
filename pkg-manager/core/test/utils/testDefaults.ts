@@ -16,7 +16,7 @@ const retryOpts = {
   retryMintimeout: 10_000,
 }
 
-export async function testDefaults<T> (
+export async function testDefaults<T>(
   opts?: T & {
     fastUnpack?: boolean
     storeDir?: string
@@ -26,14 +26,12 @@ export async function testDefaults<T> (
   fetchOpts?: any, // eslint-disable-line
   storeOpts?: any // eslint-disable-line
 ): Promise<
-  InstallOptions &
-  {
+  InstallOptions & {
     cacheDir: string
     registries: Registries
     storeController: StoreController
     storeDir: string
-  } &
-  T
+  } & T
   > {
   const authConfig = { registry }
   const cacheDir = path.resolve('cache')
@@ -51,16 +49,15 @@ export async function testDefaults<T> (
     storePath: storeDir,
     pnpmHomeDir: '',
   })
-  const storeController = await createPackageStore(
-    resolve,
-    fetchers,
-    {
-      ignoreFile: opts?.fastUnpack === false ? undefined : (filename) => filename !== 'package.json',
-      storeDir,
-      verifyStoreIntegrity: true,
-      ...storeOpts,
-    }
-  )
+  const storeController = await createPackageStore(resolve, fetchers, {
+    ignoreFile:
+      opts?.fastUnpack === false
+        ? undefined
+        : (filename) => filename !== 'package.json',
+    storeDir,
+    verifyStoreIntegrity: true,
+    ...storeOpts,
+  })
   const result = {
     cacheDir,
     registries: {
@@ -69,15 +66,11 @@ export async function testDefaults<T> (
     storeController,
     storeDir,
     ...opts,
-  } as (
-    InstallOptions &
-    {
-      cacheDir: string
-      registries: Registries
-      storeController: StoreController
-      storeDir: string
-    } &
-    T
-  )
+  } as InstallOptions & {
+    cacheDir: string
+    registries: Registries
+    storeController: StoreController
+    storeDir: string
+  } & T
   return result
 }

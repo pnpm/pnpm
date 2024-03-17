@@ -11,12 +11,16 @@ import { stop } from './stop'
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return {
-    ...pick([
-      'store',
-      'store-dir',
-    ], allTypes),
+    ...pick(
+      [
+        // @ts-ignore
+        'store',
+        'store-dir',
+      ],
+      allTypes
+    ),
     background: Boolean,
     'ignore-stop-requests': Boolean,
     'ignore-upload-requests': Boolean,
@@ -27,7 +31,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['server']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: 'Manage a store server',
     descriptionLists: [
@@ -36,7 +40,8 @@ export function help () {
 
         list: [
           {
-            description: '\
+            description:
+              '\
 Starts a service that does all interactions with the store. \
 Other commands will delegate any store-related tasks to this service',
             name: 'start',
@@ -64,7 +69,8 @@ Other commands will delegate any store-related tasks to this service',
             name: '--protocol <auto|tcp|ipc>',
           },
           {
-            description: 'The port number to use, when TCP is used for communication',
+            description:
+              'The port number to use, when TCP is used for communication',
             name: '--port <number>',
           },
           OPTIONS.storeDir,
@@ -73,18 +79,21 @@ Other commands will delegate any store-related tasks to this service',
             name: '--network-concurrency <number>',
           },
           {
-            description: "If false, doesn't check whether packages in the store were mutated",
+            description:
+              "If false, doesn't check whether packages in the store were mutated",
             name: '--[no-]verify-store-integrity',
           },
           {
             name: '--[no-]lock',
           },
           {
-            description: 'Disallows stopping the server using `pnpm server stop`',
+            description:
+              'Disallows stopping the server using `pnpm server stop`',
             name: '--ignore-stop-requests',
           },
           {
-            description: 'Disallows creating new side effect cache during install',
+            description:
+              'Disallows creating new side effect cache during install',
             name: '--ignore-upload-requests',
           },
           ...UNIVERSAL_OPTIONS,
@@ -96,7 +105,7 @@ Other commands will delegate any store-related tasks to this service',
   })
 }
 
-export function handler (
+export function handler(
   opts: CreateStoreControllerOptions & {
     protocol?: 'auto' | 'tcp' | 'ipc'
     port?: number
@@ -107,17 +116,20 @@ export function handler (
   // We can only support TCP at the moment because node-fetch does not support IPC
   opts.protocol = 'tcp'
   switch (params[0]) {
-  case 'start':
-    return start(opts)
-  case 'status':
-    return status(opts)
-  case 'stop':
-    return stop(opts)
-  default:
-    help()
-    if (params[0]) {
-      throw new PnpmError('INVALID_SERVER_COMMAND', `"server ${params[0]}" is not a pnpm command. See "pnpm help server".`)
-    }
-    return undefined
+    case 'start':
+      return start(opts)
+    case 'status':
+      return status(opts)
+    case 'stop':
+      return stop(opts)
+    default:
+      help()
+      if (params[0]) {
+        throw new PnpmError(
+          'INVALID_SERVER_COMMAND',
+          `"server ${params[0]}" is not a pnpm command. See "pnpm help server".`
+        )
+      }
+      return undefined
   }
 }

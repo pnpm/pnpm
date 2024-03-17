@@ -50,7 +50,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "right-pad": "^1.0.1",
     "rxjs": "^7.8.1",
-    "semver": "^7.5.4",
+    "semver": "^7.6.0",
     "stacktracey": "^2.1.8",
     "string-length": "^4.0.2"
   },
@@ -58,7 +58,7 @@
     "@pnpm/default-reporter": "workspace:*",
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",
-    "@types/semver": "7.5.3",
+    "@types/semver": "7.5.8",
     "ghooks": "2.0.4",
     "load-json-file": "^6.2.0",
     "normalize-newline": "3.0.0",

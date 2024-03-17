@@ -7,7 +7,7 @@ import {
 import archy from 'archy'
 import chalk from 'chalk'
 
-export function renderDedupeCheckIssues (dedupeCheckIssues: DedupeCheckIssues) {
+export function renderDedupeCheckIssues(dedupeCheckIssues: DedupeCheckIssues) {
   const importersReport = report(dedupeCheckIssues.importerIssuesByImporterId)
   const packagesReport = report(dedupeCheckIssues.packageIssuesByDepPath)
 
@@ -29,28 +29,39 @@ export function renderDedupeCheckIssues (dedupeCheckIssues: DedupeCheckIssues) {
 /**
  * Render snapshot changes. Expected to return an empty string for no changes.
  */
-function report (snapshotChanges: SnapshotsChanges): string {
+function report(snapshotChanges: SnapshotsChanges): string {
   return [
-    ...Object.entries(snapshotChanges.updated).map(([alias, updates]) => archy(toArchy(alias, updates))),
+    ...Object.entries(snapshotChanges.updated).map(([alias, updates]) =>
+      archy(toArchy(alias, updates))
+    ),
     ...snapshotChanges.added.map((id) => `${chalk.green('+')} ${id}`),
     ...snapshotChanges.removed.map((id) => `${chalk.red('-')} ${id}`),
   ].join('\n')
 }
 
-function toArchy (name: string, issue: ResolutionChangesByAlias): archy.Data {
+function toArchy(name: string, issue: ResolutionChangesByAlias): archy.Data {
   return {
     label: name,
-    nodes: Object.entries(issue).map(([alias, change]) => toArchyResolution(alias, change)),
+    nodes: Object.entries(issue).map(([alias, change]) =>
+      toArchyResolution(alias, change)
+    ),
   }
 }
 
-function toArchyResolution (alias: string, change: ResolutionChange): archy.Data {
+function toArchyResolution(
+  alias: string,
+  change: ResolutionChange
+): archy.Data {
   switch (change.type) {
-  case 'added':
-    return { label: `${chalk.green('+')} ${alias} ${chalk.gray(change.next)}` }
-  case 'removed':
-    return { label: `${chalk.red('-')} ${alias} ${chalk.gray(change.prev)}` }
-  case 'updated':
-    return { label: `${alias} ${chalk.red(change.prev)} ${chalk.gray('→')} ${chalk.green(change.next)}` }
+    case 'added':
+      return {
+        label: `${chalk.green('+')} ${alias} ${chalk.gray(change.next)}`,
+      }
+    case 'removed':
+      return { label: `${chalk.red('-')} ${alias} ${chalk.gray(change.prev)}` }
+    case 'updated':
+      return {
+        label: `${alias} ${chalk.red(change.prev)} ${chalk.gray('→')} ${chalk.green(change.next)}`,
+      }
   }
 }

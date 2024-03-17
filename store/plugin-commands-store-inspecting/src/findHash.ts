@@ -17,11 +17,11 @@ export const commandNames = ['find-hash']
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return {}
 }
 
-export function help () {
+export function help() {
   return renderHelp({
     description:
       'Experimental! Lists the packages that include the file with the specified hash.',
@@ -37,7 +37,7 @@ export interface FindHashResult {
   filesIndexFile: string
 }
 
-export async function handler (opts: FindHashCommandOptions, params: string[]) {
+export async function handler(opts: FindHashCommandOptions, params: string[]) {
   if (!params || params.length === 0) {
     throw new PnpmError('MISSING_HASH', '`pnpm find-hash` requires the hash')
   }
@@ -49,8 +49,11 @@ export async function handler (opts: FindHashCommandOptions, params: string[]) {
     pnpmHomeDir: opts.pnpmHomeDir,
   })
   const cafsDir = path.join(storeDir, 'files')
-  const cafsChildrenDirs = fs.readdirSync(cafsDir, { withFileTypes: true }).filter(file => file.isDirectory())
-  const indexFiles: string[] = []; const result: FindHashResult[] = []
+  const cafsChildrenDirs = fs
+    .readdirSync(cafsDir, { withFileTypes: true })
+    .filter((file) => file.isDirectory())
+  const indexFiles: string[] = []
+  const result: FindHashResult[] = []
 
   cafsChildrenDirs.forEach(({ name: dirName }) => {
     const dirIndexFiles = fs
@@ -61,12 +64,16 @@ export async function handler (opts: FindHashCommandOptions, params: string[]) {
     indexFiles.push(...dirIndexFiles)
   })
 
-  indexFiles.forEach(filesIndexFile => {
+  indexFiles.forEach((filesIndexFile) => {
     const pkgFilesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
 
     for (const [, file] of Object.entries(pkgFilesIndex.files)) {
       if (file?.integrity === hash) {
-        result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(cafsDir, '') })
+        result.push({
+          name: pkgFilesIndex.name ?? 'unknown',
+          version: pkgFilesIndex?.version ?? 'unknown',
+          filesIndexFile: filesIndexFile.replace(cafsDir, ''),
+        })
 
         // a package is only found once.
         return
@@ -77,7 +84,11 @@ export async function handler (opts: FindHashCommandOptions, params: string[]) {
       for (const [, files] of Object.entries(pkgFilesIndex.sideEffects)) {
         for (const [, file] of Object.entries(files)) {
           if (file?.integrity === hash) {
-            result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(cafsDir, '') })
+            result.push({
+              name: pkgFilesIndex.name ?? 'unknown',
+              version: pkgFilesIndex?.version ?? 'unknown',
+              filesIndexFile: filesIndexFile.replace(cafsDir, ''),
+            })
 
             // a package is only found once.
             return
@@ -95,6 +106,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]) {
   }
 
   return result.reduce((acc, { name, version, filesIndexFile }) => {
-    acc += `${PACKAGE_INFO_CLR(name)}@${PACKAGE_INFO_CLR(version)}  ${INDEX_PATH_CLR(filesIndexFile)}\n`; return acc
+    acc += `${PACKAGE_INFO_CLR(name)}@${PACKAGE_INFO_CLR(version)}  ${INDEX_PATH_CLR(filesIndexFile)}\n`
+    return acc
   }, '')
 }

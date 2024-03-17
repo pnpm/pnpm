@@ -1,11 +1,18 @@
 import { URL } from 'url'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import { getAgent, type AgentOptions } from '@pnpm/network.agent'
-import { fetch, isRedirect, type Response, type RequestInfo, type RequestInit } from './fetch'
+import {
+  fetch,
+  isRedirect,
+  type Response,
+  type RequestInfo,
+  type RequestInit,
+} from './fetch'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
-const ABBREVIATED_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
+const ABBREVIATED_DOC =
+  'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
 const JSON_DOC = 'application/json'
 const MAX_FOLLOWED_REDIRECTS = 20
 
@@ -13,14 +20,14 @@ export type FetchWithAgentOptions = RequestInit & {
   agentOptions: AgentOptions
 }
 
-export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions) {
+export function fetchWithAgent(url: RequestInfo, opts: FetchWithAgentOptions) {
   const agent = getAgent(url.toString(), {
     ...opts.agentOptions,
     strictSsl: opts.agentOptions.strictSsl ?? true,
   } as any) as any // eslint-disable-line
   const headers = opts.headers ?? {}
   // @ts-expect-error
-  headers['connection'] = agent ? 'keep-alive' : 'close'
+  headers.connection = agent ? 'keep-alive' : 'close'
   return fetch(url, {
     ...opts,
     agent,
@@ -29,7 +36,7 @@ export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions) {
 
 export type { AgentOptions }
 
-export function createFetchFromRegistry (
+export function createFetchFromRegistry(
   defaultOpts: {
     fullMetadata?: boolean
     userAgent?: string
@@ -75,25 +82,27 @@ export function createFetchFromRegistry (
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       redirects++
       urlObject = new URL(response.headers.get('location')!)
-      if (!headers['authorization'] || originalHost === urlObject.host) continue
+      if (!headers.authorization || originalHost === urlObject.host) continue
       delete headers.authorization
     }
     /* eslint-enable no-await-in-loop */
   }
 }
 
-function getHeaders (
-  opts: {
-    auth?: string
-    fullMetadata?: boolean
-    userAgent?: string
-  }
-) {
-  const headers: { accept: string, authorization?: string, 'user-agent'?: string } = {
+function getHeaders(opts: {
+  auth?: string
+  fullMetadata?: boolean
+  userAgent?: string
+}) {
+  const headers: {
+    accept: string
+    authorization?: string
+    'user-agent'?: string
+  } = {
     accept: opts.fullMetadata === true ? JSON_DOC : ABBREVIATED_DOC,
   }
   if (opts.auth) {
-    headers['authorization'] = opts.auth
+    headers.authorization = opts.auth
   }
   if (opts.userAgent) {
     headers['user-agent'] = opts.userAgent

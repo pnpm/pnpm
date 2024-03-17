@@ -41,11 +41,10 @@
   "devDependencies": {
     "@pnpm/store-path": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/node": "^18.14.6",
-    "@types/rimraf": "^3.0.2",
+    "@types/node": "^20.11.28",
     "@types/touch": "^3.1.5",
     "is-windows": "^1.0.2",
-    "rimraf": "^3.0.2"
+    "rimraf": "^5.0.5"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

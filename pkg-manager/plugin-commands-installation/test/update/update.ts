@@ -3,14 +3,26 @@ import { type PnpmError } from '@pnpm/error'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import { DEFAULT_OPTS } from '../utils'
 
 test('update with "*" pattern', async () => {
-  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/peer-a',
+    version: '1.0.1',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/peer-c',
+    version: '2.0.0',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/foo',
+    version: '2.0.0',
+    distTag: 'latest',
+  })
 
   const project = prepare({
     dependencies: {
@@ -25,11 +37,14 @@ test('update with "*" pattern', async () => {
     dir: process.cwd(),
   })
 
-  await update.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    latest: true,
-  }, ['@pnpm.e2e/peer-*'])
+  await update.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      latest: true,
+    },
+    ['@pnpm.e2e/peer-*']
+  )
 
   const lockfile = await project.readLockfile()
 
@@ -39,9 +54,21 @@ test('update with "*" pattern', async () => {
 })
 
 test('update with negation pattern', async () => {
-  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/peer-a',
+    version: '1.0.1',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/peer-c',
+    version: '2.0.0',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/foo',
+    version: '2.0.0',
+    distTag: 'latest',
+  })
 
   const project = prepare({
     dependencies: {
@@ -56,11 +83,14 @@ test('update with negation pattern', async () => {
     dir: process.cwd(),
   })
 
-  await update.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    latest: true,
-  }, ['!@pnpm.e2e/peer-*'])
+  await update.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      latest: true,
+    },
+    ['!@pnpm.e2e/peer-*']
+  )
 
   const lockfile = await project.readLockfile()
 
@@ -83,20 +113,26 @@ test('update: fail when both "latest" and "workspace" are true', async () => {
 
   let err!: PnpmError
   try {
-    await update.handler({
-      ...DEFAULT_OPTS,
-      dir: path.resolve('project-1'),
-      latest: true,
-      linkWorkspacePackages: false,
-      saveWorkspaceProtocol: false,
-      workspace: true,
-      workspaceDir: process.cwd(),
-    }, ['project-2'])
-  } catch (_err: any) { // eslint-disable-line
+    await update.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: path.resolve('project-1'),
+        latest: true,
+        linkWorkspacePackages: false,
+        saveWorkspaceProtocol: false,
+        workspace: true,
+        workspaceDir: process.cwd(),
+      },
+      ['project-2']
+    )
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_BAD_OPTIONS')
-  expect(err.message).toBe('Cannot use --latest with --workspace simultaneously')
+  expect(err.message).toBe(
+    'Cannot use --latest with --workspace simultaneously'
+  )
 })
 
 test('update --latest forbids specs', async () => {
@@ -104,17 +140,23 @@ test('update --latest forbids specs', async () => {
 
   let err!: PnpmError
   try {
-    await update.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      latest: true,
-      workspaceDir: process.cwd(),
-    }, ['foo@latest', 'bar@next', 'baz'])
-  } catch (_err: any) { // eslint-disable-line
+    await update.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        latest: true,
+        workspaceDir: process.cwd(),
+      },
+      ['foo@latest', 'bar@next', 'baz']
+    )
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_LATEST_WITH_SPEC')
-  expect(err.message).toBe('Specs are not allowed to be used with --latest (foo@latest, bar@next)')
+  expect(err.message).toBe(
+    'Specs are not allowed to be used with --latest (foo@latest, bar@next)'
+  )
 })
 
 describe('update by package name', () => {
@@ -133,29 +175,42 @@ describe('update by package name', () => {
   it("should fail when the package isn't in the direct dependencies and depth is 0", async () => {
     let err!: PnpmError
     try {
-      await update.handler({
-        ...DEFAULT_OPTS,
-        depth: 0,
-        dir: process.cwd(),
-        sharedWorkspaceLockfile: true,
-      }, ['@pnpm.e2e/peer-b'])
-    } catch (_err: any) { // eslint-disable-line
+      await update.handler(
+        {
+          ...DEFAULT_OPTS,
+          depth: 0,
+          dir: process.cwd(),
+          sharedWorkspaceLockfile: true,
+        },
+        ['@pnpm.e2e/peer-b']
+      )
+    } catch (_err: unknown) {
+      // @ts-ignore
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
-    expect(err.message).toBe('None of the specified packages were found in the dependencies.')
+    expect(err.message).toBe(
+      'None of the specified packages were found in the dependencies.'
+    )
   })
   it("shouldn't fail when the package isn't in the direct dependencies", async () => {
-    await update.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      sharedWorkspaceLockfile: true,
-    }, ['@pnpm.e2e/peer-b'])
+    await update.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        sharedWorkspaceLockfile: true,
+      },
+      ['@pnpm.e2e/peer-b']
+    )
   })
 })
 
 test('update --no-save should not update package.json and pnpm-lock.yaml', async () => {
-  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/peer-a',
+    version: '1.0.0',
+    distTag: 'latest',
+  })
 
   const project = prepare({
     dependencies: {
@@ -177,14 +232,21 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
     expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.0']).toBeTruthy()
   }
 
-  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/peer-a',
+    version: '1.0.1',
+    distTag: 'latest',
+  })
 
-  await update.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    latest: true,
-    save: false,
-  }, [])
+  await update.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      latest: true,
+      save: false,
+    },
+    []
+  )
 
   {
     const manifest = await loadJsonFile<ProjectManifest>('package.json')
@@ -198,9 +260,21 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
 
 // fix: https://github.com/pnpm/pnpm/issues/4196
 test('update should work normal when set empty string version', async () => {
-  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/peer-a',
+    version: '1.0.1',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/peer-c',
+    version: '2.0.0',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/foo',
+    version: '2.0.0',
+    distTag: 'latest',
+  })
 
   const project = prepare({
     dependencies: {
@@ -217,11 +291,14 @@ test('update should work normal when set empty string version', async () => {
     dir: process.cwd(),
   })
 
-  await update.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    latest: true,
-  }, ['*'])
+  await update.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      latest: true,
+    },
+    ['*']
+  )
 
   const lockfile = await project.readLockfile()
   expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
@@ -233,9 +310,21 @@ test('update should work normal when set empty string version', async () => {
 })
 
 test('ignore packages in package.json > updateConfig.ignoreDependencies fields in update command', async () => {
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/qar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/foo',
+    version: '100.0.0',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/bar',
+    version: '100.0.0',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/qar',
+    version: '100.0.0',
+    distTag: 'latest',
+  })
 
   const project = prepare({
     dependencies: {
@@ -245,10 +334,7 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
     },
     pnpm: {
       updateConfig: {
-        ignoreDependencies: [
-          '@pnpm.e2e/foo',
-          '@pnpm.e2e/bar',
-        ],
+        ignoreDependencies: ['@pnpm.e2e/foo', '@pnpm.e2e/bar'],
       },
     },
   })
@@ -264,9 +350,21 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
   expect(lockfile.packages['/@pnpm.e2e/bar@100.0.0']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/qar@100.0.0']).toBeTruthy()
 
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/qar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/foo',
+    version: '100.1.0',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/bar',
+    version: '100.1.0',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/qar',
+    version: '100.1.0',
+    distTag: 'latest',
+  })
 
   await update.handler({
     ...DEFAULT_OPTS,
@@ -282,8 +380,16 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
 })
 
 test('not ignore packages if these are specified in parameter even if these are listed in package.json > pnpm.update.ignoreDependencies fields in update command', async () => {
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/foo',
+    version: '100.0.0',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/bar',
+    version: '100.0.0',
+    distTag: 'latest',
+  })
 
   const project = prepare({
     dependencies: {
@@ -292,9 +398,7 @@ test('not ignore packages if these are specified in parameter even if these are 
     },
     pnpm: {
       updateConfig: {
-        ignoreDependencies: [
-          '@pnpm.e2e/foo',
-        ],
+        ignoreDependencies: ['@pnpm.e2e/foo'],
       },
     },
   })
@@ -309,13 +413,24 @@ test('not ignore packages if these are specified in parameter even if these are 
   expect(lockfile.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/bar@100.0.0']).toBeTruthy()
 
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/foo',
+    version: '100.1.0',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/bar',
+    version: '100.1.0',
+    distTag: 'latest',
+  })
 
-  await update.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-  }, ['@pnpm.e2e/foo@latest', '@pnpm.e2e/bar@latest'])
+  await update.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    },
+    ['@pnpm.e2e/foo@latest', '@pnpm.e2e/bar@latest']
+  )
 
   const lockfileUpdated = await project.readLockfile()
 
@@ -323,8 +438,12 @@ test('not ignore packages if these are specified in parameter even if these are 
   expect(lockfileUpdated.packages['/@pnpm.e2e/bar@100.1.0']).toBeTruthy()
 })
 
-test('do not update anything if all the dependencies are ignored and trying to update to latest', async () => {
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+test('do not update unknownthing if all the dependencies are ignored and trying to update to latest', async () => {
+  await addDistTag({
+    package: '@pnpm.e2e/foo',
+    version: '100.1.0',
+    distTag: 'latest',
+  })
 
   const project = prepare({
     dependencies: {
@@ -332,9 +451,7 @@ test('do not update anything if all the dependencies are ignored and trying to u
     },
     pnpm: {
       updateConfig: {
-        ignoreDependencies: [
-          '@pnpm.e2e/foo',
-        ],
+        ignoreDependencies: ['@pnpm.e2e/foo'],
       },
     },
   })
@@ -344,20 +461,35 @@ test('do not update anything if all the dependencies are ignored and trying to u
     dir: process.cwd(),
   })
 
-  await update.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    latest: true,
-  }, [])
+  await update.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      latest: true,
+    },
+    []
+  )
 
   const lockfileUpdated = await project.readLockfile()
   expect(lockfileUpdated.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
 })
 
 test('should not update tag version when --latest not set', async () => {
-  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'canary' })
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/peer-a',
+    version: '1.0.1',
+    distTag: 'latest',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/peer-c',
+    version: '2.0.0',
+    distTag: 'canary',
+  })
+  await addDistTag({
+    package: '@pnpm.e2e/foo',
+    version: '2.0.0',
+    distTag: 'latest',
+  })
 
   prepare({
     dependencies: {

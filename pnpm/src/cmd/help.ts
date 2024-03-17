@@ -1,7 +1,7 @@
 import { packageManager } from '@pnpm/cli-meta'
 import renderHelp from 'render-help'
 
-export function createHelp (helpByCommandName: Record<string, () => string>) {
+export function createHelp(helpByCommandName: Record<string, () => string>) {
   return function (opts: unknown, params: string[]) {
     let helpText!: string
     if (params.length === 0) {
@@ -11,13 +11,19 @@ export function createHelp (helpByCommandName: Record<string, () => string>) {
     } else {
       helpText = `No results for "${params[0]}"`
     }
+
     return `Version ${packageManager.version}\
-${process['pkg'] != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
+${
+  // @ts-ignore
+  process.pkg != null
+    ? ` (compiled to binary; bundled Node.js ${process.version})`
+    : ''
+}\
 \n${helpText}\n`
   }
 }
 
-function getHelpText () {
+function getHelpText() {
   return renderHelp({
     descriptionLists: [
       {
@@ -30,16 +36,19 @@ function getHelpText () {
             shortAlias: 'i',
           },
           {
-            description: 'Installs a package and any packages that it depends on. By default, any new package is installed as a prod dependency',
+            description:
+              'Installs a package and any packages that it depends on. By default, any new package is installed as a prod dependency',
             name: 'add',
           },
           {
-            description: 'Updates packages to their latest version based on the specified range',
+            description:
+              'Updates packages to their latest version based on the specified range',
             name: 'update',
             shortAlias: 'up',
           },
           {
-            description: 'Removes packages from node_modules and from the project\'s package.json',
+            description:
+              "Removes packages from node_modules and from the project's package.json",
             name: 'remove',
             shortAlias: 'rm',
           },
@@ -49,15 +58,18 @@ function getHelpText () {
             shortAlias: 'ln',
           },
           {
-            description: 'Unlinks a package. Like yarn unlink but pnpm re-installs the dependency after removing the external link',
+            description:
+              'Unlinks a package. Like yarn unlink but pnpm re-installs the dependency after removing the external link',
             name: 'unlink',
           },
           {
-            description: 'Generates a pnpm-lock.yaml from an npm package-lock.json (or npm-shrinkwrap.json) file',
+            description:
+              'Generates a pnpm-lock.yaml from an npm package-lock.json (or npm-shrinkwrap.json) file',
             name: 'import',
           },
           {
-            description: 'Runs a pnpm install followed immediately by a pnpm test',
+            description:
+              'Runs a pnpm install followed immediately by a pnpm test',
             name: 'install-test',
             shortAlias: 'it',
           },
@@ -77,11 +89,13 @@ function getHelpText () {
 
         list: [
           {
-            description: 'Checks for known security issues with the installed packages',
+            description:
+              'Checks for known security issues with the installed packages',
             name: 'audit',
           },
           {
-            description: 'Print all the versions of packages that are installed, as well as their dependencies, in a tree-structure',
+            description:
+              'Print all the versions of packages that are installed, as well as their dependencies, in a tree-structure',
             name: 'list',
             shortAlias: 'ls',
           },
@@ -113,7 +127,8 @@ function getHelpText () {
             shortAlias: 't',
           },
           {
-            description: 'Runs an arbitrary command specified in the package\'s "start" property of its "scripts" object',
+            description:
+              'Runs an arbitrary command specified in the package\'s "start" property of its "scripts" object',
             name: 'start',
           },
         ],
@@ -133,15 +148,18 @@ function getHelpText () {
             name: 'root',
           },
           {
-            description: 'Prints the index file of a specific package from the store',
+            description:
+              'Prints the index file of a specific package from the store',
             name: 'cat-index',
           },
           {
-            description: 'Prints the contents of a file based on the hash value stored in the index file',
+            description:
+              'Prints the contents of a file based on the hash value stored in the index file',
             name: 'cat-file',
           },
           {
-            description: 'Experimental! Lists the packages that include the file with the specified hash.',
+            description:
+              'Experimental! Lists the packages that include the file with the specified hash.',
             name: 'find-hash',
           },
         ],
@@ -151,7 +169,8 @@ function getHelpText () {
 
         list: [
           {
-            description: 'Adds new packages to the pnpm store directly. Does not modify any projects or files outside the store',
+            description:
+              'Adds new packages to the pnpm store directly. Does not modify any projects or files outside the store',
             name: 'store add',
           },
           {
@@ -159,7 +178,8 @@ function getHelpText () {
             name: 'store path',
           },
           {
-            description: 'Removes unreferenced (extraneous, orphan) packages from the store',
+            description:
+              'Removes unreferenced (extraneous, orphan) packages from the store',
             name: 'store prune',
           },
           {

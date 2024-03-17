@@ -39,7 +39,7 @@
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
-    "@rushstack/worker-pool": "0.4.9",
+    "@rushstack/worker-pool": "0.4.38",
     "load-json-file": "^6.2.0"
   },
   "devDependencies": {

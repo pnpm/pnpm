@@ -18,13 +18,20 @@ type ChoiceGroup = Array<{
   disabled?: boolean
 }>
 
-export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], workspacesEnabled: boolean) {
+export function getUpdateChoices(
+  outdatedPkgsOfProjects: OutdatedPackage[],
+  workspacesEnabled: boolean
+) {
   if (isEmpty(outdatedPkgsOfProjects)) {
     return []
   }
 
   const pkgUniqueKey = (outdatedPkg: OutdatedPackage) => {
-    return JSON.stringify([outdatedPkg.packageName, outdatedPkg.latestManifest?.version, outdatedPkg.current])
+    return JSON.stringify([
+      outdatedPkg.packageName,
+      outdatedPkg.latestManifest?.version,
+      outdatedPkg.current,
+    ])
   }
 
   const dedupeAndGroupPkgs = pipe(
@@ -45,50 +52,64 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
   // returns only the keys that are true
   const header: string[] = Object.keys(pickBy(and, headerRow))
 
-  return Object.entries(groupPkgsByType).reduce((finalChoices: ChoiceGroup, [depGroup, choiceRows]) => {
-    if (choiceRows.length === 0) {
-      return finalChoices
-    }
+  return Object.entries(groupPkgsByType).reduce(
+    (finalChoices: ChoiceGroup, [depGroup, choiceRows]) => {
+      if (choiceRows.length === 0) {
+        return finalChoices
+      }
 
-    const rawChoices = choiceRows.map(choice => buildPkgChoice(choice, workspacesEnabled))
-    // add in a header row for each group
-    rawChoices.unshift({
-      raw: header,
-      name: '',
-      disabled: true,
-    })
-    const renderedTable = alignColumns(pluck('raw', rawChoices)).filter(Boolean)
+      const rawChoices = choiceRows.map((choice) =>
+        buildPkgChoice(choice, workspacesEnabled)
+      )
+      // add in a header row for each group
+      rawChoices.unshift({
+        raw: header,
+        name: '',
+        disabled: true,
+      })
+      const renderedTable = alignColumns(pluck('raw', rawChoices)).filter(
+        Boolean
+      )
 
-    const choices = rawChoices.map((outdatedPkg, i) => {
-      if (i === 0) {
-        return {
-          name: renderedTable[i],
-          value: '',
-          disabled: true,
-          hint: '',
+      const choices = rawChoices.map((outdatedPkg, i) => {
+        if (i === 0) {
+          return {
+            name: renderedTable[i],
+            value: '',
+            disabled: true,
+            hint: '',
+          }
         }
-      }
-      return {
-        name: outdatedPkg.name,
-        message: renderedTable[i],
-        value: outdatedPkg.name,
-      }
-    })
+        return {
+          name: outdatedPkg.name,
+          message: renderedTable[i],
+          value: outdatedPkg.name,
+        }
+      })
 
-    // To filter out selected "dependencies" or "devDependencies" in the final output,
-    // we rename it here to "[dependencies]" or "[devDependencies]",
-    // which will be filtered out in the format function of the prompt.
-    finalChoices.push({ name: `[${depGroup}]`, choices, message: depGroup })
+      // To filter out selected "dependencies" or "devDependencies" in the final output,
+      // we rename it here to "[dependencies]" or "[devDependencies]",
+      // which will be filtered out in the format function of the prompt.
+      finalChoices.push({ name: `[${depGroup}]`, choices, message: depGroup })
 
-    return finalChoices
-  }, [])
+      return finalChoices
+    },
+    []
+  )
 }
 
-function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): { raw: string[], name: string, disabled?: boolean } {
-  const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
-  const nextVersion = sdiff.change === null
-    ? outdatedPkg.latestManifest!.version
-    : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+function buildPkgChoice(
+  outdatedPkg: OutdatedPackage,
+  workspacesEnabled: boolean
+): { raw: string[]; name: string; disabled?: boolean } {
+  const sdiff = semverDiff(
+    outdatedPkg.wanted,
+    outdatedPkg.latestManifest!.version
+  )
+  const nextVersion =
+    sdiff.change === null
+      ? outdatedPkg.latestManifest!.version
+      : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const label = outdatedPkg.packageName
 
   const lineParts = {
@@ -110,7 +131,7 @@ function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolea
   }
 }
 
-function getPkgUrl (pkg: OutdatedPackage) {
+function getPkgUrl(pkg: OutdatedPackage) {
   if (pkg.latestManifest?.homepage) {
     return pkg.latestManifest?.homepage
   }
@@ -124,25 +145,21 @@ function getPkgUrl (pkg: OutdatedPackage) {
   return ''
 }
 
-function alignColumns (rows: string[][]) {
-  return table(
-    rows,
-    {
-      border: getBorderCharacters('void'),
-      columnDefault: {
-        paddingLeft: 0,
-        paddingRight: 1,
-        wrapWord: true,
-      },
-      columns:
-          {
-            0: { width: 50, truncate: 100 },
-            1: { width: 15, alignment: 'right' },
-            3: { width: 15 },
-            4: { paddingLeft: 2 },
-            5: { paddingLeft: 2 },
-          },
-      drawHorizontalLine: () => false,
-    }
-  ).split('\n')
+function alignColumns(rows: string[][]) {
+  return table(rows, {
+    border: getBorderCharacters('void'),
+    columnDefault: {
+      paddingLeft: 0,
+      paddingRight: 1,
+      wrapWord: true,
+    },
+    columns: {
+      0: { width: 50, truncate: 100 },
+      1: { width: 15, alignment: 'right' },
+      3: { width: 15 },
+      4: { paddingLeft: 2 },
+      5: { paddingLeft: 2 },
+    },
+    drawHorizontalLine: () => false,
+  }).split('\n')
 }

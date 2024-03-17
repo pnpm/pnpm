@@ -26,7 +26,8 @@ test('recursive linking/unlinking', async () => {
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await readProjects(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -39,31 +40,42 @@ test('recursive linking/unlinking', async () => {
   })
 
   expect(projects['is-positive'].requireModule('is-negative')).toBeTruthy()
-  expect(projects['project-1'].requireModule('is-positive/package.json').author).toBeFalsy()
+  expect(
+    projects['project-1'].requireModule('is-positive/package.json').author
+  ).toBeFalsy()
 
   {
     const project1Lockfile = await projects['project-1'].readLockfile()
-    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('link:../is-positive')
+    expect(project1Lockfile.devDependencies['is-positive'].version).toBe(
+      'link:../is-positive'
+    )
   }
 
-  await unlink.handler({
-    ...DEFAULT_OPTS,
-    allProjects,
-    allProjectsGraph,
-    dir: process.cwd(),
-    recursive: true,
-    saveWorkspaceProtocol: false,
-    selectedProjectsGraph,
-    workspaceDir: process.cwd(),
-  }, [])
+  await unlink.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      recursive: true,
+      saveWorkspaceProtocol: false,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    },
+    []
+  )
 
   process.chdir('project-1')
-  expect(await exists(path.resolve('node_modules', 'is-positive', 'index.js'))).toBeTruthy()
+  expect(
+    await exists(path.resolve('node_modules', 'is-positive', 'index.js'))
+  ).toBeTruthy()
 
   {
     const project1Lockfile = await projects['project-1'].readLockfile()
     expect(project1Lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
-    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('1.0.0')
+    expect(project1Lockfile.devDependencies['is-positive'].version).toBe(
+      '1.0.0'
+    )
     expect(project1Lockfile.packages['/is-positive@1.0.0']).toBeTruthy()
   }
 
@@ -91,7 +103,8 @@ test('recursive unlink specific package', async () => {
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await readProjects(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -104,31 +117,42 @@ test('recursive unlink specific package', async () => {
   })
 
   expect(projects['is-positive'].requireModule('is-negative')).toBeTruthy()
-  expect(projects['project-1'].requireModule('is-positive/package.json').author).toBeFalsy()
+  expect(
+    projects['project-1'].requireModule('is-positive/package.json').author
+  ).toBeFalsy()
 
   {
     const project1Lockfile = await projects['project-1'].readLockfile()
-    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('link:../is-positive')
+    expect(project1Lockfile.devDependencies['is-positive'].version).toBe(
+      'link:../is-positive'
+    )
   }
 
-  await unlink.handler({
-    ...DEFAULT_OPTS,
-    allProjects,
-    allProjectsGraph,
-    dir: process.cwd(),
-    recursive: true,
-    saveWorkspaceProtocol: false,
-    selectedProjectsGraph,
-    workspaceDir: process.cwd(),
-  }, ['is-positive'])
+  await unlink.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      recursive: true,
+      saveWorkspaceProtocol: false,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    },
+    ['is-positive']
+  )
 
   process.chdir('project-1')
-  expect(await exists(path.resolve('node_modules', 'is-positive', 'index.js'))).toBeTruthy()
+  expect(
+    await exists(path.resolve('node_modules', 'is-positive', 'index.js'))
+  ).toBeTruthy()
 
   {
     const project1Lockfile = await projects['project-1'].readLockfile()
     expect(project1Lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
-    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('1.0.0')
+    expect(project1Lockfile.devDependencies['is-positive'].version).toBe(
+      '1.0.0'
+    )
     expect(project1Lockfile.packages['/is-positive@1.0.0']).toBeTruthy()
   }
 

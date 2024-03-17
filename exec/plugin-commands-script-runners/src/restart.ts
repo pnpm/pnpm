@@ -8,40 +8,34 @@ import {
   type RunOpts,
 } from './run'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes() {
   return {
-    ...pick([
-      'npm-path',
-    ], allTypes),
+    ...pick(['npm-path'], allTypes),
   }
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return IF_PRESENT_OPTION
 }
 
 export const commandNames = ['restart']
 
-export function help () {
+export function help() {
   return renderHelp({
-    description: 'Restarts a package. Runs a package\'s "stop", "restart", and "start" scripts, and associated pre- and post- scripts.',
+    description:
+      'Restarts a package. Runs a package\'s "stop", "restart", and "start" scripts, and associated pre- and post- scripts.',
     descriptionLists: [
       {
         title: 'Options',
 
-        list: [
-          IF_PRESENT_OPTION_HELP,
-        ],
+        list: [IF_PRESENT_OPTION_HELP],
       },
     ],
     usages: ['pnpm restart [-- <args>...]'],
   })
 }
 
-export async function handler (
-  opts: RunOpts,
-  params: string[]
-) {
+export async function handler(opts: RunOpts, params: string[]) {
   await run(opts, ['stop', ...params])
   await run(opts, ['restart', ...params])
   await run(opts, ['start', ...params])

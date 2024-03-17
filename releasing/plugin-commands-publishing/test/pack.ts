@@ -24,10 +24,13 @@ test('pack: package with package.json', async () => {
 })
 
 test('pack: package with package.yaml', async () => {
-  prepare({
-    name: 'test-publish-package.yaml',
-    version: '0.0.0',
-  }, { manifestFormat: 'YAML' })
+  prepare(
+    {
+      name: 'test-publish-package.yaml',
+      version: '0.0.0',
+    },
+    { manifestFormat: 'YAML' }
+  )
 
   await pack.handler({
     ...DEFAULT_OPTS,
@@ -42,10 +45,13 @@ test('pack: package with package.yaml', async () => {
 })
 
 test('pack: package with package.json5', async () => {
-  prepare({
-    name: 'test-publish-package.json5',
-    version: '0.0.0',
-  }, { manifestFormat: 'JSON5' })
+  prepare(
+    {
+      name: 'test-publish-package.json5',
+      version: '0.0.0',
+    },
+    { manifestFormat: 'JSON5' }
+  )
 
   await pack.handler({
     ...DEFAULT_OPTS,
@@ -81,12 +87,14 @@ test('pack a package without package name', async () => {
     version: '0.0.0',
   })
 
-  await expect(pack.handler({
-    ...DEFAULT_OPTS,
-    argv: { original: [] },
-    dir: process.cwd(),
-    extraBinPaths: [],
-  })).rejects.toThrow('Package name is not defined in the package.json.')
+  await expect(
+    pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+    })
+  ).rejects.toThrow('Package name is not defined in the package.json.')
 })
 
 test('pack a package without package version', async () => {
@@ -95,12 +103,14 @@ test('pack a package without package version', async () => {
     version: undefined,
   })
 
-  await expect(pack.handler({
-    ...DEFAULT_OPTS,
-    argv: { original: [] },
-    dir: process.cwd(),
-    extraBinPaths: [],
-  })).rejects.toThrow('Package version is not defined in the package.json.')
+  await expect(
+    pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+    })
+  ).rejects.toThrow('Package version is not defined in the package.json.')
 })
 
 test('pack: runs prepack, prepare, and postpack', async () => {
@@ -108,9 +118,9 @@ test('pack: runs prepack, prepare, and postpack', async () => {
     name: 'test-publish-package.json',
     version: '0.0.0',
     scripts: {
-      prepack: 'node -e "require(\'fs\').writeFileSync(\'prepack\', \'\')"',
-      prepare: 'node -e "require(\'fs\').writeFileSync(\'prepare\', \'\')"',
-      postpack: 'node -e "require(\'fs\').writeFileSync(\'postpack\', \'\')"',
+      prepack: "node -e \"require('fs').writeFileSync('prepack', '')\"",
+      prepare: "node -e \"require('fs').writeFileSync('prepare', '')\"",
+      postpack: "node -e \"require('fs').writeFileSync('postpack', '')\"",
     },
   })
 
@@ -129,32 +139,35 @@ test('pack: runs prepack, prepare, and postpack', async () => {
 
 const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 
-;(process.platform === 'win32' ? test.skip : test)('the mode of executable is changed', async () => {
-  tempDir()
+;(process.platform === 'win32' ? test.skip : test)(
+  'the mode of executable is changed',
+  async () => {
+    tempDir()
 
-  await pack.handler({
-    ...DEFAULT_OPTS,
-    argv: { original: [] },
-    dir: path.join(__dirname, '../fixtures/has-bin'),
-    extraBinPaths: [],
-    packDestination: process.cwd(),
-  })
+    await pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: path.join(__dirname, '../fixtures/has-bin'),
+      extraBinPaths: [],
+      packDestination: process.cwd(),
+    })
 
-  await tar.x({ file: 'has-bin-0.0.0.tgz' })
+    await tar.x({ file: 'has-bin-0.0.0.tgz' })
 
-  {
-    const stat = fs.statSync(path.resolve('package/exec'))
-    expect(modeIsExecutable(stat.mode)).toBeTruthy()
+    {
+      const stat = fs.statSync(path.resolve('package/exec'))
+      expect(modeIsExecutable(stat.mode)).toBeTruthy()
+    }
+    {
+      const stat = fs.statSync(path.resolve('package/other-exec'))
+      expect(modeIsExecutable(stat.mode)).toBeTruthy()
+    }
+    {
+      const stat = fs.statSync(path.resolve('package/index.js'))
+      expect(modeIsExecutable(stat.mode)).toBeFalsy()
+    }
   }
-  {
-    const stat = fs.statSync(path.resolve('package/other-exec'))
-    expect(modeIsExecutable(stat.mode)).toBeTruthy()
-  }
-  {
-    const stat = fs.statSync(path.resolve('package/index.js'))
-    expect(modeIsExecutable(stat.mode)).toBeFalsy()
-  }
-})
+)
 
 test('pack: should embed readme', async () => {
   tempDir()
@@ -216,7 +229,9 @@ test('pack: remove publishConfig', async () => {
 
   await tar.x({ file: 'remove-publish-config-0.0.0.tgz' })
 
-  expect((await import(path.resolve('package/package.json'))).default).toStrictEqual({
+  expect(
+    (await import(path.resolve('package/package.json'))).default
+  ).toStrictEqual({
     name: 'remove-publish-config',
     version: '0.0.0',
     main: 'index.js',
@@ -239,7 +254,11 @@ test('pack should read from the correct node_modules when publishing from a cust
   fs.mkdirSync('dist')
   fs.copyFileSync('package.json', 'dist/package.json')
   fs.mkdirSync('node_modules/local', { recursive: true })
-  fs.writeFileSync('node_modules/local/package.json', JSON.stringify({ name: 'local', version: '1.0.0' }), 'utf8')
+  fs.writeFileSync(
+    'node_modules/local/package.json',
+    JSON.stringify({ name: 'local', version: '1.0.0' }),
+    'utf8'
+  )
 
   await pack.handler({
     ...DEFAULT_OPTS,
@@ -251,7 +270,9 @@ test('pack should read from the correct node_modules when publishing from a cust
 
   await tar.x({ file: 'custom-publish-dir-0.0.0.tgz' })
 
-  expect((await import(path.resolve('package/package.json'))).default).toStrictEqual({
+  expect(
+    (await import(path.resolve('package/package.json'))).default
+  ).toStrictEqual({
     name: 'custom-publish-dir',
     version: '0.0.0',
     dependencies: {
@@ -305,8 +326,12 @@ test('pack: custom pack-gzip-level', async () => {
     packDestination: path.resolve('../big'),
   })
 
-  const tgz1 = fs.statSync(path.resolve('../small/test-publish-package.json-0.0.0.tgz'))
-  const tgz2 = fs.statSync(path.resolve('../big/test-publish-package.json-0.0.0.tgz'))
+  const tgz1 = fs.statSync(
+    path.resolve('../small/test-publish-package.json-0.0.0.tgz')
+  )
+  const tgz2 = fs.statSync(
+    path.resolve('../big/test-publish-package.json-0.0.0.tgz')
+  )
   expect(tgz1.size).not.toEqual(tgz2.size)
 })
 
@@ -316,9 +341,7 @@ test('pack: should resolve correct files from publishConfig', async () => {
     version: '0.0.0',
     main: './index.ts',
     bin: './bin.js',
-    files: [
-      './a.js',
-    ],
+    files: ['./a.js'],
     publishConfig: {
       main: './dist-index.js',
       bin: './dist-bin.js',
@@ -353,9 +376,7 @@ test('pack: modify manifest in prepack script', async () => {
     version: '0.0.0',
     main: './src/index.ts',
     bin: './src/bin.js',
-    files: [
-      'dist',
-    ],
+    files: ['dist'],
     scripts: {
       prepack: 'node ./prepack.js',
     },
@@ -366,7 +387,9 @@ test('pack: modify manifest in prepack script', async () => {
   fs.mkdirSync('./dist')
   fs.writeFileSync('./dist/index.js', 'index', 'utf8')
   fs.writeFileSync('./dist/bin.js', 'bin', 'utf8')
-  fs.writeFileSync('./prepack.js', `
+  fs.writeFileSync(
+    './prepack.js',
+    `
   require('fs').writeFileSync('./package.json',
     JSON.stringify({
       name: 'custom-publish-dir',
@@ -377,7 +400,9 @@ test('pack: modify manifest in prepack script', async () => {
         'dist'
       ]
     }, null, 2), 'utf8')
-  `, 'utf8')
+  `,
+    'utf8'
+  )
 
   await pack.handler({
     ...DEFAULT_OPTS,

@@ -12,7 +12,7 @@ import { parseJsonBufferSync } from './parseJson'
 // If it happens too frequently, something is wrong.
 // Checking a file's integrity is an expensive operation!
 // @ts-expect-error
-global['verifiedFileIntegrity'] = 0
+global.verifiedFileIntegrity = 0
 
 export interface VerifyResult {
   passed: boolean
@@ -31,7 +31,7 @@ export interface PackageFilesIndex {
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
 }
 
-export function checkPkgFilesIntegrity (
+export function checkPkgFilesIntegrity(
   cafsDir: string,
   pkgIndex: PackageFilesIndex,
   readManifest?: boolean
@@ -40,14 +40,20 @@ export function checkPkgFilesIntegrity (
   // but there's a smaller chance that the same file will be checked twice
   // so it's probably not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
-  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, cafsDir)
+  const _checkFilesIntegrity = checkFilesIntegrity.bind(
+    null,
+    verifiedFilesCache,
+    cafsDir
+  )
   const verified = _checkFilesIntegrity(pkgIndex.files, readManifest)
   if (!verified) return { passed: false }
   if (pkgIndex.sideEffects) {
     // We verify all side effects cache. We could optimize it to verify only the side effects cache
     // that satisfies the current os/arch/platform.
     // However, it likely won't make a big difference.
-    for (const [sideEffectName, files] of Object.entries(pkgIndex.sideEffects)) {
+    for (const [sideEffectName, files] of Object.entries(
+      pkgIndex.sideEffects
+    )) {
       const { passed } = _checkFilesIntegrity(files)
       if (!passed) {
         delete pkgIndex.sideEffects![sideEffectName]
@@ -57,7 +63,7 @@ export function checkPkgFilesIntegrity (
   return verified
 }
 
-function checkFilesIntegrity (
+function checkFilesIntegrity(
   verifiedFilesCache: Set<string>,
   cafsDir: string,
   files: Record<string, PackageFileInfo>,
@@ -69,7 +75,11 @@ function checkFilesIntegrity (
     if (!fstat.integrity) {
       throw new Error(`Integrity checksum is missing for ${f}`)
     }
-    const filename = getFilePathByModeInCafs(cafsDir, fstat.integrity, fstat.mode)
+    const filename = getFilePathByModeInCafs(
+      cafsDir,
+      fstat.integrity,
+      fstat.mode
+    )
     const readFile = readManifest && f === 'package.json'
     if (!readFile && verifiedFilesCache.has(filename)) continue
     const verifyResult = verifyFile(filename, fstat, readFile)
@@ -92,7 +102,7 @@ type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt'> & {
   integrity: string | ssri.IntegrityLike
 }
 
-function verifyFile (
+function verifyFile(
   filename: string,
   fstat: FileInfo,
   readManifest?: boolean
@@ -117,13 +127,13 @@ function verifyFile (
   return { passed: true }
 }
 
-export function verifyFileIntegrity (
+export function verifyFileIntegrity(
   filename: string,
   expectedFile: FileInfo,
   readManifest?: boolean
 ): VerifyResult {
   // @ts-expect-error
-  global['verifiedFileIntegrity']++
+  global.verifiedFileIntegrity++
   try {
     const data = gfs.readFileSync(filename)
     const passed = Boolean(ssri.checkData(data, expectedFile.integrity))
@@ -139,22 +149,23 @@ export function verifyFileIntegrity (
     return { passed }
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
-    case 'ENOENT': return { passed: false }
-    case 'EINTEGRITY': {
-      // Broken files are removed from the store
-      gfs.unlinkSync(filename)
-      return { passed: false }
-    }
+      case 'ENOENT':
+        return { passed: false }
+      case 'EINTEGRITY': {
+        // Broken files are removed from the store
+        gfs.unlinkSync(filename)
+        return { passed: false }
+      }
     }
     throw err
   }
 }
 
-function checkFile (filename: string, checkedAt?: number) {
+function checkFile(filename: string, checkedAt?: number) {
   try {
     const { mtimeMs, size } = fs.statSync(filename)
     return {
-      isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
+      isModified: mtimeMs - (checkedAt ?? 0) > 100,
       size,
     }
   } catch (err: any) { // eslint-disable-line

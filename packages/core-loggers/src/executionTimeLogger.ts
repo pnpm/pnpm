@@ -1,7 +1,4 @@
-import {
-  type LogBase,
-  logger,
-} from '@pnpm/logger'
+import { type LogBase, logger } from '@pnpm/logger'
 
 export const executionTimeLogger = logger('execution-time')
 
@@ -10,4 +7,5 @@ export interface ExecutionTimeMessage {
   endedAt: number
 }
 
-export type ExecutionTimeLog = { name: 'pnpm:execution-time' } & LogBase & ExecutionTimeMessage
+export type ExecutionTimeLog = { name: 'pnpm:execution-time' } & LogBase &
+  ExecutionTimeMessage

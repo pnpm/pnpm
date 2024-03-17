@@ -2,7 +2,7 @@ import execa from 'execa'
 
 // git checks logic is from https://github.com/sindresorhus/np/blob/master/source/git-tasks.js
 
-export async function isGitRepo () {
+export async function isGitRepo() {
   try {
     await execa('git', ['rev-parse', '--git-dir'])
   } catch (_: any) { // eslint-disable-line
@@ -11,7 +11,7 @@ export async function isGitRepo () {
   return true
 }
 
-export async function getCurrentBranch () {
+export async function getCurrentBranch() {
   try {
     const { stdout } = await execa('git', ['symbolic-ref', '--short', 'HEAD'])
     return stdout
@@ -21,7 +21,7 @@ export async function getCurrentBranch () {
   }
 }
 
-export async function isWorkingTreeClean () {
+export async function isWorkingTreeClean() {
   try {
     const { stdout: status } = await execa('git', ['status', '--porcelain'])
     if (status !== '') {
@@ -33,10 +33,16 @@ export async function isWorkingTreeClean () {
   }
 }
 
-export async function isRemoteHistoryClean () {
+export async function isRemoteHistoryClean() {
   let history
-  try { // Gracefully handle no remote set up.
-    const { stdout } = await execa('git', ['rev-list', '--count', '--left-only', '@{u}...HEAD'])
+  try {
+    // Gracefully handle no remote set up.
+    const { stdout } = await execa('git', [
+      'rev-list',
+      '--count',
+      '--left-only',
+      '@{u}...HEAD',
+    ])
     history = stdout
   } catch (_: any) { // eslint-disable-line
     history = null

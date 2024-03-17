@@ -1,6 +1,9 @@
-import { type ProjectManifest, type DependenciesOrPeersField } from '@pnpm/types'
+import {
+  type ProjectManifest,
+  type DependenciesOrPeersField,
+} from '@pnpm/types'
 
-export function getDependencyTypeFromManifest (
+export function getDependencyTypeFromManifest(
   manifest: Pick<ProjectManifest, DependenciesOrPeersField>,
   depName: string
 ): DependenciesOrPeersField | null {

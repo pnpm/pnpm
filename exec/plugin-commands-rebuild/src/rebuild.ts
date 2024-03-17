@@ -8,25 +8,25 @@ import {
 } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import {
-  rebuildProjects,
-  rebuildSelectedPkgs,
-} from './implementation'
+import { rebuildProjects, rebuildSelectedPkgs } from './implementation'
 import { recursiveRebuild } from './recursive'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes() {
   return {
-    ...pick([
-      'npm-path',
-      'reporter',
-      'scripts-prepend-node-path',
-      'unsafe-perm',
-      'store-dir',
-    ], allTypes),
+    ...pick(
+      [
+        'npm-path',
+        'reporter',
+        'scripts-prepend-node-path',
+        'unsafe-perm',
+        'store-dir',
+      ],
+      allTypes
+    ),
   }
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return {
     ...rcOptionsTypes(),
     pending: Boolean,
@@ -36,7 +36,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['rebuild', 'rb']
 
-export function help () {
+export function help() {
   return renderHelp({
     aliases: ['rb'],
     description: 'Rebuild a package.',
@@ -46,18 +46,21 @@ export function help () {
 
         list: [
           {
-            description: 'Rebuild every package found in subdirectories \
+            description:
+              'Rebuild every package found in subdirectories \
 or every workspace package, when executed inside a workspace. \
 For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
             shortAlias: '-r',
           },
           {
-            description: 'Rebuild packages that were not build during installation. Packages are not build when installing with the --ignore-scripts flag',
+            description:
+              'Rebuild packages that were not build during installation. Packages are not build when installing with the --ignore-scripts flag',
             name: '--pending',
           },
           {
-            description: 'The directory in which all the packages are saved on the disk',
+            description:
+              'The directory in which all the packages are saved on the disk',
             name: '--store-dir <dir>',
           },
           ...UNIVERSAL_OPTIONS,
@@ -70,44 +73,54 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   })
 }
 
-export async function handler (
-  opts: Pick<Config,
-  | 'allProjects'
-  | 'dir'
-  | 'engineStrict'
-  | 'hooks'
-  | 'lockfileDir'
-  | 'nodeLinker'
-  | 'rawLocalConfig'
-  | 'rootProjectManifest'
-  | 'rootProjectManifestDir'
-  | 'registries'
-  | 'scriptShell'
-  | 'selectedProjectsGraph'
-  | 'sideEffectsCache'
-  | 'sideEffectsCacheReadonly'
-  | 'scriptsPrependNodePath'
-  | 'shellEmulator'
-  | 'workspaceDir'
+export async function handler(
+  opts: Pick<
+    Config,
+    | 'allProjects'
+    | 'dir'
+    | 'engineStrict'
+    | 'hooks'
+    | 'lockfileDir'
+    | 'nodeLinker'
+    | 'rawLocalConfig'
+    | 'rootProjectManifest'
+    | 'rootProjectManifestDir'
+    | 'registries'
+    | 'scriptShell'
+    | 'selectedProjectsGraph'
+    | 'sideEffectsCache'
+    | 'sideEffectsCacheReadonly'
+    | 'scriptsPrependNodePath'
+    | 'shellEmulator'
+    | 'workspaceDir'
   > &
-  CreateStoreControllerOptions &
-  {
-    recursive?: boolean
-    reporter?: (logObj: LogBase) => void
-    pending: boolean
-    skipIfHasSideEffectsCache?: boolean
-    neverBuiltDependencies?: string[]
-    onlyBuiltDependencies?: string[]
-  },
+    CreateStoreControllerOptions & {
+      recursive?: boolean
+      reporter?: (logObj: LogBase) => void
+      pending: boolean
+      skipIfHasSideEffectsCache?: boolean
+      neverBuiltDependencies?: string[]
+      onlyBuiltDependencies?: string[]
+    },
   params: string[]
 ) {
-  if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
-    await recursiveRebuild(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir })
+  if (
+    opts.recursive &&
+    opts.allProjects != null &&
+    opts.selectedProjectsGraph != null &&
+    opts.workspaceDir
+  ) {
+    await recursiveRebuild(opts.allProjects, params, {
+      ...opts,
+      selectedProjectsGraph: opts.selectedProjectsGraph,
+      workspaceDir: opts.workspaceDir,
+    })
     return
   }
   const store = await createOrConnectStoreController(opts)
   const rebuildOpts = Object.assign(opts, {
-    sideEffectsCacheRead: opts.sideEffectsCache ?? opts.sideEffectsCacheReadonly,
+    sideEffectsCacheRead:
+      opts.sideEffectsCache ?? opts.sideEffectsCacheReadonly,
     sideEffectsCacheWrite: opts.sideEffectsCache,
     storeController: store.ctrl,
     storeDir: store.dir,

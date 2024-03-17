@@ -1,6 +1,10 @@
-import { type Resolution, type GitResolution, type DirectoryResolution } from '@pnpm/resolver-base'
-import { type Cafs } from '@pnpm/cafs-types'
-import { type DependencyManifest } from '@pnpm/types'
+import type {
+  Resolution,
+  GitResolution,
+  DirectoryResolution,
+} from '@pnpm/resolver-base'
+import type{ Cafs } from '@pnpm/cafs-types'
+import type{ DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {
   name?: string
@@ -16,7 +20,11 @@ export interface FetchOptions {
   pkg: PkgNameVersion
 }
 
-export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = (
+export type FetchFunction<
+  FetcherResolution = Resolution,
+  Options = FetchOptions,
+  Result = FetchResult,
+> = (
   cafs: Cafs,
   resolution: FetcherResolution,
   opts: Options
@@ -34,7 +42,11 @@ export interface GitFetcherOptions {
   pkg?: PkgNameVersion
 }
 
-export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, { filesIndex: Record<string, string>, manifest?: DependencyManifest }>
+export type GitFetcher = FetchFunction<
+  GitResolution,
+  GitFetcherOptions,
+  { filesIndex: Record<string, string>; manifest?: DependencyManifest }
+>
 
 export interface DirectoryFetcherOptions {
   lockfileDir: string
@@ -48,7 +60,11 @@ export interface DirectoryFetcherResult {
   manifest?: DependencyManifest
 }
 
-export type DirectoryFetcher = FetchFunction<DirectoryResolution, DirectoryFetcherOptions, DirectoryFetcherResult>
+export type DirectoryFetcher = FetchFunction<
+  DirectoryResolution,
+  DirectoryFetcherOptions,
+  DirectoryFetcherResult
+>
 
 export interface Fetchers {
   localTarball: FetchFunction
@@ -58,11 +74,15 @@ export interface Fetchers {
   git: GitFetcher
 }
 
+export type FetchersKeys = keyof Fetchers
+
 interface CustomFetcherFactoryOptions {
   defaultFetchers: Fetchers
 }
 
-export type CustomFetcherFactory<Fetcher> = (opts: CustomFetcherFactoryOptions) => Fetcher
+export type CustomFetcherFactory<Fetcher> = (
+  opts: CustomFetcherFactoryOptions
+) => Fetcher
 
 export interface CustomFetchers {
   localTarball?: CustomFetcherFactory<FetchFunction>

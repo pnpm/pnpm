@@ -4,52 +4,58 @@ import { type Config } from '@pnpm/config'
 import { createPackageStore, type CafsLocker } from '@pnpm/package-store'
 import { packageManager } from '@pnpm/cli-meta'
 
-type CreateResolverOptions = Pick<Config,
-| 'fetchRetries'
-| 'fetchRetryFactor'
-| 'fetchRetryMaxtimeout'
-| 'fetchRetryMintimeout'
-| 'offline'
-| 'rawConfig'
-| 'verifyStoreIntegrity'
-> & Required<Pick<Config, 'cacheDir' | 'storeDir'>>
+type CreateResolverOptions = Pick<
+  Config,
+  | 'fetchRetries'
+  | 'fetchRetryFactor'
+  | 'fetchRetryMaxtimeout'
+  | 'fetchRetryMintimeout'
+  | 'offline'
+  | 'rawConfig'
+  | 'verifyStoreIntegrity'
+> &
+  Required<Pick<Config, 'cacheDir' | 'storeDir'>>
 
-export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
-| 'ca'
-| 'cert'
-| 'engineStrict'
-| 'force'
-| 'nodeVersion'
-| 'fetchTimeout'
-| 'gitShallowHosts'
-| 'ignoreScripts'
-| 'hooks'
-| 'httpProxy'
-| 'httpsProxy'
-| 'key'
-| 'localAddress'
-| 'maxSockets'
-| 'networkConcurrency'
-| 'noProxy'
-| 'offline'
-| 'packageImportMethod'
-| 'preferOffline'
-| 'registry'
-| 'registrySupportsTimeField'
-| 'resolutionMode'
-| 'strictSsl'
-| 'unsafePerm'
-| 'userAgent'
-| 'verifyStoreIntegrity'
-> & {
-  cafsLocker?: CafsLocker
-  ignoreFile?: (filename: string) => boolean
-} & Partial<Pick<Config, 'userConfig' | 'deployAllFiles'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
+export type CreateNewStoreControllerOptions = CreateResolverOptions &
+  Pick<
+    Config,
+    | 'ca'
+    | 'cert'
+    | 'engineStrict'
+    | 'force'
+    | 'nodeVersion'
+    | 'fetchTimeout'
+    | 'gitShallowHosts'
+    | 'ignoreScripts'
+    | 'hooks'
+    | 'httpProxy'
+    | 'httpsProxy'
+    | 'key'
+    | 'localAddress'
+    | 'maxSockets'
+    | 'networkConcurrency'
+    | 'noProxy'
+    | 'offline'
+    | 'packageImportMethod'
+    | 'preferOffline'
+    | 'registry'
+    | 'registrySupportsTimeField'
+    | 'resolutionMode'
+    | 'strictSsl'
+    | 'unsafePerm'
+    | 'userAgent'
+    | 'verifyStoreIntegrity'
+  > & {
+    cafsLocker?: CafsLocker
+    ignoreFile?: (filename: string) => boolean
+  } & Partial<Pick<Config, 'userConfig' | 'deployAllFiles'>> &
+  Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
-export async function createNewStoreController (
+export async function createNewStoreController(
   opts: CreateNewStoreControllerOptions
 ) {
-  const fullMetadata = opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
+  const fullMetadata =
+    opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
   const { resolve, fetchers } = createClient({
     customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
@@ -78,11 +84,11 @@ export async function createNewStoreController (
     strictSsl: opts.strictSsl ?? true,
     timeout: opts.fetchTimeout,
     userAgent: opts.userAgent,
-    maxSockets: opts.maxSockets ?? (
-      opts.networkConcurrency != null
-        ? (opts.networkConcurrency * 3)
-        : undefined
-    ),
+    maxSockets:
+      opts.maxSockets ??
+      (opts.networkConcurrency != null
+        ? opts.networkConcurrency * 3
+        : undefined),
     gitShallowHosts: opts.gitShallowHosts,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     includeOnlyPackageFiles: !opts.deployAllFiles,
@@ -101,9 +107,10 @@ export async function createNewStoreController (
       packageImportMethod: opts.packageImportMethod,
       cacheDir: opts.cacheDir,
       storeDir: opts.storeDir,
-      verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
-        ? opts.verifyStoreIntegrity
-        : true,
+      verifyStoreIntegrity:
+        typeof opts.verifyStoreIntegrity === 'boolean'
+          ? opts.verifyStoreIntegrity
+          : true,
     }),
     dir: opts.storeDir,
   }

@@ -4,7 +4,7 @@ import symlinkDir from 'symlink-dir'
 
 export { symlinkDirectRootDependency } from './symlinkDirectRootDependency'
 
-export async function symlinkDependency (
+export async function symlinkDependency(
   dependencyRealLocation: string,
   destModulesDir: string,
   importAs: string
@@ -14,7 +14,7 @@ export async function symlinkDependency (
   return symlinkDir(dependencyRealLocation, link)
 }
 
-export function symlinkDependencySync (
+export function symlinkDependencySync(
   dependencyRealLocation: string,
   destModulesDir: string,
   importAs: string

@@ -8,7 +8,7 @@ export interface RegistryPackageSpec {
   normalizedPref?: string
 }
 
-export function parsePref (
+export function parsePref(
   pref: string,
   alias: string | undefined,
   defaultTag: string,

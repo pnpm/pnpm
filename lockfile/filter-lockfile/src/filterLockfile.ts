@@ -1,17 +1,18 @@
-import { type Lockfile } from '@pnpm/lockfile-types'
+import type { Lockfile } from '@pnpm/lockfile-types'
 import { type DependenciesField } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 import { filterImporter } from './filterImporter'
 
-export function filterLockfile (
+export function filterLockfile(
   lockfile: Lockfile,
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean }
     skipped: Set<string>
   }
 ): Lockfile {
-  let pairs = Object.entries(lockfile.packages ?? {})
-    .filter(([depPath]) => !opts.skipped.has(depPath))
+  let pairs = Object.entries(lockfile.packages ?? {}).filter(
+    ([depPath]) => !opts.skipped.has(depPath)
+  )
   if (!opts.include.dependencies) {
     pairs = pairs.filter(([_, pkg]) => pkg.dev !== false || pkg.optional)
   }
@@ -23,7 +24,10 @@ export function filterLockfile (
   }
   return {
     ...lockfile,
-    importers: mapValues((importer) => filterImporter(importer, opts.include), lockfile.importers),
+    importers: mapValues(
+      (importer) => filterImporter(importer, opts.include),
+      lockfile.importers
+    ),
     packages: Object.fromEntries(pairs),
   }
 }

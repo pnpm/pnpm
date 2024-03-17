@@ -20,21 +20,37 @@ export interface MakePublishManifestOptions {
   readmeFile?: string
 }
 
-export async function createExportableManifest (
+export async function createExportableManifest(
   dir: string,
   originalManifest: ProjectManifest,
   opts?: MakePublishManifestOptions
 ) {
-  const publishManifest: ProjectManifest = omit(['pnpm', 'scripts'], originalManifest)
+  const publishManifest: ProjectManifest = omit(
+    ['pnpm', 'scripts'],
+    originalManifest
+  )
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
-  await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const).map(async (depsField) => {
-    const deps = await makePublishDependencies(dir, originalManifest[depsField], opts?.modulesDir)
-    if (deps != null) {
-      publishManifest[depsField] = deps
-    }
-  }))
+  await Promise.all(
+    (
+      [
+        'dependencies',
+        'devDependencies',
+        'optionalDependencies',
+        'peerDependencies',
+      ] as const
+    ).map(async (depsField) => {
+      const deps = await makePublishDependencies(
+        dir,
+        originalManifest[depsField],
+        opts?.modulesDir
+      )
+      if (deps != null) {
+        publishManifest[depsField] = deps
+      }
+    })
+  )
 
   overridePublishConfig(publishManifest)
 
@@ -45,20 +61,26 @@ export async function createExportableManifest (
   return publishManifest
 }
 
-async function makePublishDependencies (
+async function makePublishDependencies(
   dir: string,
   dependencies: Dependencies | undefined,
   modulesDir?: string
 ): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
   const publishDependencies = await pMapValues(
-    (depSpec, depName) => makePublishDependency(depName, depSpec, dir, modulesDir),
+    (depSpec, depName) =>
+      makePublishDependency(depName, depSpec, dir, modulesDir),
     dependencies
   )
   return publishDependencies
 }
 
-async function makePublishDependency (depName: string, depSpec: string, dir: string, modulesDir?: string) {
+async function makePublishDependency(
+  depName: string,
+  depSpec: string,
+  dir: string,
+  modulesDir?: string
+) {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
@@ -67,7 +89,9 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   const versionAliasSpecParts = /^workspace:(.*?)@?([\^~*])$/.exec(depSpec)
   if (versionAliasSpecParts != null) {
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
-    const { manifest } = await tryReadProjectManifest(path.join(modulesDir, depName))
+    const { manifest } = await tryReadProjectManifest(
+      path.join(modulesDir, depName)
+    )
     if (!manifest?.version) {
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
@@ -76,14 +100,20 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
       )
     }
 
-    const semverRangeToken = versionAliasSpecParts[2] !== '*' ? versionAliasSpecParts[2] : ''
+    const semverRangeToken =
+      versionAliasSpecParts[2] !== '*' ? versionAliasSpecParts[2] : ''
     if (depName !== manifest.name) {
       return `npm:${manifest.name!}@${semverRangeToken}${manifest.version}`
     }
     return `${semverRangeToken}${manifest.version}`
   }
-  if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
-    const { manifest } = await tryReadProjectManifest(path.join(dir, depSpec.slice(10)))
+  if (
+    depSpec.startsWith('workspace:./') ||
+    depSpec.startsWith('workspace:../')
+  ) {
+    const { manifest } = await tryReadProjectManifest(
+      path.join(dir, depSpec.slice(10))
+    )
     if (!manifest?.name || !manifest?.version) {
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',

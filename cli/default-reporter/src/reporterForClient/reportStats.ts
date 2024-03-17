@@ -5,13 +5,10 @@ import chalk from 'chalk'
 import repeat from 'ramda/src/repeat'
 import stringLength from 'string-length'
 import { EOL } from '../constants'
-import {
-  ADDED_CHAR,
-  REMOVED_CHAR,
-} from './outputConstants'
+import { ADDED_CHAR, REMOVED_CHAR } from './outputConstants'
 import { zoomOut } from './utils/zooming'
 
-export function reportStats (
+export function reportStats(
   log$: {
     stats: Rx.Observable<StatsLog>
   },
@@ -24,10 +21,12 @@ export function reportStats (
   }
 ) {
   if (opts.hideProgressPrefix) {
-    return [statsForCurrentPackage(log$.stats, {
-      cmd: opts.cmd,
-      width: opts.width,
-    })]
+    return [
+      statsForCurrentPackage(log$.stats, {
+        cmd: opts.cmd,
+        width: opts.width,
+      }),
+    ]
   }
   const stats$ = opts.isRecursive
     ? log$.stats
@@ -42,18 +41,21 @@ export function reportStats (
   ]
 
   if (!opts.isRecursive) {
-    outputs.push(statsForCurrentPackage(log$.stats.pipe(
-      filter((log) => log.prefix === opts.cwd)
-    ), {
-      cmd: opts.cmd,
-      width: opts.width,
-    }))
+    outputs.push(
+      statsForCurrentPackage(
+        log$.stats.pipe(filter((log) => log.prefix === opts.cwd)),
+        {
+          cmd: opts.cmd,
+          width: opts.width,
+        }
+      )
+    )
   }
 
   return outputs
 }
 
-function statsForCurrentPackage (
+function statsForCurrentPackage(
   stats$: Rx.Observable<StatsLog>,
   opts: {
     cmd: string
@@ -61,17 +63,25 @@ function statsForCurrentPackage (
   }
 ) {
   return stats$.pipe(
-    take((opts.cmd === 'install' || opts.cmd === 'install-test' || opts.cmd === 'add' || opts.cmd === 'update' || opts.cmd === 'dlx') ? 2 : 1),
+    take(
+      opts.cmd === 'install' ||
+        opts.cmd === 'install-test' ||
+        opts.cmd === 'add' ||
+        opts.cmd === 'update' ||
+        opts.cmd === 'dlx'
+        ? 2
+        : 1
+    ),
     reduce((acc, log) => {
-      if (typeof log['added'] === 'number') {
-        acc['added'] = log['added']
-      } else if (typeof log['removed'] === 'number') {
-        acc['removed'] = log['removed']
+      if (typeof log.added === 'number') {
+        acc.added = log.added
+      } else if (typeof log.removed === 'number') {
+        acc.removed = log.removed
       }
       return acc
     }, {}),
     map((stats) => {
-      if (!stats['removed'] && !stats['added']) {
+      if (!stats.removed && !stats.added) {
         if (opts.cmd === 'link') {
           return Rx.NEVER
         }
@@ -79,19 +89,21 @@ function statsForCurrentPackage (
       }
 
       let msg = 'Packages:'
-      if (stats['added']) {
-        msg += ' ' + chalk.green(`+${stats['added'].toString()}`)
+      if (stats.added) {
+        msg += ' ' + chalk.green(`+${stats.added.toString()}`)
       }
-      if (stats['removed']) {
-        msg += ' ' + chalk.red(`-${stats['removed'].toString()}`)
+      if (stats.removed) {
+        msg += ' ' + chalk.red(`-${stats.removed.toString()}`)
       }
-      msg += EOL + printPlusesAndMinuses(opts.width, (stats['added'] || 0), (stats['removed'] || 0))
+      msg +=
+        EOL +
+        printPlusesAndMinuses(opts.width, stats.added || 0, stats.removed || 0)
       return Rx.of({ msg })
     })
   )
 }
 
-function statsForNotCurrentPackage (
+function statsForNotCurrentPackage(
   stats$: Rx.Observable<StatsLog>,
   opts: {
     cmd: string
@@ -100,7 +112,7 @@ function statsForNotCurrentPackage (
   }
 ) {
   const stats = {}
-  const cookedStats$ = (
+  const cookedStats$ =
     opts.cmd !== 'remove'
       ? stats$.pipe(
         map((log) => {
@@ -111,11 +123,17 @@ function statsForNotCurrentPackage (
           if (!stats[log.prefix]) {
             stats[log.prefix] = log
             return { seed: stats, value: null }
-          } else if (typeof stats[log.prefix].added === 'number' && typeof log['added'] === 'number') {
-            stats[log.prefix].added += log['added']
+          } else if (
+            typeof stats[log.prefix].added === 'number' &&
+              typeof log.added === 'number'
+          ) {
+            stats[log.prefix].added += log.added
             return { seed: stats, value: null }
-          } else if (typeof stats[log.prefix].removed === 'number' && typeof log['removed'] === 'number') {
-            stats[log.prefix].removed += log['removed']
+          } else if (
+            typeof stats[log.prefix].removed === 'number' &&
+              typeof log.removed === 'number'
+          ) {
+            stats[log.prefix].removed += log.removed
             return { seed: stats, value: null }
           } else {
             const value = { ...stats[log.prefix], ...log }
@@ -125,28 +143,33 @@ function statsForNotCurrentPackage (
         }, {})
       )
       : stats$
-  )
   return cookedStats$.pipe(
-    filter((stats) => stats !== null && (stats['removed'] || stats['added'])),
+    filter((stats) => stats !== null && (stats.removed || stats.added)),
     map((stats) => {
       const parts = [] as string[]
 
-      if (stats['added']) {
-        parts.push(padStep(chalk.green(`+${stats['added'].toString()}`), 4))
+      if (stats.added) {
+        parts.push(padStep(chalk.green(`+${stats.added.toString()}`), 4))
       }
-      if (stats['removed']) {
-        parts.push(padStep(chalk.red(`-${stats['removed'].toString()}`), 4))
+      if (stats.removed) {
+        parts.push(padStep(chalk.red(`-${stats.removed.toString()}`), 4))
       }
 
-      let msg = zoomOut(opts.currentPrefix, stats['prefix'], parts.join(' '))
+      let msg = zoomOut(opts.currentPrefix, stats.prefix, parts.join(' '))
       const rest = Math.max(0, opts.width - 1 - stringLength(msg))
-      msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
+      msg +=
+        ' ' +
+        printPlusesAndMinuses(
+          rest,
+          roundStats(stats.added || 0),
+          roundStats(stats.removed || 0)
+        )
       return Rx.of({ msg })
     })
   )
 }
 
-function padStep (s: string, step: number) {
+function padStep(s: string, step: number) {
   const sLength = stringLength(s)
   const placeholderLength = Math.ceil(sLength / step) * step
   if (sLength < placeholderLength) {
@@ -155,12 +178,16 @@ function padStep (s: string, step: number) {
   return s
 }
 
-function roundStats (stat: number): number {
+function roundStats(stat: number): number {
   if (stat === 0) return 0
   return Math.max(1, Math.round(stat / 10))
 }
 
-function printPlusesAndMinuses (maxWidth: number, added: number, removed: number) {
+function printPlusesAndMinuses(
+  maxWidth: number,
+  added: number,
+  removed: number
+) {
   if (maxWidth === 0) return ''
   const changes = added + removed
   let addedChars: number

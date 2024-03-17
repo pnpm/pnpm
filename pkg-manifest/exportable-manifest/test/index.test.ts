@@ -2,25 +2,27 @@
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 import { preparePackages } from '@pnpm/prepare'
 import writeYamlFile from 'write-yaml-file'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import path from 'path'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
 test('the pnpm options are removed', async () => {
-  expect(await createExportableManifest(process.cwd(), {
-    name: 'foo',
-    version: '1.0.0',
-    dependencies: {
-      qar: '2',
-    },
-    pnpm: {
-      overrides: {
-        bar: '1',
+  expect(
+    await createExportableManifest(process.cwd(), {
+      name: 'foo',
+      version: '1.0.0',
+      dependencies: {
+        qar: '2',
       },
-    },
-  })).toStrictEqual({
+      pnpm: {
+        overrides: {
+          bar: '1',
+        },
+      },
+    })
+  ).toStrictEqual({
     name: 'foo',
     version: '1.0.0',
     dependencies: {
@@ -30,20 +32,22 @@ test('the pnpm options are removed', async () => {
 })
 
 test('publish lifecycle scripts are removed', async () => {
-  expect(await createExportableManifest(process.cwd(), {
-    name: 'foo',
-    version: '1.0.0',
-    scripts: {
-      prepublishOnly: 'echo',
-      prepack: 'echo',
-      prepare: 'echo',
-      postpack: 'echo',
-      publish: 'echo',
-      postpublish: 'echo',
-      postinstall: 'echo',
-      test: 'echo',
-    },
-  })).toStrictEqual({
+  expect(
+    await createExportableManifest(process.cwd(), {
+      name: 'foo',
+      version: '1.0.0',
+      scripts: {
+        prepublishOnly: 'echo',
+        prepack: 'echo',
+        prepare: 'echo',
+        postpack: 'echo',
+        publish: 'echo',
+        postpublish: 'echo',
+        postinstall: 'echo',
+        test: 'echo',
+      },
+    })
+  ).toStrictEqual({
     name: 'foo',
     version: '1.0.0',
     scripts: {
@@ -54,10 +58,16 @@ test('publish lifecycle scripts are removed', async () => {
 })
 
 test('readme added to published manifest', async () => {
-  expect(await createExportableManifest(process.cwd(), {
-    name: 'foo',
-    version: '1.0.0',
-  }, { readmeFile: 'readme content' })).toStrictEqual({
+  expect(
+    await createExportableManifest(
+      process.cwd(),
+      {
+        name: 'foo',
+        version: '1.0.0',
+      },
+      { readmeFile: 'readme content' }
+    )
+  ).toStrictEqual({
     name: 'foo',
     version: '1.0.0',
     readme: 'readme content',
@@ -98,7 +108,12 @@ test('workspace deps are replaced', async () => {
 
   process.chdir('workspace-protocol-package')
 
-  expect(await createExportableManifest(process.cwd(), workspaceProtocolPackageManifest)).toStrictEqual({
+  expect(
+    await createExportableManifest(
+      process.cwd(),
+      workspaceProtocolPackageManifest
+    )
+  ).toStrictEqual({
     name: 'workspace-protocol-package',
     version: '1.0.0',
     dependencies: {

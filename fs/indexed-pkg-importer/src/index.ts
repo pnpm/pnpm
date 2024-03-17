@@ -3,51 +3,56 @@ import fs from '@pnpm/graceful-fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
-import { type FilesMap, type ImportOptions, type ImportIndexedPackage } from '@pnpm/store-controller-types'
+import {
+  type FilesMap,
+  type ImportOptions,
+  type ImportIndexedPackage,
+} from '@pnpm/store-controller-types'
 import { importIndexedDir, type ImportFile } from './importIndexedDir'
 
-export function createIndexedPkgImporter (
+export function createIndexedPkgImporter(
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 ): ImportIndexedPackage {
   const importPackage = createImportPackage(packageImportMethod)
   return importPackage
 }
 
-function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy') {
+function createImportPackage(
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+) {
   // this works in the following way:
   // - hardlink: hardlink the packages, no fallback
   // - clone: clone the packages, no fallback
   // - auto: try to clone or hardlink the packages, if it fails, fallback to copy
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod ?? 'auto') {
-  case 'clone':
-    packageImportMethodLogger.debug({ method: 'clone' })
-    return clonePkg.bind(null, createCloneFunction())
-  case 'hardlink':
-    packageImportMethodLogger.debug({ method: 'hardlink' })
-    return hardlinkPkg.bind(null, linkOrCopy)
-  case 'auto': {
-    return createAutoImporter()
-  }
-  case 'clone-or-copy':
-    return createCloneOrCopyImporter()
-  case 'copy':
-    packageImportMethodLogger.debug({ method: 'copy' })
-    return copyPkg
-  default:
-    throw new Error(`Unknown package import method ${packageImportMethod as string}`)
+    case 'clone':
+      packageImportMethodLogger.debug({ method: 'clone' })
+      return clonePkg.bind(null, createCloneFunction())
+    case 'hardlink':
+      packageImportMethodLogger.debug({ method: 'hardlink' })
+      return hardlinkPkg.bind(null, linkOrCopy)
+    case 'auto': {
+      return createAutoImporter()
+    }
+    case 'clone-or-copy':
+      return createCloneOrCopyImporter()
+    case 'copy':
+      packageImportMethodLogger.debug({ method: 'copy' })
+      return copyPkg
+    default:
+      throw new Error(
+        `Unknown package import method ${packageImportMethod as string}`
+      )
   }
 }
 
-function createAutoImporter (): ImportIndexedPackage {
+function createAutoImporter(): ImportIndexedPackage {
   let auto = initialAuto
 
   return (to, opts) => auto(to, opts)
 
-  function initialAuto (
-    to: string,
-    opts: ImportOptions
-  ): string | undefined {
+  function initialAuto(to: string, opts: ImportOptions): string | undefined {
     // Although reflinks are supported on Windows Dev Drives,
     // they are 10x slower than hard links.
     // Hence, we prefer reflinks by default only on Linux and macOS.
@@ -83,15 +88,12 @@ function createAutoImporter (): ImportIndexedPackage {
   }
 }
 
-function createCloneOrCopyImporter (): ImportIndexedPackage {
+function createCloneOrCopyImporter(): ImportIndexedPackage {
   let auto = initialAuto
 
   return (to, opts) => auto(to, opts)
 
-  function initialAuto (
-    to: string,
-    opts: ImportOptions
-  ): string | undefined {
+  function initialAuto(to: string, opts: ImportOptions): string | undefined {
     try {
       const _clonePkg = clonePkg.bind(null, createCloneFunction())
       if (!_clonePkg(to, opts)) return undefined
@@ -109,11 +111,7 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
 
 type CloneFunction = (src: string, dest: string) => void
 
-function clonePkg (
-  clone: CloneFunction,
-  to: string,
-  opts: ImportOptions
-) {
+function clonePkg(clone: CloneFunction, to: string, opts: ImportOptions) {
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
@@ -123,7 +121,7 @@ function clonePkg (
   return undefined
 }
 
-function createCloneFunction (): CloneFunction {
+function createCloneFunction(): CloneFunction {
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
   if (process.platform === 'darwin' || process.platform === 'win32') {
@@ -136,7 +134,11 @@ function createCloneFunction (): CloneFunction {
         // If the file already exists, then we just proceed.
         // This will probably only happen if the package's index file contains the same file twice.
         // For instance: { "index.js": "hash", "./index.js": "hash" }
-        if (!err.message.startsWith('File exists') && !err.message.includes('-2147024816')) throw err
+        if (
+          !err.message.startsWith('File exists') &&
+          !err.message.includes('-2147024816')
+        )
+          throw err
       }
     }
   }
@@ -149,11 +151,7 @@ function createCloneFunction (): CloneFunction {
   }
 }
 
-function hardlinkPkg (
-  importFile: ImportFile,
-  to: string,
-  opts: ImportOptions
-) {
+function hardlinkPkg(importFile: ImportFile, to: string, opts: ImportOptions) {
   if (opts.force || shouldRelinkPkg(to, opts)) {
     importIndexedDir(importFile, to, opts.filesMap, opts)
     return 'hardlink'
@@ -161,14 +159,14 @@ function hardlinkPkg (
   return undefined
 }
 
-function shouldRelinkPkg (
-  to: string,
-  opts: ImportOptions
-) {
+function shouldRelinkPkg(to: string, opts: ImportOptions) {
   if (opts.disableRelinkLocalDirDeps && opts.resolvedFrom === 'local-dir') {
     try {
       const files = fs.readdirSync(to)
-      return files.length === 0 || files.length === 1 && files[0] === 'node_modules'
+      return (
+        files.length === 0 ||
+        (files.length === 1 && files[0] === 'node_modules')
+      )
     } catch {
       return true
     }
@@ -176,13 +174,13 @@ function shouldRelinkPkg (
   return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)
 }
 
-function linkOrCopy (existingPath: string, newPath: string) {
+function linkOrCopy(existingPath: string, newPath: string) {
   try {
     fs.linkSync(existingPath, newPath)
   } catch (err: any) { // eslint-disable-line
     // If a hard link to the same file already exists
     // then trying to copy it will make an empty file from it.
-    if (err['code'] === 'EEXIST') return
+    if (err.code === 'EEXIST') return
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
@@ -190,10 +188,7 @@ function linkOrCopy (existingPath: string, newPath: string) {
   }
 }
 
-function pkgLinkedToStore (
-  filesMap: FilesMap,
-  to: string
-) {
+function pkgLinkedToStore(filesMap: FilesMap, to: string) {
   if (filesMap['package.json']) {
     if (isSameFile('package.json', to, filesMap)) {
       return true
@@ -207,7 +202,11 @@ function pkgLinkedToStore (
   return false
 }
 
-function isSameFile (filename: string, linkedPkgDir: string, filesMap: FilesMap) {
+function isSameFile(
+  filename: string,
+  linkedPkgDir: string,
+  filesMap: FilesMap
+) {
   const linkedFile = path.join(linkedPkgDir, filename)
   let stats0!: Stats
   try {
@@ -221,10 +220,7 @@ function isSameFile (filename: string, linkedPkgDir: string, filesMap: FilesMap)
   return false
 }
 
-export function copyPkg (
-  to: string,
-  opts: ImportOptions
-) {
+export function copyPkg(to: string, opts: ImportOptions) {
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {

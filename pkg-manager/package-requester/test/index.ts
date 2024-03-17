@@ -4,7 +4,10 @@ import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
-import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
+import {
+  createPackageRequester,
+  type PackageResponse,
+} from '@pnpm/package-requester'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -43,30 +46,38 @@ test('request package', async () => {
   expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
-  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
-    downloadPriority: 0,
-    lockfileDir: projectDir,
-    preferredVersions: {},
-    projectDir,
-    registry,
-  })
+  const pkgResponse = await requestPackage(
+    { alias: 'is-positive', pref: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      registry,
+    }
+  )
 
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
+  expect(pkgResponse.body.id).toBe(
+    `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
+  )
   expect(pkgResponse.body.resolvedVia).toBe('npm-registry')
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
-    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+    integrity:
+      'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
   const { files } = await pkgResponse.fetching!()
-  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(
+    ['package.json', 'index.js', 'license', 'readme.md'].sort()
+  )
   expect(files.resolvedFrom).toBe('remote')
 })
 
@@ -84,25 +95,31 @@ test('request package but skip fetching', async () => {
   expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
-  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
-    downloadPriority: 0,
-    lockfileDir: projectDir,
-    preferredVersions: {},
-    projectDir,
-    registry,
-    skipFetch: true,
-  })
+  const pkgResponse = await requestPackage(
+    { alias: 'is-positive', pref: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      registry,
+      skipFetch: true,
+    }
+  )
 
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
+  expect(pkgResponse.body.id).toBe(
+    `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
+  )
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
-    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+    integrity:
+      'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
@@ -123,22 +140,26 @@ test('request package but skip fetching, when resolution is already available', 
   expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
-  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
-    currentPkg: {
-      id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
-      resolution: {
-        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+  const pkgResponse = (await requestPackage(
+    { alias: 'is-positive', pref: '1.0.0' },
+    {
+      currentPkg: {
+        id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
+        resolution: {
+          integrity:
+            'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        },
       },
-    },
-    downloadPriority: 0,
-    lockfileDir: projectDir,
-    preferredVersions: {},
-    projectDir,
-    registry,
-    skipFetch: true,
-    update: false,
-  }) as PackageResponse & {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      registry,
+      skipFetch: true,
+      update: false,
+    }
+  )) as PackageResponse & {
     body: {
       latest: string
       manifest: { name: string }
@@ -148,13 +169,16 @@ test('request package but skip fetching, when resolution is already available', 
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
+  expect(pkgResponse.body.id).toBe(
+    `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
+  )
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
-    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+    integrity:
+      'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
@@ -190,16 +214,17 @@ test('refetch local tarball if its integrity has changed', async () => {
       verifyStoreIntegrity: true,
     })
 
-    const response = await requestPackage(wantedPackage, {
+    const response = (await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
         id: pkgId,
         resolution: {
-          integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
+          integrity:
+            'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
           tarball,
         },
       },
-    }) as PackageResponse & {
+    })) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
     }
     const { files, bundledManifest } = await response.fetching()
@@ -226,7 +251,8 @@ test('refetch local tarball if its integrity has changed', async () => {
       currentPkg: {
         id: pkgId,
         resolution: {
-          integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
+          integrity:
+            'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
           tarball,
         },
       },
@@ -247,16 +273,17 @@ test('refetch local tarball if its integrity has changed', async () => {
       verifyStoreIntegrity: true,
     })
 
-    const response = await requestPackage(wantedPackage, {
+    const response = (await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
         id: pkgId,
         resolution: {
-          integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
+          integrity:
+            'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
           tarball,
         },
       },
-    }) as PackageResponse & {
+    })) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
     }
     const { files, bundledManifest } = await response.fetching()
@@ -293,7 +320,10 @@ test('refetch local tarball if its integrity has changed. The requester does not
       verifyStoreIntegrity: true,
     })
 
-    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+    const response = (await requestPackage(
+      wantedPackage,
+      requestPackageOpts
+    )) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
     }
     const { files, bundledManifest } = await response.fetching()
@@ -315,7 +345,10 @@ test('refetch local tarball if its integrity has changed. The requester does not
       verifyStoreIntegrity: true,
     })
 
-    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+    const response = (await requestPackage(
+      wantedPackage,
+      requestPackageOpts
+    )) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
     }
     const { files, bundledManifest } = await response.fetching()
@@ -334,7 +367,10 @@ test('refetch local tarball if its integrity has changed. The requester does not
       verifyStoreIntegrity: true,
     })
 
-    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+    const response = (await requestPackage(
+      wantedPackage,
+      requestPackageOpts
+    )) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
     }
     const { files, bundledManifest } = await response.fetching()
@@ -365,7 +401,8 @@ test('fetchPackageToStore()', async () => {
       version: '1.0.0',
       id: pkgId,
       resolution: {
-        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        integrity:
+          'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
@@ -373,10 +410,14 @@ test('fetchPackageToStore()', async () => {
 
   const { files, bundledManifest } = await fetchResult.fetching()
   expect(bundledManifest).toBeFalsy()
-  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(
+    ['package.json', 'index.js', 'license', 'readme.md'].sort()
+  )
   expect(files.resolvedFrom).toBe('remote')
 
-  const indexFile = await loadJsonFile<PackageFilesIndex>(fetchResult.filesIndexFile)
+  const indexFile = await loadJsonFile<PackageFilesIndex>(
+    fetchResult.filesIndexFile
+  )
   expect(indexFile).toBeTruthy()
   expect(typeof indexFile.files['package.json'].checkedAt).toBeTruthy()
 
@@ -389,7 +430,8 @@ test('fetchPackageToStore()', async () => {
       version: '1.0.0',
       id: pkgId,
       resolution: {
-        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        integrity:
+          'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
@@ -397,16 +439,12 @@ test('fetchPackageToStore()', async () => {
 
   // This verifies that when a package has been cached with no full manifest
   // the full manifest is requested and added to the cache
-  expect(
-    (await fetchResult2.fetching()).bundledManifest
-  ).toStrictEqual(
-    {
-      engines: { node: '>=0.10.0' },
-      name: 'is-positive',
-      scripts: { test: 'node test.js' },
-      version: '1.0.0',
-    }
-  )
+  expect((await fetchResult2.fetching()).bundledManifest).toStrictEqual({
+    engines: { node: '>=0.10.0' },
+    name: 'is-positive',
+    scripts: { test: 'node test.js' },
+    version: '1.0.0',
+  })
 })
 
 test('fetchPackageToStore() concurrency check', async () => {
@@ -433,7 +471,8 @@ test('fetchPackageToStore() concurrency check', async () => {
         version: '1.0.0',
         id: pkgId,
         resolution: {
-          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          integrity:
+            'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
         },
       },
@@ -446,7 +485,8 @@ test('fetchPackageToStore() concurrency check', async () => {
         version: '1.0.0',
         id: pkgId,
         resolution: {
-          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          integrity:
+            'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
         },
       },
@@ -462,7 +502,9 @@ test('fetchPackageToStore() concurrency check', async () => {
 
     ino1 = statSync(files.filesIndex['package.json'] as string).ino
 
-    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(
+      ['package.json', 'index.js', 'license', 'readme.md'].sort()
+    )
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -472,7 +514,9 @@ test('fetchPackageToStore() concurrency check', async () => {
 
     ino2 = statSync(files.filesIndex['package.json'] as string).ino
 
-    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(
+      ['package.json', 'index.js', 'license', 'readme.md'].sort()
+    )
     expect(files.resolvedFrom).toBe('remote')
   }
 
@@ -480,9 +524,7 @@ test('fetchPackageToStore() concurrency check', async () => {
 })
 
 test('fetchPackageToStore() does not cache errors', async () => {
-  nock(registry)
-    .get('/is-positive/-/is-positive-1.0.0.tgz')
-    .reply(404)
+  nock(registry).get('/is-positive/-/is-positive-1.0.0.tgz').reply(404)
 
   nock(registry)
     .get('/is-positive/-/is-positive-1.0.0.tgz')
@@ -516,7 +558,8 @@ test('fetchPackageToStore() does not cache errors', async () => {
       version: '1.0.0',
       id: pkgId,
       resolution: {
-        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        integrity:
+          'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
@@ -531,13 +574,16 @@ test('fetchPackageToStore() does not cache errors', async () => {
       version: '1.0.0',
       id: pkgId,
       resolution: {
-        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        integrity:
+          'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
   })
   const { files } = await fetchResult.fetching()
-  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(
+    ['package.json', 'index.js', 'license', 'readme.md'].sort()
+  )
   expect(files.resolvedFrom).toBe('remote')
 
   expect(nock.isDone()).toBeTruthy()
@@ -560,45 +606,48 @@ test('always return a package manifest in the response', async () => {
   const projectDir = tempy.directory()
 
   {
-    const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
-      downloadPriority: 0,
-      lockfileDir: projectDir,
-      preferredVersions: {},
-      projectDir,
-      registry,
-    }) as PackageResponse & { body: { manifest: { name: string } } }
+    const pkgResponse = (await requestPackage(
+      { alias: 'is-positive', pref: '1.0.0' },
+      {
+        downloadPriority: 0,
+        lockfileDir: projectDir,
+        preferredVersions: {},
+        projectDir,
+        registry,
+      }
+    )) as PackageResponse & { body: { manifest: { name: string } } }
 
     expect(pkgResponse.body).toBeTruthy()
     expect(pkgResponse.body.manifest.name).toBeTruthy()
   }
 
   {
-    const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
-      currentPkg: {
-        id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
-        resolution: {
-          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+    const pkgResponse = (await requestPackage(
+      { alias: 'is-positive', pref: '1.0.0' },
+      {
+        currentPkg: {
+          id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
+          resolution: {
+            integrity:
+              'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+            tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+          },
         },
-      },
-      downloadPriority: 0,
-      lockfileDir: projectDir,
-      preferredVersions: {},
-      projectDir,
-      registry,
-    }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
+        downloadPriority: 0,
+        lockfileDir: projectDir,
+        preferredVersions: {},
+        projectDir,
+        registry,
+      }
+    )) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
 
     expect(pkgResponse.body).toBeTruthy()
-    expect(
-      (await pkgResponse.fetching()).bundledManifest
-    ).toEqual(
-      {
-        engines: { node: '>=0.10.0' },
-        name: 'is-positive',
-        scripts: { test: 'node test.js' },
-        version: '1.0.0',
-      }
-    )
+    expect((await pkgResponse.fetching()).bundledManifest).toEqual({
+      engines: { node: '>=0.10.0' },
+      name: 'is-positive',
+      scripts: { test: 'node test.js' },
+      version: '1.0.0',
+    })
   }
 })
 
@@ -730,12 +779,14 @@ test('refetch package to store if it has been modified', async () => {
 
   expect(await fs.readFile(indexJsFile, 'utf8')).not.toContain('// foobar')
 
-  expect(reporter).toBeCalledWith(expect.objectContaining({
-    level: 'warn',
-    message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId))} to store. It was either modified or had no integrity checksums`,
-    name: 'pnpm:package-requester',
-    prefix: lockfileDir,
-  }))
+  expect(reporter).toBeCalledWith(
+    expect.objectContaining({
+      level: 'warn',
+      message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId))} to store. It was either modified or had no integrity checksums`,
+      name: 'pnpm:package-requester',
+      prefix: lockfileDir,
+    })
+  )
 })
 
 test('do not fetch an optional package that is not installable', async () => {
@@ -752,19 +803,28 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
-  const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/not-compatible-with-any-os', optional: true, pref: '*' }, {
-    downloadPriority: 0,
-    lockfileDir: projectDir,
-    preferredVersions: {},
-    projectDir,
-    registry,
-  })
+  const pkgResponse = await requestPackage(
+    {
+      alias: '@pnpm.e2e/not-compatible-with-any-os',
+      optional: true,
+      pref: '*',
+    },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      registry,
+    }
+  )
 
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
   expect(pkgResponse.body.isInstallable).toBe(false)
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/not-compatible-with-any-os/1.0.0`)
+  expect(pkgResponse.body.id).toBe(
+    `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/not-compatible-with-any-os/1.0.0`
+  )
 
   expect(pkgResponse.fetching).toBeFalsy()
 })
@@ -790,13 +850,16 @@ test('fetch a git package without a package.json', async () => {
   const projectDir = tempy.directory()
 
   {
-    const pkgResponse = await requestPackage({ alias: 'camelcase', pref: `${repo}#${commit}` }, {
-      downloadPriority: 0,
-      lockfileDir: projectDir,
-      preferredVersions: {},
-      projectDir,
-      registry,
-    }) as PackageResponse & { body: { manifest: { name: string } } }
+    const pkgResponse = (await requestPackage(
+      { alias: 'camelcase', pref: `${repo}#${commit}` },
+      {
+        downloadPriority: 0,
+        lockfileDir: projectDir,
+        preferredVersions: {},
+        projectDir,
+        registry,
+      }
+    )) as PackageResponse & { body: { manifest: { name: string } } }
 
     expect(pkgResponse.body).toBeTruthy()
     expect(pkgResponse.body.manifest).toBeUndefined()
@@ -821,13 +884,16 @@ test('throw exception if the package data in the store differs from the expected
     })
 
     const projectDir = tempy.directory()
-    pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
-      downloadPriority: 0,
-      lockfileDir: projectDir,
-      preferredVersions: {},
-      projectDir,
-      registry,
-    })
+    pkgResponse = await requestPackage(
+      { alias: 'is-positive', pref: '1.0.0' },
+      {
+        downloadPriority: 0,
+        lockfileDir: projectDir,
+        preferredVersions: {},
+        projectDir,
+        registry,
+      }
+    )
     await pkgResponse.fetching!()
   }
 
@@ -855,7 +921,9 @@ test('throw exception if the package data in the store differs from the expected
         version: '1.0.0',
       },
     })
-    await expect(fetching()).rejects.toThrow(/Package name mismatch found while reading/)
+    await expect(fetching()).rejects.toThrow(
+      /Package name mismatch found while reading/
+    )
   }
 
   // Fail when the version of the package is different in the store
@@ -882,7 +950,9 @@ test('throw exception if the package data in the store differs from the expected
         version: '2.0.0',
       },
     })
-    await expect(fetching()).rejects.toThrow(/Package name mismatch found while reading/)
+    await expect(fetching()).rejects.toThrow(
+      /Package name mismatch found while reading/
+    )
   }
 
   // Do not fail when the versions are the same but written in a different format (1.0.0 is the same as v1.0.0)
@@ -953,13 +1023,16 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
     })
 
     const projectDir = tempy.directory()
-    const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '3.1.0' }, {
-      downloadPriority: 0,
-      lockfileDir: projectDir,
-      preferredVersions: {},
-      projectDir,
-      registry,
-    })
+    const pkgResponse = await requestPackage(
+      { alias: 'is-positive', pref: '3.1.0' },
+      {
+        downloadPriority: 0,
+        lockfileDir: projectDir,
+        preferredVersions: {},
+        projectDir,
+        registry,
+      }
+    )
     await pkgResponse.fetching!()
   }
   const requestPackage = createPackageRequester({
@@ -971,18 +1044,23 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
     verifyStoreIntegrity: true,
   })
   const projectDir = tempy.directory()
-  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '3.1.0' }, {
-    downloadPriority: 0,
-    lockfileDir: tempy.directory(),
-    preferredVersions: {},
-    projectDir,
-    registry,
-    expectedPkg: {
-      name: 'is-positive',
-      version: '3.0.0',
-    },
-  })
-  await expect(pkgResponse.fetching!()).resolves.toStrictEqual(expect.anything())
+  const pkgResponse = await requestPackage(
+    { alias: 'is-positive', pref: '3.1.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: tempy.directory(),
+      preferredVersions: {},
+      projectDir,
+      registry,
+      expectedPkg: {
+        name: 'is-positive',
+        version: '3.0.0',
+      },
+    }
+  )
+  await expect(pkgResponse.fetching!()).resolves.toStrictEqual(
+    expect.anything()
+  )
 })
 
 test('the version in the bundled manifest should be normalized', async () => {
@@ -998,16 +1076,21 @@ test('the version in the bundled manifest should be normalized', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgResponse = await requestPackage({ alias: 'react-terminal', pref: '1.2.1' }, {
-    downloadPriority: 0,
-    lockfileDir: tempy.directory(),
-    preferredVersions: {},
-    projectDir: tempy.directory(),
-    registry,
-  })
-  expect((await pkgResponse.fetching!()).bundledManifest).toStrictEqual(expect.objectContaining({
-    version: '1.2.1',
-  }))
+  const pkgResponse = await requestPackage(
+    { alias: 'react-terminal', pref: '1.2.1' },
+    {
+      downloadPriority: 0,
+      lockfileDir: tempy.directory(),
+      preferredVersions: {},
+      projectDir: tempy.directory(),
+      registry,
+    }
+  )
+  expect((await pkgResponse.fetching!()).bundledManifest).toStrictEqual(
+    expect.objectContaining({
+      version: '1.2.1',
+    })
+  )
 })
 
 test('should skip store integrity check and resolve manifest if fetchRawManifest is true', async () => {
@@ -1028,13 +1111,16 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
 
     const projectDir = tempy.directory()
 
-    pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
-      downloadPriority: 0,
-      lockfileDir: projectDir,
-      preferredVersions: {},
-      projectDir,
-      registry,
-    })
+    pkgResponse = await requestPackage(
+      { alias: 'is-positive', pref: '1.0.0' },
+      {
+        downloadPriority: 0,
+        lockfileDir: projectDir,
+        preferredVersions: {},
+        projectDir,
+        registry,
+      }
+    )
 
     await pkgResponse.fetching!()
   }
@@ -1067,9 +1153,11 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
 
     await fetchResult.fetching()
 
-    expect((await fetchResult.fetching!()).bundledManifest).toStrictEqual(expect.objectContaining({
-      name: 'is-positive',
-      version: '1.0.0',
-    }))
+    expect((await fetchResult.fetching!()).bundledManifest).toStrictEqual(
+      expect.objectContaining({
+        name: 'is-positive',
+        version: '1.0.0',
+      })
+    )
   }
 })

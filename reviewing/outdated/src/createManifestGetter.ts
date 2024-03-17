@@ -13,28 +13,30 @@ interface GetManifestOpts {
   registries: Registries
 }
 
-export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
-& GetManifestOpts
-& { fullMetadata: boolean, rawConfig: Record<string, string> }
+export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'> &
+  GetManifestOpts & { fullMetadata: boolean; rawConfig: Record<string, string> }
 
-export function createManifestGetter (
+export function createManifestGetter(
   opts: ManifestGetterOptions
 ): (packageName: string, pref: string) => Promise<DependencyManifest | null> {
   const resolve = createResolver({ ...opts, authConfig: opts.rawConfig })
   return getManifest.bind(null, resolve, opts)
 }
 
-export async function getManifest (
+export async function getManifest(
   resolve: ResolveFunction,
   opts: GetManifestOpts,
   packageName: string,
   pref: string
 ) {
-  const resolution = await resolve({ alias: packageName, pref }, {
-    lockfileDir: opts.lockfileDir,
-    preferredVersions: {},
-    projectDir: opts.dir,
-    registry: pickRegistryForPackage(opts.registries, packageName, pref),
-  })
+  const resolution = await resolve(
+    { alias: packageName, pref },
+    {
+      lockfileDir: opts.lockfileDir,
+      preferredVersions: {},
+      projectDir: opts.dir,
+      registry: pickRegistryForPackage(opts.registries, packageName, pref),
+    }
+  )
   return resolution?.manifest ?? null
 }

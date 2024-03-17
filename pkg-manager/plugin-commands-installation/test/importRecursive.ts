@@ -42,17 +42,21 @@ const DEFAULT_OPTS = {
 
 test('import from shared yarn.lock of monorepo', async () => {
   f.prepare('workspace-has-shared-yarn-lock')
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await importCommand.handler({
-    ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    allProjectsGraph,
-    selectedProjectsGraph,
-    workspaceDir: process.cwd(),
-    lockfileDir: process.cwd(),
-    dir: process.cwd(),
-    resolutionMode: 'highest', // TODO: this should work with the default resolution mode (TODOv8)
-  }, [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await readProjects(process.cwd(), [])
+  await importCommand.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      allProjectsGraph,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      lockfileDir: process.cwd(),
+      dir: process.cwd(),
+      resolutionMode: 'highest', // TODO: this should work with the default resolution mode (TODOv8)
+    },
+    []
+  )
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
@@ -66,17 +70,21 @@ test('import from shared yarn.lock of monorepo', async () => {
 
 test('import from shared package-lock.json of monorepo', async () => {
   f.prepare('workspace-has-shared-package-lock-json')
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await importCommand.handler({
-    ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    allProjectsGraph,
-    selectedProjectsGraph,
-    workspaceDir: process.cwd(),
-    lockfileDir: process.cwd(),
-    dir: process.cwd(),
-    resolutionMode: 'highest', // TODO: this should work with the default resolution mode (TODOv8)
-  }, [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await readProjects(process.cwd(), [])
+  await importCommand.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      allProjectsGraph,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      lockfileDir: process.cwd(),
+      dir: process.cwd(),
+      resolutionMode: 'highest', // TODO: this should work with the default resolution mode (TODOv8)
+    },
+    []
+  )
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
@@ -90,17 +98,21 @@ test('import from shared package-lock.json of monorepo', async () => {
 
 test('import from shared npm-shrinkwrap.json of monorepo', async () => {
   f.prepare('workspace-has-shared-npm-shrinkwrap-json')
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await importCommand.handler({
-    ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    allProjectsGraph,
-    selectedProjectsGraph,
-    workspaceDir: process.cwd(),
-    lockfileDir: process.cwd(),
-    dir: process.cwd(),
-    resolutionMode: 'highest', // TODO: this should work with the default resolution mode (TODOv8)
-  }, [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await readProjects(process.cwd(), [])
+  await importCommand.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      allProjectsGraph,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      lockfileDir: process.cwd(),
+      dir: process.cwd(),
+      resolutionMode: 'highest', // TODO: this should work with the default resolution mode (TODOv8)
+    },
+    []
+  )
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()

@@ -12,10 +12,15 @@ test('API', () => {
 // the dependency will be saved
 test.skip('install fails when all saving types are false', async () => {
   try {
-    await pnpm.install({}, await testDefaults({ save: false, saveDev: false, saveOptional: false }))
+    await pnpm.install(
+      {},
+      await testDefaults({ save: false, saveDev: false, saveOptional: false })
+    )
     throw new Error('installation should have failed')
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toBe('Cannot install with save/saveDev/saveOptional all being equal false')
+    expect(err.message).toBe(
+      'Cannot install with save/saveDev/saveOptional all being equal false'
+    )
   }
 })
 
@@ -31,6 +36,8 @@ test('install fails on optional = true but production = false', async () => {
     await pnpm.install({}, opts)
     throw new Error('installation should have failed')
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toBe('Optional dependencies cannot be installed without production dependencies')
+    expect(err.message).toBe(
+      'Optional dependencies cannot be installed without production dependencies'
+    )
   }
 })

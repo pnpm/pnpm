@@ -9,17 +9,23 @@ import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
 import { parseJsonBufferSync } from './parseJson'
 
-export function addFilesFromDir (
+export function addFilesFromDir(
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
   dirname: string,
   readManifest?: boolean
 ): AddToStoreResult {
   const filesIndex: FilesIndex = {}
-  const manifest = _retrieveFileIntegrities(addBuffer, dirname, dirname, filesIndex, readManifest)
+  const manifest = _retrieveFileIntegrities(
+    addBuffer,
+    dirname,
+    dirname,
+    filesIndex,
+    readManifest
+  )
   return { filesIndex, manifest }
 }
 
-function _retrieveFileIntegrities (
+function _retrieveFileIntegrities(
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
   rootDir: string,
   currDir: string,

@@ -12,7 +12,7 @@ interface Resolution {
   tarball: string
 }
 
-export function createLocalTarballFetcher (): FetchFunction {
+export function createLocalTarballFetcher(): FetchFunction {
   const fetch = (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
     const buffer = gfs.readFileSync(tarball)
@@ -30,7 +30,7 @@ export function createLocalTarballFetcher (): FetchFunction {
   return fetch as FetchFunction
 }
 
-function resolvePath (where: string, spec: string) {
+function resolvePath(where: string, spec: string) {
   if (isAbsolutePath.test(spec)) return spec
   return path.resolve(where, spec)
 }

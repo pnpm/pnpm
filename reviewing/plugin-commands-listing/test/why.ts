@@ -13,9 +13,12 @@ test('`pnpm why` should fail if no package name was provided', async () => {
 
   let err!: PnpmError
   try {
-    await why.handler({
-      dir: process.cwd(),
-    }, [])
+    await why.handler(
+      {
+        dir: process.cwd(),
+      },
+      []
+    )
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -32,15 +35,24 @@ test('"why" should find non-direct dependency', async () => {
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [
+    pnpmBin,
+    'install',
+    '--registry',
+    `http://localhost:${REGISTRY_MOCK_PORT}`,
+  ])
 
-  const output = await why.handler({
-    dev: false,
-    dir: process.cwd(),
-    optional: false,
-  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep'])
+  const output = await why.handler(
+    {
+      dev: false,
+      dir: process.cwd(),
+      optional: false,
+    },
+    ['@pnpm.e2e/dep-of-pkg-with-1-dep']
+  )
 
-  expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+  expect(stripAnsi(output))
+    .toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
 

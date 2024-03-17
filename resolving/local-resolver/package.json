@@ -43,7 +43,7 @@
   "devDependencies": {
     "@pnpm/local-resolver": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "@types/ssri": "^7.1.4"
+    "@types/ssri": "^7.1.5"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

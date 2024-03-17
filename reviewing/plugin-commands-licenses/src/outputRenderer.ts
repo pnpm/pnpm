@@ -4,7 +4,7 @@ import chalk from 'chalk'
 import { table } from '@zkochan/table'
 import { groupBy, sortWith } from 'ramda'
 
-function sortLicensesPackages (licensePackages: readonly LicensePackage[]) {
+function sortLicensesPackages(licensePackages: readonly LicensePackage[]) {
   return sortWith(
     [
       (o1: LicensePackage, o2: LicensePackage) =>
@@ -14,23 +14,23 @@ function sortLicensesPackages (licensePackages: readonly LicensePackage[]) {
   )
 }
 
-function renderPackageName ({ belongsTo, name: packageName }: LicensePackage) {
+function renderPackageName({ belongsTo, name: packageName }: LicensePackage) {
   switch (belongsTo) {
-  case 'devDependencies':
-    return `${packageName} ${chalk.dim('(dev)')}`
-  case 'optionalDependencies':
-    return `${packageName} ${chalk.dim('(optional)')}`
-  default:
-    return packageName as string
+    case 'devDependencies':
+      return `${packageName} ${chalk.dim('(dev)')}`
+    case 'optionalDependencies':
+      return `${packageName} ${chalk.dim('(optional)')}`
+    default:
+      return packageName as string
   }
 }
 
-function renderPackageLicense ({ license }: LicensePackage) {
+function renderPackageLicense({ license }: LicensePackage) {
   const output = license ?? 'Unknown'
   return output as string
 }
 
-function renderDetails (licensePackage: LicensePackage) {
+function renderDetails(licensePackage: LicensePackage) {
   const outputs = []
   if (licensePackage.author) {
     outputs.push(licensePackage.author)
@@ -44,9 +44,9 @@ function renderDetails (licensePackage: LicensePackage) {
   return outputs.join('\n')
 }
 
-export function renderLicences (
+export function renderLicences(
   licensesMap: LicensePackage[],
-  opts: { long?: boolean, json?: boolean }
+  opts: { long?: boolean; json?: boolean }
 ) {
   if (opts.json) {
     return { output: renderLicensesJson(licensesMap), exitCode: 0 }
@@ -55,7 +55,7 @@ export function renderLicences (
   return { output: renderLicensesTable(licensesMap, opts), exitCode: 0 }
 }
 
-function renderLicensesJson (licensePackages: readonly LicensePackage[]) {
+function renderLicensesJson(licensePackages: readonly LicensePackage[]) {
   const data = [
     ...licensePackages.map((licensePkg) => {
       return {
@@ -86,7 +86,7 @@ export interface LicensePackageJson {
   path: string
 }
 
-function renderLicensesTable (
+function renderLicensesTable(
   licensePackages: readonly LicensePackage[],
   opts: { long?: boolean }
 ) {

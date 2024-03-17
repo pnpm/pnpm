@@ -7,17 +7,13 @@ import * as install from './install'
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
-  return pick([
-    'dev',
-    'optional',
-    'production',
-  ], allTypes)
+export function cliOptionsTypes() {
+  return pick(['dev', 'optional', 'production'], allTypes)
 }
 
 export const commandNames = ['prune']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: 'Removes extraneous packages',
     descriptionLists: [
@@ -30,7 +26,8 @@ export function help () {
             name: '--prod',
           },
           {
-            description: 'Remove the packages specified in `optionalDependencies`',
+            description:
+              'Remove the packages specified in `optionalDependencies`',
             name: '--no-optional',
           },
           ...UNIVERSAL_OPTIONS,
@@ -42,9 +39,7 @@ export function help () {
   })
 }
 
-export async function handler (
-  opts: install.InstallCommandOptions
-) {
+export async function handler(opts: install.InstallCommandOptions) {
   return install.handler({
     ...opts,
     modulesCacheMaxAge: 0,

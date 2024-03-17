@@ -17,175 +17,195 @@ const workspacePackages = {
 }
 
 test('allProjectsAreUpToDate(): works with packages linked through the workspace protocol using relative path', async () => {
-  expect(await allProjectsAreUpToDate([
-    {
-      buildIndex: 0,
-      id: 'bar',
-      manifest: {
-        dependencies: {
-          foo: 'workspace:../foo',
-        },
-      },
-      rootDir: 'bar',
-    },
-    {
-      buildIndex: 0,
-      id: 'foo',
-      manifest: fooManifest,
-      rootDir: 'foo',
-    },
-  ], {
-    autoInstallPeers: false,
-    excludeLinksFromLockfile: false,
-    linkWorkspacePackages: true,
-    wantedLockfile: {
-      importers: {
-        bar: {
-          dependencies: {
-            foo: 'link:../foo',
+  expect(
+    await allProjectsAreUpToDate(
+      [
+        {
+          buildIndex: 0,
+          id: 'bar',
+          manifest: {
+            dependencies: {
+              foo: 'workspace:../foo',
+            },
           },
-          specifiers: {
-            foo: 'workspace:../foo',
+          rootDir: 'bar',
+        },
+        {
+          buildIndex: 0,
+          id: 'foo',
+          manifest: fooManifest,
+          rootDir: 'foo',
+        },
+      ],
+      {
+        autoInstallPeers: false,
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        wantedLockfile: {
+          importers: {
+            bar: {
+              dependencies: {
+                foo: 'link:../foo',
+              },
+              specifiers: {
+                foo: 'workspace:../foo',
+              },
+            },
+            foo: {
+              specifiers: {},
+            },
           },
+          lockfileVersion: 5,
         },
-        foo: {
-          specifiers: {},
-        },
-      },
-      lockfileVersion: 5,
-    },
-    workspacePackages,
-    lockfileDir: '',
-  })).toBeTruthy()
+        workspacePackages,
+        lockfileDir: '',
+      }
+    )
+  ).toBeTruthy()
 })
 
 test('allProjectsAreUpToDate(): works with aliased local dependencies', async () => {
-  expect(await allProjectsAreUpToDate([
-    {
-      buildIndex: 0,
-      id: 'bar',
-      manifest: {
-        dependencies: {
-          alias: 'npm:foo',
-        },
-      },
-      rootDir: 'bar',
-    },
-    {
-      buildIndex: 0,
-      id: 'foo',
-      manifest: fooManifest,
-      rootDir: 'foo',
-    },
-  ], {
-    autoInstallPeers: false,
-    excludeLinksFromLockfile: false,
-    linkWorkspacePackages: true,
-    wantedLockfile: {
-      importers: {
-        bar: {
-          dependencies: {
-            alias: 'link:../foo',
+  expect(
+    await allProjectsAreUpToDate(
+      [
+        {
+          buildIndex: 0,
+          id: 'bar',
+          manifest: {
+            dependencies: {
+              alias: 'npm:foo',
+            },
           },
-          specifiers: {
-            alias: 'npm:foo',
+          rootDir: 'bar',
+        },
+        {
+          buildIndex: 0,
+          id: 'foo',
+          manifest: fooManifest,
+          rootDir: 'foo',
+        },
+      ],
+      {
+        autoInstallPeers: false,
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        wantedLockfile: {
+          importers: {
+            bar: {
+              dependencies: {
+                alias: 'link:../foo',
+              },
+              specifiers: {
+                alias: 'npm:foo',
+              },
+            },
+            foo: {
+              specifiers: {},
+            },
           },
+          lockfileVersion: 5,
         },
-        foo: {
-          specifiers: {},
-        },
-      },
-      lockfileVersion: 5,
-    },
-    workspacePackages,
-    lockfileDir: '',
-  })).toBeTruthy()
+        workspacePackages,
+        lockfileDir: '',
+      }
+    )
+  ).toBeTruthy()
 })
 
 test('allProjectsAreUpToDate(): works with aliased local dependencies that specify versions', async () => {
-  expect(await allProjectsAreUpToDate([
-    {
-      buildIndex: 0,
-      id: 'bar',
-      manifest: {
-        dependencies: {
-          alias: 'npm:foo@1',
-        },
-      },
-      rootDir: 'bar',
-    },
-    {
-      buildIndex: 0,
-      id: 'foo',
-      manifest: fooManifest,
-      rootDir: 'foo',
-    },
-  ], {
-    autoInstallPeers: false,
-    excludeLinksFromLockfile: false,
-    linkWorkspacePackages: true,
-    wantedLockfile: {
-      importers: {
-        bar: {
-          dependencies: {
-            alias: 'link:../foo',
+  expect(
+    await allProjectsAreUpToDate(
+      [
+        {
+          buildIndex: 0,
+          id: 'bar',
+          manifest: {
+            dependencies: {
+              alias: 'npm:foo@1',
+            },
           },
-          specifiers: {
-            alias: 'npm:foo@1',
+          rootDir: 'bar',
+        },
+        {
+          buildIndex: 0,
+          id: 'foo',
+          manifest: fooManifest,
+          rootDir: 'foo',
+        },
+      ],
+      {
+        autoInstallPeers: false,
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        wantedLockfile: {
+          importers: {
+            bar: {
+              dependencies: {
+                alias: 'link:../foo',
+              },
+              specifiers: {
+                alias: 'npm:foo@1',
+              },
+            },
+            foo: {
+              specifiers: {},
+            },
           },
+          lockfileVersion: 5,
         },
-        foo: {
-          specifiers: {},
-        },
-      },
-      lockfileVersion: 5,
-    },
-    workspacePackages,
-    lockfileDir: '',
-  })).toBeTruthy()
+        workspacePackages,
+        lockfileDir: '',
+      }
+    )
+  ).toBeTruthy()
 })
 
 test('allProjectsAreUpToDate(): returns false if the aliased dependency version is out of date', async () => {
-  expect(await allProjectsAreUpToDate([
-    {
-      buildIndex: 0,
-      id: 'bar',
-      manifest: {
-        dependencies: {
-          alias: 'npm:foo@0',
-        },
-      },
-      rootDir: 'bar',
-    },
-    {
-      buildIndex: 0,
-      id: 'foo',
-      manifest: fooManifest,
-      rootDir: 'foo',
-    },
-  ], {
-    autoInstallPeers: false,
-    excludeLinksFromLockfile: false,
-    linkWorkspacePackages: true,
-    wantedLockfile: {
-      importers: {
-        bar: {
-          dependencies: {
-            alias: 'link:../foo',
+  expect(
+    await allProjectsAreUpToDate(
+      [
+        {
+          buildIndex: 0,
+          id: 'bar',
+          manifest: {
+            dependencies: {
+              alias: 'npm:foo@0',
+            },
           },
-          specifiers: {
-            alias: 'npm:foo@0',
+          rootDir: 'bar',
+        },
+        {
+          buildIndex: 0,
+          id: 'foo',
+          manifest: fooManifest,
+          rootDir: 'foo',
+        },
+      ],
+      {
+        autoInstallPeers: false,
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        wantedLockfile: {
+          importers: {
+            bar: {
+              dependencies: {
+                alias: 'link:../foo',
+              },
+              specifiers: {
+                alias: 'npm:foo@0',
+              },
+            },
+            foo: {
+              specifiers: {},
+            },
           },
+          lockfileVersion: 5,
         },
-        foo: {
-          specifiers: {},
-        },
-      },
-      lockfileVersion: 5,
-    },
-    workspacePackages,
-    lockfileDir: '',
-  })).toBeFalsy()
+        workspacePackages,
+        lockfileDir: '',
+      }
+    )
+  ).toBeFalsy()
 })
 
 test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePackages = false', async () => {
@@ -285,117 +305,130 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
 })
 
 test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', async () => {
-  expect(await allProjectsAreUpToDate([
-    {
-      buildIndex: 0,
-      id: 'bar',
-      manifest: {
-        dependencies: {
-          foo: 'workspace:../foo',
-        },
-        dependenciesMeta: {
-          foo: {
-            injected: true,
+  expect(
+    await allProjectsAreUpToDate(
+      [
+        {
+          buildIndex: 0,
+          id: 'bar',
+          manifest: {
+            dependencies: {
+              foo: 'workspace:../foo',
+            },
+            dependenciesMeta: {
+              foo: {
+                injected: true,
+              },
+            },
           },
+          rootDir: 'bar',
         },
-      },
-      rootDir: 'bar',
-    },
-    {
-      buildIndex: 0,
-      id: 'foo',
-      manifest: fooManifest,
-      rootDir: 'foo',
-    },
-  ], {
-    autoInstallPeers: false,
-    excludeLinksFromLockfile: false,
-    linkWorkspacePackages: true,
-    wantedLockfile: {
-      importers: {
-        bar: {
-          dependencies: {
-            foo: 'link:../foo',
+        {
+          buildIndex: 0,
+          id: 'foo',
+          manifest: fooManifest,
+          rootDir: 'foo',
+        },
+      ],
+      {
+        autoInstallPeers: false,
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        wantedLockfile: {
+          importers: {
+            bar: {
+              dependencies: {
+                foo: 'link:../foo',
+              },
+              specifiers: {
+                foo: 'workspace:../foo',
+              },
+            },
+            foo: {
+              specifiers: {},
+            },
           },
-          specifiers: {
-            foo: 'workspace:../foo',
-          },
+          lockfileVersion: 5,
         },
-        foo: {
-          specifiers: {},
-        },
-      },
-      lockfileVersion: 5,
-    },
-    workspacePackages,
-    lockfileDir: '',
-  })).toBeFalsy()
+        workspacePackages,
+        lockfileDir: '',
+      }
+    )
+  ).toBeFalsy()
 })
 
 test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async () => {
-  expect(await allProjectsAreUpToDate([
-    {
-      buildIndex: 0,
-      id: 'bar',
-      manifest: {
-        dependencies: {
-          foo: 'workspace:../foo',
-        },
-        dependenciesMeta: {
-          foo: {
-            injected: true,
-          },
-        },
-      },
-      rootDir: 'bar',
-    },
-    {
-      buildIndex: 0,
-      id: 'foo',
-      manifest: fooManifest,
-      rootDir: 'foo',
-    },
-  ], {
-    autoInstallPeers: false,
-    excludeLinksFromLockfile: false,
-    linkWorkspacePackages: true,
-    wantedLockfile: {
-      importers: {
-        bar: {
-          dependencies: {
-            foo: 'link:../foo',
-          },
-          dependenciesMeta: {
-            foo: {
-              injected: true,
+  expect(
+    await allProjectsAreUpToDate(
+      [
+        {
+          buildIndex: 0,
+          id: 'bar',
+          manifest: {
+            dependencies: {
+              foo: 'workspace:../foo',
+            },
+            dependenciesMeta: {
+              foo: {
+                injected: true,
+              },
             },
           },
-          specifiers: {
-            foo: 'workspace:../foo',
+          rootDir: 'bar',
+        },
+        {
+          buildIndex: 0,
+          id: 'foo',
+          manifest: fooManifest,
+          rootDir: 'foo',
+        },
+      ],
+      {
+        autoInstallPeers: false,
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        wantedLockfile: {
+          importers: {
+            bar: {
+              dependencies: {
+                foo: 'link:../foo',
+              },
+              dependenciesMeta: {
+                foo: {
+                  injected: true,
+                },
+              },
+              specifiers: {
+                foo: 'workspace:../foo',
+              },
+            },
+            foo: {
+              specifiers: {},
+            },
           },
+          lockfileVersion: 5,
         },
-        foo: {
-          specifiers: {},
-        },
-      },
-      lockfileVersion: 5,
-    },
-    workspacePackages,
-    lockfileDir: '',
-  })).toBeTruthy()
+        workspacePackages,
+        lockfileDir: '',
+      }
+    )
+  ).toBeTruthy()
 })
 
 describe('local file dependency', () => {
   beforeEach(async () => {
     prepareEmpty()
     await mkdir('local-dir')
-    await writeFile('./local-dir/package.json', JSON.stringify({
-      name: 'local-dir',
-      version: '1.0.0',
-      dependencies: {
-        'is-positive': '2.0.0',
-      },
-    }))
+    await writeFile(
+      './local-dir/package.json',
+      JSON.stringify({
+        name: 'local-dir',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
+      })
+    )
   })
   const projects = [
     {
@@ -450,55 +483,72 @@ describe('local file dependency', () => {
     lockfileDir: process.cwd(),
   }
   test('allProjectsAreUpToDate(): returns true if local file not changed', async () => {
-    expect(await allProjectsAreUpToDate(projects, {
-      ...options,
-      lockfileDir: process.cwd(),
-    })).toBeTruthy()
+    expect(
+      await allProjectsAreUpToDate(projects, {
+        ...options,
+        lockfileDir: process.cwd(),
+      })
+    ).toBeTruthy()
   })
 
   test('allProjectsAreUpToDate(): returns false if add new dependency to local file', async () => {
-    await writeFile('./local-dir/package.json', JSON.stringify({
-      name: 'local-dir',
-      version: '1.0.0',
-      dependencies: {
-        'is-positive': '2.0.0',
-        'is-odd': '1.0.0',
-      },
-    }))
-    expect(await allProjectsAreUpToDate(projects, {
-      ...options,
-      lockfileDir: process.cwd(),
-    })).toBeFalsy()
+    await writeFile(
+      './local-dir/package.json',
+      JSON.stringify({
+        name: 'local-dir',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '2.0.0',
+          'is-odd': '1.0.0',
+        },
+      })
+    )
+    expect(
+      await allProjectsAreUpToDate(projects, {
+        ...options,
+        lockfileDir: process.cwd(),
+      })
+    ).toBeFalsy()
   })
 
   test('allProjectsAreUpToDate(): returns false if update dependency in local file', async () => {
-    await writeFile('./local-dir/package.json', JSON.stringify({
-      name: 'local-dir',
-      version: '1.0.0',
-      dependencies: {
-        'is-positive': '3.0.0',
-      },
-    }))
-    expect(await allProjectsAreUpToDate(projects, {
-      ...options,
-      lockfileDir: process.cwd(),
-    })).toBeFalsy()
+    await writeFile(
+      './local-dir/package.json',
+      JSON.stringify({
+        name: 'local-dir',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '3.0.0',
+        },
+      })
+    )
+    expect(
+      await allProjectsAreUpToDate(projects, {
+        ...options,
+        lockfileDir: process.cwd(),
+      })
+    ).toBeFalsy()
   })
 
   test('allProjectsAreUpToDate(): returns false if remove dependency in local file', async () => {
-    await writeFile('./local-dir/package.json', JSON.stringify({
-      name: 'local-dir',
-      version: '1.0.0',
-      dependencies: {},
-    }))
-    expect(await allProjectsAreUpToDate(projects, {
-      ...options,
-      lockfileDir: process.cwd(),
-    })).toBeFalsy()
+    await writeFile(
+      './local-dir/package.json',
+      JSON.stringify({
+        name: 'local-dir',
+        version: '1.0.0',
+        dependencies: {},
+      })
+    )
+    expect(
+      await allProjectsAreUpToDate(projects, {
+        ...options,
+        lockfileDir: process.cwd(),
+      })
+    ).toBeFalsy()
   })
 })
 
-test('allProjectsAreUpToDate(): returns true if workspace dependency\'s version type is tag', async () => {
+test("allProjectsAreUpToDate(): returns true if workspace dependency's version type is tag", async () => {
   const projects = [
     {
       buildIndex: 0,
@@ -540,8 +590,10 @@ test('allProjectsAreUpToDate(): returns true if workspace dependency\'s version 
     workspacePackages,
     lockfileDir: process.cwd(),
   }
-  expect(await allProjectsAreUpToDate(projects, {
-    ...options,
-    lockfileDir: process.cwd(),
-  })).toBeTruthy()
+  expect(
+    await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+    })
+  ).toBeTruthy()
 })

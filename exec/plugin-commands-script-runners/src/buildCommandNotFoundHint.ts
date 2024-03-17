@@ -3,7 +3,7 @@ import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 import { readdirSync } from 'fs'
 import path from 'path'
 
-export function getNearestProgram ({
+export function getNearestProgram({
   dir,
   modulesDir,
   programName,
@@ -27,7 +27,7 @@ export function getNearestProgram ({
   }
 }
 
-function readProgramsFromDir (binDir: string): string[] {
+function readProgramsFromDir(binDir: string): string[] {
   const files = readdirSync(binDir)
   if (process.platform !== 'win32') return files
   const executableExtensions = ['.cmd', '.bat', '.ps1', '.exe', '.com']
@@ -37,7 +37,10 @@ function readProgramsFromDir (binDir: string): string[] {
   })
 }
 
-export function buildCommandNotFoundHint (scriptName: string, scripts?: PackageScripts | undefined) {
+export function buildCommandNotFoundHint(
+  scriptName: string,
+  scripts?: PackageScripts | undefined
+) {
   let hint = `Command "${scriptName}" not found.`
 
   const nearestCommand = getNearestScript(scriptName, scripts)
@@ -49,11 +52,17 @@ export function buildCommandNotFoundHint (scriptName: string, scripts?: PackageS
   return hint
 }
 
-export function getNearestScript (scriptName: string, scripts?: PackageScripts | undefined) {
+export function getNearestScript(
+  scriptName: string,
+  scripts?: PackageScripts | undefined
+) {
   return getNearest(scriptName, Object.keys(scripts ?? []))
 }
 
-export function getNearest (name: string, list: readonly string[]): string | null {
+export function getNearest(
+  name: string,
+  list: readonly string[]
+): string | null {
   if (list == null || list.length === 0) return null
   return didYouMean(name, list, {
     returnType: ReturnTypeEnums.FIRST_CLOSEST_MATCH,

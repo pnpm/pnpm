@@ -51,13 +51,16 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     },
   ])
 
-  await add.handler({
-    ...DEFAULT_OPTIONS,
-    dir: path.resolve('project-1'),
-    linkWorkspacePackages: false,
-    saveWorkspaceProtocol: false,
-    workspaceDir: process.cwd(),
-  }, ['project-2@workspace:*'])
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      dir: path.resolve('project-1'),
+      linkWorkspacePackages: false,
+      saveWorkspaceProtocol: false,
+      workspaceDir: process.cwd(),
+    },
+    ['project-2@workspace:*']
+  )
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
@@ -78,13 +81,16 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     },
   ])
 
-  await add.handler({
-    ...DEFAULT_OPTIONS,
-    dir: path.resolve('project-1'),
-    linkWorkspacePackages: false,
-    saveWorkspaceProtocol: 'rolling',
-    workspaceDir: process.cwd(),
-  }, ['project-2@workspace:*'])
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      dir: path.resolve('project-1'),
+      linkWorkspacePackages: false,
+      saveWorkspaceProtocol: 'rolling',
+      workspaceDir: process.cwd(),
+    },
+    ['project-2@workspace:*']
+  )
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
@@ -105,14 +111,17 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     },
   ])
 
-  await add.handler({
-    ...DEFAULT_OPTIONS,
-    dir: path.resolve('project-1'),
-    linkWorkspacePackages: false,
-    saveWorkspaceProtocol: false,
-    workspace: true,
-    workspaceDir: process.cwd(),
-  }, ['project-2'])
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      dir: path.resolve('project-1'),
+      linkWorkspacePackages: false,
+      saveWorkspaceProtocol: false,
+      workspace: true,
+      workspaceDir: process.cwd(),
+    },
+    ['project-2']
+  )
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
@@ -135,13 +144,16 @@ test('add: fail when "workspace" option is true but the command runs not in a wo
 
   let err!: PnpmError
   try {
-    await add.handler({
-      ...DEFAULT_OPTIONS,
-      dir: path.resolve('project-1'),
-      linkWorkspacePackages: false,
-      saveWorkspaceProtocol: false,
-      workspace: true,
-    }, ['project-2'])
+    await add.handler(
+      {
+        ...DEFAULT_OPTIONS,
+        dir: path.resolve('project-1'),
+        linkWorkspacePackages: false,
+        saveWorkspaceProtocol: false,
+        workspace: true,
+      },
+      ['project-2']
+    )
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -163,23 +175,30 @@ test('add: fail when "workspace" option is true but linkWorkspacePackages is fal
 
   let err!: PnpmError
   try {
-    await add.handler({
-      ...DEFAULT_OPTIONS,
-      dir: path.resolve('project-1'),
-      linkWorkspacePackages: false,
-      rawLocalConfig: {
-        ...DEFAULT_OPTIONS.rawLocalConfig,
-        'save-workspace-protocol': false,
+    await add.handler(
+      {
+        ...DEFAULT_OPTIONS,
+        dir: path.resolve('project-1'),
+        linkWorkspacePackages: false,
+        rawLocalConfig: {
+          ...DEFAULT_OPTIONS.rawLocalConfig,
+          'save-workspace-protocol': false,
+        },
+        saveWorkspaceProtocol: false,
+        workspace: true,
+        workspaceDir: process.cwd(),
       },
-      saveWorkspaceProtocol: false,
-      workspace: true,
-      workspaceDir: process.cwd(),
-    }, ['project-2'])
+      ['project-2']
+    )
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_BAD_OPTIONS')
-  expect(err.message.startsWith('This workspace has link-workspace-packages turned off')).toBeTruthy()
+  expect(
+    err.message.startsWith(
+      'This workspace has link-workspace-packages turned off'
+    )
+  ).toBeTruthy()
 })
 
 test('installing with "workspace=true" with linkWorkspacePackages on and saveWorkspaceProtocol off', async () => {
@@ -194,14 +213,17 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
     },
   ])
 
-  await add.handler({
-    ...DEFAULT_OPTIONS,
-    dir: path.resolve('project-1'),
-    linkWorkspacePackages: true,
-    saveWorkspaceProtocol: false,
-    workspace: true,
-    workspaceDir: process.cwd(),
-  }, ['project-2'])
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      dir: path.resolve('project-1'),
+      linkWorkspacePackages: true,
+      saveWorkspaceProtocol: false,
+      workspace: true,
+      workspaceDir: process.cwd(),
+    },
+    ['project-2']
+  )
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
@@ -213,121 +235,129 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
 test('add: fail when --no-save option is used', async () => {
   let err!: PnpmError
   try {
-    await add.handler({
-      ...DEFAULT_OPTIONS,
-      cliOptions: {
-        save: false,
+    await add.handler(
+      {
+        ...DEFAULT_OPTIONS,
+        cliOptions: {
+          save: false,
+        },
+        dir: process.cwd(),
+        linkWorkspacePackages: false,
       },
-      dir: process.cwd(),
-      linkWorkspacePackages: false,
-    }, ['is-positive'])
+      ['is-positive']
+    )
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_OPTION_NOT_SUPPORTED')
-  expect(err.message).toBe('The "add" command currently does not support the no-save option')
+  expect(err.message).toBe(
+    'The "add" command currently does not support the no-save option'
+  )
 })
 
 test('pnpm add --save-peer', async () => {
   const project = prepare()
 
-  await add.handler({
-    ...DEFAULT_OPTIONS,
-    dir: process.cwd(),
-    linkWorkspacePackages: false,
-    savePeer: true,
-  }, ['is-positive@1.0.0'])
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+      savePeer: true,
+    },
+    ['is-positive@1.0.0']
+  )
 
   {
     const manifest = await loadJsonFile(path.resolve('package.json'))
 
-    expect(
-      manifest
-    ).toStrictEqual(
-      {
-        name: 'project',
-        version: '0.0.0',
+    expect(manifest).toStrictEqual({
+      name: 'project',
+      version: '0.0.0',
 
-        devDependencies: { 'is-positive': '1.0.0' },
-        peerDependencies: { 'is-positive': '1.0.0' },
-      }
-    )
+      devDependencies: { 'is-positive': '1.0.0' },
+      peerDependencies: { 'is-positive': '1.0.0' },
+    })
   }
 
   await project.has('is-positive')
 
-  await remove.handler({
-    ...DEFAULT_OPTIONS,
-    dir: process.cwd(),
-    linkWorkspacePackages: false,
-  }, ['is-positive'])
+  await remove.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+    },
+    ['is-positive']
+  )
 
   await project.hasNot('is-positive')
 
   {
     const manifest = await loadJsonFile(path.resolve('package.json'))
 
-    expect(
-      manifest
-    ).toStrictEqual(
-      {
-        name: 'project',
-        version: '0.0.0',
-      }
-    )
+    expect(manifest).toStrictEqual({
+      name: 'project',
+      version: '0.0.0',
+    })
   }
 })
 
 test('pnpm add - with save-prefix set to empty string should save package version without prefix', async () => {
   prepare()
-  await add.handler({
-    ...DEFAULT_OPTIONS,
-    dir: process.cwd(),
-    linkWorkspacePackages: false,
-    savePrefix: '',
-  }, ['is-positive@1.0.0'])
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+      savePrefix: '',
+    },
+    ['is-positive@1.0.0']
+  )
 
   {
     const manifest = await loadJsonFile(path.resolve('package.json'))
 
-    expect(
-      manifest
-    ).toStrictEqual(
-      {
-        name: 'project',
-        version: '0.0.0',
-        dependencies: { 'is-positive': '1.0.0' },
-      }
-    )
+    expect(manifest).toStrictEqual({
+      name: 'project',
+      version: '0.0.0',
+      dependencies: { 'is-positive': '1.0.0' },
+    })
   }
 })
 
 test('pnpm add - should add prefix when set in .npmrc when a range is not specified explicitly', async () => {
   prepare()
-  await add.handler({
-    ...DEFAULT_OPTIONS,
-    dir: process.cwd(),
-    linkWorkspacePackages: false,
-    savePrefix: '~',
-  }, ['is-positive'])
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+      savePrefix: '~',
+    },
+    ['is-positive']
+  )
 
   {
-    const manifest = (await import(path.resolve('package.json')))
+    const manifest = await import(path.resolve('package.json'))
 
-    expect(
-      manifest.dependencies['is-positive']
-    ).toMatch(/~([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?$/)
+    expect(manifest.dependencies['is-positive']).toMatch(
+      /~([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?$/
+    )
   }
 })
 
 test('pnpm add automatically installs missing peer dependencies', async () => {
   const project = prepare()
-  await add.handler({
-    ...DEFAULT_OPTIONS,
-    autoInstallPeers: true,
-    dir: process.cwd(),
-    linkWorkspacePackages: false,
-  }, ['@pnpm.e2e/abc@1.0.0'])
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      autoInstallPeers: true,
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+    },
+    ['@pnpm.e2e/abc@1.0.0']
+  )
 
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages).length).toBe(5)
@@ -338,15 +368,18 @@ test('add: fail when global bin directory is not found', async () => {
 
   let err!: PnpmError
   try {
-    await add.handler({
-      ...DEFAULT_OPTIONS,
+    await add.handler(
+      {
+        ...DEFAULT_OPTIONS,
       bin: undefined as any, // eslint-disable-line
-      dir: path.resolve('project-1'),
-      global: true,
-      linkWorkspacePackages: false,
-      saveWorkspaceProtocol: false,
-      workspace: true,
-    }, ['@pnpm.e2e/hello-world-js-bin'])
+        dir: path.resolve('project-1'),
+        global: true,
+        linkWorkspacePackages: false,
+        saveWorkspaceProtocol: false,
+        workspace: true,
+      },
+      ['@pnpm.e2e/hello-world-js-bin']
+    )
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }

@@ -9,34 +9,39 @@ const f = fixtures(__dirname)
 
 describe('audit', () => {
   test('lockfileToAuditTree()', async () => {
-    expect(await lockfileToAuditTree({
-      importers: {
-        '.': {
-          dependencies: {
-            foo: '1.0.0',
+    expect(
+      await lockfileToAuditTree(
+        {
+          importers: {
+            '.': {
+              dependencies: {
+                foo: '1.0.0',
+              },
+              specifiers: {
+                foo: '^1.0.0',
+              },
+            },
           },
-          specifiers: {
-            foo: '^1.0.0',
+          lockfileVersion: LOCKFILE_VERSION,
+          packages: {
+            '/bar/1.0.0': {
+              resolution: {
+                integrity: 'bar-integrity',
+              },
+            },
+            '/foo/1.0.0': {
+              dependencies: {
+                bar: '1.0.0',
+              },
+              resolution: {
+                integrity: 'foo-integrity',
+              },
+            },
           },
         },
-      },
-      lockfileVersion: LOCKFILE_VERSION,
-      packages: {
-        '/bar/1.0.0': {
-          resolution: {
-            integrity: 'bar-integrity',
-          },
-        },
-        '/foo/1.0.0': {
-          dependencies: {
-            bar: '1.0.0',
-          },
-          resolution: {
-            integrity: 'foo-integrity',
-          },
-        },
-      },
-    }, { lockfileDir: f.find('one-project') })).toEqual({
+        { lockfileDir: f.find('one-project') }
+      )
+    ).toEqual({
       name: undefined,
       version: undefined,
 
@@ -76,34 +81,39 @@ describe('audit', () => {
   })
 
   test('lockfileToAuditTree() without specified version should use default version 0.0.0', async () => {
-    expect(await lockfileToAuditTree({
-      importers: {
-        '.': {
-          dependencies: {
-            foo: '1.0.0',
+    expect(
+      await lockfileToAuditTree(
+        {
+          importers: {
+            '.': {
+              dependencies: {
+                foo: '1.0.0',
+              },
+              specifiers: {
+                foo: '^1.0.0',
+              },
+            },
           },
-          specifiers: {
-            foo: '^1.0.0',
+          lockfileVersion: LOCKFILE_VERSION,
+          packages: {
+            '/bar/1.0.0': {
+              resolution: {
+                integrity: 'bar-integrity',
+              },
+            },
+            '/foo/1.0.0': {
+              dependencies: {
+                bar: '1.0.0',
+              },
+              resolution: {
+                integrity: 'foo-integrity',
+              },
+            },
           },
         },
-      },
-      lockfileVersion: LOCKFILE_VERSION,
-      packages: {
-        '/bar/1.0.0': {
-          resolution: {
-            integrity: 'bar-integrity',
-          },
-        },
-        '/foo/1.0.0': {
-          dependencies: {
-            bar: '1.0.0',
-          },
-          resolution: {
-            integrity: 'foo-integrity',
-          },
-        },
-      },
-    }, { lockfileDir: f.find('project-without-version') })).toEqual({
+        { lockfileDir: f.find('project-without-version') }
+      )
+    ).toEqual({
       name: undefined,
       version: undefined,
 
@@ -153,24 +163,28 @@ describe('audit', () => {
 
     let err!: PnpmError
     try {
-      await audit({
-        importers: {},
-        lockfileVersion: 5,
-      },
-      getAuthHeader,
-      {
-        lockfileDir: f.find('one-project'),
-        registry,
-        retry: {
-          retries: 0,
+      await audit(
+        {
+          importers: {},
+          lockfileVersion: 5,
         },
-      })
+        getAuthHeader,
+        {
+          lockfileDir: f.find('one-project'),
+          registry,
+          retry: {
+            retries: 0,
+          },
+        }
+      )
     } catch (_err: any) { // eslint-disable-line
       err = _err
     }
 
     expect(err).toBeDefined()
     expect(err.code).toEqual('ERR_PNPM_AUDIT_BAD_RESPONSE')
-    expect(err.message).toEqual('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}')
+    expect(err.message).toEqual(
+      'The audit endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}'
+    )
   })
 })

@@ -1,7 +1,7 @@
 import { type MissingPeerIssuesByPeerName } from '@pnpm/types'
 import { intersect } from 'semver-range-intersect'
 
-export function mergePeers (missingPeers: MissingPeerIssuesByPeerName) {
+export function mergePeers(missingPeers: MissingPeerIssuesByPeerName) {
   const conflicts: string[] = []
   const intersections: Record<string, string> = {}
   for (const [peerName, ranges] of Object.entries(missingPeers)) {
@@ -10,7 +10,9 @@ export function mergePeers (missingPeers: MissingPeerIssuesByPeerName) {
       intersections[peerName] = ranges[0].wantedRange
       continue
     }
-    const intersection = safeIntersect(ranges.map(({ wantedRange }) => wantedRange))
+    const intersection = safeIntersect(
+      ranges.map(({ wantedRange }) => wantedRange)
+    )
     if (intersection === null) {
       conflicts.push(peerName)
     } else {
@@ -20,7 +22,7 @@ export function mergePeers (missingPeers: MissingPeerIssuesByPeerName) {
   return { conflicts, intersections }
 }
 
-export function safeIntersect (ranges: string[]): null | string {
+export function safeIntersect(ranges: string[]): null | string {
   try {
     return intersect(...ranges)
   } catch {

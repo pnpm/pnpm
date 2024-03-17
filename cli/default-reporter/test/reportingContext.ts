@@ -1,8 +1,6 @@
 import { contextLogger, packageImportMethodLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
-import {
-  createStreamParser,
-} from '@pnpm/logger'
+import { createStreamParser } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
 
 test('print context and import method info', (done) => {
@@ -27,7 +25,7 @@ test('print context and import method info', (done) => {
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`\
 Packages are hard linked from the content-addressable store to the virtual store.
   Content-addressable store is at: ~/.pnpm-store/v3

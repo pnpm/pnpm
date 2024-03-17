@@ -1,9 +1,6 @@
 import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
-import {
-  createStreamParser,
-  logger,
-} from '@pnpm/logger'
+import { createStreamParser, logger } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
 
 test('print peer dependency issues warning', (done) => {
@@ -45,7 +42,7 @@ test('print peer dependency issues warning', (done) => {
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toContain('.')
     },
   })
@@ -58,8 +55,8 @@ test('print peer dependency issues error', (done) => {
   })
 
   const err = new Error('some error')
-  err['code'] = 'ERR_PNPM_PEER_DEP_ISSUES'
-  err['issuesByProjects'] = {
+  err.code = 'ERR_PNPM_PEER_DEP_ISSUES'
+  err.issuesByProjects = {
     '.': {
       missing: {},
       bad: {
@@ -91,7 +88,7 @@ test('print peer dependency issues error', (done) => {
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toContain('.')
     },
   })

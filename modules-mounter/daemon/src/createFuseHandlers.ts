@@ -1,10 +1,17 @@
 // cspell:ignore ents
 import fs from 'fs'
-import { getFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { type Lockfile, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile-file'
 import {
-  nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+  getFilePathInCafs,
+  getFilePathByModeInCafs,
+  type PackageFilesIndex,
+} from '@pnpm/store.cafs'
+import {
+  type Lockfile,
+  readWantedLockfile,
+  type PackageSnapshot,
+  type TarballResolution,
+} from '@pnpm/lockfile-file'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import * as schemas from 'hyperdrive-schemas'
 import loadJsonFile from 'load-json-file'
 import Fuse from 'fuse-native'
@@ -21,33 +28,52 @@ const STAT_DEFAULT = {
   gid: process.getgid ? process.getgid() : 0,
 }
 
-export async function createFuseHandlers (lockfileDir: string, cafsDir: string) {
-  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
-  if (lockfile == null) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
+export async function createFuseHandlers(lockfileDir: string, cafsDir: string) {
+  const lockfile = await readWantedLockfile(lockfileDir, {
+    ignoreIncompatible: true,
+  })
+  if (lockfile == null)
+    throw new Error('Cannot generate a .pnp.cjs without a lockfile')
   return createFuseHandlersFromLockfile(lockfile, cafsDir)
 }
 
-export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: string) {
-  const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
+export function createFuseHandlersFromLockfile(
+  lockfile: Lockfile,
+  cafsDir: string
+) {
+  const pkgSnapshotCache = new Map<
+    string,
+    {
+      name: string
+      version: string
+      pkgSnapshot: PackageSnapshot
+      index: PackageFilesIndex
+    }
+  >()
   const virtualNodeModules = makeVirtualNodeModules(lockfile)
   return {
-    open (p: string, flags: string | number, cb: (exitCode: number, fd?: number) => void) {
+    open(
+      p: string,
+      flags: string | number,
+      cb: (exitCode: number, fd?: number) => void
+    ) {
       const dirEnt = getDirEnt(p)
       if (dirEnt?.entryType !== 'index') {
-        // eslint-disable-next-line n/no-callback-literal
         cb(-1)
         return
       }
       const fileInfo = dirEnt.index.files[dirEnt.subPath]
       if (!fileInfo) {
-        // eslint-disable-next-line n/no-callback-literal
         cb(-1)
         return
       }
-      const filePathInStore = getFilePathByModeInCafs(cafsDir, fileInfo.integrity, fileInfo.mode)
+      const filePathInStore = getFilePathByModeInCafs(
+        cafsDir,
+        fileInfo.integrity,
+        fileInfo.mode
+      )
       fs.open(filePathInStore, flags, (err, fd) => {
         if (err != null) {
-        // eslint-disable-next-line n/no-callback-literal
           cb(-1)
           return
         }
@@ -55,22 +81,28 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
         cb(0, fd)
       })
     },
-    release (p: string, fd: number, cb: (exitCode: number) => void) {
+    release(p: string, fd: number, cb: (exitCode: number) => void) {
       fs.close(fd, (err) => {
-        cb((err != null) ? -1 : 0) // eslint-disable-line n/no-callback-literal
+        cb(err != null ? -1 : 0)
       })
     },
-    read (p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) {
+    read(
+      p: string,
+      fd: number,
+      buffer: Buffer,
+      length: number,
+      position: number,
+      cb: (readBytes: number) => void
+    ) {
       fs.read(fd, buffer, 0, length, position, (err, bytesRead) => {
         if (err != null) {
-        // eslint-disable-next-line n/no-callback-literal
           cb(-1)
           return
         }
         cb(bytesRead)
       })
     },
-    readlink (p: string, cb: (returnCode: number, target?: string) => void) {
+    readlink(p: string, cb: (returnCode: number, target?: string) => void) {
       const dirEnt = getDirEnt(p)
       if (dirEnt?.entryType !== 'symlink') {
         cb(Fuse.ENOENT)
@@ -80,57 +112,75 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
       cb(0, dirEnt.target)
     },
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-    getattr (p: string, cb: (returnCode: number, files?: any) => void) {
+    getattr(p: string, cb: (returnCode: number, files?: any) => void) {
       const dirEnt = getDirEnt(p)
       if (dirEnt == null) {
         cb(Fuse.ENOENT)
         return
       }
-      if (dirEnt.entryType === 'directory' || dirEnt.entryType === 'index' && !dirEnt.subPath) {
+      if (
+        dirEnt.entryType === 'directory' ||
+        (dirEnt.entryType === 'index' && !dirEnt.subPath)
+      ) {
         // eslint-disable-next-line n/no-callback-literal
-        cb(0, schemas.Stat.directory({
-          ...STAT_DEFAULT,
-          size: 1,
-        }))
+        cb(
+          0,
+          schemas.Stat.directory({
+            ...STAT_DEFAULT,
+            size: 1,
+          })
+        )
         return
       }
       if (dirEnt.entryType === 'symlink') {
         // eslint-disable-next-line n/no-callback-literal
-        cb(0, schemas.Stat.symlink({
-          ...STAT_DEFAULT,
-          size: 1,
-        }))
+        cb(
+          0,
+          schemas.Stat.symlink({
+            ...STAT_DEFAULT,
+            size: 1,
+          })
+        )
         return
       }
       if (dirEnt.entryType === 'index') {
         switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
-        case 'file': {
-          const { size, mode } = dirEnt.index.files[dirEnt.subPath]
-          // eslint-disable-next-line n/no-callback-literal
-          cb(0, schemas.Stat.file({
-            ...STAT_DEFAULT,
-            mode,
-            size,
-          }))
-          return
-        }
-        case 'directory':
-        // eslint-disable-next-line n/no-callback-literal
-          cb(0, schemas.Stat.directory({
-            ...STAT_DEFAULT,
-            size: 1,
-          }))
-          return
-        default:
-          cb(Fuse.ENOENT)
-          return
+          case 'file': {
+            const { size, mode } = dirEnt.index.files[dirEnt.subPath]
+            // eslint-disable-next-line n/no-callback-literal
+            cb(
+              0,
+              schemas.Stat.file({
+                ...STAT_DEFAULT,
+                mode,
+                size,
+              })
+            )
+            return
+          }
+          case 'directory':
+            // eslint-disable-next-line n/no-callback-literal
+            cb(
+              0,
+              schemas.Stat.directory({
+                ...STAT_DEFAULT,
+                size: 1,
+              })
+            )
+            return
+          default:
+            cb(Fuse.ENOENT)
+            return
         }
       }
       cb(Fuse.ENOENT)
     },
     readdir,
   }
-  function readdir (p: string, cb: (returnCode: number, files?: string[]) => void) {
+  function readdir(
+    p: string,
+    cb: (returnCode: number, files?: string[]) => void
+  ) {
     const dirEnt = getDirEnt(p)
     if (dirEnt?.entryType === 'index') {
       const dirEnts = cafsExplorer.readdir(dirEnt.index, dirEnt.subPath)
@@ -142,18 +192,22 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
       cb(0, dirEnts)
       return
     }
-    if ((dirEnt == null) || dirEnt.entryType !== 'directory') {
+    if (dirEnt == null || dirEnt.entryType !== 'directory') {
       cb(Fuse.ENOENT)
       return
     }
     // eslint-disable-next-line n/no-callback-literal
     cb(0, Object.keys(dirEnt.entries))
   }
-  function getDirEnt (p: string) {
+  function getDirEnt(p: string) {
     let currentDirEntry = virtualNodeModules
     const parts = p === '/' ? [] : p.split('/')
     parts.shift()
-    while ((parts.length > 0) && currentDirEntry && currentDirEntry.entryType === 'directory') {
+    while (
+      parts.length > 0 &&
+      currentDirEntry &&
+      currentDirEntry.entryType === 'directory'
+    ) {
       currentDirEntry = currentDirEntry.entries[parts.shift()!]
     }
     if (currentDirEntry?.entryType === 'index') {
@@ -169,11 +223,15 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
     }
     return currentDirEntry
   }
-  function getPkgInfo (depPath: string, cafsDir: string) {
+  function getPkgInfo(depPath: string, cafsDir: string) {
     if (!pkgSnapshotCache.has(depPath)) {
       const pkgSnapshot = lockfile.packages?.[depPath]
       if (pkgSnapshot == null) return undefined
-      const indexPath = getFilePathInCafs(cafsDir, (pkgSnapshot.resolution as TarballResolution).integrity!, 'index')
+      const indexPath = getFilePathInCafs(
+        cafsDir,
+        (pkgSnapshot.resolution as TarballResolution).integrity!,
+        'index'
+      )
       pkgSnapshotCache.set(depPath, {
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
         pkgSnapshot,

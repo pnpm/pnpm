@@ -8,7 +8,10 @@ export interface Command {
   path: string
 }
 
-export async function getBinsFromPackageManifest (manifest: DependencyManifest, pkgPath: string): Promise<Command[]> {
+export async function getBinsFromPackageManifest(
+  manifest: DependencyManifest,
+  pkgPath: string
+): Promise<Command[]> {
   if (manifest.bin) {
     return commandsFromBin(manifest.bin, manifest.name, pkgPath)
   }
@@ -23,7 +26,7 @@ export async function getBinsFromPackageManifest (manifest: DependencyManifest, 
   return []
 }
 
-async function findFiles (dir: string): Promise<string[]> {
+async function findFiles(dir: string): Promise<string[]> {
   try {
     return await fastGlob('**', {
       cwd: dir,
@@ -38,7 +41,7 @@ async function findFiles (dir: string): Promise<string[]> {
   }
 }
 
-function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string) {
+function commandsFromBin(bin: PackageBin, pkgName: string, pkgPath: string) {
   if (typeof bin === 'string') {
     return [
       {
@@ -48,7 +51,12 @@ function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string) {
     ]
   }
   return Object.keys(bin)
-    .filter((commandName) => encodeURIComponent(commandName) === commandName || commandName === '$' || commandName[0] === '@')
+    .filter(
+      (commandName) =>
+        encodeURIComponent(commandName) === commandName ||
+        commandName === '$' ||
+        commandName[0] === '@'
+    )
     .map((commandName) => ({
       name: normalizeBinName(commandName),
       path: path.join(pkgPath, bin[commandName]),
@@ -56,6 +64,6 @@ function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string) {
     .filter((cmd) => isSubdir(pkgPath, cmd.path))
 }
 
-function normalizeBinName (name: string) {
+function normalizeBinName(name: string) {
   return name[0] === '@' ? name.slice(name.indexOf('/') + 1) : name
 }

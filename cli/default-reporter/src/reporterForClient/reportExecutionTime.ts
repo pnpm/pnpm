@@ -1,9 +1,9 @@
 import prettyMs from 'pretty-ms'
-import { type ExecutionTimeLog } from '@pnpm/core-loggers'
+import type { ExecutionTimeLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 
-export function reportExecutionTime (
+export function reportExecutionTime(
   executionTime$: Rx.Observable<ExecutionTimeLog>
 ) {
   return executionTime$.pipe(

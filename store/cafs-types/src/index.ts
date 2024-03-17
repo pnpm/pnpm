@@ -14,13 +14,16 @@ export type PackageFilesResponse = {
   resolvedFrom: ResolvedFrom
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
-} & ({
-  unprocessed?: false
-  filesIndex: Record<string, string>
-} | {
-  unprocessed: true
-  filesIndex: Record<string, PackageFileInfo>
-})
+} & (
+  | {
+    unprocessed?: false
+    filesIndex: Record<string, string>
+  }
+  | {
+    unprocessed: true
+    filesIndex: Record<string, PackageFileInfo>
+  }
+)
 
 export interface ImportPackageOpts {
   disableRelinkLocalDirDeps?: boolean
@@ -34,12 +37,12 @@ export interface ImportPackageOpts {
 export type ImportPackageFunction = (
   to: string,
   opts: ImportPackageOpts
-) => { isBuilt: boolean, importMethod: undefined | string }
+) => { isBuilt: boolean; importMethod: undefined | string }
 
 export type ImportPackageFunctionAsync = (
   to: string,
   opts: ImportPackageOpts
-) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
+) => Promise<{ isBuilt: boolean; importMethod: undefined | string }>
 
 export type FileType = 'exec' | 'nonexec' | 'index'
 
@@ -65,8 +68,14 @@ export interface Cafs {
   cafsDir: string
   addFilesFromDir: (dir: string) => AddToStoreResult
   addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
-  getFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
-  getFilePathByModeInCafs: (integrity: string | IntegrityLike, mode: number) => string
+  getFilePathInCafs: (
+    integrity: string | IntegrityLike,
+    fileType: FileType
+  ) => string
+  getFilePathByModeInCafs: (
+    integrity: string | IntegrityLike,
+    mode: number
+  ) => string
   importPackage: ImportPackageFunction
   tempDir: () => Promise<string>
 }

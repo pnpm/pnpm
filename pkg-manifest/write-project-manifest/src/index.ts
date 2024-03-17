@@ -1,7 +1,10 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { insertComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
-import { type ProjectManifest } from '@pnpm/types'
+import {
+  insertComments,
+  type CommentSpecifier,
+} from '@pnpm/text.comments-parser'
+import type { ProjectManifest } from '@pnpm/types'
 import JSON5 from 'json5'
 import writeFileAtomic from 'write-file-atomic'
 import writeYamlFile from 'write-yaml-file'
@@ -11,7 +14,7 @@ const YAML_FORMAT = {
   noRefs: true,
 }
 
-export async function writeProjectManifest (
+export async function writeProjectManifest(
   filePath: string,
   manifest: ProjectManifest,
   opts?: {
@@ -29,16 +32,19 @@ export async function writeProjectManifest (
   const trailingNewline = opts?.insertFinalNewline === false ? '' : '\n'
   const indent = opts?.indent ?? '\t'
 
-  const json = (
+  const json =
     fileType === 'json5'
       ? stringifyJson5(manifest, indent, opts?.comments)
       : JSON.stringify(manifest, undefined, indent)
-  )
 
   return writeFileAtomic(filePath, `${json}${trailingNewline}`)
 }
 
-function stringifyJson5 (obj: object, indent: string | number, comments?: CommentSpecifier[]) {
+function stringifyJson5(
+  obj: object,
+  indent: string | number,
+  comments?: CommentSpecifier[]
+) {
   const json5 = JSON5.stringify(obj, undefined, indent)
   if (comments) {
     return insertComments(json5, comments)

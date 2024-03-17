@@ -1,8 +1,14 @@
-import { type DependenciesHierarchy, type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import {
+  type DependenciesHierarchy,
+  type PackageNode,
+} from '@pnpm/reviewing.dependencies-hierarchy'
 import { type PackageDependencyHierarchy } from './types'
 import { createHash } from 'crypto'
 
-export function pruneDependenciesTrees (trees: PackageDependencyHierarchy[] | null, limit: number): PackageDependencyHierarchy[] {
+export function pruneDependenciesTrees(
+  trees: PackageDependencyHierarchy[] | null,
+  limit: number
+): PackageDependencyHierarchy[] {
   if (trees === null) {
     return []
   }
@@ -11,7 +17,7 @@ export function pruneDependenciesTrees (trees: PackageDependencyHierarchy[] | nu
     const endLeafPaths: PackageNode[][] = []
     const visitedNodes = new Set<string>()
 
-    function findEndLeaves (node: PackageNode, path: PackageNode[]): void {
+    function findEndLeaves(node: PackageNode, path: PackageNode[]): void {
       if (node.circular) {
         return
       }

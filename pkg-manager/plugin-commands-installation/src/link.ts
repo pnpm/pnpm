@@ -7,12 +7,22 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
+import {
+  type Config,
+  getOptionsFromRootManifest,
+  types as allTypes,
+} from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
-import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import {
+  arrayOfWorkspacePackagesToMap,
+  findWorkspacePackages,
+} from '@pnpm/workspace.find-packages'
 import { type StoreController } from '@pnpm/package-store'
-import { createOrConnectStoreControllerCached, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import {
+  createOrConnectStoreControllerCached,
+  type CreateStoreControllerOptions,
+} from '@pnpm/store-connection-manager'
 import {
   addDependenciesToPackage,
   install,
@@ -31,43 +41,51 @@ import * as installCommand from './install'
 import { getSaveType } from './getSaveType'
 
 // @ts-expect-error
-const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
-const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
+const isWindows = process.platform === 'win32' || global.FAKE_WINDOWS
+const isFilespec = isWindows
+  ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/
+  : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
 const installLimit = pLimit(4)
 
-type LinkOpts = CreateStoreControllerOptions & Pick<Config,
-| 'bin'
-| 'cliOptions'
-| 'engineStrict'
-| 'saveDev'
-| 'saveOptional'
-| 'saveProd'
-| 'workspaceDir'
-| 'sharedWorkspaceLockfile'
-> & Partial<Pick<Config, 'linkWorkspacePackages'>>
+type LinkOpts = CreateStoreControllerOptions &
+  Pick<
+    Config,
+    | 'bin'
+    | 'cliOptions'
+    | 'engineStrict'
+    | 'saveDev'
+    | 'saveOptional'
+    | 'saveProd'
+    | 'workspaceDir'
+    | 'sharedWorkspaceLockfile'
+  > &
+  Partial<Pick<Config, 'linkWorkspacePackages'>>
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
-  return pick([
-    'global-dir',
-    'global',
-    'only',
-    'package-import-method',
-    'production',
-    'registry',
-    'reporter',
-    'save-dev',
-    'save-exact',
-    'save-optional',
-    'save-prefix',
-    'unsafe-perm',
-  ], allTypes)
+export function cliOptionsTypes() {
+  return pick(
+    [
+      'global-dir',
+      'global',
+      'only',
+      'package-import-method',
+      'production',
+      'registry',
+      'reporter',
+      'save-dev',
+      'save-exact',
+      'save-optional',
+      'save-prefix',
+      'unsafe-perm',
+    ],
+    allTypes
+  )
 }
 
 export const commandNames = ['link', 'ln']
 
-export function help () {
+export function help() {
   return renderHelp({
     aliases: ['ln'],
     descriptionLists: [
@@ -93,10 +111,13 @@ export function help () {
   })
 }
 
-async function checkPeerDeps (linkCwdDir: string, opts: LinkOpts) {
+async function checkPeerDeps(linkCwdDir: string, opts: LinkOpts) {
   const { manifest } = await tryReadProjectManifest(linkCwdDir, opts)
 
-  if (manifest?.peerDependencies && Object.keys(manifest.peerDependencies).length > 0) {
+  if (
+    manifest?.peerDependencies &&
+    Object.keys(manifest.peerDependencies).length > 0
+  ) {
     const packageName = manifest.name ?? path.basename(linkCwdDir) // Assuming the name property exists in newManifest
     const peerDeps = Object.entries(manifest.peerDependencies)
       .map(([key, value]) => `  - ${key}@${value}`)
@@ -114,23 +135,28 @@ This might cause issues in your project. To resolve this, you may use the "file:
   }
 }
 
-export async function handler (
-  opts: LinkOpts,
-  params?: string[]
-) {
+export async function handler(opts: LinkOpts, params?: string[]) {
   const cwd = process.cwd()
 
-  const storeControllerCache = new Map<string, Promise<{ dir: string, ctrl: StoreController }>>()
+  const storeControllerCache = new Map<
+    string,
+    Promise<{ dir: string; ctrl: StoreController }>
+  >()
   let workspacePackagesArr
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
     workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
-    workspacePackages = arrayOfWorkspacePackagesToMap(workspacePackagesArr) as WorkspacePackages
+    workspacePackages = arrayOfWorkspacePackagesToMap(
+      workspacePackagesArr
+    ) as WorkspacePackages
   } else {
     workspacePackages = {}
   }
 
-  const store = await createOrConnectStoreControllerCached(storeControllerCache, opts)
+  const store = await createOrConnectStoreControllerCached(
+    storeControllerCache,
+    opts
+  )
   const linkOpts = Object.assign(opts, {
     storeController: store.ctrl,
     storeDir: store.dir,
@@ -138,17 +164,23 @@ export async function handler (
     workspacePackages,
   })
 
-  const linkCwdDir = opts.cliOptions?.dir && opts.cliOptions?.global ? path.resolve(opts.cliOptions.dir) : cwd
+  const linkCwdDir =
+    opts.cliOptions?.dir && opts.cliOptions?.global
+      ? path.resolve(opts.cliOptions.dir)
+      : cwd
 
   // pnpm link
-  if ((params == null) || (params.length === 0)) {
+  if (params == null || params.length === 0) {
     if (path.relative(linkOpts.dir, cwd) === '') {
       throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter')
     }
 
     await checkPeerDeps(linkCwdDir, opts)
 
-    const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
+    const { manifest, writeProjectManifest } = await tryReadProjectManifest(
+      opts.dir,
+      opts
+    )
     const newManifest = await addDependenciesToPackage(
       manifest ?? {},
       [`link:${linkCwdDir}`],
@@ -161,20 +193,26 @@ export async function handler (
   const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)
 
   await Promise.all(
-    pkgPaths.map(async (dir) => installLimit(async () => {
-      const s = await createOrConnectStoreControllerCached(storeControllerCache, opts)
-      const config = await getConfig(
-        { ...opts.cliOptions, dir },
-        {
-          excludeReporter: true,
-          rcOptionsTypes: installCommand.rcOptionsTypes(),
-          workspaceDir: await findWorkspaceDir(dir),
-        }
-      )
-      await install(
-        await readProjectManifestOnly(dir, opts), {
+    pkgPaths.map(async (dir) =>
+      installLimit(async () => {
+        const s = await createOrConnectStoreControllerCached(
+          storeControllerCache,
+          opts
+        )
+        const config = await getConfig(
+          { ...opts.cliOptions, dir },
+          {
+            excludeReporter: true,
+            rcOptionsTypes: installCommand.rcOptionsTypes(),
+            workspaceDir: await findWorkspaceDir(dir),
+          }
+        )
+        await install(await readProjectManifestOnly(dir, opts), {
           ...config,
-          ...getOptionsFromRootManifest(config.rootProjectManifestDir, config.rootProjectManifest ?? {}),
+          ...getOptionsFromRootManifest(
+            config.rootProjectManifestDir,
+            config.rootProjectManifest ?? {}
+          ),
           include: {
             dependencies: config.production !== false,
             devDependencies: config.dev !== false,
@@ -183,33 +221,52 @@ export async function handler (
           storeController: s.ctrl,
           storeDir: s.dir,
           workspacePackages,
-        } as InstallOptions
-      )
-    }))
+        } as InstallOptions)
+      })
+    )
   )
 
   if (pkgNames.length > 0) {
     let globalPkgNames!: string[]
     if (opts.workspaceDir) {
-      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
+      workspacePackagesArr = await findWorkspacePackages(
+        opts.workspaceDir,
+        opts
+      )
 
-      const pkgsFoundInWorkspace = workspacePackagesArr
-        .filter(({ manifest }) => manifest.name && pkgNames.includes(manifest.name))
-      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.dir))
+      const pkgsFoundInWorkspace = workspacePackagesArr.filter(
+        ({ manifest }) => manifest.name && pkgNames.includes(manifest.name)
+      )
+      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) =>
+        pkgPaths.push(pkgFromWorkspace.dir)
+      )
 
-      if ((pkgsFoundInWorkspace.length > 0) && !linkOpts.targetDependenciesField) {
+      if (
+        pkgsFoundInWorkspace.length > 0 &&
+        !linkOpts.targetDependenciesField
+      ) {
         linkOpts.targetDependenciesField = 'dependencies'
       }
 
-      globalPkgNames = pkgNames.filter((pkgName) => !pkgsFoundInWorkspace.some((pkgFromWorkspace) => pkgFromWorkspace.manifest.name === pkgName))
+      globalPkgNames = pkgNames.filter(
+        (pkgName) =>
+          !pkgsFoundInWorkspace.some(
+            (pkgFromWorkspace) => pkgFromWorkspace.manifest.name === pkgName
+          )
+      )
     } else {
       globalPkgNames = pkgNames
     }
     const globalPkgPath = pathAbsolute(opts.dir)
-    globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
+    globalPkgNames.forEach((pkgName) =>
+      pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName))
+    )
   }
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(linkCwdDir, opts)
+  const { manifest, writeProjectManifest } = await readProjectManifest(
+    linkCwdDir,
+    opts
+  )
 
   await Promise.all(
     pkgPaths.map(async (dir) => {
@@ -225,23 +282,31 @@ export async function handler (
       workspaceDir: await findWorkspaceDir(cwd),
     }
   )
-  const storeL = await createOrConnectStoreControllerCached(storeControllerCache, linkConfig)
-  const newManifest = await link(pkgPaths, path.join(linkCwdDir, 'node_modules'), {
-    ...linkConfig,
-    targetDependenciesField: linkOpts.targetDependenciesField,
-    storeController: storeL.ctrl,
-    storeDir: storeL.dir,
-    manifest,
-  } as LinkFunctionOptions)
+  const storeL = await createOrConnectStoreControllerCached(
+    storeControllerCache,
+    linkConfig
+  )
+  const newManifest = await link(
+    pkgPaths,
+    path.join(linkCwdDir, 'node_modules'),
+    {
+      ...linkConfig,
+      targetDependenciesField: linkOpts.targetDependenciesField,
+      storeController: storeL.ctrl,
+      storeDir: storeL.dir,
+      manifest,
+    } as LinkFunctionOptions
+  )
   if (!opts.cliOptions?.global) {
     await writeProjectManifest(newManifest)
   }
 
   await Promise.all(
-    Array.from(storeControllerCache.values())
-      .map(async (storeControllerPromise) => {
+    Array.from(storeControllerCache.values()).map(
+      async (storeControllerPromise) => {
         const storeControllerHolder = await storeControllerPromise
         await storeControllerHolder.ctrl.close()
-      })
+      }
+    )
   )
 }

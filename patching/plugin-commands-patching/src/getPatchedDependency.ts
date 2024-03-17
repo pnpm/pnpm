@@ -1,7 +1,13 @@
 import path from 'path'
-import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
+import {
+  parseWantedDependency,
+  type ParseWantedDependencyResult,
+} from '@pnpm/parse-wanted-dependency'
 import { prompt } from 'enquirer'
-import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile-file'
+import {
+  readCurrentLockfile,
+  type TarballResolution,
+} from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { PnpmError } from '@pnpm/error'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
@@ -15,10 +21,16 @@ export type GetPatchedDependencyOptions = {
   lockfileDir: string
 } & Pick<Config, 'virtualStoreDir' | 'modulesDir'>
 
-export async function getPatchedDependency (rawDependency: string, opts: GetPatchedDependencyOptions): Promise<ParseWantedDependencyResult> {
+export async function getPatchedDependency(
+  rawDependency: string,
+  opts: GetPatchedDependencyOptions
+): Promise<ParseWantedDependencyResult> {
   const dep = parseWantedDependency(rawDependency)
 
-  const { versions, preferredVersions } = await getVersionsFromLockfile(dep, opts)
+  const { versions, preferredVersions } = await getVersionsFromLockfile(
+    dep,
+    opts
+  )
 
   if (!preferredVersions.length) {
     throw new PnpmError(
@@ -35,14 +47,16 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
       type: 'select',
       name: 'version',
       message: 'Choose which version to patch',
-      choices: preferredVersions.map(preferred => ({
+      choices: preferredVersions.map((preferred) => ({
         name: preferred.version,
         message: preferred.version,
         value: preferred.gitTarballUrl ?? preferred.version,
         hint: preferred.gitTarballUrl ? 'Git Hosted' : undefined,
       })),
-      result (selected) {
-        const selectedVersion = preferredVersions.find(preferred => preferred.version === selected)!
+      result(selected) {
+        const selectedVersion = preferredVersions.find(
+          (preferred) => preferred.version === selected
+        )!
         return selectedVersion.gitTarballUrl ?? selected
       },
     })
@@ -54,12 +68,20 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
   return dep
 }
 
-export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions) {
-  const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
+export async function getVersionsFromLockfile(
+  dep: ParseWantedDependencyResult,
+  opts: GetPatchedDependencyOptions
+) {
+  const modulesDir = await realpathMissing(
+    path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules')
+  )
   const modules = await readModulesManifest(modulesDir)
-  const lockfile = (modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, {
-    ignoreIncompatible: true,
-  })) ?? null
+  const lockfile =
+    (modules?.virtualStoreDir &&
+      (await readCurrentLockfile(modules.virtualStoreDir, {
+        ignoreIncompatible: true,
+      }))) ??
+    null
 
   if (!lockfile) {
     throw new PnpmError(
@@ -68,11 +90,12 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
     )
   }
 
-  const pkgName = dep.alias && dep.pref ? dep.alias : (dep.pref ?? dep.alias)
+  const pkgName = dep.alias && dep.pref ? dep.alias : dep.pref ?? dep.alias
 
   const versions = Object.entries(lockfile.packages ?? {})
     .map(([depPath, pkgSnapshot]) => {
-      const tarball = (pkgSnapshot.resolution as TarballResolution)?.tarball ?? ''
+      const tarball =
+        (pkgSnapshot.resolution as TarballResolution)?.tarball ?? ''
       return {
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
         gitTarballUrl: isGitHostedPkgUrl(tarball) ? tarball : undefined,
@@ -82,6 +105,8 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
 
   return {
     versions,
-    preferredVersions: versions.filter(({ version }) => dep.alias && dep.pref ? semver.satisfies(version, dep.pref) : true),
+    preferredVersions: versions.filter(({ version }) =>
+      dep.alias && dep.pref ? semver.satisfies(version, dep.pref) : true
+    ),
   }
 }

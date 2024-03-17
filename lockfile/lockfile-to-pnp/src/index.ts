@@ -1,15 +1,13 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { type Lockfile } from '@pnpm/lockfile-file'
-import {
-  nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { type Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import { generateInlinedScript, type PackageRegistry } from '@yarnpkg/pnp'
 import normalizePath from 'normalize-path'
 
-export async function writePnpFile (
+export async function writePnpFile(
   lockfile: Lockfile,
   opts: {
     importerNames: Record<string, string>
@@ -21,16 +19,19 @@ export async function writePnpFile (
   const packageRegistry = lockfileToPackageRegistry(lockfile, opts)
 
   const loaderFile = generateInlinedScript({
-    blacklistedLocations: undefined,
     dependencyTreeRoots: [],
     ignorePattern: undefined,
     packageRegistry,
     shebang: undefined,
   })
-  await fs.writeFile(path.join(opts.lockfileDir, '.pnp.cjs'), loaderFile, 'utf8')
+  await fs.writeFile(
+    path.join(opts.lockfileDir, '.pnp.cjs'),
+    loaderFile,
+    'utf8'
+  )
 }
 
-export function lockfileToPackageRegistry (
+export function lockfileToPackageRegistry(
   lockfile: Lockfile,
   opts: {
     importerNames: { [importerId: string]: string }
@@ -47,9 +48,18 @@ export function lockfileToPackageRegistry (
           null,
           {
             packageDependencies: new Map([
-              ...((importer.dependencies != null) ? toPackageDependenciesMap(lockfile, importer.dependencies) : []),
-              ...((importer.optionalDependencies != null) ? toPackageDependenciesMap(lockfile, importer.optionalDependencies) : []),
-              ...((importer.devDependencies != null) ? toPackageDependenciesMap(lockfile, importer.devDependencies) : []),
+              ...(importer.dependencies != null
+                ? toPackageDependenciesMap(lockfile, importer.dependencies)
+                : []),
+              ...(importer.optionalDependencies != null
+                ? toPackageDependenciesMap(
+                  lockfile,
+                  importer.optionalDependencies
+                )
+                : []),
+              ...(importer.devDependencies != null
+                ? toPackageDependenciesMap(lockfile, importer.devDependencies)
+                : []),
             ]),
             packageLocation: './',
           },
@@ -64,9 +74,27 @@ export function lockfileToPackageRegistry (
           {
             packageDependencies: new Map([
               [name, importerId],
-              ...((importer.dependencies != null) ? toPackageDependenciesMap(lockfile, importer.dependencies, importerId) : []),
-              ...((importer.optionalDependencies != null) ? toPackageDependenciesMap(lockfile, importer.optionalDependencies, importerId) : []),
-              ...((importer.devDependencies != null) ? toPackageDependenciesMap(lockfile, importer.devDependencies, importerId) : []),
+              ...(importer.dependencies != null
+                ? toPackageDependenciesMap(
+                  lockfile,
+                  importer.dependencies,
+                  importerId
+                )
+                : []),
+              ...(importer.optionalDependencies != null
+                ? toPackageDependenciesMap(
+                  lockfile,
+                  importer.optionalDependencies,
+                  importerId
+                )
+                : []),
+              ...(importer.devDependencies != null
+                ? toPackageDependenciesMap(
+                  lockfile,
+                  importer.devDependencies,
+                  importerId
+                )
+                : []),
             ]),
             packageLocation: `./${importerId}`,
           },
@@ -75,8 +103,13 @@ export function lockfileToPackageRegistry (
       packageRegistry.set(name, packageStore)
     }
   }
-  for (const [relDepPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {})) {
-    const { name, version, peersSuffix } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+  for (const [relDepPath, pkgSnapshot] of Object.entries(
+    lockfile.packages ?? {}
+  )) {
+    const { name, version, peersSuffix } = nameVerFromPkgSnapshot(
+      relDepPath,
+      pkgSnapshot
+    )
     const pnpVersion = toPnPVersion(version, peersSuffix)
     let packageStore = packageRegistry.get(name)
     if (!packageStore) {
@@ -85,20 +118,29 @@ export function lockfileToPackageRegistry (
     }
 
     // Seems like this field should always contain a relative path
-    let packageLocation = normalizePath(path.relative(opts.lockfileDir, path.join(
-      opts.virtualStoreDir,
-      depPathToFilename(relDepPath),
-      'node_modules',
-      name
-    )))
+    let packageLocation = normalizePath(
+      path.relative(
+        opts.lockfileDir,
+        path.join(
+          opts.virtualStoreDir,
+          depPathToFilename(relDepPath),
+          'node_modules',
+          name
+        )
+      )
+    )
     if (!packageLocation.startsWith('../')) {
       packageLocation = `./${packageLocation}`
     }
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
         [name, pnpVersion],
-        ...((pkgSnapshot.dependencies != null) ? toPackageDependenciesMap(lockfile, pkgSnapshot.dependencies) : []),
-        ...((pkgSnapshot.optionalDependencies != null) ? toPackageDependenciesMap(lockfile, pkgSnapshot.optionalDependencies) : []),
+        ...(pkgSnapshot.dependencies != null
+          ? toPackageDependenciesMap(lockfile, pkgSnapshot.dependencies)
+          : []),
+        ...(pkgSnapshot.optionalDependencies != null
+          ? toPackageDependenciesMap(lockfile, pkgSnapshot.optionalDependencies)
+          : []),
       ]),
       packageLocation,
     })
@@ -107,7 +149,7 @@ export function lockfileToPackageRegistry (
   return packageRegistry
 }
 
-function toPackageDependenciesMap (
+function toPackageDependenciesMap(
   lockfile: Lockfile,
   deps: {
     [depAlias: string]: string
@@ -120,7 +162,10 @@ function toPackageDependenciesMap (
     }
     const relDepPath = refToRelative(ref, depAlias)
     if (!relDepPath) return [depAlias, ref]
-    const { name, version, peersSuffix } = nameVerFromPkgSnapshot(relDepPath, lockfile.packages![relDepPath])
+    const { name, version, peersSuffix } = nameVerFromPkgSnapshot(
+      relDepPath,
+      lockfile.packages![relDepPath]
+    )
     const pnpVersion = toPnPVersion(version, peersSuffix)
     if (depAlias === name) {
       return [depAlias, pnpVersion]
@@ -129,8 +174,6 @@ function toPackageDependenciesMap (
   })
 }
 
-function toPnPVersion (version: string, peersSuffix: string | undefined) {
-  return peersSuffix
-    ? `virtual:${version}_${peersSuffix}#${version}`
-    : version
+function toPnPVersion(version: string, peersSuffix: string | undefined) {
+  return peersSuffix ? `virtual:${version}_${peersSuffix}#${version}` : version
 }

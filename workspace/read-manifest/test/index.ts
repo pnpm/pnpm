@@ -2,7 +2,9 @@ import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import path from 'node:path'
 
 test('readWorkspaceManifest() works with a valid workspace file', async () => {
-  const manifest = await readWorkspaceManifest(path.join(__dirname, '__fixtures__/ok'))
+  const manifest = await readWorkspaceManifest(
+    path.join(__dirname, '__fixtures__/ok')
+  )
 
   expect(manifest).toEqual({
     packages: ['packages/**', 'types'],
@@ -35,30 +37,40 @@ test('readWorkspaceManifest() throws on string packages field', async () => {
 
 test('readWorkspaceManifest() throws on empty package', async () => {
   await expect(
-    readWorkspaceManifest(path.join(__dirname, '__fixtures__/packages-contains-empty'))
+    readWorkspaceManifest(
+      path.join(__dirname, '__fixtures__/packages-contains-empty')
+    )
   ).rejects.toThrow('Missing or empty package')
 })
 
 test('readWorkspaceManifest() throws on numeric package', async () => {
   await expect(
-    readWorkspaceManifest(path.join(__dirname, '__fixtures__/packages-contains-number'))
+    readWorkspaceManifest(
+      path.join(__dirname, '__fixtures__/packages-contains-number')
+    )
   ).rejects.toThrow('Invalid package type - number')
 })
 
 test('readWorkspaceManifest() works when no workspace file is present', async () => {
-  const manifest = await readWorkspaceManifest(path.join(__dirname, '__fixtures__/no-workspace-file'))
+  const manifest = await readWorkspaceManifest(
+    path.join(__dirname, '__fixtures__/no-workspace-file')
+  )
 
   expect(manifest).toBeUndefined()
 })
 
 test('readWorkspaceManifest() works when workspace file is empty', async () => {
-  const manifest = await readWorkspaceManifest(path.join(__dirname, '__fixtures__/empty'))
+  const manifest = await readWorkspaceManifest(
+    path.join(__dirname, '__fixtures__/empty')
+  )
 
   expect(manifest).toBeUndefined()
 })
 
 test('readWorkspaceManifest() works when workspace file is null', async () => {
-  const manifest = await readWorkspaceManifest(path.join(__dirname, '__fixtures__/null'))
+  const manifest = await readWorkspaceManifest(
+    path.join(__dirname, '__fixtures__/null')
+  )
 
   expect(manifest).toBeNull()
 })

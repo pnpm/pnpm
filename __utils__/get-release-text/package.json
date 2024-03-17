@@ -9,11 +9,13 @@
   },
   "dependencies": {
     "mdast-util-to-string": "^2.0.0",
-    "remark-parse": "^9.0.0",
-    "remark-stringify": "^9.0.1",
-    "unified": "^9.2.2"
+    "remark-parse": "^11.0.0",
+    "remark-stringify": "^11.0.0",
+    "unified": "^11.0.4",
+    "mdast": "^3.0.0"
   },
   "devDependencies": {
+    "@types/mdast": "^4.0.3",
     "@pnpm/get-release-text": "workspace:*"
   }
 }

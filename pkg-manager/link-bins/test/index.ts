@@ -1,5 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { promises as fs, writeFileSync, readdirSync, existsSync, readFileSync } from 'fs'
+import {
+  promises as fs,
+  writeFileSync,
+  readdirSync,
+  existsSync,
+  readFileSync,
+} from 'fs'
 import path from 'path'
 import { logger, globalWarn } from '@pnpm/logger'
 import {
@@ -31,7 +37,7 @@ const binsConflictLogger = logger('bins-conflict')
 const f = fixtures(__dirname)
 
 beforeEach(() => {
-  (binsConflictLogger.debug as jest.Mock).mockClear()
+  ;(binsConflictLogger.debug as jest.Mock).mockClear()
 })
 
 const POWER_SHELL_IS_SUPPORTED = isWindows()
@@ -40,7 +46,7 @@ const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 
 const testOnWindows = IS_WINDOWS ? test : test.skip
 
-function getExpectedBins (bins: string[]) {
+function getExpectedBins(bins: string[]) {
   const expectedBins = [...bins]
   if (POWER_SHELL_IS_SUPPORTED) {
     bins.forEach((bin) => expectedBins.push(`${bin}.ps1`))
@@ -139,7 +145,13 @@ test('linkBins() does not link own bins', async () => {
 
   const warn = jest.fn()
   const modules = path.join(target, 'node_modules')
-  const binTarget = path.join(target, 'node_modules', 'foo', 'node_modules', '.bin')
+  const binTarget = path.join(
+    target,
+    'node_modules',
+    'foo',
+    'node_modules',
+    '.bin'
+  )
 
   await linkBins(modules, binTarget, { warn })
 
@@ -155,7 +167,11 @@ test('linkBinsOfPackages()', async () => {
     [
       {
         location: path.join(simpleFixture, 'node_modules/simple'),
-        manifest: (await import(path.join(simpleFixture, 'node_modules/simple/package.json'))).default,
+        manifest: (
+          await import(
+            path.join(simpleFixture, 'node_modules/simple/package.json')
+          )
+        ).default,
       },
     ],
     binTarget
@@ -172,24 +188,16 @@ test('linkBinsOfPkgsByAliases()', async () => {
   const binTarget = tempy.directory()
   const simpleFixture = f.prepare('simple-fixture')
 
-  await linkBinsOfPkgsByAliases(
-    [],
-    binTarget,
-    {
-      modulesDir: path.join(simpleFixture, 'node_modules'),
-      warn: () => {},
-    }
-  )
+  await linkBinsOfPkgsByAliases([], binTarget, {
+    modulesDir: path.join(simpleFixture, 'node_modules'),
+    warn: () => {},
+  })
   expect(readdirSync(binTarget)).toEqual([])
 
-  await linkBinsOfPkgsByAliases(
-    ['simple'],
-    binTarget,
-    {
-      modulesDir: path.join(simpleFixture, 'node_modules'),
-      warn: () => {},
-    }
-  )
+  await linkBinsOfPkgsByAliases(['simple'], binTarget, {
+    modulesDir: path.join(simpleFixture, 'node_modules'),
+    warn: () => {},
+  })
 
   expect(readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
@@ -203,7 +211,11 @@ test('linkBins() resolves conflicts. Prefer packages that use their name as bin 
   const binNameConflictsFixture = f.prepare('bin-name-conflicts')
   const warn = jest.fn()
 
-  await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, { warn })
+  await linkBins(
+    path.join(binNameConflictsFixture, 'node_modules'),
+    binTarget,
+    { warn }
+  )
 
   expect(binsConflictLogger.debug).toHaveBeenCalledWith({
     binaryName: 'bar',
@@ -211,7 +223,9 @@ test('linkBins() resolves conflicts. Prefer packages that use their name as bin 
     linkedPkgName: 'bar',
     skippedPkgName: 'foo',
   })
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
+  expect(await fs.readdir(binTarget)).toEqual(
+    getExpectedBins(['bar', 'foofoo'])
+  )
 
   {
     const binLocation = path.join(binTarget, 'bar')
@@ -238,11 +252,13 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
     [
       {
         location: path.join(modulesPath, 'bar'),
-        manifest: (await import(path.join(modulesPath, 'bar', 'package.json'))).default,
+        manifest: (await import(path.join(modulesPath, 'bar', 'package.json')))
+          .default,
       },
       {
         location: path.join(modulesPath, 'foo'),
-        manifest: (await import(path.join(modulesPath, 'foo', 'package.json'))).default,
+        manifest: (await import(path.join(modulesPath, 'foo', 'package.json')))
+          .default,
       },
     ],
     binTarget
@@ -254,7 +270,9 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
     linkedPkgName: 'bar',
     skippedPkgName: 'foo',
   })
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
+  expect(await fs.readdir(binTarget)).toEqual(
+    getExpectedBins(['bar', 'foofoo'])
+  )
 
   {
     const binLocation = path.join(binTarget, 'bar')
@@ -276,17 +294,23 @@ test('linkBins() resolves conflicts. Prefer packages are direct dependencies', a
   const binNameConflictsFixture = f.prepare('bin-name-conflicts')
   const warn = jest.fn()
 
-  await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, {
-    projectManifest: {
-      dependencies: {
-        foo: '1.0.0',
+  await linkBins(
+    path.join(binNameConflictsFixture, 'node_modules'),
+    binTarget,
+    {
+      projectManifest: {
+        dependencies: {
+          foo: '1.0.0',
+        },
       },
-    },
-    warn,
-  })
+      warn,
+    }
+  )
 
   expect(warn).not.toHaveBeenCalled() // With(`Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`, 'BINARIES_CONFLICT')
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['bar', 'foofoo']))
+  expect(await fs.readdir(binTarget)).toEqual(
+    getExpectedBins(['bar', 'foofoo'])
+  )
 
   {
     const binLocation = path.join(binTarget, 'bar')
@@ -315,8 +339,12 @@ test('linkBins() would throw error if package has no name field', async () => {
     })
     fail('linkBins should fail when package has no name')
   } catch (err: any) { // eslint-disable-line
-    const packagePath = normalizePath(path.join(noNameFixture, 'node_modules/simple'))
-    expect(err.message).toEqual(`Package in ${packagePath} must have a name to get bin linked.`)
+    const packagePath = normalizePath(
+      path.join(noNameFixture, 'node_modules/simple')
+    )
+    expect(err.message).toEqual(
+      `Package in ${packagePath} must have a name to get bin linked.`
+    )
     expect(err.code).toEqual('ERR_PNPM_INVALID_PACKAGE_NAME')
     expect(warn).not.toHaveBeenCalled()
   }
@@ -333,7 +361,10 @@ test('linkBins() would give warning if package has no bin field', async () => {
   })
 
   const packagePath = normalizePath(path.join(noBinFixture, 'packages/simple'))
-  expect(warn).toHaveBeenCalledWith(`Package in ${packagePath} must have a non-empty bin field to get bin linked.`, 'EMPTY_BIN')
+  expect(warn).toHaveBeenCalledWith(
+    `Package in ${packagePath} must have a non-empty bin field to get bin linked.`,
+    'EMPTY_BIN'
+  )
 })
 
 test('linkBins() would not give warning if package has no bin field but inside node_modules', async () => {
@@ -362,7 +393,9 @@ test('linkBins() fix window shebang line', async () => {
   const windowShebangFixture = f.prepare('bin-window-shebang')
   const warn = jest.fn()
 
-  await linkBins(path.join(windowShebangFixture, 'node_modules'), binTarget, { warn })
+  await linkBins(path.join(windowShebangFixture, 'node_modules'), binTarget, {
+    warn,
+  })
 
   expect(warn).not.toHaveBeenCalled()
   expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['crlf', 'lf']))
@@ -374,8 +407,16 @@ test('linkBins() fix window shebang line', async () => {
   }
 
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    const lfFilePath = path.join(windowShebangFixture, 'node_modules', 'crlf/bin/lf.js')
-    const crlfFilePath = path.join(windowShebangFixture, 'node_modules', 'crlf/bin/crlf.js')
+    const lfFilePath = path.join(
+      windowShebangFixture,
+      'node_modules',
+      'crlf/bin/lf.js'
+    )
+    const crlfFilePath = path.join(
+      windowShebangFixture,
+      'node_modules',
+      'crlf/bin/crlf.js'
+    )
 
     for (const filePath of [lfFilePath, crlfFilePath]) {
       const content = await fs.readFile(filePath, 'utf8') // eslint-disable-line no-await-in-loop
@@ -401,21 +442,24 @@ test("linkBins() emits global warning when bin points to path that doesn't exist
   })
 
   expect(await fs.readdir(binTarget)).toEqual(getExpectedBins([]))
-  expect(
-    globalWarn
-  ).toHaveBeenCalled()
+  expect(globalWarn).toHaveBeenCalled()
 })
 
-testOnWindows('linkBins() should remove an existing .exe file from the target directory', async () => {
-  const binTarget = tempy.directory()
-  writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')
-  const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
+testOnWindows(
+  'linkBins() should remove an existing .exe file from the target directory',
+  async () => {
+    const binTarget = tempy.directory()
+    writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')
+    const warn = jest.fn()
+    const simpleFixture = f.prepare('simple-fixture')
 
-  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+    await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, {
+      warn,
+    })
 
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
-})
+    expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
+  }
+)
 
 describe('enable prefer-symlinked-executables', () => {
   test('linkBins()', async () => {
@@ -423,7 +467,10 @@ describe('enable prefer-symlinked-executables', () => {
     const warn = jest.fn()
     const simpleFixture = f.prepare('simple-fixture')
 
-    await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn, preferSymlinkedExecutables: true })
+    await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, {
+      warn,
+      preferSymlinkedExecutables: true,
+    })
 
     expect(warn).not.toHaveBeenCalled()
     expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
@@ -433,7 +480,7 @@ describe('enable prefer-symlinked-executables', () => {
     if (IS_WINDOWS) {
       expect(content).toMatch('node_modules/simple/index.js')
     } else {
-      expect(content).toMatch('console.log(\'hello_world\')')
+      expect(content).toMatch("console.log('hello_world')")
     }
 
     if (EXECUTABLE_SHEBANG_SUPPORTED) {
@@ -463,8 +510,6 @@ describe('enable prefer-symlinked-executables', () => {
       // it will fix symlink file permission
       expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['meow']))
     }
-    expect(
-      globalWarn
-    ).toHaveBeenCalled()
+    expect(globalWarn).toHaveBeenCalled()
   })
 })

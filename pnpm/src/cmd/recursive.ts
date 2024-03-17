@@ -8,9 +8,10 @@ export const cliOptionsTypes = () => ({})
 
 export const commandNames = ['recursive', 'multi', 'm']
 
-export function help () {
+export function help() {
   return renderHelp({
-    description: 'Concurrently performs some actions in all subdirectories with a `package.json` (excluding node_modules). \
+    description:
+      'Concurrently performs some actions in all subdirectories with a `package.json` (excluding node_modules). \
 A `pnpm-workspace.yaml` file may be used to control what directories are searched for packages.',
     descriptionLists: [
       {
@@ -31,7 +32,8 @@ A `pnpm-workspace.yaml` file may be used to control what directories are searche
             name: 'remove <pkg>...',
           },
           {
-            description: 'Removes links to local packages and reinstalls them from the registry.',
+            description:
+              'Removes links to local packages and reinstalls them from the registry.',
             name: 'unlink',
           },
           {
@@ -47,17 +49,20 @@ A `pnpm-workspace.yaml` file may be used to control what directories are searche
             name: 'outdated [<pkg>...]',
           },
           {
-            description: 'This runs an arbitrary command from each package\'s "scripts" object. \
+            description:
+              'This runs an arbitrary command from each package\'s "scripts" object. \
 If a package doesn\'t have the command, it is skipped. \
 If none of the packages have the command, the command fails.',
             name: 'run <command> [-- <args>...]',
           },
           {
-            description: 'This runs each package\'s "test" script, if one was provided.',
+            description:
+              'This runs each package\'s "test" script, if one was provided.',
             name: 'test [-- <args>...]',
           },
           {
-            description: 'This command runs the "npm build" command on each package. \
+            description:
+              'This command runs the "npm build" command on each package. \
 This is useful when you install a new version of node, \
 and must recompile all your C++ addons with the new binary.',
             name: 'rebuild [[<@scope>/<name>]...]',
@@ -67,7 +72,8 @@ and must recompile all your C++ addons with the new binary.',
             name: 'exec -- <command> [args...]',
           },
           {
-            description: 'Publishes packages to the npm registry. Only publishes a package if its version is not taken in the registry.',
+            description:
+              'Publishes packages to the npm registry. Only publishes a package if its version is not taken in the registry.',
             name: 'publish [--tag <tag>] [--access <public|restricted>]',
           },
         ],
@@ -77,24 +83,29 @@ and must recompile all your C++ addons with the new binary.',
 
         list: [
           {
-            description: 'Continues executing other tasks even if a task threw an error',
+            description:
+              'Continues executing other tasks even if a task threw an error',
             name: '--no-bail',
           },
           {
-            description: 'Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.',
+            description:
+              'Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.',
             name: '--workspace-concurrency <number>',
           },
           {
-            description: 'Locally available packages are linked to node_modules instead of being downloaded from the registry. \
+            description:
+              'Locally available packages are linked to node_modules instead of being downloaded from the registry. \
 Convenient to use in a multi-package repository.',
             name: '--link-workspace-packages',
           },
           {
-            description: 'Reverse the order that packages get ordered in. Disabled by default.',
+            description:
+              'Reverse the order that packages get ordered in. Disabled by default.',
             name: '--reverse',
           },
           {
-            description: 'Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.',
+            description:
+              'Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.',
             name: '--sort',
           },
           {
@@ -103,7 +114,8 @@ A shared lockfile also means that all dependencies of all projects will be in a 
             name: '--shared-workspace-lockfile',
           },
           {
-            description: 'When executing commands recursively in a workspace, execute them on the root workspace project as well',
+            description:
+              'When executing commands recursively in a workspace, execute them on the root workspace project as well',
             name: '--include-workspace-root',
           },
         ],
@@ -119,7 +131,7 @@ A shared lockfile also means that all dependencies of all projects will be in a 
   })
 }
 
-export function handler () {
+export function handler() {
   console.log(help())
   process.exit(1)
 }

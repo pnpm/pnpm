@@ -37,7 +37,7 @@ export interface GetPkgInfoOpts {
   readonly rewriteLinkVersionDir?: string
 }
 
-export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
+export function getPkgInfo(opts: GetPkgInfoOpts): PackageInfo {
   let name!: string
   let version: string
   let resolved: string | undefined
@@ -66,7 +66,13 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
       isMissing = true
       isSkipped = opts.skipped.has(depPath)
     }
-    resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
+    resolved = (
+      pkgSnapshotToResolution(
+        depPath,
+        pkgSnapshot,
+        opts.registries
+      ) as TarballResolution
+    ).tarball
     dev = pkgSnapshot.dev
     optional = pkgSnapshot.optional
   } else {
@@ -77,7 +83,12 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
     version = opts.ref
   }
   const fullPackagePath = depPath
-    ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath), 'node_modules', name)
+    ? path.join(
+      opts.virtualStoreDir ?? '.pnpm',
+      depPathToFilename(depPath),
+      'node_modules',
+      name
+    )
     : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {

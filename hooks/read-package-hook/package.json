@@ -36,13 +36,13 @@
     "@yarnpkg/extensions": "2.0.0-rc.22",
     "normalize-path": "^3.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.5.4"
+    "semver": "^7.6.0"
   },
   "devDependencies": {
     "@pnpm/hooks.read-package-hook": "workspace:*",
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",
-    "@types/semver": "7.5.3",
+    "@types/semver": "7.5.8",
     "@yarnpkg/core": "4.0.0-rc.45"
   },
   "funding": "https://opencollective.com/pnpm",

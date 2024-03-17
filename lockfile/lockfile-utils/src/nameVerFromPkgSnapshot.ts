@@ -1,7 +1,7 @@
 import { type PackageSnapshot } from '@pnpm/lockfile-types'
 import * as dp from '@pnpm/dependency-path'
 
-export function nameVerFromPkgSnapshot (
+export function nameVerFromPkgSnapshot(
   depPath: string,
   pkgSnapshot: PackageSnapshot
 ) {

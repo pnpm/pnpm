@@ -31,7 +31,7 @@ export type WarningCode = 'BINARIES_CONFLICT' | 'EMPTY_BIN'
 
 export type WarnFunction = (msg: string, code: WarningCode) => void
 
-export async function linkBins (
+export async function linkBins(
   modulesDir: string,
   binsDir: string,
   opts: LinkBinOptions & {
@@ -50,7 +50,7 @@ export async function linkBins (
   })
 }
 
-export async function linkBinsOfPkgsByAliases (
+export async function linkBinsOfPkgsByAliases(
   depsAliases: string[],
   binsDir: string,
   opts: LinkBinOptions & {
@@ -65,33 +65,43 @@ export async function linkBinsOfPkgsByAliases (
     allowExoticManifests: false,
     ...opts,
   }
-  const directDependencies = opts.projectManifest == null
-    ? undefined
-    : new Set(Object.keys(getAllDependenciesFromManifest(opts.projectManifest)))
+  const directDependencies =
+    opts.projectManifest == null
+      ? undefined
+      : new Set(
+        Object.keys(getAllDependenciesFromManifest(opts.projectManifest))
+      )
   const allCmds = unnest(
-    (await Promise.all(
-      depsAliases
-        .map((alias) => ({
-          depDir: path.resolve(opts.modulesDir, alias),
-          isDirectDependency: directDependencies?.has(alias),
-          nodeExecPath: opts.nodeExecPathByAlias?.[alias],
-        }))
-        .filter(({ depDir }) => !isSubdir(depDir, binsDir)) // Don't link own bins
-        .map(async ({ depDir, isDirectDependency, nodeExecPath }) => {
-          const target = normalizePath(depDir)
-          const cmds = await getPackageBins(pkgBinOpts, target, nodeExecPath)
-          return cmds.map((cmd) => ({ ...cmd, isDirectDependency }))
-        })
-    ))
-      .filter((cmds: Command[]) => cmds.length)
+    (
+      await Promise.all(
+        depsAliases
+          .map((alias) => ({
+            depDir: path.resolve(opts.modulesDir, alias),
+            isDirectDependency: directDependencies?.has(alias),
+            nodeExecPath: opts.nodeExecPathByAlias?.[alias],
+          }))
+          .filter(({ depDir }) => !isSubdir(depDir, binsDir)) // Don't link own bins
+          .map(async ({ depDir, isDirectDependency, nodeExecPath }) => {
+            const target = normalizePath(depDir)
+            const cmds = await getPackageBins(pkgBinOpts, target, nodeExecPath)
+            return cmds.map((cmd) => ({ ...cmd, isDirectDependency }))
+          })
+      )
+    ).filter((cmds: Command[]) => cmds.length)
   )
 
-  const cmdsToLink = directDependencies != null ? preferDirectCmds(allCmds) : allCmds
+  const cmdsToLink =
+    directDependencies != null ? preferDirectCmds(allCmds) : allCmds
   return _linkBins(cmdsToLink, binsDir, opts)
 }
 
-function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>) {
-  const [directCmds, hoistedCmds] = partition((cmd) => cmd.isDirectDependency === true, allCmds)
+function preferDirectCmds(
+  allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>
+) {
+  const [directCmds, hoistedCmds] = partition(
+    (cmd) => cmd.isDirectDependency === true,
+    allCmds
+  )
   const usedDirectCmds = new Set(directCmds.map((directCmd) => directCmd.name))
   return [
     ...directCmds,
@@ -99,7 +109,7 @@ function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: b
   ]
 }
 
-export async function linkBinsOfPackages (
+export async function linkBinsOfPackages(
   pkgs: Array<{
     manifest: DependencyManifest
     nodeExecPath?: string
@@ -111,11 +121,17 @@ export async function linkBinsOfPackages (
   if (pkgs.length === 0) return []
 
   const allCmds = unnest(
-    (await Promise.all(
-      pkgs
-        .map(async (pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location, pkg.nodeExecPath))
-    ))
-      .filter((cmds: Command[]) => cmds.length)
+    (
+      await Promise.all(
+        pkgs.map(async (pkg) =>
+          getPackageBinsFromManifest(
+            pkg.manifest,
+            pkg.location,
+            pkg.nodeExecPath
+          )
+        )
+      )
+    ).filter((cmds: Command[]) => cmds.length)
   )
 
   return _linkBins(allCmds, binsTarget, opts)
@@ -128,7 +144,7 @@ type CommandInfo = Command & {
   nodeExecPath?: string
 }
 
-async function _linkBins (
+async function _linkBins(
   allCmds: CommandInfo[],
   binsDir: string,
   opts: LinkBinOptions
@@ -137,24 +153,35 @@ async function _linkBins (
 
   await fs.mkdir(binsDir, { recursive: true })
 
-  const [cmdsWithOwnName, cmdsWithOtherNames] = partition(({ ownName }) => ownName, allCmds)
+  const [cmdsWithOwnName, cmdsWithOtherNames] = partition(
+    ({ ownName }) => ownName,
+    allCmds
+  )
 
-  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir, opts)))
+  const results1 = await pSettle(
+    cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir, opts))
+  )
 
-  const usedNames = Object.fromEntries(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as KeyValuePair<string, string>))
-  const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd) => {
-    if (usedNames[cmd.name]) {
-      binsConflictLogger.debug({
-        binaryName: cmd.name,
-        binsDir,
-        linkedPkgName: usedNames[cmd.name],
-        skippedPkgName: cmd.pkgName,
-      })
-      return Promise.resolve(undefined)
-    }
-    usedNames[cmd.name] = cmd.pkgName
-    return linkBin(cmd, binsDir, opts)
-  }))
+  const usedNames = Object.fromEntries(
+    cmdsWithOwnName.map(
+      (cmd) => [cmd.name, cmd.name] as KeyValuePair<string, string>
+    )
+  )
+  const results2 = await pSettle(
+    cmdsWithOtherNames.map(async (cmd) => {
+      if (usedNames[cmd.name]) {
+        binsConflictLogger.debug({
+          binaryName: cmd.name,
+          binsDir,
+          linkedPkgName: usedNames[cmd.name],
+          skippedPkgName: cmd.pkgName,
+        })
+        return Promise.resolve(undefined)
+      }
+      usedNames[cmd.name] = cmd.pkgName
+      return linkBin(cmd, binsDir, opts)
+    })
+  )
 
   // We want to create all commands that we can create before throwing an exception
   for (const result of [...results1, ...results2]) {
@@ -163,15 +190,15 @@ async function _linkBins (
     }
   }
 
-  return allCmds.map(cmd => cmd.pkgName)
+  return allCmds.map((cmd) => cmd.pkgName)
 }
 
-async function isFromModules (filename: string) {
+async function isFromModules(filename: string) {
   const real = await fs.realpath(filename)
   return normalizePath(real).includes('/node_modules/')
 }
 
-async function getPackageBins (
+async function getPackageBins(
   opts: {
     allowExoticManifests: boolean
     warn: WarnFunction
@@ -180,7 +207,7 @@ async function getPackageBins (
   nodeExecPath?: string
 ): Promise<CommandInfo[]> {
   const manifest = opts.allowExoticManifests
-    ? (await safeReadProjectManifestOnly(target) as DependencyManifest)
+    ? ((await safeReadProjectManifestOnly(target)) as DependencyManifest)
     : await safeReadPkgJson(target)
 
   if (manifest == null) {
@@ -189,18 +216,28 @@ async function getPackageBins (
     return []
   }
 
-  if (isEmpty(manifest.bin) && !await isFromModules(target)) {
-    opts.warn(`Package in ${target} must have a non-empty bin field to get bin linked.`, 'EMPTY_BIN')
+  if (isEmpty(manifest.bin) && !(await isFromModules(target))) {
+    opts.warn(
+      `Package in ${target} must have a non-empty bin field to get bin linked.`,
+      'EMPTY_BIN'
+    )
   }
 
   if (typeof manifest.bin === 'string' && !manifest.name) {
-    throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${target} must have a name to get bin linked.`)
+    throw new PnpmError(
+      'INVALID_PACKAGE_NAME',
+      `Package in ${target} must have a name to get bin linked.`
+    )
   }
 
   return getPackageBinsFromManifest(manifest, target, nodeExecPath)
 }
 
-async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string, nodeExecPath?: string): Promise<CommandInfo[]> {
+async function getPackageBinsFromManifest(
+  manifest: DependencyManifest,
+  pkgDir: string,
+  nodeExecPath?: string
+): Promise<CommandInfo[]> {
   const cmds = await getBinsFromPackageManifest(manifest, pkgDir)
   return cmds.map((cmd) => ({
     ...cmd,
@@ -216,17 +253,27 @@ export interface LinkBinOptions {
   preferSymlinkedExecutables?: boolean
 }
 
-async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions) {
+async function linkBin(
+  cmd: CommandInfo,
+  binsDir: string,
+  opts?: LinkBinOptions
+) {
   const externalBinPath = path.join(binsDir, cmd.name)
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
     if (existsSync(exePath)) {
-      globalWarn(`The target bin directory already contains an exe called ${cmd.name}, so removing ${exePath}`)
+      globalWarn(
+        `The target bin directory already contains an exe called ${cmd.name}, so removing ${exePath}`
+      )
       await rimraf(exePath)
     }
   }
 
-  if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
+  if (
+    opts?.preferSymlinkedExecutables &&
+    !IS_WINDOWS &&
+    cmd.nodeExecPath == null
+  ) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
       await fixBin(cmd.path, 0o755)
@@ -234,7 +281,9 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       if (err.code !== 'ENOENT') {
         throw err
       }
-      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+      globalWarn(
+        `Failed to create bin at ${externalBinPath}. ${err.message as string}`
+      )
     }
     return
   }
@@ -258,7 +307,9 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     if (err.code !== 'ENOENT') {
       throw err
     }
-    globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
+    globalWarn(
+      `Failed to create bin at ${externalBinPath}. ${err.message as string}`
+    )
     return
   }
   // ensure that bin are executable and not containing
@@ -268,36 +319,38 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   }
 }
 
-function getExeExtension (): string {
+function getExeExtension(): string {
   let cmdExtension
 
   if (process.env.PATHEXT) {
-    cmdExtension = process.env.PATHEXT
-      .split(path.delimiter)
-      .find(ext => ext.toUpperCase() === '.EXE')
+    cmdExtension = process.env.PATHEXT.split(path.delimiter).find(
+      (ext) => ext.toUpperCase() === '.EXE'
+    )
   }
 
   return cmdExtension ?? '.exe'
 }
 
-async function getBinNodePaths (target: string): Promise<string[]> {
+async function getBinNodePaths(target: string): Promise<string[]> {
   const targetDir = path.dirname(target)
   try {
     const targetRealPath = await fs.realpath(targetDir)
     // @ts-expect-error
-    return Module['_nodeModulePaths'](targetRealPath)
+    return Module._nodeModulePaths(targetRealPath)
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') {
       throw err
     }
     // @ts-expect-error
-    return Module['_nodeModulePaths'](targetDir)
+    return Module._nodeModulePaths(targetDir)
   }
 }
 
-async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {
+async function safeReadPkgJson(
+  pkgDir: string
+): Promise<DependencyManifest | null> {
   try {
-    return await readPackageJsonFromDir(pkgDir) as DependencyManifest
+    return (await readPackageJsonFromDir(pkgDir)) as DependencyManifest
   } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return null

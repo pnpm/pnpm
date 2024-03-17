@@ -11,20 +11,21 @@ import touch from 'touch'
 
 const STORE_VERSION = 'v3'
 
-export function getStorePath (
-  {
-    pkgRoot,
-    storePath,
-    pnpmHomeDir,
-  }: {
-    pkgRoot: string
-    storePath?: string
-    pnpmHomeDir: string
-  }
-) {
+export function getStorePath({
+  pkgRoot,
+  storePath,
+  pnpmHomeDir,
+}: {
+  pkgRoot: string
+  storePath?: string
+  pnpmHomeDir: string
+}) {
   if (!storePath) {
     if (!pnpmHomeDir) {
-      throw new PnpmError('NO_PNPM_HOME_DIR', 'The pnpm home directory is unknown. Cannot calculate the store directory location.')
+      throw new PnpmError(
+        'NO_PNPM_HOME_DIR',
+        'The pnpm home directory is unknown. Cannot calculate the store directory location.'
+      )
     }
     return storePathRelativeToHome(pkgRoot, 'store', pnpmHomeDir)
   }
@@ -42,9 +43,14 @@ export function getStorePath (
   return path.join(storeBasePath, STORE_VERSION)
 }
 
-async function storePathRelativeToHome (pkgRoot: string, relStore: string, homedir: string) {
+async function storePathRelativeToHome(
+  pkgRoot: string,
+  relStore: string,
+  homedir: string
+) {
   const tempFile = pathTemp(pkgRoot)
-  if (path.parse(pkgRoot).root !== pkgRoot) await fs.mkdir(path.dirname(tempFile), { recursive: true })
+  if (path.parse(pkgRoot).root !== pkgRoot)
+    await fs.mkdir(path.dirname(tempFile), { recursive: true })
   await touch(tempFile)
   const storeInHomeDir = path.join(homedir, relStore, STORE_VERSION)
   if (await canLinkToSubdir(tempFile, homedir)) {
@@ -59,7 +65,10 @@ async function storePathRelativeToHome (pkgRoot: string, relStore: string, homed
     // So we create an empty directory and try to link there.
     // The store will be a directory anyway.
     const mountpointParent = path.join(mountpoint, '..')
-    if (!dirsAreEqual(mountpointParent, mountpoint) && await canLinkToSubdir(tempFile, mountpointParent)) {
+    if (
+      !dirsAreEqual(mountpointParent, mountpoint) &&
+      (await canLinkToSubdir(tempFile, mountpointParent))
+    ) {
       mountpoint = mountpointParent
     }
     // If linking works only in the project folder
@@ -77,7 +86,7 @@ async function storePathRelativeToHome (pkgRoot: string, relStore: string, homed
   }
 }
 
-async function canLinkToSubdir (fileToLink: string, dir: string) {
+async function canLinkToSubdir(fileToLink: string, dir: string) {
   let result = false
   const tmpDir = pathTemp(dir)
   try {
@@ -91,7 +100,7 @@ async function canLinkToSubdir (fileToLink: string, dir: string) {
   return result
 }
 
-async function safeRmdir (dir: string) {
+async function safeRmdir(dir: string) {
   try {
     // We cannot use just fs.rmdir here because can-link
     // sometimes might not remove the temporary file in time
@@ -102,16 +111,16 @@ async function safeRmdir (dir: string) {
   }
 }
 
-function dirsAreEqual (dir1: string, dir2: string) {
+function dirsAreEqual(dir1: string, dir2: string) {
   return path.relative(dir1, dir2) === '.'
 }
 
-function getHomedir () {
+function getHomedir() {
   const home = os.homedir()
   if (!home) throw new Error('Could not find the homedir')
   return home
 }
 
-function isHomepath (filepath: string) {
+function isHomepath(filepath: string) {
   return filepath.indexOf('~/') === 0 || filepath.indexOf('~\\') === 0
 }

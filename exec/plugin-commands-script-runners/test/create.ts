@@ -7,133 +7,187 @@ jest.mock('../src/dlx', () => ({ handler: jest.fn() }))
 beforeEach((dlx.handler as jest.Mock).mockClear)
 
 it('throws an error if called without arguments', async () => {
-  await expect(create.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-  }, [])).rejects.toThrow(PnpmError)
+  await expect(
+    create.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+      },
+      []
+    )
+  ).rejects.toThrow(PnpmError)
   expect(dlx.handler).not.toBeCalled()
 })
 
-it(
-  'appends `create-` to an unscoped package that doesn\'t start with `create-`',
-  async () => {
-    await create.handler({
+it("appends `create-` to an unscoped package that doesn't start with `create-`", async () => {
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['some-app'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-some-app'])
+    },
+    ['some-app']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-some-app'])
 
-    await create.handler({
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['create_no_dash'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-create_no_dash'])
-  }
-)
+    },
+    ['create_no_dash']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), [
+    'create-create_no_dash',
+  ])
+})
 
-it(
-  'does not append `create-` to an unscoped package that starts with `create-`',
-  async () => {
-    await create.handler({
+it('does not append `create-` to an unscoped package that starts with `create-`', async () => {
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['create-some-app'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-some-app'])
+    },
+    ['create-some-app']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-some-app'])
 
-    await create.handler({
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['create-'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-'])
-  }
-)
+    },
+    ['create-']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-'])
+})
 
-it(
-  'appends `create-` to a scoped package that doesn\'t start with `create-`',
-  async () => {
-    await create.handler({
+it("appends `create-` to a scoped package that doesn't start with `create-`", async () => {
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['@scope/some-app'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create-some-app'])
+    },
+    ['@scope/some-app']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), [
+    '@scope/create-some-app',
+  ])
 
-    await create.handler({
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['@scope/create_no_dash'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create-create_no_dash'])
-  }
-)
+    },
+    ['@scope/create_no_dash']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), [
+    '@scope/create-create_no_dash',
+  ])
+})
 
-it(
-  'does not append `create-` to a scoped package that starts with `create-`',
-  async () => {
-    await create.handler({
+it('does not append `create-` to a scoped package that starts with `create-`', async () => {
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['@scope/create-some-app'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create-some-app'])
+    },
+    ['@scope/create-some-app']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), [
+    '@scope/create-some-app',
+  ])
 
-    await create.handler({
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['@scope/create-'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create-'])
-  }
-)
+    },
+    ['@scope/create-']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create-'])
+})
 
 it('infers a package name from a plain scope', async () => {
-  await create.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-  }, ['@scope'])
+  await create.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    },
+    ['@scope']
+  )
   expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create'])
 })
 
 it('passes the remaining arguments to `dlx`', async () => {
-  await create.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-  }, ['some-app', 'directory/', '--silent'])
-  expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-some-app', 'directory/', '--silent'])
+  await create.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    },
+    ['some-app', 'directory/', '--silent']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), [
+    'create-some-app',
+    'directory/',
+    '--silent',
+  ])
 })
 
-it(
-  'appends `create` to package with preferred version`',
-  async () => {
-    await create.handler({
+it('appends `create` to package with preferred version`', async () => {
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['foo@2.0.0'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-foo@2.0.0'])
-    await create.handler({
+    },
+    ['foo@2.0.0']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-foo@2.0.0'])
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['foo@latest'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-foo@latest'])
+    },
+    ['foo@latest']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-foo@latest'])
 
-    await create.handler({
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['@scope@2.0.0'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create@2.0.0'])
+    },
+    ['@scope@2.0.0']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create@2.0.0'])
 
-    await create.handler({
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['@scope@next'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create@next'])
+    },
+    ['@scope@next']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create@next'])
 
-    await create.handler({
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['@scope/foo@2.0.0'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create-foo@2.0.0'])
+    },
+    ['@scope/foo@2.0.0']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), [
+    '@scope/create-foo@2.0.0',
+  ])
 
-    await create.handler({
+  await create.handler(
+    {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, ['@scope/create-a@2.0.0'])
-    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create-a@2.0.0'])
-  }
-)
+    },
+    ['@scope/create-a@2.0.0']
+  )
+  expect(dlx.handler).toBeCalledWith(expect.anything(), [
+    '@scope/create-a@2.0.0',
+  ])
+})

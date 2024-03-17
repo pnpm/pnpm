@@ -1,6 +1,6 @@
 import { type IncludedDependencies, type ProjectManifest } from '@pnpm/types'
 
-export function filterDependenciesByType (
+export function filterDependenciesByType(
   manifest: ProjectManifest,
   include: IncludedDependencies
 ) {

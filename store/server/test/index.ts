@@ -13,7 +13,7 @@ import isPortReachable from 'is-port-reachable'
 
 const registry = 'https://registry.npmjs.org/'
 
-async function createStoreController (storeDir?: string) {
+async function createStoreController(storeDir?: string) {
   const tmp = tempy.directory()
   if (!storeDir) {
     storeDir = path.join(tmp, 'store')
@@ -42,7 +42,10 @@ test('server', async () => {
     hostname,
     port,
   })
-  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
+  const storeCtrl = await connectStoreController({
+    remotePrefix,
+    concurrency: 100,
+  })
   const projectDir = process.cwd()
   const response = await storeCtrl.requestPackage(
     { alias: 'is-positive', pref: '1.0.0' },
@@ -80,7 +83,10 @@ test('fetchPackage', async () => {
     hostname,
     port,
   })
-  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
+  const storeCtrl = await connectStoreController({
+    remotePrefix,
+    concurrency: 100,
+  })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   // This should be fixed
 
@@ -91,8 +97,10 @@ test('fetchPackage', async () => {
     pkg: {
       id: pkgId,
       resolution: {
-        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        integrity:
+          'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        tarball:
+          'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
     },
   })
@@ -118,7 +126,10 @@ test('server errors should arrive to the client', async () => {
     hostname,
     port,
   })
-  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
+  const storeCtrl = await connectStoreController({
+    remotePrefix,
+    concurrency: 100,
+  })
   let caught = false
   try {
     const projectDir = process.cwd()
@@ -135,8 +146,11 @@ test('server errors should arrive to the client', async () => {
     )
   } catch (e: any) { // eslint-disable-line
     caught = true
-    expect(e.message).toBe('GET https://registry.npmjs.org/not-an-existing-package: Not Found - 404')
-    expect(e.hint).toBe(`not-an-existing-package is not in the npm registry, or you have no permission to fetch it.
+    expect(e.message).toBe(
+      'GET https://registry.npmjs.org/not-an-existing-package: Not Found - 404'
+    )
+    expect(e.hint)
+      .toBe(`not-an-existing-package is not in the npm registry, or you have no permission to fetch it.
 
 No authorization header was set for the request.`)
     expect(e.code).toBe('ERR_PNPM_FETCH_404')
@@ -159,10 +173,16 @@ test('server upload', async () => {
     hostname,
     port,
   })
-  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
+  const storeCtrl = await connectStoreController({
+    remotePrefix,
+    concurrency: 100,
+  })
 
   const fakeEngine = 'client-engine'
-  const filesIndexFile = path.join(storeDir, 'test.example.com/fake-pkg/1.0.0.json')
+  const filesIndexFile = path.join(
+    storeDir,
+    'test.example.com/fake-pkg/1.0.0.json'
+  )
 
   await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
     sideEffectsCacheKey: fakeEngine,
@@ -170,7 +190,9 @@ test('server upload', async () => {
   })
 
   const cacheIntegrity = await loadJsonFile<any>(filesIndexFile) // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(Object.keys(cacheIntegrity?.['sideEffects'][fakeEngine]).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
+  expect(
+    Object.keys(cacheIntegrity?.sideEffects[fakeEngine]).sort()
+  ).toStrictEqual(['side-effect.js', 'side-effect.txt'])
 
   await server.close()
   await storeCtrl.close()
@@ -188,11 +210,17 @@ test('disable server upload', async () => {
     ignoreUploadRequests: true,
     port,
   })
-  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
+  const storeCtrl = await connectStoreController({
+    remotePrefix,
+    concurrency: 100,
+  })
 
   const fakeEngine = 'client-engine'
   const storeDir = tempy.directory()
-  const filesIndexFile = path.join(storeDir, 'test.example.com/fake-pkg/1.0.0.json')
+  const filesIndexFile = path.join(
+    storeDir,
+    'test.example.com/fake-pkg/1.0.0.json'
+  )
 
   let thrown = false
   try {
@@ -289,7 +317,9 @@ test('server should only allow POST', async () => {
   /* eslint-disable no-await-in-loop */
   for (const method of methods) {
     // Ensure 405 error is received
-    const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method })
+    const response = await fetch(`${remotePrefix}/a-random-endpoint`, {
+      method,
+    })
     expect(response.status).toBe(405)
     expect((await response.json() as any).error).toBeTruthy() // eslint-disable-line
   }
@@ -312,7 +342,9 @@ test('server route not found', async () => {
   expect(await isPortReachable(port)).toBeTruthy()
 
   // Ensure 404 error is received
-  const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: 'POST' })
+  const response = await fetch(`${remotePrefix}/a-random-endpoint`, {
+    method: 'POST',
+  })
   // Ensure error is correct
   expect(response.status).toBe(404)
   expect((await response.json() as any).error).toBeTruthy() // eslint-disable-line

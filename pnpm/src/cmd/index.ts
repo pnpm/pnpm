@@ -5,7 +5,19 @@ import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
 import { doctor } from '@pnpm/plugin-commands-doctor'
 import { env } from '@pnpm/plugin-commands-env'
 import { deploy } from '@pnpm/plugin-commands-deploy'
-import { add, ci, dedupe, fetch, install, link, prune, remove, unlink, update, importCommand } from '@pnpm/plugin-commands-installation'
+import {
+  add,
+  ci,
+  dedupe,
+  fetch,
+  install,
+  link,
+  prune,
+  remove,
+  unlink,
+  update,
+  importCommand,
+} from '@pnpm/plugin-commands-installation'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { outdated } from '@pnpm/plugin-commands-outdated'
@@ -23,7 +35,11 @@ import {
 import { server } from '@pnpm/plugin-commands-server'
 import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
-import { catFile, catIndex, findHash } from '@pnpm/plugin-commands-store-inspecting'
+import {
+  catFile,
+  catIndex,
+  findHash,
+} from '@pnpm/plugin-commands-store-inspecting'
 import { init } from '@pnpm/plugin-commands-init'
 import pick from 'ramda/src/pick'
 import { type PnpmOptions } from '../types'
@@ -34,37 +50,42 @@ import * as installTest from './installTest'
 import * as recursive from './recursive'
 import * as root from './root'
 
-export const GLOBAL_OPTIONS = pick([
-  'color',
-  'dir',
-  'filter',
-  'filter-prod',
-  'loglevel',
-  'help',
-  'parseable',
-  'prefix',
-  'reporter',
-  'stream',
-  'aggregate-output',
-  'test-pattern',
-  'changed-files-ignore-pattern',
-  'use-stderr',
-  'ignore-workspace',
-  'workspace-packages',
-  'workspace-root',
-  'include-workspace-root',
-  'fail-if-no-match',
-], allTypes)
-
-export type CommandResponse = string | { output?: string, exitCode: number }
-
-export type Command = (
-  (opts: PnpmOptions | any, params: string[]) => CommandResponse | Promise<CommandResponse> // eslint-disable-line @typescript-eslint/no-explicit-any
-) | (
-  (opts: PnpmOptions | any, params: string[]) => void // eslint-disable-line @typescript-eslint/no-explicit-any
-) | (
-  (opts: PnpmOptions | any, params: string[]) => Promise<void> // eslint-disable-line @typescript-eslint/no-explicit-any
+export const GLOBAL_OPTIONS = pick(
+  [
+    'color',
+    'dir',
+    'filter',
+    'filter-prod',
+    'loglevel',
+    'help',
+    'parseable',
+    'prefix',
+    'reporter',
+    'stream',
+    'aggregate-output',
+    'test-pattern',
+    'changed-files-ignore-pattern',
+    'use-stderr',
+    'ignore-workspace',
+    'workspace-packages',
+    'workspace-root',
+    'include-workspace-root',
+    'fail-if-no-match',
+  ],
+  allTypes
 )
+
+export type CommandResponse = string | { output?: string; exitCode: number }
+
+export type Command =
+  | ((
+      opts: PnpmOptions | any, // eslint-disable-line @typescript-eslint/no-explicit-any,@stylistic/ts/indent
+      params: string[] // eslint-disable-line @stylistic/ts/indent
+    ) => CommandResponse | Promise<CommandResponse>) // eslint-disable-line @stylistic/ts/indent
+  | ((opts: PnpmOptions | any, params: string[]) => void) // eslint-disable-line @typescript-eslint/no-explicit-any
+  | ((opts: PnpmOptions | any, params: string[]) => Promise<void>) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+// eslint-enable @stylistic/ts/indent
 
 export interface CommandDefinition {
   /** The main logic of the command. */
@@ -152,10 +173,16 @@ const commands: CommandDefinition[] = [
 
 const handlerByCommandName: Record<string, Command> = {}
 const helpByCommandName: Record<string, () => string> = {}
-const cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>> = {}
+const cliOptionsTypesByCommandName: Record<
+  string,
+  () => Record<string, unknown>
+> = {}
 const aliasToFullName = new Map<string, string>()
 const completionByCommandName: Record<string, CompletionFunc> = {}
-const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
+const shorthandsByCommandName: Record<
+  string,
+  Record<string, string | string[]>
+> = {}
 const rcOptionsTypes: Record<string, unknown> = {}
 
 for (let i = 0; i < commands.length; i++) {
@@ -198,19 +225,21 @@ handlerByCommandName.completion = createCompletion({
   universalOptionsTypes: GLOBAL_OPTIONS,
 })
 
-function initialCompletion () {
+function initialCompletion() {
   return Object.keys(handlerByCommandName).map((name) => ({ name }))
 }
 
 export const pnpmCmds = handlerByCommandName
 
-export function getCliOptionsTypes (commandName: string) {
+export function getCliOptionsTypes(commandName: string) {
   return cliOptionsTypesByCommandName[commandName]?.() || {}
 }
 
-export function getCommandFullName (commandName: string) {
-  return aliasToFullName.get(commandName) ??
+export function getCommandFullName(commandName: string) {
+  return (
+    aliasToFullName.get(commandName) ??
     (handlerByCommandName[commandName] ? commandName : null)
+  )
 }
 
 export { shorthandsByCommandName, rcOptionsTypes }

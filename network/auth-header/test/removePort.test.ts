@@ -16,7 +16,9 @@ describe('removePort()', () => {
     const protocols = ['http', 'https', 'ws', 'wss']
 
     const getUrl = (port: number, protocol: string) =>
-      new URL(`${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`)
+      new URL(
+        `${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
+      )
 
     const expectedOutput = (protocol: string) =>
       `${protocol}://custom.domain.com/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
@@ -39,7 +41,9 @@ describe('removePort()', () => {
     ])
 
     const getUrl = (port: number, protocol: string) =>
-      new URL(`${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`)
+      new URL(
+        `${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
+      )
 
     const expectedOutput = (protocol: string) =>
       `${protocol}://custom.domain.com/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
@@ -67,7 +71,9 @@ describe('removePort()', () => {
     ])
 
     const getUrl = (port: number, protocol: string) =>
-      new URL(`${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`)
+      new URL(
+        `${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
+      )
     const expectedOutput = (protocol: string) =>
       `${protocol}://custom.domain.com/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
     mismatchProtocolPorts.forEach((value: number, protocol) => {

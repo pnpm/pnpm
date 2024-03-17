@@ -7,7 +7,7 @@ export type ModulesBreakingChangeErrorOptions = ErrorRelatedSources & {
 
 export class ModulesBreakingChangeError extends BreakingChangeError {
   public modulesPath: string
-  constructor (opts: ModulesBreakingChangeErrorOptions) {
+  constructor(opts: ModulesBreakingChangeErrorOptions) {
     super({
       additionalInformation: opts.additionalInformation,
       code: 'MODULES_BREAKING_CHANGE',

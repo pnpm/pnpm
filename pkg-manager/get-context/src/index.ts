@@ -4,10 +4,7 @@ import { contextLogger, packageManifestLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
-import {
-  type IncludedDependencies,
-  type Modules,
-} from '@pnpm/modules-yaml'
+import { type IncludedDependencies, type Modules } from '@pnpm/modules-yaml'
 import { readProjectsContext } from '@pnpm/read-projects-context'
 import {
   DEPENDENCIES_FIELDS,
@@ -42,10 +39,14 @@ export interface PnpmContext {
   include: IncludedDependencies
   modulesFile: Modules | null
   pendingBuilds: string[]
-  projects: Record<string, {
-    modulesDir: string
-    id: string
-  } & HookOptions & Required<ProjectOptions>>
+  projects: Record<
+    string,
+    {
+      modulesDir: string
+      id: string
+    } & HookOptions &
+      Required<ProjectOptions>
+  >
   rootModulesDir: string
   hoistPattern: string[] | undefined
   hoistedModulesDir: string
@@ -106,33 +107,43 @@ interface ImporterToPurge {
   rootDir: string
 }
 
-export async function getContext (
+export async function getContext(
   opts: GetContextOptions
 ): Promise<PnpmContext> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
-  let importersContext = await readProjectsContext(opts.allProjects, { lockfileDir: opts.lockfileDir, modulesDir })
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), opts.lockfileDir)
+  let importersContext = await readProjectsContext(opts.allProjects, {
+    lockfileDir: opts.lockfileDir,
+    modulesDir,
+  })
+  const virtualStoreDir = pathAbsolute(
+    opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'),
+    opts.lockfileDir
+  )
 
   if (importersContext.modules != null) {
-    const { purged } = await validateModules(importersContext.modules, importersContext.projects, {
-      currentHoistPattern: importersContext.currentHoistPattern,
-      currentPublicHoistPattern: importersContext.currentPublicHoistPattern,
-      forceNewModules: opts.forceNewModules === true,
-      include: opts.include,
-      lockfileDir: opts.lockfileDir,
-      modulesDir,
-      registries: opts.registries,
-      storeDir: opts.storeDir,
-      virtualStoreDir,
-      confirmModulesPurge: opts.confirmModulesPurge && !isCI,
+    const { purged } = await validateModules(
+      importersContext.modules,
+      importersContext.projects,
+      {
+        currentHoistPattern: importersContext.currentHoistPattern,
+        currentPublicHoistPattern: importersContext.currentPublicHoistPattern,
+        forceNewModules: opts.forceNewModules === true,
+        include: opts.include,
+        lockfileDir: opts.lockfileDir,
+        modulesDir,
+        registries: opts.registries,
+        storeDir: opts.storeDir,
+        virtualStoreDir,
+        confirmModulesPurge: opts.confirmModulesPurge && !isCI,
 
-      forceHoistPattern: opts.forceHoistPattern,
-      hoistPattern: opts.hoistPattern,
+        forceHoistPattern: opts.forceHoistPattern,
+        hoistPattern: opts.hoistPattern,
 
-      forcePublicHoistPattern: opts.forcePublicHoistPattern,
-      publicHoistPattern: opts.publicHoistPattern,
-      global: opts.global,
-    })
+        forcePublicHoistPattern: opts.forcePublicHoistPattern,
+        publicHoistPattern: opts.publicHoistPattern,
+        global: opts.global,
+      }
+    )
     if (purged) {
       importersContext = await readProjectsContext(opts.allProjects, {
         lockfileDir: opts.lockfileDir,
@@ -150,15 +161,18 @@ export async function getContext (
     })
   })
   if (opts.readPackageHook != null) {
-    await Promise.all(importersContext.projects.map(async (project) => {
-      project.originalManifest = project.manifest
-      project.manifest = await opts.readPackageHook!(clone(project.manifest), project.rootDir)
-    }))
+    await Promise.all(
+      importersContext.projects.map(async (project) => {
+        project.originalManifest = project.manifest
+        project.manifest = await opts.readPackageHook!(
+          clone(project.manifest),
+          project.rootDir
+        )
+      })
+    )
   }
 
-  const extraBinPaths = [
-    ...opts.extraBinPaths || [],
-  ]
+  const extraBinPaths = [...(opts.extraBinPaths || [])]
   const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
@@ -166,7 +180,12 @@ export async function getContext (
   const hoistPattern = importersContext.currentHoistPattern ?? opts.hoistPattern
   const ctx: PnpmContext = {
     extraBinPaths,
-    extraNodePaths: getExtraNodePaths({ extendNodePath: opts.extendNodePath, nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
+    extraNodePaths: getExtraNodePaths({
+      extendNodePath: opts.extendNodePath,
+      nodeLinker: opts.nodeLinker,
+      hoistPattern,
+      virtualStoreDir,
+    }),
     hoistedDependencies: importersContext.hoistedDependencies,
     hoistedModulesDir,
     hoistPattern,
@@ -174,14 +193,17 @@ export async function getContext (
     lockfileDir: opts.lockfileDir,
     modulesFile: importersContext.modules,
     pendingBuilds: importersContext.pendingBuilds,
-    projects: Object.fromEntries(importersContext.projects.map((project) => [project.rootDir, project])),
-    publicHoistPattern: importersContext.currentPublicHoistPattern ?? opts.publicHoistPattern,
+    projects: Object.fromEntries(
+      importersContext.projects.map((project) => [project.rootDir, project])
+    ),
+    publicHoistPattern:
+      importersContext.currentPublicHoistPattern ?? opts.publicHoistPattern,
     registries: opts.registries,
     rootModulesDir: importersContext.rootModulesDir,
     skipped: importersContext.skipped,
     storeDir: opts.storeDir,
     virtualStoreDir,
-    ...await readLockfiles({
+    ...(await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
@@ -194,7 +216,7 @@ export async function getContext (
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
       virtualStoreDir,
-    }),
+    })),
   }
   contextLogger.debug({
     currentLockfileExists: ctx.existsCurrentLockfile,
@@ -204,7 +226,7 @@ export async function getContext (
   return ctx
 }
 
-async function validateModules (
+async function validateModules(
   modules: Modules,
   projects: Array<{
     modulesDir: string
@@ -234,30 +256,28 @@ async function validateModules (
   const rootProject = projects.find(({ id }) => id === '.')
   if (
     opts.forcePublicHoistPattern &&
-    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     !equals(modules.publicHoistPattern, opts.publicHoistPattern || undefined)
   ) {
-    if (opts.forceNewModules && (rootProject != null)) {
+    if (opts.forceNewModules && rootProject != null) {
       await purgeModulesDirsOfImporter(opts, rootProject)
       return { purged: true }
     }
     throw new PnpmError(
       'PUBLIC_HOIST_PATTERN_DIFF',
       'This modules directory was created using a different public-hoist-pattern value.' +
-      ' Run "pnpm install" to recreate the modules directory.'
+        ' Run "pnpm install" to recreate the modules directory.'
     )
   }
 
   const importersToPurge: ImporterToPurge[] = []
 
-  if (opts.forceHoistPattern && (rootProject != null)) {
+  if (opts.forceHoistPattern && rootProject != null) {
     try {
-      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       if (!equals(opts.currentHoistPattern, opts.hoistPattern || undefined)) {
         throw new PnpmError(
           'HOIST_PATTERN_DIFF',
           'This modules directory was created using a different hoist-pattern value.' +
-          ' Run "pnpm install" to recreate the modules directory.'
+            ' Run "pnpm install" to recreate the modules directory.'
         )
       }
     } catch (err: any) { // eslint-disable-line
@@ -272,12 +292,17 @@ async function validateModules (
         storeDir: opts.storeDir,
         virtualStoreDir: opts.virtualStoreDir,
       })
-      if (opts.lockfileDir !== project.rootDir && (opts.include != null) && modules.included) {
+      if (
+        opts.lockfileDir !== project.rootDir &&
+        opts.include != null &&
+        modules.included
+      ) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
-            throw new PnpmError('INCLUDED_DEPS_CONFLICT',
+            throw new PnpmError(
+              'INCLUDED_DEPS_CONFLICT',
               `modules directory (at "${opts.lockfileDir}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
-              `Current install wants ${stringifyIncludedDeps(opts.include)}.`
+                `Current install wants ${stringifyIncludedDeps(opts.include)}.`
             )
           }
         }
@@ -287,7 +312,7 @@ async function validateModules (
       importersToPurge.push(project)
     }
   }
-  if (importersToPurge.length > 0 && (rootProject == null)) {
+  if (importersToPurge.length > 0 && rootProject == null) {
     importersToPurge.push({
       modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
       rootDir: opts.lockfileDir,
@@ -302,7 +327,7 @@ async function validateModules (
   return { purged }
 }
 
-async function purgeModulesDirsOfImporter (
+async function purgeModulesDirsOfImporter(
   opts: {
     confirmModulesPurge?: boolean
     virtualStoreDir: string
@@ -312,7 +337,7 @@ async function purgeModulesDirsOfImporter (
   return purgeModulesDirsOfImporters(opts, [importer])
 }
 
-async function purgeModulesDirsOfImporters (
+async function purgeModulesDirsOfImporters(
   opts: {
     confirmModulesPurge?: boolean
     virtualStoreDir: string
@@ -323,53 +348,63 @@ async function purgeModulesDirsOfImporters (
     const confirmed = await enquirer.prompt({
       type: 'confirm',
       name: 'question',
-      message: importers.length === 1
-        ? `The modules directory at "${importers[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
-        : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
+      message:
+        importers.length === 1
+          ? `The modules directory at "${importers[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
+          : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
       initial: true,
     })
     if (!confirmed) {
-      throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
+      throw new PnpmError(
+        'ABORTED_REMOVE_MODULES_DIR',
+        'Aborted removal of modules directory'
+      )
     }
   }
-  await Promise.all(importers.map(async (importer) => {
-    logger.info({
-      message: `Recreating ${importer.modulesDir}`,
-      prefix: importer.rootDir,
-    })
-    try {
-      // We don't remove the actual modules directory, just the contents of it.
-      // 1. we will need the directory anyway.
-      // 2. in some setups, pnpm won't even have permission to remove the modules directory.
-      await removeContentsOfDir(importer.modulesDir, opts.virtualStoreDir)
+  await Promise.all(
+    importers.map(async (importer) => {
+      logger.info({
+        message: `Recreating ${importer.modulesDir}`,
+        prefix: importer.rootDir,
+      })
+      try {
+        // We don't remove the actual modules directory, just the contents of it.
+        // 1. we will need the directory anyway.
+        // 2. in some setups, pnpm won't even have permission to remove the modules directory.
+        await removeContentsOfDir(importer.modulesDir, opts.virtualStoreDir)
     } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'ENOENT') throw err
-    }
-  }))
+        if (err.code !== 'ENOENT') throw err
+      }
+    })
+  )
 }
 
-async function removeContentsOfDir (dir: string, virtualStoreDir: string) {
+async function removeContentsOfDir(dir: string, virtualStoreDir: string) {
   const items = await fs.readdir(dir)
-  await Promise.all(items.map(async (item) => {
-    // The non-pnpm related hidden files are kept
-    if (
-      item.startsWith('.') &&
-      item !== '.bin' &&
-      item !== '.modules.yaml' &&
-      !dirsAreEqual(path.join(dir, item), virtualStoreDir)
-    ) {
-      return
-    }
-    await rimraf(path.join(dir, item))
-  }))
+  await Promise.all(
+    items.map(async (item) => {
+      // The non-pnpm related hidden files are kept
+      if (
+        item.startsWith('.') &&
+        item !== '.bin' &&
+        item !== '.modules.yaml' &&
+        !dirsAreEqual(path.join(dir, item), virtualStoreDir)
+      ) {
+        return
+      }
+      await rimraf(path.join(dir, item))
+    })
+  )
 }
 
-function dirsAreEqual (dir1: string, dir2: string) {
+function dirsAreEqual(dir1: string, dir2: string) {
   return path.relative(dir1, dir2) === ''
 }
 
-function stringifyIncludedDeps (included: IncludedDependencies) {
-  return DEPENDENCIES_FIELDS.filter((depsField) => included[depsField]).join(', ')
+function stringifyIncludedDeps(included: IncludedDependencies) {
+  return DEPENDENCIES_FIELDS.filter((depsField) => included[depsField]).join(
+    ', '
+  )
 }
 
 export interface PnpmSingleContext {
@@ -402,7 +437,7 @@ export interface PnpmSingleContext {
   wantedLockfileIsModified: boolean
 }
 
-export async function getContextForSingleImporter (
+export async function getContextForSingleImporter(
   manifest: ProjectManifest,
   opts: {
     autoInstallPeers: boolean
@@ -462,9 +497,12 @@ export async function getContextForSingleImporter (
   const importer = projects[0]
   const modulesDir = importer.modulesDir
   const importerId = importer.id
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
+  const virtualStoreDir = pathAbsolute(
+    opts.virtualStoreDir ?? 'node_modules/.pnpm',
+    opts.lockfileDir
+  )
 
-  if ((modules != null) && !alreadyPurged) {
+  if (modules != null && !alreadyPurged) {
     const { purged } = await validateModules(modules, projects, {
       currentHoistPattern,
       currentPublicHoistPattern,
@@ -489,9 +527,7 @@ export async function getContextForSingleImporter (
   }
 
   await fs.mkdir(storeDir, { recursive: true })
-  const extraBinPaths = [
-    ...opts.extraBinPaths || [],
-  ]
+  const extraBinPaths = [...(opts.extraBinPaths || [])]
   const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
@@ -499,14 +535,19 @@ export async function getContextForSingleImporter (
   const hoistPattern = currentHoistPattern ?? opts.hoistPattern
   const ctx: PnpmSingleContext = {
     extraBinPaths,
-    extraNodePaths: getExtraNodePaths({ extendNodePath: opts.extendNodePath, nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
+    extraNodePaths: getExtraNodePaths({
+      extendNodePath: opts.extendNodePath,
+      nodeLinker: opts.nodeLinker,
+      hoistPattern,
+      virtualStoreDir,
+    }),
     hoistedDependencies,
     hoistedModulesDir,
     hoistPattern,
     importerId,
     include: opts.include ?? include,
     lockfileDir: opts.lockfileDir,
-    manifest: await opts.readPackageHook?.(manifest) ?? manifest,
+    manifest: (await opts.readPackageHook?.(manifest)) ?? manifest,
     modulesDir,
     modulesFile: modules,
     pendingBuilds,
@@ -520,7 +561,7 @@ export async function getContextForSingleImporter (
     skipped,
     storeDir,
     virtualStoreDir,
-    ...await readLockfiles({
+    ...(await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
@@ -533,7 +574,7 @@ export async function getContextForSingleImporter (
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
       virtualStoreDir,
-    }),
+    })),
   }
   packageManifestLogger.debug({
     initial: manifest,
@@ -548,14 +589,17 @@ export async function getContextForSingleImporter (
   return ctx
 }
 
-function getExtraNodePaths (
-  { extendNodePath = true, hoistPattern, nodeLinker, virtualStoreDir }: {
-    extendNodePath?: boolean
-    hoistPattern?: string[]
-    nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-    virtualStoreDir: string
-  }
-) {
+function getExtraNodePaths({
+  extendNodePath = true,
+  hoistPattern,
+  nodeLinker,
+  virtualStoreDir,
+}: {
+  extendNodePath?: boolean
+  hoistPattern?: string[]
+  nodeLinker: 'isolated' | 'hoisted' | 'pnp'
+  virtualStoreDir: string
+}) {
   if (extendNodePath && nodeLinker === 'isolated' && hoistPattern?.length) {
     return [path.join(virtualStoreDir, 'node_modules')]
   }

@@ -1,7 +1,15 @@
-import { audit, type AuditReport, type AuditVulnerabilityCounts } from '@pnpm/audit'
+import {
+  audit,
+  type AuditReport,
+  type AuditVulnerabilityCounts,
+} from '@pnpm/audit'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
-import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config'
+import {
+  type Config,
+  types as allTypes,
+  type UniversalOptions,
+} from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
@@ -44,16 +52,12 @@ const MAX_PATHS_COUNT = 3
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return {
-    ...pick([
-      'dev',
-      'json',
-      'only',
-      'optional',
-      'production',
-      'registry',
-    ], allTypes),
+    ...pick(
+      ['dev', 'json', 'only', 'optional', 'production', 'registry'],
+      allTypes
+    ),
     'audit-level': ['low', 'moderate', 'high', 'critical'],
     fix: Boolean,
     'ignore-registry-errors': Boolean,
@@ -67,16 +71,18 @@ export const shorthands = {
 
 export const commandNames = ['audit']
 
-export function help () {
+export function help() {
   return renderHelp({
-    description: 'Checks for known security issues with the installed packages.',
+    description:
+      'Checks for known security issues with the installed packages.',
     descriptionLists: [
       {
         title: 'Options',
 
         list: [
           {
-            description: 'Add overrides to the package.json file in order to force non-vulnerable versions of the dependencies',
+            description:
+              'Add overrides to the package.json file in order to force non-vulnerable versions of the dependencies',
             name: '--fix',
           },
           {
@@ -84,7 +90,8 @@ export function help () {
             name: '--json',
           },
           {
-            description: 'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
+            description:
+              'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
             name: '--audit-level <severity>',
           },
           {
@@ -102,7 +109,8 @@ export function help () {
             name: '--no-optional',
           },
           {
-            description: 'Use exit code 0 if the registry responds with an error. Useful when audit checks are used in CI. A build should fail because the registry has issues.',
+            description:
+              'Use exit code 0 if the registry responds with an error. Useful when audit checks are used in CI. A build should fail because the registry has issues.',
             name: '--ignore-registry-errors',
           },
         ],
@@ -113,7 +121,7 @@ export function help () {
   })
 }
 
-export async function handler (
+export async function handler(
   opts: Pick<UniversalOptions, 'dir'> & {
     auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
     fix?: boolean
@@ -121,32 +129,39 @@ export async function handler (
     json?: boolean
     lockfileDir?: string
     registries: Registries
-  } & Pick<Config, 'ca'
-  | 'cert'
-  | 'httpProxy'
-  | 'httpsProxy'
-  | 'key'
-  | 'localAddress'
-  | 'maxSockets'
-  | 'noProxy'
-  | 'strictSsl'
-  | 'fetchRetries'
-  | 'fetchRetryMaxtimeout'
-  | 'fetchRetryMintimeout'
-  | 'fetchRetryFactor'
-  | 'fetchTimeout'
-  | 'production'
-  | 'dev'
-  | 'optional'
-  | 'userConfig'
-  | 'rawConfig'
-  | 'rootProjectManifest'
+  } & Pick<
+    Config,
+      | 'ca'
+      | 'cert'
+      | 'httpProxy'
+      | 'httpsProxy'
+      | 'key'
+      | 'localAddress'
+      | 'maxSockets'
+      | 'noProxy'
+      | 'strictSsl'
+      | 'fetchRetries'
+      | 'fetchRetryMaxtimeout'
+      | 'fetchRetryMintimeout'
+      | 'fetchRetryFactor'
+      | 'fetchTimeout'
+      | 'production'
+      | 'dev'
+      | 'optional'
+      | 'userConfig'
+      | 'rawConfig'
+      | 'rootProjectManifest'
   >
 ) {
   const lockfileDir = opts.lockfileDir ?? opts.dir
-  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
+  const lockfile = await readWantedLockfile(lockfileDir, {
+    ignoreIncompatible: true,
+  })
   if (lockfile == null) {
-    throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found: Cannot audit a project without a lockfile`)
+    throw new PnpmError(
+      'AUDIT_NO_LOCKFILE',
+      `No ${WANTED_LOCKFILE} found: Cannot audit a project without a lockfile`
+    )
   }
   const include = {
     dependencies: opts.production !== false,
@@ -154,7 +169,10 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
   let auditReport!: AuditReport
-  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.rawConfig, userSettings: opts.userConfig })
+  const getAuthHeader = createGetAuthHeaderByURI({
+    allSettings: opts.rawConfig,
+    userSettings: opts.userConfig,
+  })
   try {
     auditReport = await audit(lockfile, getAuthHeader, {
       agentOptions: {
@@ -208,11 +226,17 @@ ${JSON.stringify(newOverrides, null, 2)}`,
     }
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities
-  const totalVulnerabilityCount = Object.values(vulnerabilities)
-    .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
+  const totalVulnerabilityCount = Object.values(vulnerabilities).reduce(
+    (sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount,
+    0
+  )
   const ignoreCves = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreCves
   if (ignoreCves) {
-    auditReport.advisories = pickBy(({ cves }) => cves.length === 0 || difference(cves, ignoreCves).length > 0, auditReport.advisories)
+    auditReport.advisories = pickBy(
+      ({ cves }) =>
+        cves.length === 0 || difference(cves, ignoreCves).length > 0,
+      auditReport.advisories
+    )
   }
   if (opts.json) {
     return {
@@ -226,27 +250,36 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   let advisories = Object.values(auditReport.advisories)
   advisories = advisories
     .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
-    .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
+    .sort(
+      (a1, a2) =>
+        AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity]
+    )
   for (const advisory of advisories) {
     const paths = advisory.findings.map(({ paths }) => paths).flat()
-    output += table([
-      [AUDIT_COLOR[advisory.severity](advisory.severity), chalk.bold(advisory.title)],
-      ['Package', advisory.module_name],
-      ['Vulnerable versions', advisory.vulnerable_versions],
-      ['Patched versions', advisory.patched_versions],
+    output += table(
       [
-        'Paths',
-        (paths.length > MAX_PATHS_COUNT
-          ? paths
-            .slice(0, MAX_PATHS_COUNT)
-            .concat([
-              `... Found ${paths.length} paths, run \`pnpm why ${advisory.module_name}\` for more information`,
-            ])
-          : paths
-        ).join('\n\n'),
+        [
+          AUDIT_COLOR[advisory.severity](advisory.severity),
+          chalk.bold(advisory.title),
+        ],
+        ['Package', advisory.module_name],
+        ['Vulnerable versions', advisory.vulnerable_versions],
+        ['Patched versions', advisory.patched_versions],
+        [
+          'Paths',
+          (paths.length > MAX_PATHS_COUNT
+            ? paths
+              .slice(0, MAX_PATHS_COUNT)
+              .concat([
+                `... Found ${paths.length} paths, run \`pnpm why ${advisory.module_name}\` for more information`,
+              ])
+            : paths
+          ).join('\n\n'),
+        ],
+        ['More info', advisory.url],
       ],
-      ['More info', advisory.url],
-    ], AUDIT_TABLE_OPTIONS)
+      AUDIT_TABLE_OPTIONS
+    )
   }
   return {
     exitCode: output ? 1 : 0,
@@ -254,12 +287,17 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   }
 }
 
-function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number) {
+function reportSummary(
+  vulnerabilities: AuditVulnerabilityCounts,
+  totalVulnerabilityCount: number
+) {
   if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
-  return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
-    Object.entries(vulnerabilities)
-      .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
-      .map(([auditLevel, vulnerabilitiesCount]: [string, number]) => AUDIT_COLOR[auditLevel](`${vulnerabilitiesCount} ${auditLevel}`))
-      .join(' | ')
-  }`
+  return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${Object.entries(
+    vulnerabilities
+  )
+    .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
+    .map(([auditLevel, vulnerabilitiesCount]: [string, number]) =>
+      AUDIT_COLOR[auditLevel](`${vulnerabilitiesCount} ${auditLevel}`)
+    )
+    .join(' | ')}`
 }

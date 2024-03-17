@@ -6,10 +6,12 @@ import { computeHandlePath } from './computeHandlePath'
 //
 // Copied with a few changes from https://devblogs.microsoft.com/typescript/announcing-typescript-5-2/#using-declarations-and-explicit-resource-management
 if (Symbol.asyncDispose === undefined) {
-  (Symbol as { asyncDispose?: symbol }).asyncDispose = Symbol('Symbol.asyncDispose')
+  ;(Symbol as { asyncDispose?: symbol }).asyncDispose = Symbol(
+    'Symbol.asyncDispose'
+  )
 }
 if (Symbol.dispose === undefined) {
-  (Symbol as { dispose?: symbol }).dispose = Symbol('Symbol.dispose')
+  ;(Symbol as { dispose?: symbol }).dispose = Symbol('Symbol.dispose')
 }
 
 /**
@@ -25,12 +27,12 @@ export class TestIpcServer implements AsyncDisposable {
 
   public readonly listenPath: string
 
-  constructor (server: net.Server, listenPath: string) {
+  constructor(server: net.Server, listenPath: string) {
     this.server = server
     this.listenPath = listenPath
 
     server.on('connection', (client) => {
-      client.on('data', data => {
+      client.on('data', (data) => {
         this.buffer += data.toString()
       })
     })
@@ -43,7 +45,7 @@ export class TestIpcServer implements AsyncDisposable {
    * socket is created at this path. On Windows, a named pipe is created using
    * the path as the name.
    */
-  public static async listen (handle?: string): Promise<TestIpcServer> {
+  public static async listen(handle?: string): Promise<TestIpcServer> {
     const listenPath = computeHandlePath(handle)
     const server = net.createServer()
     const testIpcServer = new TestIpcServer(server, listenPath)
@@ -60,23 +62,21 @@ export class TestIpcServer implements AsyncDisposable {
   /**
    * Return the buffer of received messages.
    */
-  public getBuffer (): string {
+  public getBuffer(): string {
     return this.buffer
   }
 
   /**
    * Return the buffer as an array of strings split by the new line character.
    */
-  public getLines (): string[] {
-    return this.buffer === ''
-      ? []
-      : this.buffer.trim().split('\n')
+  public getLines(): string[] {
+    return this.buffer === '' ? [] : this.buffer.trim().split('\n')
   }
 
   /**
    * Reset the buffer to an empty string.
    */
-  public clear () {
+  public clear() {
     this.buffer = ''
   }
 
@@ -84,7 +84,7 @@ export class TestIpcServer implements AsyncDisposable {
    * Generates a shell script that can used as a package manifest "scripts"
    * entry. Exits after sending the message.
    */
-  public sendLineScript (message: string) {
+  public sendLineScript(message: string) {
     return `node -e "const c = require('net').connect('${JSON.stringify(this.listenPath).slice(1, -1)}', () => { c.write('${message}\\n'); c.end(); })"`
   }
 
@@ -92,7 +92,7 @@ export class TestIpcServer implements AsyncDisposable {
    * Generates a shell script that can used as a package manifest "scripts"
    * entry. This script consumes its stdin and sends it to the server.
    */
-  public generateSendStdinScript () {
+  public generateSendStdinScript() {
     return `node -e "const c = require('net').connect('${JSON.stringify(this.listenPath).slice(1, -1)}', () => { process.stdin.pipe(c).on('end', () => { c.destroy(); }); })"`
   }
 

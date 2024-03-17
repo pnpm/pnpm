@@ -24,7 +24,10 @@ import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 
 export * from './createManifestGetter'
 
-export type GetLatestManifestFunction = (packageName: string, rangeOrTag: string) => Promise<PackageManifest | null>
+export type GetLatestManifestFunction = (
+  packageName: string,
+  rangeOrTag: string
+) => Promise<PackageManifest | null>
 
 export interface OutdatedPackage {
   alias: string
@@ -36,28 +39,30 @@ export interface OutdatedPackage {
   workspace?: string
 }
 
-export async function outdated (
-  opts: {
-    compatible?: boolean
-    currentLockfile: Lockfile | null
-    getLatestManifest: GetLatestManifestFunction
-    ignoreDependencies?: string[]
-    include?: IncludedDependencies
-    lockfileDir: string
-    manifest: ProjectManifest
-    match?: (dependencyName: string) => boolean
-    prefix: string
-    registries: Registries
-    wantedLockfile: Lockfile | null
-  }
-): Promise<OutdatedPackage[]> {
+export async function outdated(opts: {
+  compatible?: boolean
+  currentLockfile: Lockfile | null
+  getLatestManifest: GetLatestManifestFunction
+  ignoreDependencies?: string[]
+  include?: IncludedDependencies
+  lockfileDir: string
+  manifest: ProjectManifest
+  match?: (dependencyName: string) => boolean
+  prefix: string
+  registries: Registries
+  wantedLockfile: Lockfile | null
+}): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
   if (opts.wantedLockfile == null) {
-    throw new PnpmError('OUTDATED_NO_LOCKFILE', `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`)
+    throw new PnpmError(
+      'OUTDATED_NO_LOCKFILE',
+      `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`
+    )
   }
 
-  async function getOverriddenManifest () {
-    const overrides = opts.currentLockfile?.overrides ?? opts.wantedLockfile?.overrides
+  async function getOverriddenManifest() {
+    const overrides =
+      opts.currentLockfile?.overrides ?? opts.wantedLockfile?.overrides
     if (overrides) {
       const readPackageHook = createReadPackageHook({
         lockfileDir: opts.lockfileDir,
@@ -72,20 +77,27 @@ export async function outdated (
 
   const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest())
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
-  const currentLockfile = opts.currentLockfile ?? { importers: { [importerId]: {} } }
+  const currentLockfile = opts.currentLockfile ?? {
+    importers: { [importerId]: {} },
+  }
 
   const outdated: OutdatedPackage[] = []
 
-  const ignoreDependenciesMatcher = opts.ignoreDependencies?.length ? createMatcher(opts.ignoreDependencies) : undefined
+  const ignoreDependenciesMatcher = opts.ignoreDependencies?.length
+    ? createMatcher(opts.ignoreDependencies)
+    : undefined
 
   await Promise.all(
     DEPENDENCIES_FIELDS.map(async (depType) => {
       if (
         opts.include?.[depType] === false ||
-        (opts.wantedLockfile!.importers[importerId][depType] == null)
-      ) return
+        opts.wantedLockfile!.importers[importerId][depType] == null
+      )
+        return
 
-      let pkgs = Object.keys(opts.wantedLockfile!.importers[importerId][depType]!)
+      let pkgs = Object.keys(
+        opts.wantedLockfile!.importers[importerId][depType]!
+      )
 
       if (opts.match != null) {
         pkgs = pkgs.filter((pkgName) => opts.match!(pkgName))
@@ -94,7 +106,8 @@ export async function outdated (
       await Promise.all(
         pkgs.map(async (alias) => {
           if (!allDeps[alias]) return
-          const ref = opts.wantedLockfile!.importers[importerId][depType]![alias]
+          const ref =
+            opts.wantedLockfile!.importers[importerId][depType]![alias]
 
           if (
             ref.startsWith('file:') || // ignoring linked packages. (For backward compatibility)
@@ -111,21 +124,35 @@ export async function outdated (
           const pkgSnapshot = opts.wantedLockfile!.packages?.[relativeDepPath]
 
           if (pkgSnapshot == null) {
-            throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
+            throw new Error(
+              `Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`
+            )
           }
 
-          const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[depType]?.[alias]
-          const currentRelative = currentRef && dp.refToRelative(currentRef, alias)
-          const current = (currentRelative && dp.parse(currentRelative).version) ?? currentRef
+          const currentRef = (
+            currentLockfile.importers[importerId] as ProjectSnapshot
+          )?.[depType]?.[alias]
+          const currentRelative =
+            currentRef && dp.refToRelative(currentRef, alias)
+          const current =
+            (currentRelative && dp.parse(currentRelative).version) ?? currentRef
           const wanted = dp.parse(relativeDepPath).version ?? ref
-          const { name: packageName } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
+          const { name: packageName } = nameVerFromPkgSnapshot(
+            relativeDepPath,
+            pkgSnapshot
+          )
           const name = dp.parse(relativeDepPath).name ?? packageName
 
           // If the npm resolve parser cannot parse the spec of the dependency,
           // it means that the package is not from a npm-compatible registry.
           // In that case, we can't check whether the package is up-to-date
           if (
-            parsePref(allDeps[alias], alias, 'latest', pickRegistryForPackage(opts.registries, name)) == null
+            parsePref(
+              allDeps[alias],
+              alias,
+              'latest',
+              pickRegistryForPackage(opts.registries, name)
+            ) == null
           ) {
             if (current !== wanted) {
               outdated.push({
@@ -143,7 +170,7 @@ export async function outdated (
 
           const latestManifest = await opts.getLatestManifest(
             name,
-            opts.compatible ? (allDeps[name] ?? 'latest') : 'latest'
+            opts.compatible ? allDeps[name] ?? 'latest' : 'latest'
           )
 
           if (latestManifest == null) return
@@ -156,12 +183,15 @@ export async function outdated (
               packageName,
               wanted,
               workspace: opts.manifest.name,
-
             })
             return
           }
 
-          if (current !== wanted || semver.lt(current, latestManifest.version) || latestManifest.deprecated) {
+          if (
+            current !== wanted ||
+            semver.lt(current, latestManifest.version) ||
+            latestManifest.deprecated
+          ) {
             outdated.push({
               alias,
               belongsTo: depType,
@@ -170,7 +200,6 @@ export async function outdated (
               packageName,
               wanted,
               workspace: opts.manifest.name,
-
             })
           }
         })
@@ -178,15 +207,20 @@ export async function outdated (
     })
   )
 
-  return outdated.sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
+  return outdated.sort((pkg1, pkg2) =>
+    pkg1.packageName.localeCompare(pkg2.packageName)
+  )
 }
 
-function packageHasNoDeps (manifest: ProjectManifest) {
-  return ((manifest.dependencies == null) || isEmpty(manifest.dependencies)) &&
-    ((manifest.devDependencies == null) || isEmpty(manifest.devDependencies)) &&
-    ((manifest.optionalDependencies == null) || isEmpty(manifest.optionalDependencies))
+function packageHasNoDeps(manifest: ProjectManifest) {
+  return (
+    (manifest.dependencies == null || isEmpty(manifest.dependencies)) &&
+    (manifest.devDependencies == null || isEmpty(manifest.devDependencies)) &&
+    (manifest.optionalDependencies == null ||
+      isEmpty(manifest.optionalDependencies))
+  )
 }
 
-function isEmpty (obj: object) {
+function isEmpty(obj: object) {
   return Object.keys(obj).length === 0
 }

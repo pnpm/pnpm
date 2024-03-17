@@ -8,20 +8,22 @@ test('logger with filterLog hook', (done) => {
       argv: ['install'],
       config: {
         hooks: {
-          filterLog: [(log: Log) => {
-            if (log.level === 'debug') {
-              return false
-            }
-            if (log.level === 'warn') {
-              if (log.message === 'aaa') {
+          filterLog: [
+            (log: Log) => {
+              if (log.level === 'debug') {
                 return false
               }
-              if (log.prefix === '/tmp') {
-                return false
+              if (log.level === 'warn') {
+                if (log.message === 'aaa') {
+                  return false
+                }
+                if (log.prefix === '/tmp') {
+                  return false
+                }
               }
-            }
-            return true
-          }],
+              return true
+            },
+          ],
         },
       } as any, // eslint-disable-line
     },

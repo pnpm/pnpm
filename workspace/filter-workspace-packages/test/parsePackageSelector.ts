@@ -1,5 +1,8 @@
 import path from 'path'
-import { type PackageSelector, parsePackageSelector } from '@pnpm/filter-workspace-packages'
+import {
+  type PackageSelector,
+  parsePackageSelector,
+} from '@pnpm/filter-workspace-packages'
 import isWindows from 'is-windows'
 
 const fixtures: Array<[string, PackageSelector]> = [
@@ -195,17 +198,20 @@ const fixtures: Array<[string, PackageSelector]> = [
 
 test('parsePackageSelector()', () => {
   for (const fixture of fixtures) {
-    expect(
-      parsePackageSelector(fixture[0], process.cwd())).toStrictEqual(fixture[1])
+    expect(parsePackageSelector(fixture[0], process.cwd())).toStrictEqual(
+      fixture[1]
+    )
   }
   if (isWindows()) {
-    expect(
-      parsePackageSelector('.\\foo', process.cwd())).toStrictEqual(
-      { exclude: false, excludeSelf: false, parentDir: path.resolve('foo') }
-    )
-    expect(
-      parsePackageSelector('..\\foo', process.cwd())).toStrictEqual(
-      { exclude: false, excludeSelf: false, parentDir: path.resolve('../foo') }
-    )
+    expect(parsePackageSelector('.\\foo', process.cwd())).toStrictEqual({
+      exclude: false,
+      excludeSelf: false,
+      parentDir: path.resolve('foo'),
+    })
+    expect(parsePackageSelector('..\\foo', process.cwd())).toStrictEqual({
+      exclude: false,
+      excludeSelf: false,
+      parentDir: path.resolve('../foo'),
+    })
   }
 })

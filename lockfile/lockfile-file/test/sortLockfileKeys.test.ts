@@ -63,9 +63,15 @@ test('sorts keys alphabetically', () => {
       zzz: { path: 'foo', hash: 'bar' },
     },
   })
-  expect(Object.keys(normalizedLockfile.importers?.foo.dependencies ?? {})).toStrictEqual(['aaa', 'bar', 'zzz'])
-  expect(Object.keys(normalizedLockfile.importers?.foo.specifiers ?? {})).toStrictEqual(['aaa', 'bar', 'zzz'])
-  expect(Object.keys(normalizedLockfile.patchedDependencies ?? {})).toStrictEqual(['aaa', 'bar', 'zzz'])
+  expect(
+    Object.keys(normalizedLockfile.importers?.foo.dependencies ?? {})
+  ).toStrictEqual(['aaa', 'bar', 'zzz'])
+  expect(
+    Object.keys(normalizedLockfile.importers?.foo.specifiers ?? {})
+  ).toStrictEqual(['aaa', 'bar', 'zzz'])
+  expect(
+    Object.keys(normalizedLockfile.patchedDependencies ?? {})
+  ).toStrictEqual(['aaa', 'bar', 'zzz'])
 })
 
 test('sorting does not care about locale (e.g. Czech has "ch" as a single character after "h")', () => {
@@ -106,6 +112,10 @@ test('sorting does not care about locale (e.g. Czech has "ch" as a single charac
       },
     },
   })
-  expect(Object.keys(normalizedLockfile.importers?.foo.dependencies ?? {})).toStrictEqual(['bar', 'chmod', 'href'])
-  expect(Object.keys(normalizedLockfile.importers?.foo.specifiers ?? {})).toStrictEqual(['bar', 'chmod', 'href'])
+  expect(
+    Object.keys(normalizedLockfile.importers?.foo.dependencies ?? {})
+  ).toStrictEqual(['bar', 'chmod', 'href'])
+  expect(
+    Object.keys(normalizedLockfile.importers?.foo.specifiers ?? {})
+  ).toStrictEqual(['bar', 'chmod', 'href'])
 })

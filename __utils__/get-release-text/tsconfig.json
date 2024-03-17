@@ -5,10 +5,7 @@
     "rootDir": "src",
     "module": "ES2020"
   },
-  "include": [
-    "src/**/*.ts",
-    "../../__typings__/**/*.d.ts"
-  ],
+  "include": ["src/**/*.ts", "../../__typings__/**/*.d.ts"],
   "references": [],
   "composite": true
 }

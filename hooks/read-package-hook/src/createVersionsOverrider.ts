@@ -1,54 +1,70 @@
 import path from 'path'
 import semver from 'semver'
 import partition from 'ramda/src/partition'
-import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
+import {
+  type Dependencies,
+  type PackageManifest,
+  type ReadPackageHook,
+} from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
 import { isIntersectingRange } from './isIntersectingRange'
 
-export function createVersionsOverrider (
+export function createVersionsOverrider(
   overrides: Record<string, string>,
   rootDir: string
 ): ReadPackageHook {
   const parsedOverrides = tryParseOverrides(overrides)
-  const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
-    parsedOverrides
-      .map((override) => {
-        let linkTarget: string | undefined
-        if (override.newPref.startsWith('link:')) {
-          linkTarget = path.join(rootDir, override.newPref.substring(5))
-        }
-        let linkFileTarget: string | undefined
-        if (override.newPref.startsWith('file:')) {
-          const pkgPath = override.newPref.substring(5)
-          linkFileTarget = path.isAbsolute(pkgPath) ? pkgPath : path.join(rootDir, pkgPath)
-        }
-        return {
-          ...override,
-          linkTarget,
-          linkFileTarget,
-        }
-      })
+  const [versionOverrides, genericVersionOverrides] = partition(
+    ({ parentPkg }) => parentPkg != null,
+    parsedOverrides.map((override) => {
+      let linkTarget: string | undefined
+      if (override.newPref.startsWith('link:')) {
+        linkTarget = path.join(rootDir, override.newPref.substring(5))
+      }
+      let linkFileTarget: string | undefined
+      if (override.newPref.startsWith('file:')) {
+        const pkgPath = override.newPref.substring(5)
+        linkFileTarget = path.isAbsolute(pkgPath)
+          ? pkgPath
+          : path.join(rootDir, pkgPath)
+      }
+      return {
+        ...override,
+        linkTarget,
+        linkFileTarget,
+      }
+    })
   ) as [VersionOverrideWithParent[], VersionOverride[]]
   return ((manifest: PackageManifest, dir?: string) => {
-    const versionOverridesWithParent = versionOverrides.filter(({ parentPkg }) => {
-      return (
-        parentPkg.name === manifest.name &&
-        (!parentPkg.pref || semver.satisfies(manifest.version, parentPkg.pref))
-      )
-    })
-    overrideDepsOfPkg({ manifest, dir }, versionOverridesWithParent, genericVersionOverrides)
+    const versionOverridesWithParent = versionOverrides.filter(
+      ({ parentPkg }) => {
+        return (
+          parentPkg.name === manifest.name &&
+          (!parentPkg.pref ||
+            semver.satisfies(manifest.version, parentPkg.pref))
+        )
+      }
+    )
+    overrideDepsOfPkg(
+      { manifest, dir },
+      versionOverridesWithParent,
+      genericVersionOverrides
+    )
 
     return manifest
   }) as ReadPackageHook
 }
 
-function tryParseOverrides (overrides: Record<string, string>) {
+function tryParseOverrides(overrides: Record<string, string>) {
   try {
     return parseOverrides(overrides)
   } catch (e) {
-    throw new PnpmError('INVALID_OVERRIDES_SELECTOR', `${(e as PnpmError).message} in pnpm.overrides`)
+    throw new PnpmError(
+      'INVALID_OVERRIDES_SELECTOR',
+      `${(e as PnpmError).message} in pnpm.overrides`
+    )
   }
 }
 
@@ -73,18 +89,42 @@ interface VersionOverrideWithParent extends VersionOverride {
   }
 }
 
-function overrideDepsOfPkg (
-  { manifest, dir }: { manifest: PackageManifest, dir: string | undefined },
+function overrideDepsOfPkg(
+  { manifest, dir }: { manifest: PackageManifest; dir: string | undefined },
   versionOverrides: VersionOverrideWithParent[],
   genericVersionOverrides: VersionOverride[]
 ) {
-  if (manifest.dependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.dependencies, dir)
-  if (manifest.optionalDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.optionalDependencies, dir)
-  if (manifest.devDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.devDependencies, dir)
-  if (manifest.peerDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.peerDependencies, dir)
+  if (manifest.dependencies != null)
+    overrideDeps(
+      versionOverrides,
+      genericVersionOverrides,
+      manifest.dependencies,
+      dir
+    )
+  if (manifest.optionalDependencies != null)
+    overrideDeps(
+      versionOverrides,
+      genericVersionOverrides,
+      manifest.optionalDependencies,
+      dir
+    )
+  if (manifest.devDependencies != null)
+    overrideDeps(
+      versionOverrides,
+      genericVersionOverrides,
+      manifest.devDependencies,
+      dir
+    )
+  if (manifest.peerDependencies != null)
+    overrideDeps(
+      versionOverrides,
+      genericVersionOverrides,
+      manifest.peerDependencies,
+      dir
+    )
 }
 
-function overrideDeps (
+function overrideDeps(
   versionOverrides: VersionOverrideWithParent[],
   genericVersionOverrides: VersionOverride[],
   deps: Dependencies,
@@ -92,18 +132,18 @@ function overrideDeps (
 ) {
   for (const [name, pref] of Object.entries(deps)) {
     const versionOverride =
-    pickMostSpecificVersionOverride(
-      versionOverrides.filter(
-        ({ targetPkg }) =>
-          targetPkg.name === name && isIntersectingRange(targetPkg.pref, pref)
+      pickMostSpecificVersionOverride(
+        versionOverrides.filter(
+          ({ targetPkg }) =>
+            targetPkg.name === name && isIntersectingRange(targetPkg.pref, pref)
+        )
+      ) ??
+      pickMostSpecificVersionOverride(
+        genericVersionOverrides.filter(
+          ({ targetPkg }) =>
+            targetPkg.name === name && isIntersectingRange(targetPkg.pref, pref)
+        )
       )
-    ) ??
-    pickMostSpecificVersionOverride(
-      genericVersionOverrides.filter(
-        ({ targetPkg }) =>
-          targetPkg.name === name && isIntersectingRange(targetPkg.pref, pref)
-      )
-    )
     if (!versionOverride) continue
 
     if (versionOverride.linkTarget && dir) {
@@ -113,15 +153,18 @@ function overrideDeps (
       continue
     }
     if (versionOverride.linkFileTarget) {
-      deps[
-        versionOverride.targetPkg.name
-      ] = `file:${versionOverride.linkFileTarget}`
+      deps[versionOverride.targetPkg.name] =
+        `file:${versionOverride.linkFileTarget}`
       continue
     }
     deps[versionOverride.targetPkg.name] = versionOverride.newPref
   }
 }
 
-function pickMostSpecificVersionOverride (versionOverrides: VersionOverride[]): VersionOverride | undefined {
-  return versionOverrides.sort((a, b) => isIntersectingRange(b.targetPkg.pref ?? '', a.targetPkg.pref ?? '') ? -1 : 1)[0]
+function pickMostSpecificVersionOverride(
+  versionOverrides: VersionOverride[]
+): VersionOverride | undefined {
+  return versionOverrides.sort((a, b) =>
+    isIntersectingRange(b.targetPkg.pref ?? '', a.targetPkg.pref ?? '') ? -1 : 1
+  )[0]
 }

@@ -1,6 +1,6 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { refToRelative } from '@pnpm/dependency-path'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import type { Lockfile } from '@pnpm/lockfile-types'
 import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import sortKeys from 'sort-keys'
 
@@ -21,7 +21,7 @@ export interface DepStateObj {
   [depPath: string]: DepStateObj
 }
 
-export function calcDepState (
+export function calcDepState(
   depsGraph: DepsGraph,
   cache: DepsStateCache,
   depPath: string,
@@ -41,7 +41,7 @@ export function calcDepState (
   return result
 }
 
-function calcDepStateObj (
+function calcDepStateObj(
   depPath: string,
   depsGraph: DepsGraph,
   cache: DepsStateCache,
@@ -59,13 +59,18 @@ function calcDepStateObj (
       state[child.depPath] = {}
       continue
     }
-    state[child.depPath] = calcDepStateObj(childId, depsGraph, cache, nextParents)
+    state[child.depPath] = calcDepStateObj(
+      childId,
+      depsGraph,
+      cache,
+      nextParents
+    )
   }
   cache[depPath] = sortKeys(state)
   return cache[depPath]
 }
 
-export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph {
+export function lockfileToDepGraph(lockfile: Lockfile): DepsGraph {
   const graph: DepsGraph = {}
   if (lockfile.packages != null) {
     Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
@@ -82,7 +87,9 @@ export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph {
   return graph
 }
 
-function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<string, string> {
+function lockfileDepsToGraphChildren(
+  deps: Record<string, string>
+): Record<string, string> {
   const children: Record<string, string> = {}
   for (const [alias, reference] of Object.entries(deps)) {
     const depPath = refToRelative(reference, alias)

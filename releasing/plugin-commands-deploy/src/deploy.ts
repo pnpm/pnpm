@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
@@ -14,17 +14,17 @@ import { logger } from '@pnpm/logger'
 
 export const shorthands = install.shorthands
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes() {
   return install.rcOptionsTypes()
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return install.cliOptionsTypes()
 }
 
 export const commandNames = ['deploy']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: 'Experimental! Deploy a package from a workspace',
     url: docsUrl('deploy'),
@@ -39,7 +39,8 @@ export function help () {
             shortAlias: '-P',
           },
           {
-            description: 'Only `devDependencies` are installed regardless of the `NODE_ENV`',
+            description:
+              'Only `devDependencies` are installed regardless of the `NODE_ENV`',
             name: '--dev',
             shortAlias: '-D',
           },
@@ -54,33 +55,53 @@ export function help () {
   })
 }
 
-export async function handler (
+export async function handler(
   opts: install.InstallCommandOptions,
   params: string[]
 ) {
   if (!opts.workspaceDir) {
-    throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace')
+    throw new PnpmError(
+      'CANNOT_DEPLOY',
+      'A deploy is only possible from inside a workspace'
+    )
   }
   const selectedDirs = Object.keys(opts.selectedProjectsGraph ?? {})
   if (selectedDirs.length === 0) {
-    throw new PnpmError('NOTHING_TO_DEPLOY', 'No project was selected for deployment')
+    throw new PnpmError(
+      'NOTHING_TO_DEPLOY',
+      'No project was selected for deployment'
+    )
   }
   if (selectedDirs.length > 1) {
-    throw new PnpmError('CANNOT_DEPLOY_MANY', 'Cannot deploy more than 1 project')
+    throw new PnpmError(
+      'CANNOT_DEPLOY_MANY',
+      'Cannot deploy more than 1 project'
+    )
   }
   if (params.length !== 1) {
-    throw new PnpmError('INVALID_DEPLOY_TARGET', 'This command requires one parameter')
+    throw new PnpmError(
+      'INVALID_DEPLOY_TARGET',
+      'This command requires one parameter'
+    )
   }
   const deployedDir = selectedDirs[0]
   const deployDirParam = params[0]
-  const deployDir = path.isAbsolute(deployDirParam) ? deployDirParam : path.join(opts.dir, deployDirParam)
+  const deployDir = path.isAbsolute(deployDirParam)
+    ? deployDirParam
+    : path.join(opts.dir, deployDirParam)
 
   if (!isEmptyDirOrNothing(deployDir)) {
     if (!opts.force) {
-      throw new PnpmError('DEPLOY_DIR_NOT_EMPTY', `Deploy path ${deployDir} is not empty`)
+      throw new PnpmError(
+        'DEPLOY_DIR_NOT_EMPTY',
+        `Deploy path ${deployDir} is not empty`
+      )
     }
 
-    logger.warn({ message: 'using --force, deleting deploy path', prefix: deployDir })
+    logger.warn({
+      message: 'using --force, deleting deploy path',
+      prefix: deployDir,
+    })
   }
 
   await rimraf(deployDir)
@@ -98,16 +119,16 @@ export async function handler (
     depth: Infinity,
     hooks: {
       ...opts.hooks,
-      readPackage: [
-        ...(opts.hooks?.readPackage ?? []),
-        deployHook,
-      ],
+      readPackage: [...(opts.hooks?.readPackage ?? []), deployHook],
     },
     frozenLockfile: false,
     preferFrozenLockfile: false,
     saveLockfile: false,
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
-    modulesDir: path.relative(deployedDir, path.join(deployDir, 'node_modules')),
+    modulesDir: path.relative(
+      deployedDir,
+      path.join(deployDir, 'node_modules')
+    ),
     rawLocalConfig: {
       ...opts.rawLocalConfig,
       // This is a workaround to prevent frozen install in CI envs.
@@ -117,8 +138,16 @@ export async function handler (
   })
 }
 
-async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }) {
+async function copyProject(
+  src: string,
+  dest: string,
+  opts: { includeOnlyPackageFiles: boolean }
+) {
   const { filesIndex } = await fetchFromDir(src, opts)
   const importPkg = createIndexedPkgImporter('clone-or-copy')
-  importPkg(dest, { filesMap: filesIndex, force: true, resolvedFrom: 'local-dir' })
+  importPkg(dest, {
+    filesMap: filesIndex,
+    force: true,
+    resolvedFrom: 'local-dir',
+  })
 }

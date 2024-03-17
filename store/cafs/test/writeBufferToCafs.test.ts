@@ -11,7 +11,14 @@ describe('writeBufferToCafs', () => {
     const buffer = Buffer.from('abc')
     const fullFileDest = path.join(cafsDir, fileDest)
     fs.writeFileSync(pathTemp(fullFileDest), 'ccc', 'utf8')
-    writeBufferToCafs(new Map(), cafsDir, buffer, fileDest, 420, ssri.fromData(buffer))
+    writeBufferToCafs(
+      new Map(),
+      cafsDir,
+      buffer,
+      fileDest,
+      420,
+      ssri.fromData(buffer)
+    )
     expect(fs.readFileSync(fullFileDest, 'utf8')).toBe('abc')
   })
 })

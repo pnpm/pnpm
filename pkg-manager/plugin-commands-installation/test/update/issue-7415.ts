@@ -66,7 +66,10 @@ test('interactive recursive should not error on git specifier override', async (
     updateDependencies: [],
   })
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
   const sharedOptions = {
     ...DEFAULT_OPTIONS,
     allProjects,

@@ -25,22 +25,27 @@ test('CLI fails when store status finds modified packages', async () => {
     '--verify-store-integrity',
   ])
 
-  await rimraf('node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive/index.js')
+  await rimraf(
+    'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive/index.js'
+  )
 
   let err!: PnpmError & { modified: string[] }
   const modulesState = await project.readModulesManifest()
   try {
-    await store.handler({
-      cacheDir,
-      dir: process.cwd(),
-      pnpmHomeDir: '',
-      rawConfig: {
-        registry: REGISTRY,
+    await store.handler(
+      {
+        cacheDir,
+        dir: process.cwd(),
+        pnpmHomeDir: '',
+        rawConfig: {
+          registry: REGISTRY,
+        },
+        registries: modulesState!.registries!,
+        storeDir,
+        userConfig: {},
       },
-      registries: modulesState!.registries!,
-      storeDir,
-      userConfig: {},
-    }, ['status'])
+      ['status']
+    )
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -81,15 +86,18 @@ test('CLI does not fail when store status does not find modified packages', asyn
   ])
 
   const modulesState = await project.readModulesManifest()
-  await store.handler({
-    cacheDir,
-    dir: process.cwd(),
-    pnpmHomeDir: '',
-    rawConfig: {
-      registry: REGISTRY,
+  await store.handler(
+    {
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: REGISTRY,
+      },
+      registries: modulesState!.registries!,
+      storeDir,
+      userConfig: {},
     },
-    registries: modulesState!.registries!,
-    storeDir,
-    userConfig: {},
-  }, ['status'])
+    ['status']
+  )
 })

@@ -1,6 +1,10 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
-import nodeFetch, { type Request, type RequestInit as NodeRequestInit, Response } from 'node-fetch'
+import nodeFetch, {
+  type Request,
+  type RequestInit as NodeRequestInit,
+  Response,
+} from 'node-fetch'
 
 export { isRedirect } from 'node-fetch'
 
@@ -22,7 +26,10 @@ export interface RequestInit extends NodeRequestInit {
   timeout?: number
 }
 
-export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
+export async function fetch(
+  url: RequestInfo,
+  opts: RequestInit = {}
+): Promise<Response> {
   const retryOpts = opts.retry ?? {}
   const maxRetries = retryOpts.retries ?? 2
 
@@ -41,7 +48,10 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
           // this will be retried
           const res = await nodeFetch(url as any, opts) // eslint-disable-line
           // A retry on 409 sometimes helps when making requests to the Bit registry.
-          if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
+          if (
+            (res.status >= 500 && res.status < 600) ||
+            [408, 409, 420, 429].includes(res.status)
+          ) {
             throw new ResponseError(res)
           } else {
             resolve(res)
@@ -80,7 +90,7 @@ export class ResponseError extends Error {
   public status: number
   public statusCode: number
   public url: string
-  constructor (res: Response) {
+  constructor(res: Response) {
     super(res.statusText)
 
     if (Error.captureStackTrace) {

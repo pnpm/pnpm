@@ -15,23 +15,34 @@ export interface HttpResponse {
   body: string
 }
 
-export type DownloadFunction = (url: string, opts: {
-  getAuthHeaderByURI: (registry: string) => string | undefined
-  cafs: Cafs
-  readManifest?: boolean
-  registry?: string
-  onStart?: (totalSize: number | null, attempt: number) => void
-  onProgress?: (downloaded: number) => void
-  integrity?: string
-  filesIndexFile: string
-} & Pick<FetchOptions, 'pkg'>) => Promise<FetchResult>
+export type DownloadFunction = (
+  url: string,
+  opts: {
+    getAuthHeaderByURI: (registry: string) => string | undefined
+    cafs: Cafs
+    readManifest?: boolean
+    registry?: string
+    onStart?: (totalSize: number | null, attempt: number) => void
+    onProgress?: (downloaded: number) => void
+    integrity?: string
+    filesIndexFile: string
+  } & Pick<FetchOptions, 'pkg'>
+) => Promise<FetchResult>
 
 export interface NpmRegistryClient {
-  get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void
-  fetch: (url: string, opts: { auth?: object }, cb: (err: Error, res: IncomingMessage) => void) => void
+  get: (
+    url: string,
+    getOpts: object,
+    cb: (err: Error, data: object, raw: object, res: HttpResponse) => void
+  ) => void
+  fetch: (
+    url: string,
+    opts: { auth?: object },
+    cb: (err: Error, res: IncomingMessage) => void
+  ) => void
 }
 
-export function createDownloader (
+export function createDownloader(
   fetchFromRegistry: FetchFromRegistry,
   gotOpts: {
     // retry
@@ -53,16 +64,19 @@ export function createDownloader (
     ...gotOpts.retry,
   }
 
-  return async function download (url: string, opts: {
-    getAuthHeaderByURI: (registry: string) => string | undefined
-    cafs: Cafs
-    readManifest?: boolean
-    registry?: string
-    onStart?: (totalSize: number | null, attempt: number) => void
-    onProgress?: (downloaded: number) => void
-    integrity?: string
-    filesIndexFile: string
-  } & Pick<FetchOptions, 'pkg'>): Promise<FetchResult> {
+  return async function download(
+    url: string,
+    opts: {
+      getAuthHeaderByURI: (registry: string) => string | undefined
+      cafs: Cafs
+      readManifest?: boolean
+      registry?: string
+      onStart?: (totalSize: number | null, attempt: number) => void
+      onProgress?: (downloaded: number) => void
+      integrity?: string
+      filesIndexFile: string
+    } & Pick<FetchOptions, 'pkg'>
+  ): Promise<FetchResult> {
     const authHeaderValue = opts.getAuthHeaderByURI(url)
 
     const op = retry.operation(retryOpts)
@@ -98,7 +112,7 @@ export function createDownloader (
       })
     })
 
-    async function fetch (currentAttempt: number): Promise<FetchResult> {
+    async function fetch(currentAttempt: number): Promise<FetchResult> {
       let data: Buffer
       try {
         const res = await fetchFromRegistry(url, {
@@ -116,17 +130,18 @@ export function createDownloader (
           throw new FetchError({ url, authHeaderValue }, res)
         }
 
-        const contentLength = res.headers.has('content-length') && res.headers.get('content-length')
-        const size = typeof contentLength === 'string'
-          ? parseInt(contentLength, 10)
-          : null
+        const contentLength =
+          res.headers.has('content-length') && res.headers.get('content-length')
+        const size =
+          typeof contentLength === 'string' ? parseInt(contentLength, 10) : null
         if (opts.onStart != null) {
           opts.onStart(size, currentAttempt)
         }
         // In order to reduce the amount of logs, we only report the download progress of big tarballs
-        const onProgress = (size != null && size >= BIG_TARBALL_SIZE && opts.onProgress)
-          ? throttle(opts.onProgress, 500)
-          : undefined
+        const onProgress =
+          size != null && size >= BIG_TARBALL_SIZE && opts.onProgress
+            ? throttle(opts.onProgress, 500)
+            : undefined
         let downloaded = 0
         const chunks: Buffer[] = []
         // This will handle the 'data', 'error', and 'end' events.

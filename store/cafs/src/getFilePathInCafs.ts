@@ -5,7 +5,7 @@ export const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 
 export type FileType = 'exec' | 'nonexec' | 'index'
 
-export function getFilePathByModeInCafs (
+export function getFilePathByModeInCafs(
   cafsDir: string,
   integrity: string | IntegrityLike,
   mode: number
@@ -14,7 +14,7 @@ export function getFilePathByModeInCafs (
   return path.join(cafsDir, contentPathFromIntegrity(integrity, fileType))
 }
 
-export function getFilePathInCafs (
+export function getFilePathInCafs(
   cafsDir: string,
   integrity: string | IntegrityLike,
   fileType: FileType
@@ -22,7 +22,7 @@ export function getFilePathInCafs (
   return path.join(cafsDir, contentPathFromIntegrity(integrity, fileType))
 }
 
-function contentPathFromIntegrity (
+function contentPathFromIntegrity(
   integrity: string | IntegrityLike,
   fileType: FileType
 ) {
@@ -30,14 +30,14 @@ function contentPathFromIntegrity (
   return contentPathFromHex(fileType, sri.hexDigest())
 }
 
-export function contentPathFromHex (fileType: FileType, hex: string) {
+export function contentPathFromHex(fileType: FileType, hex: string) {
   const p = path.join(hex.slice(0, 2), hex.slice(2))
   switch (fileType) {
-  case 'exec':
-    return `${p}-exec`
-  case 'nonexec':
-    return p
-  case 'index':
-    return `${p}-index.json`
+    case 'exec':
+      return `${p}-exec`
+    case 'nonexec':
+      return p
+    case 'index':
+      return `${p}-index.json`
   }
 }

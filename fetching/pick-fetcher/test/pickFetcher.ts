@@ -2,13 +2,19 @@ import { pickFetcher } from '@pnpm/pick-fetcher'
 
 test('should pick localTarball fetcher', () => {
   const localTarball = jest.fn()
-  const fetcher = pickFetcher({ localTarball }, { tarball: 'file:is-positive-1.0.0.tgz' })
+  const fetcher = pickFetcher(
+    { localTarball },
+    { tarball: 'file:is-positive-1.0.0.tgz' }
+  )
   expect(fetcher).toBe(localTarball)
 })
 
 test('should pick remoteTarball fetcher', () => {
   const remoteTarball = jest.fn()
-  const fetcher = pickFetcher({ remoteTarball }, { tarball: 'is-positive-1.0.0.tgz' })
+  const fetcher = pickFetcher(
+    { remoteTarball },
+    { tarball: 'is-positive-1.0.0.tgz' }
+  )
   expect(fetcher).toBe(remoteTarball)
 })
 

@@ -1,10 +1,6 @@
 import path from 'path'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
-import {
-  progressLogger,
-  removalLogger,
-  statsLogger,
-} from '@pnpm/core-loggers'
+import { progressLogger, removalLogger, statsLogger } from '@pnpm/core-loggers'
 import {
   type DepHierarchy,
   type DependenciesGraph,
@@ -22,7 +18,7 @@ import rimraf from '@zkochan/rimraf'
 
 const limitLinking = pLimit(16)
 
-export async function linkHoistedModules (
+export async function linkHoistedModules(
   storeController: StoreController,
   graph: DependenciesGraph,
   prevGraph: DependenciesGraph,
@@ -38,10 +34,7 @@ export async function linkHoistedModules (
   }
 ): Promise<void> {
   // TODO: remove nested node modules first
-  const dirsToRemove = difference(
-    Object.keys(prevGraph),
-    Object.keys(graph)
-  )
+  const dirsToRemove = difference(Object.keys(prevGraph), Object.keys(graph))
   statsLogger.debug({
     prefix: opts.lockfileDir,
     removed: dirsToRemove.length,
@@ -50,23 +43,29 @@ export async function linkHoistedModules (
   // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
   await Promise.all(dirsToRemove.map((dir) => tryRemoveDir(dir)))
   await Promise.all(
-    Object.entries(hierarchy)
-      .map(([parentDir, depsHierarchy]) => {
-        function warn (message: string) {
-          logger.info({
-            message,
-            prefix: parentDir,
-          })
-        }
-        return linkAllPkgsInOrder(storeController, graph, prevGraph, depsHierarchy, parentDir, {
+    Object.entries(hierarchy).map(([parentDir, depsHierarchy]) => {
+      function warn(message: string) {
+        logger.info({
+          message,
+          prefix: parentDir,
+        })
+      }
+      return linkAllPkgsInOrder(
+        storeController,
+        graph,
+        prevGraph,
+        depsHierarchy,
+        parentDir,
+        {
           ...opts,
           warn,
-        })
-      })
+        }
+      )
+    })
   )
 }
 
-async function tryRemoveDir (dir: string) {
+async function tryRemoveDir(dir: string) {
   removalLogger.debug(dir)
   try {
     await rimraf(dir)
@@ -81,7 +80,7 @@ async function tryRemoveDir (dir: string) {
   }
 }
 
-async function linkAllPkgsInOrder (
+async function linkAllPkgsInOrder(
   storeController: StoreController,
   graph: DependenciesGraph,
   prevGraph: DependenciesGraph,
@@ -112,7 +111,11 @@ async function linkAllPkgsInOrder (
         }
 
         let sideEffectsCacheKey: string | undefined
-        if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+        if (
+          opts.sideEffectsCacheRead &&
+          filesResponse.sideEffects &&
+          !isEmpty(filesResponse.sideEffects)
+        ) {
           sideEffectsCacheKey = _calcDepState(dir, {
             isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
             patchFileHash: depNode.patchFile?.hash,
@@ -122,14 +125,23 @@ async function linkAllPkgsInOrder (
         // It is not clear why it helps as importing is also limited inside fs.indexed-pkg-importer.
         // The out of memory error was reproduced on the teambit/bit repository with the "rootComponents" feature turned on
         await limitLinking(async () => {
-          const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-            filesResponse,
-            force: true,
-            disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-            keepModulesDir: true,
-            requiresBuild: depNode.patchFile != null || (depNode.optional ? (depNode.requiresBuild ? undefined : false) : depNode.requiresBuild),
-            sideEffectsCacheKey,
-          })
+          const { importMethod, isBuilt } = await storeController.importPackage(
+            depNode.dir,
+            {
+              filesResponse,
+              force: true,
+              disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+              keepModulesDir: true,
+              requiresBuild:
+                depNode.patchFile != null ||
+                (depNode.optional
+                  ? depNode.requiresBuild
+                    ? undefined
+                    : false
+                  : depNode.requiresBuild),
+              sideEffectsCacheKey,
+            }
+          )
           if (importMethod) {
             progressLogger.debug({
               method: importMethod,
@@ -141,7 +153,14 @@ async function linkAllPkgsInOrder (
           depNode.isBuilt = isBuilt
         })
       }
-      return linkAllPkgsInOrder(storeController, graph, prevGraph, deps, dir, opts)
+      return linkAllPkgsInOrder(
+        storeController,
+        graph,
+        prevGraph,
+        deps,
+        dir,
+        opts
+      )
     })
   )
   const modulesDir = path.join(parentDir, 'node_modules')

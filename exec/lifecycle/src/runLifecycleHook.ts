@@ -5,7 +5,7 @@ import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
 
-function noop () {} // eslint-disable-line:no-empty
+function noop() {} // eslint-disable-line:no-empty
 
 export interface RunLifecycleHookOptions {
   args?: string[]
@@ -25,7 +25,7 @@ export interface RunLifecycleHookOptions {
   unsafePerm: boolean
 }
 
-export async function runLifecycleHook (
+export async function runLifecycleHook(
   stage: string,
   manifest: ProjectManifest | DependencyManifest,
   opts: RunLifecycleHookOptions
@@ -37,7 +37,10 @@ export async function runLifecycleHook (
 
   if (stage === 'start' && !m.scripts.start) {
     if (!existsSync('server.js')) {
-      throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+      throw new PnpmError(
+        'NO_SCRIPT_OR_SERVER',
+        'Missing script start or file server.js'
+      )
     }
     m.scripts.start = 'node server.js'
   }
@@ -57,9 +60,8 @@ export async function runLifecycleHook (
       wd: opts.pkgRoot,
     })
   }
-  const logLevel = (opts.stdio !== 'inherit' || opts.silent)
-    ? 'silent'
-    : undefined
+  const logLevel =
+    opts.stdio !== 'inherit' || opts.silent ? 'silent' : undefined
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,
@@ -93,36 +95,41 @@ export async function runLifecycleHook (
     unsafePerm: opts.unsafePerm,
   })
 
-  function npmLog (prefix: string, logId: string, stdtype: string, line: string) {
+  function npmLog(
+    prefix: string,
+    logId: string,
+    stdtype: string,
+    line: string
+  ) {
     switch (stdtype) {
-    case 'stdout':
-    case 'stderr':
-      lifecycleLogger.debug({
-        depPath: opts.depPath,
-        line: line.toString(),
-        stage,
-        stdio: stdtype,
-        wd: opts.pkgRoot,
-      })
-      return
-    case 'Returned: code:': {
-      if (opts.stdio === 'inherit') {
-        // Preventing the pnpm reporter from overriding the project's script output
+      case 'stdout':
+      case 'stderr':
+        lifecycleLogger.debug({
+          depPath: opts.depPath,
+          line: line.toString(),
+          stage,
+          stdio: stdtype,
+          wd: opts.pkgRoot,
+        })
         return
+      case 'Returned: code:': {
+        if (opts.stdio === 'inherit') {
+          // Preventing the pnpm reporter from overriding the project's script output
+          return
+        }
+        const code = arguments[3] ?? 1
+        lifecycleLogger.debug({
+          depPath: opts.depPath,
+          exitCode: code,
+          optional,
+          stage,
+          wd: opts.pkgRoot,
+        })
       }
-      const code = arguments[3] ?? 1
-      lifecycleLogger.debug({
-        depPath: opts.depPath,
-        exitCode: code,
-        optional,
-        stage,
-        wd: opts.pkgRoot,
-      })
-    }
     }
   }
 }
 
-function getId (manifest: ProjectManifest | DependencyManifest) {
+function getId(manifest: ProjectManifest | DependencyManifest) {
   return `${manifest.name ?? ''}@${manifest.version ?? ''}`
 }

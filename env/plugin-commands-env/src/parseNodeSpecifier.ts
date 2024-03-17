@@ -5,27 +5,38 @@ export interface NodeSpecifier {
   useNodeVersion: string
 }
 
-const isStableVersion = (version: string) => /^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)
-const STABLE_RELEASE_ERROR_HINT = 'The correct syntax for stable release is strictly X.Y.Z or release/X.Y.Z'
+const isStableVersion = (version: string) =>
+  /^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)
+const STABLE_RELEASE_ERROR_HINT =
+  'The correct syntax for stable release is strictly X.Y.Z or release/X.Y.Z'
 
-export function parseNodeSpecifier (specifier: string): NodeSpecifier {
+export function parseNodeSpecifier(specifier: string): NodeSpecifier {
   if (specifier.includes('/')) {
     const [releaseChannel, useNodeVersion] = specifier.split('/')
 
     if (releaseChannel === 'release') {
       if (!isStableVersion(useNodeVersion)) {
-        throw new PnpmError('INVALID_NODE_VERSION', `"${specifier}" is not a valid Node.js version`, {
-          hint: STABLE_RELEASE_ERROR_HINT,
-        })
+        throw new PnpmError(
+          'INVALID_NODE_VERSION',
+          `"${specifier}" is not a valid Node.js version`,
+          {
+            hint: STABLE_RELEASE_ERROR_HINT,
+          }
+        )
       }
     } else if (!useNodeVersion.includes(releaseChannel)) {
-      throw new PnpmError('MISMATCHED_RELEASE_CHANNEL', `Node.js version (${useNodeVersion}) must contain the release channel (${releaseChannel})`)
+      throw new PnpmError(
+        'MISMATCHED_RELEASE_CHANNEL',
+        `Node.js version (${useNodeVersion}) must contain the release channel (${releaseChannel})`
+      )
     }
 
     return { releaseChannel, useNodeVersion }
   }
 
-  const prereleaseMatch = specifier.match(/^[0-9]+\.[0-9]+\.[0-9]+-(nightly|rc|test|v8-canary)(\..+)$/)
+  const prereleaseMatch = specifier.match(
+    /^[0-9]+\.[0-9]+\.[0-9]+-(nightly|rc|test|v8-canary)(\..+)$/
+  )
   if (prereleaseMatch != null) {
     return { releaseChannel: prereleaseMatch[1], useNodeVersion: specifier }
   }
@@ -37,8 +48,16 @@ export function parseNodeSpecifier (specifier: string): NodeSpecifier {
   let hint: string | undefined
   if (['nightly', 'rc', 'test', 'v8-canary'].includes(specifier)) {
     hint = `The correct syntax for ${specifier} release is strictly X.Y.Z-${specifier}.W`
-  } else if (/^[0-9]+\.[0-9]+$/.test(specifier) || /^[0-9]+$/.test(specifier) || ['release', 'stable', 'latest'].includes(specifier)) {
+  } else if (
+    /^[0-9]+\.[0-9]+$/.test(specifier) ||
+    /^[0-9]+$/.test(specifier) ||
+    ['release', 'stable', 'latest'].includes(specifier)
+  ) {
     hint = STABLE_RELEASE_ERROR_HINT
   }
-  throw new PnpmError('INVALID_NODE_VERSION', `"${specifier}" is not a valid Node.js version`, { hint })
+  throw new PnpmError(
+    'INVALID_NODE_VERSION',
+    `"${specifier}" is not a valid Node.js version`,
+    { hint }
+  )
 }

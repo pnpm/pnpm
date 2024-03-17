@@ -17,7 +17,7 @@ const retryOpts = {
   retryMintimeout: 10_000,
 }
 
-export async function testDefaults (
+export async function testDefaults(
   opts?: any, // eslint-disable-line
   resolveOpts?: any, // eslint-disable-line
   fetchOpts?: any, // eslint-disable-line
@@ -51,14 +51,10 @@ export async function testDefaults (
     ...resolveOpts,
     ...fetchOpts,
   })
-  const storeController = await createPackageStore(
-    resolve,
-    fetchers,
-    {
-      storeDir,
-      ...storeOpts,
-    }
-  )
+  const storeController = await createPackageStore(resolve, fetchers, {
+    storeDir,
+    ...storeOpts,
+  })
   return {
     currentEngine: {
       nodeVersion: process.version,
@@ -75,9 +71,18 @@ export async function testDefaults (
       version: '1.0.0',
     },
     pendingBuilds,
-    selectedProjectDirs: opts.selectedProjectDirs ?? projects.map((project) => project.rootDir),
+    selectedProjectDirs:
+      opts.selectedProjectDirs ?? projects.map((project) => project.rootDir),
     allProjects: Object.fromEntries(
-      await Promise.all(projects.map(async (project) => [project.rootDir, { ...project, manifest: await safeReadPackageJsonFromDir(project.rootDir) }]))
+      await Promise.all(
+        projects.map(async (project) => [
+          project.rootDir,
+          {
+            ...project,
+            manifest: await safeReadPackageJsonFromDir(project.rootDir),
+          },
+        ])
+      )
     ),
     rawConfig: {},
     registries: {

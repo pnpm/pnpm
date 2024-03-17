@@ -8,16 +8,18 @@ import { type PackageDependencyHierarchy } from './types'
 
 const sortPackages = sortBy(path(['pkg', 'alias']) as (pkg: PackageNode) => Ord)
 
-type RenderJsonResultItem = Pick<PackageDependencyHierarchy, 'name' | 'version' | 'path'> &
-Required<Pick<PackageDependencyHierarchy, 'private'>> &
-{
-  dependencies?: Record<string, PackageJsonListItem>
-  devDependencies?: Record<string, PackageJsonListItem>
-  optionalDependencies?: Record<string, PackageJsonListItem>
-  unsavedDependencies?: Record<string, PackageJsonListItem>
-}
+type RenderJsonResultItem = Pick<
+  PackageDependencyHierarchy,
+  'name' | 'version' | 'path'
+> &
+  Required<Pick<PackageDependencyHierarchy, 'private'>> & {
+    dependencies?: Record<string, PackageJsonListItem>
+    devDependencies?: Record<string, PackageJsonListItem>
+    optionalDependencies?: Record<string, PackageJsonListItem>
+    unsavedDependencies?: Record<string, PackageJsonListItem>
+  }
 
-export async function renderJson (
+export async function renderJson(
   pkgs: PackageDependencyHierarchy[],
   opts: {
     depth: number
@@ -25,34 +27,38 @@ export async function renderJson (
     search: boolean
   }
 ): Promise<string> {
-  const jsonArr = await Promise.all(pkgs.map(async (pkg) => {
-    const jsonObj: RenderJsonResultItem = {
-      name: pkg.name,
-      version: pkg.version,
-      path: pkg.path,
-      private: !!pkg.private,
-    }
-    Object.assign(jsonObj,
-      Object.fromEntries(
-        await Promise.all(
-          ([...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies'] as const)
-            .filter((dependenciesField) => pkg[dependenciesField]?.length)
-            .map(async (dependenciesField) => [
-              dependenciesField,
-              await toJsonResult(pkg[dependenciesField]!, { long: opts.long }),
-            ]
-            )
+  const jsonArr = await Promise.all(
+    pkgs.map(async (pkg) => {
+      const jsonObj: RenderJsonResultItem = {
+        name: pkg.name,
+        version: pkg.version,
+        path: pkg.path,
+        private: !!pkg.private,
+      }
+      Object.assign(
+        jsonObj,
+        Object.fromEntries(
+          await Promise.all(
+            ([...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies'] as const)
+              .filter((dependenciesField) => pkg[dependenciesField]?.length)
+              .map(async (dependenciesField) => [
+                dependenciesField,
+                await toJsonResult(pkg[dependenciesField]!, {
+                  long: opts.long,
+                }),
+              ])
+          )
         )
       )
-    )
 
-    return jsonObj
-  }))
+      return jsonObj
+    })
+  )
 
   return JSON.stringify(jsonArr, null, 2)
 }
 
-export async function toJsonResult (
+export async function toJsonResult(
   entryNodes: PackageNode[],
   opts: {
     long: boolean

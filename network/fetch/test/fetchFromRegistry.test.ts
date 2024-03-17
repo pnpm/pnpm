@@ -29,10 +29,9 @@ test('authorization headers are removed before redirection if the target is on a
     .reply(200, { ok: true })
 
   const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
-  const res = await fetchFromRegistry(
-    'http://registry.pnpm.io/is-positive',
-    { authHeaderValue: 'Bearer 123' }
-  )
+  const res = await fetchFromRegistry('http://registry.pnpm.io/is-positive', {
+    authHeaderValue: 'Bearer 123',
+  })
 
   expect(await res.json()).toStrictEqual({ ok: true })
   expect(nock.isDone()).toBeTruthy()
@@ -51,10 +50,9 @@ test('authorization headers are not removed before redirection if the target is 
     .reply(200, { ok: true })
 
   const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
-  const res = await fetchFromRegistry(
-    'http://registry.pnpm.io/is-positive',
-    { authHeaderValue: 'Bearer 123' }
-  )
+  const res = await fetchFromRegistry('http://registry.pnpm.io/is-positive', {
+    authHeaderValue: 'Bearer 123',
+  })
 
   expect(await res.json()).toStrictEqual({ ok: true })
   expect(nock.isDone()).toBeTruthy()

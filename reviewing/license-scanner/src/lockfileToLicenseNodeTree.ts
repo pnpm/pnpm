@@ -5,7 +5,11 @@ import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
 } from '@pnpm/lockfile-walker'
-import { type SupportedArchitectures, type DependenciesField, type Registries } from '@pnpm/types'
+import {
+  type SupportedArchitectures,
+  type DependenciesField,
+  type Registries,
+} from '@pnpm/types'
 import { getPkgInfo } from './getPkgInfo'
 import mapValues from 'ramda/src/map'
 
@@ -26,8 +30,8 @@ export interface LicenseNode {
 }
 
 export type LicenseNodeTree = Omit<
-LicenseNode,
-'dir' | 'license' | 'licenseContents' | 'author' | 'homepages' | 'repository'
+  LicenseNode,
+  'dir' | 'license' | 'licenseContents' | 'author' | 'homepages' | 'repository'
 >
 
 export interface LicenseExtractOptions {
@@ -39,74 +43,88 @@ export interface LicenseExtractOptions {
   supportedArchitectures?: SupportedArchitectures
 }
 
-export async function lockfileToLicenseNode (
+export async function lockfileToLicenseNode(
   step: LockfileWalkerStep,
   options: LicenseExtractOptions
 ) {
   const dependencies: Record<string, LicenseNode> = Object.fromEntries(
-    (await Promise.all(step.dependencies.map(async (dependency): Promise<[string, LicenseNode] | null> => {
-      const { depPath, pkgSnapshot, next } = dependency
-      const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+    (
+      await Promise.all(
+        step.dependencies.map(
+          async (dependency): Promise<[string, LicenseNode] | null> => {
+            const { depPath, pkgSnapshot, next } = dependency
+            const { name, version } = nameVerFromPkgSnapshot(
+              depPath,
+              pkgSnapshot
+            )
 
-      const packageInstallable = packageIsInstallable(pkgSnapshot.id ?? depPath, {
-        name,
-        version,
-        cpu: pkgSnapshot.cpu,
-        os: pkgSnapshot.os,
-        libc: pkgSnapshot.libc,
-      }, {
-        optional: pkgSnapshot.optional ?? false,
-        lockfileDir: options.dir,
-        supportedArchitectures: options.supportedArchitectures,
-      })
+            const packageInstallable = packageIsInstallable(
+              pkgSnapshot.id ?? depPath,
+              {
+                name,
+                version,
+                cpu: pkgSnapshot.cpu,
+                os: pkgSnapshot.os,
+                libc: pkgSnapshot.libc,
+              },
+              {
+                optional: pkgSnapshot.optional ?? false,
+                lockfileDir: options.dir,
+                supportedArchitectures: options.supportedArchitectures,
+              }
+            )
 
-      // If the package is not installable on the given platform, we ignore the
-      // package, typically the case for platform prebuild packages
-      if (!packageInstallable) {
-        return null
-      }
+            // If the package is not installable on the given platform, we ignore the
+            // package, typically the case for platform prebuild packages
+            if (!packageInstallable) {
+              return null
+            }
 
-      const packageInfo = await getPkgInfo(
-        {
-          id: pkgSnapshot.id ?? depPath,
-          name,
-          version,
-          depPath,
-          snapshot: pkgSnapshot,
-          registries: options.registries,
-        },
-        {
-          storeDir: options.storeDir,
-          virtualStoreDir: options.virtualStoreDir,
-          dir: options.dir,
-          modulesDir: options.modulesDir ?? 'node_modules',
-        }
+            const packageInfo = await getPkgInfo(
+              {
+                id: pkgSnapshot.id ?? depPath,
+                name,
+                version,
+                depPath,
+                snapshot: pkgSnapshot,
+                registries: options.registries,
+              },
+              {
+                storeDir: options.storeDir,
+                virtualStoreDir: options.virtualStoreDir,
+                dir: options.dir,
+                modulesDir: options.modulesDir ?? 'node_modules',
+              }
+            )
+
+            const subdeps = await lockfileToLicenseNode(next(), options)
+
+            const dep: LicenseNode = {
+              name,
+              dev: pkgSnapshot.dev === true,
+              integrity: (pkgSnapshot.resolution as TarballResolution)
+                .integrity,
+              version,
+              license: packageInfo.license,
+              licenseContents: packageInfo.licenseContents,
+              author: packageInfo.author,
+              homepage: packageInfo.homepage,
+              description: packageInfo.description,
+              repository: packageInfo.repository,
+              dir: packageInfo.path as string,
+            }
+
+            if (Object.keys(subdeps).length > 0) {
+              dep.dependencies = subdeps
+              dep.requires = toRequires(subdeps)
+            }
+
+            // If the package details could be fetched, we consider it part of the tree
+            return [name, dep]
+          }
+        )
       )
-
-      const subdeps = await lockfileToLicenseNode(next(), options)
-
-      const dep: LicenseNode = {
-        name,
-        dev: pkgSnapshot.dev === true,
-        integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
-        version,
-        license: packageInfo.license,
-        licenseContents: packageInfo.licenseContents,
-        author: packageInfo.author,
-        homepage: packageInfo.homepage,
-        description: packageInfo.description,
-        repository: packageInfo.repository,
-        dir: packageInfo.path as string,
-      }
-
-      if (Object.keys(subdeps).length > 0) {
-        dep.dependencies = subdeps
-        dep.requires = toRequires(subdeps)
-      }
-
-      // If the package details could be fetched, we consider it part of the tree
-      return [name, dep]
-    }))).filter(Boolean) as Array<[string, LicenseNode]>
+    ).filter(Boolean) as Array<[string, LicenseNode]>
   )
 
   return dependencies
@@ -119,7 +137,7 @@ export async function lockfileToLicenseNode (
  * @param opts     parsing instructions
  * @returns
  */
-export async function lockfileToLicenseNodeTree (
+export async function lockfileToLicenseNodeTree(
   lockfile: Lockfile,
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
@@ -142,12 +160,15 @@ export async function lockfileToLicenseNodeTree (
           registries: opts.registries,
           supportedArchitectures: opts.supportedArchitectures,
         })
-        return [importerWalker.importerId, {
-          dependencies: importerDeps,
-          requires: toRequires(importerDeps),
-          version: '0.0.0',
-          license: undefined,
-        }]
+        return [
+          importerWalker.importerId,
+          {
+            dependencies: importerDeps,
+            requires: toRequires(importerDeps),
+            version: '0.0.0',
+            license: undefined,
+          },
+        ]
       })
     )
   )
@@ -164,6 +185,8 @@ export async function lockfileToLicenseNodeTree (
   return licenseNodeTree
 }
 
-function toRequires (licenseNodesByDepName: Record<string, LicenseNode>): Record<string, string> {
+function toRequires(
+  licenseNodesByDepName: Record<string, LicenseNode>
+): Record<string, string> {
   return mapValues((licenseNode) => licenseNode.version!, licenseNodesByDepName)
 }

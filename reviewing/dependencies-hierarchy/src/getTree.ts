@@ -1,5 +1,8 @@
 import path from 'path'
-import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile-file'
+import {
+  type PackageSnapshots,
+  type ProjectSnapshot,
+} from '@pnpm/lockfile-file'
 import { type Registries } from '@pnpm/types'
 import { type SearchFunction } from './types'
 import { type PackageNode } from './PackageNode'
@@ -40,16 +43,21 @@ interface DependencyInfo {
   height: number | 'unknown'
 }
 
-export function getTree (
+export function getTree(
   opts: GetTreeOpts,
   parentId: TreeNodeId
 ): PackageNode[] {
   const dependenciesCache = new DependenciesCache()
 
-  return getTreeHelper(dependenciesCache, opts, Keypath.initialize(parentId), parentId).dependencies
+  return getTreeHelper(
+    dependenciesCache,
+    opts,
+    Keypath.initialize(parentId),
+    parentId
+  ).dependencies
 }
 
-function getTreeHelper (
+function getTreeHelper(
   dependenciesCache: DependenciesCache,
   opts: GetTreeOpts,
   keypath: Keypath,
@@ -59,12 +67,12 @@ function getTreeHelper (
     return { dependencies: [], height: 'unknown' }
   }
 
-  function getSnapshot (treeNodeId: TreeNodeId) {
+  function getSnapshot(treeNodeId: TreeNodeId) {
     switch (treeNodeId.type) {
-    case 'importer':
-      return opts.importers[treeNodeId.importerId]
-    case 'package':
-      return opts.currentPackages[treeNodeId.depPath]
+      case 'importer':
+        return opts.importers[treeNodeId.importerId]
+      case 'package':
+        return opts.currentPackages[treeNodeId.depPath]
     }
   }
 
@@ -91,15 +99,15 @@ function getTreeHelper (
     maxDepth: childTreeMaxDepth,
   })
 
-  function getPeerDependencies () {
+  function getPeerDependencies() {
     switch (parentId.type) {
-    case 'importer':
-      // Projects in the pnpm workspace can declare peer dependencies, but pnpm
-      // doesn't record this block to the importers lockfile object. Returning
-      // undefined for now.
-      return undefined
-    case 'package':
-      return opts.currentPackages[parentId.depPath]?.peerDependencies
+      case 'importer':
+        // Projects in the pnpm workspace can declare peer dependencies, but pnpm
+        // doesn't record this block to the importers lockfile object. Returning
+        // undefined for now.
+        return undefined
+      case 'package':
+        return opts.currentPackages[parentId.depPath]?.peerDependencies
     }
   }
   const peers = new Set(Object.keys(getPeerDependencies() ?? {}))
@@ -107,12 +115,12 @@ function getTreeHelper (
   // If the "ref" of any dependency is a file system path (e.g. link:../), the
   // base directory of this relative path depends on whether the dependent
   // package is in the pnpm workspace or from node_modules.
-  function getLinkedPathBaseDir () {
+  function getLinkedPathBaseDir() {
     switch (parentId.type) {
-    case 'importer':
-      return path.join(opts.lockfileDir, parentId.importerId)
-    case 'package':
-      return opts.lockfileDir
+      case 'importer':
+        return path.join(opts.lockfileDir, parentId.importerId)
+      case 'package':
+        return opts.lockfileDir
     }
   }
   const linkedPathBaseDir = getLinkedPathBaseDir()
@@ -159,8 +167,12 @@ function getTreeHelper (
       if (circular) {
         dependencies = []
       } else {
-        const cacheEntry = dependenciesCache.get({ parentId: nodeId, requestedDepth: childTreeMaxDepth })
-        const children = cacheEntry ?? getChildrenTree(keypath.concat(nodeId), nodeId)
+        const cacheEntry = dependenciesCache.get({
+          parentId: nodeId,
+          requestedDepth: childTreeMaxDepth,
+        })
+        const children =
+          cacheEntry ?? getChildrenTree(keypath.concat(nodeId), nodeId)
 
         if (cacheEntry == null && !children.circular) {
           if (children.height === 'unknown') {
@@ -176,14 +188,14 @@ function getTreeHelper (
           }
         }
 
-        const heightOfCurrentDepNode = children.height === 'unknown'
-          ? 'unknown'
-          : children.height + 1
+        const heightOfCurrentDepNode =
+          children.height === 'unknown' ? 'unknown' : children.height + 1
 
         dependencies = children.dependencies
-        resultHeight = resultHeight === 'unknown' || heightOfCurrentDepNode === 'unknown'
-          ? 'unknown'
-          : Math.max(resultHeight, heightOfCurrentDepNode)
+        resultHeight =
+          resultHeight === 'unknown' || heightOfCurrentDepNode === 'unknown'
+            ? 'unknown'
+            : Math.max(resultHeight, heightOfCurrentDepNode)
         resultCircular = resultCircular || (children.circular ?? false)
       }
 
@@ -192,7 +204,7 @@ function getTreeHelper (
           ...packageInfo,
           dependencies,
         }
-      } else if ((opts.search == null) || matchedSearched) {
+      } else if (opts.search == null || matchedSearched) {
         newEntry = packageInfo
       }
     }
@@ -224,17 +236,19 @@ function getTreeHelper (
  * Useful for detecting cycles.
  */
 class Keypath {
-  private constructor (private readonly keypath: readonly string[]) {}
+  private constructor(private readonly keypath: readonly string[]) {
+    this.keypath = keypath
+  }
 
-  public static initialize (treeNodeId: TreeNodeId): Keypath {
+  public static initialize(treeNodeId: TreeNodeId): Keypath {
     return new Keypath([serializeTreeNodeId(treeNodeId)])
   }
 
-  public includes (treeNodeId: TreeNodeId): boolean {
+  public includes(treeNodeId: TreeNodeId): boolean {
     return this.keypath.includes(serializeTreeNodeId(treeNodeId))
   }
 
-  public concat (treeNodeId: TreeNodeId): Keypath {
+  public concat(treeNodeId: TreeNodeId): Keypath {
     return new Keypath([...this.keypath, serializeTreeNodeId(treeNodeId)])
   }
 }

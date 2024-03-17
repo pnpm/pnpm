@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { deploy } from '@pnpm/plugin-commands-deploy'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
@@ -41,26 +41,31 @@ test('deploy', async () => {
       },
     },
   ])
-
-  ; ['project-1', 'project-2', 'project-3'].forEach(name => {
+  ;['project-1', 'project-2', 'project-3'].forEach((name) => {
     fs.writeFileSync(`${name}/test.js`, '', 'utf8')
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   })
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    [{ namePattern: 'project-1' }]
+  )
 
-  await deploy.handler({
-    ...DEFAULT_OPTS,
-    allProjects,
-    dir: process.cwd(),
-    dev: false,
-    production: true,
-    recursive: true,
-    selectedProjectsGraph,
-    sharedWorkspaceLockfile: true,
-    lockfileDir: process.cwd(),
-    workspaceDir: process.cwd(),
-  }, ['deploy'])
+  await deploy.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      dev: false,
+      production: true,
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    },
+    ['deploy']
+  )
 
   const project = assertProject(path.resolve('deploy'))
   await project.has('project-2')
@@ -69,10 +74,26 @@ test('deploy', async () => {
   await project.hasNot('is-negative')
   expect(fs.existsSync('deploy/index.js')).toBeTruthy()
   expect(fs.existsSync('deploy/test.js')).toBeFalsy()
-  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-2/node_modules/project-2/index.js')).toBeTruthy()
-  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-2/node_modules/project-2/test.js')).toBeFalsy()
-  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/index.js')).toBeTruthy()
-  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/test.js')).toBeFalsy()
+  expect(
+    fs.existsSync(
+      'deploy/node_modules/.pnpm/file+project-2/node_modules/project-2/index.js'
+    )
+  ).toBeTruthy()
+  expect(
+    fs.existsSync(
+      'deploy/node_modules/.pnpm/file+project-2/node_modules/project-2/test.js'
+    )
+  ).toBeFalsy()
+  expect(
+    fs.existsSync(
+      'deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/index.js'
+    )
+  ).toBeTruthy()
+  expect(
+    fs.existsSync(
+      'deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/test.js'
+    )
+  ).toBeFalsy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
@@ -92,21 +113,28 @@ test('deploy fails when the destination directory exists and is not empty', asyn
   fs.writeFileSync(deployPath, 'aaa', 'utf8')
   const deployFullPath = path.resolve(deployPath)
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project' }])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    [{ namePattern: 'project' }]
+  )
 
   await expect(() =>
-    deploy.handler({
-      ...DEFAULT_OPTS,
-      allProjects,
-      dir: process.cwd(),
-      dev: false,
-      production: true,
-      recursive: true,
-      selectedProjectsGraph,
-      sharedWorkspaceLockfile: true,
-      lockfileDir: process.cwd(),
-      workspaceDir: process.cwd(),
-    }, [deployPath])).rejects.toThrow(`Deploy path ${deployFullPath} is not empty`)
+    deploy.handler(
+      {
+        ...DEFAULT_OPTS,
+        allProjects,
+        dir: process.cwd(),
+        dev: false,
+        production: true,
+        recursive: true,
+        selectedProjectsGraph,
+        sharedWorkspaceLockfile: true,
+        lockfileDir: process.cwd(),
+        workspaceDir: process.cwd(),
+      },
+      [deployPath]
+    )
+  ).rejects.toThrow(`Deploy path ${deployFullPath} is not empty`)
 
   expect(fs.existsSync(`${deployPath}/index.js`)).toBeFalsy() // no changes to the deploy path are made
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
@@ -134,21 +162,27 @@ test('forced deploy succeeds with a warning when destination directory exists an
   fs.writeFileSync(deployPath, 'aaa', 'utf8')
   const deployFullPath = path.resolve(deployPath)
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project' }])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    [{ namePattern: 'project' }]
+  )
 
-  await deploy.handler({
-    ...DEFAULT_OPTS,
-    allProjects,
-    dir: process.cwd(),
-    dev: false,
-    production: true,
-    recursive: true,
-    force: true,
-    selectedProjectsGraph,
-    sharedWorkspaceLockfile: true,
-    lockfileDir: process.cwd(),
-    workspaceDir: process.cwd(),
-  }, [deployPath])
+  await deploy.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      dev: false,
+      production: true,
+      recursive: true,
+      force: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    },
+    [deployPath]
+  )
 
   expect(warnMock).toHaveBeenCalledWith({
     message: expect.stringMatching(/^using --force, deleting deploy pat/),
@@ -193,22 +227,26 @@ test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDepen
     },
   ])
 
-  const { allProjects, selectedProjectsGraph, allProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph, allProjectsGraph } =
+    await readProjects(process.cwd(), [{ namePattern: 'project-1' }])
 
-  await deploy.handler({
-    ...DEFAULT_OPTS,
-    allProjects,
-    allProjectsGraph,
-    dir: process.cwd(),
-    dev: false,
-    production: true,
-    recursive: true,
-    selectedProjectsGraph,
-    sharedWorkspaceLockfile: true,
-    lockfileDir: process.cwd(),
-    workspaceDir: process.cwd(),
-    dedupePeerDependents: true, // This is ignored by deploy
-  }, ['deploy'])
+  await deploy.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      dev: false,
+      production: true,
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+      dedupePeerDependents: true, // This is ignored by deploy
+    },
+    ['deploy']
+  )
   const project = assertProject(path.resolve('deploy'))
   await project.has('is-positive')
   expect(fs.existsSync('sub-dir/deploy')).toBe(false)

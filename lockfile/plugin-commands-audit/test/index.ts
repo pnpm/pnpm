@@ -189,7 +189,9 @@ describe('plugin-commands-audit', () => {
     })
 
     expect(exitCode).toBe(0)
-    expect(stripAnsi(output)).toBe(`The audit endpoint (at ${registries.default}-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}`)
+    expect(stripAnsi(output)).toBe(
+      `The audit endpoint (at ${registries.default}-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}`
+    )
   })
 
   test('audit sends authToken', async () => {
@@ -214,20 +216,20 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit endpoint does not exist', async () => {
-    nock(registries.default)
-      .post('/-/npm/v1/security/audits')
-      .reply(404, {})
+    nock(registries.default).post('/-/npm/v1/security/audits').reply(404, {})
 
-    await expect(audit.handler({
-      dir: f.find('has-vulnerabilities'),
-      dev: true,
-      fetchRetries: 0,
-      ignoreRegistryErrors: false,
-      production: false,
-      userConfig: {},
-      rawConfig,
-      registries,
-    })).rejects.toThrow(AuditEndpointNotExistsError)
+    await expect(
+      audit.handler({
+        dir: f.find('has-vulnerabilities'),
+        dev: true,
+        fetchRetries: 0,
+        ignoreRegistryErrors: false,
+        production: false,
+        userConfig: {},
+        rawConfig,
+        registries,
+      })
+    ).rejects.toThrow(AuditEndpointNotExistsError)
   })
 
   test('audit: CVEs in ignoreCves do not show up', async () => {

@@ -7,12 +7,23 @@ import {
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { DedupeCheckIssuesError } from './DedupeCheckIssuesError'
 
-const PACKAGE_SNAPSHOT_DEP_FIELDS = ['dependencies', 'optionalDependencies'] as const
+const PACKAGE_SNAPSHOT_DEP_FIELDS = [
+  'dependencies',
+  'optionalDependencies',
+] as const
 
-export function dedupeDiffCheck (prev: Lockfile, next: Lockfile): void {
+export function dedupeDiffCheck(prev: Lockfile, next: Lockfile): void {
   const issues: DedupeCheckIssues = {
-    importerIssuesByImporterId: diffSnapshots(prev.importers, next.importers, DEPENDENCIES_FIELDS),
-    packageIssuesByDepPath: diffSnapshots(prev.packages ?? {}, next.packages ?? {}, PACKAGE_SNAPSHOT_DEP_FIELDS),
+    importerIssuesByImporterId: diffSnapshots(
+      prev.importers,
+      next.importers,
+      DEPENDENCIES_FIELDS
+    ),
+    packageIssuesByDepPath: diffSnapshots(
+      prev.packages ?? {},
+      next.packages ?? {},
+      PACKAGE_SNAPSHOT_DEP_FIELDS
+    ),
   }
 
   const changesCount =
@@ -29,7 +40,9 @@ export function dedupeDiffCheck (prev: Lockfile, next: Lockfile): void {
  */
 type KeysOfValue<T, U> = KeyValueMatch<T, keyof T, U>
 type KeyValueMatch<T, K, U> = K extends keyof T
-  ? T[K] extends U ? K : never
+  ? T[K] extends U
+    ? K
+    : never
   : never
 
 /**
@@ -40,9 +53,12 @@ type KeyValueMatch<T, K, U> = K extends keyof T
  * Record<string,string> so this also matches the "engines" and "specifiers"
  * block.
  */
-type PossiblyResolvedDependenciesKeys<TSnapshot> = KeysOfValue<TSnapshot, ResolvedDependencies | undefined>
+type PossiblyResolvedDependenciesKeys<TSnapshot> = KeysOfValue<
+  TSnapshot,
+  ResolvedDependencies | undefined
+>
 
-function diffSnapshots<TSnapshot> (
+function diffSnapshots<TSnapshot>(
   prev: Record<string, TSnapshot>,
   next: Record<string, TSnapshot>,
   fields: ReadonlyArray<PossiblyResolvedDependenciesKeys<TSnapshot>>
@@ -58,22 +74,31 @@ function diffSnapshots<TSnapshot> (
       continue
     }
 
-    const updates = fields.reduce((acc: ResolutionChangesByAlias, dependencyField) => ({
-      ...acc,
-      ...getResolutionUpdates(prevSnapshot[dependencyField] ?? {}, nextSnapshot[dependencyField] ?? {}),
-    }), {})
+    const updates = fields.reduce(
+      (acc: ResolutionChangesByAlias, dependencyField) => ({
+        ...acc,
+        ...getResolutionUpdates(
+          prevSnapshot[dependencyField] ?? {},
+          nextSnapshot[dependencyField] ?? {}
+        ),
+      }),
+      {}
+    )
 
     if (Object.keys(updates).length > 0) {
       updated[id] = updates
     }
   }
 
-  const added = Object.keys(next).filter(id => prev[id] == null)
+  const added = Object.keys(next).filter((id) => prev[id] == null)
 
   return { added, removed, updated }
 }
 
-function getResolutionUpdates (prev: ResolvedDependencies, next: ResolvedDependencies): ResolutionChangesByAlias {
+function getResolutionUpdates(
+  prev: ResolvedDependencies,
+  next: ResolvedDependencies
+): ResolutionChangesByAlias {
   const updates: ResolutionChangesByAlias = {}
 
   for (const [alias, prevResolution] of Object.entries(prev)) {
@@ -83,12 +108,15 @@ function getResolutionUpdates (prev: ResolvedDependencies, next: ResolvedDepende
       continue
     }
 
-    updates[alias] = nextResolution == null
-      ? { type: 'removed', prev: prevResolution }
-      : { type: 'updated', prev: prevResolution, next: nextResolution }
+    updates[alias] =
+      nextResolution == null
+        ? { type: 'removed', prev: prevResolution }
+        : { type: 'updated', prev: prevResolution, next: nextResolution }
   }
 
-  const newAliases = Object.entries(next).filter(([alias]) => prev[alias] == null)
+  const newAliases = Object.entries(next).filter(
+    ([alias]) => prev[alias] == null
+  )
   for (const [alias, nextResolution] of newAliases) {
     updates[alias] = { type: 'added', next: nextResolution }
   }
@@ -96,6 +124,12 @@ function getResolutionUpdates (prev: ResolvedDependencies, next: ResolvedDepende
   return updates
 }
 
-export function countChangedSnapshots (snapshotChanges: SnapshotsChanges): number {
-  return snapshotChanges.added.length + snapshotChanges.removed.length + Object.keys(snapshotChanges.updated).length
+export function countChangedSnapshots(
+  snapshotChanges: SnapshotsChanges
+): number {
+  return (
+    snapshotChanges.added.length +
+    snapshotChanges.removed.length +
+    Object.keys(snapshotChanges.updated).length
+  )
 }

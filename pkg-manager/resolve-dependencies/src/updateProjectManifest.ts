@@ -12,7 +12,7 @@ import { type TarballResolution } from '@pnpm/resolver-base'
 import { type ResolvedDirectDependency } from './resolveDependencyTree'
 import { type ImporterToResolve } from '.'
 
-export async function updateProjectManifest (
+export async function updateProjectManifest(
   importer: ImporterToResolve,
   opts: {
     directDependencies: ResolvedDirectDependency[]
@@ -27,24 +27,38 @@ export async function updateProjectManifest (
     .filter((rdd, index) => importer.wantedDependencies[index]?.updateSpec)
     .map((rdd, index) => {
       const wantedDep = importer.wantedDependencies[index]!
-      return resolvedDirectDepToSpecObject({
-        ...rdd,
-        isNew:
-        wantedDep.isNew,
-        specRaw: wantedDep.raw,
-        preserveNonSemverVersionSpec: wantedDep.preserveNonSemverVersionSpec,
-        // For git-protocol dependencies that are already installed locally, there is no normalizedPref unless do force resolve,
-        // so we use pref in wantedDependency here.
-        normalizedPref: rdd.normalizedPref ?? (isGitHostedPkgUrl((rdd.resolution as TarballResolution).tarball ?? '') ? wantedDep.pref : undefined),
-      }, importer, {
-        nodeExecPath: wantedDep.nodeExecPath,
-        pinnedVersion: wantedDep.pinnedVersion ?? importer.pinnedVersion ?? 'major',
-        preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
-        saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
-      })
+      return resolvedDirectDepToSpecObject(
+        {
+          ...rdd,
+          isNew: wantedDep.isNew,
+          specRaw: wantedDep.raw,
+          preserveNonSemverVersionSpec: wantedDep.preserveNonSemverVersionSpec,
+          // For git-protocol dependencies that are already installed locally, there is no normalizedPref unless do force resolve,
+          // so we use pref in wantedDependency here.
+          normalizedPref:
+            rdd.normalizedPref ??
+            (isGitHostedPkgUrl(
+              (rdd.resolution as TarballResolution).tarball ?? ''
+            )
+              ? wantedDep.pref
+              : undefined),
+        },
+        importer,
+        {
+          nodeExecPath: wantedDep.nodeExecPath,
+          pinnedVersion:
+            wantedDep.pinnedVersion ?? importer.pinnedVersion ?? 'major',
+          preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
+          saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+        }
+      )
     })
   for (const pkgToInstall of importer.wantedDependencies) {
-    if (pkgToInstall.updateSpec && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
+    if (
+      pkgToInstall.updateSpec &&
+      pkgToInstall.alias &&
+      !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)
+    ) {
       specsToUpsert.push({
         alias: pkgToInstall.alias,
         nodeExecPath: pkgToInstall.nodeExecPath,
@@ -58,17 +72,18 @@ export async function updateProjectManifest (
     importer.manifest,
     specsToUpsert
   )
-  const originalManifest = (importer.originalManifest != null)
-    ? await updateProjectManifestObject(
-      importer.rootDir,
-      importer.originalManifest,
-      specsToUpsert
-    )
-    : undefined
+  const originalManifest =
+    importer.originalManifest != null
+      ? await updateProjectManifestObject(
+        importer.rootDir,
+        importer.originalManifest,
+        specsToUpsert
+      )
+      : undefined
   return [hookedManifest, originalManifest]
 }
 
-function resolvedDirectDepToSpecObject (
+function resolvedDirectDepToSpecObject(
   {
     alias,
     isNew,
@@ -78,7 +93,11 @@ function resolvedDirectDepToSpecObject (
     specRaw,
     version,
     preserveNonSemverVersionSpec,
-  }: ResolvedDirectDependency & { isNew?: boolean, specRaw: string, preserveNonSemverVersionSpec?: boolean },
+  }: ResolvedDirectDependency & {
+    isNew?: boolean
+    specRaw: string
+    preserveNonSemverVersionSpec?: boolean
+  },
   importer: ImporterToResolve,
   opts: {
     nodeExecPath?: string
@@ -91,11 +110,10 @@ function resolvedDirectDepToSpecObject (
   if (normalizedPref) {
     pref = normalizedPref
   } else {
-    const shouldUseWorkspaceProtocol = resolution.type === 'directory' &&
-      (
-        Boolean(opts.saveWorkspaceProtocol) ||
-        (opts.preserveWorkspaceProtocol && specRaw.includes('@workspace:'))
-      ) &&
+    const shouldUseWorkspaceProtocol =
+      resolution.type === 'directory' &&
+      (Boolean(opts.saveWorkspaceProtocol) ||
+        (opts.preserveWorkspaceProtocol && specRaw.includes('@workspace:'))) &&
       opts.pinnedVersion !== 'none'
 
     if (isNew === true) {
@@ -105,7 +123,9 @@ function resolvedDirectDepToSpecObject (
         pinnedVersion: opts.pinnedVersion,
         specRaw,
         version,
-        rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
+        rolling:
+          shouldUseWorkspaceProtocol &&
+          opts.saveWorkspaceProtocol === 'rolling',
       })
     } else {
       pref = getPrefPreferSpecifiedExoticSpec({
@@ -114,42 +134,42 @@ function resolvedDirectDepToSpecObject (
         pinnedVersion: opts.pinnedVersion,
         specRaw,
         version,
-        rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
+        rolling:
+          shouldUseWorkspaceProtocol &&
+          opts.saveWorkspaceProtocol === 'rolling',
         preserveNonSemverVersionSpec,
       })
     }
-    if (
-      shouldUseWorkspaceProtocol &&
-      !pref.startsWith('workspace:')
-    ) {
+    if (shouldUseWorkspaceProtocol && !pref.startsWith('workspace:')) {
       pref = `workspace:${pref}`
     }
   }
   return {
     alias,
     nodeExecPath: opts.nodeExecPath,
-    peer: importer['peer'],
+    peer: importer.peer,
     pref,
-    saveType: importer['targetDependenciesField'],
+    saveType: importer.targetDependenciesField,
   }
 }
 
-function getPrefPreferSpecifiedSpec (
-  opts: {
-    alias: string
-    name: string
-    version: string
-    specRaw: string
-    pinnedVersion?: PinnedVersion
-    rolling: boolean
-  }
-) {
+function getPrefPreferSpecifiedSpec(opts: {
+  alias: string
+  name: string
+  version: string
+  specRaw: string
+  pinnedVersion?: PinnedVersion
+  rolling: boolean
+}) {
   const prefix = getPrefix(opts.alias, opts.name)
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
     const range = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
     if (range) {
       const selector = versionSelectorType(range)
-      if ((selector != null) && (selector.type === 'version' || selector.type === 'range')) {
+      if (
+        selector != null &&
+        (selector.type === 'version' || selector.type === 'range')
+      ) {
         return opts.specRaw.slice(opts.alias.length + 1)
       }
     }
@@ -161,29 +181,32 @@ function getPrefPreferSpecifiedSpec (
   return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: opts.rolling })}`
 }
 
-function getPrefPreferSpecifiedExoticSpec (
-  opts: {
-    alias: string
-    name: string
-    version: string
-    specRaw: string
-    pinnedVersion: PinnedVersion
-    rolling: boolean
-    preserveNonSemverVersionSpec?: boolean
-  }
-) {
+function getPrefPreferSpecifiedExoticSpec(opts: {
+  alias: string
+  name: string
+  version: string
+  specRaw: string
+  pinnedVersion: PinnedVersion
+  rolling: boolean
+  preserveNonSemverVersionSpec?: boolean
+}) {
   const prefix = getPrefix(opts.alias, opts.name)
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
     let specWithoutName = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
     if (specWithoutName.startsWith('workspace:')) {
       specWithoutName = specWithoutName.slice(10)
-      if (specWithoutName === '*' || specWithoutName === '^' || specWithoutName === '~') {
+      if (
+        specWithoutName === '*' ||
+        specWithoutName === '^' ||
+        specWithoutName === '~'
+      ) {
         return specWithoutName
       }
     }
     const selector = versionSelectorType(specWithoutName)
     if (
-      ((selector == null) || (selector.type !== 'version' && selector.type !== 'range')) &&
+      (selector == null ||
+        (selector.type !== 'version' && selector.type !== 'range')) &&
       opts.preserveNonSemverVersionSpec
     ) {
       return opts.specRaw.slice(opts.alias.length + 1)

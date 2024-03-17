@@ -11,7 +11,10 @@ export interface PackageSelector {
   followProdDepsOnly?: boolean
 }
 
-export function parsePackageSelector (rawSelector: string, prefix: string): PackageSelector {
+export function parsePackageSelector(
+  rawSelector: string,
+  prefix: string
+): PackageSelector {
   let exclude = false
   if (rawSelector[0] === '!') {
     exclude = true
@@ -34,7 +37,9 @@ export function parsePackageSelector (rawSelector: string, prefix: string): Pack
       rawSelector = rawSelector.slice(1)
     }
   }
-  const matches = rawSelector.match(/^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$/)
+  const matches = rawSelector.match(
+    /^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$/
+  )
   if (matches === null) {
     if (isSelectorByLocation(rawSelector)) {
       return {
@@ -60,11 +65,16 @@ export function parsePackageSelector (rawSelector: string, prefix: string): Pack
   }
 }
 
-function isSelectorByLocation (rawSelector: string) {
+function isSelectorByLocation(rawSelector: string) {
   if (rawSelector[0] !== '.') return false
 
   // . or ./ or .\
-  if (rawSelector.length === 1 || rawSelector[1] === '/' || rawSelector[1] === '\\') return true
+  if (
+    rawSelector.length === 1 ||
+    rawSelector[1] === '/' ||
+    rawSelector[1] === '\\'
+  )
+    return true
 
   if (rawSelector[1] !== '.') return false
 

@@ -1,4 +1,7 @@
-import { convertToInlineSpecifiersFormat, revertFromInlineSpecifiersFormat } from '../lib/experiments/inlineSpecifiersLockfileConverters'
+import {
+  convertToInlineSpecifiersFormat,
+  revertFromInlineSpecifiersFormat,
+} from '../lib/experiments/inlineSpecifiersLockfileConverters'
 
 test('convertToInlineSpecifiersFormat()', () => {
   const lockfileV5 = {

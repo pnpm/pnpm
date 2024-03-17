@@ -1,10 +1,10 @@
 /// <reference lib="esnext.disposable" />
 import execa from 'execa'
-import fs from 'fs'
-import net from 'net'
-import path from 'path'
+import fs from 'node:fs'
+import net from 'node:net'
+import path from 'node:path'
 import { setTimeout } from 'timers/promises'
-import { promisify } from 'util'
+import { promisify } from 'node:util'
 import { prepare } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 
@@ -19,7 +19,9 @@ describe('TestEchoServer', () => {
       {
         await using server = await createTestIpcServer()
         listenPath = server.listenPath
-        await expect(fs.promises.access(server.listenPath)).resolves.not.toThrow()
+        await expect(
+          fs.promises.access(server.listenPath)
+        ).resolves.not.toThrow()
       }
 
       // The Symbol.asyncDispose method should have been called by this point and
@@ -29,7 +31,9 @@ describe('TestEchoServer', () => {
 
     it('throws if another server is listening on same socket', async () => {
       await using server = await createTestIpcServer()
-      await expect(createTestIpcServer(server.listenPath)).rejects.toThrow('EADDRINUSE')
+      await expect(createTestIpcServer(server.listenPath)).rejects.toThrow(
+        'EADDRINUSE'
+      )
     })
   })
 
@@ -109,11 +113,14 @@ describe('TestEchoServer', () => {
   it('has working client binary', async () => {
     const project = prepare({
       scripts: {
-        build: "node -e \"process.stdout.write('build script')\" | test-ipc-server-client ./test.sock",
+        build:
+          'node -e "process.stdout.write(\'build script\')" | test-ipc-server-client ./test.sock',
       },
     })
 
-    await using server = await createTestIpcServer(path.join(project.dir(), './test.sock'))
+    await using server = await createTestIpcServer(
+      path.join(project.dir(), './test.sock')
+    )
 
     await execa('node', [pnpmBin, 'run', 'build'])
 
@@ -125,7 +132,7 @@ interface TestClient extends AsyncDisposable {
   sendLine: (message: string) => Promise<void>
 }
 
-function createClient (handle: string): Promise<TestClient> {
+function createClient(handle: string): Promise<TestClient> {
   const client = net.connect(handle)
 
   const write = promisify(client.write).bind(client)

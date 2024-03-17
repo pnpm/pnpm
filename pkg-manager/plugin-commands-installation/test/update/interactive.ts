@@ -1,6 +1,6 @@
 import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import type { Lockfile } from '@pnpm/lockfile-types'
 import { add, install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -311,27 +311,25 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     storeDir,
   })
 
-  expect(prompt.mock.calls[0][0].choices).toStrictEqual(
-    [
-      {
-        choices: [
-          {
-            disabled: true,
-            hint: '',
-            name: 'Package                                                    Current   Target            URL ',
-            value: '',
-          },
-          {
-            message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
-            value: 'micromatch',
-            name: 'micromatch',
-          },
-        ],
-        name: '[dependencies]',
-        message: 'dependencies',
-      },
-    ]
-  )
+  expect(prompt.mock.calls[0][0].choices).toStrictEqual([
+    {
+      choices: [
+        {
+          disabled: true,
+          hint: '',
+          name: 'Package                                                    Current   Target            URL ',
+          value: '',
+        },
+        {
+          message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
+          value: 'micromatch',
+          name: 'micromatch',
+        },
+      ],
+      name: '[dependencies]',
+      message: 'dependencies',
+    },
+  ])
 
   expect(prompt).toBeCalledWith(
     expect.objectContaining({

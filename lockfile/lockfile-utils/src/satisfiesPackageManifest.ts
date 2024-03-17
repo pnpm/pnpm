@@ -1,27 +1,32 @@
 import { type ProjectSnapshot } from '@pnpm/lockfile-types'
-import {
-  DEPENDENCIES_FIELDS,
-  type ProjectManifest,
-} from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type ProjectManifest } from '@pnpm/types'
 import equals from 'ramda/src/equals'
 import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
 
-export function satisfiesPackageManifest (
+export function satisfiesPackageManifest(
   opts: {
     autoInstallPeers?: boolean
     excludeLinksFromLockfile?: boolean
   },
   importer: ProjectSnapshot | undefined,
   pkg: ProjectManifest
-): { satisfies: boolean, detailedReason?: string } {
+): { satisfies: boolean; detailedReason?: string } {
   if (!importer) return { satisfies: false, detailedReason: 'no importer' }
-  let existingDeps: Record<string, string> = { ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }
+  let existingDeps: Record<string, string> = {
+    ...pkg.devDependencies,
+    ...pkg.dependencies,
+    ...pkg.optionalDependencies,
+  }
   if (opts?.autoInstallPeers) {
     pkg = {
       ...pkg,
       dependencies: {
-        ...omit(Object.keys(existingDeps), pkg.peerDependencies),
+        ...omit(
+          // @ts-ignore
+          Object.keys(existingDeps),
+          pkg.peerDependencies
+        ),
         ...pkg.dependencies,
       },
     }
@@ -63,19 +68,22 @@ export function satisfiesPackageManifest (
 
     let pkgDepNames!: string[]
     switch (depField) {
-    case 'optionalDependencies':
-      pkgDepNames = Object.keys(pkgDeps)
-      break
-    case 'devDependencies':
-      pkgDepNames = Object.keys(pkgDeps)
-        .filter((depName) => !pkg.optionalDependencies?.[depName] && !pkg.dependencies?.[depName])
-      break
-    case 'dependencies':
-      pkgDepNames = Object.keys(pkgDeps)
-        .filter((depName) => !pkg.optionalDependencies?.[depName])
-      break
-    default:
-      throw new Error(`Unknown dependency type "${depField as string}"`)
+      case 'optionalDependencies':
+        pkgDepNames = Object.keys(pkgDeps)
+        break
+      case 'devDependencies':
+        pkgDepNames = Object.keys(pkgDeps).filter(
+          (depName) =>
+            !pkg.optionalDependencies?.[depName] && !pkg.dependencies?.[depName]
+        )
+        break
+      case 'dependencies':
+        pkgDepNames = Object.keys(pkgDeps).filter(
+          (depName) => !pkg.optionalDependencies?.[depName]
+        )
+        break
+      default:
+        throw new Error(`Unknown dependency type "${depField as string}"`)
     }
     if (
       pkgDepNames.length !== Object.keys(importerDeps).length &&
@@ -87,7 +95,10 @@ export function satisfiesPackageManifest (
       }
     }
     for (const depName of pkgDepNames) {
-      if (!importerDeps[depName] || importer.specifiers?.[depName] !== pkgDeps[depName]) {
+      if (
+        !importerDeps[depName] ||
+        importer.specifiers?.[depName] !== pkgDeps[depName]
+      ) {
         return {
           satisfies: false,
           detailedReason: `importer ${depField}.${depName} specifier ${importer.specifiers[depName]} don't match package manifest specifier (${pkgDeps[depName]})`,
@@ -98,6 +109,10 @@ export function satisfiesPackageManifest (
   return { satisfies: true }
 }
 
-function countOfNonLinkedDeps (lockfileDeps: { [depName: string]: string }): number {
-  return Object.values(lockfileDeps).filter((ref) => !ref.includes('link:') && !ref.includes('file:')).length
+function countOfNonLinkedDeps(lockfileDeps: {
+  [depName: string]: string
+}): number {
+  return Object.values(lockfileDeps).filter(
+    (ref) => !ref.includes('link:') && !ref.includes('file:')
+  ).length
 }

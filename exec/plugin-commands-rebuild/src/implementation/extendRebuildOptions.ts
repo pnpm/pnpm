@@ -1,7 +1,10 @@
 import path from 'path'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { type LogBase } from '@pnpm/logger'
-import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+import {
+  normalizeRegistries,
+  DEFAULT_REGISTRIES,
+} from '@pnpm/normalize-registries'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type Registries } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
@@ -51,11 +54,15 @@ export interface StrictRebuildOptions {
 }
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
-Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> & Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
+  Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> &
+  Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
 
 const defaults = async (opts: RebuildOptions) => {
-  const packageManager = opts.packageManager ??
-    await loadJsonFile<{ name: string, version: string }>(path.join(__dirname, '../../package.json'))!
+  const packageManager =
+    opts.packageManager ??
+    (await loadJsonFile<{ name: string; version: string }>(
+      path.join(__dirname, '../../package.json')
+    )!)
   const dir = opts.dir ?? process.cwd()
   const lockfileDir = opts.lockfileDir ?? dir
   return {
@@ -77,7 +84,8 @@ const defaults = async (opts: RebuildOptions) => {
     shellEmulator: false,
     sideEffectsCacheRead: false,
     storeDir: opts.storeDir,
-    unsafePerm: process.platform === 'win32' ||
+    unsafePerm:
+      process.platform === 'win32' ||
       process.platform === 'cygwin' ||
       !process.setgid ||
       process.getuid?.() !== 0,
@@ -86,7 +94,7 @@ const defaults = async (opts: RebuildOptions) => {
   } as StrictRebuildOptions
 }
 
-export async function extendRebuildOptions (
+export async function extendRebuildOptions(
   opts: RebuildOptions
 ): Promise<StrictRebuildOptions> {
   if (opts) {
@@ -101,7 +109,12 @@ export async function extendRebuildOptions (
     ...defaultOpts,
     ...opts,
     storeDir: defaultOpts.storeDir,
-    ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}),
+    ...(opts.rootProjectManifest
+      ? getOptionsFromRootManifest(
+          opts.rootProjectManifestDir, // eslint-disable-line @stylistic/ts/indent
+          opts.rootProjectManifest // eslint-disable-line @stylistic/ts/indent
+        ) // eslint-disable-line @stylistic/ts/indent
+      : {}),
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts

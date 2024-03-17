@@ -30,7 +30,9 @@ const gitProtocols = new Set([
   'ssh',
 ])
 
-export async function parsePref (pref: string): Promise<HostedPackageSpec | null> {
+export async function parsePref(
+  pref: string
+): Promise<HostedPackageSpec | null> {
   const hosted = HostedGit.fromUrl(pref)
   if (hosted != null) {
     return fromHostedGit(hosted)
@@ -43,7 +45,8 @@ export async function parsePref (pref: string): Promise<HostedPackageSpec | null
     const url = new URL(correctPref)
     if (!url?.protocol) return null
 
-    const committish = (url.hash?.length > 1) ? decodeURIComponent(url.hash.slice(1)) : null
+    const committish =
+      url.hash?.length > 1 ? decodeURIComponent(url.hash.slice(1)) : null
     return {
       fetchSpec: urlToFetchSpec(url),
       normalizedPref: pref,
@@ -53,7 +56,7 @@ export async function parsePref (pref: string): Promise<HostedPackageSpec | null
   return null
 }
 
-function urlToFetchSpec (url: URL) {
+function urlToFetchSpec(url: URL) {
   url.hash = ''
   const fetchSpec = urlLib.format(url)
   if (fetchSpec.startsWith('git+')) {
@@ -66,19 +69,26 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
   const gitHttpsUrl = hosted.https({ noCommittish: true, noGitPlus: true })
-  if (gitHttpsUrl && await isRepoPublic(gitHttpsUrl) && await accessRepository(gitHttpsUrl)) {
+  if (
+    gitHttpsUrl &&
+    (await isRepoPublic(gitHttpsUrl)) &&
+    (await accessRepository(gitHttpsUrl))
+  ) {
     fetchSpec = gitHttpsUrl
   } else {
     const gitSshUrl = hosted.ssh({ noCommittish: true })
-    if (gitSshUrl && await accessRepository(gitSshUrl)) {
+    if (gitSshUrl && (await accessRepository(gitSshUrl))) {
       fetchSpec = gitSshUrl
     }
   }
 
   if (!fetchSpec) {
-    const httpsUrl: string | null = hosted.https({ noGitPlus: true, noCommittish: true })
+    const httpsUrl: string | null = hosted.https({
+      noGitPlus: true,
+      noCommittish: true,
+    })
     if (httpsUrl) {
-      if (hosted.auth && await accessRepository(httpsUrl)) {
+      if (hosted.auth && (await accessRepository(httpsUrl))) {
         return {
           fetchSpec: httpsUrl,
           hosted: {
@@ -97,7 +107,11 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
           // npm instead tries git ls-remote directly which prompts user for login credentials.
 
           // HTTP HEAD on https://domain/user/repo, strip out ".git"
-          const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
+          const response = await fetch(httpsUrl.replace(/\.git$/, ''), {
+            method: 'HEAD',
+            follow: 0,
+            retry: { retries: 0 },
+          })
           if (response.ok) {
             fetchSpec = httpsUrl
           }
@@ -125,16 +139,20 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
   }
 }
 
-async function isRepoPublic (httpsUrl: string) {
+async function isRepoPublic(httpsUrl: string) {
   try {
-    const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
+    const response = await fetch(httpsUrl.replace(/\.git$/, ''), {
+      method: 'HEAD',
+      follow: 0,
+      retry: { retries: 0 },
+    })
     return response.ok
   } catch (_err) {
     return false
   }
 }
 
-async function accessRepository (repository: string) {
+async function accessRepository(repository: string) {
   try {
     await git(['ls-remote', '--exit-code', repository, 'HEAD'], { retries: 0 })
     return true
@@ -143,8 +161,12 @@ async function accessRepository (repository: string) {
   }
 }
 
-function setGitCommittish (committish: string | null) {
-  if (committish !== null && committish.length >= 7 && committish.slice(0, 7) === 'semver:') {
+function setGitCommittish(committish: string | null) {
+  if (
+    committish !== null &&
+    committish.length >= 7 &&
+    committish.slice(0, 7) === 'semver:'
+  ) {
     return {
       gitCommittish: null,
       gitRange: committish.slice(7),
@@ -155,14 +177,16 @@ function setGitCommittish (committish: string | null) {
 
 // handle SCP-like URLs
 // see https://github.com/yarnpkg/yarn/blob/5682d55/src/util/git.js#L103
-function correctUrl (gitUrl: string) {
+function correctUrl(gitUrl: string) {
   const parsed = urlLib.parse(gitUrl.replace(/^git\+/, '')) // eslint-disable-line n/no-deprecated-api
 
-  if (parsed.protocol === 'ssh:' &&
+  if (
+    parsed.protocol === 'ssh:' &&
     parsed.hostname &&
     parsed.pathname &&
     parsed.pathname.startsWith('/:') &&
-    parsed.port === null) {
+    parsed.port === null
+  ) {
     parsed.pathname = parsed.pathname.replace(/^\/:/, '')
     return urlLib.format(parsed)
   }

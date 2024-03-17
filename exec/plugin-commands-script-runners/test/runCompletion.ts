@@ -9,18 +9,14 @@ test('run completion', async () => {
     },
   })
 
-  expect(
-    await run.completion({}, [])
-  ).toStrictEqual(
-    [
-      {
-        name: 'lint',
-      },
-      {
-        name: 'test',
-      },
-    ]
-  )
+  expect(await run.completion({}, [])).toStrictEqual([
+    {
+      name: 'lint',
+    },
+    {
+      name: 'test',
+    },
+  ])
 
   expect(await run.completion({}, ['test'])).toStrictEqual([])
 })

@@ -25,14 +25,15 @@ const fetchMock = jest.fn(async (url: string) => {
 })
 
 beforeEach(() => {
-  (isNonGlibcLinux as jest.Mock).mockReturnValue(Promise.resolve(false))
+  ;(isNonGlibcLinux as jest.Mock).mockReturnValue(Promise.resolve(false))
   fetchMock.mockClear()
 })
 
 test.skip('install Node using a custom node mirror', async () => {
   tempDir()
 
-  const nodeMirrorBaseUrl = 'https://pnpm-node-mirror-test.localhost/download/release/'
+  const nodeMirrorBaseUrl =
+    'https://pnpm-node-mirror-test.localhost/download/release/'
   const opts: FetchNodeOptions = {
     nodeMirrorBaseUrl,
     cafsDir: path.resolve('files'),
@@ -60,7 +61,7 @@ test.skip('install Node using the default node mirror', async () => {
 })
 
 test('install Node using a custom node mirror', async () => {
-  (isNonGlibcLinux as jest.Mock).mockReturnValue(Promise.resolve(true))
+  ;(isNonGlibcLinux as jest.Mock).mockReturnValue(Promise.resolve(true))
   tempDir()
 
   const opts: FetchNodeOptions = {
@@ -69,5 +70,7 @@ test('install Node using a custom node mirror', async () => {
 
   await expect(
     fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
-  ).rejects.toThrow('The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
+  ).rejects.toThrow(
+    'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc'
+  )
 })

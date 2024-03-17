@@ -1,4 +1,4 @@
-import { type Lockfile } from '@pnpm/lockfile-types'
+import type { Lockfile } from '@pnpm/lockfile-types'
 import { mergeLockfileChanges } from '../src'
 
 const simpleLockfile = {
@@ -16,7 +16,8 @@ const simpleLockfile = {
   packages: {
     '/foo/1.0.0': {
       resolution: {
-        integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+        integrity:
+          'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
       },
     },
   },
@@ -52,8 +53,12 @@ test('picks the newer version when dependencies differ inside importer', () => {
     }
   )
   expect(mergedLockfile.importers['.'].dependencies?.foo).toBe('1.2.0')
-  expect(mergedLockfile.importers['.'].dependencies?.bar).toBe('4.0.0_qar@1.0.0')
-  expect(mergedLockfile.importers['.'].dependencies?.zoo).toBe('4.0.0_qar@1.0.0')
+  expect(mergedLockfile.importers['.'].dependencies?.bar).toBe(
+    '4.0.0_qar@1.0.0'
+  )
+  expect(mergedLockfile.importers['.'].dependencies?.zoo).toBe(
+    '4.0.0_qar@1.0.0'
+  )
 })
 
 test('picks the newer version when dependencies differ inside package', () => {
@@ -173,10 +178,16 @@ test('picks the newer version when dependencies differ inside package', () => {
       },
     }
   )
-  expect(mergedLockfile.packages?.['/a/1.0.0'].dependencies?.linked).toBe('link:../1')
+  expect(mergedLockfile.packages?.['/a/1.0.0'].dependencies?.linked).toBe(
+    'link:../1'
+  )
   expect(mergedLockfile.packages?.['/a/1.0.0'].dependencies?.foo).toBe('1.2.0')
-  expect(mergedLockfile.packages?.['/a/1.0.0'].dependencies?.bar).toBe('4.0.0_qar@1.0.0')
-  expect(mergedLockfile.packages?.['/a/1.0.0'].dependencies?.zoo).toBe('4.0.0_qar@1.0.0')
+  expect(mergedLockfile.packages?.['/a/1.0.0'].dependencies?.bar).toBe(
+    '4.0.0_qar@1.0.0'
+  )
+  expect(mergedLockfile.packages?.['/a/1.0.0'].dependencies?.zoo).toBe(
+    '4.0.0_qar@1.0.0'
+  )
   expect(Object.keys(mergedLockfile.packages ?? {}).sort()).toStrictEqual([
     '/a/1.0.0',
     '/bar/3.0.0_qar@1.0.0',
@@ -200,12 +211,14 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
             bar: '1.0.0',
           },
           resolution: {
-            integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+            integrity:
+              'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
           },
         },
         '/bar/1.0.0': {
           resolution: {
-            integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+            integrity:
+              'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
           },
         },
       },
@@ -218,7 +231,8 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
             bar: '1.1.0',
           },
           resolution: {
-            integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+            integrity:
+              'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
           },
         },
         '/bar/1.1.0': {
@@ -226,12 +240,14 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
             qar: '1.0.0',
           },
           resolution: {
-            integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+            integrity:
+              'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
           },
         },
         '/qar/1.0.0': {
           resolution: {
-            integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+            integrity:
+              'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
           },
         },
       },
@@ -246,12 +262,14 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
           bar: '1.1.0',
         },
         resolution: {
-          integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+          integrity:
+            'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
         },
       },
       '/bar/1.0.0': {
         resolution: {
-          integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+          integrity:
+            'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
         },
       },
       '/bar/1.1.0': {
@@ -259,12 +277,14 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
           qar: '1.0.0',
         },
         resolution: {
-          integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+          integrity:
+            'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
         },
       },
       '/qar/1.0.0': {
         resolution: {
-          integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+          integrity:
+            'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
         },
       },
     },
@@ -281,12 +301,14 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
             bar: '1.0.0',
           },
           resolution: {
-            integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+            integrity:
+              'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
           },
         },
         '/bar/1.0.0': {
           resolution: {
-            integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+            integrity:
+              'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
           },
         },
       },
@@ -299,7 +321,8 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
             bar: '1.1.0',
           },
           resolution: {
-            integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+            integrity:
+              'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
           },
         },
         '/bar/1.1.0': {
@@ -307,12 +330,14 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
             qar: '1.0.0',
           },
           resolution: {
-            integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+            integrity:
+              'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
           },
         },
         '/qar/1.0.0': {
           resolution: {
-            integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+            integrity:
+              'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
           },
         },
       },
@@ -327,12 +352,14 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
           bar: '1.1.0',
         },
         resolution: {
-          integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+          integrity:
+            'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
         },
       },
       '/bar/1.0.0': {
         resolution: {
-          integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+          integrity:
+            'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
         },
       },
       '/bar/1.1.0': {
@@ -340,12 +367,14 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
           qar: '1.0.0',
         },
         resolution: {
-          integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+          integrity:
+            'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
         },
       },
       '/qar/1.0.0': {
         resolution: {
-          integrity: 'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
+          integrity:
+            'sha512-aBVzCAzfyApU0gg36QgCpJixGtYwuQ4djrn11J+DTB5vE4OmBPuZiulgTCA9ByULgVAyNV2CTpjjvZmxzukSLw==',
         },
       },
     },

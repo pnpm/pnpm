@@ -9,19 +9,24 @@ import { DEFAULT_OPTS } from './utils'
 test('install fails if no package.json is found', async () => {
   prepareEmpty()
 
-  await expect(install.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-  })).rejects.toThrow(/No package\.json found/)
+  await expect(
+    install.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
+  ).rejects.toThrow(/No package\.json found/)
 })
 
 test('install does not fail when a new package is added', async () => {
   prepareEmpty()
 
-  await add.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-  }, ['is-positive@1.0.0'])
+  await add.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    },
+    ['is-positive@1.0.0']
+  )
 
   const pkg = await import(path.resolve('package.json'))
 
@@ -31,15 +36,21 @@ test('install does not fail when a new package is added', async () => {
 test('install with no store integrity validation', async () => {
   prepareEmpty()
 
-  await add.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-  }, ['is-positive@1.0.0'])
+  await add.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    },
+    ['is-positive@1.0.0']
+  )
 
   // We should have a short delay before modifying the file in the store.
   // Otherwise pnpm will not consider it to be modified.
   await delay(200)
-  const readmePath = path.join(DEFAULT_OPTS.storeDir, 'v3/files/9a/f6af85f55c111108eddf1d7ef7ef224b812e7c7bfabae41c79cf8bc9a910352536963809463e0af2799abacb975f22418a35a1d170055ef3fdc3b2a46ef1c5')
+  const readmePath = path.join(
+    DEFAULT_OPTS.storeDir,
+    'v3/files/9a/f6af85f55c111108eddf1d7ef7ef224b812e7c7bfabae41c79cf8bc9a910352536963809463e0af2799abacb975f22418a35a1d170055ef3fdc3b2a46ef1c5'
+  )
   fs.writeFileSync(readmePath, 'modified', 'utf8')
 
   await rimraf('node_modules')
@@ -50,5 +61,7 @@ test('install with no store integrity validation', async () => {
     verifyStoreIntegrity: false,
   })
 
-  expect(fs.readFileSync('node_modules/is-positive/readme.md', 'utf8')).toBe('modified')
+  expect(fs.readFileSync('node_modules/is-positive/readme.md', 'utf8')).toBe(
+    'modified'
+  )
 })

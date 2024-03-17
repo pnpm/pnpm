@@ -1,9 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import {
-  type DependencyType,
-  rootLogger,
-} from '@pnpm/core-loggers'
+import { type DependencyType, rootLogger } from '@pnpm/core-loggers'
 import { type DependenciesField } from '@pnpm/types'
 import symlinkDir from 'symlink-dir'
 
@@ -13,7 +10,7 @@ const DEP_TYPE_BY_DEPS_FIELD_NAME = {
   optionalDependencies: 'optional',
 }
 
-export async function symlinkDirectRootDependency (
+export async function symlinkDirectRootDependency(
   dependencyLocation: string,
   destModulesDir: string,
   importAs: string,
@@ -48,7 +45,11 @@ export async function symlinkDirectRootDependency (
   if (reused) return // if the link was already present, don't log
   rootLogger.debug({
     added: {
-      dependencyType: opts.fromDependenciesField && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.fromDependenciesField] as DependencyType,
+      dependencyType:
+        opts.fromDependenciesField &&
+        (DEP_TYPE_BY_DEPS_FIELD_NAME[
+          opts.fromDependenciesField
+        ] as DependencyType),
       linkedFrom: dependencyLocation,
       name: importAs,
       realName: opts.linkedPackage.name,

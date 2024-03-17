@@ -1,30 +1,32 @@
-import {
-  type LogBase,
-  logger,
-} from '@pnpm/logger'
+import { type LogBase, logger } from '@pnpm/logger'
 
-export const skippedOptionalDependencyLogger = logger<SkippedOptionalDependencyMessage>('skipped-optional-dependency')
+export const skippedOptionalDependencyLogger =
+  logger<SkippedOptionalDependencyMessage>('skipped-optional-dependency')
 
-export type SkippedOptionalDependencyLog = { name: 'pnpm:skipped-optional-dependency' } & LogBase & SkippedOptionalDependencyMessage
+export type SkippedOptionalDependencyLog = {
+  name: 'pnpm:skipped-optional-dependency'
+} & LogBase &
+  SkippedOptionalDependencyMessage
 
 export type SkippedOptionalDependencyMessage = {
   details?: string
-  parents?: Array<{ id: string, name: string, version: string }>
+  parents?: Array<{ id: string; name: string; version: string }>
   prefix: string
-} & ({
-  package: {
-    id: string
-    name: string
-    version: string
+} & (
+  | {
+    package: {
+      id: string
+      name: string
+      version: string
+    }
+    reason: 'unsupported_engine' | 'unsupported_platform' | 'build_failure'
   }
-  reason: 'unsupported_engine'
-  | 'unsupported_platform'
-  | 'build_failure'
-} | {
-  package: {
-    name: string | undefined
-    version: string | undefined
-    pref: string
+  | {
+    package: {
+      name: string | undefined
+      version: string | undefined
+      pref: string
+    }
+    reason: 'resolution_failure'
   }
-  reason: 'resolution_failure'
-})
+)

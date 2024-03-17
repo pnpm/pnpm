@@ -45,14 +45,14 @@
     "normalize-path": "^3.0.0",
     "realpath-missing": "^1.1.0",
     "resolve-link-target": "^2.0.0",
-    "semver": "^7.5.4"
+    "semver": "^7.6.0"
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "@types/semver": "7.5.3"
+    "@types/semver": "7.5.8"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -49,7 +49,9 @@ test('getManifest()', async () => {
     }
   }
 
-  expect(await getManifest(resolve2, opts, '@scope/foo', 'latest')).toStrictEqual({
+  expect(
+    await getManifest(resolve2, opts, '@scope/foo', 'latest')
+  ).toStrictEqual({
     name: 'foo',
     version: '2.0.0',
   })

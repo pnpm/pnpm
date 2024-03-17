@@ -36,7 +36,8 @@ test.skip('install Node uses node-mirror:release option', async () => {
   tempDir()
   const configDir = path.resolve('config')
 
-  const nodeMirrorRelease = 'https://pnpm-node-mirror-test.localhost/download/release'
+  const nodeMirrorRelease =
+    'https://pnpm-node-mirror-test.localhost/download/release'
   const opts: node.NvmNodeCommandOptions = {
     bin: process.cwd(),
     configDir,

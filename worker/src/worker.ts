@@ -34,8 +34,15 @@ const cafsCache = new Map<string, ReturnType<typeof createCafs>>()
 const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
 const cafsLocker = new Map<string, number>()
 
-async function handleMessage (
-  message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | ReadPkgFromCafsMessage | SymlinkAllModulesMessage | HardLinkDirMessage | false
+async function handleMessage(
+  message:
+    | TarballExtractMessage
+    | LinkPkgMessage
+    | AddDirToStoreMessage
+    | ReadPkgFromCafsMessage
+    | SymlinkAllModulesMessage
+    | HardLinkDirMessage
+    | false
 ): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
@@ -43,64 +50,71 @@ async function handleMessage (
   }
   try {
     switch (message.type) {
-    case 'extract': {
-      parentPort!.postMessage(addTarballToStore(message))
-      break
-    }
-    case 'link': {
-      parentPort!.postMessage(importPackage(message))
-      break
-    }
-    case 'add-dir': {
-      parentPort!.postMessage(addFilesFromDir(message))
-      break
-    }
-    case 'readPkgFromCafs': {
-      const { cafsDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
-      let pkgFilesIndex: PackageFilesIndex | undefined
-      try {
-        pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
-      } catch {
-        // ignoring. It is fine if the integrity file is not present. Just refetch the package
+      case 'extract': {
+        parentPort!.postMessage(addTarballToStore(message))
+        break
       }
-      if (!pkgFilesIndex) {
+      case 'link': {
+        parentPort!.postMessage(importPackage(message))
+        break
+      }
+      case 'add-dir': {
+        parentPort!.postMessage(addFilesFromDir(message))
+        break
+      }
+      case 'readPkgFromCafs': {
+        const { cafsDir, filesIndexFile, readManifest, verifyStoreIntegrity } =
+          message
+        let pkgFilesIndex: PackageFilesIndex | undefined
+        try {
+          pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
+        } catch {
+          // ignoring. It is fine if the integrity file is not present. Just refetch the package
+        }
+        if (!pkgFilesIndex) {
+          parentPort!.postMessage({
+            status: 'success',
+            value: {
+              verified: false,
+              pkgFilesIndex: null,
+            },
+          })
+          return
+        }
+        let verifyResult: VerifyResult | undefined
+        if (verifyStoreIntegrity) {
+          verifyResult = checkPkgFilesIntegrity(
+            cafsDir,
+            pkgFilesIndex,
+            readManifest
+          )
+        } else {
+          verifyResult = {
+            passed: true,
+            manifest: readManifest
+              ? readManifestFromStore(cafsDir, pkgFilesIndex)
+              : undefined,
+          }
+        }
         parentPort!.postMessage({
           status: 'success',
           value: {
-            verified: false,
-            pkgFilesIndex: null,
+            verified: verifyResult.passed,
+            manifest: verifyResult.manifest,
+            pkgFilesIndex,
           },
         })
-        return
+        break
       }
-      let verifyResult: VerifyResult | undefined
-      if (verifyStoreIntegrity) {
-        verifyResult = checkPkgFilesIntegrity(cafsDir, pkgFilesIndex, readManifest)
-      } else {
-        verifyResult = {
-          passed: true,
-          manifest: readManifest ? readManifestFromStore(cafsDir, pkgFilesIndex) : undefined,
-        }
+      case 'symlinkAllModules': {
+        parentPort!.postMessage(symlinkAllModules(message))
+        break
       }
-      parentPort!.postMessage({
-        status: 'success',
-        value: {
-          verified: verifyResult.passed,
-          manifest: verifyResult.manifest,
-          pkgFilesIndex,
-        },
-      })
-      break
-    }
-    case 'symlinkAllModules': {
-      parentPort!.postMessage(symlinkAllModules(message))
-      break
-    }
-    case 'hardLinkDir': {
-      hardLinkDir(message.src, message.destDirs)
-      parentPort!.postMessage({ status: 'success' })
-      break
-    }
+      case 'hardLinkDir': {
+        hardLinkDir(message.src, message.destDirs)
+        parentPort!.postMessage({ status: 'success' })
+        break
+      }
     }
   } catch (e: any) { // eslint-disable-line
     parentPort!.postMessage({
@@ -113,13 +127,26 @@ async function handleMessage (
   }
 }
 
-function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, readManifest }: TarballExtractMessage) {
+function addTarballToStore({
+  buffer,
+  cafsDir,
+  integrity,
+  filesIndexFile,
+  pkg,
+  readManifest,
+}: TarballExtractMessage) {
   if (integrity) {
     const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
     // Compensate for the possibility of non-uniform Base64 padding
-    const normalizedRemoteHash: string = Buffer.from(integrityHash, 'base64').toString('hex')
+    const normalizedRemoteHash: string = Buffer.from(
+      integrityHash,
+      'base64'
+    ).toString('hex')
 
-    const calculatedHash: string = crypto.createHash(algo).update(buffer).digest('hex')
+    const calculatedHash: string = crypto
+      .createHash(algo)
+      .update(buffer)
+      .digest('hex')
     if (calculatedHash !== normalizedRemoteHash) {
       return {
         status: 'error',
@@ -136,18 +163,34 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, r
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
   const cafs = cafsCache.get(cafsDir)!
-  const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, Boolean(readManifest) || !pkg?.name || !pkg.version)
+  const { filesIndex, manifest } = cafs.addFilesFromTarball(
+    buffer,
+    Boolean(readManifest) || !pkg?.name || !pkg.version
+  )
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? manifest ?? {}, files: filesIntegrity })
+  writeFilesIndexFile(filesIndexFile, {
+    pkg: pkg ?? manifest ?? {},
+    files: filesIntegrity,
+  })
   return { status: 'success', value: { filesIndex: filesMap, manifest } }
 }
 
-function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, pkg, readManifest }: AddDirToStoreMessage) {
+function addFilesFromDir({
+  dir,
+  cafsDir,
+  filesIndexFile,
+  sideEffectsCacheKey,
+  pkg,
+  readManifest,
+}: AddDirToStoreMessage) {
   if (!cafsCache.has(cafsDir)) {
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
   const cafs = cafsCache.get(cafsDir)!
-  const { filesIndex, manifest } = cafs.addFilesFromDir(dir, Boolean(readManifest) || !pkg?.name || !pkg.version)
+  const { filesIndex, manifest } = cafs.addFilesFromDir(
+    dir,
+    Boolean(readManifest) || !pkg?.name || !pkg.version
+  )
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   if (sideEffectsCacheKey) {
     let filesIndex!: PackageFilesIndex
@@ -155,21 +198,31 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, p
       filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
     } catch {
       pkg = pkg ?? manifest
-      filesIndex = { name: pkg?.name, version: pkg?.version, files: filesIntegrity }
+      filesIndex = {
+        name: pkg?.name,
+        version: pkg?.version,
+        files: filesIntegrity,
+      }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
     filesIndex.sideEffects[sideEffectsCacheKey] = filesIntegrity
     writeJsonFile(filesIndexFile, filesIndex)
   } else {
-    writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? manifest ?? {}, files: filesIntegrity })
+    writeFilesIndexFile(filesIndexFile, {
+      pkg: pkg ?? manifest ?? {},
+      files: filesIntegrity,
+    })
   }
   return { status: 'success', value: { filesIndex: filesMap, manifest } }
 }
 
-function processFilesIndex (filesIndex: FilesIndex) {
+function processFilesIndex(filesIndex: FilesIndex) {
   const filesIntegrity: Record<string, PackageFileInfo> = {}
   const filesMap: Record<string, string> = {}
-  for (const [k, { checkedAt, filePath, integrity, mode, size }] of Object.entries(filesIndex)) {
+  for (const [
+    k,
+    { checkedAt, filePath, integrity, mode, size },
+  ] of Object.entries(filesIndex)) {
     filesIntegrity[k] = {
       checkedAt,
       integrity: integrity.toString(), // TODO: use the raw Integrity object
@@ -181,7 +234,7 @@ function processFilesIndex (filesIndex: FilesIndex) {
   return { filesIntegrity, filesMap }
 }
 
-function importPackage ({
+function importPackage({
   storeDir,
   packageImportMethod,
   filesResponse,
@@ -194,7 +247,10 @@ function importPackage ({
 }: LinkPkgMessage) {
   const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
   if (!cafsStoreCache.has(cacheKey)) {
-    cafsStoreCache.set(cacheKey, createCafsStore(storeDir, { packageImportMethod, cafsLocker }))
+    cafsStoreCache.set(
+      cacheKey,
+      createCafsStore(storeDir, { packageImportMethod, cafsLocker })
+    )
   }
   const cafsStore = cafsStoreCache.get(cacheKey)!
   const { importMethod, isBuilt } = cafsStore.importPackage(targetDir, {
@@ -208,7 +264,7 @@ function importPackage ({
   return { status: 'success', value: { isBuilt, importMethod } }
 }
 
-function symlinkAllModules (opts: SymlinkAllModulesMessage) {
+function symlinkAllModules(opts: SymlinkAllModulesMessage) {
   for (const dep of opts.deps) {
     for (const [alias, pkgDir] of Object.entries(dep.children)) {
       if (alias !== dep.name) {
@@ -219,10 +275,13 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage) {
   return { status: 'success' }
 }
 
-function writeFilesIndexFile (
+function writeFilesIndexFile(
   filesIndexFile: string,
-  { pkg, files }: {
-    pkg: { name?: string, version?: string }
+  {
+    pkg,
+    files,
+  }: {
+    pkg: { name?: string; version?: string }
     files: Record<string, PackageFileInfo>
   }
 ) {
@@ -233,7 +292,7 @@ function writeFilesIndexFile (
   })
 }
 
-function writeJsonFile (filePath: string, data: unknown) {
+function writeJsonFile(filePath: string, data: unknown) {
   const targetDir = path.dirname(filePath)
   // TODO: use the API of @pnpm/cafs to write this file
   // There is actually no need to create the directory in 99% of cases.

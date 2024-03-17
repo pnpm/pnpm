@@ -6,7 +6,10 @@ import {
   type FetchErrorResponse,
   PnpmError,
 } from '@pnpm/error'
-import { type FetchFromRegistry, type RetryTimeoutOptions } from '@pnpm/fetching-types'
+import {
+  type FetchFromRegistry,
+  type RetryTimeoutOptions,
+} from '@pnpm/fetching-types'
 import * as retry from '@zkochan/retry'
 import { type PackageMeta } from './pickPackage'
 
@@ -17,12 +20,13 @@ interface RegistryResponse {
 }
 
 // https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
-const semverRegex = /(.*)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
+const semverRegex =
+  /(.*)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/
 
 export class RegistryResponseError extends FetchError {
   public readonly pkgName: string
 
-  constructor (
+  constructor(
     request: FetchErrorRequest,
     response: FetchErrorResponse,
     pkgName: string
@@ -40,9 +44,9 @@ export class RegistryResponseError extends FetchError {
   }
 }
 
-export async function fromRegistry (
+export async function fromRegistry(
   fetch: FetchFromRegistry,
-  fetchOpts: { retry: RetryTimeoutOptions, timeout: number },
+  fetchOpts: { retry: RetryTimeoutOptions; timeout: number },
   pkgName: string,
   registry: string,
   authHeaderValue?: string
@@ -53,14 +57,20 @@ export async function fromRegistry (
     op.attempt(async (attempt) => {
       let response: RegistryResponse
       try {
-        response = await fetch(uri, {
+        response = (await fetch(uri, {
           authHeaderValue,
           compress: true,
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
-        }) as RegistryResponse
+        })) as RegistryResponse
       } catch (error: any) { // eslint-disable-line
-        reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt }))
+        reject(
+          new PnpmError(
+            'META_FETCH_FAIL',
+            `GET ${uri}: ${error.message as string}`,
+            { attempts: attempt }
+          )
+        )
         return
       }
       if (response.status > 400) {
@@ -97,7 +107,7 @@ export async function fromRegistry (
   })
 }
 
-function toUri (pkgName: string, registry: string) {
+function toUri(pkgName: string, registry: string) {
   let encodedName: string
 
   if (pkgName[0] === '@') {
@@ -106,5 +116,8 @@ function toUri (pkgName: string, registry: string) {
     encodedName = encodeURIComponent(pkgName)
   }
 
-  return new url.URL(encodedName, registry.endsWith('/') ? registry : `${registry}/`).toString()
+  return new url.URL(
+    encodedName,
+    registry.endsWith('/') ? registry : `${registry}/`
+  ).toString()
 }

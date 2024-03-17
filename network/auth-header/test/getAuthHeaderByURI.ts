@@ -13,41 +13,91 @@ const opts = {
 test('getAuthHeaderByURI()', () => {
   const getAuthHeaderByURI = createGetAuthHeaderByURI(opts)
   expect(getAuthHeaderByURI('https://reg.com/')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://reg.com/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://reg.com:8080/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://reg.io/foo/-/foo-1.0.0.tgz')).toBe(undefined)
-  expect(getAuthHeaderByURI('https://reg.co/tarballs/foo/-/foo-1.0.0.tgz')).toBe('Bearer xxx')
-  expect(getAuthHeaderByURI('https://reg.gg:8888/foo/-/foo-1.0.0.tgz')).toBe('Bearer 0000')
-  expect(getAuthHeaderByURI('https://reg.gg:8888/foo/-/foo-1.0.0.tgz')).toBe('Bearer 0000')
+  expect(getAuthHeaderByURI('https://reg.com/foo/-/foo-1.0.0.tgz')).toBe(
+    'Bearer abc123'
+  )
+  expect(getAuthHeaderByURI('https://reg.com:8080/foo/-/foo-1.0.0.tgz')).toBe(
+    'Bearer abc123'
+  )
+  expect(getAuthHeaderByURI('https://reg.io/foo/-/foo-1.0.0.tgz')).toBe(
+    undefined
+  )
+  expect(
+    getAuthHeaderByURI('https://reg.co/tarballs/foo/-/foo-1.0.0.tgz')
+  ).toBe('Bearer xxx')
+  expect(getAuthHeaderByURI('https://reg.gg:8888/foo/-/foo-1.0.0.tgz')).toBe(
+    'Bearer 0000'
+  )
+  expect(getAuthHeaderByURI('https://reg.gg:8888/foo/-/foo-1.0.0.tgz')).toBe(
+    'Bearer 0000'
+  )
 })
 
 test('getAuthHeaderByURI() basic auth without settings', () => {
   const getAuthHeaderByURI = createGetAuthHeaderByURI({
     allSettings: {},
   })
-  expect(getAuthHeaderByURI('https://user:secret@reg.io/')).toBe('Basic ' + btoa('user:secret'))
-  expect(getAuthHeaderByURI('https://user:@reg.io/')).toBe('Basic ' + btoa('user:'))
-  expect(getAuthHeaderByURI('https://:secret@reg.io/')).toBe('Basic ' + btoa(':secret'))
-  expect(getAuthHeaderByURI('https://user@reg.io/')).toBe('Basic ' + btoa('user:'))
+  expect(getAuthHeaderByURI('https://user:secret@reg.io/')).toBe(
+    'Basic ' + btoa('user:secret')
+  )
+  expect(getAuthHeaderByURI('https://user:@reg.io/')).toBe(
+    'Basic ' + btoa('user:')
+  )
+  expect(getAuthHeaderByURI('https://:secret@reg.io/')).toBe(
+    'Basic ' + btoa(':secret')
+  )
+  expect(getAuthHeaderByURI('https://user@reg.io/')).toBe(
+    'Basic ' + btoa('user:')
+  )
 })
 
 test('getAuthHeaderByURI() basic auth with settings', () => {
   const getAuthHeaderByURI = createGetAuthHeaderByURI(opts)
-  expect(getAuthHeaderByURI('https://user:secret@reg.com/')).toBe('Basic ' + btoa('user:secret'))
-  expect(getAuthHeaderByURI('https://user:secret@reg.com/foo/-/foo-1.0.0.tgz')).toBe('Basic ' + btoa('user:secret'))
-  expect(getAuthHeaderByURI('https://user:secret@reg.com:8080/foo/-/foo-1.0.0.tgz')).toBe('Basic ' + btoa('user:secret'))
-  expect(getAuthHeaderByURI('https://user:secret@reg.io/foo/-/foo-1.0.0.tgz')).toBe('Basic ' + btoa('user:secret'))
-  expect(getAuthHeaderByURI('https://user:secret@reg.co/tarballs/foo/-/foo-1.0.0.tgz')).toBe('Basic ' + btoa('user:secret'))
-  expect(getAuthHeaderByURI('https://user:secret@reg.gg:8888/foo/-/foo-1.0.0.tgz')).toBe('Basic ' + btoa('user:secret'))
-  expect(getAuthHeaderByURI('https://user:secret@reg.gg:8888/foo/-/foo-1.0.0.tgz')).toBe('Basic ' + btoa('user:secret'))
+  expect(getAuthHeaderByURI('https://user:secret@reg.com/')).toBe(
+    'Basic ' + btoa('user:secret')
+  )
+  expect(
+    getAuthHeaderByURI('https://user:secret@reg.com/foo/-/foo-1.0.0.tgz')
+  ).toBe('Basic ' + btoa('user:secret'))
+  expect(
+    getAuthHeaderByURI('https://user:secret@reg.com:8080/foo/-/foo-1.0.0.tgz')
+  ).toBe('Basic ' + btoa('user:secret'))
+  expect(
+    getAuthHeaderByURI('https://user:secret@reg.io/foo/-/foo-1.0.0.tgz')
+  ).toBe('Basic ' + btoa('user:secret'))
+  expect(
+    getAuthHeaderByURI(
+      'https://user:secret@reg.co/tarballs/foo/-/foo-1.0.0.tgz'
+    )
+  ).toBe('Basic ' + btoa('user:secret'))
+  expect(
+    getAuthHeaderByURI('https://user:secret@reg.gg:8888/foo/-/foo-1.0.0.tgz')
+  ).toBe('Basic ' + btoa('user:secret'))
+  expect(
+    getAuthHeaderByURI('https://user:secret@reg.gg:8888/foo/-/foo-1.0.0.tgz')
+  ).toBe('Basic ' + btoa('user:secret'))
 })
 
 test('getAuthHeaderByURI() https port 443 checks', () => {
   const getAuthHeaderByURI = createGetAuthHeaderByURI(opts)
-  expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/npm-virtual/')).toBe('Bearer xyz')
-  expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/')).toBe(undefined)
-  expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/-/@platform/device-utils-1.0.0.tgz')).toBe(undefined)
-  expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/npm-virtual/@platform/device-utils/-/@platform/device-utils-1.0.0.tgz')).toBe('Bearer xyz')
+  expect(
+    getAuthHeaderByURI(
+      'https://custom.domain.com:443/artifactory/api/npm/npm-virtual/'
+    )
+  ).toBe('Bearer xyz')
+  expect(
+    getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/')
+  ).toBe(undefined)
+  expect(
+    getAuthHeaderByURI(
+      'https://custom.domain.com:443/artifactory/api/npm/-/@platform/device-utils-1.0.0.tgz'
+    )
+  ).toBe(undefined)
+  expect(
+    getAuthHeaderByURI(
+      'https://custom.domain.com:443/artifactory/api/npm/npm-virtual/@platform/device-utils/-/@platform/device-utils-1.0.0.tgz'
+    )
+  ).toBe('Bearer xyz')
 })
 
 test('getAuthHeaderByURI() when default ports are specified', () => {
@@ -62,7 +112,11 @@ test('getAuthHeaderByURI() when default ports are specified', () => {
 })
 
 test('returns undefined when the auth header is not found', () => {
-  expect(createGetAuthHeaderByURI({ allSettings: {}, userSettings: {} })('http://reg.com')).toBe(undefined)
+  expect(
+    createGetAuthHeaderByURI({ allSettings: {}, userSettings: {} })(
+      'http://reg.com'
+    )
+  ).toBe(undefined)
 })
 
 test('getAuthHeaderByURI() when the registry has pathnames', () => {
@@ -72,13 +126,31 @@ test('getAuthHeaderByURI() when the registry has pathnames', () => {
     },
     userSettings: {},
   })
-  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm')).toBe(
+    'Bearer abc123'
+  )
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/')).toBe(
+    'Bearer abc123'
+  )
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo')).toBe(
+    'Bearer abc123'
+  )
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/')).toBe(
+    'Bearer abc123'
+  )
+  expect(
+    getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')
+  ).toBe('Bearer abc123')
+  expect(
+    getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')
+  ).toBe('Bearer abc123')
+  expect(
+    getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')
+  ).toBe('Bearer abc123')
+  expect(
+    getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')
+  ).toBe('Bearer abc123')
+  expect(
+    getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')
+  ).toBe('Bearer abc123')
 })

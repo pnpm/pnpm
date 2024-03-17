@@ -10,4 +10,16 @@ import * as unlink from './unlink'
 import * as update from './update'
 import * as importCommand from './import'
 
-export { add, ci, dedupe, fetch, install, link, prune, remove, unlink, update, importCommand }
+export {
+  add,
+  ci,
+  dedupe,
+  fetch,
+  install,
+  link,
+  prune,
+  remove,
+  unlink,
+  update,
+  importCommand,
+}

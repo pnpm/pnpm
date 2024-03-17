@@ -182,7 +182,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     break
   }
   if (manifest.name === CLI_PKG_NAME) {
-    manifest.publishConfig!.tag = NEXT_TAG
+    // @ts-ignore
+    manifest.publishConfig.tag = NEXT_TAG
   }
   if (scripts._test) {
     if (scripts.pretest) {

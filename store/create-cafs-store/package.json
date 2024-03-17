@@ -28,7 +28,7 @@
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "0.29.11"
   },
   "directories": {
     "test": "test"

@@ -59,14 +59,22 @@ test('pnpm recursive exec', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    recursive: true,
-    selectedProjectsGraph,
-  }, ['npm', 'run', 'build'])
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+    },
+    ['npm', 'run', 'build']
+  )
 
-  expect(server1.getLines()).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
+  expect(server1.getLines()).toStrictEqual([
+    'project-1',
+    'project-2-prebuild',
+    'project-2',
+    'project-2-postbuild',
+  ])
   expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
 })
 
@@ -99,12 +107,15 @@ test('pnpm recursive exec finds bin files of workspace projects', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    recursive: true,
-    selectedProjectsGraph,
-  }, ['cowsay', 'hi'])
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+    },
+    ['cowsay', 'hi']
+  )
 
   // If there was no exception, the test passed
 })
@@ -156,12 +167,15 @@ test('exec inside a workspace package', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: path.resolve('project-1'),
-    recursive: false,
-    selectedProjectsGraph: {},
-  }, ['npm', 'run', 'build'])
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: path.resolve('project-1'),
+      recursive: false,
+      selectedProjectsGraph: {},
+    },
+    ['npm', 'run', 'build']
+  )
 
   expect(server1.getLines()).toStrictEqual(['project-1'])
   expect(server2.getLines()).toStrictEqual(['project-1'])
@@ -176,12 +190,19 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
   ])
 
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    recursive: true,
-    selectedProjectsGraph,
-  }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pkgname\', process.env.PNPM_PACKAGE_NAME, \'utf8\')'])
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+    },
+    [
+      'node',
+      '-e',
+      "require('fs').writeFileSync('pkgname', process.env.PNPM_PACKAGE_NAME, 'utf8')",
+    ]
+  )
 
   expect(await fs.readFile('foo/pkgname', 'utf8')).toBe('foo')
 })
@@ -235,12 +256,15 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
   let failed = false
   let err1!: PnpmError
   try {
-    await exec.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      recursive: true,
-      selectedProjectsGraph,
-    }, ['npm', 'run', 'build', '--no-bail'])
+    await exec.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        recursive: true,
+        selectedProjectsGraph,
+      },
+      ['npm', 'run', 'build', '--no-bail']
+    )
   } catch (_err: any) { // eslint-disable-line
     err1 = _err
     failed = true
@@ -253,12 +277,15 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
   failed = false
   let err2!: PnpmError
   try {
-    await exec.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      recursive: true,
-      selectedProjectsGraph,
-    }, ['npm', 'run', 'build'])
+    await exec.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        recursive: true,
+        selectedProjectsGraph,
+      },
+      ['npm', 'run', 'build']
+    )
   } catch (_err: any) { // eslint-disable-line
     err2 = _err
     failed = true
@@ -302,14 +329,17 @@ test('pnpm recursive exec --no-sort', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    recursive: true,
-    selectedProjectsGraph,
-    sort: false,
-    workspaceConcurrency: 1,
-  }, ['npm', 'run', 'build'])
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      sort: false,
+      workspaceConcurrency: 1,
+    },
+    ['npm', 'run', 'build']
+  )
 
   expect(server.getLines()).toStrictEqual(['a-dependent', 'b-dependency'])
 })
@@ -359,14 +389,17 @@ test('pnpm recursive exec --reverse', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    selectedProjectsGraph,
-    recursive: true,
-    sort: true,
-    reverse: true,
-  }, ['npm', 'run', 'build'])
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      selectedProjectsGraph,
+      recursive: true,
+      sort: true,
+      reverse: true,
+    },
+    ['npm', 'run', 'build']
+  )
 
   const outputs1 = server.getLines()
 
@@ -376,12 +409,15 @@ test('pnpm recursive exec --reverse', async () => {
 test('pnpm exec on single project', async () => {
   prepare({})
 
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    recursive: false,
-    selectedProjectsGraph: {},
-  }, ['node', '-e', 'require("fs").writeFileSync("output.json", "[]", "utf8")'])
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      selectedProjectsGraph: {},
+    },
+    ['node', '-e', 'require("fs").writeFileSync("output.json", "[]", "utf8")']
+  )
 
   const { default: outputs } = await import(path.resolve('output.json'))
   expect(outputs).toStrictEqual([])
@@ -391,27 +427,33 @@ test('pnpm exec on single project should return non-zero exit code when the proc
   prepare({})
 
   {
-    const { exitCode } = await exec.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      recursive: false,
-      selectedProjectsGraph: {},
-    }, ['node', '-e', 'process.exitCode=1'])
+    const { exitCode } = await exec.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        recursive: false,
+        selectedProjectsGraph: {},
+      },
+      ['node', '-e', 'process.exitCode=1']
+    )
 
     expect(exitCode).toBe(1)
   }
 
   {
-    const runResult = await run.handler({
-      ...DEFAULT_OPTS,
-      argv: {
-        original: ['pnpm', 'node', '-e', 'process.exitCode=1'],
+    const runResult = await run.handler(
+      {
+        ...DEFAULT_OPTS,
+        argv: {
+          original: ['pnpm', 'node', '-e', 'process.exitCode=1'],
+        },
+        dir: process.cwd(),
+        fallbackCommandUsed: true,
+        recursive: false,
+        selectedProjectsGraph: {},
       },
-      dir: process.cwd(),
-      fallbackCommandUsed: true,
-      recursive: false,
-      selectedProjectsGraph: {},
-    }, ['node'])
+      ['node']
+    )
 
     expect(runResult).toHaveProperty(['exitCode'], 1)
   }
@@ -420,12 +462,15 @@ test('pnpm exec on single project should return non-zero exit code when the proc
 test('pnpm exec outside of projects', async () => {
   prepareEmpty()
 
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    recursive: false,
-    selectedProjectsGraph: {},
-  }, ['node', '-e', 'require("fs").writeFileSync("output.json", "[]", "utf8")'])
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      selectedProjectsGraph: {},
+    },
+    ['node', '-e', 'require("fs").writeFileSync("output.json", "[]", "utf8")']
+  )
 
   const { default: outputs } = await import(path.resolve('output.json'))
   expect(outputs).toStrictEqual([])
@@ -434,26 +479,32 @@ test('pnpm exec outside of projects', async () => {
 test('pnpm exec shell mode', async () => {
   prepareEmpty()
 
-  const echoArgs = process.platform === 'win32' ? '%PNPM_PACKAGE_NAME% > name.txt' : '$PNPM_PACKAGE_NAME > name.txt'
+  const echoArgs =
+    process.platform === 'win32'
+      ? '%PNPM_PACKAGE_NAME% > name.txt'
+      : '$PNPM_PACKAGE_NAME > name.txt'
 
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    recursive: false,
-    selectedProjectsGraph: {
-      [process.cwd()]: {
-        dependencies: [],
-        package: {
-          dir: process.cwd(),
-          writeProjectManifest: async () => {},
-          manifest: {
-            name: 'test_shell_mode',
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      selectedProjectsGraph: {
+        [process.cwd()]: {
+          dependencies: [],
+          package: {
+            dir: process.cwd(),
+            writeProjectManifest: async () => {},
+            manifest: {
+              name: 'test_shell_mode',
+            },
           },
         },
       },
+      shellMode: true,
     },
-    shellMode: true,
-  }, ['echo', echoArgs])
+    ['echo', echoArgs]
+  )
 
   const result = (await fs.readFile(path.resolve('name.txt'), 'utf8')).trim()
 
@@ -501,27 +552,39 @@ testOnPosixOnly('pnpm recursive exec works with PnP', async () => {
   ])
 
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa(pnpmBin, [
-    'install',
-    '-r',
-    '--registry',
-    REGISTRY_URL,
-    '--store-dir',
-    path.resolve(DEFAULT_OPTS.storeDir),
-  ], {
-    env: {
-      NPM_CONFIG_NODE_LINKER: 'pnp',
-      NPM_CONFIG_SYMLINK: 'false',
+  await execa(
+    pnpmBin,
+    [
+      'install',
+      '-r',
+      '--registry',
+      REGISTRY_URL,
+      '--store-dir',
+      path.resolve(DEFAULT_OPTS.storeDir),
+    ],
+    {
+      env: {
+        NPM_CONFIG_NODE_LINKER: 'pnp',
+        NPM_CONFIG_SYMLINK: 'false',
+      },
+    }
+  )
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
     },
-  })
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    recursive: true,
-    selectedProjectsGraph,
-  }, ['npm', 'run', 'build'])
+    ['npm', 'run', 'build']
+  )
 
-  expect(server1.getLines()).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
+  expect(server1.getLines()).toStrictEqual([
+    'project-1',
+    'project-2-prebuild',
+    'project-2',
+    'project-2-postbuild',
+  ])
   expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
 })
 
@@ -575,14 +638,17 @@ test('pnpm recursive exec --resume-from should work', async () => {
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  await exec.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    selectedProjectsGraph,
-    recursive: true,
-    sort: true,
-    resumeFrom: 'project-3',
-  }, ['npm', 'run', 'build'])
+  await exec.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      selectedProjectsGraph,
+      recursive: true,
+      sort: true,
+      resumeFrom: 'project-3',
+    },
+    ['npm', 'run', 'build']
+  )
 
   expect(server.getLines().sort()).toEqual(['project-2', 'project-3'])
 })
@@ -609,14 +675,17 @@ test('should throw error when the package specified by resume-from does not exis
   ])
 
   try {
-    await exec.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      selectedProjectsGraph,
-      recursive: true,
-      sort: true,
-      resumeFrom: 'project-2',
-    }, ['npm', 'run', 'build'])
+    await exec.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        selectedProjectsGraph,
+        recursive: true,
+        sort: true,
+        resumeFrom: 'project-2',
+      },
+      ['npm', 'run', 'build']
+    )
   } catch (err: any) { // eslint-disable-line
     expect(err.code).toBe('ERR_PNPM_RESUME_FROM_NOT_FOUND')
   }
@@ -645,12 +714,15 @@ test('pnpm exec in directory with path delimiter', async () => {
 
   let error
   try {
-    await exec.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      selectedProjectsGraph,
-      recursive: true,
-    }, ['cowsay', 'hi'])
+    await exec.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        selectedProjectsGraph,
+        recursive: true,
+      },
+      ['cowsay', 'hi']
+    )
   } catch (err: any) { // eslint-disable-line
     error = err
   }
@@ -691,20 +763,25 @@ test('pnpm recursive exec report summary', async () => {
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
   let error
   try {
-    await exec.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      selectedProjectsGraph,
-      recursive: true,
-      reportSummary: true,
-      workspaceConcurrency: 3,
-    }, ['npm', 'run', 'build'])
+    await exec.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        selectedProjectsGraph,
+        recursive: true,
+        reportSummary: true,
+        workspaceConcurrency: 3,
+      },
+      ['npm', 'run', 'build']
+    )
   } catch (err: any) { // eslint-disable-line
     error = err
   }
   expect(error.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
 
-  const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json')))
+  const {
+    default: { executionStatus },
+  } = await import(path.resolve('pnpm-exec-summary.json'))
   expect(executionStatus[path.resolve('project-1')].status).toBe('passed')
   expect(executionStatus[path.resolve('project-1')].duration).not.toBeFalsy()
   expect(executionStatus[path.resolve('project-2')].status).toBe('failure')
@@ -749,21 +826,26 @@ test('pnpm recursive exec report summary with --bail', async () => {
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
   let error
   try {
-    await exec.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      selectedProjectsGraph,
-      recursive: true,
-      reportSummary: true,
-      bail: true,
-      workspaceConcurrency: 3,
-    }, ['npm', 'run', 'build'])
+    await exec.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        selectedProjectsGraph,
+        recursive: true,
+        reportSummary: true,
+        bail: true,
+        workspaceConcurrency: 3,
+      },
+      ['npm', 'run', 'build']
+    )
   } catch (err: any) { // eslint-disable-line
     error = err
   }
   expect(error.code).toBe('ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL')
 
-  const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json')))
+  const {
+    default: { executionStatus },
+  } = await import(path.resolve('pnpm-exec-summary.json'))
 
   expect(executionStatus[path.resolve('project-1')].status).toBe('running')
   expect(executionStatus[path.resolve('project-2')].status).toBe('failure')
@@ -782,14 +864,17 @@ test('pnpm exec command not found (implicit fallback)', async () => {
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
   let error!: Error & { hint?: string }
   try {
-    await exec.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      recursive: false,
-      bail: true,
-      selectedProjectsGraph,
-      implicitlyFellbackFromRun: true,
-    }, ['buil']) // cspell:disable-line
+    await exec.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        recursive: false,
+        bail: true,
+        selectedProjectsGraph,
+        implicitlyFellbackFromRun: true,
+      },
+      ['buil']
+    ) // cspell:disable-line
   } catch (err: any) { // eslint-disable-line
     error = err
   }
@@ -807,14 +892,17 @@ test('pnpm exec command not found (explicit call, without near name packages)', 
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
   let error!: Error & { hint?: string }
   try {
-    await exec.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      recursive: false,
-      bail: true,
-      selectedProjectsGraph,
-      implicitlyFellbackFromRun: false,
-    }, ['cwsay'])
+    await exec.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        recursive: false,
+        bail: true,
+        selectedProjectsGraph,
+        implicitlyFellbackFromRun: false,
+      },
+      ['cwsay']
+    )
   } catch (err: any) { // eslint-disable-line
     error = err
   }
@@ -841,14 +929,17 @@ test('pnpm exec command not found (explicit call, with a near name package)', as
 
   let error!: Error & { hint?: string }
   try {
-    await exec.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-      recursive: false,
-      bail: true,
-      selectedProjectsGraph,
-      implicitlyFellbackFromRun: false,
-    }, ['cwsay'])
+    await exec.handler(
+      {
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        recursive: false,
+        bail: true,
+        selectedProjectsGraph,
+        implicitlyFellbackFromRun: false,
+      },
+      ['cwsay']
+    )
   } catch (err: any) { // eslint-disable-line
     error = err
   }
@@ -861,19 +952,24 @@ test('pnpm exec --workspace-root when command not found', async () => {
 
   let error!: any // eslint-disable-line
   try {
-    await run.handler({
-      ...DEFAULT_OPTS,
-      argv: {
-        original: ['pnpm', '--workspace-root', 'command-that-does-not-exist'],
+    await run.handler(
+      {
+        ...DEFAULT_OPTS,
+        argv: {
+          original: ['pnpm', '--workspace-root', 'command-that-does-not-exist'],
+        },
+        dir: process.cwd(),
+        fallbackCommandUsed: true,
+        recursive: false,
+        selectedProjectsGraph: {},
       },
-      dir: process.cwd(),
-      fallbackCommandUsed: true,
-      recursive: false,
-      selectedProjectsGraph: {},
-    }, ['command-that-does-not-exist'])
+      ['command-that-does-not-exist']
+    )
   } catch (err: any) { // eslint-disable-line
     error = err
   }
 
-  expect(error?.failures[0].message).toBe('Command "command-that-does-not-exist" not found')
+  expect(error?.failures[0].message).toBe(
+    'Command "command-that-does-not-exist" not found'
+  )
 })
