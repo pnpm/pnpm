@@ -24,7 +24,7 @@ export function extendProjectsWithTargetDirs<T> (
       if ((pkg.resolution as TarballResolution)?.type !== 'directory') return
       const pkgId = packageIdFromSnapshot(depPath, pkg)
       const { name: pkgName } = nameVerFromPkgSnapshot(depPath, pkg)
-      const importerId = pkgId.replace('file:', '')
+      const importerId = pkgId.replace(/^file:/, '')
       if (projectsById[importerId] == null) return
       const localLocations = getLocalLocations(depPath, pkgName)
       if (!localLocations) return
