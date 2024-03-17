@@ -1168,7 +1168,7 @@ async function resolveDependency (
     }
     return {
       alias: wantedDependency.alias || pkgResponse.body.manifest.name || path.basename(pkgResponse.body.resolution.directory),
-      depPath: pkgResponse.body.id.startsWith(`${pkgResponse.body.manifest.name}@`) ? pkgResponse.body.id : `${pkgResponse.body.manifest.name}@${pkgResponse.body.id}`,
+      depPath: pkgResponse.body.id,
       dev: wantedDependency.dev,
       isLinkedDependency: true,
       name: pkgResponse.body.manifest.name,
