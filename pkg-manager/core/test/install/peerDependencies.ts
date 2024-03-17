@@ -550,7 +550,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariation1 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation1, '@pnpm.e2e/abc'))
@@ -561,7 +561,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariation2 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation2, '@pnpm.e2e/abc'))
@@ -589,7 +589,7 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariation1 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation1, '@pnpm.e2e/abc'))
@@ -600,7 +600,7 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariation2 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '2.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '2.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation2, '@pnpm.e2e/abc'))
@@ -661,7 +661,7 @@ test('peer bins are linked', async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/for-testing-peers-having-bins'], testDefaults({ fastUnpack: false }))
 
   const suffix = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-with-bin', version: '1.0.0' }])
-  const pkgVariation = path.join('.pnpm', depPathToFilename(`/@pnpm.e2e/pkg-with-peer-having-bin@1.0.0${suffix}`), 'node_modules')
+  const pkgVariation = path.join('.pnpm', depPathToFilename(`@pnpm.e2e/pkg-with-peer-having-bin@1.0.0${suffix}`), 'node_modules')
 
   project.isExecutable(path.join(pkgVariation, '@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin', 'peer-with-bin'))
 
@@ -1181,7 +1181,7 @@ test('local tarball dependency with peer dependency', async () => {
   ], testDefaults({ reporter }))
 
   const integrityLocalPkgDirs = fs.readdirSync('node_modules/.pnpm')
-    .filter((dir) => dir.startsWith('file+'))
+    .filter((dir) => dir.includes('file+'))
 
   expect(integrityLocalPkgDirs.length).toBe(1)
 
@@ -1195,7 +1195,7 @@ test('local tarball dependency with peer dependency', async () => {
 
   {
     const updatedLocalPkgDirs = fs.readdirSync('node_modules/.pnpm')
-      .filter((dir) => dir.startsWith('file+'))
+      .filter((dir) => dir.includes('file+'))
     expect(updatedLocalPkgDirs).toStrictEqual(integrityLocalPkgDirs)
   }
 })
@@ -1301,7 +1301,7 @@ test('deduplicate packages that have optional and non-optional peers', async () 
   const lockfile = readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
   const depPaths = Object.keys(lockfile.snapshots ?? {})
   expect(depPaths.length).toBe(5)
-  expect(depPaths).toContain(`/@pnpm.e2e/abc-optional-peers@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`@pnpm.e2e/abc-optional-peers@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
 
 test('deduplicate packages that have peers', async () => {
@@ -1319,8 +1319,8 @@ test('deduplicate packages that have peers', async () => {
   const lockfile = readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
   const depPaths = Object.keys(lockfile.snapshots ?? {})
   expect(depPaths.length).toBe(8)
-  expect(depPaths).toContain(`/@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
-  expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
 
 test('deduplicate packages that have peers, when adding new dependency in a workspace', async () => {
@@ -1383,8 +1383,8 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   const lockfile = readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
   const depPaths = Object.keys(lockfile.snapshots ?? {})
   expect(depPaths.length).toBe(8)
-  expect(depPaths).toContain(`/@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
-  expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
 
 test('resolve peer dependencies from aliased subdependencies if they are dependencies of a parent package', async () => {

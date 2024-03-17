@@ -109,6 +109,7 @@ export function parse (dependencyPath: string) {
     }
     return {
       name,
+      nonSemverVersion: version,
       peersSuffix,
     }
   }

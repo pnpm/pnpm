@@ -372,38 +372,34 @@ test('inject local packages declared via file protocol', async () => {
         injected: true,
       },
     })
-    expect(lockfile.snapshots['file:project-1(is-positive@1.0.0)']).toEqual({
-      id: 'file:project-1',
+    expect(lockfile.snapshots['project-1@file:project-1(is-positive@1.0.0)']).toEqual({
       dependencies: {
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',
       },
       dev: false,
     })
-    expect(lockfile.packages['file:project-1']).toEqual({
+    expect(lockfile.packages['project-1@file:project-1']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
       },
-      name: 'project-1',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
     })
-    expect(lockfile.snapshots['file:project-2(is-positive@2.0.0)']).toEqual({
-      id: 'file:project-2',
+    expect(lockfile.snapshots['project-2@file:project-2(is-positive@2.0.0)']).toEqual({
       dependencies: {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
       dev: false,
     })
-    expect(lockfile.packages['file:project-2']).toEqual({
+    expect(lockfile.packages['project-2@file:project-2']).toEqual({
       resolution: {
         directory: 'project-2',
         type: 'directory',
       },
-      name: 'project-2',
     })
 
     const modulesState = rootModules.readModulesManifest()
@@ -447,20 +443,18 @@ test('inject local packages declared via file protocol', async () => {
         injected: true,
       },
     })
-    expect(lockfile.snapshots['file:project-1(is-positive@1.0.0)']).toEqual({
-      id: 'file:project-1',
+    expect(lockfile.snapshots['project-1@file:project-1(is-positive@1.0.0)']).toEqual({
       dependencies: {
         'is-negative': '2.0.0',
         'is-positive': '1.0.0',
       },
       dev: false,
     })
-    expect(lockfile.packages['file:project-1']).toEqual({
+    expect(lockfile.packages['project-1@file:project-1']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
       },
-      name: 'project-1',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -593,38 +587,34 @@ test('inject local packages when the file protocol is used', async () => {
   const rootModules = assertProject(process.cwd())
   {
     const lockfile = rootModules.readLockfile()
-    expect(lockfile.snapshots['file:project-1(is-positive@1.0.0)']).toEqual({
-      id: 'file:project-1',
+    expect(lockfile.snapshots['project-1@file:project-1(is-positive@1.0.0)']).toEqual({
       dependencies: {
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',
       },
       dev: false,
     })
-    expect(lockfile.packages['file:project-1']).toEqual({
+    expect(lockfile.packages['project-1@file:project-1']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
       },
-      name: 'project-1',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
     })
-    expect(lockfile.snapshots['file:project-2(is-positive@2.0.0)']).toEqual({
-      id: 'file:project-2',
+    expect(lockfile.snapshots['project-2@file:project-2(is-positive@2.0.0)']).toEqual({
       dependencies: {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
       dev: false,
     })
-    expect(lockfile.packages['file:project-2']).toEqual({
+    expect(lockfile.packages['project-2@file:project-2']).toEqual({
       resolution: {
         directory: 'project-2',
         type: 'directory',
       },
-      name: 'project-2',
     })
 
     const modulesState = rootModules.readModulesManifest()
@@ -667,20 +657,18 @@ test('inject local packages when the file protocol is used', async () => {
   }))
   {
     const lockfile = rootModules.readLockfile()
-    expect(lockfile.snapshots['file:project-1(is-positive@1.0.0)']).toEqual({
-      id: 'file:project-1',
+    expect(lockfile.snapshots['project-1@file:project-1(is-positive@1.0.0)']).toEqual({
       dependencies: {
         'is-negative': '2.0.0',
         'is-positive': '1.0.0',
       },
       dev: false,
     })
-    expect(lockfile.packages['file:project-1']).toEqual({
+    expect(lockfile.packages['project-1@file:project-1']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
       },
-      name: 'project-1',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -791,20 +779,18 @@ test('inject local packages and relink them after build', async () => {
       injected: true,
     },
   })
-  expect(lockfile.snapshots['file:project-1(is-positive@1.0.0)']).toEqual({
-    id: 'file:project-1',
+  expect(lockfile.snapshots['project-1@file:project-1(is-positive@1.0.0)']).toEqual({
     dependencies: {
       'is-negative': '1.0.0',
       'is-positive': '1.0.0',
     },
     dev: false,
   })
-  expect(lockfile.packages['file:project-1']).toEqual({
+  expect(lockfile.packages['project-1@file:project-1']).toEqual({
     resolution: {
       directory: 'project-1',
       type: 'directory',
     },
-    name: 'project-1',
     peerDependencies: {
       'is-positive': '1.0.0',
     },
@@ -903,20 +889,18 @@ test('inject local packages and relink them after build (file protocol is used)'
 
   const rootModules = assertProject(process.cwd())
   const lockfile = rootModules.readLockfile()
-  expect(lockfile.snapshots['file:project-1(is-positive@1.0.0)']).toEqual({
-    id: 'file:project-1',
+  expect(lockfile.snapshots['project-1@file:project-1(is-positive@1.0.0)']).toEqual({
     dependencies: {
       'is-negative': '1.0.0',
       'is-positive': '1.0.0',
     },
     dev: false,
   })
-  expect(lockfile.packages['file:project-1']).toEqual({
+  expect(lockfile.packages['project-1@file:project-1']).toEqual({
     resolution: {
       directory: 'project-1',
       type: 'directory',
     },
-    name: 'project-1',
     peerDependencies: {
       'is-positive': '1.0.0',
     },
@@ -1078,8 +1062,7 @@ test('inject local packages when node-linker is hoisted', async () => {
         injected: true,
       },
     })
-    expect(lockfile.snapshots['file:project-1(is-positive@1.0.0)']).toEqual({
-      id: 'file:project-1',
+    expect(lockfile.snapshots['project-1@file:project-1(is-positive@1.0.0)']).toEqual({
       dependencies: {
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         'is-negative': '1.0.0',
@@ -1087,18 +1070,16 @@ test('inject local packages when node-linker is hoisted', async () => {
       },
       dev: false,
     })
-    expect(lockfile.packages['file:project-1']).toEqual({
+    expect(lockfile.packages['project-1@file:project-1']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
       },
-      name: 'project-1',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
     })
-    expect(lockfile.snapshots['file:project-2(is-positive@2.0.0)']).toEqual({
-      id: 'file:project-2',
+    expect(lockfile.snapshots['project-2@file:project-2(is-positive@2.0.0)']).toEqual({
       dependencies: {
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
         'project-1': 'file:project-1(is-positive@2.0.0)',
@@ -1106,12 +1087,11 @@ test('inject local packages when node-linker is hoisted', async () => {
       transitivePeerDependencies: ['is-positive'],
       dev: false,
     })
-    expect(lockfile.packages['file:project-2']).toEqual({
+    expect(lockfile.packages['project-2@file:project-2']).toEqual({
       resolution: {
         directory: 'project-2',
         type: 'directory',
       },
-      name: 'project-2',
     })
 
     const modulesState = rootModules.readModulesManifest()
@@ -1265,8 +1245,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
         injected: true,
       },
     })
-    expect(lockfile.snapshots['file:project-1(is-positive@1.0.0)']).toEqual({
-      id: 'file:project-1',
+    expect(lockfile.snapshots['project-1@file:project-1(is-positive@1.0.0)']).toEqual({
       dev: false,
       dependencies: {
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
@@ -1274,18 +1253,16 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
         'is-positive': '1.0.0',
       },
     })
-    expect(lockfile.packages['file:project-1']).toEqual({
+    expect(lockfile.packages['project-1@file:project-1']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
       },
-      name: 'project-1',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
     })
-    expect(lockfile.snapshots['file:project-2(is-positive@2.0.0)']).toEqual({
-      id: 'file:project-2',
+    expect(lockfile.snapshots['project-2@file:project-2(is-positive@2.0.0)']).toEqual({
       dependencies: {
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
         'project-1': 'file:project-1(is-positive@2.0.0)',
@@ -1293,12 +1270,11 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
       transitivePeerDependencies: ['is-positive'],
       dev: false,
     })
-    expect(lockfile.packages['file:project-2']).toEqual({
+    expect(lockfile.packages['project-2@file:project-2']).toEqual({
       resolution: {
         directory: 'project-2',
         type: 'directory',
       },
-      name: 'project-2',
     })
 
     const modulesState = rootModules.readModulesManifest()
@@ -1412,7 +1388,7 @@ test('peer dependency of injected project should be resolved correctly', async (
 
   const rootModules = assertProject(process.cwd())
   const lockfile = rootModules.readLockfile()
-  expect(lockfile.snapshots?.['file:project-2(project-1@project-1)'].dependencies?.['project-1']).toEqual('link:project-1')
+  expect(lockfile.snapshots?.['project-2@file:project-2(project-1@project-1)'].dependencies?.['project-1']).toEqual('link:project-1')
 })
 
 // There was a bug related to this. The manifests in the workspacePackages object were modified
@@ -2008,21 +1984,19 @@ test('injected local packages are deduped', async () => {
         injected: true,
       },
     })
-    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toBeFalsy()
-    expect(lockfile.snapshots['file:project-2(is-positive@2.0.0)']).toEqual({
-      id: 'file:project-2',
+    expect(lockfile.packages['project-1@file:project-1(is-positive@1.0.0)']).toBeFalsy()
+    expect(lockfile.snapshots['project-2@file:project-2(is-positive@2.0.0)']).toEqual({
       dependencies: {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
       dev: false,
     })
-    expect(lockfile.packages['file:project-2']).toEqual({
+    expect(lockfile.packages['project-2@file:project-2']).toEqual({
       resolution: {
         directory: 'project-2',
         type: 'directory',
       },
-      name: 'project-2',
     })
 
     const modulesState = rootModules.readModulesManifest()
@@ -2065,7 +2039,7 @@ test('injected local packages are deduped', async () => {
         injected: true,
       },
     })
-    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toBeFalsy()
+    expect(lockfile.packages['project-1@file:project-1(is-positive@1.0.0)']).toBeFalsy()
     const modulesState = rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(1)
     expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)

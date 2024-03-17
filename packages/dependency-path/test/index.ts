@@ -50,6 +50,7 @@ test('parse()', () => {
 
   expect(parse('tar-pkg@file:../tar-pkg-1.0.0.tgz')).toStrictEqual({
     name: 'tar-pkg',
+    nonSemverVersion: 'file:../tar-pkg-1.0.0.tgz',
     peersSuffix: undefined,
   })
 })
