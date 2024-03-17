@@ -38,7 +38,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/real-hoist": "workspace:*"
+    "@pnpm/real-hoist": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"
