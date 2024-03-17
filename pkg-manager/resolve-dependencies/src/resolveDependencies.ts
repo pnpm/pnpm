@@ -1208,7 +1208,7 @@ async function resolveDependency (
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
-  let depPath = pkgResponse.body.id
+  let depPath = pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`
   const nameAndVersion = `${pkg.name}@${pkg.version}`
   const patchFile = ctx.patchedDependencies?.[nameAndVersion]
   if (patchFile) {

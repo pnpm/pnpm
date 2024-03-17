@@ -1,0 +1,24 @@
+lockfileVersion: '7.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      capitalized-repo:
+        specifier: github:pnpm-e2e/Capitalized-Repo
+        version: https://codeload.github.com/pnpm-e2e/Capitalized-Repo/tar.gz/b934b3616f5e383f6f16dcbf8461bf0fe48c7c8a
+
+packages:
+
+  capitalized-repo@https://codeload.github.com/pnpm-e2e/Capitalized-Repo/tar.gz/b934b3616f5e383f6f16dcbf8461bf0fe48c7c8a:
+    resolution: {tarball: https://codeload.github.com/pnpm-e2e/Capitalized-Repo/tar.gz/b934b3616f5e383f6f16dcbf8461bf0fe48c7c8a}
+    version: 1.0.0
+
+snapshots:
+
+  capitalized-repo@https://codeload.github.com/pnpm-e2e/Capitalized-Repo/tar.gz/b934b3616f5e383f6f16dcbf8461bf0fe48c7c8a:
+    dev: false

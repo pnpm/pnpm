@@ -24,9 +24,9 @@ test('makeDedicatedLockfile()', async () => {
   const lockfile = await readWantedLockfile(projectDir, { ignoreIncompatible: false })
   expect(Object.keys(lockfile?.importers ?? {})).toStrictEqual(['.', 'example'])
   expect(Object.keys(lockfile?.packages ?? {}).sort()).toStrictEqual([
-    '/is-positive@1.0.0',
-    '/lodash@1.0.0',
-    '/ramda@0.26.0',
-    '/request@2.0.0',
+    'is-positive@1.0.0',
+    'lodash@1.0.0',
+    'ramda@0.26.0',
+    'request@2.0.0',
   ])
 })

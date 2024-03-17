@@ -22,18 +22,18 @@ test('installing aliased dependency', async () => {
         dependencies: {
           negative: {
             specifier: 'npm:is-negative@1.0.0',
-            version: '/is-negative@1.0.0',
+            version: 'is-negative@1.0.0',
           },
           positive: {
             specifier: 'npm:is-positive@^3.1.0',
-            version: '/is-positive@3.1.0',
+            version: 'is-positive@3.1.0',
           },
         },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative@1.0.0': {
+      'is-negative@1.0.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -41,7 +41,7 @@ test('installing aliased dependency', async () => {
           integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
         },
       },
-      '/is-positive@3.1.0': {
+      'is-positive@3.1.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -51,10 +51,10 @@ test('installing aliased dependency', async () => {
       },
     },
     snapshots: {
-      '/is-negative@1.0.0': {
+      'is-negative@1.0.0': {
         dev: false,
       },
-      '/is-positive@3.1.0': {
+      'is-positive@3.1.0': {
         dev: false,
       },
     },
@@ -100,24 +100,24 @@ test('a dependency has an aliased subdependency', async () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
         },
       },
-      '/@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0': {
+      '@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0': {
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/pkg-with-1-aliased-dep', '100.0.0'),
         },
       },
     },
     snapshots: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
         dev: false,
       },
-      '/@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0': {
+      '@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0': {
         dependencies: {
-          dep: '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0',
+          dep: '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0',
         },
         dev: false,
       },

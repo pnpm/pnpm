@@ -112,7 +112,7 @@ test('recursive update prod dependencies only', async () => {
   expect(
     Object.keys(lockfile.packages ?? {})
   ).toStrictEqual(
-    ['/@pnpm.e2e/bar@100.0.0', '/@pnpm.e2e/foo@100.1.0']
+    ['@pnpm.e2e/bar@100.0.0', '@pnpm.e2e/foo@100.1.0']
   )
   const modules = await readModulesManifest('./node_modules')
   expect(modules?.included).toStrictEqual({
@@ -316,10 +316,10 @@ test('recursive update --latest foo should only update projects that have foo', 
   const lockfile = readYamlFile<Lockfile>('./pnpm-lock.yaml')
 
   expect(Object.keys(lockfile.packages ?? {}).sort()).toStrictEqual([
-    '/@zkochan/async-regex-replace@0.2.0',
-    '/@pnpm.e2e/bar@100.0.0',
-    '/@pnpm.e2e/foo@100.1.0',
-    '/@pnpm.e2e/qar@100.0.0',
+    '@zkochan/async-regex-replace@0.2.0',
+    '@pnpm.e2e/bar@100.0.0',
+    '@pnpm.e2e/foo@100.1.0',
+    '@pnpm.e2e/qar@100.0.0',
   ].sort())
 })
 
@@ -374,13 +374,13 @@ test('recursive update --latest foo should only update packages that have foo', 
   {
     const lockfile = projects['project-1'].readLockfile()
 
-    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/foo@100.1.0', '/@pnpm.e2e/qar@100.0.0'])
+    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['@pnpm.e2e/foo@100.1.0', '@pnpm.e2e/qar@100.0.0'])
   }
 
   {
     const lockfile = projects['project-2'].readLockfile()
 
-    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/bar@100.0.0'])
+    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['@pnpm.e2e/bar@100.0.0'])
   }
 })
 

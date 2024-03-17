@@ -14,13 +14,13 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
 
   const lockfile = project.readLockfile()
   expect(
-    lockfile.packages['/@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0'].bundledDependencies
+    lockfile.packages['@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0'].bundledDependencies
   ).toStrictEqual(
     ['@pnpm.e2e/hello-world-js-bin']
   )
 
   expect(
-    lockfile.packages['/@pnpm.e2e/hello-world-js-bin@1.0.0']
+    lockfile.packages['@pnpm.e2e/hello-world-js-bin@1.0.0']
   ).toBeUndefined()
 })
 
@@ -33,12 +33,12 @@ test('local tarball with bundledDependencies', async () => {
 
   const lockfile = project.readLockfile()
   expect(
-    lockfile.packages['file:pkg.tgz'].bundledDependencies
+    lockfile.packages['@pnpm.e2e/pkg-with-bundled-dependencies@file:pkg.tgz'].bundledDependencies
   ).toStrictEqual(
     ['@pnpm.e2e/hello-world-js-bin']
   )
   expect(
-    lockfile.packages['/@pnpm.e2e/hello-world-js-bin@1.0.0']
+    lockfile.packages['@pnpm.e2e/hello-world-js-bin@1.0.0']
   ).toBeUndefined()
 })
 
@@ -50,12 +50,12 @@ test('local tarball with bundledDependencies true', async () => {
 
   const lockfile = project.readLockfile()
   expect(
-    lockfile.packages['file:pkg.tgz'].bundledDependencies
+    lockfile.packages['@pnpm.e2e/pkg-with-bundle-dependencies-true@file:pkg.tgz'].bundledDependencies
   ).toStrictEqual(
     true
   )
   expect(
-    lockfile.packages['/@pnpm.e2e/hello-world-js-bin@1.0.0']
+    lockfile.packages['@pnpm.e2e/hello-world-js-bin@1.0.0']
   ).toBeUndefined()
 })
 
@@ -68,12 +68,12 @@ test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async () => {
 
   const lockfile = project.readLockfile()
   expect(
-    lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0'].bundledDependencies
+    lockfile.packages['@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0'].bundledDependencies
   ).toStrictEqual(
     ['@pnpm.e2e/hello-world-js-bin']
   )
   expect(
-    lockfile.packages['/@pnpm.e2e/hello-world-js-bin@1.0.0']
+    lockfile.packages['@pnpm.e2e/hello-world-js-bin@1.0.0']
   ).toBeUndefined()
 })
 
@@ -84,7 +84,7 @@ test('installing a package with bundleDependencies set to false (pkg-with-bundle
 
   const lockfile = project.readLockfile()
   expect(
-    typeof lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies-false@1.0.0'].bundledDependencies
+    typeof lockfile.packages['@pnpm.e2e/pkg-with-bundle-dependencies-false@1.0.0'].bundledDependencies
   ).toEqual('undefined')
 })
 
@@ -96,6 +96,6 @@ test('installing a package with bundleDependencies set to true (pkg-with-bundle-
   const lockfile = project.readLockfile()
 
   expect(
-    lockfile.packages['/@pnpm.e2e/hello-world-js-bin@1.0.0']
+    lockfile.packages['@pnpm.e2e/hello-world-js-bin@1.0.0']
   ).toBeUndefined()
 })

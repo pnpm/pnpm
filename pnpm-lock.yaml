@@ -4142,6 +4142,9 @@ importers:
       '@pnpm/real-hoist':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
 
   pkg-manager/remove-bins:
     dependencies:

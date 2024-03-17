@@ -159,7 +159,7 @@ test('should rehoist when uninstalling a package', async () => {
 
   const modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.hoistedDependencies['/debug@2.6.9']).toStrictEqual({ debug: 'private' })
+  expect(modules!.hoistedDependencies['debug@2.6.9']).toStrictEqual({ debug: 'private' })
 })
 
 test('should rehoist after running a general install', async () => {
@@ -248,7 +248,7 @@ test('hoist by alias', async () => {
 
   const modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.hoistedDependencies).toStrictEqual({ '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': { dep: 'private' } })
+  expect(modules!.hoistedDependencies).toStrictEqual({ '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': { dep: 'private' } })
 })
 
 test('should remove aliased hoisted dependencies', async () => {
@@ -481,8 +481,8 @@ test('hoist when updating in one of the workspace projects', async () => {
   {
     const modulesManifest = rootModules.readModulesManifest()
     expect(modulesManifest?.hoistedDependencies).toStrictEqual({
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
-      '/@pnpm.e2e/foo@100.0.0': { '@pnpm.e2e/foo': 'private' },
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
+      '@pnpm.e2e/foo@100.0.0': { '@pnpm.e2e/foo': 'private' },
     })
   }
 
@@ -500,17 +500,17 @@ test('hoist when updating in one of the workspace projects', async () => {
     Object.keys(lockfile.packages)
   ).toStrictEqual(
     [
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
-      '/@pnpm.e2e/foo@100.0.0',
-      '/@pnpm.e2e/foo@100.1.0',
-      '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+      '@pnpm.e2e/foo@100.0.0',
+      '@pnpm.e2e/foo@100.1.0',
+      '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ]
   )
 
   {
     const modulesManifest = rootModules.readModulesManifest()
     expect(modulesManifest?.hoistedDependencies).toStrictEqual({
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
     })
   }
 })
@@ -663,12 +663,12 @@ test('hoist packages which is in the dependencies tree of the selected projects'
       },
     },
     packages: {
-      '/is-positive@2.0.0': {
+      'is-positive@2.0.0': {
         resolution: { integrity: 'sha1-sU8GvS24EK5sixJ0HRNr+u8Nh70=' },
         engines: { node: '>=0.10.0' },
         dev: false,
       },
-      '/is-positive@3.0.0': {
+      'is-positive@3.0.0': {
         resolution: { integrity: 'sha1-jvDuIvfOJPdjP4kIAw7Ei2Ks9KM=' },
         engines: { node: '>=0.10.0' },
         dev: false,
@@ -721,36 +721,46 @@ test('only hoist packages which is in the dependencies tree of the selected proj
       },
     },
     packages: {
-      '/@babel/runtime-corejs3@7.15.3': {
+      '@babel/runtime-corejs3@7.15.3': {
         resolution: { integrity: 'sha512-30A3lP+sRL6ml8uhoJSs+8jwpKzbw8CqBvDc1laeptxPm5FahumJxirigcbD2qTs71Sonvj1cyZB0OKGAmxQ+A==' },
         engines: { node: '>=6.9.0' },
+      },
+      '@babel/runtime-corejs3@7.15.4': {
+        resolution: { integrity: 'sha512-lWcAqKeB624/twtTc3w6w/2o9RqJPaNBhPGK6DKLSiwuVWC7WFkypWyNg+CpZoyJH0jVzv1uMtXZ/5/lQOLtCg==' },
+        engines: { node: '>=6.9.0' },
+      },
+      'core-js-pure@3.17.2': {
+        resolution: { integrity: 'sha512-2VV7DlIbooyTI7Bh+yzOOWL9tGwLnQKHno7qATE+fqZzDKYr6llVjVQOzpD/QLZFgXDPb8T71pJokHEZHEYJhQ==' },
+      },
+      'core-js-pure@3.17.3': {
+        resolution: { integrity: 'sha512-YusrqwiOTTn8058JDa0cv9unbXdIiIgcgI9gXso0ey4WgkFLd3lYlV9rp9n7nDCsYxXsMDTjA4m1h3T348mdlQ==' },
+      },
+      'regenerator-runtime@0.13.9': {
+        resolution: { integrity: 'sha512-p3VT+cOEgxFsRRA9X4lkI1E+k2/CtnKtU4gcxyaCUreilL/vqI6CdZ3wxVUx3UOUg+gnUOQQcRI7BmSI656MYA==' },
+      },
+    },
+    snapshots: {
+      '@babel/runtime-corejs3@7.15.3': {
         dependencies: {
           'core-js-pure': '3.17.2',
           'regenerator-runtime': '0.13.9',
         },
         dev: false,
       },
-      '/@babel/runtime-corejs3@7.15.4': {
-        resolution: { integrity: 'sha512-lWcAqKeB624/twtTc3w6w/2o9RqJPaNBhPGK6DKLSiwuVWC7WFkypWyNg+CpZoyJH0jVzv1uMtXZ/5/lQOLtCg==' },
-        engines: { node: '>=6.9.0' },
+      '@babel/runtime-corejs3@7.15.4': {
         dependencies: {
           'core-js-pure': '3.17.3',
           'regenerator-runtime': '0.13.9',
         },
         dev: false,
       },
-      '/core-js-pure@3.17.2': {
-        resolution: { integrity: 'sha512-2VV7DlIbooyTI7Bh+yzOOWL9tGwLnQKHno7qATE+fqZzDKYr6llVjVQOzpD/QLZFgXDPb8T71pJokHEZHEYJhQ==' },
-        requiresBuild: true,
+      'core-js-pure@3.17.2': {
         dev: false,
       },
-      '/core-js-pure@3.17.3': {
-        resolution: { integrity: 'sha512-YusrqwiOTTn8058JDa0cv9unbXdIiIgcgI9gXso0ey4WgkFLd3lYlV9rp9n7nDCsYxXsMDTjA4m1h3T348mdlQ==' },
-        requiresBuild: true,
+      'core-js-pure@3.17.3': {
         dev: false,
       },
-      '/regenerator-runtime@0.13.9': {
-        resolution: { integrity: 'sha512-p3VT+cOEgxFsRRA9X4lkI1E+k2/CtnKtU4gcxyaCUreilL/vqI6CdZ3wxVUx3UOUg+gnUOQQcRI7BmSI656MYA==' },
+      'regenerator-runtime@0.13.9': {
         dev: false,
       },
     },

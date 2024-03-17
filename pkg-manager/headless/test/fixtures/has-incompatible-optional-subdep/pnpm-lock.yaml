@@ -14,29 +14,29 @@ importers:
 
 packages:
 
-  /@pnpm.e2e/dep-of-optional-pkg@1.0.0:
+  '@pnpm.e2e/dep-of-optional-pkg@1.0.0':
     resolution: {integrity: sha512-TBIWnj5MFb8i1cG4vh1WSaRHUsgrGXAuXH1QgKxc0D46l6c/o9bjiwTPZZb7a+CGolS9gNxIzZvc/D1XLCDStg==}
 
-  /@pnpm.e2e/not-compatible-with-any-os@1.0.0:
+  '@pnpm.e2e/not-compatible-with-any-os@1.0.0':
     resolution: {integrity: sha512-2g2bPBv7vBuBUbZH0DOWUkc9nKa0E7IHI4QyRUZGxr7R1TAG/oCj4Qrn3kK/XJKjhHwIZRUqaf0Kl3REgzQxSw==}
     os: [this-os-does-not-exist]
 
-  /@pnpm.e2e/pkg-with-optional@1.0.0:
+  '@pnpm.e2e/pkg-with-optional@1.0.0':
     resolution: {integrity: sha512-RzAje0bEtf/XhAXgrTNYuXbpRfnkxHlXIGtfmLkK34B0yPnKXNL8qC/jZYv6LOo7bR0+rBSU6nrVb9qzNHIUmA==}
 
 snapshots:
 
-  /@pnpm.e2e/dep-of-optional-pkg@1.0.0:
+  '@pnpm.e2e/dep-of-optional-pkg@1.0.0':
     dev: false
     optional: true
 
-  /@pnpm.e2e/not-compatible-with-any-os@1.0.0:
+  '@pnpm.e2e/not-compatible-with-any-os@1.0.0':
     dependencies:
       '@pnpm.e2e/dep-of-optional-pkg': 1.0.0
     dev: false
     optional: true
 
-  /@pnpm.e2e/pkg-with-optional@1.0.0:
+  '@pnpm.e2e/pkg-with-optional@1.0.0':
     optionalDependencies:
       '@pnpm.e2e/not-compatible-with-any-os': 1.0.0
     dev: false

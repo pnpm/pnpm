@@ -11,7 +11,6 @@ import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
-  refIsLocalDirectory,
 } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
@@ -129,7 +128,7 @@ export async function lockfileToDepGraph (
           return
         }
         const dir = path.join(modules, pkgName)
-        const depIsPresent = !refIsLocalDirectory(depPath) &&
+        const depIsPresent = !('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) &&
           currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies)
         let dirExists: boolean | undefined
         if (

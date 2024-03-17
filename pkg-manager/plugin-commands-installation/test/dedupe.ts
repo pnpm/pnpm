@@ -35,11 +35,11 @@ describe('pnpm dedupe', () => {
       packageIssuesByDepPath: {
         added: [],
         removed: [
-          '/ajv@6.10.2',
-          '/fast-deep-equal@2.0.1',
-          '/fast-json-stable-stringify@2.0.0',
-          '/punycode@2.1.1',
-          '/uri-js@4.2.2',
+          'ajv@6.10.2',
+          'fast-deep-equal@2.0.1',
+          'fast-json-stable-stringify@2.0.0',
+          'punycode@2.1.1',
+          'uri-js@4.2.2',
         ],
         updated: {},
       },
@@ -60,10 +60,10 @@ describe('pnpm dedupe', () => {
       packageIssuesByDepPath: {
         added: [],
         removed: [
-          '/punycode@2.1.1',
+          'punycode@2.1.1',
         ],
         updated: {
-          '/uri-js@4.2.2': {
+          'uri-js@4.2.2': {
             punycode: {
               next: '2.3.0',
               prev: '2.1.1',

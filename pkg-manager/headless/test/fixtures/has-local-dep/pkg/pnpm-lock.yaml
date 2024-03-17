@@ -14,12 +14,11 @@ importers:
 
 packages:
 
-  file:../tar-pkg-1.0.0.tgz:
+  tar-pkg@file:../tar-pkg-1.0.0.tgz:
     resolution: {integrity: sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==, tarball: file:../tar-pkg-1.0.0.tgz}
-    name: tar-pkg
     version: 1.0.0
 
 snapshots:
 
-  file:../tar-pkg-1.0.0.tgz:
+  tar-pkg@file:../tar-pkg-1.0.0.tgz:
     dev: false

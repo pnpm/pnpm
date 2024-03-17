@@ -564,7 +564,7 @@ test('should update subdep on second install', async () => {
 
   let lockfile = project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
@@ -583,8 +583,8 @@ test('should update subdep on second install', async () => {
 
   lockfile = project.readLockfile()
 
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.1.0')
 })
@@ -600,7 +600,7 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   let lockfile = project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
@@ -610,8 +610,8 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   lockfile = project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.0.0')
 })
@@ -691,13 +691,13 @@ test('lockfile locks npm dependencies', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:progress',
-    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
+    packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'resolved',
   } as ProgressLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
+    packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'fetched',
   } as ProgressLog)).toBeTruthy()
@@ -713,13 +713,13 @@ test('lockfile locks npm dependencies', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
+    packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'resolved',
   } as ProgressLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
+    packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'found_in_store',
   } as ProgressLog)).toBeTruthy()
@@ -992,9 +992,9 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     Object.keys(lockfile.packages)
   ).toStrictEqual(
     [
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
-      '/@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0',
-      '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+      '@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0',
+      '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ]
   )
 
@@ -1007,13 +1007,13 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
         dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
         },
       },
-      '/@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0': {
+      '@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0': {
         dependencies: {
           '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         },
@@ -1022,7 +1022,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
           integrity: getIntegrity('@pnpm.e2e/parent-of-pkg-with-1-dep', '1.0.0'),
         },
       },
-      '/@pnpm.e2e/pkg-with-1-dep@100.0.0': {
+      '@pnpm.e2e/pkg-with-1-dep@100.0.0': {
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
         },

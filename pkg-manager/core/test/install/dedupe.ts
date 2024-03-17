@@ -19,8 +19,8 @@ test('prefer version ranges specified for top dependencies', async () => {
   )
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('prefer version ranges specified for top dependencies, when doing named installation', async () => {
@@ -39,8 +39,8 @@ test('prefer version ranges specified for top dependencies, when doing named ins
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults())
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('prefer version ranges specified for top dependencies, even if they are aliased', async () => {
@@ -59,8 +59,8 @@ test('prefer version ranges specified for top dependencies, even if they are ali
   )
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('prefer version ranges specified for top dependencies, even if the subdependencies are aliased', async () => {
@@ -79,8 +79,8 @@ test('prefer version ranges specified for top dependencies, even if the subdepen
   )
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('ignore version of root dependency when it is incompatible with the indirect dependency\'s range', async () => {
@@ -99,8 +99,8 @@ test('ignore version of root dependency when it is incompatible with the indirec
   )
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
 })
 
 test('prefer dist-tag specified for top dependency', async () => {
@@ -120,8 +120,8 @@ test('prefer dist-tag specified for top dependency', async () => {
   )
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('prefer version ranges passed in via opts.preferredVersions', async () => {
@@ -148,8 +148,8 @@ test('prefer version ranges passed in via opts.preferredVersions', async () => {
   )
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1187
@@ -169,9 +169,9 @@ test('prefer version of package that also satisfies the range of the same packag
     Object.keys(lockfile.packages)
   ).toStrictEqual(
     [
-      '/@pnpm.e2e/foo@100.0.0',
-      '/@pnpm.e2e/has-foo-as-dep-and-subdep@1.0.0',
-      '/@pnpm.e2e/requires-any-foo@1.0.0',
+      '@pnpm.e2e/foo@100.0.0',
+      '@pnpm.e2e/has-foo-as-dep-and-subdep@1.0.0',
+      '@pnpm.e2e/requires-any-foo@1.0.0',
     ]
   )
 })
@@ -188,8 +188,8 @@ test('dedupe subdependency when a newer version of the same package is installed
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'], testDefaults())
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 })
 
 test('when resolving dependencies, prefer versions that are used by direct dependencies over versions used in subdeps', async () => {
@@ -207,7 +207,7 @@ test('when resolving dependencies, prefer versions that are used by direct depen
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/has-foo-100.0.0-range-dep'], testDefaults())
 
   const lockfile = project.readLockfile()
-  expect(lockfile.snapshots['/@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0']).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
+  expect(lockfile.snapshots['@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0']).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
 })
 
 test('when resolving dependencies, prefer versions that are used by direct dependencies over versions used in subdeps', async () => {
@@ -225,5 +225,5 @@ test('when resolving dependencies, prefer versions that are used by direct depen
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/has-foo-100.0.0-range-dep'], testDefaults())
 
   const lockfile = project.readLockfile()
-  expect(lockfile.snapshots['/@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0']).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
+  expect(lockfile.snapshots['@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0']).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
 })

@@ -12,7 +12,7 @@ exports[`makeVirtualNodeModules 1`] = `
                 "@zkochan": {
                   "entries": {
                     "git-config": {
-                      "depPath": "/@zkochan/git-config@0.1.0",
+                      "depPath": "@zkochan/git-config@0.1.0",
                       "entryType": "index",
                     },
                   },
@@ -33,7 +33,7 @@ exports[`makeVirtualNodeModules 1`] = `
             "node_modules": {
               "entries": {
                 "ini": {
-                  "depPath": "/ini@1.3.4",
+                  "depPath": "ini@1.3.4",
                   "entryType": "index",
                 },
               },
@@ -47,7 +47,7 @@ exports[`makeVirtualNodeModules 1`] = `
             "node_modules": {
               "entries": {
                 "is-positive": {
-                  "depPath": "/is-positive@1.0.0",
+                  "depPath": "is-positive@1.0.0",
                   "entryType": "index",
                 },
               },

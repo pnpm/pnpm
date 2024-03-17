@@ -90,7 +90,7 @@ test('writeWantedLockfile()', async () => {
     },
     lockfileVersion: '7.0',
     packages: {
-      '/is-negative@1.0.0': {
+      'is-negative@1.0.0': {
         dependencies: {
           'is-positive': '2.0.0',
         },
@@ -98,12 +98,12 @@ test('writeWantedLockfile()', async () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive@1.0.0': {
+      'is-positive@1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive@2.0.0': {
+      'is-positive@2.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -133,7 +133,7 @@ test('writeCurrentLockfile()', async () => {
     },
     lockfileVersion: '7.0',
     packages: {
-      '/is-negative@1.0.0': {
+      'is-negative@1.0.0': {
         dependencies: {
           'is-positive': '2.0.0',
         },
@@ -141,12 +141,12 @@ test('writeCurrentLockfile()', async () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive@1.0.0': {
+      'is-positive@1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive@2.0.0': {
+      'is-positive@2.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -177,7 +177,7 @@ test('existsNonEmptyWantedLockfile()', async () => {
     },
     lockfileVersion: 3,
     packages: {
-      '/is-negative/1.0.0': {
+      'is-negative/1.0.0': {
         dependencies: {
           'is-positive': '2.0.0',
         },
@@ -185,12 +185,12 @@ test('existsNonEmptyWantedLockfile()', async () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/1.0.0': {
+      'is-positive/1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/2.0.0': {
+      'is-positive/2.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -216,7 +216,7 @@ test('readWantedLockfile() when useGitBranchLockfile', async () => {
     },
   })
   expect(lockfile?.packages).toStrictEqual({
-    '/is-positive@1.0.0': {
+    'is-positive@1.0.0': {
       resolution: {
         integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
       },
@@ -238,7 +238,7 @@ test('readWantedLockfile() when useGitBranchLockfile', async () => {
     },
   })
   expect(gitBranchLockfile?.packages).toStrictEqual({
-    '/is-positive@2.0.0': {
+    'is-positive@2.0.0': {
       resolution: {
         integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
       },
@@ -264,12 +264,12 @@ test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles
     },
   })
   expect(lockfile?.packages).toStrictEqual({
-    '/is-positive@1.0.0': {
+    'is-positive@1.0.0': {
       resolution: {
         integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
       },
     },
-    '/is-positive@2.0.0': {
+    'is-positive@2.0.0': {
       resolution: {
         integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
       },
@@ -290,7 +290,7 @@ test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
       },
     },
     packages: {
-      '/is-positive/1.0.0': {
+      'is-positive/1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },

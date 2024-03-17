@@ -276,6 +276,9 @@ async function resolveAndFetch (
     onFetchError: options.onFetchError,
   })
 
+  if (!manifest) {
+    manifest = (await fetchResult.fetching()).bundledManifest
+  }
   return {
     body: {
       id,

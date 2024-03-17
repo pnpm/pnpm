@@ -16,61 +16,61 @@ importers:
         version: 18.2.0(react@18.2.0)
     devDependencies:
       typescript:
-        specifier: ^4.8.4
-        version: 4.8.4
+        specifier: ^5.2.2
+        version: 5.4.2
 
 packages:
 
-  js-tokens@4.0.0:
+  /js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
-  loose-envify@1.4.0:
+  /loose-envify@1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
     hasBin: true
 
-  react-dom@18.2.0:
+  /react-dom@18.2.0:
     resolution: {integrity: sha512-6IMTriUmvsjHUjNtEDudZfuDQUoWXVxKHhlEGSk81n4YFS+r/Kl99wXiwlVXtPBtJenozv2P+hxDsw9eA7Xo6g==}
     peerDependencies:
       react: ^18.2.0
 
-  react@18.2.0:
+  /react@18.2.0:
     resolution: {integrity: sha512-/3IjMdb2L9QbBdWiW5e3P2/npwMBaU9mHCSCUzNln0ZCYbcfTsGbTJrU/kGemdH2IWmB2ioZ+zkxtmq6g09fGQ==}
     engines: {node: '>=0.10.0'}
 
-  scheduler@0.23.0:
+  /scheduler@0.23.0:
     resolution: {integrity: sha512-CtuThmgHNg7zIZWAXi3AsyIzA3n4xx7aNyjwC2VJldO2LMVDhFK+63xGqq6CsJH4rTAt6/M+N4GhZiDYPx9eUw==}
 
-  typescript@4.8.4:
-    resolution: {integrity: sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==}
-    engines: {node: '>=4.2.0'}
+  /typescript@5.4.2:
+    resolution: {integrity: sha512-+2/g0Fds1ERlP6JsakQQDXjZdZMM+rqpamFZJEKh4kwTIn3iDkgKtby0CeNd5ATNZ4Ry1ax15TMx0W2V+miizQ==}
+    engines: {node: '>=14.17'}
     hasBin: true
 
 snapshots:
 
-  js-tokens@4.0.0:
+  /js-tokens@4.0.0:
     dev: false
 
-  loose-envify@1.4.0:
+  /loose-envify@1.4.0:
     dependencies:
       js-tokens: 4.0.0
     dev: false
 
-  react-dom@18.2.0(react@18.2.0):
+  /react-dom@18.2.0(react@18.2.0):
     dependencies:
       loose-envify: 1.4.0
       react: 18.2.0
       scheduler: 0.23.0
     dev: false
 
-  react@18.2.0:
+  /react@18.2.0:
     dependencies:
       loose-envify: 1.4.0
     dev: false
 
-  scheduler@0.23.0:
+  /scheduler@0.23.0:
     dependencies:
       loose-envify: 1.4.0
     dev: false
 
-  typescript@4.8.4:
+  /typescript@5.4.2:
     dev: true

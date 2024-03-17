@@ -35,7 +35,7 @@ function getInjectedDepsByProjects<T extends PartialResolvedPackage> (
   for (const project of opts.projects) {
     for (const [alias, nodeId] of Object.entries(project.directNodeIdsByAlias)) {
       const depPath = opts.pathsByNodeId.get(nodeId)!
-      if (!depPath.startsWith('file:')) continue
+      if (!opts.depGraph[depPath].id.startsWith('file:')) continue
       const id = opts.depGraph[depPath].id.substring(5)
       if (opts.projects.some((project) => project.id === id)) {
         if (!injectedDepsByProjects.has(project.id)) injectedDepsByProjects.set(project.id, new Map())

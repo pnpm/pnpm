@@ -28,7 +28,7 @@ test('install with lockfileOnly = true', async () => {
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
 
   const currentLockfile = project.readCurrentLockfile()
   expect(currentLockfile).toBeFalsy()
@@ -68,10 +68,10 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.rimraf).toBeTruthy()
-  expect(lockfile.packages['/rimraf@2.5.1']).toBeTruthy()
+  expect(lockfile.packages['rimraf@2.5.1']).toBeTruthy()
 
   const currentLockfile = project.readCurrentLockfile()
-  expect(currentLockfile.packages['/rimraf@2.5.1']).toBeFalsy()
+  expect(currentLockfile.packages['rimraf@2.5.1']).toBeFalsy()
 })
 
 test('do not update the lockfile when lockfileOnly and frozenLockfile are both used', async () => {

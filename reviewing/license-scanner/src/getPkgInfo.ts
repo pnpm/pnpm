@@ -2,7 +2,7 @@ import path from 'path'
 import pathAbsolute from 'path-absolute'
 import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
-import { depPathToFilename } from '@pnpm/dependency-path'
+import { depPathToFilename, parse } from '@pnpm/dependency-path'
 import pLimit from 'p-limit'
 import { type PackageManifest, type Registries } from '@pnpm/types'
 import {
@@ -262,7 +262,7 @@ export async function readPackageIndexFile (
       'index'
     )
   } else if (!packageResolution.type && packageResolution.tarball) {
-    const packageDirInStore = depPathToFilename(id)
+    const packageDirInStore = depPathToFilename(parse(id).nonSemverVersion ?? id)
     pkgIndexFilePath = path.join(
       opts.storeDir,
       packageDirInStore,

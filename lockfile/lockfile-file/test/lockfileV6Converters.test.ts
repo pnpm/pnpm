@@ -200,6 +200,10 @@ test('convertToLockfileObject() converts package IDs', () => {
             specifier: 'gitlab:pnpm/git-resolver',
             version: 'gitlab/pnpm/git-resolver/988c61e11dc8d9ca0b5580cb15291951812549dc(foo@1.0.0)',
           },
+          'is-odd': {
+            specifier: '1.0.0',
+            version: '1.0.0',
+          },
         },
       },
     },
@@ -221,6 +225,9 @@ test('convertToLockfileObject() converts package IDs', () => {
           type: 'git',
         },
       },
+      '/is-odd@1.0.0': {
+        resolution: { integrity: '' },
+      },
     },
   }
   const lockfileObject = {
@@ -231,11 +238,13 @@ test('convertToLockfileObject() converts package IDs', () => {
           'is-positive': 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678(@babel/core@2.0.0)',
           tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
           'git-hosted': 'git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc(foo@1.0.0)',
+          'is-odd': '1.0.0',
         },
         specifiers: {
           'is-positive': 'github:kevva/is-positive',
           tarball: '^1.0.0',
           'git-hosted': 'gitlab:pnpm/git-resolver',
+          'is-odd': '1.0.0',
         },
       },
     },
@@ -256,6 +265,9 @@ test('convertToLockfileObject() converts package IDs', () => {
           repo: 'ssh://git@gitlab/pnpm/git-resolver',
           type: 'git',
         },
+      },
+      'is-odd@1.0.0': {
+        resolution: { integrity: '' },
       },
     },
   }

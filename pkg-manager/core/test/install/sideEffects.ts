@@ -86,7 +86,7 @@ test('using side effects cache', async () => {
   const filesIndexFile = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
-  const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-preinstall.js'])
   expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-postinstall.js'])
   delete filesIndex.sideEffects![sideEffectsKey]['generated-by-postinstall.js']
@@ -201,7 +201,7 @@ test('a corrupted side-effects cache is ignored', async () => {
   const filesIndexFile = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
-  const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-preinstall.js'])
   const sideEffectFileStat = filesIndex.sideEffects![sideEffectsKey]['generated-by-preinstall.js']
   const sideEffectFile = getFilePathByModeInCafs(cafsDir, sideEffectFileStat.integrity, sideEffectFileStat.mode)
