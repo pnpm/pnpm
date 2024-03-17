@@ -378,8 +378,8 @@ test('patch package when the patched package has no dependencies and appears mul
 
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
-    '/is-not-positive@1.0.0',
-    '/is-positive@1.0.0(patch_hash=jnbpamcxayl5i4ehrkoext3any)',
+    'is-not-positive@1.0.0',
+    'is-positive@1.0.0(patch_hash=jnbpamcxayl5i4ehrkoext3any)',
   ].sort())
 })
 

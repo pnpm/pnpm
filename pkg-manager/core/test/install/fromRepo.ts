@@ -298,7 +298,7 @@ test('should not update when adding unrelated dependency', async () => {
 
   const project = assertProject(withGitProtocolDepFixture)
   project.has('is-number')
-  expect(fs.existsSync('./node_modules/.pnpm/https+++codeload.github.com+kevva+is-negative+tar.gz+1d7e288222b53a0cab90a331f1865220ec29560c')).toBe(true) // cspell:disable-line
+  expect(fs.existsSync('./node_modules/.pnpm/is-negative@https+++codeload.github.com+kevva+is-negative+tar.gz+1d7e288222b53a0cab90a331f1865220ec29560c')).toBe(true) // cspell:disable-line
   expect(project.readLockfile().importers['.'].dependencies).toEqual({
     'is-negative': {
       specifier: 'github:kevva/is-negative#master',

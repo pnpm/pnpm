@@ -161,19 +161,26 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
 
   // @types/semver installed in the main branch
   writeYamlFile(WANTED_LOCKFILE, {
-    dependencies: {
-      '@types/semver': {
-        specifier: '5.3.31',
-        version: '5.3.31',
+    importers: {
+      '.': {
+        dependencies: {
+          '@types/semver': {
+            specifier: '5.3.31',
+            version: '5.3.31',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@types/semver@5.3.31': {
+      '@types/semver@5.3.31': {
         resolution: {
           integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
+    },
+    snapshots: {
+      '@types/semver@5.3.31': {},
     },
   }, { lineWidth: 1000 })
 
@@ -199,20 +206,20 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@types/semver@5.3.31': {
+      '@types/semver@5.3.31': {
         resolution: {
           integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
-      '/is-positive@3.1.0': {
+      'is-positive@3.1.0': {
         resolution: {
           integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },
     snapshots: {
-      '/@types/semver@5.3.31': {},
-      '/is-positive@3.1.0': {},
+      '@types/semver@5.3.31': {},
+      'is-positive@3.1.0': {},
     },
   }
   writeYamlFile(otherLockfilePath, otherLockfileContent, { lineWidth: 1000 })
