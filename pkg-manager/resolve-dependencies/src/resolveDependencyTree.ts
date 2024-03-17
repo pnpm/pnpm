@@ -84,7 +84,7 @@ export interface ResolveDependenciesOptions {
   hooks: {
     readPackage?: ReadPackageHook
   }
-  nodeVersion: string
+  nodeVersion?: string
   registries: Registries
   patchedDependencies?: Record<string, PatchFile>
   pnpmVersion: string
