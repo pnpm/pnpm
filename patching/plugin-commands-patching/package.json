@@ -39,7 +39,8 @@
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.8",
-    "write-yaml-file": "^5.0.0"
+    "write-yaml-file": "^5.0.0",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",

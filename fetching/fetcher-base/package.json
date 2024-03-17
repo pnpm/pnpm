@@ -37,7 +37,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*"
+    "@pnpm/fetcher-base": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

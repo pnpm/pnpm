@@ -1,6 +1,7 @@
 // cspell:ignore noent
-import { promises as fs } from 'fs'
-import path from 'path'
+import '@total-typescript/ts-reset'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { packageManager } from '@pnpm/cli-meta'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -38,7 +39,10 @@ export async function createOrConnectStoreControllerCached(
     Promise<{ ctrl: StoreController; dir: string }>
   >,
   opts: CreateStoreControllerOptions
-) {
+): Promise<{
+    ctrl: StoreController;
+    dir: string;
+  }> {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
@@ -160,7 +164,7 @@ export async function tryLoadServerJson(options: {
       }
       continue
     }
-    let serverJson
+    let serverJson: unknown | null | { connectionOptions: { remotePrefix: string; }; pid: number; pnpmVersion: string; } = null
     try {
       serverJson = JSON.parse(serverJsonStr)
     } catch (error: any) { // eslint-disable-line
@@ -172,7 +176,7 @@ export async function tryLoadServerJson(options: {
       // Our server should never write null to server.json, even though it is valid json.
       throw new Error('server.json was modified by a third party')
     }
-    return serverJson
+    return serverJson as { connectionOptions: { remotePrefix: string; }; pid: number; pnpmVersion: string; } ?? null
   }
   /* eslint-enable no-await-in-loop */
 }

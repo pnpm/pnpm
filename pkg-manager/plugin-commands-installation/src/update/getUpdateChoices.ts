@@ -1,4 +1,4 @@
-import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
+import colorizeSemverDiff, { SemverDiff } from '@pnpm/colorize-semver-diff'
 import { type OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
@@ -104,12 +104,12 @@ function buildPkgChoice(
 ): { raw: string[]; name: string; disabled?: boolean } {
   const sdiff = semverDiff(
     outdatedPkg.wanted,
-    outdatedPkg.latestManifest!.version
+    outdatedPkg.latestManifest?.version ?? ''
   )
   const nextVersion =
     sdiff.change === null
-      ? outdatedPkg.latestManifest!.version
-      : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      ? outdatedPkg.latestManifest?.version
+      : colorizeSemverDiff(sdiff as SemverDiff)
   const label = outdatedPkg.packageName
 
   const lineParts = {

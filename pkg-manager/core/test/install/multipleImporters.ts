@@ -219,7 +219,12 @@ test('some projects were removed from the workspace and the ones that are left d
       rootDir: path.resolve('project-2'),
     },
   ]
-  const allProjects = [
+  type Project = {
+    buildIndex: number
+    manifest: ProjectManifest
+    rootDir: string
+  }
+  const allProjects: Project[] = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
@@ -254,10 +259,11 @@ test('some projects were removed from the workspace and the ones that are left d
     mutateModules(
       importers.slice(0, 1),
       await testDefaults({
+        // @ts-ignore
         allProjects: allProjects.slice(0, 1),
         pruneLockfileImporters: true,
         workspacePackages: pick(['project-1'], workspacePackages),
-      } as any)
+      })
     )
   ).rejects.toThrow(
     /"project-2@workspace:1.0.0" is in the dependencies but no package named "project-2" is present in the workspace/

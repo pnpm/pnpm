@@ -32,7 +32,8 @@
     "@pnpm/plugin-commands-store-inspecting": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "execa": "npm:safe-execa@0.1.3",
-    "tempy": "^1.0.1"
+    "tempy": "^1.0.1",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/client": "workspace:*",

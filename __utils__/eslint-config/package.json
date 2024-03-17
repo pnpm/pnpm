@@ -35,6 +35,7 @@
     "typescript": "5.4.2"
   },
   "devDependencies": {
-    "@pnpm/eslint-config": "workspace:*"
+    "@pnpm/eslint-config": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   }
 }

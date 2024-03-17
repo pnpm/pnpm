@@ -62,7 +62,7 @@ test('lockfile has correct format', async () => {
 
   const modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).toBe(0)
+  expect(modules?.pendingBuilds.length).toBe(0)
 
   const lockfile = await project.readLockfile()
   const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
@@ -706,9 +706,10 @@ test('scoped module from different registry', async () => {
   const project = prepareEmpty()
 
   const opts = await testDefaults()
-  opts.registries!.default = 'https://registry.npmjs.org/'
-  opts.registries!['@zkochan'] = `http://localhost:${REGISTRY_MOCK_PORT}`
-  opts.registries!['@foo'] = `http://localhost:${REGISTRY_MOCK_PORT}`
+
+  opts.registries.default = 'https://registry.npmjs.org/'
+  opts.registries['@zkochan'] = `http://localhost:${REGISTRY_MOCK_PORT}`
+  opts.registries['@foo'] = `http://localhost:${REGISTRY_MOCK_PORT}`
   await addDependenciesToPackage(
     {},
     ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'],
@@ -918,7 +919,8 @@ test('pendingBuilds gets updated if install removes packages', async () => {
   expect(modules1).toBeTruthy()
   expect(modules2).toBeTruthy()
   expect(
-    modules1!.pendingBuilds.length > modules2!.pendingBuilds.length
+    // @ts-ignore
+    modules1.pendingBuilds.length > modules2.pendingBuilds.length
   ).toBeTruthy()
 })
 

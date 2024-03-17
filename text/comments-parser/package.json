@@ -33,7 +33,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/text/comments-parser#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/text.comments-parser": "workspace:*"
+    "@pnpm/text.comments-parser": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

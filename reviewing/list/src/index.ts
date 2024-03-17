@@ -1,4 +1,5 @@
-import path from 'path'
+import '@total-typescript/ts-reset'
+import path from 'node:path'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DependenciesField, type Registries } from '@pnpm/types'
 import {

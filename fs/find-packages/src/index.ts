@@ -64,7 +64,8 @@ export async function findPackages(
             dir: path.dirname(manifestPath),
             ...(await readExactProjectManifest(manifestPath)),
           } as Project
-        } catch (err: any) {
+        } catch (err: unknown) {
+          // @ts-ignore
           if (err.code === 'ENOENT') {
             return null!
           }

@@ -30,7 +30,8 @@
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@types/ssri": "^7.1.5"
+    "@types/ssri": "^7.1.5",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/cafs-types#readme",
   "funding": "https://opencollective.com/pnpm",

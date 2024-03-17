@@ -17,6 +17,7 @@
     "write-json-file": "^4.3.0"
   },
   "devDependencies": {
-    "@pnpm-private/updater": "workspace:*"
+    "@pnpm-private/updater": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   }
 }

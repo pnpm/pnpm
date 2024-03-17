@@ -31,6 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/dedupe/types#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/dedupe.types": "workspace:*"
+    "@pnpm/dedupe.types": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   }
 }

@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import type { ProjectsGraph } from '@pnpm/types'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import type { Result as GraphSequencerResult } from '@pnpm/deps.graph-sequencer'

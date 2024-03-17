@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@types/mdast": "^4.0.3",
-    "@pnpm/get-release-text": "workspace:*"
+    "@pnpm/get-release-text": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   }
 }

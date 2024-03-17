@@ -234,7 +234,7 @@ async function interactiveUpdate(input: string[], opts: UpdateCommandOptions) {
   const { updateDependencies } = (await prompt({
     choices,
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
-    indicator(state: any, choice: any) {
+    indicator(_state: unknown, choice: { enabled: boolean }) {
       return ` ${choice.enabled ? '●' : '○'}`
     },
     message:

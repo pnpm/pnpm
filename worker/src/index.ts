@@ -1,4 +1,5 @@
 // cspell:ignore checkin
+import '@total-typescript/ts-reset'
 import path from 'node:path'
 import os from 'node:os'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'

@@ -31,7 +31,8 @@
   "devDependencies": {
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/fs-extra": "11.0.4"
+    "@types/fs-extra": "11.0.4",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "directories": {
     "test": "test"

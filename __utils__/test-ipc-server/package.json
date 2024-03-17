@@ -11,7 +11,8 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/node": "^20.11.28",
-    "execa": "npm:safe-execa@0.1.3"
+    "execa": "npm:safe-execa@0.1.3",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",

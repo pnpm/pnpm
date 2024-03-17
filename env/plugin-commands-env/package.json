@@ -61,7 +61,8 @@
     "execa": "npm:safe-execa@0.1.3",
     "nock": "13.5.4",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0",
-    "path-name": "^1.0.0"
+    "path-name": "^1.0.0",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

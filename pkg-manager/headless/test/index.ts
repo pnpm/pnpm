@@ -1,6 +1,5 @@
-/// <reference path="../../../__typings__/index.d.ts" />
-import { promises as fs, existsSync, realpathSync, writeFileSync } from 'fs'
-import path from 'path'
+import { promises as fs, existsSync, realpathSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { getFilePathInCafs } from '@pnpm/store.cafs'
@@ -404,7 +403,8 @@ test('run pre/postinstall scripts', async () => {
   const nmPath = path.join(prefix, 'node_modules')
   const modulesYaml = await readModulesManifest(nmPath)
   expect(modulesYaml).toBeTruthy()
-  expect(modulesYaml!.pendingBuilds).toStrictEqual([
+  // @ts-ignore
+  expect(modulesYaml.pendingBuilds).toStrictEqual([
     '.',
     '/@pnpm.e2e/pre-and-postinstall-scripts-example/2.0.0',
   ])
@@ -698,8 +698,8 @@ test('installing with hoistPattern=*', async () => {
   )
 
   const modules = await project.readModulesManifest()
-
-  expect(modules!.hoistedDependencies['/balanced-match/1.0.2']).toStrictEqual({
+  // @ts-ignore
+  expect(modules.hoistedDependencies['/balanced-match/1.0.2']).toStrictEqual({
     'balanced-match': 'private',
   })
 })
@@ -772,8 +772,8 @@ test('installing with publicHoistPattern=*', async () => {
   ).toBeTruthy()
 
   const modules = await project.readModulesManifest()
-
-  expect(modules!.hoistedDependencies['/balanced-match/1.0.2']).toStrictEqual({
+  // @ts-ignore
+  expect(modules.hoistedDependencies['/balanced-match/1.0.2']).toStrictEqual({
     'balanced-match': 'public',
   })
 })
@@ -824,14 +824,14 @@ test.each([['isolated'], ['hoisted']])(
       'index'
     )
     const cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
-    expect(cacheIntegrity!.sideEffects).toBeTruthy()
+    expect(cacheIntegrity?.sideEffects).toBeTruthy()
     const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
     expect(cacheIntegrity).toHaveProperty([
       'sideEffects',
       sideEffectsKey,
       'generated-by-postinstall.js',
     ])
-    delete cacheIntegrity!.sideEffects[sideEffectsKey][
+    delete cacheIntegrity.sideEffects[sideEffectsKey][
       'generated-by-postinstall.js'
     ]
 

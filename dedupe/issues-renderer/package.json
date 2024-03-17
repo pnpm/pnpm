@@ -36,7 +36,8 @@
   "devDependencies": {
     "@pnpm/dedupe.issues-renderer": "workspace:*",
     "@types/archy": "0.0.36",
-    "strip-ansi": "^6.0.1"
+    "strip-ansi": "^6.0.1",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

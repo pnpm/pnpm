@@ -1,7 +1,8 @@
-import {
-  type Dependencies,
-  type IncludedDependencies,
-  type ProjectManifest,
+import '@total-typescript/ts-reset'
+import type {
+  Dependencies,
+  IncludedDependencies,
+  ProjectManifest,
 } from '@pnpm/types'
 import { getSpecFromPackageManifest } from './getSpecFromPackageManifest'
 

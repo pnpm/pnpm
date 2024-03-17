@@ -34,7 +34,8 @@
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "0.28.20",
     "@types/ssri": "^7.1.5",
-    "tempy": "^1.0.1"
+    "tempy": "^1.0.1",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "directories": {
     "test": "test"

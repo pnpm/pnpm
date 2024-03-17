@@ -34,7 +34,8 @@
   },
   "devDependencies": {
     "@pnpm/crypto.object-hasher": "workspace:*",
-    "@types/object-hash": "3.0.6"
+    "@types/object-hash": "3.0.6",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

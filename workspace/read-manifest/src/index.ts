@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import path from 'node:path'

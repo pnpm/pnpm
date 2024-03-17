@@ -49,9 +49,10 @@ function getInjectedDepsByProjects<T extends PartialResolvedPackage>(
       if (!depPath.startsWith('file:')) continue
       const id = opts.depGraph[depPath].id.substring(5)
       if (opts.projects.some((project) => project.id === id)) {
-        if (!injectedDepsByProjects.has(project.id))
+        if (!injectedDepsByProjects.has(project.id)) {
           injectedDepsByProjects.set(project.id, new Map())
-        injectedDepsByProjects.get(project.id)!.set(alias, { depPath, id })
+        }
+        injectedDepsByProjects.get(project.id)?.set(alias, { depPath, id })
       }
     }
   }

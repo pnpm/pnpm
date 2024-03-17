@@ -39,7 +39,8 @@
     "@pnpm/registry-mock": "3.26.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
-    "strip-ansi": "^6.0.1"
+    "strip-ansi": "^6.0.1",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",

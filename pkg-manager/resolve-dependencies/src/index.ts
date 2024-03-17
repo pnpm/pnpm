@@ -1,4 +1,5 @@
-import path from 'path'
+import '@total-typescript/ts-reset'
+import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
 import { filesIncludeInstallScripts } from '@pnpm/exec.files-include-install-scripts'
 import { packageManifestLogger } from '@pnpm/core-loggers'

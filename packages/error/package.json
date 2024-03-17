@@ -30,7 +30,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/error#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/error": "workspace:*"
+    "@pnpm/error": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*"

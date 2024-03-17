@@ -46,7 +46,8 @@ async function safeReadIniFile(
 ): Promise<Record<string, unknown>> {
   try {
     return (await readIniFile(configPath)) as Record<string, unknown>
-  } catch (err: any) {
+  } catch (err: unknown) {
+    // @ts-ignore
     if (err.code === 'ENOENT') return {}
     throw err
   }

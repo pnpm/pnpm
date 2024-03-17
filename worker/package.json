@@ -44,7 +44,8 @@
   },
   "devDependencies": {
     "@pnpm/types": "workspace:*",
-    "@pnpm/worker": "workspace:*"
+    "@pnpm/worker": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

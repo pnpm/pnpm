@@ -52,7 +52,7 @@ test('linking multiple packages', async () => {
   await project.has('linked-foo')
   await project.has('linked-bar')
 
-  const modules = await readYamlFile<any>(
+  const modules = await readYamlFile<{ hoistPattern: ['*'] }>(
     '../linked-bar/node_modules/.modules.yaml'
   )
   expect(modules.hoistPattern).toStrictEqual(['*']) // the linked package used its own configs during installation // eslint-disable-line @typescript-eslint/dot-notation

@@ -1,4 +1,5 @@
-import { type ResolveResult } from '@pnpm/resolver-base'
+import '@total-typescript/ts-reset'
+import type { ResolveResult } from '@pnpm/resolver-base'
 
 export async function resolveFromTarball(wantedDependency: {
   pref: string

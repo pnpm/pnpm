@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 

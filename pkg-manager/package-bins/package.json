@@ -37,7 +37,8 @@
   },
   "devDependencies": {
     "@pnpm/package-bins": "workspace:*",
-    "@types/node": "^20.11.28"
+    "@types/node": "^20.11.28",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

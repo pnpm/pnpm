@@ -1,4 +1,5 @@
-import { type Registries } from '@pnpm/types'
+import '@total-typescript/ts-reset'
+import type { Registries } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import mapValues from 'ramda/src/map'
 

@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import { PnpmError } from '@pnpm/error'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import nopt from '@pnpm/nopt'

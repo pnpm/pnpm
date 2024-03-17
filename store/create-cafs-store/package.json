@@ -28,7 +28,8 @@
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/ramda": "0.29.11"
+    "@types/ramda": "0.29.11",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "directories": {
     "test": "test"

@@ -1,5 +1,6 @@
-import { promises as fs, readFileSync } from 'fs'
-import path from 'path'
+import '@total-typescript/ts-reset'
+import { promises as fs, readFileSync } from 'node:fs'
+import path from 'node:path'
 import { filesIncludeInstallScripts } from '@pnpm/exec.files-include-install-scripts'
 import {
   type CafsLocker,
@@ -154,10 +155,16 @@ function pkgRequiresBuild(filesMap: Record<string, string>) {
 
 function pkgJsonHasInstallScripts(file: string): boolean {
   const pkgJson = JSON.parse(readFileSync(file, 'utf8'))
-  if (!pkgJson.scripts) return false
+  if (typeof pkgJson !== 'object' || pkgJson === null || !('scripts' in pkgJson) || typeof pkgJson.scripts !== 'object' || pkgJson.scripts === null) {
+    return false
+  }
+
   return (
+    // @ts-ignore
     Boolean(pkgJson.scripts.preinstall) ||
+    // @ts-ignore
     Boolean(pkgJson.scripts.install) ||
+    // @ts-ignore
     Boolean(pkgJson.scripts.postinstall)
   )
 }

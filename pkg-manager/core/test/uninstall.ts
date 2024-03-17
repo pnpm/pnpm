@@ -294,7 +294,8 @@ test('pendingBuilds gets updated after uninstall', async () => {
 
   const modules1 = await project.readModulesManifest()
   expect(modules1).toBeTruthy()
-  expect(modules1!.pendingBuilds.length).toBe(2)
+  // @ts-ignore
+  expect(modules1.pendingBuilds.length).toBe(2)
 
   await mutateModulesInSingleProject(
     {
@@ -308,7 +309,8 @@ test('pendingBuilds gets updated after uninstall', async () => {
 
   const modules2 = await project.readModulesManifest()
   expect(modules2).toBeTruthy()
-  expect(modules2!.pendingBuilds.length).toBe(1)
+  // @ts-ignore
+  expect(modules2.pendingBuilds.length).toBe(1)
 })
 
 test('uninstalling a dependency from package that uses shared lockfile', async () => {

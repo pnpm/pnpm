@@ -7,6 +7,7 @@
     "make-empty-dir": "^2.1.0"
   },
   "devDependencies": {
-    "@pnpm/scripts": "workspace:*"
+    "@pnpm/scripts": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   }
 }

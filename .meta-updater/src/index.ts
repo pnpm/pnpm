@@ -1,5 +1,7 @@
-import fs from 'fs'
-import path from 'path'
+// eslint-disable-next-line import/no-extraneous-dependencies
+import '@total-typescript/ts-reset'
+import fs from 'node:fs'
+import path from 'node:path'
 import { readWantedLockfile, Lockfile } from '@pnpm/lockfile-file'
 import { ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, FormatPluginFnOptions } from '@pnpm/meta-updater'

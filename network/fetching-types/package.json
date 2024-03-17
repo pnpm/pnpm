@@ -34,7 +34,8 @@
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0"
   },
   "devDependencies": {
-    "@pnpm/fetching-types": "workspace:*"
+    "@pnpm/fetching-types": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

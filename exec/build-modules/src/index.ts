@@ -125,7 +125,7 @@ async function buildDependency(
     if (isPatched) {
       applyPatchToDir({
         patchedDir: depNode.dir,
-        patchFilePath: depNode.patchFile!.path,
+        patchFilePath: depNode.patchFile?.path ?? '',
       })
     }
     const hasSideEffects =

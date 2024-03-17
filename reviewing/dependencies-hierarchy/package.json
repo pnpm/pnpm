@@ -52,7 +52,8 @@
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "@types/semver": "7.5.8"
+    "@types/semver": "7.5.8",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

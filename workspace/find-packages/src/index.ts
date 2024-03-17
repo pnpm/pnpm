@@ -1,8 +1,9 @@
+import '@total-typescript/ts-reset'
 import { packageIsInstallable } from '@pnpm/cli-utils'
-import {
-  type ProjectManifest,
-  type Project,
-  type SupportedArchitectures,
+import type {
+  Project,
+  ProjectManifest,
+  SupportedArchitectures,
 } from '@pnpm/types'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { lexCompare } from '@pnpm/util.lex-comparator'

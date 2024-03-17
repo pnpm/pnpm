@@ -34,7 +34,8 @@
     "@types/cross-spawn": "^6.0.6",
     "@types/ramda": "0.28.20",
     "cross-spawn": "^7.0.3",
-    "write-yaml-file": "^5.0.0"
+    "write-yaml-file": "^5.0.0",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",

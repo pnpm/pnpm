@@ -32,7 +32,8 @@
   "dependencies": {},
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/deps.graph-sequencer": "workspace:*"
+    "@pnpm/deps.graph-sequencer": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

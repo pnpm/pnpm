@@ -114,8 +114,9 @@ async function realFileStat(
     filePath = await fs.realpath(filePath)
     stat = await fs.stat(filePath)
     return { filePath, stat }
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Broken symlinks are skipped
+    // @ts-ignore
     if (err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
       return { filePath: null, stat: null }
@@ -132,8 +133,9 @@ async function fileStat(
       filePath,
       stat: await fs.stat(filePath),
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Broken symlinks are skipped
+    // @ts-ignore
     if (err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
       return { filePath: null, stat: null }

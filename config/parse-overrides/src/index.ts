@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import { PnpmError } from '@pnpm/error'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 

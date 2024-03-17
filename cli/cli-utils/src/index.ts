@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import { packageManager } from '@pnpm/cli-meta'
 
 export { getConfig } from './getConfig'

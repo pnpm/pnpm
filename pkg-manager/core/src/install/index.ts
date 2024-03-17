@@ -1,5 +1,5 @@
-import crypto from 'crypto'
-import path from 'path'
+import crypto from 'node:crypto'
+import path from 'node:path'
 import {
   buildModules,
   type DepsStateCache,
@@ -306,8 +306,8 @@ export async function mutateModules(
 
   // @ts-expect-error
   if (global.verifiedFileIntegrity > 1000) {
-    // @ts-expect-error
     globalInfo(
+      // @ts-expect-error
       `The integrity of ${global.verifiedFileIntegrity} files was checked. This might have caused installation to take longer.`
     )
   }
@@ -965,16 +965,18 @@ function forgetResolutionsOfAllPrevWantedDeps(wantedLockfile: Lockfile) {
   }
 }
 
+export type AddDependenciesToPackageOptions = Omit<InstallOptions, 'allProjects'> & {
+  bin?: string | undefined
+  allowNew?: boolean | undefined
+  peer?: boolean | undefined
+  pinnedVersion?: 'major' | 'minor' | 'patch' | undefined
+  targetDependenciesField?: DependenciesField | undefined
+} & InstallMutationOptions
+
 export async function addDependenciesToPackage(
   manifest: ProjectManifest,
   dependencySelectors: string[],
-  opts: Omit<InstallOptions, 'allProjects'> & {
-    bin?: string
-    allowNew?: boolean
-    peer?: boolean
-    pinnedVersion?: 'major' | 'minor' | 'patch'
-    targetDependenciesField?: DependenciesField
-  } & InstallMutationOptions
+  opts: AddDependenciesToPackageOptions
 ) {
   const rootDir = opts.dir ?? process.cwd()
   const { updatedProjects: projects } = await mutateModules(

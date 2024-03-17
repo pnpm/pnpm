@@ -38,7 +38,8 @@
     "@pnpm/logger": "^5.0.0"
   },
   "devDependencies": {
-    "@pnpm/plugin-commands-doctor": "workspace:*"
+    "@pnpm/plugin-commands-doctor": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

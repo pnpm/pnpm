@@ -34,6 +34,8 @@ import {
   type ProjectOptions,
   type UpdateMatchingFunction,
   type WorkspacePackages,
+  MutateModulesOptions,
+  AddDependenciesToPackageOptions,
 } from '@pnpm/core'
 import isSubdir from 'is-subdir'
 import mem from 'mem'
@@ -426,7 +428,7 @@ export async function recursive(
                   : unlinkPkgs.bind(null, currentInput)
               break
             case 'remove':
-              action = async (manifest: PackageManifest, opts: any) => {
+              action = async (_manifest: PackageManifest, opts: MutateModulesOptions): Promise<ProjectManifest> => {
                 const mutationResult = await mutateModules(
                   [
                     {
@@ -444,7 +446,7 @@ export async function recursive(
               action =
                 currentInput.length === 0
                   ? install
-                  : async (manifest: PackageManifest, opts: any) =>
+                  : async (manifest: PackageManifest, opts: AddDependenciesToPackageOptions): Promise<ProjectManifest> =>
                     addDependenciesToPackage(manifest, currentInput, opts)
               break
           }
@@ -501,10 +503,7 @@ export async function recursive(
   if (
     !opts.lockfileOnly &&
     !opts.ignoreScripts &&
-    (cmdFullName === 'add' ||
-      cmdFullName === 'install' ||
-      cmdFullName === 'update' ||
-      cmdFullName === 'unlink')
+    (['add', 'install', 'update', 'unlink'].includes(cmdFullName))
   ) {
     await rebuild.handler(
       {
@@ -532,12 +531,12 @@ export async function recursive(
   return true
 }
 
-async function unlink(manifest: ProjectManifest, opts: any) {
+async function unlink(manifest: ProjectManifest, opts: MutateModulesOptions) {
   return mutateModules(
     [
       {
         mutation: 'unlink',
-        rootDir: opts.dir,
+        rootDir: opts.dir ?? '',
       },
     ],
     opts
@@ -546,15 +545,15 @@ async function unlink(manifest: ProjectManifest, opts: any) {
 
 async function unlinkPkgs(
   dependencyNames: string[],
-  manifest: ProjectManifest,
-  opts: any
+  _manifest: ProjectManifest,
+  opts: MutateModulesOptions
 ) {
   return mutateModules(
     [
       {
         dependencyNames,
         mutation: 'unlinkSome',
-        rootDir: opts.dir,
+        rootDir: opts.dir ?? '',
       },
     ],
     opts
@@ -639,16 +638,18 @@ function getAllProjects(
   sort?: boolean
 ): ProjectOptions[] {
   const chunks =
-    sort !== false
-      ? sortPackages(allProjectsGraph)
-      : [Object.keys(allProjectsGraph).sort()]
+    sort === false
+      ? [Object.keys(allProjectsGraph).sort()]
+      : sortPackages(allProjectsGraph)
   return chunks
     .map((prefixes: string[], buildIndex) =>
-      prefixes.map((rootDir) => ({
-        buildIndex,
-        manifest: manifestsByPath[rootDir].manifest,
-        rootDir,
-      }))
+      prefixes.map((rootDir) => {
+        return {
+          buildIndex,
+          manifest: manifestsByPath[rootDir].manifest,
+          rootDir,
+        };
+      })
     )
     .flat()
 }
@@ -674,7 +675,11 @@ function getImporters(
 ) {
   let rootDirs = Object.keys(opts.selectedProjectsGraph)
   if (opts.ignoredPackages != null) {
-    rootDirs = rootDirs.filter((rootDir) => !opts.ignoredPackages!.has(rootDir))
+    rootDirs = rootDirs.filter((rootDir): boolean => {
+      return !opts.ignoredPackages?.has(rootDir);
+    })
   }
-  return rootDirs.map((rootDir) => ({ rootDir }))
+  return rootDirs.map((rootDir) => {
+    return { rootDir };
+  })
 }

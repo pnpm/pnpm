@@ -36,7 +36,7 @@ test('rebuilds dependencies', async () => {
   ])
 
   let modules = await project.readModulesManifest()
-  expect(modules!.pendingBuilds).toStrictEqual([
+  expect(modules?.pendingBuilds).toStrictEqual([
     '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0',
     'github.com/pnpm/test-git-fetch/6ebf1e03de0ada9e653d1f8ff82ad905ab761ad9',
   ])
@@ -48,7 +48,7 @@ test('rebuilds dependencies', async () => {
       cacheDir,
       dir: process.cwd(),
       pending: false,
-      registries: modulesManifest!.registries!,
+      registries: modulesManifest?.registries ?? { default: '' },
       storeDir,
     },
     []
@@ -56,7 +56,7 @@ test('rebuilds dependencies', async () => {
 
   modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).toBe(0)
+  expect(modules?.pendingBuilds.length).toBe(0)
 
   {
     expect(
@@ -93,14 +93,14 @@ test('rebuilds dependencies', async () => {
     'index'
   )
   const cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(cacheIntegrity!.sideEffects).toBeTruthy()
+  expect(cacheIntegrity?.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty([
     'sideEffects',
     sideEffectsKey,
     'generated-by-postinstall.js',
   ])
-  delete cacheIntegrity!.sideEffects[sideEffectsKey][
+  delete cacheIntegrity?.sideEffects[sideEffectsKey][
     'generated-by-postinstall.js'
   ]
 })
@@ -139,7 +139,7 @@ test('skipIfHasSideEffectsCache', async () => {
   )
 
   let modules = await project.readModulesManifest()
-  expect(modules!.pendingBuilds).toStrictEqual([
+  expect(modules?.pendingBuilds).toStrictEqual([
     '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0',
   ])
 
@@ -150,7 +150,7 @@ test('skipIfHasSideEffectsCache', async () => {
       cacheDir,
       dir: process.cwd(),
       pending: true,
-      registries: modulesManifest!.registries!,
+      registries: modulesManifest?.registries ?? { default: '' },
       skipIfHasSideEffectsCache: true,
       storeDir,
     },
@@ -159,10 +159,10 @@ test('skipIfHasSideEffectsCache', async () => {
 
   modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).toBe(0)
+  expect(modules?.pendingBuilds.length).toBe(0)
 
   cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(cacheIntegrity!.sideEffects).toBeTruthy()
+  expect(cacheIntegrity?.sideEffects).toBeTruthy()
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'foo'])
 })
 
@@ -190,7 +190,7 @@ test('rebuild does not fail when a linked package is present', async () => {
       cacheDir,
       dir: process.cwd(),
       pending: false,
-      registries: modulesManifest!.registries!,
+      registries: modulesManifest?.registries ?? { default: '' },
       storeDir,
     },
     []
@@ -222,7 +222,7 @@ test('rebuilds specific dependencies', async () => {
       cacheDir,
       dir: process.cwd(),
       pending: false,
-      registries: modulesManifest!.registries!,
+      registries: modulesManifest?.registries ?? { default: '' },
       storeDir,
     },
     ['install-scripts-example-for-pnpm']
@@ -270,7 +270,7 @@ test('rebuild with pending option', async () => {
   ])
 
   let modules = await project.readModulesManifest()
-  expect(modules!.pendingBuilds).toStrictEqual([
+  expect(modules?.pendingBuilds).toStrictEqual([
     '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0',
     'github.com/pnpm-e2e/install-scripts-example/b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b',
   ])
@@ -295,7 +295,7 @@ test('rebuild with pending option', async () => {
       cacheDir,
       dir: process.cwd(),
       pending: true,
-      registries: modules!.registries!,
+      registries: modules?.registries!,
       storeDir,
     },
     []
@@ -303,7 +303,7 @@ test('rebuild with pending option', async () => {
 
   modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).toBe(0)
+  expect(modules?.pendingBuilds.length).toBe(0)
 
   {
     const generatedByPreinstall = project.requireModule(
@@ -347,7 +347,7 @@ test('rebuild dependencies in correct order', async () => {
 
   let modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).not.toBe(0)
+  expect(modules?.pendingBuilds.length).not.toBe(0)
 
   await project.hasNot(
     '.pnpm/@pnpm.e2e+with-postinstall-b@1.0.0/node_modules/@pnpm.e2e/with-postinstall-b/output.json'
@@ -360,7 +360,7 @@ test('rebuild dependencies in correct order', async () => {
       cacheDir,
       dir: process.cwd(),
       pending: false,
-      registries: modules!.registries!,
+      registries: modules?.registries!,
       storeDir,
     },
     []
@@ -368,7 +368,7 @@ test('rebuild dependencies in correct order', async () => {
 
   modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).toBe(0)
+  expect(modules?.pendingBuilds.length).toBe(0)
 
   expect(
     +project.requireModule(
@@ -425,7 +425,7 @@ test('rebuild links bins', async () => {
       cacheDir,
       dir: process.cwd(),
       pending: true,
-      registries: modules!.registries!,
+      registries: modules?.registries!,
       storeDir,
     },
     []
@@ -471,7 +471,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
       cacheDir,
       dir: process.cwd(),
       pending: true,
-      registries: modules!.registries!,
+      registries: modules?.registries!,
       reporter,
       storeDir,
     },
@@ -502,7 +502,7 @@ test('never build neverBuiltDependencies', async () => {
       cacheDir,
       dir: process.cwd(),
       pending: false,
-      registries: modulesManifest!.registries!,
+      registries: modulesManifest?.registries ?? { default: '' },
       storeDir,
     },
     []

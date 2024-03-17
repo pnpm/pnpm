@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import escapeStringRegexp from 'escape-string-regexp'
 
 type Matcher = (input: string) => boolean

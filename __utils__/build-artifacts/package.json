@@ -7,9 +7,10 @@
     "pkg-rpm": "^1.0.3"
   },
   "scripts": {
-    "build": "shx rm -rf dist && pnpm -w compile && node main.mjs"
+    "build": "shx rm -rf dist && pnpm -w compile && node main.js"
   },
   "devDependencies": {
-    "@pnpm/build-artifacts": "workspace:*"
+    "@pnpm/build-artifacts": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   }
 }

@@ -1,3 +1,5 @@
+import '@total-typescript/ts-reset'
+
 export interface Completion {
   name: string
   description?: string

@@ -371,7 +371,7 @@ async function _rebuild(
           if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
             const filesIndexFile = getFilePathInCafs(
               cafsDir,
-              resolution.integrity!.toString(),
+              resolution.integrity?.toString(),
               'index'
             )
             const pkgFilesIndex =
@@ -412,7 +412,7 @@ async function _rebuild(
             builtDepPaths.add(depPath)
             const filesIndexFile = getFilePathInCafs(
               cafsDir,
-              resolution.integrity!.toString(),
+              resolution.integrity?.toString(),
               'index'
             )
             try {

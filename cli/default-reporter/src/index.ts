@@ -1,6 +1,7 @@
-import { type Config } from '@pnpm/config'
+import '@total-typescript/ts-reset'
+import type { Config } from '@pnpm/config'
 import type * as logs from '@pnpm/core-loggers'
-import { type LogLevel } from '@pnpm/logger'
+import type{ LogLevel } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
 import createDiffer from 'ansi-diff'
@@ -9,8 +10,8 @@ import { mergeOutputs } from './mergeOutputs'
 import { reporterForClient } from './reporterForClient'
 import { formatWarn } from './reporterForClient/utils/formatWarn'
 import { reporterForServer } from './reporterForServer'
-import { type FilterPkgsDiff } from './reporterForClient/reportSummary'
-import { type PeerDependencyRules } from '@pnpm/types'
+import type{ FilterPkgsDiff } from './reporterForClient/reportSummary'
+import type{ PeerDependencyRules } from '@pnpm/types'
 
 export { formatWarn }
 
@@ -147,7 +148,7 @@ export function toOutput$(opts: {
   const scopePushStream = new Rx.Subject<logs.ScopeLog>()
   const requestRetryPushStream = new Rx.Subject<logs.RequestRetryLog>()
   const updateCheckPushStream = new Rx.Subject<logs.UpdateCheckLog>()
-  setTimeout(() => {
+  globalThis.setTimeout(() => {
     opts.streamParser.on('data', (log: logs.Log) => {
       switch (log.name) {
         case 'pnpm:context':

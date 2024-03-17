@@ -73,7 +73,7 @@ async function _read(
   let lockfileRawContent
   try {
     lockfileRawContent = stripBom(await fs.readFile(lockfilePath, 'utf8'))
-  } catch (err: any) {
+  } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
@@ -89,10 +89,11 @@ async function _read(
       convertFromLockfileFileMutable(yaml.load(lockfileRawContent) as Lockfile)
     )
     hadConflicts = false
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
       throw new PnpmError(
         'BROKEN_LOCKFILE',
+        // @ts-ignore
         `The lockfile at "${lockfilePath}" is broken: ${err.message as string}`
       )
     }

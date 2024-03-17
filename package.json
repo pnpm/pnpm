@@ -43,6 +43,7 @@
     "@pnpm/registry-mock": "3.26.0",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/worker": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.28",
     "c8": "^9.1.0",

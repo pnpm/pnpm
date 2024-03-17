@@ -1,7 +1,8 @@
-import {
-  type FileWriteResult,
-  type PackageFileInfo,
-  type FilesIndex,
+import '@total-typescript/ts-reset'
+import type{
+  FileWriteResult,
+  PackageFileInfo,
+  FilesIndex,
 } from '@pnpm/cafs-types'
 import ssri from 'ssri'
 import { addFilesFromDir } from './addFilesFromDir'

@@ -18,8 +18,12 @@ import { convertToInlineSpecifiersFormat } from './experiments/inlineSpecifiersL
 
 async function writeFileAtomic(filename: string, data: string) {
   return new Promise<void>((resolve, reject) => {
-    writeFileAtomicCB(filename, data, {}, (err?: Error) => {
-      err != null ? reject(err) : resolve()
+    writeFileAtomicCB(filename, data, {}, (err?: Error | undefined) => {
+      if (typeof err !== 'undefined') {
+        reject(err)
+        return
+      }
+      resolve()
     })
   })
 }

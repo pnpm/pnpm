@@ -43,8 +43,8 @@ test('filterLog hook combines with the global hook', () => {
   const hooks = requireHooks(__dirname, { globalPnpmfile, pnpmfile })
 
   expect(hooks.filterLog).toBeDefined()
-  expect(hooks.filterLog!.length).toBe(2)
-  const filterLog = (log: Log) => hooks.filterLog!.every((hook) => hook(log))
+  expect(hooks.filterLog?.length).toBe(2)
+  const filterLog = (log: Log) => hooks.filterLog?.every((hook) => hook(log))
   expect(
     filterLog({
       name: 'pnpm:summary',

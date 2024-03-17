@@ -34,7 +34,8 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/find-workspace-dir": "workspace:*"
+    "@pnpm/find-workspace-dir": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

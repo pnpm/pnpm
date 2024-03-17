@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import path from 'node:path'
 import { type DependencyManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'

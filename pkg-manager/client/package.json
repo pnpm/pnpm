@@ -44,7 +44,8 @@
   "devDependencies": {
     "@pnpm/client": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
-    "@types/ramda": "0.29.11"
+    "@types/ramda": "0.29.11",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -43,7 +43,8 @@
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.8",
-    "@yarnpkg/core": "4.0.0-rc.45"
+    "@yarnpkg/core": "4.0.0-rc.45",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

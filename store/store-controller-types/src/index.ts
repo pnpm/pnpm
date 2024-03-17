@@ -1,21 +1,22 @@
-import {
-  type DirectoryResolution,
-  type PreferredVersions,
-  type Resolution,
-  type WantedDependency,
-  type WorkspacePackages,
+import '@total-typescript/ts-reset'
+import type {
+  DirectoryResolution,
+  PreferredVersions,
+  Resolution,
+  WantedDependency,
+  WorkspacePackages,
 } from '@pnpm/resolver-base'
-import {
-  type ImportPackageFunction,
-  type ImportPackageFunctionAsync,
-  type PackageFileInfo,
-  type PackageFilesResponse,
-  type ResolvedFrom,
+import type {
+  ImportPackageFunction,
+  ImportPackageFunctionAsync,
+  PackageFileInfo,
+  PackageFilesResponse,
+  ResolvedFrom,
 } from '@pnpm/cafs-types'
-import {
-  type SupportedArchitectures,
-  type DependencyManifest,
-  type PackageManifest,
+import type {
+  SupportedArchitectures,
+  DependencyManifest,
+  PackageManifest,
 } from '@pnpm/types'
 
 export type {

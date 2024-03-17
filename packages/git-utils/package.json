@@ -37,7 +37,8 @@
   },
   "devDependencies": {
     "@pnpm/git-utils": "workspace:*",
-    "tempy": "^1.0.1"
+    "tempy": "^1.0.1",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

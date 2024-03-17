@@ -73,12 +73,12 @@ export async function handler(
         const patchFile = path.join(lockfileDir, patchedDependencies[patch])
         patchesDirs.add(path.dirname(patchFile))
         await fs.rm(patchFile, { force: true })
-        delete rootProjectManifest.pnpm!.patchedDependencies![patch]
+        delete rootProjectManifest.pnpm?.patchedDependencies![patch]
         if (
-          !Object.keys(rootProjectManifest.pnpm!.patchedDependencies!).length
+          !Object.keys(rootProjectManifest.pnpm?.patchedDependencies!).length
         ) {
-          delete rootProjectManifest.pnpm!.patchedDependencies
-          if (!Object.keys(rootProjectManifest.pnpm!).length) {
+          delete rootProjectManifest.pnpm?.patchedDependencies
+          if (!Object.keys(rootProjectManifest.pnpm ?? {}).length) {
             delete rootProjectManifest.pnpm
           }
         }

@@ -1,5 +1,6 @@
-import { promises as fs, type Stats } from 'fs'
-import path from 'path'
+import '@total-typescript/ts-reset'
+import { promises as fs, type Stats } from 'node:fs'
+import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
 import type { ProjectManifest } from '@pnpm/types'
 import {

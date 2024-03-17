@@ -49,7 +49,8 @@
     "@types/is-windows": "^1.0.2",
     "@types/lodash.clonedeep": "^4.5.9",
     "@types/parse-json": "^4.0.2",
-    "tempy": "^1.0.1"
+    "tempy": "^1.0.1",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

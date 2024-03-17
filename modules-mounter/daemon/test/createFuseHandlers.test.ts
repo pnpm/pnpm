@@ -20,13 +20,13 @@ describe('FUSE handlers', () => {
   it('readdir', () => {
     handlers.readdir('/', (returnCode, files) => {
       expect(returnCode).toBe(0)
-      expect(files!.sort()).toStrictEqual(
+      expect(files?.sort()).toStrictEqual(
         ['.pnpm', '@zkochan', 'is-positive'].sort()
       )
     })
     handlers.readdir('/.pnpm', (returnCode, files) => {
       expect(returnCode).toBe(0)
-      expect(files!.sort()).toStrictEqual(
+      expect(files?.sort()).toStrictEqual(
         ['@zkochan+git-config@0.1.0', 'ini@1.3.8', 'is-positive@1.0.0'].sort()
       )
     })
@@ -52,7 +52,7 @@ describe('FUSE handlers', () => {
       '/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config',
       (returnCode, files) => {
         expect(returnCode).toBe(0)
-        expect(files!.sort()).toStrictEqual(
+        expect(files?.sort()).toStrictEqual(
           [
             'package.json',
             '.npmignore',
@@ -71,7 +71,7 @@ describe('FUSE handlers', () => {
       '/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/test',
       (returnCode, files) => {
         expect(returnCode).toBe(0)
-        expect(files!.sort()).toStrictEqual(['index.js', 'fixtures'].sort())
+        expect(files?.sort()).toStrictEqual(['index.js', 'fixtures'].sort())
       }
     )
     handlers.readdir(
@@ -84,7 +84,7 @@ describe('FUSE handlers', () => {
       '/.pnpm/is-positive@1.0.0/node_modules/is-positive',
       (returnCode, files) => {
         expect(returnCode).toBe(0)
-        expect(files!.sort()).toStrictEqual(
+        expect(files?.sort()).toStrictEqual(
           ['package.json', 'index.js', 'license', 'readme.md'].sort()
         )
       }

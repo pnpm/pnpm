@@ -1,4 +1,6 @@
-import path from 'path'
+// eslint-disable-next-line import/no-extraneous-dependencies
+import '@total-typescript/ts-reset'
+import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
 import {
   type FetchFromRegistry,

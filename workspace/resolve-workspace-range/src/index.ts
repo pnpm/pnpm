@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import semver from 'semver'
 
 export function resolveWorkspaceRange(range: string, versions: string[]) {

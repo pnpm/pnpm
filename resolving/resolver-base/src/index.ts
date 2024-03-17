@@ -1,5 +1,5 @@
+import '@total-typescript/ts-reset'
 import type { DependencyManifest } from '@pnpm/types'
-import type { FetchersKeys } from '@pnpm/fetcher-base'
 /**
  * tarball hosted remotely
  */

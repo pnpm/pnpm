@@ -45,6 +45,7 @@
     "path-exists": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/assert-store": "workspace:*"
+    "@pnpm/assert-store": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   }
 }

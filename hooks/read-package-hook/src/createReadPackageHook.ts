@@ -59,10 +59,17 @@ export function createReadPackageHook({
   const readPackageAndExtend =
     hooks.length === 1
       ? hooks[0]
-      : (((pkg: PackageManifest | ProjectManifest, dir: string) =>
-        pipeWith(async (f, res) => f(await res, dir), hooks as any)(
+      : (((pkg: PackageManifest | ProjectManifest, dir: string): ProjectManifest | Promise<ProjectManifest> => {
+        return pipeWith(
+          async (f, res) => {
+            return f(await res, dir);
+          },
+          // @ts-ignore
+          hooks
+        )(
           pkg,
           dir
-        )) as ReadPackageHook)
+        );
+      }) as ReadPackageHook)
   return readPackageAndExtend
 }

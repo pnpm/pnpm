@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 /* eslint-disable import/first */
 // @ts-ignore
 if (!global.pnpm__startedAt) {

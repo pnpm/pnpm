@@ -17,16 +17,17 @@ interface HookContext {
 }
 
 interface Hooks {
-  // eslint-disable-next-line
-  readPackage?: (pkg: any, context: HookContext) => any
-  preResolution?: PreResolutionHook
-  afterAllResolved?: (
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readPackage?: ((pkg: any, context: HookContext) => any) | undefined
+  preResolution?: PreResolutionHook | undefined
+  afterAllResolved?: ((
     lockfile: Lockfile,
     context: HookContext
-  ) => Lockfile | Promise<Lockfile>
-  filterLog?: (log: Log) => boolean
-  importPackage?: ImportIndexedPackageAsync
-  fetchers?: CustomFetchers
+  ) => Lockfile | Promise<Lockfile>) | undefined
+  filterLog?: ((log: Log) => boolean) | undefined
+  importPackage?: ImportIndexedPackageAsync | undefined
+  fetchers?: CustomFetchers | undefined
 }
 
 // eslint-disable-next-line
@@ -37,19 +38,19 @@ type Cook<T extends (...args: any[]) => any> = (
 ) => ReturnType<T>
 
 export interface CookedHooks {
-  readPackage?: Array<Cook<Required<Hooks>['readPackage']>>
-  preResolution?: Cook<Required<Hooks>['preResolution']>
-  afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>>
-  filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
-  importPackage?: ImportIndexedPackageAsync
-  fetchers?: CustomFetchers
+  readPackage?: Array<Cook<Required<Hooks>['readPackage']>> | undefined
+  preResolution?: Cook<Required<Hooks>['preResolution']> | undefined
+  afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>> | undefined
+  filterLog?: Array<Cook<Required<Hooks>['filterLog']>> | undefined
+  importPackage?: ImportIndexedPackageAsync | undefined
+  fetchers?: CustomFetchers | undefined
 }
 
 export function requireHooks(
   prefix: string,
   opts: {
-    globalPnpmfile?: string
-    pnpmfile?: string
+    globalPnpmfile?: string | undefined
+    pnpmfile?: string | undefined
   }
 ): CookedHooks {
   const globalPnpmfile =
@@ -80,8 +81,9 @@ export function requireHooks(
         prefix,
         hookName
       )
-      cookedHooks[hookName]!.push((pkg: object) =>
-        globalHook!(pkg as any, context)
+      cookedHooks[hookName]?.push((pkg: Lockfile) => {
+        return globalHook?.(pkg, context);
+      }
       )
     }
     if (hooks[hookName]) {
@@ -91,7 +93,9 @@ export function requireHooks(
         prefix,
         hookName
       )
-      cookedHooks[hookName]!.push((pkg: object) => hook!(pkg as any, context)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      cookedHooks[hookName]?.push((pkg: Lockfile): Lockfile | Promise<Lockfile> => {
+        return hook?.(pkg, context);
+      })
     }
   }
   if (globalHooks.filterLog != null) {

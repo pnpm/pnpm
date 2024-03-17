@@ -29,7 +29,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/cli-utils#readme",
   "devDependencies": {
     "@pnpm/cli-utils": "workspace:*",
-    "@types/ramda": "0.29.11"
+    "@types/ramda": "0.29.11",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",

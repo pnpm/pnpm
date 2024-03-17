@@ -32,7 +32,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/config/pick-registry-for-package#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/pick-registry-for-package": "workspace:*"
+    "@pnpm/pick-registry-for-package": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

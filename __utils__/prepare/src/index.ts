@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import fs from 'node:fs'
 import path from 'node:path'
 import { assertProject, type Modules, type Project } from '@pnpm/assert-project'

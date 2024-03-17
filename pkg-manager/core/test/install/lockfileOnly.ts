@@ -114,7 +114,7 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
   await project.storeHas('rimraf', '2.5.1')
   await project.hasNot('rimraf')
 
-  expect(manifest.dependencies!.rimraf).toBeTruthy()
+  expect(manifest.dependencies?.rimraf).toBeTruthy()
 
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies.rimraf).toBeTruthy()

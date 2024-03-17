@@ -35,7 +35,8 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/resolver-base": "workspace:*"
+    "@pnpm/resolver-base": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

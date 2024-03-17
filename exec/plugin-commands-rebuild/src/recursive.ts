@@ -93,11 +93,13 @@ export async function recursiveRebuild(
       chunks.map(async (prefixes: string[], buildIndex) => {
         if (opts.ignoredPackages != null) {
           prefixes = prefixes.filter(
-            (prefix) => !opts.ignoredPackages!.has(prefix)
+            (prefix: string): boolean => {
+              return !opts.ignoredPackages?.has(prefix);
+            }
           )
         }
         return Promise.all(
-          prefixes.map(async (prefix) => {
+          prefixes.map(async (prefix: string): Promise<void> => {
             importers.push({
               buildIndex,
               manifest: manifestsByPath[prefix].manifest,
@@ -113,8 +115,14 @@ export async function recursiveRebuild(
   const rebuild =
     params.length === 0
       ? rebuildAll
-    : (importers: any, opts: any) => rebuildSelectedPkgs(importers, params, opts) // eslint-disable-line
-  )
+      : (importers: {
+        buildIndex: number;
+        manifest: ProjectManifest;
+        rootDir: string;
+      }[], opts: RebuildOptions): Promise<void> => {
+        return rebuildSelectedPkgs(importers, params, opts) // eslint-disable-line;
+      }
+
   if (opts.lockfileDir) {
     const importers = await getImporters()
     await rebuild(importers, {

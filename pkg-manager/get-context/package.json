@@ -31,7 +31,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context#readme",
   "devDependencies": {
     "@pnpm/get-context": "workspace:*",
-    "@types/ramda": "0.29.11"
+    "@types/ramda": "0.29.11",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

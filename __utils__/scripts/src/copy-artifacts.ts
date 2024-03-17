@@ -1,6 +1,7 @@
-import fs from 'fs'
+import '@total-typescript/ts-reset'
+import fs from 'node:fs'
+import path from 'node:path'
 import * as execa from 'execa'
-import path from 'path'
 import makeEmptyDir from 'make-empty-dir'
 
 const repoRoot = path.join(__dirname, '../../..')

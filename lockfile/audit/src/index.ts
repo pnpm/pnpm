@@ -66,8 +66,9 @@ export async function audit(
       lockfileDir: opts.lockfileDir,
       include: opts.include,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     globalWarn(
+      // @ts-ignore
       `Failed to extend audit report with dependency paths: ${err.message as string}`
     )
     return auditReport
@@ -87,7 +88,7 @@ async function extendWithDependencyPaths(
   opts: {
     lockfile: Lockfile
     lockfileDir: string
-    include?: { [dependenciesField in DependenciesField]: boolean }
+    include?: { [dependenciesField in DependenciesField]: boolean } | undefined
   }
 ): Promise<AuditReport> {
   const { advisories } = auditReport

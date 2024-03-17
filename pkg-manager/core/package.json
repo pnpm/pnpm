@@ -106,7 +106,8 @@
     "sinon": "^17.0.1",
     "symlink-dir": "^5.2.1",
     "write-json-file": "^4.3.0",
-    "write-yaml-file": "^5.0.0"
+    "write-yaml-file": "^5.0.0",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "directories": {
     "test": "test"

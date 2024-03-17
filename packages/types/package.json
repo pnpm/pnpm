@@ -30,7 +30,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/types#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/types": "workspace:*"
+    "@pnpm/types": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

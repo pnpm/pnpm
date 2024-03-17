@@ -42,7 +42,8 @@
     "@pnpm/render-peer-issues": "workspace:*",
     "@types/archy": "0.0.36",
     "@types/semver": "7.5.8",
-    "strip-ansi": "^6.0.1"
+    "strip-ansi": "^6.0.1",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

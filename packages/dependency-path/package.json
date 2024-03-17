@@ -38,7 +38,8 @@
   },
   "devDependencies": {
     "@pnpm/dependency-path": "workspace:*",
-    "@types/semver": "7.5.8"
+    "@types/semver": "7.5.8",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

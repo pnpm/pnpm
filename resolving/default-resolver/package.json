@@ -41,7 +41,8 @@
   },
   "devDependencies": {
     "@pnpm/default-resolver": "workspace:*",
-    "@pnpm/fetch": "workspace:*"
+    "@pnpm/fetch": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

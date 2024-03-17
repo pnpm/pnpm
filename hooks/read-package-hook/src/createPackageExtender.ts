@@ -22,7 +22,7 @@ export function createPackageExtender(
     if (!extensionsByPkgName.has(alias!)) {
       extensionsByPkgName.set(alias!, [])
     }
-    extensionsByPkgName.get(alias!)!.push({ packageExtension, range: pref })
+    extensionsByPkgName.get(alias!)?.push({ packageExtension, range: pref })
   })
   return extendPkgHook.bind(null, extensionsByPkgName) as ReadPackageHook
 }

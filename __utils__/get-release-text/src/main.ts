@@ -1,7 +1,8 @@
 /// <reference path="../../../__typings__/local.d.ts" />
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import '@total-typescript/ts-reset'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'

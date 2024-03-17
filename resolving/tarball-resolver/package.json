@@ -33,7 +33,8 @@
     "pnpm8"
   ],
   "devDependencies": {
-    "@pnpm/tarball-resolver": "workspace:*"
+    "@pnpm/tarball-resolver": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

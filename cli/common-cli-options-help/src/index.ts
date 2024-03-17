@@ -1,3 +1,5 @@
+import '@total-typescript/ts-reset'
+
 export const OPTIONS = {
   globalDir: {
     description: 'Specify a custom directory to store global packages',

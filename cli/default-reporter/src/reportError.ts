@@ -62,7 +62,7 @@ function getErrorInfo(
   title: string
   body?: string | undefined
 } | null {
-  if ('err' in logObj && logObj.err && typeof logObj.err === 'object' && logObj.err !== null) {
+  if ('err' in logObj && logObj.err instanceof Error) {
     const err = logObj.err
 
     if (
@@ -137,6 +137,7 @@ function formatNoMatchingVersion(err: Error, msg: object) {
     name: string
     'dist-tags': Record<string, string> & { latest: string }
     versions: Record<string, object>
+  // @ts-ignore
   } = msg.packageMeta
   let output = `The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
 

@@ -41,7 +41,7 @@ export async function runLifecycleHooksConcurrently(
     if (!importersByBuildIndex.has(importer.buildIndex)) {
       importersByBuildIndex.set(importer.buildIndex, [importer])
     } else {
-      importersByBuildIndex.get(importer.buildIndex)!.push(importer)
+      importersByBuildIndex.get(importer.buildIndex)?.push(importer)
     }
   }
   const sortedBuildIndexes = Array.from(importersByBuildIndex.keys()).sort(

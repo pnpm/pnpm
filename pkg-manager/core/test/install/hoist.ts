@@ -40,7 +40,10 @@ test('should hoist dependencies', async () => {
   await project.isExecutable('.pnpm/node_modules/.bin/mime')
 
   const modules = await project.readModulesManifest()
-  expect(Object.keys(modules!.hoistedDependencies).length > 0).toBeTruthy()
+
+  expect(modules).toBeTruthy()
+  // @ts-ignore
+  expect(Object.keys(modules.hoistedDependencies).length > 0).toBeTruthy()
 
   // On repeat install the hoisted packages are preserved (non-headless install)
   await install(
@@ -54,8 +57,9 @@ test('should hoist dependencies', async () => {
   )
   await project.has('.pnpm/node_modules/debug')
   expect(
-    (await project.readModulesManifest())!.hoistedDependencies
-  ).toStrictEqual(modules!.hoistedDependencies)
+    (await project.readModulesManifest())?.hoistedDependencies
+    // @ts-ignore
+  ).toStrictEqual(modules.hoistedDependencies)
 
   // On repeat install the hoisted packages are preserved (headless install)
   await install(
@@ -69,8 +73,9 @@ test('should hoist dependencies', async () => {
   )
   await project.has('.pnpm/node_modules/debug')
   expect(
-    (await project.readModulesManifest())!.hoistedDependencies
-  ).toStrictEqual(modules!.hoistedDependencies)
+    (await project.readModulesManifest())?.hoistedDependencies
+    // @ts-ignore
+  ).toStrictEqual(modules.hoistedDependencies)
 })
 
 test('should hoist dependencies to the root of node_modules when publicHoistPattern is used', async () => {
@@ -226,7 +231,8 @@ test('should rehoist when uninstalling a package', async () => {
 
   const modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.hoistedDependencies['/debug/2.6.9']).toStrictEqual({
+  // @ts-ignore
+  expect(modules.hoistedDependencies['/debug/2.6.9']).toStrictEqual({
     debug: 'private',
   })
 })
@@ -349,7 +355,8 @@ test('hoist by alias', async () => {
 
   const modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.hoistedDependencies).toStrictEqual({
+  // @ts-ignore
+  expect(modules.hoistedDependencies).toStrictEqual({
     '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0': { dep: 'private' },
   })
 })
@@ -381,7 +388,8 @@ test('should remove aliased hoisted dependencies', async () => {
 
   const modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.hoistedDependencies).toStrictEqual({})
+  // @ts-ignore
+  expect(modules.hoistedDependencies).toStrictEqual({})
 })
 
 test('should update .modules.yaml when pruning if we are flattening', async () => {
@@ -400,7 +408,8 @@ test('should update .modules.yaml when pruning if we are flattening', async () =
 
   const modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.hoistedDependencies).toStrictEqual({})
+  // @ts-ignore
+  expect(modules.hoistedDependencies).toStrictEqual({})
 })
 
 test('should rehoist after pruning', async () => {

@@ -43,7 +43,8 @@
     "@types/hosted-git-info": "^3.0.5",
     "@types/is-windows": "^1.0.2",
     "@types/semver": "7.5.8",
-    "is-windows": "^1.0.2"
+    "is-windows": "^1.0.2",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

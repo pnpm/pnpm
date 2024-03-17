@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'

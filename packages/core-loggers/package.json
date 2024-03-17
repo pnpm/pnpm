@@ -15,7 +15,8 @@
     "@pnpm/logger": "^5.0.0"
   },
   "devDependencies": {
-    "@pnpm/core-loggers": "workspace:*"
+    "@pnpm/core-loggers": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "directories": {
     "test": "test"

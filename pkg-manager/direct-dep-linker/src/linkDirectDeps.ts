@@ -121,7 +121,8 @@ async function readLinkedDepsWithRealLocations(modulesDir: string) {
 async function resolveLinkTargetOrFile(filePath: string) {
   try {
     return await resolveLinkTarget(filePath)
-  } catch (err: any) {
+  } catch (err: unknown) {
+    // @ts-ignore
     if (err.code !== 'EINVAL' && err.code !== 'UNKNOWN') throw err
     return filePath
   }
