@@ -68,7 +68,7 @@ export interface StrictInstallOptions {
   onlyBuiltDependenciesFile?: string
   nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-  nodeVersion: string
+  nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
   packageManager: {
     name: string
@@ -186,7 +186,7 @@ const defaults = (opts: InstallOptions) => {
     },
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
-    nodeVersion: process.version,
+    nodeVersion: opts.nodeVersion,
     nodeLinker: 'isolated',
     overrides: {},
     ownLifecycleHooksStdio: 'inherit',
