@@ -187,14 +187,14 @@ test("reports child's output", async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/count-to-10'], testDefaults({ fastUnpack: false, reporter }))
 
   expect(reporter.calledWithMatch({
-    depPath: '/@pnpm.e2e/count-to-10@1.0.0',
+    depPath: '@pnpm.e2e/count-to-10@1.0.0',
     level: 'debug',
     name: 'pnpm:lifecycle',
     script: 'node postinstall',
     stage: 'postinstall',
   } as LifecycleLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
-    depPath: '/@pnpm.e2e/count-to-10@1.0.0',
+    depPath: '@pnpm.e2e/count-to-10@1.0.0',
     level: 'debug',
     line: '1',
     name: 'pnpm:lifecycle',
@@ -202,7 +202,7 @@ test("reports child's output", async () => {
     stdio: 'stdout',
   } as LifecycleLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
-    depPath: '/@pnpm.e2e/count-to-10@1.0.0',
+    depPath: '@pnpm.e2e/count-to-10@1.0.0',
     level: 'debug',
     line: '2',
     name: 'pnpm:lifecycle',
@@ -210,7 +210,7 @@ test("reports child's output", async () => {
     stdio: 'stdout',
   } as LifecycleLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
-    depPath: '/@pnpm.e2e/count-to-10@1.0.0',
+    depPath: '@pnpm.e2e/count-to-10@1.0.0',
     level: 'debug',
     line: '6',
     name: 'pnpm:lifecycle',
@@ -218,7 +218,7 @@ test("reports child's output", async () => {
     stdio: 'stderr',
   } as LifecycleLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
-    depPath: '/@pnpm.e2e/count-to-10@1.0.0',
+    depPath: '@pnpm.e2e/count-to-10@1.0.0',
     exitCode: 0,
     level: 'debug',
     name: 'pnpm:lifecycle',
@@ -236,7 +236,7 @@ test("reports child's close event", async () => {
   ).rejects.toThrow()
 
   expect(reporter.calledWithMatch({
-    depPath: '/@pnpm.e2e/failing-postinstall@1.0.0',
+    depPath: '@pnpm.e2e/failing-postinstall@1.0.0',
     exitCode: 1,
     level: 'debug',
     name: 'pnpm:lifecycle',
