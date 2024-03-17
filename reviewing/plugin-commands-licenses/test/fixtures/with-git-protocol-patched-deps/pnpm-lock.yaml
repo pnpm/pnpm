@@ -15,7 +15,7 @@ importers:
     dependencies:
       is-positive:
         specifier: github:kevva/is-positive
-        version: https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678
+        version: https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678(patch_hash=3wijq7ky55ptqab6aghokum24i)
 
 packages:
 
