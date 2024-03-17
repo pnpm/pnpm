@@ -1,5 +1,11 @@
 # @pnpm/core
 
+## 13.5.2
+
+### Patch Changes
+
+- 4eac871bd: Correctly detect the active Node.js version during headless installation [#7801](https://github.com/pnpm/pnpm/pull/7801).
+
 ## 13.5.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # pnpm
 
+## 8.15.5
+
+### Patch Changes
+
+- Correctly detect the active Node.js version during headless installation [#7801](https://github.com/pnpm/pnpm/pull/7801).
+- The npm CLI executed from pnpm should not use Corepack [#7747](https://github.com/pnpm/pnpm/pull/7747).
+
 ## 8.15.4
 
 ### Patch Changes
