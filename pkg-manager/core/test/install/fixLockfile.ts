@@ -205,7 +205,6 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
 
   const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
 
-  console.log(JSON.stringify(lockfile, null, 2))
   expect(Object.keys(lockfile.packages as PackageSnapshots).length).toBe(5)
 
   expect(lockfile.packages?.['@babel/runtime-corejs3@7.15.3']).toBeTruthy()
