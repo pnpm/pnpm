@@ -873,7 +873,7 @@ test('pnpm exec command not found (implicit fallback)', async () => {
         selectedProjectsGraph,
         implicitlyFellbackFromRun: true,
       },
-      ['buil']
+      ['build']
     ) // cspell:disable-line
   } catch (err: any) { // eslint-disable-line
     error = err

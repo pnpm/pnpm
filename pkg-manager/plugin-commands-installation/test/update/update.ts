@@ -438,7 +438,7 @@ test('not ignore packages if these are specified in parameter even if these are 
   expect(lockfileUpdated.packages['/@pnpm.e2e/bar@100.1.0']).toBeTruthy()
 })
 
-test('do not update unknownthing if all the dependencies are ignored and trying to update to latest', async () => {
+test('do not update unknown thing if all the dependencies are ignored and trying to update to latest', async () => {
   await addDistTag({
     package: '@pnpm.e2e/foo',
     version: '100.1.0',

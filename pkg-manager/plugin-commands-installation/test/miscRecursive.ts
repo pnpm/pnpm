@@ -87,7 +87,7 @@ test('recursive add/remove', async () => {
   await projects['project-2'].hasNot('is-negative')
 })
 
-test('recursive add/remove in workspace with munknown lockfiles', async () => {
+test('recursive add/remove in workspace with unknown lockfiles', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
