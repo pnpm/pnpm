@@ -154,7 +154,7 @@ export interface ResolutionContext {
   preferWorkspacePackages?: boolean
   readPackageHook?: ReadPackageHook
   engineStrict: boolean
-  nodeVersion: string
+  nodeVersion?: string
   pnpmVersion: string
   registries: Registries
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
