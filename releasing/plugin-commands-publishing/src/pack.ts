@@ -125,7 +125,7 @@ export async function handler(
   const filesMap = Object.fromEntries(
     files.map((file) => [`package/${file}`, path.join(dir, file)])
   )
-  // cspell:disable-next-line
+
   if (
     opts.workspaceDir != null &&
     dir !== opts.workspaceDir &&

@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { readWantedLockfile, Lockfile } from '@pnpm/lockfile-file'
 import { ProjectManifest } from '@pnpm/types'
-import { createUpdateOptions, FormatPluginFnOptions } from '@pnpm/meta-updater'
+import { createUpdateOptions, FormatPluginFnOptions, UpdateOptionsLegacy } from '@pnpm/meta-updater'
 import isSubdir from 'is-subdir'
 import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
@@ -14,7 +14,7 @@ import writeJsonFile from 'write-json-file'
 const NEXT_TAG = 'next-8'
 const CLI_PKG_NAME = 'pnpm'
 
-export default async (workspaceDir: string) => {
+export default async (workspaceDir: string): Promise<UpdateOptionsLegacy<"tsconfig.json" | "package.json" | "cspell.json">> => {
   const pnpmManifest = loadJsonFile.sync<any>(path.join(workspaceDir, 'pnpm/package.json'))
   const rootManifest = loadJsonFile.sync<any>(path.join(workspaceDir, 'package.json'))
   const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
