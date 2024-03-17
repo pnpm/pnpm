@@ -102,7 +102,7 @@ export interface HeadlessOptions {
   childConcurrency?: number
   currentLockfile?: Lockfile
   currentEngine: {
-    nodeVersion: string
+    nodeVersion?: string
     pnpmVersion: string
   }
   dedupeDirectDeps?: boolean
