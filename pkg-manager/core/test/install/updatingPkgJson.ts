@@ -75,7 +75,6 @@ test('dependency should not be added to package.json if it is already there', as
   const lockfile = project.readLockfile()
 
   expect(lockfile.importers['.'].devDependencies?.['@pnpm.e2e/foo'].version).toBe('100.0.0')
-  expect(lockfile.snapshots['@pnpm.e2e/foo@100.0.0'].dev).toBeTruthy()
 
   expect(lockfile.importers['.'].optionalDependencies?.['@pnpm.e2e/bar'].version).toBe('100.0.0')
   expect(lockfile.snapshots['@pnpm.e2e/bar@100.0.0'].optional).toBeTruthy()

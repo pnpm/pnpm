@@ -538,20 +538,11 @@ test('scoped module from different registry', async () => {
           '@foo/no-deps': '1.0.0',
           'is-negative': '1.0.0',
         },
-        dev: false,
       },
-      '@foo/no-deps@1.0.0': {
-        dev: false,
-      },
-      '@zkochan/foo@1.0.0': {
-        dev: false,
-      },
-      'is-negative@1.0.0': {
-        dev: false,
-      },
-      'is-positive@3.1.0': {
-        dev: false,
-      },
+      '@foo/no-deps@1.0.0': {},
+      '@zkochan/foo@1.0.0': {},
+      'is-negative@1.0.0': {},
+      'is-positive@3.1.0': {},
     },
   })
 })
@@ -670,16 +661,6 @@ test('optional properties are correctly updated on named install', async () => {
 
   const lockfile = project.readLockfile()
   expect(Object.values(lockfile.snapshots).filter((dep) => typeof dep.optional !== 'undefined')).toStrictEqual([])
-})
-
-test('dev property is correctly set for package that is duplicated to both the dependencies and devDependencies group', async () => {
-  const project = prepareEmpty()
-
-  // TODO: use a smaller package for testing
-  await addDependenciesToPackage({}, ['overlap@2.2.8'], testDefaults())
-
-  const lockfile = project.readLockfile()
-  expect(lockfile.snapshots['couleurs@5.0.0'].dev === false).toBeTruthy()
 })
 
 test('no lockfile', async () => {
@@ -842,18 +823,13 @@ test('packages installed via tarball URL from the default registry are normalize
       },
     },
     snapshots: {
-      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
-        dev: false,
-      },
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {},
       '@pnpm.e2e/pkg-with-tarball-dep-from-registry@1.0.0': {
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         },
-        dev: false,
       },
-      'is-positive@https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
-        dev: false,
-      },
+      'is-positive@https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {},
     },
   })
 })
@@ -1171,9 +1147,7 @@ test('tarball domain differs from registry domain', async () => {
       },
     },
     snapshots: {
-      'is-positive@3.1.0': {
-        dev: false,
-      },
+      'is-positive@3.1.0': {},
     },
   })
 })
@@ -1226,9 +1200,7 @@ test('tarball installed through non-standard URL endpoint from the registry doma
       },
     },
     snapshots: {
-      'is-positive@https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {
-        dev: false,
-      },
+      'is-positive@https://registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz': {},
     },
   })
 })

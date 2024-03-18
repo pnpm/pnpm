@@ -91,11 +91,6 @@ test('install dev dependencies only', async () => {
   project.hasNot('once')
 
   {
-    const lockfile = project.readLockfile()
-    expect(lockfile.snapshots['is-positive@1.0.0'].dev === false).toBeTruthy()
-  }
-
-  {
     const currentLockfile = project.readCurrentLockfile()
     expect(currentLockfile.packages['is-positive@1.0.0']).toBeFalsy()
   }

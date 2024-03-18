@@ -192,11 +192,8 @@ function copyDependencySubGraph (
     }
     if (opts.dev) {
       ctx.notProdOnly.add(depPath)
-      depLockfile.dev = true
     } else if (depLockfile.dev === true) { // keeping if dev is explicitly false
-      delete depLockfile.dev
     } else if (depLockfile.dev === undefined && !ctx.notProdOnly.has(depPath)) {
-      depLockfile.dev = false
     }
     const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {})
     copyDependencySubGraph(ctx, newDependencies, opts)

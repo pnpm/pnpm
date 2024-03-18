@@ -914,31 +914,27 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/bar@100.0.0': {
-        dev: false,
+      '@pnpm.e2e/bar@100.0.0': {
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/bar', '100.0.0'),
         },
       },
-      '/@pnpm.e2e/foo@100.1.0': {
-        dev: false,
+      '@pnpm.e2e/foo@100.1.0': {
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/foo', '100.1.0'),
         },
       },
-      '/@pnpm.e2e/foobarqar@1.0.1': {
+      '@pnpm.e2e/foobarqar@1.0.1': {
         dependencies: {
           '@pnpm.e2e/bar': '100.0.0',
           '@pnpm.e2e/foo': '100.1.0',
           'is-positive': '3.1.0',
         },
-        dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/foobarqar', '1.0.1'),
         },
       },
-      '/is-positive@3.1.0': {
-        dev: false,
+      'is-positive@3.1.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -1008,7 +1004,6 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
-        dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
         },
@@ -1017,7 +1012,6 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
         dependencies: {
           '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         },
-        dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/parent-of-pkg-with-1-dep', '1.0.0'),
         },
@@ -1026,7 +1020,6 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
         },
-        dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/pkg-with-1-dep', '100.0.0'),
         },

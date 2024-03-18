@@ -91,11 +91,6 @@ function toLockfileDependency (
   if (Object.keys(newResolvedOptionalDeps).length > 0) {
     result['optionalDependencies'] = newResolvedOptionalDeps
   }
-  if (pkg.dev && !pkg.prod) {
-    result['dev'] = true
-  } else if (pkg.prod && !pkg.dev) {
-    result['dev'] = false
-  }
   if (pkg.optional) {
     result['optional'] = true
   }

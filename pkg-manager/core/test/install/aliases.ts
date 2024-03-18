@@ -51,11 +51,8 @@ test('installing aliased dependency', async () => {
       },
     },
     snapshots: {
-      'is-negative@1.0.0': {
-        dev: false,
-      },
+      'is-negative@1.0.0': {},
       'is-positive@3.1.0': {
-        dev: false,
       },
     },
   })
@@ -112,14 +109,11 @@ test('a dependency has an aliased subdependency', async () => {
       },
     },
     snapshots: {
-      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
-        dev: false,
-      },
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {},
       '@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0': {
         dependencies: {
           dep: '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0',
         },
-        dev: false,
       },
     },
   })
