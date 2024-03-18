@@ -280,7 +280,7 @@ test('run lifecycle scripts of dependent packages after running scripts of their
 test('run prepare script for git-hosted dependencies', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pnpm/test-git-fetch#6ebf1e03de0ada9e653d1f8ff82ad905ab761ad9'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf'], await testDefaults({ fastUnpack: false }))
 
   const scripts = project.requireModule('test-git-fetch/output.json')
   expect(scripts).toStrictEqual([
@@ -294,7 +294,7 @@ test('run prepare script for git-hosted dependencies', async () => {
   ])
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['github.com/pnpm/test-git-fetch/6ebf1e03de0ada9e653d1f8ff82ad905ab761ad9'].prepare === true).toBeTruthy()
+  expect(lockfile.packages['github.com/pnpm/test-git-fetch/8b333f12d5357f4f25a654c305c826294cb073bf'].prepare === true).toBeTruthy()
 })
 
 test('lifecycle scripts run before linking bins', async () => {
