@@ -9,13 +9,5 @@
     "src/**/*.ts",
     "../typings/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../lockfile/lockfile-file"
-    },
-    {
-      "path": "../packages/types"
-    }
-  ],
   "composite": true
 }

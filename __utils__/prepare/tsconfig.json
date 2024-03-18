@@ -9,12 +9,4 @@
     "../../__typings__/**/*.d.ts"
   ],
   "composite": true,
-  "references": [
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../assert-project"
-    }
-  ]
 }

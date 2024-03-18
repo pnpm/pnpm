@@ -9,21 +9,4 @@
     "../../__typings__/**/*.d.ts"
   ],
   "composite": true,
-  "references": [
-    {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manager/modules-yaml"
-    },
-    {
-      "path": "../assert-store"
-    }
-  ]
 }

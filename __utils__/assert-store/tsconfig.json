@@ -9,9 +9,4 @@
     "../../__typings__/**/*.d.ts"
   ],
   "composite": true,
-  "references": [
-    {
-      "path": "../../store/cafs"
-    }
-  ]
 }

@@ -8,28 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/git-utils"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../lockfile-types"
-    },
-    {
-      "path": "../merge-lockfile-changes"
-    }
-  ],
   "composite": true
 }

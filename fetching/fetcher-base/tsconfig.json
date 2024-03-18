@@ -12,12 +12,4 @@
     "./lib/**/*"
   ],
   "composite": true,
-  "references": [
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../resolving/resolver-base"
-    }
-  ]
 }

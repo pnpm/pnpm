@@ -12,15 +12,4 @@
     "lib/**/*"
   ],
   "composite": true,
-  "references": [
-    {
-      "path": "../../fetching/fetcher-base"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../store/cafs-types"
-    }
-  ]
 }
