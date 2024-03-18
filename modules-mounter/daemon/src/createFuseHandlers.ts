@@ -1,5 +1,6 @@
 // cspell:ignore ents
 import fs from 'node:fs'
+
 import {
   getFilePathInCafs,
   getFilePathByModeInCafs,
@@ -12,6 +13,7 @@ import {
   type TarballResolution,
 } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+
 import * as schemas from 'hyperdrive-schemas'
 import loadJsonFile from 'load-json-file'
 import Fuse from 'fuse-native'

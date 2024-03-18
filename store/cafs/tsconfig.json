@@ -9,4 +9,15 @@
     "../../__typings__/**/*.d.ts"
   ],
   "composite": true,
+  "references": [
+    {
+      "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../cafs-types"
+    }
+  ]
 }

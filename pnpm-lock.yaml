@@ -5524,9 +5524,6 @@ importers:
       '@pnpm/cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types
-      '@pnpm/fetcher-base':
-        specifier: workspace:*
-        version: link:../../fetching/fetcher-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -6028,15 +6025,9 @@ importers:
 
   store/cafs:
     dependencies:
-      '@pnpm/fetcher-base':
-        specifier: workspace:*
-        version: link:../../fetching/fetcher-base
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../store-controller-types
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3

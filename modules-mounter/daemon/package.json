@@ -38,9 +38,9 @@
   },
   "devDependencies": {
     "@pnpm/mount-modules": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1",
     "@types/normalize-path": "^3.0.2",
-    "rimraf": "^5.0.5",
-    "@total-typescript/ts-reset": "0.5.1"
+    "rimraf": "^5.0.5"
   },
   "dependencies": {
     "@pnpm/config": "workspace:*",

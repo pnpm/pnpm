@@ -3,10 +3,12 @@ import type {
   FilesIndex,
   FileWriteResult,
 } from '@pnpm/cafs-types'
+
 import isGzip from 'is-gzip'
 import { gunzipSync } from 'zlib'
-import { parseJsonBufferSync } from './parseJson'
+
 import { parseTarball } from './parseTarball'
+import { parseJsonBufferSync } from './parseJson'
 
 export function addFilesFromTarball(
   addBufferToCafs: (buffer: Buffer, mode: number) => FileWriteResult,

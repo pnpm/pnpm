@@ -1,5 +1,6 @@
 import fs, { type Stats } from 'node:fs'
 import path from 'node:path'
+
 import type {
   AddToStoreResult,
   FilesIndex,
@@ -7,6 +8,7 @@ import type {
 } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import type { DependencyManifest } from '@pnpm/types'
+
 import { parseJsonBufferSync } from './parseJson'
 
 export function addFilesFromDir(

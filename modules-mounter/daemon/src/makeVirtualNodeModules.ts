@@ -1,8 +1,10 @@
 import path from 'node:path'
-import type { Lockfile } from '@pnpm/lockfile-file'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+
 import * as dp from '@pnpm/dependency-path'
+import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import type { Lockfile } from '@pnpm/lockfile-file'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+
 import normalize from 'normalize-path'
 
 interface DirDirEntry {

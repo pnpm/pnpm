@@ -1,18 +1,21 @@
 import '@total-typescript/ts-reset'
 import path from 'path'
-import { assertStore } from '@pnpm/assert-store'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+
 import {
   type LockfileV6 as Lockfile,
   type ProjectSnapshotV6 as ProjectSnapshot,
 } from '@pnpm/lockfile-types'
-import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
+import { assertStore } from '@pnpm/assert-store'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import readYamlFile from 'read-yaml-file'
+import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
+
 import exists from 'path-exists'
 import writePkg from 'write-pkg'
-import isExecutable from './isExecutable'
+import readYamlFile from 'read-yaml-file'
 import type { JsonObject } from 'type-fest'
+
+import isExecutable from './isExecutable'
 
 export { isExecutable, type Modules }
 

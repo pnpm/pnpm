@@ -1,7 +1,9 @@
 import '@total-typescript/ts-reset'
 import path from 'node:path'
+
 import { getFilePathInCafs } from '@pnpm/store.cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+
 import exists from 'path-exists'
 
 export function assertStore(

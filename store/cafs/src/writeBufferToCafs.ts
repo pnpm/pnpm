@@ -1,9 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
+
 import renameOverwrite from 'rename-overwrite'
 import type ssri from 'ssri'
-import { verifyFileIntegrity } from './checkPkgFilesIntegrity'
+
 import { writeFile } from './writeFile'
+import { verifyFileIntegrity } from './checkPkgFilesIntegrity'
 
 export function writeBufferToCafs(
   locker: Map<string, number>,

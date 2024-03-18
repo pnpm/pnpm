@@ -12,4 +12,12 @@
     "lib/**/*"
   ],
   "composite": true,
+  "references": [
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../store/cafs-types"
+    }
+  ]
 }
