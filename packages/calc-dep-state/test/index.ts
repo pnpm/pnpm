@@ -18,13 +18,17 @@ const depsGraph = {
 }
 
 test('calcDepState()', () => {
-  expect(calcDepState(depsGraph, {}, '/registry/foo/1.0.0', {
-    isBuilt: true,
-  })).toBe(`${ENGINE_NAME}-${hashObject({})}`)
+  expect(
+    calcDepState(depsGraph, {}, '/registry/foo/1.0.0', {
+      isBuilt: true,
+    })
+  ).toBe(`${ENGINE_NAME}-${hashObject({})}`)
 })
 
 test('calcDepState() when scripts are ignored', () => {
-  expect(calcDepState(depsGraph, {}, '/registry/foo/1.0.0', {
-    isBuilt: false,
-  })).toBe(ENGINE_NAME)
+  expect(
+    calcDepState(depsGraph, {}, '/registry/foo/1.0.0', {
+      isBuilt: false,
+    })
+  ).toBe(ENGINE_NAME)
 })

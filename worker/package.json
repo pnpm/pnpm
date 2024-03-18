@@ -39,12 +39,13 @@
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
-    "@rushstack/worker-pool": "0.4.9",
+    "@rushstack/worker-pool": "0.4.38",
     "load-json-file": "^6.2.0"
   },
   "devDependencies": {
     "@pnpm/types": "workspace:*",
-    "@pnpm/worker": "workspace:*"
+    "@pnpm/worker": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

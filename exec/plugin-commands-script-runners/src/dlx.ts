@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
@@ -20,21 +20,28 @@ export const shorthands = {
   c: '--shell-mode',
 }
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes(): {
+  'shell-mode': BooleanConstructor;
+  'use-node-version': StringConstructor;
+} {
   return {
-    ...pick([
-      'use-node-version',
-    ], types),
+    ...pick(['use-node-version'], types),
     'shell-mode': Boolean,
   }
 }
 
-export const cliOptionsTypes = () => ({
-  ...rcOptionsTypes(),
-  package: [String, Array],
-})
+export function cliOptionsTypes(): {
+  package: (StringConstructor | ArrayConstructor)[];
+  'shell-mode': BooleanConstructor;
+  'use-node-version': StringConstructor;
+} {
+  return {
+    ...rcOptionsTypes(),
+    package: [String, Array],
+  };
+}
 
-export function help () {
+export function help(): string {
   return renderHelp({
     description: 'Run a package in a temporary environment.',
     descriptionLists: [
@@ -46,7 +53,8 @@ export function help () {
             name: '--package',
           },
           {
-            description: 'Runs the script inside of a shell. Uses /bin/sh on UNIX and \\cmd.exe on Windows.',
+            description:
+              'Runs the script inside of a shell. Uses /bin/sh on UNIX and \\cmd.exe on Windows.',
             name: '--shell-mode',
             shortAlias: '-c',
           },
@@ -60,14 +68,17 @@ export function help () {
 }
 
 export type DlxCommandOptions = {
-  package?: string[]
-  shellMode?: boolean
-} & Pick<Config, 'reporter' | 'userAgent'> & add.AddCommandOptions
+  package?: string[] | undefined
+  shellMode?: boolean | undefined
+} & Pick<Config, 'reporter' | 'userAgent'> &
+  add.AddCommandOptions
 
-export async function handler (
+export async function handler(
   opts: DlxCommandOptions,
   [command, ...args]: string[]
-) {
+): Promise<{
+    exitCode: number;
+  }> {
   const dlxDir = await getDlxDir({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
@@ -87,19 +98,22 @@ export async function handler (
   })
   const pkgs = opts.package ?? [command]
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
-  await add.handler({
-    // Ideally the config reader should ignore these settings when the dlx command is executed.
-    // This is a temporary solution until "@pnpm/config" is refactored.
-    ...omit(['workspaceDir', 'rootProjectManifest'], opts),
-    bin: binsDir,
-    dir: prefix,
-    lockfileDir: prefix,
-    rootProjectManifestDir: prefix, // This property won't be used as rootProjectManifest will be undefined
-    saveProd: true, // dlx will be looking for the package in the "dependencies" field!
-    saveDev: false,
-    saveOptional: false,
-    savePeer: false,
-  }, pkgs)
+  await add.handler(
+    {
+      // Ideally the config reader should ignore these settings when the dlx command is executed.
+      // This is a temporary solution until "@pnpm/config" is refactored.
+      ...omit(['workspaceDir', 'rootProjectManifest'], opts),
+      bin: binsDir,
+      dir: prefix,
+      lockfileDir: prefix,
+      rootProjectManifestDir: prefix, // This property won't be used as rootProjectManifest will be undefined
+      saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+      saveDev: false,
+      saveOptional: false,
+      savePeer: false,
+    },
+    pkgs
+  )
   const binName = opts.package
     ? command
     : await getBinName(modulesDir, await getPkgName(prefix))
@@ -110,9 +124,11 @@ export async function handler (
       stdio: 'inherit',
       shell: opts.shellMode ?? false,
     })
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
+    // @ts-ignore
     if (err.exitCode != null) {
       return {
+        // @ts-ignore
         exitCode: err.exitCode,
       }
     }
@@ -121,16 +137,22 @@ export async function handler (
   return { exitCode: 0 }
 }
 
-async function getPkgName (pkgDir: string) {
+async function getPkgName(pkgDir: string): Promise<string> {
   const manifest = await readPackageJsonFromDir(pkgDir)
   const dependencyNames = Object.keys(manifest.dependencies ?? {})
   if (dependencyNames.length === 0) {
-    throw new PnpmError('DLX_NO_DEP', 'dlx was unable to find the installed dependency in "dependencies"')
+    throw new PnpmError(
+      'DLX_NO_DEP',
+      'dlx was unable to find the installed dependency in "dependencies"'
+    )
   }
   return dependencyNames[0]
 }
 
-async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
+async function getBinName(
+  modulesDir: string,
+  pkgName: string
+): Promise<string> {
   const pkgDir = path.join(modulesDir, pkgName)
   const manifest = await readPackageJsonFromDir(pkgDir)
   const bins = await getBinsFromPackageManifest(manifest, pkgDir)
@@ -144,27 +166,29 @@ async function getBinName (modulesDir: string, pkgName: string): Promise<string>
   const defaultBin = bins.find(({ name }) => name === scopelessPkgName)
   if (defaultBin) return defaultBin.name
   const binNames = bins.map(({ name }) => name)
-  throw new PnpmError('DLX_MULTIPLE_BINS', `Could not determine executable to run. ${pkgName} has multiple binaries: ${binNames.join(', ')}`, {
-    hint: `Try one of the following:
-${binNames.map(name => `pnpm --package=${pkgName} dlx ${name}`).join('\n')}
+  throw new PnpmError(
+    'DLX_MULTIPLE_BINS',
+    `Could not determine executable to run. ${pkgName} has multiple binaries: ${binNames.join(', ')}`,
+    {
+      hint: `Try one of the following:
+${binNames.map((name) => `pnpm --package=${pkgName} dlx ${name}`).join('\n')}
 `,
-  })
+    }
+  )
 }
 
-function scopeless (pkgName: string) {
-  if (pkgName[0] === '@') {
+function scopeless(pkgName: string): string {
+  if (pkgName.startsWith('@')) {
     return pkgName.split('/')[1]
   }
   return pkgName
 }
 
-async function getDlxDir (
-  opts: {
-    dir: string
-    storeDir?: string
-    pnpmHomeDir: string
-  }
-): Promise<string> {
+async function getDlxDir(opts: {
+  dir: string
+  storeDir?: string
+  pnpmHomeDir: string
+}): Promise<string> {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,

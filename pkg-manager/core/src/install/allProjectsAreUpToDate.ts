@@ -6,9 +6,16 @@ import {
   type ProjectSnapshot,
   type PackageSnapshots,
 } from '@pnpm/lockfile-file'
-import { refIsLocalDirectory, refIsLocalTarball, satisfiesPackageManifest } from '@pnpm/lockfile-utils'
+import {
+  refIsLocalDirectory,
+  refIsLocalTarball,
+  satisfiesPackageManifest,
+} from '@pnpm/lockfile-utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DirectoryResolution, type WorkspacePackages } from '@pnpm/resolver-base'
+import {
+  type DirectoryResolution,
+  type WorkspacePackages,
+} from '@pnpm/resolver-base'
 import {
   DEPENDENCIES_FIELDS,
   DEPENDENCIES_OR_PEER_FIELDS,
@@ -20,7 +27,7 @@ import any from 'ramda/src/any'
 import semver from 'semver'
 import getVersionSelectorType from 'version-selector-type'
 
-export async function allProjectsAreUpToDate (
+export async function allProjectsAreUpToDate(
   projects: Array<ProjectOptions & { id: string }>,
   opts: {
     autoInstallPeers: boolean
@@ -31,7 +38,9 @@ export async function allProjectsAreUpToDate (
     lockfileDir: string
   }
 ) {
-  const manifestsByDir = opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {}
+  const manifestsByDir = opts.workspacePackages
+    ? getWorkspacePackagesByDirectory(opts.workspacePackages)
+    : {}
   const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
@@ -45,27 +54,30 @@ export async function allProjectsAreUpToDate (
   })
   return pEvery(projects, (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
-    return !hasLocalTarballDepsInRoot(importer) &&
+    return (
+      !hasLocalTarballDepsInRoot(importer) &&
       _satisfiesPackageManifest(importer, project.manifest).satisfies &&
       _linkedPackagesAreUpToDate({
         dir: project.rootDir,
         manifest: project.manifest,
         snapshot: importer,
       })
+    )
   })
 }
 
-function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages) {
+function getWorkspacePackagesByDirectory(workspacePackages: WorkspacePackages) {
   const workspacePackagesByDirectory: Record<string, DependencyManifest> = {}
   Object.keys(workspacePackages || {}).forEach((pkgName) => {
     Object.keys(workspacePackages[pkgName] || {}).forEach((pkgVersion) => {
-      workspacePackagesByDirectory[workspacePackages[pkgName][pkgVersion].dir] = workspacePackages[pkgName][pkgVersion].manifest
+      workspacePackagesByDirectory[workspacePackages[pkgName][pkgVersion].dir] =
+        workspacePackages[pkgName][pkgVersion].manifest
     })
   })
   return workspacePackagesByDirectory
 }
 
-async function linkedPackagesAreUpToDate (
+async function linkedPackagesAreUpToDate(
   {
     linkWorkspacePackages,
     manifestsByDir,
@@ -85,63 +97,70 @@ async function linkedPackagesAreUpToDate (
     snapshot: ProjectSnapshot
   }
 ) {
-  return pEvery(
-    DEPENDENCIES_FIELDS,
-    (depField) => {
-      const lockfileDeps = project.snapshot[depField]
-      const manifestDeps = project.manifest[depField]
-      if ((lockfileDeps == null) || (manifestDeps == null)) return true
-      const depNames = Object.keys(lockfileDeps)
-      return pEvery(
-        depNames,
-        async (depName) => {
-          const currentSpec = manifestDeps[depName]
-          if (!currentSpec) return true
-          const lockfileRef = lockfileDeps[depName]
-          if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
-            return isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[lockfileRef])
-          }
-          const isLinked = lockfileRef.startsWith('link:')
-          if (
-            isLinked &&
-            (
-              currentSpec.startsWith('link:') ||
-              currentSpec.startsWith('file:') ||
-              currentSpec.startsWith('workspace:.')
-            )
-          ) {
-            return true
-          }
-          // https://github.com/pnpm/pnpm/issues/6592
-          // if the dependency is linked and the specified version type is tag, we consider it to be up-to-date to skip full resolution.
-          if (isLinked && getVersionSelectorType(currentSpec)?.type === 'tag') {
-            return true
-          }
-          const linkedDir = isLinked
-            ? path.join(project.dir, lockfileRef.slice(5))
-            : workspacePackages?.[depName]?.[lockfileRef]?.dir
-          if (!linkedDir) return true
-          if (!linkWorkspacePackages && !currentSpec.startsWith('workspace:')) {
-            // we found a linked dir, but we don't want to use it, because it's not specified as a
-            // workspace:x.x.x dependency
-            return true
-          }
-          const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPackageJsonFromDir(linkedDir)
-          const availableRange = getVersionRange(currentSpec)
-          // This should pass the same options to semver as @pnpm/npm-resolver
-          const localPackageSatisfiesRange = availableRange === '*' || availableRange === '^' || availableRange === '~' ||
-            linkedPkg && semver.satisfies(linkedPkg.version, availableRange, { loose: true })
-          if (isLinked !== localPackageSatisfiesRange) return false
-          return true
-        }
-      )
-    }
-  )
+  return pEvery(DEPENDENCIES_FIELDS, (depField) => {
+    const lockfileDeps = project.snapshot[depField]
+    const manifestDeps = project.manifest[depField]
+    if (lockfileDeps == null || manifestDeps == null) return true
+    const depNames = Object.keys(lockfileDeps)
+    return pEvery(depNames, async (depName) => {
+      const currentSpec = manifestDeps[depName]
+      if (!currentSpec) return true
+      const lockfileRef = lockfileDeps[depName]
+      if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
+        return isLocalFileDepUpdated(
+          lockfileDir,
+          lockfilePackages?.[lockfileRef]
+        )
+      }
+      const isLinked = lockfileRef.startsWith('link:')
+      if (
+        isLinked &&
+        (currentSpec.startsWith('link:') ||
+          currentSpec.startsWith('file:') ||
+          currentSpec.startsWith('workspace:.'))
+      ) {
+        return true
+      }
+      // https://github.com/pnpm/pnpm/issues/6592
+      // if the dependency is linked and the specified version type is tag, we consider it to be up-to-date to skip full resolution.
+      if (isLinked && getVersionSelectorType(currentSpec)?.type === 'tag') {
+        return true
+      }
+      const linkedDir = isLinked
+        ? path.join(project.dir, lockfileRef.slice(5))
+        : workspacePackages?.[depName]?.[lockfileRef]?.dir
+      if (!linkedDir) return true
+      if (!linkWorkspacePackages && !currentSpec.startsWith('workspace:')) {
+        // we found a linked dir, but we don't want to use it, because it's not specified as a
+        // workspace:x.x.x dependency
+        return true
+      }
+      const linkedPkg =
+        manifestsByDir[linkedDir] ??
+        (await safeReadPackageJsonFromDir(linkedDir))
+      const availableRange = getVersionRange(currentSpec)
+      // This should pass the same options to semver as @pnpm/npm-resolver
+      const localPackageSatisfiesRange =
+        availableRange === '*' ||
+        availableRange === '^' ||
+        availableRange === '~' ||
+        (linkedPkg &&
+          semver.satisfies(linkedPkg.version, availableRange, { loose: true }))
+      if (isLinked !== localPackageSatisfiesRange) return false
+      return true
+    })
+  })
 }
 
-async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageSnapshot | undefined) {
+async function isLocalFileDepUpdated(
+  lockfileDir: string,
+  pkgSnapshot: PackageSnapshot | undefined
+) {
   if (!pkgSnapshot) return false
-  const localDepDir = path.join(lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
+  const localDepDir = path.join(
+    lockfileDir,
+    (pkgSnapshot.resolution as DirectoryResolution).directory
+  )
   const manifest = await safeReadPackageJsonFromDir(localDepDir)
   if (!manifest) return false
   for (const depField of DEPENDENCIES_OR_PEER_FIELDS) {
@@ -150,7 +169,7 @@ async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageS
     const lockfileDeps = pkgSnapshot[depField] ?? {}
 
     // Lock file has more dependencies than the current manifest, e.g. some dependencies are removed.
-    if (Object.keys(lockfileDeps).some(depName => !manifestDeps[depName])) {
+    if (Object.keys(lockfileDeps).some((depName) => !manifestDeps[depName])) {
       return false
     }
 
@@ -162,8 +181,17 @@ async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageS
       }
       const currentSpec = manifestDeps[depName]
       // We do not care about the link dependencies of local dependency.
-      if (currentSpec.startsWith('file:') || currentSpec.startsWith('link:') || currentSpec.startsWith('workspace:')) continue
-      if (semver.satisfies(lockfileDeps[depName], getVersionRange(currentSpec), { loose: true })) {
+      if (
+        currentSpec.startsWith('file:') ||
+        currentSpec.startsWith('link:') ||
+        currentSpec.startsWith('workspace:')
+      )
+        continue
+      if (
+        semver.satisfies(lockfileDeps[depName], getVersionRange(currentSpec), {
+          loose: true,
+        })
+      ) {
         continue
       } else {
         return false
@@ -173,7 +201,7 @@ async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageS
   return true
 }
 
-function getVersionRange (spec: string) {
+function getVersionRange(spec: string) {
   if (spec.startsWith('workspace:')) return spec.slice(10)
   if (spec.startsWith('npm:')) {
     spec = spec.slice(4)
@@ -184,8 +212,10 @@ function getVersionRange (spec: string) {
   return spec
 }
 
-function hasLocalTarballDepsInRoot (importer: ProjectSnapshot) {
-  return any(refIsLocalTarball, Object.values(importer.dependencies ?? {})) ||
+function hasLocalTarballDepsInRoot(importer: ProjectSnapshot) {
+  return (
+    any(refIsLocalTarball, Object.values(importer.dependencies ?? {})) ||
     any(refIsLocalTarball, Object.values(importer.devDependencies ?? {})) ||
     any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))
+  )
 }

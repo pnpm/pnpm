@@ -36,7 +36,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*"
+    "@pnpm/store-controller-types": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

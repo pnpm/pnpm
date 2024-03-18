@@ -1,6 +1,6 @@
 import path from 'path'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectManifest } from '@pnpm/types'
+import type { ProjectManifest } from '@pnpm/types'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import loadJsonFile from 'load-json-file'
@@ -34,7 +34,9 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
 
-  const manifest = await loadJsonFile<ProjectManifest>(path.join(tmp, 'package.json'))
+  const manifest = await loadJsonFile<ProjectManifest>(
+    path.join(tmp, 'package.json')
+  )
   expect(manifest.pnpm?.overrides?.['axios@<=0.18.0']).toBe('>=0.18.1')
   expect(manifest.pnpm?.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
 })
@@ -92,7 +94,9 @@ test('CVEs found in the allow list are not added as overrides', async () => {
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
 
-  const manifest = await loadJsonFile<ProjectManifest>(path.join(tmp, 'package.json'))
+  const manifest = await loadJsonFile<ProjectManifest>(
+    path.join(tmp, 'package.json')
+  )
   expect(manifest.pnpm?.overrides?.['axios@<=0.18.0']).toBeFalsy()
   expect(manifest.pnpm?.overrides?.['axios@<0.21.1']).toBeFalsy()
   expect(manifest.pnpm?.overrides?.['minimist@<0.2.1']).toBeFalsy()

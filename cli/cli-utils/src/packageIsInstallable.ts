@@ -1,25 +1,28 @@
 import { packageManager } from '@pnpm/cli-meta'
 import { logger } from '@pnpm/logger'
-import { checkPackage, UnsupportedEngineError, type WantedEngine } from '@pnpm/package-is-installable'
-import { type SupportedArchitectures } from '@pnpm/types'
+import {
+  checkPackage,
+  UnsupportedEngineError,
+  type WantedEngine,
+} from '@pnpm/package-is-installable'
+import type { SupportedArchitectures } from '@pnpm/types'
 
-export function packageIsInstallable (
+export function packageIsInstallable(
   pkgPath: string,
   pkg: {
-    engines?: WantedEngine
-    cpu?: string[]
-    os?: string[]
-    libc?: string[]
+    engines?: WantedEngine | undefined
+    cpu?: string[] | undefined
+    os?: string[] | undefined
+    libc?: string[] | undefined
   },
   opts: {
-    engineStrict?: boolean
-    nodeVersion?: string
+    engineStrict?: boolean | undefined
+    nodeVersion?: string | undefined
     supportedArchitectures?: SupportedArchitectures
   }
 ) {
-  const pnpmVersion = packageManager.name === 'pnpm'
-    ? packageManager.stableVersion
-    : undefined
+  const pnpmVersion =
+    packageManager.name === 'pnpm' ? packageManager.stableVersion : undefined
   const err = checkPackage(pkgPath, pkg, {
     nodeVersion: opts.nodeVersion,
     pnpmVersion,
@@ -33,7 +36,8 @@ export function packageIsInstallable (
   if (
     (err instanceof UnsupportedEngineError && err.wanted.pnpm) ??
     opts.engineStrict
-  ) throw err
+  )
+    throw err
   logger.warn({
     message: `Unsupported ${
       err instanceof UnsupportedEngineError ? 'engine' : 'platform'

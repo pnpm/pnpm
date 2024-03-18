@@ -49,8 +49,9 @@
     "@pnpm/make-dedicated-lockfile": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
-    "execa": "npm:safe-execa@0.1.2",
-    "pnpm": "8.15.3"
+    "execa": "npm:safe-execa@0.1.3",
+    "pnpm": "8.15.4",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

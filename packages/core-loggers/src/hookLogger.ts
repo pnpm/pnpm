@@ -1,7 +1,4 @@
-import {
-  type LogBase,
-  logger,
-} from '@pnpm/logger'
+import { type LogBase, logger } from '@pnpm/logger'
 
 export const hookLogger = logger('hook')
 

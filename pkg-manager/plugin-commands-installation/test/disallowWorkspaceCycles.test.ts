@@ -18,7 +18,10 @@ test('should error if disallow-workspace-cycles is set', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
 
   let err!: PnpmError
   try {
@@ -51,7 +54,10 @@ test('should not error if disallow-workspace-cycles is not set', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
 
   let err!: PnpmError
   try {
@@ -82,7 +88,10 @@ test('should not error if there are no cyclic dependencies', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
 
   let err!: PnpmError
   try {

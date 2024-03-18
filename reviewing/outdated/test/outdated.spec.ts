@@ -1,25 +1,27 @@
 import { outdated } from '../lib/outdated'
 
-async function getLatestManifest (packageName: string) {
-  return ({
-    'deprecated-pkg': {
-      deprecated: 'This package is deprecated',
-      name: 'deprecated-pkg',
-      version: '1.0.0',
-    },
-    'is-negative': {
-      name: 'is-negative',
-      version: '2.1.0',
-    },
-    'is-positive': {
-      name: 'is-positive',
-      version: '3.1.0',
-    },
-    'pkg-with-1-dep': {
-      name: 'pkg-with-1-dep',
-      version: '1.0.0',
-    },
-  })[packageName] ?? null
+async function getLatestManifest(packageName: string) {
+  return (
+    {
+      'deprecated-pkg': {
+        deprecated: 'This package is deprecated',
+        name: 'deprecated-pkg',
+        version: '1.0.0',
+      },
+      'is-negative': {
+        name: 'is-negative',
+        version: '2.1.0',
+      },
+      'is-positive': {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
+      'pkg-with-1-dep': {
+        name: 'pkg-with-1-dep',
+        version: '1.0.0',
+      },
+    }[packageName] ?? null
+  )
 }
 
 test('outdated()', async () => {
@@ -28,7 +30,8 @@ test('outdated()', async () => {
       importers: {
         '.': {
           dependencies: {
-            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'from-github':
+              'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
           },
           devDependencies: {
             'is-negative': '1.0.0',
@@ -39,7 +42,8 @@ test('outdated()', async () => {
             'linked-2': 'file:../linked-2',
           },
           specifiers: {
-            'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'from-github':
+              'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
             'is-negative': '^2.1.0',
             'is-positive': '^1.0.0',
           },
@@ -56,18 +60,21 @@ test('outdated()', async () => {
         '/is-positive/1.0.0': {
           dev: true,
           resolution: {
-            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+            integrity:
+              'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
         },
-        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
-          name: 'from-github',
-          version: '1.1.0',
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4':
+          {
+            name: 'from-github',
+            version: '1.1.0',
 
-          dev: false,
-          resolution: {
-            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            dev: false,
+            resolution: {
+              tarball:
+                'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            },
           },
-        },
       },
     },
     getLatestManifest,
@@ -76,8 +83,10 @@ test('outdated()', async () => {
       name: 'wanted-shrinkwrap',
       version: '1.0.0',
       dependencies: {
-        'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
-        'from-github-2': 'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+        'from-github':
+          'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+        'from-github-2':
+          'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
       },
       devDependencies: {
         'is-negative': '^2.1.0',
@@ -89,8 +98,10 @@ test('outdated()', async () => {
       importers: {
         '.': {
           dependencies: {
-            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
-            'from-github-2': 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github':
+              'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github-2':
+              'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
           },
           devDependencies: {
             'is-negative': '1.1.0',
@@ -101,8 +112,10 @@ test('outdated()', async () => {
             'linked-2': 'file:../linked-2',
           },
           specifiers: {
-            'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
-            'from-github-2': 'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'from-github':
+              'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'from-github-2':
+              'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
             'is-negative': '^2.1.0',
             'is-positive': '^3.1.0',
           },
@@ -117,25 +130,30 @@ test('outdated()', async () => {
         },
         '/is-positive/3.1.0': {
           resolution: {
-            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+            integrity:
+              'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
-        'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
-          name: 'from-github-2',
-          version: '1.0.0',
+        'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3':
+          {
+            name: 'from-github-2',
+            version: '1.0.0',
 
-          resolution: {
-            tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            resolution: {
+              tarball:
+                'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            },
           },
-        },
-        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
-          name: 'from-github',
-          version: '1.0.0',
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3':
+          {
+            name: 'from-github',
+            version: '1.0.0',
 
-          resolution: {
-            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            resolution: {
+              tarball:
+                'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            },
           },
-        },
       },
     },
     registries: {
@@ -146,10 +164,12 @@ test('outdated()', async () => {
     {
       alias: 'from-github',
       belongsTo: 'dependencies',
-      current: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+      current:
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
       latestManifest: undefined,
       packageName: 'from-github',
-      wanted: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+      wanted:
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
       workspace: 'wanted-shrinkwrap',
     },
     {
@@ -158,7 +178,8 @@ test('outdated()', async () => {
       current: undefined,
       latestManifest: undefined,
       packageName: 'from-github-2',
-      wanted: 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+      wanted:
+        'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
       workspace: 'wanted-shrinkwrap',
     },
     {
@@ -251,7 +272,8 @@ test('using a matcher', async () => {
       importers: {
         '.': {
           dependencies: {
-            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'from-github':
+              'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
             'is-negative': '1.0.0',
             'is-positive': '1.0.0',
             'linked-1': 'link:../linked-1',
@@ -272,17 +294,20 @@ test('using a matcher', async () => {
         },
         '/is-positive/1.0.0': {
           resolution: {
-            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+            integrity:
+              'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
         },
-        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
-          name: 'from-github',
-          version: '1.1.0',
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4':
+          {
+            name: 'from-github',
+            version: '1.1.0',
 
-          resolution: {
-            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            resolution: {
+              tarball:
+                'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            },
           },
-        },
       },
     },
     getLatestManifest,
@@ -302,8 +327,10 @@ test('using a matcher', async () => {
       importers: {
         '.': {
           dependencies: {
-            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
-            'from-github-2': 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github':
+              'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github-2':
+              'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
             'is-negative': '1.1.0',
             'is-positive': '3.1.0',
             'linked-1': 'link:../linked-1',
@@ -324,25 +351,30 @@ test('using a matcher', async () => {
         },
         '/is-positive/3.1.0': {
           resolution: {
-            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+            integrity:
+              'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
-        'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
-          name: 'from-github-2',
-          version: '1.0.0',
+        'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3':
+          {
+            name: 'from-github-2',
+            version: '1.0.0',
 
-          resolution: {
-            tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            resolution: {
+              tarball:
+                'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            },
           },
-        },
-        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
-          name: 'from-github',
-          version: '1.0.0',
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3':
+          {
+            name: 'from-github',
+            version: '1.0.0',
 
-          resolution: {
-            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            resolution: {
+              tarball:
+                'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            },
           },
-        },
       },
     },
     registries: {
@@ -382,7 +414,8 @@ test('outdated() aliased dependency', async () => {
       packages: {
         '/is-positive/1.0.0': {
           resolution: {
-            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+            integrity:
+              'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
         },
       },
@@ -413,7 +446,8 @@ test('outdated() aliased dependency', async () => {
       packages: {
         '/is-positive/3.1.0': {
           resolution: {
-            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+            integrity:
+              'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
       },
@@ -480,21 +514,21 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
     currentLockfile: lockfile,
     getLatestManifest: async (packageName) => {
       switch (packageName) {
-      case 'foo':
-        return {
-          name: 'foo',
-          version: '0.1.0',
-        }
-      case 'foo2':
-        return {
-          name: 'foo2',
-          version: '1.0.0',
-        }
-      case 'foo3':
-        return {
-          name: 'foo3',
-          version: '2.0.0',
-        }
+        case 'foo':
+          return {
+            name: 'foo',
+            version: '0.1.0',
+          }
+        case 'foo2':
+          return {
+            name: 'foo2',
+            version: '1.0.0',
+          }
+        case 'foo3':
+          return {
+            name: 'foo3',
+            version: '2.0.0',
+          }
       }
       return null
     },
@@ -544,7 +578,8 @@ test('should ignore dependencies as expected', async () => {
       importers: {
         '.': {
           dependencies: {
-            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'from-github':
+              'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
           },
           devDependencies: {
             'is-negative': '1.0.0',
@@ -555,7 +590,8 @@ test('should ignore dependencies as expected', async () => {
             'linked-2': 'file:../linked-2',
           },
           specifiers: {
-            'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'from-github':
+              'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
             'is-negative': '^2.1.0',
             'is-positive': '^1.0.0',
           },
@@ -572,18 +608,21 @@ test('should ignore dependencies as expected', async () => {
         '/is-positive/1.0.0': {
           dev: true,
           resolution: {
-            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+            integrity:
+              'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
         },
-        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
-          name: 'from-github',
-          version: '1.1.0',
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4':
+          {
+            name: 'from-github',
+            version: '1.1.0',
 
-          dev: false,
-          resolution: {
-            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            dev: false,
+            resolution: {
+              tarball:
+                'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            },
           },
-        },
       },
     },
     getLatestManifest,
@@ -592,8 +631,10 @@ test('should ignore dependencies as expected', async () => {
       name: 'wanted-shrinkwrap',
       version: '1.0.0',
       dependencies: {
-        'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
-        'from-github-2': 'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+        'from-github':
+          'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+        'from-github-2':
+          'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
       },
       devDependencies: {
         'is-negative': '^2.1.0',
@@ -605,8 +646,10 @@ test('should ignore dependencies as expected', async () => {
       importers: {
         '.': {
           dependencies: {
-            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
-            'from-github-2': 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github':
+              'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github-2':
+              'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
           },
           devDependencies: {
             'is-negative': '1.1.0',
@@ -617,8 +660,10 @@ test('should ignore dependencies as expected', async () => {
             'linked-2': 'file:../linked-2',
           },
           specifiers: {
-            'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
-            'from-github-2': 'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'from-github':
+              'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'from-github-2':
+              'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
             'is-negative': '^2.1.0',
             'is-positive': '^3.1.0',
           },
@@ -633,34 +678,36 @@ test('should ignore dependencies as expected', async () => {
         },
         '/is-positive/3.1.0': {
           resolution: {
-            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+            integrity:
+              'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
-        'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
-          name: 'from-github-2',
-          version: '1.0.0',
+        'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3':
+          {
+            name: 'from-github-2',
+            version: '1.0.0',
 
-          resolution: {
-            tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            resolution: {
+              tarball:
+                'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            },
           },
-        },
-        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
-          name: 'from-github',
-          version: '1.0.0',
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3':
+          {
+            name: 'from-github',
+            version: '1.0.0',
 
-          resolution: {
-            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            resolution: {
+              tarball:
+                'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            },
           },
-        },
       },
     },
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-    ignoreDependencies: [
-      'from-*',
-      'is-negative',
-    ],
+    ignoreDependencies: ['from-*', 'is-negative'],
   })
   expect(outdatedPkgs).toStrictEqual([
     {

@@ -13,24 +13,24 @@ export type LicensesCommandOptions = {
   recursive?: boolean
   json?: boolean
 } & Pick<
-Config,
-| 'dev'
-| 'dir'
-| 'lockfileDir'
-| 'registries'
-| 'optional'
-| 'production'
-| 'storeDir'
-| 'virtualStoreDir'
-| 'modulesDir'
-| 'pnpmHomeDir'
-| 'selectedProjectsGraph'
-| 'rootProjectManifest'
-| 'rootProjectManifestDir'
+  Config,
+  | 'dev'
+  | 'dir'
+  | 'lockfileDir'
+  | 'registries'
+  | 'optional'
+  | 'production'
+  | 'storeDir'
+  | 'virtualStoreDir'
+  | 'modulesDir'
+  | 'pnpmHomeDir'
+  | 'selectedProjectsGraph'
+  | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
 > &
-Partial<Pick<Config, 'userConfig'>>
+  Partial<Pick<Config, 'userConfig'>>
 
-export async function licensesList (opts: LicensesCommandOptions) {
+export async function licensesList(opts: LicensesCommandOptions) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, {
     ignoreIncompatible: true,
   })
@@ -50,8 +50,9 @@ export async function licensesList (opts: LicensesCommandOptions) {
   const manifest = await readProjectManifestOnly(opts.dir)
 
   const includedImporterIds = opts.selectedProjectsGraph
-    ? Object.keys(opts.selectedProjectsGraph)
-      .map((path) => getLockfileImporterId(opts.lockfileDir ?? opts.dir, path))
+    ? Object.keys(opts.selectedProjectsGraph).map((path) =>
+      getLockfileImporterId(opts.lockfileDir ?? opts.dir, path)
+    )
     : undefined
 
   const storeDir = await getStorePath({
@@ -70,7 +71,10 @@ export async function licensesList (opts: LicensesCommandOptions) {
     wantedLockfile: lockfile,
     manifest,
     includedImporterIds,
-    supportedArchitectures: getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}).supportedArchitectures,
+    supportedArchitectures: getOptionsFromRootManifest(
+      opts.rootProjectManifestDir,
+      opts.rootProjectManifest ?? {}
+    ).supportedArchitectures,
   })
 
   if (licensePackages.length === 0)

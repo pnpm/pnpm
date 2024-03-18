@@ -1,10 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import {
-  addDependenciesToPackage,
-  install,
-  link,
-} from '@pnpm/core'
+import { addDependenciesToPackage, install, link } from '@pnpm/core'
 import { fixtures } from '@pnpm/test-fixtures'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -23,25 +19,33 @@ test('relative link', async () => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   f.copy(linkedPkgName, linkedPkgPath)
-  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults({
-    dir: process.cwd(),
-    manifest: {
-      dependencies: {
-        '@pnpm.e2e/hello-world-js-bin': '*',
+  await link(
+    [`../${linkedPkgName}`],
+    path.join(process.cwd(), 'node_modules'),
+    await testDefaults({
+      dir: process.cwd(),
+      manifest: {
+        dependencies: {
+          '@pnpm.e2e/hello-world-js-bin': '*',
+        },
       },
-    },
-  }))
+    })
+  )
 
   await project.isExecutable('.bin/hello-world-js-bin')
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
+  expect(
+    wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']
+  ).toStrictEqual({
     version: 'link:../hello-world-js-bin',
     specifier: '*',
   })
 
   const currentLockfile = await project.readCurrentLockfile()
-  expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
+  expect(
+    currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']
+  ).toStrictEqual({
     version: 'link:../hello-world-js-bin',
     specifier: '*',
   })
@@ -55,11 +59,14 @@ test('relative link is linked by the name of the alias', async () => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   f.copy(linkedPkgName, linkedPkgPath)
-  await install({
-    dependencies: {
-      hello: `link:../${linkedPkgName}`,
+  await install(
+    {
+      dependencies: {
+        hello: `link:../${linkedPkgName}`,
+      },
     },
-  }, await testDefaults())
+    await testDefaults()
+  )
 
   await project.isExecutable('.bin/hello-world-js-bin')
 
@@ -92,28 +99,37 @@ test('relative link is not rewritten by argumentless install', async () => {
       dir: process.cwd(),
       manifest: {},
       reporter,
-    })
+    }
+  )
 
-  expect(reporter.calledWithMatch({
-    added: {
-      dependencyType: undefined,
-      linkedFrom: linkedPkgPath,
-      name: '@pnpm.e2e/hello-world-js-bin',
-      realName: '@pnpm.e2e/hello-world-js-bin',
-      version: '1.0.0',
-    },
-    level: 'debug',
-    name: 'pnpm:root',
-    prefix: process.cwd(),
-  } as RootLog)).toBeTruthy()
+  expect(
+    reporter.calledWithMatch({
+      added: {
+        dependencyType: undefined,
+        linkedFrom: linkedPkgPath,
+        name: '@pnpm.e2e/hello-world-js-bin',
+        realName: '@pnpm.e2e/hello-world-js-bin',
+        version: '1.0.0',
+      },
+      level: 'debug',
+      name: 'pnpm:root',
+      prefix: process.cwd(),
+    } as RootLog)
+  ).toBeTruthy()
 
   await install(manifest, opts)
 
-  expect(project.requireModule('@pnpm.e2e/hello-world-js-bin/package.json').isLocal).toBeTruthy()
+  expect(
+    project.requireModule('@pnpm.e2e/hello-world-js-bin/package.json').isLocal
+  ).toBeTruthy()
 })
 
 test('relative link is rewritten by named installation to regular dependency', async () => {
-  await addDistTag({ package: '@pnpm.e2e/hello-world-js-bin', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/hello-world-js-bin',
+    version: '1.0.0',
+    distTag: 'latest',
+  })
   const project = prepareEmpty()
 
   const linkedPkgName = 'hello-world-js-bin'
@@ -134,30 +150,44 @@ test('relative link is rewritten by named installation to regular dependency', a
     }
   )
 
-  expect(reporter.calledWithMatch({
-    added: {
-      dependencyType: undefined,
-      linkedFrom: linkedPkgPath,
-      name: '@pnpm.e2e/hello-world-js-bin',
-      realName: '@pnpm.e2e/hello-world-js-bin',
-      version: '1.0.0',
-    },
-    level: 'debug',
-    name: 'pnpm:root',
-    prefix: process.cwd(),
-  } as RootLog)).toBeTruthy()
+  expect(
+    reporter.calledWithMatch({
+      added: {
+        dependencyType: undefined,
+        linkedFrom: linkedPkgPath,
+        name: '@pnpm.e2e/hello-world-js-bin',
+        realName: '@pnpm.e2e/hello-world-js-bin',
+        version: '1.0.0',
+      },
+      level: 'debug',
+      name: 'pnpm:root',
+      prefix: process.cwd(),
+    } as RootLog)
+  ).toBeTruthy()
 
-  manifest = await addDependenciesToPackage(manifest, ['@pnpm.e2e/hello-world-js-bin'], opts)
+  manifest = await addDependenciesToPackage(
+    manifest,
+    ['@pnpm.e2e/hello-world-js-bin'],
+    opts
+  )
 
-  expect(manifest.dependencies).toStrictEqual({ '@pnpm.e2e/hello-world-js-bin': '^1.0.0' })
+  expect(manifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/hello-world-js-bin': '^1.0.0',
+  })
 
-  expect(project.requireModule('@pnpm.e2e/hello-world-js-bin/package.json').isLocal).toBeFalsy()
+  expect(
+    project.requireModule('@pnpm.e2e/hello-world-js-bin/package.json').isLocal
+  ).toBeFalsy()
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('1.0.0')
+  expect(
+    wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version
+  ).toBe('1.0.0')
 
   const currentLockfile = await project.readCurrentLockfile()
-  expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('1.0.0')
+  expect(
+    currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version
+  ).toBe('1.0.0')
 })
 
 test('relative link uses realpath when contained in a symlinked dir', async () => {
@@ -188,7 +218,11 @@ test('relative link uses realpath when contained in a symlinked dir', async () =
   const linkFrom = path.join(app1, '/packages/public/bar')
   const linkTo = path.join(app2, '/packages/public/foo', 'node_modules')
 
-  await link([linkFrom], linkTo, await testDefaults({ manifest: {}, dir: process.cwd() }))
+  await link(
+    [linkFrom],
+    linkTo,
+    await testDefaults({ manifest: {}, dir: process.cwd() })
+  )
 
   const linkToRelLink = await fs.readlink(path.join(linkTo, 'bar'))
 
@@ -207,13 +241,23 @@ test('throws error is package name is not defined', async () => {
 
   await writeJsonFile('../is-positive/package.json', { version: '1.0.0' })
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['is-positive@1.0.0'],
+    await testDefaults()
+  )
 
   try {
-    await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ manifest, dir: process.cwd() }))
+    await link(
+      ['../is-positive'],
+      path.resolve('node_modules'),
+      await testDefaults({ manifest, dir: process.cwd() })
+    )
     throw new Error('link package should fail')
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toBe('Package in ../is-positive must have a name field to be linked')
+    expect(err.message).toBe(
+      'Package in ../is-positive must have a name field to be linked'
+    )
     expect(err.code).toBe('ERR_PNPM_INVALID_PACKAGE_NAME')
   }
 })
@@ -225,14 +269,18 @@ test('link should not change the type of the dependency', async () => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   f.copy(linkedPkgName, linkedPkgPath)
-  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults({
-    dir: process.cwd(),
-    manifest: {
-      devDependencies: {
-        '@pnpm.e2e/hello-world-js-bin': '*',
+  await link(
+    [`../${linkedPkgName}`],
+    path.join(process.cwd(), 'node_modules'),
+    await testDefaults({
+      dir: process.cwd(),
+      manifest: {
+        devDependencies: {
+          '@pnpm.e2e/hello-world-js-bin': '*',
+        },
       },
-    },
-  }))
+    })
+  )
 
   await project.isExecutable('.bin/hello-world-js-bin')
 

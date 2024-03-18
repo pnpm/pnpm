@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+import path from 'node:path'
 import { assertStore } from '@pnpm/assert-store'
 
 test('assertStore() store assertions', async () => {
@@ -17,5 +17,5 @@ test('assertStore() resolve', async () => {
   const encodedRegistryName = 'registry.npmjs.org'
   const store = assertStore(storePath, encodedRegistryName)
 
-  expect(typeof await store.resolve('is-positive', '3.1.0')).toBe('string')
+  expect(typeof (await store.resolve('is-positive', '3.1.0'))).toBe('string')
 })

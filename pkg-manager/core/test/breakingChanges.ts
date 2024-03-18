@@ -41,14 +41,25 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
   const opts = await testDefaults({ force: true })
 
   process.chdir('pkg')
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDir: path.resolve('..') }))
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['is-positive@1.0.0'],
+    await testDefaults({ lockfileDir: path.resolve('..') })
+  )
   await rimraf('node_modules')
 
   process.chdir('..')
 
-  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.storeDir}\nlayoutVersion: 1`)
+  await fs.writeFile(
+    'node_modules/.modules.yaml',
+    `packageManager: pnpm@${3}\nstore: ${opts.storeDir}\nlayoutVersion: 1`
+  )
 
-  await install(manifest, { ...opts, dir: path.resolve('pkg'), lockfileDir: process.cwd() })
+  await install(manifest, {
+    ...opts,
+    dir: path.resolve('pkg'),
+    lockfileDir: process.cwd(),
+  })
 })
 
 test('do not fail on non-compatible node_modules when forced with a named installation', async () => {
@@ -65,10 +76,13 @@ test('do not fail on non-compatible node_modules when forced with a named instal
   }
   expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
 
-  await install({}, {
-    ...opts,
-    confirmModulesPurge: false,
-  })
+  await install(
+    {},
+    {
+      ...opts,
+      confirmModulesPurge: false,
+    }
+  )
 })
 
 test("don't fail on non-compatible store when forced", async () => {
@@ -94,15 +108,21 @@ test('do not fail on non-compatible store when forced during named installation'
   }
   expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
 
-  await install({}, {
-    ...opts,
-    confirmModulesPurge: false,
-  })
+  await install(
+    {},
+    {
+      ...opts,
+      confirmModulesPurge: false,
+    }
+  )
 })
 
-async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
+async function saveModulesYaml(pnpmVersion: string, storeDir: string) {
   await fs.mkdir('node_modules')
-  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`)
+  await fs.writeFile(
+    'node_modules/.modules.yaml',
+    `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`
+  )
 }
 
 test(`fail on non-compatible ${WANTED_LOCKFILE} when frozen lockfile installation is used`, async () => {
@@ -115,7 +135,11 @@ test(`fail on non-compatible ${WANTED_LOCKFILE} when frozen lockfile installatio
   await fs.writeFile(WANTED_LOCKFILE, '')
 
   try {
-    await addDependenciesToPackage({}, ['is-negative'], await testDefaults({ frozenLockfile: true }))
+    await addDependenciesToPackage(
+      {},
+      ['is-negative'],
+      await testDefaults({ frozenLockfile: true })
+    )
     throw new Error('should have failed')
   } catch (err: any) { // eslint-disable-line
     if (err.message === 'should have failed') throw err
@@ -127,5 +151,9 @@ test(`don't fail on non-compatible ${WANTED_LOCKFILE} when forced`, async () => 
   prepareEmpty()
   await fs.writeFile(WANTED_LOCKFILE, '')
 
-  await addDependenciesToPackage({}, ['is-negative'], await testDefaults({ force: true }))
+  await addDependenciesToPackage(
+    {},
+    ['is-negative'],
+    await testDefaults({ force: true })
+  )
 })

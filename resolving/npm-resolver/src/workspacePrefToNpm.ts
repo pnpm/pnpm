@@ -1,4 +1,4 @@
-export function workspacePrefToNpm (workspacePref: string): string {
+export function workspacePrefToNpm(workspacePref: string): string {
   const prefParts = /^workspace:([^._/][^@]*@)?(.*)$/.exec(workspacePref)
 
   if (prefParts == null) {
@@ -6,12 +6,14 @@ export function workspacePrefToNpm (workspacePref: string): string {
   }
   const [workspacePkgAlias, workspaceVersion] = prefParts.slice(1)
 
-  const pkgAliasPart = workspacePkgAlias != null && workspacePkgAlias
-    ? `npm:${workspacePkgAlias}`
-    : ''
-  const versionPart = workspaceVersion === '^' || workspaceVersion === '~'
-    ? '*'
-    : workspaceVersion
+  const pkgAliasPart =
+    workspacePkgAlias != null && workspacePkgAlias
+      ? `npm:${workspacePkgAlias}`
+      : ''
+  const versionPart =
+    workspaceVersion === '^' || workspaceVersion === '~'
+      ? '*'
+      : workspaceVersion
 
   return `${pkgAliasPart}${versionPart}`
 }

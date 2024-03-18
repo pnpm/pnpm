@@ -22,17 +22,17 @@ export interface OptionsFromRootManifest {
   supportedArchitectures?: SupportedArchitectures
 }
 
-export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
+export function getOptionsFromRootManifest(
+  manifestDir: string,
+  manifest: ProjectManifest
+): OptionsFromRootManifest {
   // We read Yarn's resolutions field for compatibility
   // but we really replace the version specs to any other version spec, not only to exact versions,
   // so we cannot call it resolutions
-  const overrides = mapValues(
-    createVersionReferencesReplacer(manifest),
-    {
-      ...manifest.resolutions,
-      ...manifest.pnpm?.overrides,
-    }
-  )
+  const overrides = mapValues(createVersionReferencesReplacer(manifest), {
+    ...manifest.resolutions,
+    ...manifest.pnpm?.overrides,
+  })
   const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies
   const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
   const onlyBuiltDependenciesFile = manifest.pnpm?.onlyBuiltDependenciesFile
@@ -69,12 +69,15 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
     settings.onlyBuiltDependencies = onlyBuiltDependencies
   }
   if (onlyBuiltDependenciesFile) {
-    settings.onlyBuiltDependenciesFile = path.join(manifestDir, onlyBuiltDependenciesFile)
+    settings.onlyBuiltDependenciesFile = path.join(
+      manifestDir,
+      onlyBuiltDependenciesFile
+    )
   }
   return settings
 }
 
-function createVersionReferencesReplacer (manifest: ProjectManifest) {
+function createVersionReferencesReplacer(manifest: ProjectManifest) {
   const allDeps = {
     ...manifest.devDependencies,
     ...manifest.dependencies,
@@ -83,7 +86,7 @@ function createVersionReferencesReplacer (manifest: ProjectManifest) {
   return replaceVersionReferences.bind(null, allDeps)
 }
 
-function replaceVersionReferences (dep: Record<string, string>, spec: string) {
+function replaceVersionReferences(dep: Record<string, string>, spec: string) {
   if (!(spec[0] === '$')) return spec
   const dependencyName = spec.slice(1)
   const newSpec = dep[dependencyName]

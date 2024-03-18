@@ -13,17 +13,15 @@ import {
 } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { PnpmError } from '@pnpm/error'
-import {
-  createStreamParser,
-  logger,
-} from '@pnpm/logger'
+import { createStreamParser, logger } from '@pnpm/logger'
 import { map, skip, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
 import repeat from 'ramda/src/repeat'
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
 
-const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)
+const formatErrorCode = (code: string) =>
+  chalk.bgRed.black(`\u2009${code}\u2009`)
 const formatError = (code: string, message: string) => {
   return `${formatErrorCode(code)} ${chalk.red(message)}`
 }
@@ -201,10 +199,11 @@ test('prints summary (of current package only)', (done) => {
   output$.pipe(skip(2), take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
-        `${formatWarn(`${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla`)}${EOL}${EOL}` +
-        `\
+    next: (output) => {
+      expect(output).toBe(
+        `packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
+          `${formatWarn(`${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla`)}${EOL}${EOL}` +
+          `\
 ${h1('dependencies:')}
 ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
 ${SUB} foo ${versionColor('0.1.0')}
@@ -225,7 +224,8 @@ ${ADD} qar ${versionColor('2.0.0')}
 
 ${h1('node_modules:')}
 ${ADD} is-linked2 ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked2')}`)}
-`)
+`
+      )
     },
   })
 })
@@ -294,11 +294,14 @@ test('prints summary without the filtered out entries', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(EOL + `\
+    next: (output) => {
+      expect(output).toBe(
+        EOL +
+          `\
 ${h1('dependencies:')}
 ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
-`)
+`
+      )
     },
   })
 })
@@ -357,7 +360,7 @@ test('does not print deprecation message when log level is set to error', (done)
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(formatError('ERR_PNPM_SOME_CODE', 'some error'))
     },
   })
@@ -416,12 +419,15 @@ test('prints summary for global installation', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(EOL + `\
+    next: (output) => {
+      expect(output).toBe(
+        EOL +
+          `\
 ${h1(`${prefix}:`)}
 ${ADD} bar ${versionColor('2.0.0')}
 ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
-`)
+`
+      )
     },
   })
 })
@@ -460,14 +466,17 @@ test('prints added peer dependency', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(EOL + `\
+    next: (output) => {
+      expect(output).toBe(
+        EOL +
+          `\
 ${h1('peerDependencies:')}
 ${ADD} is-negative ${versionColor('^1.0.0')}
 
 ${h1('devDependencies:')}
 ${ADD} is-negative ${versionColor('^1.0.0')}
-`)
+`
+      )
     },
   })
 })
@@ -527,11 +536,14 @@ test('prints summary correctly when the same package is specified both in option
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(EOL + `\
+    next: (output) => {
+      expect(output).toBe(
+        EOL +
+          `\
 ${h1('dependencies:')}
 ${ADD} bar ${versionColor('2.0.0')}
-`)
+`
+      )
     },
   })
 })
@@ -597,15 +609,18 @@ test('in the installation summary report which dependency types are skipped', (d
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(EOL + `\
+    next: (output) => {
+      expect(output).toBe(
+        EOL +
+          `\
 ${h1('dependencies:')}
 ${ADD} bar ${versionColor('2.0.0')}
 
 ${h1('optionalDependencies:')} skipped
 
 ${h1('devDependencies:')} skipped because NODE_ENV is set to production
-`)
+`
+      )
     },
   })
 })
@@ -621,8 +636,10 @@ test('prints summary when some packages fail', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(EOL + `Summary: ${chalk.red('6 fails')}, 7 passes
+    next: (output) => {
+      expect(output).toBe(
+        EOL +
+          `Summary: ${chalk.red('6 fails')}, 7 passes
 
 /a:
 ${formatError('ERROR', 'a failed')}
@@ -640,12 +657,13 @@ ${formatError('ERROR', 'd failed')}
 ${formatError('ERROR', 'e failed')}
 
 /f:
-${formatError('ERROR', 'f failed')}`)
+${formatError('ERROR', 'f failed')}`
+      )
     },
   })
 
   const err = new PnpmError('RECURSIVE_FAIL', '...')
-  err['failures'] = [
+  err.failures = [
     {
       message: 'a failed',
       prefix: '/a',
@@ -671,7 +689,7 @@ ${formatError('ERROR', 'f failed')}`)
       prefix: '/f',
     },
   ]
-  err['passes'] = 7
+  err.passes = 7
   logger.error(err, err)
 })
 
@@ -688,7 +706,7 @@ test('prints info', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe('info message')
     },
   })
@@ -709,10 +727,9 @@ test('prints added/removed stats during installation', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`Packages: ${chalk.green('+5')} ${chalk.red('-1')}
-${ADD + ADD + ADD + ADD + ADD + SUB}`
-      )
+${ADD + ADD + ADD + ADD + ADD + SUB}`)
     },
   })
 })
@@ -732,10 +749,9 @@ test('prints added/removed stats during installation when 0 removed', (done) => 
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`Packages: ${chalk.green('+2')}
-${ADD + ADD}`
-      )
+${ADD + ADD}`)
     },
   })
 })
@@ -755,7 +771,7 @@ test('prints only the added stats if nothing was removed', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`Packages: ${chalk.green('+1')}
 ${ADD}`)
     },
@@ -777,7 +793,7 @@ test('prints only the removed stats if nothing was added', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`Packages: ${chalk.red('-1')}
 ${SUB}`)
     },
@@ -800,7 +816,7 @@ test('prints only the added stats if nothing was removed and a lot added', (done
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`Packages: ${chalk.green('+100')}
 ${repeat(ADD, 20).join('')}`)
     },
@@ -823,7 +839,7 @@ test('prints only the removed stats if nothing was added and a lot removed', (do
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`Packages: ${chalk.red('-100')}
 ${repeat(SUB, 20).join('')}`)
     },
@@ -846,10 +862,9 @@ test('prints at least one remove sign when removed !== 0', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`Packages: ${chalk.green('+100')} ${chalk.red('-1')}
-${repeat(ADD, 19).join('') + SUB}`
-      )
+${repeat(ADD, 19).join('') + SUB}`)
     },
   })
 })
@@ -870,7 +885,7 @@ test('prints at least one add sign when added !== 0', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`Packages: ${chalk.green('+1')} ${chalk.red('-100')}
 ${ADD + repeat(SUB, 19).join('')}`)
     },
@@ -891,7 +906,7 @@ test('prints just removed during uninstallation', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`Packages: ${chalk.red('-4')}
 ${SUB + SUB + SUB + SUB}`)
     },
@@ -927,10 +942,22 @@ test('prints added/removed stats and warnings during recursive installation', (d
   })
   statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/dir/pkg-2' })
   // cspell:disable
-  statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong/pkg-3' })
-  statsLogger.debug({ added: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong/pkg-3' })
-  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4' })
-  statsLogger.debug({ added: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4' })
+  statsLogger.debug({
+    removed: 0,
+    prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong/pkg-3',
+  })
+  statsLogger.debug({
+    added: 1,
+    prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong/pkg-3',
+  })
+  statsLogger.debug({
+    removed: 1,
+    prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4',
+  })
+  statsLogger.debug({
+    added: 0,
+    prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4',
+  })
   // cspell:enable
   deprecationLogger.debug({
     deprecated: 'This package was deprecated because bla bla bla',
@@ -946,7 +973,7 @@ test('prints added/removed stats and warnings during recursive installation', (d
   output$.pipe(skip(8), take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       // cspell:disable
       expect(output).toBe(`\
 pkg-5                                    | ${formatWarn('Some issue')}
@@ -981,8 +1008,10 @@ test('recursive installation: prints only the added stats if nothing was removed
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    | ${chalk.green('+190')} ${repeat(ADD, 12).join('')}`)
+    next: (output) => {
+      expect(output).toBe(
+        `pkg-1                                    | ${chalk.green('+190')} ${repeat(ADD, 12).join('')}`
+      )
     },
   })
 })
@@ -1005,8 +1034,10 @@ test('recursive installation: prints only the removed stats if nothing was added
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    | ${chalk.red('-190')} ${repeat(SUB, 12).join('')}`)
+    next: (output) => {
+      expect(output).toBe(
+        `pkg-1                                    | ${chalk.red('-190')} ${repeat(SUB, 12).join('')}`
+      )
     },
   })
 })
@@ -1029,8 +1060,10 @@ test('recursive installation: prints at least one remove sign when removed !== 0
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${repeat(ADD, 8).join('') + SUB}`)
+    next: (output) => {
+      expect(output).toBe(
+        `pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${repeat(ADD, 8).join('') + SUB}`
+      )
     },
   })
 })
@@ -1053,8 +1086,10 @@ test('recursive installation: prints at least one add sign when added !== 0', (d
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + repeat(SUB, 8).join('')}`)
+    next: (output) => {
+      expect(output).toBe(
+        `pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + repeat(SUB, 8).join('')}`
+      )
     },
   })
 })
@@ -1076,8 +1111,10 @@ test('recursive uninstall: prints removed packages number', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    |   ${chalk.red('-1')} ${SUB}`)
+    next: (output) => {
+      expect(output).toBe(
+        `pkg-1                                    |   ${chalk.red('-1')} ${SUB}`
+      )
     },
   })
 })
@@ -1103,7 +1140,7 @@ test('install: print hook message', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`${chalk.magentaBright('readPackage')}: foo`)
     },
   })
@@ -1130,8 +1167,10 @@ test('recursive: print hook message', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`)
+    next: (output) => {
+      expect(output).toBe(
+        `pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`
+      )
     },
   })
 })
@@ -1164,8 +1203,10 @@ test('prints skipped optional dependency info message', (done) => {
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`info: ${pkgId} is an optional dependency and failed compatibility check. Excluding it from installation.`)
+    next: (output) => {
+      expect(output).toBe(
+        `info: ${pkgId} is an optional dependency and failed compatibility check. Excluding it from installation.`
+      )
     },
   })
 })
@@ -1190,7 +1231,7 @@ test('logLevel=default', (done) => {
   output$.pipe(skip(2), take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`Info message
 ${formatWarn('Some issue')}
 ${formatError('ERROR', 'some error')}`)
@@ -1221,7 +1262,7 @@ test('logLevel=warn', (done) => {
   output$.pipe(skip(1), take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`${formatWarn('Some issue')}
 ${formatError('ERR_PNPM_SOME_CODE', 'some error')}`)
     },
@@ -1251,7 +1292,7 @@ test('logLevel=error', (done) => {
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(formatError('ERR_PNPM_SOME_CODE', 'some error'))
     },
   })
@@ -1283,7 +1324,7 @@ test('warnings are collapsed', (done) => {
   output$.pipe(skip(6), take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`${formatWarn('Some issue 1')}
 ${formatWarn('Some issue 2')}
 ${formatWarn('Some issue 3')}
@@ -1321,7 +1362,7 @@ test('warnings are not collapsed when append-only is true', (done) => {
   output$.pipe(skip(6), take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(formatWarn('Some issue 7'))
     },
   })

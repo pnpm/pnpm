@@ -16,6 +16,9 @@ test('symlink is created to directory that does not yet exist', async () => {
     prefix: '',
   })
   fs.mkdirSync(dependencyLocation)
-  fs.writeFileSync(path.join(dependencyLocation, 'index.js'), 'module.exports = {}')
+  fs.writeFileSync(
+    path.join(dependencyLocation, 'index.js'),
+    'module.exports = {}'
+  )
   expect(fs.existsSync(path.join(destModulesDir, 'dep/index.js'))).toBe(true)
 })

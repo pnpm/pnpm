@@ -9,7 +9,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  (logger.warn as jest.Mock).mockRestore()
+  ;(logger.warn as jest.Mock).mockRestore()
 })
 
 test('should warn about cyclic dependencies', async () => {
@@ -26,7 +26,10 @@ test('should warn about cyclic dependencies', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -38,7 +41,9 @@ test('should warn about cyclic dependencies', async () => {
 
   expect(logger.warn).toHaveBeenCalledTimes(1)
   expect(logger.warn).toHaveBeenCalledWith({
-    message: expect.stringMatching(/^There are cyclic workspace dependencies: /),
+    message: expect.stringMatching(
+      /^There are cyclic workspace dependencies: /
+    ),
     prefix: process.cwd(),
   })
 })
@@ -57,7 +62,10 @@ test('should not warn about cyclic dependencies if ignore-workspace-cycles is se
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -84,7 +92,10 @@ test('should not warn about cyclic dependencies if there are not', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,

@@ -30,7 +30,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/is-empty-dir-or-nothing#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/fs.is-empty-dir-or-nothing": "workspace:*"
+    "@pnpm/fs.is-empty-dir-or-nothing": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

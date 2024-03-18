@@ -8,7 +8,7 @@ import normalizeNewline from 'normalize-newline'
 import { firstValueFrom } from 'rxjs'
 
 const hlValue = chalk.cyanBright
-const hlPkgId = chalk['whiteBright']
+const hlPkgId = chalk.whiteBright
 
 const POSTINSTALL = hlValue('postinstall')
 const PREINSTALL = hlValue('preinstall')
@@ -18,7 +18,7 @@ const STATUS_INDENTATION = chalk.magentaBright('└─')
 const STATUS_RUNNING = chalk.magentaBright('Running...')
 const STATUS_DONE = chalk.magentaBright('Done in 1s')
 
-function replaceTimeWith1Sec (text: string) {
+function replaceTimeWith1Sec(text: string) {
   return text
     .replace(/Done in [a-z0-9μ]+/g, 'Done in 1s')
     .replace(/done in [a-z0-9μ]+/g, 'done in 1s')
@@ -517,7 +517,11 @@ test('groups lifecycle output when append-only and aggregate-output are used wit
   lifecycleLogger.debug({ ...fooBuild, line: 'foo build I', stdio: 'stdout' })
   lifecycleLogger.debug({ ...fooLint, optional: false, script: 'node lint' })
   lifecycleLogger.debug({ ...fooLint, line: 'foo lint I', stdio: 'stdout' })
-  lifecycleLogger.debug({ ...barPostinstall, optional: false, script: 'node bar' })
+  lifecycleLogger.debug({
+    ...barPostinstall,
+    optional: false,
+    script: 'node bar',
+  })
   lifecycleLogger.debug({ ...barPostinstall, line: 'bar I', stdio: 'stdout' })
   lifecycleLogger.debug({ ...fooLint, line: 'foo lint II', stdio: 'stdout' })
   lifecycleLogger.debug({ ...fooLint, line: 'foo lint III', stdio: 'stdout' })
@@ -725,9 +729,33 @@ test('collapses lifecycle output of packages from node_modules', (done) => {
     streamParser: createStreamParser(),
   })
 
-  const wdOfFoo = path.resolve(process.cwd(), 'node_modules', '.registry.npmjs.org', 'foo', '1.0.0', 'node_modules', 'foo')
-  const wdOfBar = path.resolve(process.cwd(), 'node_modules', '.registry.npmjs.org', 'bar', '1.0.0', 'node_modules', 'bar')
-  const wdOfQar = path.resolve(process.cwd(), 'node_modules', '.registry.npmjs.org', 'qar', '1.0.0', 'node_modules', 'qar')
+  const wdOfFoo = path.resolve(
+    process.cwd(),
+    'node_modules',
+    '.registry.npmjs.org',
+    'foo',
+    '1.0.0',
+    'node_modules',
+    'foo'
+  )
+  const wdOfBar = path.resolve(
+    process.cwd(),
+    'node_modules',
+    '.registry.npmjs.org',
+    'bar',
+    '1.0.0',
+    'node_modules',
+    'bar'
+  )
+  const wdOfQar = path.resolve(
+    process.cwd(),
+    'node_modules',
+    '.registry.npmjs.org',
+    'qar',
+    '1.0.0',
+    'node_modules',
+    'qar'
+  )
 
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
@@ -903,7 +931,15 @@ test('output of failed optional dependency is not shown', (done) => {
     streamParser: createStreamParser(),
   })
 
-  const wd = path.resolve(process.cwd(), 'node_modules', '.registry.npmjs.org', 'foo', '1.0.0', 'node_modules', 'foo')
+  const wd = path.resolve(
+    process.cwd(),
+    'node_modules',
+    '.registry.npmjs.org',
+    'foo',
+    '1.0.0',
+    'node_modules',
+    'foo'
+  )
 
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
@@ -933,7 +969,9 @@ test('output of failed optional dependency is not shown', (done) => {
     complete: () => done(),
     error: done,
     next: (output: string) => {
-      expect(replaceTimeWith1Sec(output)).toBe(`${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s (skipped as optional)`)
+      expect(replaceTimeWith1Sec(output)).toBe(
+        `${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s (skipped as optional)`
+      )
     },
   })
 })
@@ -945,7 +983,15 @@ test('output of failed non-optional dependency is printed', (done) => {
     streamParser: createStreamParser(),
   })
 
-  const wd = path.resolve(process.cwd(), 'node_modules', '.registry.npmjs.org', 'foo', '1.0.0', 'node_modules', 'foo')
+  const wd = path.resolve(
+    process.cwd(),
+    'node_modules',
+    '.registry.npmjs.org',
+    'foo',
+    '1.0.0',
+    'node_modules',
+    'foo'
+  )
 
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
@@ -991,7 +1037,15 @@ test('do not fail if the debug log has no output', (done) => {
     streamParser: createStreamParser(),
   })
 
-  const wd = path.resolve(process.cwd(), 'node_modules', '.registry.npmjs.org', 'foo', '1.0.0', 'node_modules', 'foo')
+  const wd = path.resolve(
+    process.cwd(),
+    'node_modules',
+    '.registry.npmjs.org',
+    'foo',
+    '1.0.0',
+    'node_modules',
+    'foo'
+  )
 
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
@@ -1031,7 +1085,7 @@ ${STATUS_INDENTATION} ${failedAt(wd)}`)
 })
 
 // Many libs use stderr for logging, so showing all stderr adds not much value
-test['skip']('prints lifecycle progress', (done) => {
+test.skip('prints lifecycle progress', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -1080,7 +1134,7 @@ test['skip']('prints lifecycle progress', (done) => {
   output$.pipe(skip(3), take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe(`\
 Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo I')}
 Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}! ${childOutputError('foo II')}
@@ -1090,6 +1144,6 @@ Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/bar/1.0.0')}: ${childOu
   })
 })
 
-function failedAt (wd: string) {
+function failedAt(wd: string) {
   return chalk.red(`Failed in 1s at ${wd}`)
 }

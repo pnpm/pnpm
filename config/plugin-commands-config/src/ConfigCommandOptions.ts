@@ -1,12 +1,8 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/config'
 
-export type ConfigCommandOptions = Pick<Config,
-| 'configDir'
-| 'cliOptions'
-| 'dir'
-| 'global'
-| 'npmPath'
-| 'rawConfig'
+export type ConfigCommandOptions = Pick<
+  Config,
+  'configDir' | 'cliOptions' | 'dir' | 'global' | 'npmPath' | 'rawConfig'
 > & {
   json?: boolean
   location?: 'global' | 'project'

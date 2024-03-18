@@ -12,6 +12,9 @@ test.each([
 test.each([
   ['darwin', 'arm64', '14.20.0', 'x64'],
   ['darwin', 'arm64', '16.17.0', 'arm64'],
-])('getNormalizedArch(%s, %s)', (platform, arch, nodeVersion, normalizedArch) => {
-  expect(getNormalizedArch(platform, arch, nodeVersion)).toBe(normalizedArch)
-})
+])(
+  'getNormalizedArch(%s, %s)',
+  (platform, arch, nodeVersion, normalizedArch) => {
+    expect(getNormalizedArch(platform, arch, nodeVersion)).toBe(normalizedArch)
+  }
+)

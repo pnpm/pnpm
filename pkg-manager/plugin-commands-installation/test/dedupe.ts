@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { DedupeCheckIssuesError } from '@pnpm/dedupe.check'
 import { readProjects } from '@pnpm/filter-workspace-packages'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import type { Lockfile } from '@pnpm/lockfile-types'
 import { dedupe, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -15,9 +15,12 @@ const f = fixtures(__dirname)
 
 describe('pnpm dedupe', () => {
   test('updates old resolutions from importers block and removes old packages', async () => {
-    const { originalLockfile, dedupedLockfile, dedupeCheckError } = await testFixture('workspace-with-lockfile-dupes')
+    const { originalLockfile, dedupedLockfile, dedupeCheckError } =
+      await testFixture('workspace-with-lockfile-dupes')
     // Many old packages should be deleted as result of deduping. See snapshot file for details.
-    expect(diff(originalLockfile, dedupedLockfile, diffOptsForLockfile)).toMatchSnapshot()
+    expect(
+      diff(originalLockfile, dedupedLockfile, diffOptsForLockfile)
+    ).toMatchSnapshot()
     expect(dedupeCheckError.dedupeCheckIssues).toEqual({
       importerIssuesByImporterId: {
         added: [],
@@ -47,10 +50,13 @@ describe('pnpm dedupe', () => {
   })
 
   test('updates old resolutions from package block', async () => {
-    const { originalLockfile, dedupedLockfile, dedupeCheckError } = await testFixture('workspace-with-lockfile-subdep-dupes')
+    const { originalLockfile, dedupedLockfile, dedupeCheckError } =
+      await testFixture('workspace-with-lockfile-subdep-dupes')
     // This is a smaller scale test that should just update uri-js@4.2.2 to
     // punycode@2.3.0 and remove punycode@2.1.1. See snapshot file for details.
-    expect(diff(originalLockfile, dedupedLockfile, diffOptsForLockfile)).toMatchSnapshot()
+    expect(
+      diff(originalLockfile, dedupedLockfile, diffOptsForLockfile)
+    ).toMatchSnapshot()
     expect(dedupeCheckError.dedupeCheckIssues).toEqual({
       importerIssuesByImporterId: {
         added: [],
@@ -59,9 +65,7 @@ describe('pnpm dedupe', () => {
       },
       packageIssuesByDepPath: {
         added: [],
-        removed: [
-          '/punycode/2.1.1',
-        ],
+        removed: ['/punycode/2.1.1'],
         updated: {
           '/uri-js/4.2.2': {
             punycode: {
@@ -140,11 +144,14 @@ const diffOptsForLockfile = {
   patchColor: noColor,
 }
 
-async function testFixture (fixtureName: string) {
+async function testFixture(fixtureName: string) {
   const project = prepare(undefined)
   f.copy(fixtureName, project.dir())
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(project.dir(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    project.dir(),
+    []
+  )
 
   const opts = {
     ...DEFAULT_OPTS,
@@ -157,7 +164,8 @@ async function testFixture (fixtureName: string) {
     resolutionMode: 'highest' as const, // TODO: this should work with the default resolution mode (TODOv8)
   }
 
-  const readProjectLockfile = () => readYamlFile<Lockfile>(path.join(project.dir(), './pnpm-lock.yaml'))
+  const readProjectLockfile = () =>
+    readYamlFile<Lockfile>(path.join(project.dir(), './pnpm-lock.yaml'))
 
   const originalLockfile = await readProjectLockfile()
 
@@ -188,13 +196,21 @@ async function testFixture (fixtureName: string) {
   const dedupedLockfile = await readProjectLockfile()
 
   // It should be possible to remove packages from the fixture lockfile.
-  const originalLockfilePackageNames = Object.keys(originalLockfile.packages ?? {})
-  const dedupedLockfilePackageNames = Object.keys(dedupedLockfile.packages ?? {})
-  expect(dedupedLockfilePackageNames.length).toBeLessThan(originalLockfilePackageNames.length)
+  const originalLockfilePackageNames = Object.keys(
+    originalLockfile.packages ?? {}
+  )
+  const dedupedLockfilePackageNames = Object.keys(
+    dedupedLockfile.packages ?? {}
+  )
+  expect(dedupedLockfilePackageNames.length).toBeLessThan(
+    originalLockfilePackageNames.length
+  )
 
   // The "pnpm dedupe" command should only remove packages when the lockfile is
   // up to date. Ensure no new packages/dependencies were added.
-  expect(originalLockfilePackageNames).toEqual(expect.arrayContaining(dedupedLockfilePackageNames))
+  expect(originalLockfilePackageNames).toEqual(
+    expect.arrayContaining(dedupedLockfilePackageNames)
+  )
 
   // Run pnpm install one last time to ensure the deduped lockfile is in a good
   // state. If so, the "pnpm install" command should pass successfully and not

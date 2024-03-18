@@ -32,7 +32,8 @@
     "@pnpm/plugin-commands-server": "workspace:*",
     "@types/is-windows": "^1.0.2",
     "@types/ramda": "0.28.20",
-    "@types/signal-exit": "^3.0.4"
+    "@types/signal-exit": "^3.0.4",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",
@@ -50,7 +51,7 @@
     "process-exists": "^4.1.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "render-help": "^1.0.3",
-    "signal-exit": "^3.0.7",
+    "signal-exit": "^4.1.0",
     "tree-kill": "^1.2.2"
   },
   "peerDependencies": {

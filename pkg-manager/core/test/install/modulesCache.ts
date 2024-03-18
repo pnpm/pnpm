@@ -11,32 +11,42 @@ import { testDefaults } from '../utils'
 test('the modules cache is pruned when it expires', async () => {
   const project = prepareEmpty()
 
-  let manifest = await install({
-    dependencies: {
-      'is-positive': '1.0.0',
-      'is-negative': '1.0.0',
+  let manifest = await install(
+    {
+      dependencies: {
+        'is-positive': '1.0.0',
+        'is-negative': '1.0.0',
+      },
     },
-  }, await testDefaults())
+    await testDefaults()
+  )
 
   const modulesFile = await project.readModulesManifest()
 
   expect(modulesFile?.prunedAt).toBeTruthy()
 
-  manifest = (await mutateModulesInSingleProject({
-    dependencyNames: ['is-negative'],
-    manifest,
-    mutation: 'uninstallSome',
-    rootDir: process.cwd(),
-  }, await testDefaults({}))).manifest
+  manifest = (
+    await mutateModulesInSingleProject(
+      {
+        dependencyNames: ['is-negative'],
+        manifest,
+        mutation: 'uninstallSome',
+        rootDir: process.cwd(),
+      },
+      await testDefaults({})
+    )
+  ).manifest
 
   await project.has('.pnpm/is-negative@1.0.0/node_modules/is-negative')
 
   const prunedAt = new Date()
   prunedAt.setMinutes(prunedAt.getMinutes() - 3)
-  modulesFile!.prunedAt = prunedAt.toString()
+  // @ts-ignore
+  modulesFile.prunedAt = prunedAt.toString()
   await writeModulesManifest(path.resolve('node_modules'), modulesFile as any) // eslint-disable-line
 
-  await addDependenciesToPackage(manifest,
+  await addDependenciesToPackage(
+    manifest,
     ['is-negative@2.0.0'],
     await testDefaults({ modulesCacheMaxAge: 2 })
   )
@@ -47,34 +57,49 @@ test('the modules cache is pruned when it expires', async () => {
 test('the modules cache is pruned when it expires and headless install is used', async () => {
   const project = prepareEmpty()
 
-  let manifest = await install({
-    dependencies: {
-      'is-positive': '1.0.0',
-      'is-negative': '1.0.0',
+  let manifest = await install(
+    {
+      dependencies: {
+        'is-positive': '1.0.0',
+        'is-negative': '1.0.0',
+      },
     },
-  }, await testDefaults())
+    await testDefaults()
+  )
 
   const modulesFile = await project.readModulesManifest()
 
   expect(modulesFile?.prunedAt).toBeTruthy()
 
-  manifest = (await mutateModulesInSingleProject({
-    dependencyNames: ['is-negative'],
-    manifest,
-    mutation: 'uninstallSome',
-    rootDir: process.cwd(),
-  }, await testDefaults({ lockfileOnly: true }))).manifest
+  manifest = (
+    await mutateModulesInSingleProject(
+      {
+        dependencyNames: ['is-negative'],
+        manifest,
+        mutation: 'uninstallSome',
+        rootDir: process.cwd(),
+      },
+      await testDefaults({ lockfileOnly: true })
+    )
+  ).manifest
 
-  manifest = await install(manifest, await testDefaults({ frozenLockfile: true }))
+  manifest = await install(
+    manifest,
+    await testDefaults({ frozenLockfile: true })
+  )
 
   await project.has('.pnpm/is-negative@1.0.0/node_modules/is-negative')
 
   const prunedAt = new Date()
   prunedAt.setMinutes(prunedAt.getMinutes() - 3)
-  modulesFile!.prunedAt = prunedAt.toString()
+  // @ts-ignore
+  modulesFile.prunedAt = prunedAt.toString()
   await writeModulesManifest(path.resolve('node_modules'), modulesFile as any) // eslint-disable-line
 
-  await install(manifest, await testDefaults({ frozenLockfile: true, modulesCacheMaxAge: 2 }))
+  await install(
+    manifest,
+    await testDefaults({ frozenLockfile: true, modulesCacheMaxAge: 2 })
+  )
 
   await project.hasNot('.pnpm/is-negative@1.0.0/node_modules/is-negative')
 })

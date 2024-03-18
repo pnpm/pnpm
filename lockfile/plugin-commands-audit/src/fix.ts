@@ -2,9 +2,14 @@ import { type AuditReport, type AuditAdvisory } from '@pnpm/audit'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import difference from 'ramda/src/difference'
 
-export async function fix (dir: string, auditReport: AuditReport) {
+export async function fix(dir: string, auditReport: AuditReport): Promise<{
+  [k: string]: string;
+}> {
   const { manifest, writeProjectManifest } = await readProjectManifest(dir)
-  const vulnOverrides = createOverrides(Object.values(auditReport.advisories), manifest.pnpm?.auditConfig?.ignoreCves)
+  const vulnOverrides = createOverrides(
+    Object.values(auditReport.advisories),
+    manifest.pnpm?.auditConfig?.ignoreCves
+  )
   if (Object.values(vulnOverrides).length === 0) return vulnOverrides
   await writeProjectManifest({
     ...manifest,
@@ -19,13 +24,20 @@ export async function fix (dir: string, auditReport: AuditReport) {
   return vulnOverrides
 }
 
-function createOverrides (advisories: AuditAdvisory[], ignoreCves?: string[]) {
+function createOverrides(advisories: AuditAdvisory[], ignoreCves?: string[]): {
+  [k: string]: string;
+} {
   if (ignoreCves) {
-    advisories = advisories.filter(({ cves }) => difference(cves, ignoreCves).length > 0)
+    advisories = advisories.filter(
+      ({ cves }) => difference(cves, ignoreCves).length > 0
+    )
   }
   return Object.fromEntries(
     advisories
-      .filter(({ vulnerable_versions, patched_versions }) => vulnerable_versions !== '>=0.0.0' && patched_versions !== '<0.0.0') // eslint-disable-line
+      .filter(
+        ({ vulnerable_versions, patched_versions }) =>
+          vulnerable_versions !== '>=0.0.0' && patched_versions !== '<0.0.0'
+      )
       .map((advisory) => [
         `${advisory.module_name}@${advisory.vulnerable_versions}`,
         advisory.patched_versions,

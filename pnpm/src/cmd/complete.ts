@@ -5,7 +5,7 @@ import { getOptionCompletions } from '../getOptionType'
 import { optionTypesToCompletions } from '../optionTypesToCompletions'
 import { shorthands as universalShorthands } from '../shorthands'
 
-export async function complete (
+export async function complete(
   ctx: {
     cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>>
     completionByCommandName: Record<string, CompletionFunc>
@@ -30,7 +30,8 @@ export async function complete (
   // Autocompleting option values
   if (input.currentTypedWordType !== 'option') {
     if (input.lastOption === '--filter') {
-      const workspaceDir = await findWorkspaceDir(process.cwd()) ?? process.cwd()
+      const workspaceDir =
+        (await findWorkspaceDir(process.cwd())) ?? process.cwd()
       const allProjects = await findWorkspacePackages(workspaceDir, {
         supportedArchitectures: {
           os: ['current'],
@@ -57,11 +58,18 @@ export async function complete (
   }
   let completions: Completion[] = []
   if (input.currentTypedWordType !== 'option') {
-    if (!input.cmd || input.currentTypedWordType === 'value' && !ctx.completionByCommandName[input.cmd]) {
+    if (
+      !input.cmd ||
+      (input.currentTypedWordType === 'value' &&
+        !ctx.completionByCommandName[input.cmd])
+    ) {
       completions = ctx.initialCompletion()
     } else if (ctx.completionByCommandName[input.cmd]) {
       try {
-        completions = await ctx.completionByCommandName[input.cmd](input.options, input.params)
+        completions = await ctx.completionByCommandName[input.cmd](
+          input.options,
+          input.params
+        )
       } catch (err) {
         // Ignore
       }

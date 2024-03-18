@@ -1,19 +1,22 @@
-import path from 'path'
+import path from 'node:path'
 
 export interface PackageSelector {
-  diff?: string
-  exclude?: boolean
-  excludeSelf?: boolean
-  includeDependencies?: boolean
-  includeDependents?: boolean
-  namePattern?: string
-  parentDir?: string
-  followProdDepsOnly?: boolean
+  diff?: string | undefined
+  exclude?: boolean | undefined
+  excludeSelf?: boolean | undefined
+  includeDependencies?: boolean | undefined
+  includeDependents?: boolean | undefined
+  namePattern?: string | undefined
+  parentDir?: string | undefined
+  followProdDepsOnly?: boolean | undefined
 }
 
-export function parsePackageSelector (rawSelector: string, prefix: string): PackageSelector {
+export function parsePackageSelector(
+  rawSelector: string,
+  prefix: string
+): PackageSelector {
   let exclude = false
-  if (rawSelector[0] === '!') {
+  if (rawSelector.startsWith('!')) {
     exclude = true
     rawSelector = rawSelector.substring(1)
   }
@@ -34,7 +37,9 @@ export function parsePackageSelector (rawSelector: string, prefix: string): Pack
       rawSelector = rawSelector.slice(1)
     }
   }
-  const matches = rawSelector.match(/^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$/)
+  const matches = rawSelector.match(
+    /^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$/
+  )
   if (matches === null) {
     if (isSelectorByLocation(rawSelector)) {
       return {
@@ -60,11 +65,16 @@ export function parsePackageSelector (rawSelector: string, prefix: string): Pack
   }
 }
 
-function isSelectorByLocation (rawSelector: string) {
-  if (rawSelector[0] !== '.') return false
+function isSelectorByLocation(rawSelector: string) {
+  if (!rawSelector.startsWith('.')) return false
 
   // . or ./ or .\
-  if (rawSelector.length === 1 || rawSelector[1] === '/' || rawSelector[1] === '\\') return true
+  if (
+    rawSelector.length === 1 ||
+    rawSelector[1] === '/' ||
+    rawSelector[1] === '\\'
+  )
+    return true
 
   if (rawSelector[1] !== '.') return false
 

@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { execPnpm } from '../utils'
@@ -35,21 +35,19 @@ test.skip('recursive update --latest should update deps with correct specs', asy
     },
   ])
 
-  await fs.writeFile(
-    'project-2/.npmrc',
-    'save-exact = true',
-    'utf8'
-  )
+  await fs.writeFile('project-2/.npmrc', 'save-exact = true', 'utf8')
 
-  await fs.writeFile(
-    'project-3/.npmrc',
-    'save-prefix = ~',
-    'utf8'
-  )
+  await fs.writeFile('project-3/.npmrc', 'save-prefix = ~', 'utf8')
 
   await execPnpm(['recursive', 'update', '--latest'])
 
-  expect((await import(path.resolve('project-1/package.json'))).dependencies).toStrictEqual({ foo: '^100.1.0' })
-  expect((await import(path.resolve('project-2/package.json'))).dependencies).toStrictEqual({ foo: '100.1.0' })
-  expect((await import(path.resolve('project-3/package.json'))).dependencies).toStrictEqual({ foo: '~100.1.0' })
+  expect(
+    (await import(path.resolve('project-1/package.json'))).dependencies
+  ).toStrictEqual({ foo: '^100.1.0' })
+  expect(
+    (await import(path.resolve('project-2/package.json'))).dependencies
+  ).toStrictEqual({ foo: '100.1.0' })
+  expect(
+    (await import(path.resolve('project-3/package.json'))).dependencies
+  ).toStrictEqual({ foo: '~100.1.0' })
 })

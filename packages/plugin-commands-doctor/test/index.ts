@@ -6,7 +6,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  (logger.warn as jest.Mock).mockRestore()
+  ;(logger.warn as jest.Mock).mockRestore()
 })
 
 test('doctor', async () => {

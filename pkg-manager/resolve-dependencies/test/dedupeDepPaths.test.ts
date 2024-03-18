@@ -73,33 +73,48 @@ test('packages are not deduplicated when versions do not match', () => {
       },
     ],
     resolvedImporters: {},
-    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>(([
-      ['>project1>foo/1.0.0>', fooPkg],
-      ['>project1>bar/1.0.0>', peers.bar_1_0_0],
+    dependenciesTree: new Map<
+      string,
+      DependenciesTreeNode<PartialResolvedPackage>
+    >(
+      (
+        [
+          ['>project1>foo/1.0.0>', fooPkg],
+          ['>project1>bar/1.0.0>', peers.bar_1_0_0],
 
-      ['>project2>foo/1.0.0>', fooPkg],
-      ['>project2>bar/1.0.0>', peers.bar_1_0_0],
-      ['>project2>baz/1.0.0>', peers.baz_1_0_0],
+          ['>project2>foo/1.0.0>', fooPkg],
+          ['>project2>bar/1.0.0>', peers.bar_1_0_0],
+          ['>project2>baz/1.0.0>', peers.baz_1_0_0],
 
-      ['>project3>foo/1.0.0>', fooPkg],
-      ['>project3>bar/2.0.0>', peers.bar_2_0_0],
+          ['>project3>foo/1.0.0>', fooPkg],
+          ['>project3>bar/2.0.0>', peers.bar_2_0_0],
 
-      ['>project4>foo/1.0.0>', fooPkg],
-      ['>project4>bar/2.0.0>', peers.bar_2_0_0],
-      ['>project4>baz/2.0.0>', peers.baz_2_0_0],
-
-    ] satisfies Array<[string, PartialResolvedPackage]>).map(([path, resolvedPackage]) => [path, {
-      children: {},
-      installable: {},
-      resolvedPackage,
-      depth: 0,
-    } as DependenciesTreeNode<PartialResolvedPackage>])),
+          ['>project4>foo/1.0.0>', fooPkg],
+          ['>project4>bar/2.0.0>', peers.bar_2_0_0],
+          ['>project4>baz/2.0.0>', peers.baz_2_0_0],
+        ] satisfies Array<[string, PartialResolvedPackage]>
+      ).map(([path, resolvedPackage]) => [
+        path,
+        {
+          children: {},
+          installable: {},
+          resolvedPackage,
+          depth: 0,
+        } as DependenciesTreeNode<PartialResolvedPackage>,
+      ])
+    ),
     dedupePeerDependents: true,
     virtualStoreDir: '',
     lockfileDir: '',
   })
 
-  expect(dependenciesByProjectId.project1.foo).toEqual(dependenciesByProjectId.project2.foo)
-  expect(dependenciesByProjectId.project1.foo).not.toEqual(dependenciesByProjectId.project3.foo)
-  expect(dependenciesByProjectId.project3.foo).toEqual(dependenciesByProjectId.project4.foo)
+  expect(dependenciesByProjectId.project1.foo).toEqual(
+    dependenciesByProjectId.project2.foo
+  )
+  expect(dependenciesByProjectId.project1.foo).not.toEqual(
+    dependenciesByProjectId.project3.foo
+  )
+  expect(dependenciesByProjectId.project3.foo).toEqual(
+    dependenciesByProjectId.project4.foo
+  )
 })

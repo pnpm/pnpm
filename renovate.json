@@ -62,8 +62,7 @@
     "remove-all-except-outer-links",
     "@pnpm/core",
     "ts-node",
-    "@types/ramda",
-    "@types/table"
+    "@types/ramda"
   ],
   "ignorePaths": [
     "fixtures",

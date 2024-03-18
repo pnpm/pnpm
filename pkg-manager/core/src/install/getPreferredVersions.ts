@@ -1,17 +1,26 @@
-import { nameVerFromPkgSnapshot, type PackageSnapshots } from '@pnpm/lockfile-utils'
+import {
+  nameVerFromPkgSnapshot,
+  type PackageSnapshots,
+} from '@pnpm/lockfile-utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { DIRECT_DEP_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolver-base'
+import {
+  DIRECT_DEP_SELECTOR_WEIGHT,
+  type PreferredVersions,
+} from '@pnpm/resolver-base'
 import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
 import getVersionSelectorType from 'version-selector-type'
 
-export function getAllUniqueSpecs (manifests: DependencyManifest[]) {
+export function getAllUniqueSpecs(manifests: DependencyManifest[]) {
   const allSpecs: Record<string, string> = {}
   const ignored = new Set<string>()
   for (const manifest of manifests) {
     const specs = getAllDependenciesFromManifest(manifest)
     for (const [name, spec] of Object.entries(specs)) {
       if (ignored.has(name)) continue
-      if (allSpecs[name] != null && allSpecs[name] !== spec || spec.includes(':')) {
+      if (
+        (allSpecs[name] != null && allSpecs[name] !== spec) ||
+        spec.includes(':')
+      ) {
         ignored.add(name)
         delete allSpecs[name]
         continue
@@ -22,7 +31,7 @@ export function getAllUniqueSpecs (manifests: DependencyManifest[]) {
   return allSpecs
 }
 
-export function getPreferredVersionsFromLockfileAndManifests (
+export function getPreferredVersionsFromLockfileAndManifests(
   snapshots: PackageSnapshots | undefined,
   manifests: Array<DependencyManifest | ProjectManifest>
 ): PreferredVersions {
@@ -44,7 +53,10 @@ export function getPreferredVersionsFromLockfileAndManifests (
   return preferredVersions
 }
 
-function addPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferredVersions: PreferredVersions) {
+function addPreferredVersionsFromLockfile(
+  snapshots: PackageSnapshots,
+  preferredVersions: PreferredVersions
+) {
   for (const [depPath, snapshot] of Object.entries(snapshots)) {
     const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
     if (!preferredVersions[name]) {

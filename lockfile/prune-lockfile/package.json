@@ -33,7 +33,8 @@
   "devDependencies": {
     "@pnpm/prune-lockfile": "workspace:*",
     "@types/ramda": "0.28.20",
-    "yaml-tag": "1.1.0"
+    "yaml-tag": "1.1.0",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",

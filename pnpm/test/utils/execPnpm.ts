@@ -1,5 +1,8 @@
-import { type ChildProcess as NodeChildProcess, type StdioOptions } from 'child_process'
-import path from 'path'
+import {
+  type ChildProcess as NodeChildProcess,
+  type StdioOptions,
+} from 'node:child_process'
+import path from 'node:path'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import isWindows from 'is-windows'
 import crossSpawn from 'cross-spawn'
@@ -14,7 +17,30 @@ const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
 const DEFAULT_EXEC_PNPM_TIMEOUT = 3 * 60 * 1000 // 3 minutes
 const TIMEOUT_FOR_GRACEFUL_EXIT = 10 * 1000 // 10s
 
-export async function execPnpm (
+function createEnv(opts?: { storeDir?: string }): NodeJS.ProcessEnv {
+  const env = {
+    npm_config_fetch_retries: '4',
+    npm_config_hoist: 'true',
+    npm_config_registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    npm_config_silent: 'true',
+    npm_config_store_dir: opts?.storeDir ?? '../store',
+    // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
+    // on CI servers we set it to `false`. That is why we set it back to true for the tests
+    npm_config_verify_store_integrity: 'true',
+  }
+  for (const [key, value] of Object.entries(process.env)) {
+    if (
+      key.toLowerCase() === 'path' ||
+      key === 'COLORTERM' ||
+      key === 'APPDATA'
+    ) {
+      env[key] = value
+    }
+  }
+  return env
+}
+
+export async function execPnpm(
   args: string[],
   opts?: {
     env: Record<string, string>
@@ -41,7 +67,7 @@ export async function execPnpm (
   })
 }
 
-export function spawnPnpm (
+export function spawnPnpm(
   args: string[],
   opts?: {
     env?: Record<string, string>
@@ -57,11 +83,46 @@ export function spawnPnpm (
   })
 }
 
-export async function execPnpx (args: string[]): Promise<void> {
+export function spawnPnpx(
+  args: string[],
+  opts?: { storeDir?: string }
+): NodeChildProcess {
+  return crossSpawn.spawn(process.execPath, [pnpxBinLocation, ...args], {
+    env: createEnv(opts),
+    stdio: 'inherit',
+  })
+}
+
+function registerProcessTimeout(
+  proc: NodeChildProcess,
+  timeout: number,
+  onTimeout: (reason: Error) => void
+) {
+  return setTimeout(() => {
+    onTimeout(new Error(`Command timed out after ${timeout}ms`))
+
+    // Ask the process to exit politely and clean up its resources. On Windows
+    // this will likely no-op since there is no SIGINT. The SIGTERM kill below
+    // will stop the process in that case.
+    proc.kill('SIGINT')
+
+    setTimeout(() => {
+      if (proc.exitCode != null) {
+        proc.kill()
+      }
+    }, TIMEOUT_FOR_GRACEFUL_EXIT)
+  }, timeout)
+}
+
+export async function execPnpx(args: string[]): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const proc = spawnPnpx(args)
 
-    const timeoutId = registerProcessTimeout(proc, DEFAULT_EXEC_PNPM_TIMEOUT, reject)
+    const timeoutId = registerProcessTimeout(
+      proc,
+      DEFAULT_EXEC_PNPM_TIMEOUT,
+      reject
+    )
 
     proc.on('error', reject)
 
@@ -77,20 +138,13 @@ export async function execPnpx (args: string[]): Promise<void> {
   })
 }
 
-export function spawnPnpx (args: string[], opts?: { storeDir?: string }): NodeChildProcess {
-  return crossSpawn.spawn(process.execPath, [pnpxBinLocation, ...args], {
-    env: createEnv(opts),
-    stdio: 'inherit',
-  })
-}
-
 export interface ChildProcess {
   status: number
   stdout: { toString: () => string }
   stderr: { toString: () => string }
 }
 
-export function execPnpmSync (
+export function execPnpmSync(
   args: string[],
   opts?: {
     env: Record<string, string>
@@ -108,7 +162,7 @@ export function execPnpmSync (
   }) as ChildProcess
 }
 
-export function execPnpxSync (
+export function execPnpxSync(
   args: string[],
   opts?: {
     env: Record<string, string>
@@ -122,40 +176,4 @@ export function execPnpxSync (
     } as NodeJS.ProcessEnv,
     timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
   }) as ChildProcess
-}
-
-function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
-  const env = {
-    npm_config_fetch_retries: '4',
-    npm_config_hoist: 'true',
-    npm_config_registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-    npm_config_silent: 'true',
-    npm_config_store_dir: opts?.storeDir ?? '../store',
-    // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
-    // on CI servers we set it to `false`. That is why we set it back to true for the tests
-    npm_config_verify_store_integrity: 'true',
-  }
-  for (const [key, value] of Object.entries(process.env)) {
-    if (key.toLowerCase() === 'path' || key === 'COLORTERM' || key === 'APPDATA') {
-      env[key] = value
-    }
-  }
-  return env
-}
-
-function registerProcessTimeout (proc: NodeChildProcess, timeout: number, onTimeout: (reason: Error) => void) {
-  return setTimeout(() => {
-    onTimeout(new Error(`Command timed out after ${timeout}ms`))
-
-    // Ask the process to exit politely and clean up its resources. On Windows
-    // this will likely no-op since there is no SIGINT. The SIGTERM kill below
-    // will stop the process in that case.
-    proc.kill('SIGINT')
-
-    setTimeout(() => {
-      if (proc.exitCode != null) {
-        proc.kill()
-      }
-    }, TIMEOUT_FOR_GRACEFUL_EXIT)
-  }, timeout)
 }

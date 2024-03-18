@@ -369,69 +369,75 @@ test('create package graph ignoring the workspace protocol', () => {
 })
 
 test('create package graph respects linked-workspace-packages = false', () => {
-  const result = createPkgGraph([
-    {
-      dir: BAR1_PATH,
-      manifest: {
-        dependencies: {
-          foo: 'workspace:*',
+  const result = createPkgGraph(
+    [
+      {
+        dir: BAR1_PATH,
+        manifest: {
+          dependencies: {
+            foo: 'workspace:*',
+          },
+          name: 'bar',
+          version: '1.0.0',
         },
-        name: 'bar',
-        version: '1.0.0',
       },
-    },
-    {
-      dir: FOO1_PATH,
-      manifest: {
-        dependencies: {
-          bar: '^10.0.0',
+      {
+        dir: FOO1_PATH,
+        manifest: {
+          dependencies: {
+            bar: '^10.0.0',
+          },
+          name: 'foo',
+          version: '1.0.1',
         },
-        name: 'foo',
-        version: '1.0.1',
       },
-    },
-    {
-      dir: BAR2_PATH,
-      manifest: {
-        dependencies: {
-          foo: '1.0.1',
+      {
+        dir: BAR2_PATH,
+        manifest: {
+          dependencies: {
+            foo: '1.0.1',
+          },
+          name: 'bar',
+          version: '2.0.0',
         },
-        name: 'bar',
-        version: '2.0.0',
       },
-    },
-    {
-      dir: BAR3_PATH,
-      manifest: {
-        dependencies: {
-          foo: 'workspace:~1.0.0',
+      {
+        dir: BAR3_PATH,
+        manifest: {
+          dependencies: {
+            foo: 'workspace:~1.0.0',
+          },
+          name: 'bar',
+          version: '3.0.0',
         },
-        name: 'bar',
-        version: '3.0.0',
       },
-    },
-    {
-      dir: BAR4_PATH,
-      manifest: {
-        dependencies: {
-          foo: 'workspace:^',
+      {
+        dir: BAR4_PATH,
+        manifest: {
+          dependencies: {
+            foo: 'workspace:^',
+          },
+          name: 'bar',
+          version: '4.0.0',
         },
-        name: 'bar',
-        version: '4.0.0',
       },
-    },
-    {
-      dir: BAR5_PATH,
-      manifest: {
-        dependencies: {
-          foo: 'workspace:~',
+      {
+        dir: BAR5_PATH,
+        manifest: {
+          dependencies: {
+            foo: 'workspace:~',
+          },
+          name: 'bar',
+          version: '5.0.0',
         },
-        name: 'bar',
-        version: '5.0.0',
       },
-    },
-  ], { linkWorkspacePackages: false })
-  expect(result.unmatched).toStrictEqual([{ pkgName: 'bar', range: '^10.0.0' }, { pkgName: 'foo', range: '1.0.1' }])
+    ],
+    { linkWorkspacePackages: false }
+  )
+  expect(result.unmatched).toStrictEqual([
+    { pkgName: 'bar', range: '^10.0.0' },
+    { pkgName: 'foo', range: '1.0.1' },
+  ])
   expect(result.graph).toStrictEqual({
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
@@ -517,51 +523,54 @@ test('create package graph respects linked-workspace-packages = false', () => {
 })
 
 test('create package graph respects ignoreDevDeps = true', () => {
-  const result = createPkgGraph([
-    {
-      dir: BAR1_PATH,
-      manifest: {
-        name: 'bar',
-        version: '1.0.0',
+  const result = createPkgGraph(
+    [
+      {
+        dir: BAR1_PATH,
+        manifest: {
+          name: 'bar',
+          version: '1.0.0',
 
-        dependencies: {
-          'is-positive': '1.0.0',
-        },
-        devDependencies: {
-          foo: '^1.0.0',
+          dependencies: {
+            'is-positive': '1.0.0',
+          },
+          devDependencies: {
+            foo: '^1.0.0',
+          },
         },
       },
-    },
-    {
-      dir: FOO1_PATH,
-      manifest: {
-        name: 'foo',
-        version: '1.0.0',
+      {
+        dir: FOO1_PATH,
+        manifest: {
+          name: 'foo',
+          version: '1.0.0',
 
-        dependencies: {
-          bar: '^10.0.0',
+          dependencies: {
+            bar: '^10.0.0',
+          },
         },
       },
-    },
-    {
-      dir: BAR2_PATH,
-      manifest: {
-        name: 'bar',
-        version: '2.0.0',
+      {
+        dir: BAR2_PATH,
+        manifest: {
+          name: 'bar',
+          version: '2.0.0',
 
-        dependencies: {
-          foo: '^2.0.0',
+          dependencies: {
+            foo: '^2.0.0',
+          },
         },
       },
-    },
-    {
-      dir: FOO2_PATH,
-      manifest: {
-        name: 'foo',
-        version: '2.0.0',
+      {
+        dir: FOO2_PATH,
+        manifest: {
+          name: 'foo',
+          version: '2.0.0',
+        },
       },
-    },
-  ], { ignoreDevDeps: true })
+    ],
+    { ignoreDevDeps: true }
+  )
   expect(result.unmatched).toStrictEqual([{ pkgName: 'bar', range: '^10.0.0' }])
   expect(result.graph).toStrictEqual({
     [BAR1_PATH]: {

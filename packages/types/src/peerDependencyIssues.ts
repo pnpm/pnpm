@@ -1,4 +1,4 @@
-export type ParentPackages = Array<{ name: string, version: string }>
+export type ParentPackages = Array<{ name: string; version: string }>
 
 export interface MissingPeerDependencyIssue {
   parents: ParentPackages
@@ -6,7 +6,10 @@ export interface MissingPeerDependencyIssue {
   wantedRange: string
 }
 
-export type MissingPeerIssuesByPeerName = Record<string, MissingPeerDependencyIssue[]>
+export type MissingPeerIssuesByPeerName = Record<
+  string,
+  MissingPeerDependencyIssue[]
+>
 
 export interface BadPeerDependencyIssue extends MissingPeerDependencyIssue {
   foundVersion: string
@@ -15,7 +18,10 @@ export interface BadPeerDependencyIssue extends MissingPeerDependencyIssue {
 
 export type BadPeerIssuesByPeerName = Record<string, BadPeerDependencyIssue[]>
 
-export type PeerDependencyIssuesByProjects = Record<string, PeerDependencyIssues>
+export type PeerDependencyIssuesByProjects = Record<
+  string,
+  PeerDependencyIssues
+>
 
 export interface PeerDependencyIssues {
   bad: BadPeerIssuesByPeerName

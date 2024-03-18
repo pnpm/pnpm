@@ -1,21 +1,25 @@
-import {
-  type AddToStoreResult,
-  type FilesIndex,
-  type FileWriteResult,
+import type {
+  AddToStoreResult,
+  FilesIndex,
+  FileWriteResult,
 } from '@pnpm/cafs-types'
 import isGzip from 'is-gzip'
 import { gunzipSync } from 'zlib'
 import { parseJsonBufferSync } from './parseJson'
 import { parseTarball } from './parseTarball'
 
-export function addFilesFromTarball (
+export function addFilesFromTarball(
   addBufferToCafs: (buffer: Buffer, mode: number) => FileWriteResult,
   _ignore: null | ((filename: string) => boolean),
   tarballBuffer: Buffer,
   readManifest?: boolean
 ): AddToStoreResult {
   const ignore = _ignore ?? (() => false)
-  const tarContent = isGzip(tarballBuffer) ? gunzipSync(tarballBuffer) : (Buffer.isBuffer(tarballBuffer) ? tarballBuffer : Buffer.from(tarballBuffer))
+  const tarContent = isGzip(tarballBuffer)
+    ? gunzipSync(tarballBuffer)
+    : Buffer.isBuffer(tarballBuffer)
+      ? tarballBuffer
+      : Buffer.from(tarballBuffer)
   const { files } = parseTarball(tarContent)
   const filesIndex: FilesIndex = {}
   let manifestBuffer: Buffer | undefined

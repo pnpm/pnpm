@@ -1,11 +1,15 @@
-import path from 'path'
-import type { PreResolutionHook, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
+import path from 'node:path'
+import type {
+  PreResolutionHook,
+  PreResolutionHookContext,
+  PreResolutionHookLogger,
+} from '@pnpm/hooks.types'
 import { hookLogger } from '@pnpm/core-loggers'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
 import type { Log } from '@pnpm/core-loggers'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
-import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
+import type { ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
 import { requirePnpmfile } from './requirePnpmfile'
 
 interface HookContext {
@@ -13,13 +17,17 @@ interface HookContext {
 }
 
 interface Hooks {
-  // eslint-disable-next-line
-  readPackage?: (pkg: any, context: HookContext) => any
-  preResolution?: PreResolutionHook
-  afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>
-  filterLog?: (log: Log) => boolean
-  importPackage?: ImportIndexedPackageAsync
-  fetchers?: CustomFetchers
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readPackage?: ((pkg: any, context: HookContext) => any) | undefined
+  preResolution?: PreResolutionHook | undefined
+  afterAllResolved?: ((
+    lockfile: Lockfile,
+    context: HookContext
+  ) => Lockfile | Promise<Lockfile>) | undefined
+  filterLog?: ((log: Log) => boolean) | undefined
+  importPackage?: ImportIndexedPackageAsync | undefined
+  fetchers?: CustomFetchers | undefined
 }
 
 // eslint-disable-next-line
@@ -30,29 +38,36 @@ type Cook<T extends (...args: any[]) => any> = (
 ) => ReturnType<T>
 
 export interface CookedHooks {
-  readPackage?: Array<Cook<Required<Hooks>['readPackage']>>
-  preResolution?: Cook<Required<Hooks>['preResolution']>
-  afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>>
-  filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
-  importPackage?: ImportIndexedPackageAsync
-  fetchers?: CustomFetchers
+  readPackage?: Array<Cook<Required<Hooks>['readPackage']>> | undefined
+  preResolution?: Cook<Required<Hooks>['preResolution']> | undefined
+  afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>> | undefined
+  filterLog?: Array<Cook<Required<Hooks>['filterLog']>> | undefined
+  importPackage?: ImportIndexedPackageAsync | undefined
+  fetchers?: CustomFetchers | undefined
 }
 
-export function requireHooks (
+export async function requireHooks(
   prefix: string,
   opts: {
-    globalPnpmfile?: string
-    pnpmfile?: string
+    globalPnpmfile?: string | undefined
+    pnpmfile?: string | undefined
   }
-): CookedHooks {
-  const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
+): Promise<CookedHooks> {
+  const globalPnpmfile =
+    typeof opts.globalPnpmfile === 'string' &&
+    await requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
+  // @ts-ignore
   let globalHooks: Hooks = globalPnpmfile?.hooks
 
-  const pnpmFile = opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix) ||
-    requirePnpmfile(path.join(prefix, '.pnpmfile.cjs'), prefix)
+  const pnpmFile =
+    (opts.pnpmfile &&
+      await requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix)) ||
+    await requirePnpmfile(path.join(prefix, '.pnpmfile.cjs'), prefix)
+  // @ts-ignore
   let hooks: Hooks = pnpmFile?.hooks
 
-  if (!globalHooks && !hooks) return { afterAllResolved: [], filterLog: [], readPackage: [] }
+  if (!globalHooks && !hooks)
+    return { afterAllResolved: [], filterLog: [], readPackage: [] }
   globalHooks = globalHooks || {}
   hooks = hooks || {}
   const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'filterLog'>> = {
@@ -63,13 +78,28 @@ export function requireHooks (
   for (const hookName of ['readPackage', 'afterAllResolved'] as const) {
     if (globalHooks[hookName]) {
       const globalHook = globalHooks[hookName]
-      const context = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
-      cookedHooks[hookName]!.push((pkg: object) => globalHook!(pkg as any, context)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      const context = createReadPackageHookContext(
+        // @ts-ignore
+        globalPnpmfile?.filename,
+        prefix,
+        hookName
+      )
+      cookedHooks[hookName]?.push((pkg: Lockfile) => {
+        return globalHook?.(pkg, context);
+      }
+      )
     }
     if (hooks[hookName]) {
       const hook = hooks[hookName]
-      const context = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
-      cookedHooks[hookName]!.push((pkg: object) => hook!(pkg as any, context)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      const context = createReadPackageHookContext(
+        // @ts-ignore
+        pnpmFile?.filename,
+        prefix,
+        hookName
+      )
+      cookedHooks[hookName]?.push((pkg: Lockfile): Lockfile | Promise<Lockfile> => {
+        return hook?.(pkg, context);
+      })
     }
   }
   if (globalHooks.filterLog != null) {
@@ -86,7 +116,8 @@ export function requireHooks (
   const preResolutionHook = globalHooks.preResolution
 
   cookedHooks.preResolution = preResolutionHook
-    ? (ctx: PreResolutionHookContext) => preResolutionHook(ctx, createPreResolutionHookLogger(prefix))
+    ? (ctx: PreResolutionHookContext) =>
+      preResolutionHook(ctx, createPreResolutionHookLogger(prefix))
     : undefined
 
   cookedHooks.fetchers = globalHooks.fetchers
@@ -94,7 +125,11 @@ export function requireHooks (
   return cookedHooks
 }
 
-function createReadPackageHookContext (calledFrom: string, prefix: string, hook: string): HookContext {
+function createReadPackageHookContext(
+  calledFrom: string,
+  prefix: string,
+  hook: string
+): HookContext {
   return {
     log: (message: string) => {
       hookLogger.debug({
@@ -107,7 +142,9 @@ function createReadPackageHookContext (calledFrom: string, prefix: string, hook:
   }
 }
 
-function createPreResolutionHookLogger (prefix: string): PreResolutionHookLogger {
+function createPreResolutionHookLogger(
+  prefix: string
+): PreResolutionHookLogger {
   const hook = 'preResolution'
 
   return {

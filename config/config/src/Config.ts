@@ -6,7 +6,10 @@ import {
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
 
-export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
+export type UniversalOptions = Pick<
+  Config,
+  'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'
+>
 
 export interface Config {
   allProjects?: Project[]

@@ -2,11 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { preparePackages, tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import {
-  type MutatedProject,
-  mutateModules,
-  install,
-} from '@pnpm/core'
+import { type MutatedProject, mutateModules, install } from '@pnpm/core'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)
@@ -64,12 +60,15 @@ test('jest CLI should print the right version when multiple instances of jest ar
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({
-    allProjects,
-    extendNodePath: true,
-    fastUnpack: false,
-    hoistPattern: '*',
-  }))
+  await mutateModules(
+    importers,
+    await testDefaults({
+      allProjects,
+      extendNodePath: true,
+      fastUnpack: false,
+      hoistPattern: '*',
+    })
+  )
 
   {
     const jestVersion = fs.readFileSync('project-1/output.json').toString()
@@ -84,17 +83,21 @@ test('jest CLI should print the right version when multiple instances of jest ar
 test('drupal-js-build should find plugins inside the hidden node_modules directory', async () => {
   const tmp = tempDir()
   f.copy('tooling-that-needs-node-path', tmp)
-  await install({
-    dependencies: {
-      'drupal-js-build': 'github:pnpm-e2e/drupal-js-build#f766801580f10543c24ba8bfa59046a776848097',
+  await install(
+    {
+      dependencies: {
+        'drupal-js-build':
+          'github:pnpm-e2e/drupal-js-build#f766801580f10543c24ba8bfa59046a776848097',
+      },
+      scripts: {
+        prepare: 'drupal-js-build',
+      },
     },
-    scripts: {
-      prepare: 'drupal-js-build',
-    },
-  }, await testDefaults({
-    extendNodePath: true,
-    fastUnpack: false,
-    hoistPattern: '*',
-  }))
+    await testDefaults({
+      extendNodePath: true,
+      fastUnpack: false,
+      hoistPattern: '*',
+    })
+  )
   expect(fs.existsSync(path.join(tmp, 'index.js'))).toBeTruthy()
 })

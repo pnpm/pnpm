@@ -1,6 +1,9 @@
 import { type PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
+import {
+  addDependenciesToPackage,
+  mutateModulesInSingleProject,
+} from '@pnpm/core'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import loadJsonFile from 'load-json-file'
@@ -14,30 +17,31 @@ test('fail if none of the available resolvers support a version spec', async () 
 
   let err!: PnpmError
   try {
-    await mutateModulesInSingleProject({
-      manifest: {
-        dependencies: {
-          '@types/plotly.js': '1.44.29',
+    await mutateModulesInSingleProject(
+      {
+        manifest: {
+          dependencies: {
+            '@types/plotly.js': '1.44.29',
+          },
         },
+        mutation: 'install',
+        rootDir: process.cwd(),
       },
-      mutation: 'install',
-      rootDir: process.cwd(),
-    }, await testDefaults())
+      await testDefaults()
+    )
     throw new Error('should have failed')
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER')
   expect(err.prefix).toBe(process.cwd())
-  expect(err.pkgsStack).toStrictEqual(
-    [
-      {
-        id: `localhost+${REGISTRY_MOCK_PORT}/@types/plotly.js/1.44.29`,
-        name: '@types/plotly.js',
-        version: '1.44.29',
-      },
-    ]
-  )
+  expect(err.pkgsStack).toStrictEqual([
+    {
+      id: `localhost+${REGISTRY_MOCK_PORT}/@types/plotly.js/1.44.29`,
+      name: '@types/plotly.js',
+      version: '1.44.29',
+    },
+  ])
 })
 
 test('fail if a package cannot be fetched', async () => {
@@ -54,12 +58,18 @@ test('fail if a package cannot be fetched', async () => {
     .get('/@pnpm.e2e/pkg-with-1-dep/-/@pnpm.e2e/pkg-with-1-dep-100.0.0.tgz')
     .replyWithFile(200, f.find('pkg-with-1-dep-100.0.0.tgz'))
   nock(`http://localhost:${REGISTRY_MOCK_PORT}/`)
-    .get('/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-100.1.0.tgz')
+    .get(
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-100.1.0.tgz'
+    )
     .reply(403)
 
   let err!: PnpmError
   try {
-    await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], await testDefaults({}, {}, { retry: { retries: 0 } }))
+    await addDependenciesToPackage(
+      {},
+      ['@pnpm.e2e/pkg-with-1-dep@100.0.0'],
+      await testDefaults({}, {}, { retry: { retries: 0 } })
+    )
     throw new Error('should have failed')
   } catch (_err: any) { // eslint-disable-line
     nock.restore()
@@ -67,13 +77,11 @@ test('fail if a package cannot be fetched', async () => {
   }
   expect(err.code).toBe('ERR_PNPM_FETCH_403')
   expect(err.prefix).toBe(process.cwd())
-  expect(err.pkgsStack).toStrictEqual(
-    [
-      {
-        id: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
-        name: '@pnpm.e2e/pkg-with-1-dep',
-        version: '100.0.0',
-      },
-    ]
-  )
+  expect(err.pkgsStack).toStrictEqual([
+    {
+      id: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
+      name: '@pnpm.e2e/pkg-with-1-dep',
+      version: '100.0.0',
+    },
+  ])
 })

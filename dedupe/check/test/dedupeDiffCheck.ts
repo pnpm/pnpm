@@ -1,5 +1,5 @@
 import { DedupeCheckIssuesError, dedupeDiffCheck } from '@pnpm/dedupe.check'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import type { Lockfile } from '@pnpm/lockfile-types'
 
 describe('dedupeDiffCheck', () => {
   it('should have no changes for same lockfile', () => {
@@ -40,7 +40,8 @@ describe('dedupeDiffCheck', () => {
       packages: {
         '/is-positive@3.0.0': {
           resolution: {
-            integrity: 'sha512-JDkaKp5jWv24ZaFuYDKTcBrC/wBOHdjhzLDkgrrkJD/j7KqqXsGcAkex336qHoOFEajMy7bYqUgm0KH9/MzQvw==',
+            integrity:
+              'sha512-JDkaKp5jWv24ZaFuYDKTcBrC/wBOHdjhzLDkgrrkJD/j7KqqXsGcAkex336qHoOFEajMy7bYqUgm0KH9/MzQvw==',
           },
           engines: {
             node: '>=0.10.0',
@@ -92,21 +93,23 @@ describe('dedupeDiffCheck', () => {
 
     expect(() => {
       dedupeDiffCheck(before, after)
-    }).toThrow(new DedupeCheckIssuesError({
-      importerIssuesByImporterId: {
-        added: [],
-        removed: [],
-        updated: {
-          'packages/a': {
-            'is-positive': { type: 'updated', prev: '3.0.0', next: '3.1.0' },
+    }).toThrow(
+      new DedupeCheckIssuesError({
+        importerIssuesByImporterId: {
+          added: [],
+          removed: [],
+          updated: {
+            'packages/a': {
+              'is-positive': { type: 'updated', prev: '3.0.0', next: '3.1.0' },
+            },
           },
         },
-      },
-      packageIssuesByDepPath: {
-        added: [],
-        removed: ['/is-positive@3.0.0'],
-        updated: {},
-      },
-    }))
+        packageIssuesByDepPath: {
+          added: [],
+          removed: ['/is-positive@3.0.0'],
+          updated: {},
+        },
+      })
+    )
   })
 })

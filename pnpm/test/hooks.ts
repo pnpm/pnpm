@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -7,7 +7,7 @@ import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils'
 
-test('readPackage hook in single project doesn\'t modify manifest', async () => {
+test("readPackage hook in single project doesn't modify manifest", async () => {
   const project = prepare()
   const pnpmfile = `
       module.exports = { hooks: { readPackage } }
@@ -51,7 +51,7 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
   expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, with pnpm-lock.yaml
 })
 
-test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
+test("readPackage hook in monorepo doesn't modify manifest", async () => {
   preparePackages([
     {
       name: 'project-a',
@@ -77,7 +77,9 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['add', 'is-positive@1.0.0', '--filter', 'project-a'])
-  let pkg: PackageManifest = await loadJsonFile(path.resolve('project-a/package.json'))
+  let pkg: PackageManifest = await loadJsonFile(
+    path.resolve('project-a/package.json')
+  )
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '1.0.0' }) // add dependency & readPackage hook work
 
   await execPnpm(['update', 'is-positive@2.0.0', '--filter', 'project-a'])
@@ -117,7 +119,11 @@ test('filterLog hook filters peer dependency warning', async () => {
       }
     `
   await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
-  const result = execPnpmSync(['add', '@rollup/pluginutils@3.1.0', '--no-strict-peer-dependencies'])
+  const result = execPnpmSync([
+    'add',
+    '@rollup/pluginutils@3.1.0',
+    '--no-strict-peer-dependencies',
+  ])
 
   expect(result.status).toBe(0)
   expect(result.stdout.toString()).toEqual(
@@ -217,7 +223,8 @@ test('custom fetcher can call default fetcher', async () => {
   const args = await loadJsonFile<any>('args.json') // eslint-disable-line
 
   expect(args.resolution).toEqual({
-    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+    integrity:
+      'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 

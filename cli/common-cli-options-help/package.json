@@ -29,7 +29,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/common-cli-options-help#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/common-cli-options-help": "workspace:*"
+    "@pnpm/common-cli-options-help": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

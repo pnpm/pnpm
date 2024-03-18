@@ -1,7 +1,10 @@
-import path from 'path'
-import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
-import { type Registries } from '@pnpm/types'
-import { type ReporterFunction } from '../types'
+import path from 'node:path'
+import {
+  normalizeRegistries,
+  DEFAULT_REGISTRIES,
+} from '@pnpm/normalize-registries'
+import type { Registries } from '@pnpm/types'
+import type { ReporterFunction } from '../types'
 
 export interface StrictStoreStatusOptions {
   autoInstallPeers: boolean
@@ -24,9 +27,9 @@ export interface StrictStoreStatusOptions {
 }
 
 export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &
-Pick<StrictStoreStatusOptions, 'storeDir'>
+  Pick<StrictStoreStatusOptions, 'storeDir'>
 
-const defaults = async (opts: StoreStatusOptions) => {
+const defaults = async (opts: StoreStatusOptions): Promise<StrictStoreStatusOptions> => {
   const dir = opts.dir ?? process.cwd()
   const lockfileDir = opts.lockfileDir ?? dir
   return {
@@ -43,7 +46,7 @@ const defaults = async (opts: StoreStatusOptions) => {
   } as StrictStoreStatusOptions
 }
 
-export async function extendStoreStatusOptions (
+export async function extendStoreStatusOptions(
   opts: StoreStatusOptions
 ): Promise<StrictStoreStatusOptions> {
   if (opts) {
@@ -54,7 +57,11 @@ export async function extendStoreStatusOptions (
     }
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = { ...defaultOpts, ...opts, storeDir: defaultOpts.storeDir }
+  const extendedOpts = {
+    ...defaultOpts,
+    ...opts,
+    storeDir: defaultOpts.storeDir,
+  }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts
 }

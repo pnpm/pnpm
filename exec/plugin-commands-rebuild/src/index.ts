@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import * as rebuild from './rebuild'
 
 export { rebuild }

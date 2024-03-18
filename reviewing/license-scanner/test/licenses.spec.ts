@@ -9,11 +9,14 @@ jest.mock('../lib/getPkgInfo', () => {
   const actualModule = jest.requireActual('../lib/getPkgInfo')
   return {
     ...actualModule,
-    getPkgInfo: async (pkg: PackageInfo, _opts: GetPackageInfoOptions): Promise<
-    {
-      from: string
-      description?: string
-    } & Omit<LicensePackage, 'belongsTo'>
+    getPkgInfo: async (
+      pkg: PackageInfo,
+      _opts: GetPackageInfoOptions
+    ): Promise<
+      {
+        from: string
+        description?: string
+      } & Omit<LicensePackage, 'belongsTo'>
     > => {
       const packageInfo = {
         from: pkg.name!,

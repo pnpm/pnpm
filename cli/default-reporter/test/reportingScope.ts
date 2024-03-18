@@ -51,7 +51,7 @@ test('prints scope of recursive install in a workspace when not all packages are
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe('Scope: 2 of 10 workspace projects')
     },
   })
@@ -77,7 +77,7 @@ test('prints scope of recursive install in a workspace when all packages are sel
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe('Scope: all 10 workspace projects')
     },
   })
@@ -102,7 +102,7 @@ test('prints scope of recursive install not in a workspace when not all packages
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe('Scope: 2 of 10 projects')
     },
   })
@@ -127,7 +127,7 @@ test('prints scope of recursive install not in a workspace when all packages are
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(output).toBe('Scope: all 10 projects')
     },
   })

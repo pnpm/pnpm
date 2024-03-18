@@ -53,7 +53,7 @@ test('print update notification if the latest version is greater than the curren
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(stripAnsi(output)).toMatchSnapshot()
     },
   })
@@ -81,7 +81,7 @@ test('print update notification for Corepack if the latest version is greater th
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(stripAnsi(output)).toMatchSnapshot()
     },
   })
@@ -112,7 +112,7 @@ test('print update notification that suggests to use the standalone scripts for 
   output$.pipe(take(1)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
+    next: (output) => {
       expect(stripAnsi(output)).toMatchSnapshot()
     },
   })

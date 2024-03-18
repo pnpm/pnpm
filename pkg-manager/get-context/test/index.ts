@@ -36,5 +36,7 @@ test('getContext - extendNodePath true', async () => {
     ...DEFAULT_OPTIONS,
     extendNodePath: true,
   })
-  expect(context.extraNodePaths).toEqual([path.join(context.virtualStoreDir, 'node_modules')])
+  expect(context.extraNodePaths).toEqual([
+    path.join(context.virtualStoreDir, 'node_modules'),
+  ])
 })

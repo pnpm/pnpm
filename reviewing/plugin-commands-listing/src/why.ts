@@ -1,24 +1,31 @@
 import { docsUrl } from '@pnpm/cli-utils'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
+import {
+  FILTERING,
+  OPTIONS,
+  UNIVERSAL_OPTIONS,
+} from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { handler as list, type ListCommandOptions } from './list'
 
-export function rcOptionsTypes () {
-  return pick([
-    'depth',
-    'dev',
-    'global-dir',
-    'global',
-    'json',
-    'long',
-    'only',
-    'optional',
-    'parseable',
-    'production',
-  ], allTypes)
+export function rcOptionsTypes() {
+  return pick(
+    [
+      'depth',
+      'dev',
+      'global-dir',
+      'global',
+      'json',
+      'long',
+      'only',
+      'optional',
+      'parseable',
+      'production',
+    ],
+    allTypes
+  )
 }
 
 export const cliOptionsTypes = () => ({
@@ -33,7 +40,7 @@ export const shorthands = {
 
 export const commandNames = ['why']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: `Shows the packages that depend on <pkg>
 For example: pnpm why babel-* eslint-*`,
@@ -43,7 +50,8 @@ For example: pnpm why babel-* eslint-*`,
 
         list: [
           {
-            description: 'Perform command on every package in subdirectories \
+            description:
+              'Perform command on every package in subdirectories \
 or on every workspace package, when executed inside a workspace. \
 For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
@@ -62,17 +70,20 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--json',
           },
           {
-            description: 'List packages in the global install prefix instead of in the current project',
+            description:
+              'List packages in the global install prefix instead of in the current project',
             name: '--global',
             shortAlias: '-g',
           },
           {
-            description: 'Display only the dependency graph for packages in `dependencies` and `optionalDependencies`',
+            description:
+              'Display only the dependency graph for packages in `dependencies` and `optionalDependencies`',
             name: '--prod',
             shortAlias: '-P',
           },
           {
-            description: 'Display only the dependency graph for packages in `devDependencies`',
+            description:
+              'Display only the dependency graph for packages in `devDependencies`',
             name: '--dev',
             shortAlias: '-D',
           },
@@ -91,24 +102,25 @@ For options that may be used with `-r`, see "pnpm help recursive"',
       FILTERING,
     ],
     url: docsUrl('why'),
-    usages: [
-      'pnpm why <pkg> ...',
-    ],
+    usages: ['pnpm why <pkg> ...'],
   })
 }
 
-export async function handler (
-  opts: ListCommandOptions,
-  params: string[]
-) {
+export async function handler(opts: ListCommandOptions, params: string[]) {
   if (params.length === 0) {
-    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
+    throw new PnpmError(
+      'MISSING_PACKAGE_NAME',
+      '`pnpm why` requires the package name'
+    )
   }
-  return list({
-    ...opts,
-    cliOptions: {
-      ...(opts.cliOptions ?? {}),
-      depth: opts.depth ?? Infinity,
+  return list(
+    {
+      ...opts,
+      cliOptions: {
+        ...(opts.cliOptions ?? {}),
+        depth: opts.depth ?? Infinity,
+      },
     },
-  }, params)
+    params
+  )
 }

@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import { refToRelative } from '@pnpm/dependency-path'
 
 export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs'

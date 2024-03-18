@@ -12,13 +12,16 @@ test('install Node (and npm, npx) by exact version of Node.js', async () => {
   tempDir()
   const configDir = path.resolve('config')
 
-  await env.handler({
-    bin: process.cwd(),
-    configDir,
-    global: true,
-    pnpmHomeDir: process.cwd(),
-    rawConfig: {},
-  }, ['use', '16.4.0'])
+  await env.handler(
+    {
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    },
+    ['use', '16.4.0']
+  )
 
   const opts = {
     env: {
@@ -46,7 +49,11 @@ test('install Node (and npm, npx) by exact version of Node.js', async () => {
   expect(dirs).toEqual(['16.4.0'])
 
   {
-    const { stdout } = execa.sync('npm', ['config', 'get', 'globalconfig'], opts)
+    const { stdout } = execa.sync(
+      'npm',
+      ['config', 'get', 'globalconfig'],
+      opts
+    )
     expect(stdout.toString()).toBe(path.join(configDir, 'npmrc'))
   }
 })
@@ -60,16 +67,25 @@ test('resolveNodeVersion uses node-mirror:release option', async () => {
     .reply(200, [])
 
   await expect(
-    env.handler({
-      bin: process.cwd(),
-      configDir,
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {
-        'node-mirror:release': 'https://pnpm-node-mirror-test.localhost/download/release',
+    env.handler(
+      {
+        bin: process.cwd(),
+        configDir,
+        global: true,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {
+          'node-mirror:release':
+            'https://pnpm-node-mirror-test.localhost/download/release',
+        },
       },
-    }, ['use', '16.4.0'])
-  ).rejects.toEqual(new PnpmError('COULD_NOT_RESOLVE_NODEJS', 'Couldn\'t find Node.js version matching 16.4.0'))
+      ['use', '16.4.0']
+    )
+  ).rejects.toEqual(
+    new PnpmError(
+      'COULD_NOT_RESOLVE_NODEJS',
+      "Couldn't find Node.js version matching 16.4.0"
+    )
+  )
 
   expect(nockScope.isDone()).toBeTruthy()
 })
@@ -78,26 +94,42 @@ test('fail if a non-existed Node.js version is tried to be installed', async () 
   tempDir()
 
   await expect(
-    env.handler({
-      bin: process.cwd(),
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, ['use', '6.999'])
-  ).rejects.toEqual(new PnpmError('COULD_NOT_RESOLVE_NODEJS', 'Couldn\'t find Node.js version matching 6.999'))
+    env.handler(
+      {
+        bin: process.cwd(),
+        global: true,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      },
+      ['use', '6.999']
+    )
+  ).rejects.toEqual(
+    new PnpmError(
+      'COULD_NOT_RESOLVE_NODEJS',
+      "Couldn't find Node.js version matching 6.999"
+    )
+  )
 })
 
 test('fail if a non-existed Node.js LTS is tried to be installed', async () => {
   tempDir()
 
   await expect(
-    env.handler({
-      bin: process.cwd(),
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, ['use', 'boo'])
-  ).rejects.toEqual(new PnpmError('COULD_NOT_RESOLVE_NODEJS', 'Couldn\'t find Node.js version matching boo'))
+    env.handler(
+      {
+        bin: process.cwd(),
+        global: true,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      },
+      ['use', 'boo']
+    )
+  ).rejects.toEqual(
+    new PnpmError(
+      'COULD_NOT_RESOLVE_NODEJS',
+      "Couldn't find Node.js version matching boo"
+    )
+  )
 })
 
 // Regression test for https://github.com/pnpm/pnpm/issues/4104
@@ -105,7 +137,10 @@ test('it re-attempts failed downloads', async () => {
   tempDir()
 
   // This fixture was retrieved from http://nodejs.org/download/release/index.json on 2021-12-12.
-  const testReleaseInfoPath = path.join(__dirname, './fixtures/node-16.4.0-release-info.json')
+  const testReleaseInfoPath = path.join(
+    __dirname,
+    './fixtures/node-16.4.0-release-info.json'
+  )
 
   const nockScope = nock('https://nodejs.org')
     // Using nock's persist option since the default fetcher retries requests.
@@ -113,7 +148,7 @@ test('it re-attempts failed downloads', async () => {
     .get('/download/release/index.json')
     .replyWithFile(200, testReleaseInfoPath)
     .persist()
-    .get(uri => uri.startsWith('/download/release/v16.4.0/'))
+    .get((uri) => uri.startsWith('/download/release/v16.4.0/'))
     .replyWithError('Intentionally failing response for test')
 
   try {
@@ -121,12 +156,15 @@ test('it re-attempts failed downloads', async () => {
     for (let i = 0; i < attempts; i++) {
       // eslint-disable-next-line no-await-in-loop
       await expect(
-        env.handler({
-          bin: process.cwd(),
-          global: true,
-          pnpmHomeDir: process.cwd(),
-          rawConfig: {},
-        }, ['use', '16.4.0'])
+        env.handler(
+          {
+            bin: process.cwd(),
+            global: true,
+            pnpmHomeDir: process.cwd(),
+            rawConfig: {},
+          },
+          ['use', '16.4.0']
+        )
       ).rejects.toThrow('Intentionally failing response for test')
     }
 
@@ -141,25 +179,36 @@ describe('env add/remove', () => {
     tempDir()
 
     await expect(
-      env.handler({
-        bin: process.cwd(),
-        global: false,
-        pnpmHomeDir: process.cwd(),
-        rawConfig: {},
-      }, ['remove', 'lts'])
-    ).rejects.toEqual(new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env remove <version>" can only be used with the "--global" option currently'))
+      env.handler(
+        {
+          bin: process.cwd(),
+          global: false,
+          pnpmHomeDir: process.cwd(),
+          rawConfig: {},
+        },
+        ['remove', 'lts']
+      )
+    ).rejects.toEqual(
+      new PnpmError(
+        'NOT_IMPLEMENTED_YET',
+        '"pnpm env remove <version>" can only be used with the "--global" option currently'
+      )
+    )
   })
 
   test('fail if can not resolve Node.js version', async () => {
     tempDir()
 
     await expect(
-      env.handler({
-        bin: process.cwd(),
-        global: true,
-        pnpmHomeDir: process.cwd(),
-        rawConfig: {},
-      }, ['rm', 'non-existing-version'])
+      env.handler(
+        {
+          bin: process.cwd(),
+          global: true,
+          pnpmHomeDir: process.cwd(),
+          rawConfig: {},
+        },
+        ['rm', 'non-existing-version']
+      )
     ).resolves.toEqual({ exitCode: 1 })
   })
 
@@ -167,12 +216,15 @@ describe('env add/remove', () => {
     tempDir()
 
     await expect(
-      env.handler({
-        bin: process.cwd(),
-        global: true,
-        pnpmHomeDir: process.cwd(),
-        rawConfig: {},
-      }, ['remove', '16.4.0'])
+      env.handler(
+        {
+          bin: process.cwd(),
+          global: true,
+          pnpmHomeDir: process.cwd(),
+          rawConfig: {},
+        },
+        ['remove', '16.4.0']
+      )
     ).resolves.toEqual({ exitCode: 1 })
   })
 
@@ -181,13 +233,16 @@ describe('env add/remove', () => {
 
     const configDir = path.resolve('config')
 
-    await env.handler({
-      bin: process.cwd(),
-      configDir,
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, ['use', '16.4.0'])
+    await env.handler(
+      {
+        bin: process.cwd(),
+        configDir,
+        global: true,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      },
+      ['use', '16.4.0']
+    )
 
     const opts = {
       env: {
@@ -201,12 +256,15 @@ describe('env add/remove', () => {
       expect(stdout.toString()).toBe('v16.4.0')
     }
 
-    await env.handler({
-      bin: process.cwd(),
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, ['rm', '16.4.0'])
+    await env.handler(
+      {
+        bin: process.cwd(),
+        global: true,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      },
+      ['rm', '16.4.0']
+    )
 
     expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
   })
@@ -216,38 +274,52 @@ describe('env add/remove', () => {
 
     const configDir = path.resolve('config')
 
-    await env.handler({
-      bin: process.cwd(),
-      configDir,
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, ['add', '16.4.0', '18.18.0'])
-
-    {
-      const version = await env.handler({
+    await env.handler(
+      {
         bin: process.cwd(),
         configDir,
+        global: true,
         pnpmHomeDir: process.cwd(),
         rawConfig: {},
-      }, ['list'])
+      },
+      ['add', '16.4.0', '18.18.0']
+    )
 
-      expect((version as string).trim().replaceAll(/\s/g, '')).toMatch(/16\.4\.0.*18\.18\.0/)
+    {
+      const version = await env.handler(
+        {
+          bin: process.cwd(),
+          configDir,
+          pnpmHomeDir: process.cwd(),
+          rawConfig: {},
+        },
+        ['list']
+      )
+
+      expect((version as string).trim().replaceAll(/\s/g, '')).toMatch(
+        /16\.4\.0.*18\.18\.0/
+      )
     }
-    await env.handler({
-      bin: process.cwd(),
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, ['rm', '16.4.0', '18.18.0'])
-
-    {
-      const version = await env.handler({
+    await env.handler(
+      {
         bin: process.cwd(),
-        configDir,
+        global: true,
         pnpmHomeDir: process.cwd(),
         rawConfig: {},
-      }, ['list'])
+      },
+      ['rm', '16.4.0', '18.18.0']
+    )
+
+    {
+      const version = await env.handler(
+        {
+          bin: process.cwd(),
+          configDir,
+          pnpmHomeDir: process.cwd(),
+          rawConfig: {},
+        },
+        ['list']
+      )
 
       expect(version).toMatch('')
     }
@@ -259,20 +331,26 @@ describe('env list', () => {
     tempDir()
     const configDir = path.resolve('config')
 
-    await env.handler({
-      bin: process.cwd(),
-      configDir,
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, ['use', '16.4.0'])
+    await env.handler(
+      {
+        bin: process.cwd(),
+        configDir,
+        global: true,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      },
+      ['use', '16.4.0']
+    )
 
-    const version = await env.handler({
-      bin: process.cwd(),
-      configDir,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, ['list'])
+    const version = await env.handler(
+      {
+        bin: process.cwd(),
+        configDir,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      },
+      ['list']
+    )
 
     expect(version).toMatch('16.4.0')
   })
@@ -282,28 +360,41 @@ describe('env list', () => {
     const pnpmHomeDir = path.resolve('specified-dir')
 
     await expect(
-      env.handler({
-        bin: process.cwd(),
-        configDir,
-        pnpmHomeDir,
-        rawConfig: {},
-      }, ['list'])
-    ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${path.join(pnpmHomeDir, 'nodejs')}`))
+      env.handler(
+        {
+          bin: process.cwd(),
+          configDir,
+          pnpmHomeDir,
+          rawConfig: {},
+        },
+        ['list']
+      )
+    ).rejects.toEqual(
+      new PnpmError(
+        'ENV_NO_NODE_DIRECTORY',
+        `Couldn't find Node.js directory in ${path.join(pnpmHomeDir, 'nodejs')}`
+      )
+    )
   })
   test('list remote Node.js versions', async () => {
     tempDir()
     const configDir = path.resolve('config')
 
-    const versionStr = await env.handler({
-      bin: process.cwd(),
-      configDir,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-      remote: true,
-    }, ['list', '16'])
+    const versionStr = await env.handler(
+      {
+        bin: process.cwd(),
+        configDir,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+        remote: true,
+      },
+      ['list', '16']
+    )
 
     const versions = (versionStr as string).split('\n')
-    expect(versions.every(version => semver.satisfies(version, '16'))).toBeTruthy()
+    expect(
+      versions.every((version) => semver.satisfies(version, '16'))
+    ).toBeTruthy()
   })
 })
 
@@ -311,27 +402,38 @@ test('fail if there is no global bin directory', async () => {
   tempDir()
 
   await expect(
-    env.handler({
-      // @ts-expect-error
-      bin: undefined,
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, ['use', 'lts'])
-  ).rejects.toEqual(new PnpmError('CANNOT_MANAGE_NODE', 'Unable to manage Node.js because pnpm was not installed using the standalone installation script'))
+    env.handler(
+      {
+        // @ts-expect-error
+        bin: undefined,
+        global: true,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      },
+      ['use', 'lts']
+    )
+  ).rejects.toEqual(
+    new PnpmError(
+      'CANNOT_MANAGE_NODE',
+      'Unable to manage Node.js because pnpm was not installed using the standalone installation script'
+    )
+  )
 })
 
 test('use overrides the previous Node.js version', async () => {
   tempDir()
   const configDir = path.resolve('config')
 
-  await env.handler({
-    bin: process.cwd(),
-    configDir,
-    global: true,
-    pnpmHomeDir: process.cwd(),
-    rawConfig: {},
-  }, ['use', '16.4.0'])
+  await env.handler(
+    {
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    },
+    ['use', '16.4.0']
+  )
 
   const opts = {
     env: {
@@ -345,13 +447,16 @@ test('use overrides the previous Node.js version', async () => {
     expect(stdout.toString()).toBe('v16.4.0')
   }
 
-  await env.handler({
-    bin: process.cwd(),
-    configDir,
-    global: true,
-    pnpmHomeDir: process.cwd(),
-    rawConfig: {},
-  }, ['use', '16.5.0'])
+  await env.handler(
+    {
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    },
+    ['use', '16.5.0']
+  )
 
   {
     const { stdout } = execa.sync('node', ['-v'], opts)

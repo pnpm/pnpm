@@ -1,10 +1,10 @@
-import path from 'path'
+import path from 'node:path'
 import { logger } from '@pnpm/logger'
 import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'
 import renameOverwrite from 'rename-overwrite'
 
-export async function safeIsInnerLink (
+export async function safeIsInnerLink(
   projectModulesDir: string,
   depName: string,
   opts: {
@@ -30,10 +30,7 @@ export async function safeIsInnerLink (
         prefix: opts.projectDir,
       })
       const ignoredDir = path.join(projectModulesDir, '.ignored', depName)
-      await renameOverwrite(
-        path.join(projectModulesDir, depName),
-        ignoredDir
-      )
+      await renameOverwrite(path.join(projectModulesDir, depName), ignoredDir)
     }
     return true
   }

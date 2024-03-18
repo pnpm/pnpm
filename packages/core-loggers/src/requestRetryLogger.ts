@@ -1,7 +1,4 @@
-import {
-  type LogBase,
-  logger,
-} from '@pnpm/logger'
+import { type LogBase, logger } from '@pnpm/logger'
 
 export const requestRetryLogger = logger<RequestRetryMessage>('request-retry')
 
@@ -14,4 +11,5 @@ export interface RequestRetryMessage {
   url: string
 }
 
-export type RequestRetryLog = { name: 'pnpm:request-retry' } & LogBase & RequestRetryMessage
+export type RequestRetryLog = { name: 'pnpm:request-retry' } & LogBase &
+  RequestRetryMessage

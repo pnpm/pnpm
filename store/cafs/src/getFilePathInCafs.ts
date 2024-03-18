@@ -1,43 +1,45 @@
-import path from 'path'
+import path from 'node:path'
 import ssri, { type IntegrityLike } from 'ssri'
 
-export const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
+export const modeIsExecutable = (mode: number): boolean => {
+  return (mode & 0o1_1_1) === 0o1_1_1;
+}
 
 export type FileType = 'exec' | 'nonexec' | 'index'
 
-export function getFilePathByModeInCafs (
+export function getFilePathByModeInCafs(
   cafsDir: string,
   integrity: string | IntegrityLike,
   mode: number
-) {
+): string {
   const fileType = modeIsExecutable(mode) ? 'exec' : 'nonexec'
   return path.join(cafsDir, contentPathFromIntegrity(integrity, fileType))
 }
 
-export function getFilePathInCafs (
+export function getFilePathInCafs(
   cafsDir: string,
   integrity: string | IntegrityLike,
   fileType: FileType
-) {
+): string {
   return path.join(cafsDir, contentPathFromIntegrity(integrity, fileType))
 }
 
-function contentPathFromIntegrity (
+function contentPathFromIntegrity(
   integrity: string | IntegrityLike,
   fileType: FileType
-) {
+): string {
   const sri = ssri.parse(integrity, { single: true })
   return contentPathFromHex(fileType, sri.hexDigest())
 }
 
-export function contentPathFromHex (fileType: FileType, hex: string) {
+export function contentPathFromHex(fileType: FileType, hex: string): string {
   const p = path.join(hex.slice(0, 2), hex.slice(2))
   switch (fileType) {
-  case 'exec':
-    return `${p}-exec`
-  case 'nonexec':
-    return p
-  case 'index':
-    return `${p}-index.json`
+    case 'exec':
+      return `${p}-exec`
+    case 'nonexec':
+      return p
+    case 'index':
+      return `${p}-index.json`
   }
 }

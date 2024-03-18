@@ -1,32 +1,34 @@
 import path from 'path'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import {
-  install,
-  type MutatedProject,
-  mutateModules,
-} from '@pnpm/core'
+import { install, type MutatedProject, mutateModules } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
 test('installing to a custom modules directory', async () => {
   const project = prepareEmpty()
 
-  await install({
-    dependencies: {
-      'is-positive': '1.0.0',
+  await install(
+    {
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
     },
-  }, await testDefaults({ modulesDir: 'pnpm_modules' }))
+    await testDefaults({ modulesDir: 'pnpm_modules' })
+  )
 
   await project.has('is-positive', 'pnpm_modules')
 
   await rimraf('pnpm_modules')
   await project.hasNot('is-positive', 'pnpm_modules')
 
-  await install({
-    dependencies: {
-      'is-positive': '1.0.0',
+  await install(
+    {
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
     },
-  }, await testDefaults({ frozenLockfile: true, modulesDir: 'pnpm_modules' }))
+    await testDefaults({ frozenLockfile: true, modulesDir: 'pnpm_modules' })
+  )
 
   await project.has('is-positive', 'pnpm_modules')
 })

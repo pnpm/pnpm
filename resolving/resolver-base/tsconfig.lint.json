@@ -4,5 +4,8 @@
     "src/**/*.ts",
     "test/**/*.ts",
     "../../__typings__/**/*.d.ts"
+  ],
+  "exclude": [
+    "lib/**/*"
   ]
 }

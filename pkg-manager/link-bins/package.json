@@ -52,12 +52,13 @@
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/node": "^18.14.6",
+    "@types/node": "^20.11.28",
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",
     "cmd-extension": "^1.0.2",
     "path-exists": "^4.0.0",
-    "tempy": "^1.0.1"
+    "tempy": "^1.0.1",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "peerDependencies": {

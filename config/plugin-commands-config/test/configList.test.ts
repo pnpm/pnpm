@@ -2,20 +2,23 @@ import { config } from '@pnpm/plugin-commands-config'
 
 const CRLF = '\r\n'
 
-function normalizeNewlines (str: string) {
+function normalizeNewlines(str: string) {
   return str.replace(new RegExp(CRLF, 'g'), '\n')
 }
 
 test('config list', async () => {
-  const output = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
-    rawConfig: {
-      'store-dir': '~/store',
-      'fetch-retries': '2',
+  const output = await config.handler(
+    {
+      dir: process.cwd(),
+      cliOptions: {},
+      configDir: process.cwd(),
+      rawConfig: {
+        'store-dir': '~/store',
+        'fetch-retries': '2',
+      },
     },
-  }, ['list'])
+    ['list']
+  )
 
   expect(normalizeNewlines(output)).toEqual(`fetch-retries=2
 store-dir=~/store
@@ -23,19 +26,28 @@ store-dir=~/store
 })
 
 test('config list --json', async () => {
-  const output = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
-    json: true,
-    rawConfig: {
-      'store-dir': '~/store',
-      'fetch-retries': '2',
+  const output = await config.handler(
+    {
+      dir: process.cwd(),
+      cliOptions: {},
+      configDir: process.cwd(),
+      json: true,
+      rawConfig: {
+        'store-dir': '~/store',
+        'fetch-retries': '2',
+      },
     },
-  }, ['list'])
+    ['list']
+  )
 
-  expect(output).toEqual(JSON.stringify({
-    'fetch-retries': '2',
-    'store-dir': '~/store',
-  }, null, 2))
+  expect(output).toEqual(
+    JSON.stringify(
+      {
+        'fetch-retries': '2',
+        'store-dir': '~/store',
+      },
+      null,
+      2
+    )
+  )
 })

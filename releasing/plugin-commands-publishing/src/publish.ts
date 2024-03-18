@@ -1,13 +1,18 @@
-import { promises as fs, existsSync } from 'fs'
-import path from 'path'
+import { promises as fs, existsSync } from 'node:fs'
+import path from 'node:path'
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { runNpm } from '@pnpm/run-npm'
-import { type ProjectManifest } from '@pnpm/types'
-import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
+import type { ProjectManifest } from '@pnpm/types'
+import {
+  getCurrentBranch,
+  isGitRepo,
+  isRemoteHistoryClean,
+  isWorkingTreeClean,
+} from '@pnpm/git-utils'
 import { loadToken } from '@pnpm/network.auth-header'
 import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
@@ -18,23 +23,26 @@ import tempy from 'tempy'
 import * as pack from './pack'
 import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish'
 
-export function rcOptionsTypes () {
-  return pick([
-    'access',
-    'git-checks',
-    'ignore-scripts',
-    'provenance',
-    'npm-path',
-    'otp',
-    'publish-branch',
-    'registry',
-    'tag',
-    'unsafe-perm',
-    'embed-readme',
-  ], allTypes)
+export function rcOptionsTypes() {
+  return pick(
+    [
+      'access',
+      'git-checks',
+      'ignore-scripts',
+      'provenance',
+      'npm-path',
+      'otp',
+      'publish-branch',
+      'registry',
+      'tag',
+      'unsafe-perm',
+      'embed-readme',
+    ],
+    allTypes
+  )
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return {
     ...rcOptionsTypes(),
     'dry-run': Boolean,
@@ -47,7 +55,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['publish']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: 'Publishes a package to the npm registry.',
     descriptionLists: [
@@ -56,7 +64,8 @@ export function help () {
 
         list: [
           {
-            description: "Don't check if current branch is your publish branch, clean, and up to date",
+            description:
+              "Don't check if current branch is your publish branch, clean, and up to date",
             name: '--no-git-checks',
           },
           {
@@ -64,7 +73,8 @@ export function help () {
             name: '--publish-branch',
           },
           {
-            description: 'Does everything a publish would do except actually publishing to the registry',
+            description:
+              'Does everything a publish would do except actually publishing to the registry',
             name: '--dry-run',
           },
           {
@@ -72,27 +82,33 @@ export function help () {
             name: '--json',
           },
           {
-            description: 'Registers the published package with the given tag. By default, the "latest" tag is used.',
+            description:
+              'Registers the published package with the given tag. By default, the "latest" tag is used.',
             name: '--tag <tag>',
           },
           {
-            description: 'Tells the registry whether this package should be published as public or restricted',
+            description:
+              'Tells the registry whether this package should be published as public or restricted',
             name: '--access <public|restricted>',
           },
           {
-            description: 'Ignores any publish related lifecycle scripts (prepublishOnly, postpublish, and the like)',
+            description:
+              'Ignores any publish related lifecycle scripts (prepublishOnly, postpublish, and the like)',
             name: '--ignore-scripts',
           },
           {
-            description: 'Packages are proceeded to be published even if their current version is already in the registry. This is useful when a "prepublishOnly" script bumps the version of the package before it is published',
+            description:
+              'Packages are proceeded to be published even if their current version is already in the registry. This is useful when a "prepublishOnly" script bumps the version of the package before it is published',
             name: '--force',
           },
           {
-            description: 'Save the list of the newly published packages to "pnpm-publish-summary.json". Useful when some other tooling is used to report the list of published packages.',
+            description:
+              'Save the list of the newly published packages to "pnpm-publish-summary.json". Useful when some other tooling is used to report the list of published packages.',
             name: '--report-summary',
           },
           {
-            description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password',
+            description:
+              'When publishing packages that require two-factor authentication, this option can specify a one-time password',
             name: '--otp',
           },
           {
@@ -105,13 +121,16 @@ export function help () {
       FILTERING,
     ],
     url: docsUrl('publish'),
-    usages: ['pnpm publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>] [options]'],
+    usages: [
+      'pnpm publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>] [options]',
+    ],
   })
 }
 
-const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks".'
+const GIT_CHECKS_HINT =
+  'If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks".'
 
-export async function handler (
+export async function handler(
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
     argv: {
       original: string[]
@@ -119,7 +138,14 @@ export async function handler (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme'>,
+  } & Pick<
+    Config,
+      | 'allProjects'
+      | 'gitChecks'
+      | 'ignoreScripts'
+      | 'publishBranch'
+      | 'embedReadme'
+  >,
   params: string[]
 ) {
   const result = await publish(opts, params)
@@ -127,7 +153,7 @@ export async function handler (
   return result
 }
 
-export async function publish (
+export async function publish(
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
     argv: {
       original: string[]
@@ -135,16 +161,30 @@ export async function publish (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
+  } & Pick<
+    Config,
+      | 'allProjects'
+      | 'gitChecks'
+      | 'ignoreScripts'
+      | 'publishBranch'
+      | 'embedReadme'
+      | 'packGzipLevel'
+  >,
   params: string[]
 ) {
-  if (opts.gitChecks !== false && await isGitRepo()) {
+  if (opts.gitChecks !== false && (await isGitRepo())) {
     if (!(await isWorkingTreeClean())) {
-      throw new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
-        hint: GIT_CHECKS_HINT,
-      })
+      throw new PnpmError(
+        'GIT_UNCLEAN',
+        'Unclean working tree. Commit or stash changes first.',
+        {
+          hint: GIT_CHECKS_HINT,
+        }
+      )
     }
-    const branches = opts.publishBranch ? [opts.publishBranch] : ['master', 'main']
+    const branches = opts.publishBranch
+      ? [opts.publishBranch]
+      : ['master', 'main']
     const currentBranch = await getCurrentBranch()
     if (currentBranch === null) {
       throw new PnpmError(
@@ -156,26 +196,34 @@ export async function publish (
       )
     }
     if (!branches.includes(currentBranch)) {
-      const { confirm } = await prompt({
+      const { confirm } = (await prompt({
         message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
 Do you want to continue?`,
         name: 'confirm',
         type: 'confirm',
-      } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any)) as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
       if (!confirm) {
-        throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branches.join('|')}'.`, {
-          hint: GIT_CHECKS_HINT,
-        })
+        throw new PnpmError(
+          'GIT_NOT_CORRECT_BRANCH',
+          `Branch is not on '${branches.join('|')}'.`,
+          {
+            hint: GIT_CHECKS_HINT,
+          }
+        )
       }
     }
     if (!(await isRemoteHistoryClean())) {
-      throw new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.', {
-        hint: GIT_CHECKS_HINT,
-      })
+      throw new PnpmError(
+        'GIT_NOT_LATEST',
+        'Remote history differs. Please pull changes.',
+        {
+          hint: GIT_CHECKS_HINT,
+        }
+      )
     }
   }
-  if (opts.recursive && (opts.selectedProjectsGraph != null)) {
+  if (opts.recursive && opts.selectedProjectsGraph != null) {
     const { exitCode } = await recursivePublish({
       ...opts,
       selectedProjectsGraph: opts.selectedProjectsGraph,
@@ -183,11 +231,11 @@ Do you want to continue?`,
     })
     return { exitCode }
   }
-  if ((params.length > 0) && params[0].endsWith('.tgz')) {
+  if (params.length > 0 && params[0].endsWith('.tgz')) {
     const { status } = runNpm(opts.npmPath, ['publish', ...params])
     return { exitCode: status ?? 0 }
   }
-  const dirInParams = (params.length > 0) && params[0]
+  const dirInParams = params.length > 0 && params[0]
   const dir = dirInParams || opts.dir || process.cwd()
 
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
@@ -204,7 +252,7 @@ Do you want to continue?`,
   // Unfortunately, we cannot support postpack at the moment
   let args = opts.argv.original.slice(1)
   if (dirInParams) {
-    args = args.filter(arg => arg !== params[0])
+    args = args.filter((arg) => arg !== params[0])
   }
   const index = args.indexOf('--publish-branch')
   if (index !== -1) {
@@ -217,10 +265,7 @@ Do you want to continue?`,
     }
   }
   if (!opts.ignoreScripts) {
-    await _runScriptsIfPresent([
-      'prepublishOnly',
-      'prepublish',
-    ], manifest)
+    await _runScriptsIfPresent(['prepublishOnly', 'prepublish'], manifest)
   }
 
   // We have to publish the tarball from another location.
@@ -234,20 +279,21 @@ Do you want to continue?`,
     packDestination,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
-  const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
-    cwd: packDestination,
-    env: getEnvWithTokens(opts),
-  })
+  const { status } = runNpm(
+    opts.npmPath,
+    ['publish', '--ignore-scripts', path.basename(tarballName), ...args],
+    {
+      cwd: packDestination,
+      env: getEnvWithTokens(opts),
+    }
+  )
   await rimraf(packDestination)
 
   if (status != null && status !== 0) {
     return { exitCode: status }
   }
   if (!opts.ignoreScripts) {
-    await _runScriptsIfPresent([
-      'publish',
-      'postpublish',
-    ], manifest)
+    await _runScriptsIfPresent(['publish', 'postpublish'], manifest)
   }
   return { manifest }
 }
@@ -256,34 +302,39 @@ Do you want to continue?`,
  * The npm CLI doesn't support token helpers, so we transform the token helper settings
  * to regular auth token settings that the npm CLI can understand.
  */
-function getEnvWithTokens (opts: Pick<PublishRecursiveOpts, 'rawConfig' | 'argv'>) {
-  const tokenHelpers = Object.entries(opts.rawConfig).filter(([key]) => key.endsWith(':tokenHelper'))
+function getEnvWithTokens(
+  opts: Pick<PublishRecursiveOpts, 'rawConfig' | 'argv'>
+) {
+  const tokenHelpers = Object.entries(opts.rawConfig).filter(([key]) =>
+    key.endsWith(':tokenHelper')
+  )
   const tokenHelpersFromArgs = opts.argv.original
-    .filter(arg => arg.includes(':tokenHelper='))
-    .map(arg => arg.split('=', 2) as [string, string])
+    .filter((arg) => arg.includes(':tokenHelper='))
+    .map((arg) => arg.split('=', 2) as [string, string])
 
   const env: Record<string, string> = {}
   for (const [key, helperPath] of tokenHelpers.concat(tokenHelpersFromArgs)) {
     const authHeader = loadToken(helperPath, key)
-    const authType = authHeader.startsWith('Bearer')
-      ? '_authToken'
-      : '_auth'
+    const authType = authHeader.startsWith('Bearer') ? '_authToken' : '_auth'
 
     const registry = key.replace(/:tokenHelper$/, '')
-    env[`NPM_CONFIG_${registry}:${authType}`] = authType === '_authToken'
-      ? authHeader.slice('Bearer '.length)
-      : authHeader.replace(/Basic /i, '')
+    env[`NPM_CONFIG_${registry}:${authType}`] =
+      authType === '_authToken'
+        ? authHeader.slice('Bearer '.length)
+        : authHeader.replace(/Basic /i, '')
   }
   return env
 }
 
-async function copyNpmrc (
-  { dir, workspaceDir, packDestination }: {
-    dir: string
-    workspaceDir?: string
-    packDestination: string
-  }
-) {
+async function copyNpmrc({
+  dir,
+  workspaceDir,
+  packDestination,
+}: {
+  dir: string
+  workspaceDir?: string
+  packDestination: string
+}) {
   const localNpmrc = path.join(dir, '.npmrc')
   if (existsSync(localNpmrc)) {
     await fs.copyFile(localNpmrc, path.join(packDestination, '.npmrc'))
@@ -296,7 +347,7 @@ async function copyNpmrc (
   }
 }
 
-export async function runScriptsIfPresent (
+export async function runScriptsIfPresent(
   opts: RunLifecycleHookOptions,
   scriptNames: string[],
   manifest: ProjectManifest

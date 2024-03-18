@@ -1,15 +1,11 @@
-import { promises as fs, mkdirSync } from 'fs'
-import path from 'path'
+import { promises as fs, mkdirSync } from 'node:fs'
+import path from 'node:path'
 import PATH_NAME from 'path-name'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import {
-  execPnpm,
-  execPnpmSync,
-  execPnpxSync,
-} from './utils'
+import { execPnpm, execPnpmSync, execPnpxSync } from './utils'
 
 const f = fixtures(__dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
@@ -18,7 +14,9 @@ test('some commands pass through to npm', () => {
   const result = execPnpmSync(['dist-tag', 'ls', 'is-positive'])
 
   expect(result.status).toBe(0)
-  expect(result.stdout.toString()).not.toContain('Usage: pnpm [command] [flags]')
+  expect(result.stdout.toString()).not.toContain(
+    'Usage: pnpm [command] [flags]'
+  )
 })
 
 test('installs in the folder where the package.json file is', async () => {
@@ -40,11 +38,15 @@ test('pnpm import does not move modules created by npm', async () => {
   await execa('npm', ['install', 'is-positive@1.0.0', '--save'])
   await execa('npm', ['shrinkwrap'])
 
-  const packageManifestInodeBefore = (await fs.stat('node_modules/is-positive/package.json')).ino
+  const packageManifestInodeBefore = (
+    await fs.stat('node_modules/is-positive/package.json')
+  ).ino
 
   await execPnpm(['import'])
 
-  const packageManifestInodeAfter = (await fs.stat('node_modules/is-positive/package.json')).ino
+  const packageManifestInodeAfter = (
+    await fs.stat('node_modules/is-positive/package.json')
+  ).ino
 
   expect(packageManifestInodeBefore).toBe(packageManifestInodeAfter)
 })
@@ -96,10 +98,16 @@ test('command does not fail when a deprecated option is used', async () => {
 test('command does not fail when deprecated options are used', async () => {
   prepare()
 
-  const { status, stdout } = execPnpmSync(['install', '--no-lock', '--independent-leaves'])
+  const { status, stdout } = execPnpmSync([
+    'install',
+    '--no-lock',
+    '--independent-leaves',
+  ])
 
   expect(status).toBe(0)
-  expect(stdout.toString()).toMatch(/Deprecated options: 'lock', 'independent-leaves'/)
+  expect(stdout.toString()).toMatch(
+    /Deprecated options: 'lock', 'independent-leaves'/
+  )
 })
 
 test('adding new dep does not fail if node_modules was created with --public-hoist-pattern=eslint-*', async () => {
@@ -108,7 +116,9 @@ test('adding new dep does not fail if node_modules was created with --public-hoi
   await execPnpm(['add', 'is-positive', '--public-hoist-pattern=eslint-*'])
 
   expect(execPnpmSync(['add', 'is-negative', '--no-hoist']).status).toBe(1)
-  expect(execPnpmSync(['add', 'is-negative', '--no-shamefully-hoist']).status).toBe(1)
+  expect(
+    execPnpmSync(['add', 'is-negative', '--no-shamefully-hoist']).status
+  ).toBe(1)
   expect(execPnpmSync(['add', 'is-negative']).status).toBe(0)
 
   await project.has('is-negative')
@@ -162,18 +172,43 @@ test('if an unknown command is executed, run it', async () => {
 })
 
 test.each([
-  { message: 'npm_command env available on special lifecycle hooks', script: 'prepare', command: 'install' },
-  { message: 'npm_command env available on special lifecycle hooks (alias)', script: 'prepare', command: 'i', expected: 'install' },
-  { message: 'npm_command env available on pre lifecycle hooks', script: 'prepack', command: 'pack' },
-  { message: 'npm_command env available on special commands', script: 'test', command: 'test' },
-  { message: 'npm_command env available on scripts', script: 'dev', command: 'dev', expected: 'run-script' },
+  {
+    message: 'npm_command env available on special lifecycle hooks',
+    script: 'prepare',
+    command: 'install',
+  },
+  {
+    message: 'npm_command env available on special lifecycle hooks (alias)',
+    script: 'prepare',
+    command: 'i',
+    expected: 'install',
+  },
+  {
+    message: 'npm_command env available on pre lifecycle hooks',
+    script: 'prepack',
+    command: 'pack',
+  },
+  {
+    message: 'npm_command env available on special commands',
+    script: 'test',
+    command: 'test',
+  },
+  {
+    message: 'npm_command env available on scripts',
+    script: 'dev',
+    command: 'dev',
+    expected: 'run-script',
+  },
 ])('$message', async ({ script, command, expected }) => {
   prepare({
     scripts: {
-      [script]: 'node -e "console.log(\'npm_command: \\"\' + process.env.npm_command + \'\\"\')"',
+      [script]:
+        'node -e "console.log(\'npm_command: \\"\' + process.env.npm_command + \'\\"\')"',
     },
   })
 
   const result = execPnpmSync([command])
-  expect(result.stdout.toString()).toMatch(`npm_command: "${expected ?? command}"`)
+  expect(result.stdout.toString()).toMatch(
+    `npm_command: "${expected ?? command}"`
+  )
 })

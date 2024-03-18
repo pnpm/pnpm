@@ -44,53 +44,41 @@ test('complete a command', async () => {
     },
   }
   expect(
-    await complete(ctx,
-      {
-        cmd: 'run',
-        currentTypedWordType: 'value',
-        lastOption: null,
-        options: {},
-        params: [],
-      }
-    )
-  ).toStrictEqual(
-    [{ name: 'test' }]
-  )
+    await complete(ctx, {
+      cmd: 'run',
+      currentTypedWordType: 'value',
+      lastOption: null,
+      options: {},
+      params: [],
+    })
+  ).toStrictEqual([{ name: 'test' }])
   expect(
-    await complete(ctx,
-      {
-        cmd: 'run',
-        currentTypedWordType: null,
-        lastOption: null,
-        options: {},
-        params: [],
-      }
-    )
-  ).toStrictEqual(
-    [
-      { name: 'test' },
-      { name: '--filter' },
-      { name: '--if-present' },
-      { name: '--no-if-present' },
-    ]
-  )
+    await complete(ctx, {
+      cmd: 'run',
+      currentTypedWordType: null,
+      lastOption: null,
+      options: {},
+      params: [],
+    })
+  ).toStrictEqual([
+    { name: 'test' },
+    { name: '--filter' },
+    { name: '--if-present' },
+    { name: '--no-if-present' },
+  ])
   expect(
-    await complete(ctx,
-      {
-        cmd: 'run',
-        currentTypedWordType: 'option',
-        lastOption: null,
-        options: {},
-        params: [],
-      }
-    )
-  ).toStrictEqual(
-    [
-      { name: '--filter' },
-      { name: '--if-present' },
-      { name: '--no-if-present' },
-    ]
-  )
+    await complete(ctx, {
+      cmd: 'run',
+      currentTypedWordType: 'option',
+      lastOption: null,
+      options: {},
+      params: [],
+    })
+  ).toStrictEqual([
+    { name: '--filter' },
+    { name: '--if-present' },
+    { name: '--no-if-present' },
+  ])
 })
 
 test('if command completion fails, return empty array', async () => {
@@ -117,34 +105,27 @@ test('if command completion fails, return empty array', async () => {
         params: [],
       }
     )
-  ).toStrictEqual(
-    []
-  )
+  ).toStrictEqual([])
 })
 
 test('initial completion', async () => {
   const ctx = {
     cliOptionsTypesByCommandName: {},
     completionByCommandName: {},
-    initialCompletion: () => [
-      { name: 'add' },
-      { name: 'install' },
-    ],
+    initialCompletion: () => [{ name: 'add' }, { name: 'install' }],
     shorthandsByCommandName: {},
     universalOptionsTypes: {
       filter: String,
     },
   }
   expect(
-    await complete(ctx,
-      {
-        cmd: null,
-        currentTypedWordType: null,
-        lastOption: null,
-        options: {},
-        params: [],
-      }
-    )
+    await complete(ctx, {
+      cmd: null,
+      currentTypedWordType: null,
+      lastOption: null,
+      options: {},
+      params: [],
+    })
   ).toStrictEqual([
     { name: 'add' },
     { name: 'install' },
@@ -152,33 +133,23 @@ test('initial completion', async () => {
     { name: '--version' },
   ])
   expect(
-    await complete(ctx,
-      {
-        cmd: 'ad',
-        currentTypedWordType: 'value',
-        lastOption: null,
-        options: {},
-        params: [],
-      }
-    )
-  ).toStrictEqual([
-    { name: 'add' },
-    { name: 'install' },
-  ])
+    await complete(ctx, {
+      cmd: 'ad',
+      currentTypedWordType: 'value',
+      lastOption: null,
+      options: {},
+      params: [],
+    })
+  ).toStrictEqual([{ name: 'add' }, { name: 'install' }])
   expect(
-    await complete(ctx,
-      {
-        cmd: null,
-        currentTypedWordType: 'option',
-        lastOption: null,
-        options: {},
-        params: [],
-      }
-    )
-  ).toStrictEqual([
-    { name: '--filter' },
-    { name: '--version' },
-  ])
+    await complete(ctx, {
+      cmd: null,
+      currentTypedWordType: 'option',
+      lastOption: null,
+      options: {},
+      params: [],
+    })
+  ).toStrictEqual([{ name: '--filter' }, { name: '--version' }])
 })
 
 test('suggest no completions for after --version', async () => {
@@ -187,10 +158,7 @@ test('suggest no completions for after --version', async () => {
       {
         cliOptionsTypesByCommandName: {},
         completionByCommandName: {},
-        initialCompletion: () => [
-          { name: 'add' },
-          { name: 'install' },
-        ],
+        initialCompletion: () => [{ name: 'add' }, { name: 'install' }],
         shorthandsByCommandName: {},
         universalOptionsTypes: {},
       },

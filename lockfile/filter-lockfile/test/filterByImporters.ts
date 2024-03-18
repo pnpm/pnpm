@@ -156,7 +156,9 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
     err = _
   }
   expect(err).not.toBeNull()
-  expect(err.message).toEqual(`Broken lockfile: no entry for '/prod-dep-dep/1.0.0' in ${WANTED_LOCKFILE}`)
+  expect(err.message).toEqual(
+    `Broken lockfile: no entry for '/prod-dep-dep/1.0.0' in ${WANTED_LOCKFILE}`
+  )
 })
 
 test('filterByImporters(): do not fail on missing packages when failOnMissingDependencies is false', () => {

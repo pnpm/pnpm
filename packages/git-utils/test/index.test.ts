@@ -2,7 +2,11 @@ import tempy from 'tempy'
 import execa from 'execa'
 import { promises as fs } from 'fs'
 import path from 'path'
-import { getCurrentBranch, isGitRepo, isWorkingTreeClean } from '@pnpm/git-utils'
+import {
+  getCurrentBranch,
+  isGitRepo,
+  isWorkingTreeClean,
+} from '@pnpm/git-utils'
 
 test('isGitRepo', async () => {
   const tempDir = tempy.directory()

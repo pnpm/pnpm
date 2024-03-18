@@ -13,9 +13,9 @@ test('init a new package.json', async () => {
 test('throws an error if a package.json exists in the current directory', async () => {
   prepare({})
 
-  await expect(
-    init.handler({ rawConfig: {} })
-  ).rejects.toThrow('package.json already exists')
+  await expect(init.handler({ rawConfig: {} })).rejects.toThrow(
+    'package.json already exists'
+  )
 })
 
 test('init a new package.json with npmrc', async () => {
@@ -28,7 +28,9 @@ test('init a new package.json with npmrc', async () => {
   }
   prepareEmpty()
   await init.handler({ rawConfig })
-  const manifest: Record<string, string> = loadJsonFile(path.resolve('package.json'))
+  const manifest: Record<string, string> = loadJsonFile(
+    path.resolve('package.json')
+  )
   const expectAuthor = `${rawConfig['init-author-name']} <${rawConfig['init-author-email']}> (${rawConfig['init-author-url']})`
   expect(manifest.version).toBe(rawConfig['init-version'])
   expect(manifest.author).toBe(expectAuthor)
@@ -38,7 +40,7 @@ test('init a new package.json with npmrc', async () => {
 test('throw an error if params are passed to the init command', async () => {
   prepare({})
 
-  await expect(
-    init.handler({ rawConfig: {} }, ['react-app'])
-  ).rejects.toThrow('init command does not accept any arguments')
+  await expect(init.handler({ rawConfig: {} }, ['react-app'])).rejects.toThrow(
+    'init command does not accept any arguments'
+  )
 })

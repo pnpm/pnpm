@@ -13,11 +13,11 @@ export const commandNames = ['cat-file']
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return {}
 }
 
-export function help () {
+export function help() {
   return renderHelp({
     description:
       'Prints the contents of a file based on the hash value stored in the index file.',
@@ -28,7 +28,7 @@ export function help () {
 
 export type CatFileCommandOptions = Pick<Config, 'storeDir' | 'pnpmHomeDir'>
 
-export async function handler (opts: CatFileCommandOptions, params: string[]) {
+export async function handler(opts: CatFileCommandOptions, params: string[]) {
   if (!params || params.length === 0) {
     throw new PnpmError('MISSING_HASH', 'Missing file hash', {
       hint: help(),

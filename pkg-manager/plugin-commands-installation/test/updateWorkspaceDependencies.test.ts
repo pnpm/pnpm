@@ -55,24 +55,37 @@ test('updateToWorkspacePackagesFromManifest()', () => {
       qar: '1.0.0',
     },
   }
-  expect(updateToWorkspacePackagesFromManifest(
-    manifest,
-    INCLUDE_ALL,
-    WORKSPACE_PACKAGES
-  )).toStrictEqual(['bar@workspace:*', 'foo@workspace:*', 'qar@workspace:*'])
-  expect(updateToWorkspacePackagesFromManifest(
-    manifest,
-    {
-      dependencies: true,
-      devDependencies: false,
-      optionalDependencies: false,
-    },
-    WORKSPACE_PACKAGES
-  )).toStrictEqual(['foo@workspace:*'])
+  expect(
+    updateToWorkspacePackagesFromManifest(
+      manifest,
+      INCLUDE_ALL,
+      WORKSPACE_PACKAGES
+    )
+  ).toStrictEqual(['bar@workspace:*', 'foo@workspace:*', 'qar@workspace:*'])
+  expect(
+    updateToWorkspacePackagesFromManifest(
+      manifest,
+      {
+        dependencies: true,
+        devDependencies: false,
+        optionalDependencies: false,
+      },
+      WORKSPACE_PACKAGES
+    )
+  ).toStrictEqual(['foo@workspace:*'])
 })
 
 test('createWorkspaceSpecs', () => {
-  expect(createWorkspaceSpecs(['bar', 'foo@2', 'qar@workspace:3'], WORKSPACE_PACKAGES)).toStrictEqual(['bar@workspace:>=0.0.0', 'foo@workspace:2', 'qar@workspace:3'])
+  expect(
+    createWorkspaceSpecs(
+      ['bar', 'foo@2', 'qar@workspace:3'],
+      WORKSPACE_PACKAGES
+    )
+  ).toStrictEqual([
+    'bar@workspace:>=0.0.0',
+    'foo@workspace:2',
+    'qar@workspace:3',
+  ])
   let err!: PnpmError
   try {
     createWorkspaceSpecs(['express'], WORKSPACE_PACKAGES)

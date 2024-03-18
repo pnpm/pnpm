@@ -89,11 +89,9 @@ test('retry when tarball size does not match content-length', async () => {
       'Content-Length': (1024 * 1024).toString(),
     })
 
-  nock(registry)
-    .get('/foo.tgz')
-    .replyWithFile(200, tarballPath, {
-      'Content-Length': tarballSize.toString(),
-    })
+  nock(registry).get('/foo.tgz').replyWithFile(200, tarballPath, {
+    'Content-Length': tarballSize.toString(),
+  })
 
   process.chdir(tempy.directory())
 
@@ -113,9 +111,13 @@ test('fail when integrity check fails two times in a row', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')
     .times(2)
-    .replyWithFile(200, f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
-      'Content-Length': '1194',
-    })
+    .replyWithFile(
+      200,
+      f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
+      {
+        'Content-Length': '1194',
+      }
+    )
 
   process.chdir(tempy.directory())
 
@@ -145,9 +147,13 @@ test('fail when integrity check fails two times in a row', async () => {
 test('retry when integrity check fails', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')
-    .replyWithFile(200, f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
-      'Content-Length': '1194',
-    })
+    .replyWithFile(
+      200,
+      f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
+      {
+        'Content-Length': '1194',
+      }
+    )
     .get('/foo.tgz')
     .replyWithFile(200, tarballPath, {
       'Content-Length': tarballSize.toString(),
@@ -164,7 +170,7 @@ test('retry when integrity check fails', async () => {
   await fetch.remoteTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    onStart (size, attempts) {
+    onStart(size, attempts) {
       params.push([size, attempts])
     },
     pkg: {},
@@ -207,7 +213,10 @@ test("don't fail when integrity check of local file succeeds", async () => {
   process.chdir(tempy.directory())
 
   const localTarballLocation = path.resolve('tar.tgz')
-  f.copy('babel-helper-hoist-variables-7.0.0-alpha.10.tgz', localTarballLocation)
+  f.copy(
+    'babel-helper-hoist-variables-7.0.0-alpha.10.tgz',
+    localTarballLocation
+  )
   const resolution = {
     integrity: await getFileIntegrity(localTarballLocation),
     tarball: 'file:tar.tgz',
@@ -225,7 +234,9 @@ test("don't fail when integrity check of local file succeeds", async () => {
 test("don't fail when fetching a local tarball in offline mode", async () => {
   process.chdir(tempy.directory())
 
-  const tarballAbsoluteLocation = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const tarballAbsoluteLocation = f.find(
+    'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'
+  )
   const resolution = {
     integrity: await getFileIntegrity(tarballAbsoluteLocation),
     tarball: `file:${tarballAbsoluteLocation}`,
@@ -252,7 +263,9 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
 test('fail when trying to fetch a non-local tarball in offline mode', async () => {
   process.chdir(tempy.directory())
 
-  const tarballAbsoluteLocation = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const tarballAbsoluteLocation = f.find(
+    'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'
+  )
   const resolution = {
     integrity: await getFileIntegrity(tarballAbsoluteLocation),
     tarball: `${registry}foo.tgz`,
@@ -274,9 +287,11 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
       pkg: {},
     })
   ).rejects.toThrow(
-    new PnpmError('NO_OFFLINE_TARBALL',
+    new PnpmError(
+      'NO_OFFLINE_TARBALL',
       `A package is missing from the store but cannot download it in offline mode. \
-The missing package may be downloaded from ${resolution.tarball}.`)
+The missing package may be downloaded from ${resolution.tarball}.`
+    )
   )
 })
 
@@ -308,9 +323,7 @@ test('retry on server error', async () => {
 })
 
 test('throw error when accessing private package w/o authorization', async () => {
-  const scope = nock(registry)
-    .get('/foo.tgz')
-    .reply(403)
+  const scope = nock(registry).get('/foo.tgz').reply(403)
 
   process.chdir(tempy.directory())
 
@@ -341,9 +354,7 @@ test('throw error when accessing private package w/o authorization', async () =>
 })
 
 test('do not retry when package does not exist', async () => {
-  const scope = nock(registry)
-    .get('/foo.tgz')
-    .reply(404)
+  const scope = nock(registry).get('/foo.tgz').reply(404)
 
   process.chdir(tempy.directory())
 
@@ -373,14 +384,11 @@ test('do not retry when package does not exist', async () => {
 })
 
 test('accessing private packages', async () => {
-  const scope = nock(
-    registry,
-    {
-      reqheaders: {
-        authorization: 'Bearer ofjergrg349gj3f2',
-      },
-    }
-  )
+  const scope = nock(registry, {
+    reqheaders: {
+      authorization: 'Bearer ofjergrg349gj3f2',
+    },
+  })
     .get('/foo.tgz')
     .replyWithFile(200, tarballPath, {
       'Content-Length': tarballSize.toString(),
@@ -415,7 +423,7 @@ test('accessing private packages', async () => {
   expect(scope.isDone()).toBeTruthy()
 })
 
-async function getFileIntegrity (filename: string) {
+async function getFileIntegrity(filename: string) {
   return (await ssri.fromStream(fs.createReadStream(filename))).toString()
 }
 
@@ -423,7 +431,10 @@ async function getFileIntegrity (filename: string) {
 test('fetch a big repository', async () => {
   process.chdir(tempy.directory())
 
-  const resolution = { tarball: 'https://codeload.github.com/sveltejs/action-deploy-docs/tar.gz/a65fbf5a90f53c9d72fed4daaca59da50f074355' }
+  const resolution = {
+    tarball:
+      'https://codeload.github.com/sveltejs/action-deploy-docs/tar.gz/a65fbf5a90f53c9d72fed4daaca59da50f074355',
+  }
 
   const result = await fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,
@@ -437,7 +448,10 @@ test('fetch a big repository', async () => {
 test('fail when preparing a git-hosted package', async () => {
   process.chdir(tempy.directory())
 
-  const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7' }
+  const resolution = {
+    tarball:
+      'https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7',
+  }
 
   await expect(
     fetch.gitHostedTarball(cafs, resolution, {
@@ -445,7 +459,9 @@ test('fail when preparing a git-hosted package', async () => {
       lockfileDir: process.cwd(),
       pkg: {},
     })
-  ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
+  ).rejects.toThrow(
+    'Failed to prepare git-hosted package fetched from "https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`'
+  )
 })
 
 test('fail when extracting a broken tarball', async () => {
@@ -466,7 +482,8 @@ test('fail when extracting a broken tarball', async () => {
       lockfileDir: process.cwd(),
       pkg: {},
     })
-  ).rejects.toThrow(`Failed to add tarball from "${registry}foo.tgz" to store: Invalid checksum for TAR header at offset 0. Expected 0, got NaN`
+  ).rejects.toThrow(
+    `Failed to add tarball from "${registry}foo.tgz" to store: Invalid checksum for TAR header at offset 0. Expected 0, got NaN`
   )
   expect(scope.isDone()).toBeTruthy()
 })
@@ -474,7 +491,8 @@ test('fail when extracting a broken tarball', async () => {
 test('do not build the package when scripts are ignored', async () => {
   process.chdir(tempy.directory())
 
-  const tarball = 'https://codeload.github.com/pnpm-e2e/prepare-script-works/tar.gz/55416a9c468806a935636c0ad0371a14a64df8c9'
+  const tarball =
+    'https://codeload.github.com/pnpm-e2e/prepare-script-works/tar.gz/55416a9c468806a935636c0ad0371a14a64df8c9'
   const resolution = { tarball }
 
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
@@ -494,7 +512,9 @@ test('do not build the package when scripts are ignored', async () => {
 
   expect(filesIndex).toHaveProperty(['package.json'])
   expect(filesIndex).not.toHaveProperty(['prepare.txt'])
-  expect(globalWarn).toHaveBeenCalledWith(`The git-hosted package fetched from "${tarball}" has to be built but the build scripts were ignored.`)
+  expect(globalWarn).toHaveBeenCalledWith(
+    `The git-hosted package fetched from "${tarball}" has to be built but the build scripts were ignored.`
+  )
 })
 
 test('when extracting files with the same name, pick the last ones', async () => {
@@ -509,7 +529,9 @@ test('when extracting files with the same name, pick the last ones', async () =>
     readManifest: true,
     pkg: {},
   })
-  const pkgJson = JSON.parse(fs.readFileSync(filesIndex['package.json'], 'utf8'))
+  const pkgJson = JSON.parse(
+    fs.readFileSync(filesIndex['package.json'], 'utf8')
+  )
   expect(pkgJson.name).toBe('pkg2')
   expect(manifest?.name).toBe('pkg2')
 })

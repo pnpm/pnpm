@@ -3,7 +3,7 @@ import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
 import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
 import isEmpty from 'ramda/src/isEmpty'
 
-export function reportPeerDependencyIssues (
+export function reportPeerDependencyIssues(
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,
   opts: {
     lockfileDir: string
@@ -11,12 +11,15 @@ export function reportPeerDependencyIssues (
   }
 ) {
   if (
-    Object.values(peerDependencyIssuesByProjects).every((peerIssuesOfProject) =>
-      isEmpty(peerIssuesOfProject.bad) && (
-        isEmpty(peerIssuesOfProject.missing) ||
-        peerIssuesOfProject.conflicts.length === 0 && Object.keys(peerIssuesOfProject.intersections).length === 0
-      ))
-  ) return
+    Object.values(peerDependencyIssuesByProjects).every(
+      (peerIssuesOfProject) =>
+        isEmpty(peerIssuesOfProject.bad) &&
+        (isEmpty(peerIssuesOfProject.missing) ||
+          (peerIssuesOfProject.conflicts.length === 0 &&
+            Object.keys(peerIssuesOfProject.intersections).length === 0))
+    )
+  )
+    return
   if (opts.strictPeerDependencies) {
     throw new PeerDependencyIssuesError(peerDependencyIssuesByProjects)
   }
@@ -27,7 +30,7 @@ export function reportPeerDependencyIssues (
 
 export class PeerDependencyIssuesError extends PnpmError {
   issuesByProjects: PeerDependencyIssuesByProjects
-  constructor (issues: PeerDependencyIssuesByProjects) {
+  constructor(issues: PeerDependencyIssuesByProjects) {
     super('PEER_DEP_ISSUES', 'Unmet peer dependencies')
     this.issuesByProjects = issues
   }

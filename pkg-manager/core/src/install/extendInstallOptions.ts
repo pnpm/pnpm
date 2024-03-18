@@ -5,7 +5,10 @@ import { type HoistingLimits } from '@pnpm/headless'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
-import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+import {
+  normalizeRegistries,
+  DEFAULT_REGISTRIES,
+} from '@pnpm/normalize-registries'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
 import {
@@ -78,7 +81,9 @@ export interface StrictInstallOptions {
   hooks: {
     readPackage?: ReadPackageHook[]
     preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
-    afterAllResolved?: Array<(lockfile: Lockfile) => Lockfile | Promise<Lockfile>>
+    afterAllResolved?: Array<
+      (lockfile: Lockfile) => Lockfile | Promise<Lockfile>
+    >
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
@@ -145,9 +150,8 @@ export interface StrictInstallOptions {
   hoistWorkspacePackages?: boolean
 }
 
-export type InstallOptions =
-  & Partial<StrictInstallOptions>
-  & Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
+export type InstallOptions = Partial<StrictInstallOptions> &
+  Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
 
 const defaults = (opts: InstallOptions) => {
   const packageManager = opts.packageManager ?? {
@@ -214,7 +218,8 @@ const defaults = (opts: InstallOptions) => {
     storeDir: opts.storeDir,
     strictPeerDependencies: true,
     tag: 'latest',
-    unsafePerm: process.platform === 'win32' ||
+    unsafePerm:
+      process.platform === 'win32' ||
       process.platform === 'cygwin' ||
       !process.setgid ||
       process.getuid?.() !== 0,
@@ -242,9 +247,7 @@ export type ProcessedInstallOptions = StrictInstallOptions & {
   readPackageHook?: ReadPackageHook
 }
 
-export function extendOptions (
-  opts: InstallOptions
-): ProcessedInstallOptions {
+export function extendOptions(opts: InstallOptions): ProcessedInstallOptions {
   if (opts) {
     for (const key in opts) {
       if (opts[key as keyof InstallOptions] === undefined) {
@@ -253,7 +256,10 @@ export function extendOptions (
     }
   }
   if (opts.onlyBuiltDependencies && opts.neverBuiltDependencies) {
-    throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
+    throw new PnpmError(
+      'CONFIG_CONFLICT_BUILT_DEPENDENCIES',
+      'Cannot have both neverBuiltDependencies and onlyBuiltDependencies'
+    )
   }
   const defaultOpts = defaults(opts)
   const extendedOpts: ProcessedInstallOptions = {
@@ -272,14 +278,16 @@ export function extendOptions (
   if (extendedOpts.lockfileOnly) {
     extendedOpts.ignoreScripts = true
     if (!extendedOpts.useLockfile) {
-      throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
-        `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
+      throw new PnpmError(
+        'CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
+        `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`
+      )
     }
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
-  extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
+  extendedOpts.rawConfig.registry = extendedOpts.registries.default
   return extendedOpts
 }

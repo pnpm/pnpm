@@ -16,7 +16,7 @@ jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 // To override any local settings,
 // we force the default values of config
 delete process.env.npm_config_depth
-process.env['npm_config_hoist'] = 'true'
+process.env.npm_config_hoist = 'true'
 delete process.env.npm_config_registry
 delete process.env.npm_config_virtual_store_dir
 delete process.env.npm_config_shared_workspace_lockfile
@@ -61,8 +61,12 @@ test('throw error if --link-workspace-packages is used with --global', async () 
       },
     })
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "link-workspace-packages" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL')
+    expect(err.message).toEqual(
+      'Configuration conflict. "link-workspace-packages" may not be used with "global"'
+    )
+    expect((err as PnpmError).code).toEqual(
+      'ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL'
+    )
   }
 })
 
@@ -95,8 +99,12 @@ test('throw error if --shared-workspace-lockfile is used with --global', async (
       },
     })
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL')
+    expect(err.message).toEqual(
+      'Configuration conflict. "shared-workspace-lockfile" may not be used with "global"'
+    )
+    expect((err as PnpmError).code).toEqual(
+      'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL'
+    )
   }
 })
 
@@ -114,8 +122,12 @@ test('throw error if --lockfile-dir is used with --global', async () => {
       },
     })
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "lockfile-dir" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL')
+    expect(err.message).toEqual(
+      'Configuration conflict. "lockfile-dir" may not be used with "global"'
+    )
+    expect((err as PnpmError).code).toEqual(
+      'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL'
+    )
   }
 })
 
@@ -133,8 +145,12 @@ test('throw error if --hoist-pattern is used with --global', async () => {
       },
     })
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "hoist-pattern" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL')
+    expect(err.message).toEqual(
+      'Configuration conflict. "hoist-pattern" may not be used with "global"'
+    )
+    expect((err as PnpmError).code).toEqual(
+      'ERR_PNPM_CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL'
+    )
   }
 })
 
@@ -152,8 +168,12 @@ test('throw error if --virtual-store-dir is used with --global', async () => {
       },
     })
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "virtual-store-dir" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL')
+    expect(err.message).toEqual(
+      'Configuration conflict. "virtual-store-dir" may not be used with "global"'
+    )
+    expect((err as PnpmError).code).toEqual(
+      'ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL'
+    )
   }
 })
 
@@ -220,7 +240,7 @@ test('registries of scoped packages are read and normalized', async () => {
   })
 })
 
-test('registries in current directory\'s .npmrc have bigger priority then global config settings', async () => {
+test("registries in current directory's .npmrc have bigger priority then global config settings", async () => {
   prepare()
 
   await fs.writeFile('.npmrc', 'registry=https://pnpm.io/', 'utf8')
@@ -292,8 +312,12 @@ test('throw error if --save-prod is used with --save-peer', async () => {
       },
     })
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('A package cannot be a peer dependency and a prod dependency at the same time')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP')
+    expect(err.message).toEqual(
+      'A package cannot be a peer dependency and a prod dependency at the same time'
+    )
+    expect((err as PnpmError).code).toEqual(
+      'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP'
+    )
   }
 })
 
@@ -310,8 +334,12 @@ test('throw error if --save-optional is used with --save-peer', async () => {
       },
     })
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('A package cannot be a peer dependency and an optional dependency at the same time')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP')
+    expect(err.message).toEqual(
+      'A package cannot be a peer dependency and an optional dependency at the same time'
+    )
+    expect((err as PnpmError).code).toEqual(
+      'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP'
+    )
   }
 })
 
@@ -340,7 +368,9 @@ test('extraBinPaths', async () => {
       workspaceDir: process.cwd(),
     })
     // extraBinPaths has the node_modules/.bin folder from the root of the workspace
-    expect(config.extraBinPaths).toStrictEqual([path.resolve('node_modules/.bin')])
+    expect(config.extraBinPaths).toStrictEqual([
+      path.resolve('node_modules/.bin'),
+    ])
   }
 
   {
@@ -373,8 +403,8 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async () => {
   expect(config.shamefullyHoist).toBeTruthy()
   expect(warnings).toStrictEqual([
     'The "shamefully-flatten" setting has been renamed to "shamefully-hoist". ' +
-    'Also, in most cases you won\'t need "shamefully-hoist". ' +
-    'Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).',
+      'Also, in most cases you won\'t need "shamefully-hoist". ' +
+      'Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).',
   ])
 })
 
@@ -405,7 +435,9 @@ test('throw error if --no-hoist is used with --shamefully-hoist', async () => {
       },
     })
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('--shamefully-hoist cannot be used with --no-hoist')
+    expect(err.message).toEqual(
+      '--shamefully-hoist cannot be used with --no-hoist'
+    )
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
   }
 })
@@ -423,7 +455,9 @@ test('throw error if --no-hoist is used with --shamefully-flatten', async () => 
       },
     })
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('--shamefully-flatten cannot be used with --no-hoist')
+    expect(err.message).toEqual(
+      '--shamefully-flatten cannot be used with --no-hoist'
+    )
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
   }
 })
@@ -441,7 +475,9 @@ test('throw error if --no-hoist is used with --hoist-pattern', async () => {
       },
     })
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('--hoist-pattern cannot be used with --no-hoist')
+    expect(err.message).toEqual(
+      '--hoist-pattern cannot be used with --no-hoist'
+    )
     expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
   }
 })
@@ -589,8 +625,8 @@ test('read only supported settings from config', async () => {
 
   expect(config.storeDir).toEqual('__store__')
   // @ts-expect-error
-  expect(config['foo']).toBeUndefined()
-  expect(config.rawConfig['foo']).toEqual('bar')
+  expect(config.foo).toBeUndefined()
+  expect(config.rawConfig.foo).toEqual('bar')
 })
 
 test('all CLI options are added to the config', async () => {
@@ -605,7 +641,7 @@ test('all CLI options are added to the config', async () => {
   })
 
   // @ts-expect-error
-  expect(config['fooBar']).toEqual('qar')
+  expect(config.fooBar).toEqual('qar')
 })
 
 test('local prefix search stops on pnpm-workspace.yaml', async () => {
@@ -682,7 +718,10 @@ test('respects changed-files-ignore-pattern', async () => {
       },
     })
 
-    expect(config.changedFilesIgnorePattern).toEqual(['.github/**', '**/README.md'])
+    expect(config.changedFilesIgnorePattern).toEqual([
+      '.github/**',
+      '**/README.md',
+    ])
   }
 })
 
@@ -754,7 +793,11 @@ test('getConfig() converts noproxy to noProxy', async () => {
 test('getConfig() returns the userconfig', async () => {
   prepareEmpty()
   await fs.mkdir('user-home')
-  await fs.writeFile(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  await fs.writeFile(
+    path.resolve('user-home', '.npmrc'),
+    'registry = https://registry.example.test',
+    'utf-8'
+  )
   loadNpmConf.defaults.userconfig = path.resolve('user-home', '.npmrc')
   const { config } = await getConfig({
     cliOptions: {},
@@ -763,15 +806,25 @@ test('getConfig() returns the userconfig', async () => {
       version: '1.0.0',
     },
   })
-  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+  expect(config.userConfig).toEqual({
+    registry: 'https://registry.example.test',
+  })
 })
 
 test('getConfig() returns the userconfig even when overridden locally', async () => {
   prepareEmpty()
   await fs.mkdir('user-home')
-  await fs.writeFile(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  await fs.writeFile(
+    path.resolve('user-home', '.npmrc'),
+    'registry = https://registry.example.test',
+    'utf-8'
+  )
   loadNpmConf.defaults.userconfig = path.resolve('user-home', '.npmrc')
-  await fs.writeFile('.npmrc', 'registry = https://project-local.example.test', 'utf-8')
+  await fs.writeFile(
+    '.npmrc',
+    'registry = https://project-local.example.test',
+    'utf-8'
+  )
   const { config } = await getConfig({
     cliOptions: {},
     packageManager: {
@@ -780,7 +833,9 @@ test('getConfig() returns the userconfig even when overridden locally', async ()
     },
   })
   expect(config.registry).toEqual('https://project-local.example.test')
-  expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
+  expect(config.userConfig).toEqual({
+    registry: 'https://registry.example.test',
+  })
 })
 
 test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-effects-cache is set', async () => {
@@ -809,8 +864,10 @@ test('getConfig() should read cafile', async () => {
     },
   })
   expect(config).toBeDefined()
-  expect(config.ca).toStrictEqual([`xxx
------END CERTIFICATE-----`])
+  expect(config.ca).toStrictEqual([
+    `xxx
+-----END CERTIFICATE-----`,
+  ])
 })
 
 test('respect merge-git-branch-lockfiles-branch-pattern', async () => {
@@ -846,7 +903,10 @@ test('respect merge-git-branch-lockfiles-branch-pattern', async () => {
       },
     })
 
-    expect(config.mergeGitBranchLockfilesBranchPattern).toEqual(['main', 'release/**'])
+    expect(config.mergeGitBranchLockfilesBranchPattern).toEqual([
+      'main',
+      'release/**',
+    ])
   }
 })
 
@@ -859,7 +919,6 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
     ].join('\n')
 
     await fs.writeFile('.npmrc', npmrc, 'utf8')
-
     ;(getCurrentBranch as jest.Mock).mockReturnValue('develop')
     const { config } = await getConfig({
       cliOptions: {
@@ -871,11 +930,14 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
       },
     })
 
-    expect(config.mergeGitBranchLockfilesBranchPattern).toEqual(['main', 'release/**'])
+    expect(config.mergeGitBranchLockfilesBranchPattern).toEqual([
+      'main',
+      'release/**',
+    ])
     expect(config.mergeGitBranchLockfiles).toBe(false)
   }
   {
-    (getCurrentBranch as jest.Mock).mockReturnValue('main')
+    ;(getCurrentBranch as jest.Mock).mockReturnValue('main')
     const { config } = await getConfig({
       cliOptions: {
         global: false,
@@ -888,7 +950,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
     expect(config.mergeGitBranchLockfiles).toBe(true)
   }
   {
-    (getCurrentBranch as jest.Mock).mockReturnValue('release/1.0.0')
+    ;(getCurrentBranch as jest.Mock).mockReturnValue('release/1.0.0')
     const { config } = await getConfig({
       cliOptions: {
         global: false,

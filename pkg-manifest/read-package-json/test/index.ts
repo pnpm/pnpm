@@ -1,15 +1,22 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
-import { readPackageJson, readPackageJsonFromDir } from '@pnpm/read-package-json'
+import {
+  readPackageJson,
+  readPackageJsonFromDir,
+} from '@pnpm/read-package-json'
 
 const fixtures = path.join(__dirname, 'fixtures')
 
 test('readPackageJson()', async () => {
-  expect((await readPackageJson(path.join(__dirname, '..', 'package.json'))).name).toBe('@pnpm/read-package-json')
+  expect(
+    (await readPackageJson(path.join(__dirname, '..', 'package.json'))).name
+  ).toBe('@pnpm/read-package-json')
 })
 
 test('fromDir()', async () => {
-  expect((await readPackageJsonFromDir(path.join(__dirname, '..'))).name).toBe('@pnpm/read-package-json')
+  expect((await readPackageJsonFromDir(path.join(__dirname, '..'))).name).toBe(
+    '@pnpm/read-package-json'
+  )
 })
 
 test('readPackageJson() throw error when name is invalid', async () => {

@@ -2,25 +2,25 @@ import fs from 'fs'
 import path from 'path'
 import symlinkDir from 'symlink-dir'
 import tempy from 'tempy'
-import {
-  createCafs,
-  checkPkgFilesIntegrity,
-  getFilePathInCafs,
-} from '../src'
+import { createCafs, checkPkgFilesIntegrity, getFilePathInCafs } from '../src'
 
 describe('cafs', () => {
   it('unpack', () => {
     const dest = tempy.directory()
     const cafs = createCafs(dest)
     const { filesIndex } = cafs.addFilesFromTarball(
-      fs.readFileSync(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz'))
+      fs.readFileSync(
+        path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz')
+      )
     )
     expect(Object.keys(filesIndex)).toHaveLength(121)
     const pkgFile = filesIndex['package.json']
     expect(pkgFile.size).toBe(1121)
     expect(pkgFile.mode).toBe(420)
     expect(typeof pkgFile.checkedAt).toBe('number')
-    expect(pkgFile.integrity.toString()).toBe('sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==')
+    expect(pkgFile.integrity.toString()).toBe(
+      'sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA=='
+    )
   })
 
   it('replaces an already existing file, if the integrity of it was broken', () => {
@@ -31,7 +31,11 @@ describe('cafs', () => {
     let addFilesResult = addFiles()
 
     // Modifying the file in the store
-    const filePath = getFilePathInCafs(storeDir, addFilesResult.filesIndex['foo.txt'].integrity, 'nonexec')
+    const filePath = getFilePathInCafs(
+      storeDir,
+      addFilesResult.filesIndex['foo.txt'].integrity,
+      'nonexec'
+    )
     fs.appendFileSync(filePath, 'bar')
 
     addFilesResult = addFiles()
@@ -63,22 +67,27 @@ describe('cafs', () => {
     expect(filesIndex['symlink.js']).toBeDefined()
     expect(filesIndex['symlink.js']).toStrictEqual(filesIndex['index.js'])
     expect(filesIndex[path.join('lib', 'index.js')]).toBeDefined()
-    expect(filesIndex[path.join('lib', 'index.js')]).toStrictEqual(filesIndex[path.join('lib-symlink', 'index.js')])
+    expect(filesIndex[path.join('lib', 'index.js')]).toStrictEqual(
+      filesIndex[path.join('lib-symlink', 'index.js')]
+    )
   })
 })
 
 describe('checkPkgFilesIntegrity()', () => {
   it("doesn't fail if file was removed from the store", () => {
     const storeDir = tempy.directory()
-    expect(checkPkgFilesIntegrity(storeDir, {
-      files: {
-        foo: {
-          integrity: 'sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',
-          mode: 420,
-          size: 10,
+    expect(
+      checkPkgFilesIntegrity(storeDir, {
+        files: {
+          foo: {
+            integrity:
+              'sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',
+            mode: 420,
+            size: 10,
+          },
         },
-      },
-    }).passed).toBeFalsy()
+      }).passed
+    ).toBeFalsy()
   })
 })
 
@@ -101,7 +110,9 @@ test('broken magic in tarball headers is handled gracefully', () => {
   const dest = tempy.directory()
   const cafs = createCafs(dest)
   cafs.addFilesFromTarball(
-    fs.readFileSync(path.join(__dirname, 'fixtures/jquery.dirtyforms-2.0.0.tgz'))
+    fs.readFileSync(
+      path.join(__dirname, 'fixtures/jquery.dirtyforms-2.0.0.tgz')
+    )
   )
 })
 
@@ -137,7 +148,9 @@ test('unpack a tarball that contains hard links', () => {
   const dest = tempy.directory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(path.join(__dirname, 'fixtures/vue.examples.todomvc.todo-store-0.0.1.tgz'))
+    fs.readFileSync(
+      path.join(__dirname, 'fixtures/vue.examples.todomvc.todo-store-0.0.1.tgz')
+    )
   )
   expect(Object.keys(filesIndex).length).toBeGreaterThan(0)
 })
@@ -147,7 +160,9 @@ test('unpack should not fail when the tarball format seems to be not USTAR or GN
   const dest = tempy.directory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(path.join(__dirname, '../__fixtures__/devextreme-17.1.6.tgz'))
+    fs.readFileSync(
+      path.join(__dirname, '../__fixtures__/devextreme-17.1.6.tgz')
+    )
   )
   expect(Object.keys(filesIndex).length).toBeGreaterThan(0)
 })

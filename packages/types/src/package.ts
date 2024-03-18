@@ -107,11 +107,19 @@ export interface BaseManifest {
   author?: string
   license?: string
   exports?: Record<string, string>
+  hasInstallScript?: boolean | undefined
 }
 
-export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>
+export type DependencyManifest = BaseManifest &
+  Required<Pick<BaseManifest, 'name' | 'version'>>
 
-export type PackageExtension = Pick<BaseManifest, 'dependencies' | 'optionalDependencies' | 'peerDependencies' | 'peerDependenciesMeta'>
+export type PackageExtension = Pick<
+  BaseManifest,
+  | 'dependencies'
+  | 'optionalDependencies'
+  | 'peerDependencies'
+  | 'peerDependenciesMeta'
+>
 
 export interface PeerDependencyRules {
   ignoreMissing?: string[]

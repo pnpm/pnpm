@@ -33,7 +33,8 @@
     "@pnpm/parse-wanted-dependency": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/parse-overrides": "workspace:*"
+    "@pnpm/parse-overrides": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

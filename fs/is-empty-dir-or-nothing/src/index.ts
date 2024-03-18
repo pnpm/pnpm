@@ -1,6 +1,7 @@
+import '@total-typescript/ts-reset'
 import fs from 'node:fs'
 
-export function isEmptyDirOrNothing (path: string) {
+export function isEmptyDirOrNothing(path: string): boolean {
   try {
     const pathStat = fs.statSync(path)
 
@@ -10,7 +11,12 @@ export function isEmptyDirOrNothing (path: string) {
 
     return isDirEmpty(path)
   } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 'ENOENT'
+    ) {
       return true
     }
 
@@ -19,7 +25,7 @@ export function isEmptyDirOrNothing (path: string) {
   }
 }
 
-function isDirEmpty (path: string) {
+function isDirEmpty(path: string): boolean {
   const files = fs.readdirSync(path)
   return files.length === 0
 }

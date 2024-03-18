@@ -92,8 +92,12 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', `shamefully-hoist=true
-dedupe-direct-deps=true`, 'utf8')
+  await fs.writeFile(
+    '.npmrc',
+    `shamefully-hoist=true
+dedupe-direct-deps=true`,
+    'utf8'
+  )
 
   await execPnpm(['install'])
 

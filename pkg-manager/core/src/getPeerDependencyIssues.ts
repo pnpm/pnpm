@@ -1,29 +1,41 @@
-import { resolveDependencies, getWantedDependencies } from '@pnpm/resolve-dependencies'
+import {
+  resolveDependencies,
+  getWantedDependencies,
+} from '@pnpm/resolve-dependencies'
 import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
-import { getContext, type GetContextOptions, type ProjectOptions } from '@pnpm/get-context'
+import {
+  getContext,
+  type GetContextOptions,
+  type ProjectOptions,
+} from '@pnpm/get-context'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { getPreferredVersionsFromLockfileAndManifests } from './install/getPreferredVersions'
 import { type InstallOptions } from './install/extendInstallOptions'
 import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 
-export type ListMissingPeersOptions = Partial<GetContextOptions>
-& Pick<InstallOptions, 'hooks'
-| 'ignoreCompatibilityDb'
-| 'linkWorkspacePackagesDepth'
-| 'nodeVersion'
-| 'nodeLinker'
-| 'overrides'
-| 'packageExtensions'
-| 'preferWorkspacePackages'
-| 'saveWorkspaceProtocol'
-| 'storeController'
-| 'useGitBranchLockfile'
-| 'workspacePackages'
->
-& Partial<Pick<InstallOptions, 'supportedArchitectures'>>
-& Pick<GetContextOptions, 'autoInstallPeers' | 'excludeLinksFromLockfile' | 'storeDir'>
+export type ListMissingPeersOptions = Partial<GetContextOptions> &
+  Pick<
+    InstallOptions,
+    | 'hooks'
+    | 'ignoreCompatibilityDb'
+    | 'linkWorkspacePackagesDepth'
+    | 'nodeVersion'
+    | 'nodeLinker'
+    | 'overrides'
+    | 'packageExtensions'
+    | 'preferWorkspacePackages'
+    | 'saveWorkspaceProtocol'
+    | 'storeController'
+    | 'useGitBranchLockfile'
+    | 'workspacePackages'
+  > &
+  Partial<Pick<InstallOptions, 'supportedArchitectures'>> &
+  Pick<
+    GetContextOptions,
+    'autoInstallPeers' | 'excludeLinksFromLockfile' | 'storeDir'
+  >
 
-export async function getPeerDependencyIssues (
+export async function getPeerDependencyIssues(
   projects: ProjectOptions[],
   opts: ListMissingPeersOptions
 ): Promise<PeerDependencyIssuesByProjects> {
@@ -48,12 +60,8 @@ export async function getPeerDependencyIssues (
     ctx.wantedLockfile.packages,
     Object.values(ctx.projects).map(({ manifest }) => manifest)
   )
-  const {
-    peerDependencyIssuesByProjects,
-    waitTillAllFetchingsFinish,
-  } = await resolveDependencies(
-    projectsToResolve,
-    {
+  const { peerDependencyIssuesByProjects, waitTillAllFetchingsFinish } =
+    await resolveDependencies(projectsToResolve, {
       currentLockfile: ctx.currentLockfile,
       allowedDeprecatedVersions: {},
       allowNonAppliedPatches: false,
@@ -71,7 +79,9 @@ export async function getPeerDependencyIssues (
           readPackageHook: opts.hooks?.readPackage,
         }),
       },
-      linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
+      linkWorkspacePackagesDepth:
+        opts.linkWorkspacePackagesDepth ??
+        (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir,
       nodeVersion: opts.nodeVersion ?? process.version,
       pnpmVersion: '',
@@ -86,8 +96,7 @@ export async function getPeerDependencyIssues (
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages ?? {},
       supportedArchitectures: opts.supportedArchitectures,
-    }
-  )
+    })
 
   await waitTillAllFetchingsFinish()
 

@@ -1,31 +1,31 @@
-import { type PackageFilesResponse } from '@pnpm/cafs-types'
+import type { PackageFilesResponse } from '@pnpm/cafs-types'
 
 export interface PkgNameVersion {
-  name?: string
-  version?: string
+  name?: string | undefined
+  version?: string | undefined
 }
 
 export interface TarballExtractMessage {
   type: 'extract'
   buffer: Buffer
   cafsDir: string
-  integrity?: string
+  integrity?: string | undefined
   filesIndexFile: string
-  readManifest?: boolean
-  pkg?: PkgNameVersion
+  readManifest?: boolean | undefined
+  pkg?: PkgNameVersion | undefined
 }
 
 export interface LinkPkgMessage {
   type: 'link'
   storeDir: string
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy' | undefined
   filesResponse: PackageFilesResponse
   sideEffectsCacheKey?: string | undefined
   targetDir: string
-  requiresBuild?: boolean
+  requiresBuild?: boolean | undefined
   force: boolean
-  keepModulesDir?: boolean
-  disableRelinkLocalDirDeps?: boolean
+  keepModulesDir?: boolean | undefined
+  disableRelinkLocalDirDeps?: boolean | undefined
 }
 
 export interface SymlinkAllModulesMessage {
@@ -42,9 +42,9 @@ export interface AddDirToStoreMessage {
   cafsDir: string
   dir: string
   filesIndexFile: string
-  sideEffectsCacheKey?: string
-  readManifest?: boolean
-  pkg?: PkgNameVersion
+  sideEffectsCacheKey?: string | undefined
+  readManifest?: boolean | undefined
+  pkg?: PkgNameVersion | undefined
 }
 
 export interface ReadPkgFromCafsMessage {

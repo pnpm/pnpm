@@ -1,12 +1,10 @@
 import os from 'os'
 import path from 'path'
 
-export function getCacheDir (
-  opts: {
-    env: NodeJS.ProcessEnv
-    platform: string
-  }
-) {
+export function getCacheDir(opts: {
+  env: NodeJS.ProcessEnv
+  platform: string
+}) {
   if (opts.env.XDG_CACHE_HOME) {
     return path.join(opts.env.XDG_CACHE_HOME, 'pnpm')
   }
@@ -22,12 +20,10 @@ export function getCacheDir (
   return path.join(os.homedir(), '.pnpm-cache')
 }
 
-export function getStateDir (
-  opts: {
-    env: NodeJS.ProcessEnv
-    platform: string
-  }
-) {
+export function getStateDir(opts: {
+  env: NodeJS.ProcessEnv
+  platform: string
+}) {
   if (opts.env.XDG_STATE_HOME) {
     return path.join(opts.env.XDG_STATE_HOME, 'pnpm')
   }
@@ -40,12 +36,7 @@ export function getStateDir (
   return path.join(os.homedir(), '.pnpm-state')
 }
 
-export function getDataDir (
-  opts: {
-    env: NodeJS.ProcessEnv
-    platform: string
-  }
-) {
+export function getDataDir(opts: { env: NodeJS.ProcessEnv; platform: string }) {
   if (opts.env.PNPM_HOME) {
     return opts.env.PNPM_HOME
   }
@@ -64,12 +55,10 @@ export function getDataDir (
   return path.join(os.homedir(), '.pnpm')
 }
 
-export function getConfigDir (
-  opts: {
-    env: NodeJS.ProcessEnv
-    platform: string
-  }
-) {
+export function getConfigDir(opts: {
+  env: NodeJS.ProcessEnv
+  platform: string
+}) {
   if (opts.env.XDG_CONFIG_HOME) {
     return path.join(opts.env.XDG_CONFIG_HOME, 'pnpm')
   }

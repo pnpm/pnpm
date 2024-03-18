@@ -1,17 +1,20 @@
 // This file contains type definitions that aren't just `export = any`
 
 declare module 'cli-columns' {
-  function cliColumns (values: string[], opts?: { newline?: string, width?: number }): string
+  function cliColumns(
+    values: string[],
+    opts?: { newline?: string; width?: number }
+  ): string
   export = cliColumns
 }
 
 declare module 'normalize-registry-url' {
-  function normalizeRegistryUrl (registry: string): string
+  function normalizeRegistryUrl(registry: string): string
   export = normalizeRegistryUrl
 }
 
 declare module 'normalize-newline' {
-  function normalizeNewline (text: string): string
+  function normalizeNewline(text: string): string
   export = normalizeNewline
 }
 
@@ -21,12 +24,12 @@ declare module 'path-name' {
 }
 
 declare module 'right-pad' {
-  function rightPad (txt: string, size: number): string
+  function rightPad(txt: string, size: number): string
   export = rightPad
 }
 
 declare module 'semver-utils' {
-  export function parseRange (range: string): Array<{
+  export function parseRange(range: string): Array<{
     semver?: string
     operator: string
     major?: string
@@ -36,8 +39,11 @@ declare module 'semver-utils' {
 }
 
 declare module 'split-cmd' {
-  export function split (cmd: string): string[]
-  export function splitToObject (cmd: string): { command: string, args: string[] }
+  export function split(cmd: string): string[]
+  export function splitToObject(cmd: string): {
+    command: string
+    args: string[]
+  }
 }
 
 declare module 'strip-comments-strings' {
@@ -58,19 +64,21 @@ declare module 'strip-comments-strings' {
     regexes: CodeItem[]
     strings: CodeItem[]
   }
-  export function parseString (str: string): CodeAttributes
+  export function parseString(str: string): CodeAttributes
   export type CodeItemReplacer = (item: CodeItem) => string
-  export function stripComments (
-    str: string, replacer?: CodeItemReplacer): string
+  export function stripComments(
+    str: string,
+    replacer?: CodeItemReplacer
+  ): string
 }
 
 declare module 'bin-links/lib/fix-bin' {
-  function fixBin (path: string, execMode: number): Promise<void>
+  function fixBin(path: string, execMode: number): Promise<void>
   export = fixBin
 }
 
 declare namespace NodeJS.Module {
-  function _nodeModulePaths (from: string): string[]
+  function _nodeModulePaths(from: string): string[]
 }
 
 declare module '@pnpm/npm-conf/lib/types' {
@@ -85,9 +93,9 @@ declare module '@pnpm/npm-conf/lib/types' {
       'bin-links': BooleanConstructor
       browser: Array<StringConstructor | null>
       ca: Array<StringConstructor | ArrayConstructor | null>
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       cafile: import('path').PlatformPath
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       cache: import('path').PlatformPath
       'cache-lock-stale': NumberConstructor
       'cache-lock-retries': NumberConstructor
@@ -112,11 +120,11 @@ declare module '@pnpm/npm-conf/lib/types' {
       'git-tag-version': BooleanConstructor
       'commit-hooks': BooleanConstructor
       global: BooleanConstructor
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       globalconfig: import('path').PlatformPath
       'global-style': BooleanConstructor
       group: Array<StringConstructor | NumberConstructor>
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       'https-proxy': Array<typeof import('url') | null>
       'user-agent': StringConstructor
       'ham-it-up': BooleanConstructor
@@ -124,11 +132,11 @@ declare module '@pnpm/npm-conf/lib/types' {
       'if-present': BooleanConstructor
       'ignore-prepublish': BooleanConstructor
       'ignore-scripts': BooleanConstructor
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       'init-module': import('path').PlatformPath
       'init-author-name': StringConstructor
       'init-author-email': StringConstructor
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       'init-author-url': Array<string | typeof import('url')>
       'init-license': StringConstructor
       'init-version': () => void
@@ -138,7 +146,7 @@ declare module '@pnpm/npm-conf/lib/types' {
       link: BooleanConstructor
       'local-address': never[]
       loglevel: string[]
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       logstream: typeof import('stream').Stream
       'logs-max': NumberConstructor
       long: BooleanConstructor
@@ -158,16 +166,16 @@ declare module '@pnpm/npm-conf/lib/types' {
       parseable: BooleanConstructor
       'prefer-offline': BooleanConstructor
       'prefer-online': BooleanConstructor
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       prefix: import('path').PlatformPath
       production: BooleanConstructor
       progress: BooleanConstructor
       provenance: BooleanConstructor
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       proxy: Array<boolean | typeof import('url') | null>
       'read-only': BooleanConstructor
       'rebuild-bundle': BooleanConstructor
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       registry: Array<typeof import('url') | null>
       rollback: BooleanConstructor
       save: BooleanConstructor
@@ -193,13 +201,13 @@ declare module '@pnpm/npm-conf/lib/types' {
       'strict-ssl': BooleanConstructor
       tag: StringConstructor
       timing: BooleanConstructor
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       tmp: import('path').PlatformPath
       unicode: BooleanConstructor
       'unsafe-perm': BooleanConstructor
       usage: BooleanConstructor
       user: Array<StringConstructor | NumberConstructor>
-      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+
       userconfig: import('path').PlatformPath
       umask: () => void
       version: BooleanConstructor
@@ -214,6 +222,9 @@ declare module '@pnpm/npm-conf/lib/types' {
 }
 
 declare module 'npm-packlist' {
-  function npmPacklist (opts: { path: string, packageJsonCache?: Map<string, Record<string, unknown>> }): Promise<string[]>
+  function npmPacklist(opts: {
+    path: string
+    packageJsonCache?: Map<string, Record<string, unknown>>
+  }): Promise<string[]>
   export = npmPacklist
 }

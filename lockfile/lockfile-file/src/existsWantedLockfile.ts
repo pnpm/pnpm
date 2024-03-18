@@ -1,19 +1,22 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { getWantedLockfileName } from './lockfileName'
 
 interface existsNonEmptyWantedLockfileOptions {
-  useGitBranchLockfile?: boolean
-  mergeGitBranchLockfiles?: boolean
+  useGitBranchLockfile?: boolean | undefined
+  mergeGitBranchLockfiles?: boolean | undefined
 }
 
-export async function existsNonEmptyWantedLockfile (pkgPath: string, opts: existsNonEmptyWantedLockfileOptions = {
-  useGitBranchLockfile: false,
-  mergeGitBranchLockfiles: false,
-}) {
+export async function existsNonEmptyWantedLockfile(
+  pkgPath: string,
+  opts: existsNonEmptyWantedLockfileOptions = {
+    useGitBranchLockfile: false,
+    mergeGitBranchLockfiles: false,
+  }
+): Promise<boolean> {
   const wantedLockfile: string = await getWantedLockfileName(opts)
-  return new Promise((resolve, reject) => {
-    fs.access(path.join(pkgPath, wantedLockfile), (err) => {
+  return new Promise((resolve, reject): void => {
+    fs.access(path.join(pkgPath, wantedLockfile), (err: NodeJS.ErrnoException | null): void => {
       if (err == null) {
         resolve(true)
         return

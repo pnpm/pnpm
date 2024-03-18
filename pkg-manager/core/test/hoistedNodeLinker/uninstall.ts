@@ -1,7 +1,4 @@
-import {
-  type PackageManifestLog,
-  type StatsLog,
-} from '@pnpm/core-loggers'
+import { type PackageManifestLog, type StatsLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
@@ -20,29 +17,38 @@ test('uninstall package with no dependencies', async () => {
   )
 
   const reporter = sinon.spy()
-  manifest = (await mutateModulesInSingleProject({
-    dependencyNames: ['is-negative'],
-    manifest,
-    mutation: 'uninstallSome',
-    rootDir: process.cwd(),
-  }, await testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).manifest
-
-  expect(reporter.calledWithMatch({
-    initial: {
-      dependencies: {
-        'is-negative': '2.1.0',
+  manifest = (
+    await mutateModulesInSingleProject(
+      {
+        dependencyNames: ['is-negative'],
+        manifest,
+        mutation: 'uninstallSome',
+        rootDir: process.cwd(),
       },
-    },
-    level: 'debug',
-    name: 'pnpm:package-manifest',
-    prefix: process.cwd(),
-  } as PackageManifestLog)).toBeTruthy()
-  expect(reporter.calledWithMatch({
-    level: 'debug',
-    name: 'pnpm:stats',
-    prefix: process.cwd(),
-    removed: 1,
-  } as StatsLog)).toBeTruthy()
+      await testDefaults({ nodeLinker: 'hoisted', save: true, reporter })
+    )
+  ).manifest
+
+  expect(
+    reporter.calledWithMatch({
+      initial: {
+        dependencies: {
+          'is-negative': '2.1.0',
+        },
+      },
+      level: 'debug',
+      name: 'pnpm:package-manifest',
+      prefix: process.cwd(),
+    } as PackageManifestLog)
+  ).toBeTruthy()
+  expect(
+    reporter.calledWithMatch({
+      level: 'debug',
+      name: 'pnpm:stats',
+      prefix: process.cwd(),
+      removed: 1,
+    } as StatsLog)
+  ).toBeTruthy()
   /* This should be fixed
   expect(reporter.calledWithMatch({
     level: 'debug',
@@ -54,13 +60,15 @@ test('uninstall package with no dependencies', async () => {
     },
   } as RootLog)).toBeTruthy()
   */
-  expect(reporter.calledWithMatch({
-    level: 'debug',
-    name: 'pnpm:package-manifest',
-    updated: {
-      dependencies: {},
-    },
-  } as PackageManifestLog)).toBeTruthy()
+  expect(
+    reporter.calledWithMatch({
+      level: 'debug',
+      name: 'pnpm:package-manifest',
+      updated: {
+        dependencies: {},
+      },
+    } as PackageManifestLog)
+  ).toBeTruthy()
 
   // uninstall does not remove packages from store
   // even if they become unreferenced
@@ -78,12 +86,21 @@ test('uninstall package with dependencies and do not touch other deps', async ()
     ['is-negative@2.1.0', 'camelcase-keys@3.0.0'],
     await testDefaults({ nodeLinker: 'hoisted', save: true })
   )
-  manifest = (await mutateModulesInSingleProject({
-    dependencyNames: ['camelcase-keys'],
-    manifest,
-    mutation: 'uninstallSome',
-    rootDir: process.cwd(),
-  }, await testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).manifest
+  manifest = (
+    await mutateModulesInSingleProject(
+      {
+        dependencyNames: ['camelcase-keys'],
+        manifest,
+        mutation: 'uninstallSome',
+        rootDir: process.cwd(),
+      },
+      await testDefaults({
+        nodeLinker: 'hoisted',
+        pruneStore: true,
+        save: true,
+      })
+    )
+  ).manifest
 
   await project.storeHasNot('camelcase-keys', '3.0.0')
   await project.hasNot('camelcase-keys')

@@ -8,8 +8,11 @@ test.each([
   ['lts', 'lts', 'release'],
   ['argon', 'argon', 'release'],
   ['latest', 'latest', 'release'],
-])('Node.js version selector is parsed', (editionSpecifier, versionSpecifier, releaseChannel) => {
-  const node = parseEnvSpecifier(editionSpecifier)
-  expect(node.versionSpecifier).toMatch(versionSpecifier)
-  expect(node.releaseChannel).toBe(releaseChannel)
-})
+])(
+  'Node.js version selector is parsed',
+  (editionSpecifier, versionSpecifier, releaseChannel) => {
+    const node = parseEnvSpecifier(editionSpecifier)
+    expect(node.versionSpecifier).toMatch(versionSpecifier)
+    expect(node.releaseChannel).toBe(releaseChannel)
+  }
+)

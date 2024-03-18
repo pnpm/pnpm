@@ -30,12 +30,12 @@ export interface AuditAdvisory {
       dev: boolean
       optional: boolean
       bundled: boolean
-    }
+    },
   ]
   id: number
   created: string
   updated: string
-  deleted?: boolean
+  deleted?: boolean | undefined
   title: string
   found_by: {
     name: string

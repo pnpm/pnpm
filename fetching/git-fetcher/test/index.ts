@@ -87,36 +87,53 @@ test('fetch a package without a package.json', async () => {
 test('fetch a big repository', async () => {
   const cafsDir = tempy.directory()
   const fetch = createGitFetcher({ rawConfig: {} }).git
-  const { filesIndex } = await fetch(createCafsStore(cafsDir),
+  const { filesIndex } = await fetch(
+    createCafsStore(cafsDir),
     {
       commit: 'a65fbf5a90f53c9d72fed4daaca59da50f074355',
       repo: 'https://github.com/sveltejs/action-deploy-docs.git',
       type: 'git',
-    }, {
+    },
+    {
       filesIndexFile: path.join(cafsDir, 'index.json'),
-    })
+    }
+  )
   expect(filesIndex).toBeTruthy()
 })
 
 test('still able to shallow fetch for allowed hosts', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ gitShallowHosts: ['github.com'], rawConfig: {} }).git
+  const fetch = createGitFetcher({
+    gitShallowHosts: ['github.com'],
+    rawConfig: {},
+  }).git
   const resolution = {
     commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
     repo: 'https://github.com/kevva/is-positive.git',
     type: 'git' as const,
   }
-  const { filesIndex, manifest } = await fetch(createCafsStore(cafsDir), resolution, {
-    readManifest: true,
-    filesIndexFile: path.join(cafsDir, 'index.json'),
-  })
+  const { filesIndex, manifest } = await fetch(
+    createCafsStore(cafsDir),
+    resolution,
+    {
+      readManifest: true,
+      filesIndexFile: path.join(cafsDir, 'index.json'),
+    }
+  )
   const calls = (execa as jest.Mock).mock.calls
   const expectedCalls = [
     ['git', [...prefixGitArgs(), 'init']],
     ['git', [...prefixGitArgs(), 'remote', 'add', 'origin', resolution.repo]],
     [
       'git',
-      [...prefixGitArgs(), 'fetch', '--depth', '1', 'origin', resolution.commit],
+      [
+        ...prefixGitArgs(),
+        'fetch',
+        '--depth',
+        '1',
+        'origin',
+        resolution.commit,
+      ],
     ],
   ]
   for (let i = 1; i < expectedCalls.length; i++) {
@@ -131,33 +148,43 @@ test('fail when preparing a git-hosted package', async () => {
   const cafsDir = tempy.directory()
   const fetch = createGitFetcher({ rawConfig: {} }).git
   await expect(
-    fetch(createCafsStore(cafsDir),
+    fetch(
+      createCafsStore(cafsDir),
       {
         commit: 'ba58874aae1210a777eb309dd01a9fdacc7e54e7',
         repo: 'https://github.com/pnpm-e2e/prepare-script-fails.git',
         type: 'git',
-      }, {
+      },
+      {
         filesIndexFile: path.join(cafsDir, 'index.json'),
-      })
-  ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-fails.git": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
+      }
+    )
+  ).rejects.toThrow(
+    'Failed to prepare git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-fails.git": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`'
+  )
 })
 
 test('do not build the package when scripts are ignored', async () => {
   const cafsDir = tempy.directory()
   const fetch = createGitFetcher({ ignoreScripts: true, rawConfig: {} }).git
-  const { filesIndex } = await fetch(createCafsStore(cafsDir),
+  const { filesIndex } = await fetch(
+    createCafsStore(cafsDir),
     {
       commit: '55416a9c468806a935636c0ad0371a14a64df8c9',
       repo: 'https://github.com/pnpm-e2e/prepare-script-works.git',
       type: 'git',
-    }, {
+    },
+    {
       filesIndexFile: path.join(cafsDir, 'index.json'),
-    })
+    }
+  )
   expect(filesIndex['package.json']).toBeTruthy()
   expect(filesIndex['prepare.txt']).toBeFalsy()
-  expect(globalWarn).toHaveBeenCalledWith('The git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-works.git" has to be built but the build scripts were ignored.')
+  expect(globalWarn).toHaveBeenCalledWith(
+    'The git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-works.git" has to be built but the build scripts were ignored.'
+  )
 })
 
-function prefixGitArgs (): string[] {
+function prefixGitArgs(): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }

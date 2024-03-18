@@ -25,25 +25,23 @@ export interface PnpmContext {
   wantedLockfile: Lockfile
 }
 
-export async function readLockfiles (
-  opts: {
-    autoInstallPeers: boolean
-    excludeLinksFromLockfile: boolean
-    force: boolean
-    forceSharedLockfile: boolean
-    frozenLockfile: boolean
-    projects: Array<{
-      id: string
-      rootDir: string
-    }>
-    lockfileDir: string
-    registry: string
-    useLockfile: boolean
-    useGitBranchLockfile?: boolean
-    mergeGitBranchLockfiles?: boolean
-    virtualStoreDir: string
-  }
-): Promise<{
+export async function readLockfiles(opts: {
+  autoInstallPeers: boolean
+  excludeLinksFromLockfile: boolean
+  force: boolean
+  forceSharedLockfile: boolean
+  frozenLockfile: boolean
+  projects: Array<{
+    id: string
+    rootDir: string
+  }>
+  lockfileDir: string
+  registry: string
+  useLockfile: boolean
+  useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
+  virtualStoreDir: string
+}): Promise<{
     currentLockfile: Lockfile
     currentLockfileIsUpToDate: boolean
     existsCurrentLockfile: boolean
@@ -69,7 +67,11 @@ export async function readLockfiles (
       fileReads.push(
         (async () => {
           try {
-            const { lockfile, hadConflicts } = await readWantedLockfileAndAutofixConflicts(opts.lockfileDir, lockfileOpts)
+            const { lockfile, hadConflicts } =
+              await readWantedLockfileAndAutofixConflicts(
+                opts.lockfileDir,
+                lockfileOpts
+              )
             lockfileHadConflicts = hadConflicts
             return lockfile
           } catch (err: any) { // eslint-disable-line
@@ -121,7 +123,8 @@ export async function readLockfiles (
       }
     }
   }
-  const wantedLockfile = files[0] ??
+  const wantedLockfile =
+    files[0] ??
     (currentLockfile && clone(currentLockfile)) ??
     createLockfileObject(importerIds, sopts)
   let wantedLockfileIsModified = false
@@ -139,7 +142,8 @@ export async function readLockfiles (
     currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),
     existsCurrentLockfile: files[1] != null,
     existsWantedLockfile,
-    existsNonEmptyWantedLockfile: existsWantedLockfile && !isEmptyLockfile(wantedLockfile),
+    existsNonEmptyWantedLockfile:
+      existsWantedLockfile && !isEmptyLockfile(wantedLockfile),
     wantedLockfile,
     wantedLockfileIsModified,
     lockfileHadConflicts,

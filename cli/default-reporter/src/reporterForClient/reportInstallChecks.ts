@@ -1,10 +1,10 @@
-import { type InstallCheckLog } from '@pnpm/core-loggers'
+import type { InstallCheckLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
 import { formatWarn } from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
 
-export function reportInstallChecks (
+export function reportInstallChecks(
   installCheck$: Rx.Observable<InstallCheckLog>,
   opts: {
     cwd: string
@@ -17,7 +17,7 @@ export function reportInstallChecks (
   )
 }
 
-function formatInstallCheck (
+function formatInstallCheck(
   currentPrefix: string,
   logObj: InstallCheckLog,
   opts?: {
@@ -25,17 +25,28 @@ function formatInstallCheck (
   }
 ) {
   const zoomOutCurrent = opts?.zoomOutCurrent ?? false
+
+  const prefix =
+    'prefix' in logObj && typeof logObj.prefix === 'string'
+      ? logObj.prefix
+      : undefined
+
   switch (logObj.code) {
-  case 'EBADPLATFORM':
-    return autozoom(
-      currentPrefix,
-      logObj['prefix'],
-      formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`),
-      { zoomOutCurrent }
-    )
-  case 'ENOTSUP':
-    return autozoom(currentPrefix, logObj['prefix'], logObj.toString(), { zoomOutCurrent })
-  default:
-    return undefined
+    case 'EBADPLATFORM': {
+      return autozoom(
+        currentPrefix,
+        prefix,
+        formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`),
+        { zoomOutCurrent }
+      )
+    }
+    case 'ENOTSUP': {
+      return autozoom(currentPrefix, prefix, logObj.toString(), {
+        zoomOutCurrent,
+      })
+    }
+    default: {
+      return undefined
+    }
   }
 }

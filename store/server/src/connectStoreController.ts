@@ -17,28 +17,32 @@ export type StoreServerController = StoreController & {
   stop: () => Promise<void>
 }
 
-export async function connectStoreController (
-  initOpts: {
-    remotePrefix: string
-    concurrency?: number
-  }
-): Promise<StoreServerController> {
+export async function connectStoreController(initOpts: {
+  remotePrefix: string
+  concurrency?: number
+}): Promise<StoreServerController> {
   const remotePrefix = initOpts.remotePrefix
-  const limitedFetch = limitFetch.bind(null, pLimit(initOpts.concurrency ?? 100))
+  const limitedFetch = limitFetch.bind(
+    null,
+    pLimit(initOpts.concurrency ?? 100)
+  )
 
   return new Promise((resolve, reject) => {
     resolve({
-      close: async () => { },
+      close: async () => {},
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
       getFilesIndexFilePath: () => ({ filesIndexFile: '', target: '' }), // NOT IMPLEMENTED
-      importPackage: async (to: string, opts: {
-        filesResponse: PackageFilesResponse
-        force: boolean
-      }) => {
+      importPackage: async (
+        to: string,
+        opts: {
+          filesResponse: PackageFilesResponse
+          force: boolean
+        }
+      ) => {
         return limitedFetch(`${remotePrefix}/importPackage`, {
           opts,
           to,
-        }) as Promise<{ importMethod: string | undefined, isBuilt: boolean }>
+        }) as Promise<{ importMethod: string | undefined; isBuilt: boolean }>
       },
       prune: async () => {
         await limitedFetch(`${remotePrefix}/prune`, {})
@@ -47,7 +51,10 @@ export async function connectStoreController (
       stop: async () => {
         await limitedFetch(`${remotePrefix}/stop`, {})
       },
-      upload: async (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) => {
+      upload: async (
+        builtPkgLocation: string,
+        opts: { filesIndexFile: string; sideEffectsCacheKey: string }
+      ) => {
         await limitedFetch(`${remotePrefix}/upload`, {
           builtPkgLocation,
           opts,
@@ -57,7 +64,11 @@ export async function connectStoreController (
   })
 }
 
-function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: string, body: object): Promise<T> { // eslint-disable-line
+function limitFetch<T>(
+  limit: (fn: () => PromiseLike<T>) => Promise<T>,
+  url: string,
+  body: object
+): Promise<T> {
   return limit(async () => {
     // TODO: the http://unix: should be also supported by the fetcher
     // but it fails with node-fetch-unix as of v2.3.0
@@ -83,18 +94,21 @@ function limitFetch<T>(limit: (fn: () => PromiseLike<T>) => Promise<T>, url: str
   })
 }
 
-async function requestPackage (
+async function requestPackage(
   remotePrefix: string,
   limitedFetch: (url: string, body: object) => any, // eslint-disable-line
   wantedDependency: WantedDependency,
   options: RequestPackageOptions
 ): Promise<PackageResponse> {
   const msgId = uuidv4()
-  const packageResponseBody = await limitedFetch(`${remotePrefix}/requestPackage`, {
-    msgId,
-    options,
-    wantedDependency,
-  })
+  const packageResponseBody = await limitedFetch(
+    `${remotePrefix}/requestPackage`,
+    {
+      msgId,
+      options,
+      wantedDependency,
+    }
+  )
   const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
     msgId,
   })
@@ -104,7 +118,7 @@ async function requestPackage (
   }
 }
 
-async function fetchPackage (
+async function fetchPackage(
   remotePrefix: string,
   limitedFetch: (url: string, body: object) => any, // eslint-disable-line
   options: FetchPackageToStoreOptions
@@ -115,10 +129,13 @@ async function fetchPackage (
   }> {
   const msgId = uuidv4()
 
-  const fetchResponseBody = await limitedFetch(`${remotePrefix}/fetchPackage`, {
-    msgId,
-    options,
-  }) as object & { filesIndexFile: string, inStoreLocation: string }
+  const fetchResponseBody = (await limitedFetch(
+    `${remotePrefix}/fetchPackage`,
+    {
+      msgId,
+      options,
+    }
+  )) as object & { filesIndexFile: string; inStoreLocation: string }
   const fetching = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
     msgId,
   })

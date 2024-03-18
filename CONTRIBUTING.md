@@ -2,19 +2,21 @@
 
 ## Table of contents
 
-- [Setting Up the Environment](#setting-up-the-environment)
-- [Running Tests](#running-tests)
-- [Submitting a Pull Request (PR)](#submitting-a-pull-request-pr)
-  - [After your pull request is merged](#after-your-pull-request-is-merged)
-- [Coding Style Guidelines](#coding-style-guidelines)
-- [Commit Message Guidelines](#commit-message-guidelines)
-  - [Commit Message Format](#commit-message-format)
-    - [Revert](#revert)
-    - [Type](#type)
-    - [Scope](#scope)
-    - [Subject](#subject)
-    - [Body](#body)
-    - [Footer](#footer)
+- [Contributing](#contributing)
+  - [Table of contents](#table-of-contents)
+  - [Setting Up the Environment](#setting-up-the-environment)
+  - [Running Tests](#running-tests)
+  - [Submitting a Pull Request (PR)](#submitting-a-pull-request-pr)
+    - [After your pull request is merged](#after-your-pull-request-is-merged)
+  - [Coding Style Guidelines](#coding-style-guidelines)
+  - [Commit Message Guidelines](#commit-message-guidelines)
+    - [Commit Message Format](#commit-message-format)
+      - [Revert](#revert)
+      - [Type](#type)
+      - [Scope](#scope)
+      - [Subject](#subject)
+      - [Body](#body)
+      - [Footer](#footer)
 
 ## Setting Up the Environment
 
@@ -27,7 +29,7 @@
 
 Some of the e2e tests run node-gyp, so you might need to install some build-essentials on your system for those tests to pass. On Fedora, install these:
 
-```
+```shell
 sudo dnf install make automake gcc gcc-c++ kernel-devel
 ```
 

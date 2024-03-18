@@ -34,7 +34,10 @@ test('recursive list', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -45,15 +48,19 @@ test('recursive list', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const output = await list.handler({
-    ...DEFAULT_OPTS,
-    allProjects,
-    dir: process.cwd(),
-    recursive: true,
-    selectedProjectsGraph,
-  }, [])
+  const output = await list.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+    },
+    []
+  )
 
-  expect(stripAnsi(output as unknown as string)).toBe(`Legend: production dependency, optional only, dev only
+  expect(stripAnsi(output as unknown as string))
+    .toBe(`Legend: production dependency, optional only, dev only
 
 project-1@1.0.0 ${path.resolve('project-1')}
 
@@ -69,7 +76,11 @@ is-negative 1.0.0`)
 })
 
 test('recursive list with shared-workspace-lockfile', async () => {
-  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({
+    package: '@pnpm.e2e/dep-of-pkg-with-1-dep',
+    version: '100.1.0',
+    distTag: 'latest',
+  })
   preparePackages([
     {
       name: 'project-1',
@@ -96,7 +107,10 @@ test('recursive list with shared-workspace-lockfile', async () => {
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -107,16 +121,20 @@ test('recursive list with shared-workspace-lockfile', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const output = await list.handler({
-    ...DEFAULT_OPTS,
-    allProjects,
-    cliOptions: { depth: 2 },
-    dir: process.cwd(),
-    recursive: true,
-    selectedProjectsGraph,
-  }, [])
+  const output = await list.handler(
+    {
+      ...DEFAULT_OPTS,
+      allProjects,
+      cliOptions: { depth: 2 },
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+    },
+    []
+  )
 
-  expect(stripAnsi(output as unknown as string)).toBe(`Legend: production dependency, optional only, dev only
+  expect(stripAnsi(output as unknown as string))
+    .toBe(`Legend: production dependency, optional only, dev only
 
 project-1@1.0.0 ${path.resolve('project-1')}
 
@@ -164,23 +182,27 @@ test('recursive list --filter', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...(await readProjects(process.cwd(), [])),
     cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
   })
 
-  const output = await list.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    recursive: true,
-    ...await readProjects(process.cwd(), [
-      { includeDependencies: true, namePattern: 'project-1' },
-    ]),
-  }, [])
+  const output = await list.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: true,
+      ...(await readProjects(process.cwd(), [
+        { includeDependencies: true, namePattern: 'project-1' },
+      ])),
+    },
+    []
+  )
 
-  expect(stripAnsi(output as unknown as string)).toBe(`Legend: production dependency, optional only, dev only
+  expect(stripAnsi(output as unknown as string))
+    .toBe(`Legend: production dependency, optional only, dev only
 
 project-1@1.0.0 ${path.resolve('project-1')}
 
@@ -218,7 +240,9 @@ test('recursive list --filter link-workspace-packages=false', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), [], { linkWorkspacePackages: false }),
+    ...(await readProjects(process.cwd(), [], {
+      linkWorkspacePackages: false,
+    })),
     cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     linkWorkspacePackages: false,
@@ -226,16 +250,22 @@ test('recursive list --filter link-workspace-packages=false', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const output = await list.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    recursive: true,
-    ...await readProjects(process.cwd(), [
-      { includeDependencies: true, namePattern: 'project-1' },
-    ], { linkWorkspacePackages: false }),
-  }, [])
+  const output = await list.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: true,
+      ...(await readProjects(
+        process.cwd(),
+        [{ includeDependencies: true, namePattern: 'project-1' }],
+        { linkWorkspacePackages: false }
+      )),
+    },
+    []
+  )
 
-  expect(stripAnsi(output as unknown as string)).toBe(`Legend: production dependency, optional only, dev only
+  expect(stripAnsi(output as unknown as string))
+    .toBe(`Legend: production dependency, optional only, dev only
 
 project-1@1.0.0 ${path.resolve('project-1')}
 
@@ -249,12 +279,15 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
 
   let err!: PnpmError
   try {
-    await why.handler({
-      ...DEFAULT_OPTS,
-      ...await readProjects(process.cwd(), []),
-      dir: process.cwd(),
-      recursive: true,
-    }, [])
+    await why.handler(
+      {
+        ...DEFAULT_OPTS,
+        ...(await readProjects(process.cwd(), [])),
+        dir: process.cwd(),
+        recursive: true,
+      },
+      []
+    )
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }

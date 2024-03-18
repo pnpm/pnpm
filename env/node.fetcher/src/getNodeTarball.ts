@@ -1,6 +1,6 @@
 import { getNormalizedArch } from './normalizeArch'
 
-export function getNodeTarball (
+export function getNodeTarball(
   nodeVersion: string,
   nodeMirror: string,
   processPlatform: string,

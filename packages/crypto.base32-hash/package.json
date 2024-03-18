@@ -35,7 +35,8 @@
   },
   "devDependencies": {
     "@pnpm/crypto.base32-hash": "workspace:*",
-    "@pnpm/prepare": "workspace:*"
+    "@pnpm/prepare": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

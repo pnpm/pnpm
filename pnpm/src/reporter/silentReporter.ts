@@ -1,19 +1,24 @@
-import { type LogBase } from '@pnpm/logger'
+import type { LogBase } from '@pnpm/logger'
+import { StreamParser } from '@pnpm/logger/lib/streamParser'
 
-export function silentReporter (
-  streamParser: {
-    on: (event: 'data', handler: (obj: LogBase) => void) => void
-  }
-) {
+export function silentReporter(streamParser: StreamParser) {
   streamParser.on('data', (obj: LogBase) => {
-    if (obj.level !== 'error') return
+    if (obj.level !== 'error') {
+      return
+    }
 
     // Known errors are not printed
-    if (obj['err'].code?.startsWith('ERR_PNPM_')) return
+    // @ts-ignore
+    if (obj.err.code?.startsWith('ERR_PNPM_')) {
+      return
+    }
 
-    console.log(obj['err']?.message ?? obj['message'])
-    if (obj['err']?.stack) {
-      console.log(`\n${obj['err'].stack}`)
+    // @ts-ignore
+    console.log(obj.err?.message ?? obj.message)
+    // @ts-ignore
+    if (obj.err?.stack) {
+      // @ts-ignore
+      console.log(`\n${obj.err.stack}`)
     }
   })
 }

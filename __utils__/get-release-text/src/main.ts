@@ -1,11 +1,13 @@
 /// <reference path="../../../__typings__/local.d.ts" />
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import unified from 'unified'
+import '@total-typescript/ts-reset'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import mdastToString from 'mdast-util-to-string'
+import type { RootContent } from 'mdast'
 
 export const BumpLevels = {
   dep: 0,
@@ -17,23 +19,24 @@ export const BumpLevels = {
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const pnpmDir = path.join(dirname, '../../../pnpm')
 const changelog = fs.readFileSync(path.join(pnpmDir, 'CHANGELOG.md'), 'utf8')
-const pnpm = JSON.parse(fs.readFileSync(path.join(pnpmDir, 'package.json'), 'utf8'))
+const pnpm = JSON.parse(
+  fs.readFileSync(path.join(pnpmDir, 'package.json'), 'utf8')
+)
 const release = getChangelogEntry(changelog, pnpm.version)
 fs.writeFileSync(path.join(dirname, '../../../RELEASE.md'), release.content)
 
-function getChangelogEntry (changelog: string, version: string) {
+function getChangelogEntry(changelog: string, version: string) {
   const ast = unified().use(remarkParse).parse(changelog)
 
   let highestLevel: number = BumpLevels.dep
 
-  // @ts-expect-error
-  const nodes = ast['children'] as any[] // eslint-disable-line @typescript-eslint/no-explicit-any
+  const nodes = ast.children
   let headingStartInfo:
-  | {
-    index: number
-    depth: number
-  }
-  | undefined
+    | {
+      index: number
+      depth: number
+    }
+    | undefined
   let endIndex: number | undefined
 
   for (let i = 0; i < nodes.length; i++) {
@@ -63,8 +66,7 @@ function getChangelogEntry (changelog: string, version: string) {
     }
   }
   if (headingStartInfo != null) {
-    // @ts-expect-error
-    ast['children'] = (ast['children'] as any).slice( // eslint-disable-line @typescript-eslint/no-explicit-any
+    ast.children = (ast.children as RootContent[]).slice(
       headingStartInfo.index + 1,
       endIndex
     )

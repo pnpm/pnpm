@@ -27,14 +27,17 @@
   "license": "MIT",
   "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/resolver-base#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:*"
+    "@pnpm/types": "workspace:*",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/cafs-types": "workspace:*"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/resolver-base": "workspace:*"
+    "@pnpm/resolver-base": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

@@ -1,13 +1,14 @@
-import fs from 'fs'
+import '@total-typescript/ts-reset'
+import fs from 'node:fs'
+import path from 'node:path'
 import * as execa from 'execa'
-import path from 'path'
 import makeEmptyDir from 'make-empty-dir'
 
 const repoRoot = path.join(__dirname, '../../..')
 const dest = path.join(repoRoot, 'dist')
 const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
 
-;(async () => { // eslint-disable-line
+;(async () => {
   await makeEmptyDir(dest)
   if (!fs.existsSync(path.join(artifactsDir, 'linux-x64/pnpm'))) {
     execa.sync('pnpm', ['--filter=@pnpm/exe', 'run', 'prepublishOnly'], {
@@ -24,6 +25,6 @@ const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
   copyArtifact('win-x64/pnpm.exe', 'pnpm-win-x64.exe')
 })()
 
-function copyArtifact (srcName: string, destName: string) {
+function copyArtifact(srcName: string, destName: string) {
   fs.copyFileSync(path.join(artifactsDir, srcName), path.join(dest, destName))
 }

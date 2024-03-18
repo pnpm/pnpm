@@ -2,18 +2,30 @@ import * as Rx from 'rxjs'
 import { filter, map, mergeAll, scan } from 'rxjs/operators'
 import { EOL } from './constants'
 
-export function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>>): Rx.Observable<string> {
+export function mergeOutputs(
+  outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>>
+): Rx.Observable<string> {
   let blockNo = 0
   let fixedBlockNo = 0
   let started = false
   let previousOutput: string | null = null
   return Rx.merge(...outputs).pipe(
-    map((log: Rx.Observable<{ msg: string }>) => {
+    map((log: Rx.Observable<{ msg: string, fixed?: boolean | undefined }>): Rx.Observable<{
+      blockNo: number;
+      fixed: boolean;
+      msg: string;
+      prevFixedBlockNo?: undefined;
+    } | {
+      blockNo: number;
+      fixed: boolean;
+      msg: string;
+      prevFixedBlockNo: number;
+    }> => {
       let currentBlockNo = -1
       let currentFixedBlockNo = -1
       return log.pipe(
         map((msg) => {
-          if (msg['fixed']) {
+          if (msg.fixed) {
             if (currentFixedBlockNo === -1) {
               currentFixedBlockNo = fixedBlockNo++
             }
@@ -36,15 +48,21 @@ export function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable<{ msg: 
       )
     }),
     mergeAll(),
-    scan((acc, log) => {
-      if (log.fixed) {
-        acc.fixedBlocks[log.blockNo] = log.msg
-      } else {
-        delete acc.fixedBlocks[log['prevFixedBlockNo'] as number]
-        acc.blocks[log.blockNo] = log.msg
+    scan(
+      (acc, log) => {
+        if (log.fixed) {
+          acc.fixedBlocks[log.blockNo] = log.msg
+        } else {
+          delete acc.fixedBlocks[log.prevFixedBlockNo as number]
+          acc.blocks[log.blockNo] = log.msg
+        }
+        return acc
+      },
+      { fixedBlocks: [], blocks: [] } as {
+        fixedBlocks: string[]
+        blocks: string[]
       }
-      return acc
-    }, { fixedBlocks: [], blocks: [] } as { fixedBlocks: string[], blocks: string[] }),
+    ),
     map((sections) => {
       const fixedBlocks = sections.fixedBlocks.filter(Boolean)
       const nonFixedPart = sections.blocks.filter(Boolean).join(EOL)

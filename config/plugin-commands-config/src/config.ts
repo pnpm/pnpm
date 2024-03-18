@@ -4,13 +4,13 @@ import renderHelp from 'render-help'
 import { configGet } from './configGet'
 import { configSet } from './configSet'
 import { configList } from './configList'
-import { type ConfigCommandOptions } from './ConfigCommandOptions'
+import type { ConfigCommandOptions } from './ConfigCommandOptions'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes() {
   return {}
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes() {
   return {
     global: Boolean,
     location: ['global', 'project'],
@@ -20,7 +20,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['config', 'c']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: 'Manage the pnpm configuration files.',
     descriptionLists: [
@@ -54,7 +54,8 @@ export function help () {
             shortAlias: '-g',
           },
           {
-            description: 'When set to "project", the .npmrc file at the nearest package.json will be used',
+            description:
+              'When set to "project", the .npmrc file at the nearest package.json will be used',
             name: '--location <project|global>',
           },
           {
@@ -75,47 +76,57 @@ export function help () {
   })
 }
 
-export async function handler (opts: ConfigCommandOptions, params: string[]) {
+export async function handler(opts: ConfigCommandOptions, params: string[]) {
   if (params.length === 0) {
-    throw new PnpmError('CONFIG_NO_SUBCOMMAND', 'Please specify the subcommand', {
-      hint: help(),
-    })
+    throw new PnpmError(
+      'CONFIG_NO_SUBCOMMAND',
+      'Please specify the subcommand',
+      {
+        hint: help(),
+      }
+    )
   }
   if (opts.location) {
     opts.global = opts.location === 'global'
-  } else if (opts.cliOptions['global'] == null) {
+  } else if (opts.cliOptions.global == null) {
     opts.global = true
   }
   switch (params[0]) {
-  case 'set':
-  case 'delete': {
-    if (!params[1]) {
-      throw new PnpmError('CONFIG_NO_PARAMS', `\`pnpm config ${params[0]}\` requires the config key`)
-    }
-    if (params[0] === 'set') {
-      let [key, value] = params.slice(1)
-      if (value == null) {
-        const parts = key.split('=')
-        key = parts.shift()!
-        value = parts.join('=')
+    case 'set':
+    case 'delete': {
+      if (!params[1]) {
+        throw new PnpmError(
+          'CONFIG_NO_PARAMS',
+          `\`pnpm config ${params[0]}\` requires the config key`
+        )
       }
-      return configSet(opts, key, value ?? '')
-    } else {
-      return configSet(opts, params[1], null)
+      if (params[0] === 'set') {
+        let [key, value] = params.slice(1)
+        if (value == null) {
+          const parts = key.split('=')
+          key = parts.shift()!
+          value = parts.join('=')
+        }
+        return configSet(opts, key, value ?? '')
+      } else {
+        return configSet(opts, params[1], null)
+      }
     }
-  }
-  case 'get': {
-    if (params[1]) {
-      return configGet(opts, params[1])
-    } else {
+    case 'get': {
+      if (params[1]) {
+        return configGet(opts, params[1])
+      } else {
+        return configList(opts)
+      }
+    }
+    case 'list': {
       return configList(opts)
     }
-  }
-  case 'list': {
-    return configList(opts)
-  }
-  default: {
-    throw new PnpmError('CONFIG_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
-  }
+    default: {
+      throw new PnpmError(
+        'CONFIG_UNKNOWN_SUBCOMMAND',
+        'This subcommand is not known'
+      )
+    }
   }
 }

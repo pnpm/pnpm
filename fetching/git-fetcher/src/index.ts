@@ -1,20 +1,26 @@
-import path from 'path'
-import type { GitFetcher } from '@pnpm/fetcher-base'
+import '@total-typescript/ts-reset'
+import path from 'node:path'
+
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { addFilesFromDir } from '@pnpm/worker'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import { URL } from 'url'
+import { URL } from 'node:url'
+import { GitFetcher, GitFetcherOptions, GitResolution } from '../../../resolving/resolver-base/src'
+import { Cafs } from '../../../store/cafs-types/src'
+import { DependencyManifest } from '../../../packages/types/src'
 
 export interface CreateGitFetcherOptions {
-  gitShallowHosts?: string[]
+  gitShallowHosts?: string[] | undefined
   rawConfig: object
-  unsafePerm?: boolean
-  ignoreScripts?: boolean
+  unsafePerm?: boolean | undefined
+  ignoreScripts?: boolean | undefined
 }
 
-export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
+export function createGitFetcher(createOpts: CreateGitFetcherOptions): {
+  git: GitFetcher;
+} {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
   const ignoreScripts = createOpts.ignoreScripts ?? false
   const preparePkg = preparePackage.bind(null, {
@@ -23,12 +29,22 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     unsafePerm: createOpts.unsafePerm,
   })
 
-  const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
+  const gitFetcher: GitFetcher = async (cafs: Cafs, resolution: GitResolution, opts: GitFetcherOptions): Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest;
+  }> => {
     const tempLocation = await cafs.tempDir()
-    if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
+    if (
+      allowedHosts.size > 0 &&
+      shouldUseShallow(resolution.repo, allowedHosts)
+    ) {
       await execGit(['init'], { cwd: tempLocation })
-      await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
-      await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation })
+      await execGit(['remote', 'add', 'origin', resolution.repo], {
+        cwd: tempLocation,
+      })
+      await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], {
+        cwd: tempLocation,
+      })
     } else {
       await execGit(['clone', resolution.repo, tempLocation])
     }
@@ -36,7 +52,9 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     try {
       const shouldBeBuilt = await preparePkg(tempLocation)
       if (ignoreScripts && shouldBeBuilt) {
-        globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
+        globalWarn(
+          `The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`
+        )
       }
     } catch (err: any) { // eslint-disable-line
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
@@ -61,7 +79,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
   }
 }
 
-function shouldUseShallow (repoUrl: string, allowedHosts: Set<string>): boolean {
+function shouldUseShallow(repoUrl: string, allowedHosts: Set<string>): boolean {
   try {
     const { host } = new URL(repoUrl)
     if (allowedHosts.has(host)) {
@@ -73,11 +91,11 @@ function shouldUseShallow (repoUrl: string, allowedHosts: Set<string>): boolean 
   return false
 }
 
-function prefixGitArgs (): string[] {
+function prefixGitArgs(): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-function execGit (args: string[], opts?: object) {
+function execGit(args: string[], opts?: object) {
   const fullArgs = prefixGitArgs().concat(args || [])
   return execa('git', fullArgs, opts)
 }

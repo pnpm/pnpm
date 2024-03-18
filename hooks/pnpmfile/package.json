@@ -30,7 +30,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/hooks/pnpmfile#readme",
   "devDependencies": {
     "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/pnpmfile": "workspace:*"
+    "@pnpm/pnpmfile": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",

@@ -3,8 +3,11 @@ import path from 'path'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, mutateModules } from '@pnpm/core'
 import { testDefaults } from '../utils'
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { type ProjectManifest } from '@pnpm/types'
+import {
+  LOCKFILE_VERSION_V6 as LOCKFILE_VERSION,
+  WANTED_LOCKFILE,
+} from '@pnpm/constants'
+import type { ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import writeYamlFile from 'write-yaml-file'
 
@@ -20,11 +23,14 @@ test('install with git-branch-lockfile = true', async () => {
     useGitBranchLockfile: true,
   })
 
-  await install({
-    dependencies: {
-      'is-positive': '^3.0.0',
+  await install(
+    {
+      dependencies: {
+        'is-positive': '^3.0.0',
+      },
     },
-  }, opts)
+    opts
+  )
 
   expect(fs.existsSync(`pnpm-lock.${branchName}.yaml`)).toBe(true)
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
@@ -109,20 +115,23 @@ test('install a workspace with git-branch-lockfile = true', async () => {
     ],
   })
 
-  await mutateModules([
-    {
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-    {
-      mutation: 'install',
-      rootDir: path.resolve('project-1'),
-    },
-    {
-      mutation: 'install',
-      rootDir: path.resolve('project-2'),
-    },
-  ], opts)
+  await mutateModules(
+    [
+      {
+        mutation: 'install',
+        rootDir: process.cwd(),
+      },
+      {
+        mutation: 'install',
+        rootDir: path.resolve('project-1'),
+      },
+      {
+        mutation: 'install',
+        rootDir: path.resolve('project-2'),
+      },
+    ],
+    opts
+  )
 
   expect(fs.existsSync(`pnpm-lock.${branchName}.yaml`)).toBe(true)
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
@@ -146,11 +155,14 @@ test('install with --merge-git-branch-lockfiles', async () => {
     useGitBranchLockfile: true,
     mergeGitBranchLockfiles: true,
   })
-  await install({
-    dependencies: {
-      'is-positive': '^3.0.0',
+  await install(
+    {
+      dependencies: {
+        'is-positive': '^3.0.0',
+      },
     },
-  }, opts)
+    opts
+  )
 
   expect(fs.existsSync(otherLockfilePath)).toBe(false)
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
@@ -160,22 +172,27 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   const project = prepareEmpty()
 
   // @types/semver installed in the main branch
-  await writeYamlFile(WANTED_LOCKFILE, {
-    dependencies: {
-      '@types/semver': {
-        specifier: '5.3.31',
-        version: '5.3.31',
+  await writeYamlFile(
+    WANTED_LOCKFILE,
+    {
+      dependencies: {
+        '@types/semver': {
+          specifier: '5.3.31',
+          version: '5.3.31',
+        },
       },
-    },
-    lockfileVersion: LOCKFILE_VERSION,
-    packages: {
-      '/@types/semver@5.3.31': {
-        resolution: {
-          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        '/@types/semver@5.3.31': {
+          resolution: {
+            integrity:
+              'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
+          },
         },
       },
     },
-  }, { lineWidth: 1000 })
+    { lineWidth: 1000 }
+  )
 
   const branchName: string = 'main-branch'
   ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
@@ -197,17 +214,21 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
     packages: {
       '/@types/semver@5.3.31': {
         resolution: {
-          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
+          integrity:
+            'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
       '/is-positive@3.1.0': {
         resolution: {
-          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+          integrity:
+            'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },
   }
-  await writeYamlFile(otherLockfilePath, otherLockfileContent, { lineWidth: 1000 })
+  await writeYamlFile(otherLockfilePath, otherLockfileContent, {
+    lineWidth: 1000,
+  })
 
   // the other branch merged to the main branch
   const projectManifest: ProjectManifest = {

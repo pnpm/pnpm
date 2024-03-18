@@ -32,7 +32,8 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/lockfile-types": "workspace:*"
+    "@pnpm/lockfile-types": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

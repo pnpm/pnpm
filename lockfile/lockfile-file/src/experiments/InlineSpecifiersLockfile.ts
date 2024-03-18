@@ -1,7 +1,8 @@
 import type { Lockfile } from '@pnpm/lockfile-types'
 import type { DependenciesMeta } from '@pnpm/types'
 
-export const INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX = '-inlineSpecifiers'
+export const INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX =
+  '-inlineSpecifiers'
 
 /**
  * Similar to the current Lockfile importers format (lockfile version 5.4 at
@@ -11,7 +12,8 @@ export const INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX = '-inlineSpecifie
  * This is an experiment to reduce one flavor of merge conflicts in lockfiles.
  * For more info: https://github.com/pnpm/pnpm/issues/4725.
  */
-export interface InlineSpecifiersLockfile extends Omit<Lockfile, 'lockfileVersion' | 'importers'> {
+export interface InlineSpecifiersLockfile
+  extends Omit<Lockfile, 'lockfileVersion' | 'importers'> {
   lockfileVersion: string
   importers: Record<string, InlineSpecifiersProjectSnapshot>
 }

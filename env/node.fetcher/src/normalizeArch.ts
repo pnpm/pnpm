@@ -1,7 +1,11 @@
-export function getNormalizedArch (platform: string, arch: string, nodeVersion?: string) {
+export function getNormalizedArch(
+  platform: string,
+  arch: string,
+  nodeVersion?: string
+) {
   if (nodeVersion) {
     const nodeMajorVersion = +nodeVersion.split('.')[0]
-    if ((platform === 'darwin' && arch === 'arm64' && (nodeMajorVersion < 16))) {
+    if (platform === 'darwin' && arch === 'arm64' && nodeMajorVersion < 16) {
       return 'x64'
     }
   }

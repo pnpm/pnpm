@@ -8,7 +8,8 @@ test.each([
     'ia32',
     {
       pkgName: 'node-v16.0.0-win-x86',
-      tarball: 'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-win-x86.zip',
+      tarball:
+        'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-win-x86.zip',
     },
   ],
   [
@@ -18,7 +19,8 @@ test.each([
     'arm',
     {
       pkgName: 'node-v16.0.0-linux-armv7l',
-      tarball: 'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-linux-armv7l.tar.gz',
+      tarball:
+        'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-linux-armv7l.tar.gz',
     },
   ],
   [
@@ -28,7 +30,8 @@ test.each([
     'x64',
     {
       pkgName: 'node-v16.0.0-linux-x64',
-      tarball: 'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-linux-x64.tar.gz',
+      tarball:
+        'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-linux-x64.tar.gz',
     },
   ],
   [
@@ -38,7 +41,8 @@ test.each([
     'arm64',
     {
       pkgName: 'node-v15.14.0-darwin-x64',
-      tarball: 'https://nodejs.org/download/release/v15.14.0/node-v15.14.0-darwin-x64.tar.gz',
+      tarball:
+        'https://nodejs.org/download/release/v15.14.0/node-v15.14.0-darwin-x64.tar.gz',
     },
   ],
   [
@@ -48,9 +52,12 @@ test.each([
     'arm64',
     {
       pkgName: 'node-v16.0.0-darwin-arm64',
-      tarball: 'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-darwin-arm64.tar.gz',
+      tarball:
+        'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-darwin-arm64.tar.gz',
     },
   ],
 ])('getNodeTarball', (version, nodeMirrorBaseUrl, platform, arch, tarball) => {
-  expect(getNodeTarball(version, nodeMirrorBaseUrl, platform, arch)).toStrictEqual(tarball)
+  expect(
+    getNodeTarball(version, nodeMirrorBaseUrl, platform, arch)
+  ).toStrictEqual(tarball)
 })

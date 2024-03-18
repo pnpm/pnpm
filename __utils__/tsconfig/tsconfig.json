@@ -12,6 +12,7 @@
     "removeComments": false,
     "sourceMap": true,
     "strict": true,
+    "skipLibCheck": true,
     "target": "es2021"
   },
   "atom": {

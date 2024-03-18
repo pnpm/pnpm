@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 export type {
   BadPeerDependencyIssue,
   MissingPeerDependencyIssue,
@@ -9,7 +10,11 @@ export type {
 export type { HoistingLimits } from '@pnpm/headless'
 export * from './api'
 
-export { type ProjectOptions, UnexpectedStoreError, UnexpectedVirtualStoreDirError } from '@pnpm/get-context'
+export {
+  type ProjectOptions,
+  UnexpectedStoreError,
+  UnexpectedVirtualStoreDirError,
+} from '@pnpm/get-context'
 export type { InstallOptions } from './install/extendInstallOptions'
 
 export type { WorkspacePackages } from '@pnpm/resolver-base'

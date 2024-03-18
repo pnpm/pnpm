@@ -1,6 +1,6 @@
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import sortKeys from 'sort-keys'
-import { type LockfileFile } from './write'
+import type { LockfileFile } from './write'
 
 const ORDERED_KEYS = {
   resolution: 1,
@@ -49,7 +49,11 @@ const ROOT_KEYS_ORDER = {
   packages: 16,
 }
 
-function compareWithPriority (priority: Record<string, number>, left: string, right: string) {
+function compareWithPriority(
+  priority: Record<string, number>,
+  left: string,
+  right: string
+): number {
   const leftPriority = priority[left]
   const rightPriority = priority[right]
   if (leftPriority && rightPriority) return leftPriority - rightPriority
@@ -58,7 +62,7 @@ function compareWithPriority (priority: Record<string, number>, left: string, ri
   return lexCompare(left, right)
 }
 
-export function sortLockfileKeys (lockfile: LockfileFile) {
+export function sortLockfileKeys(lockfile: LockfileFile): LockfileFile {
   const compareRootKeys = compareWithPriority.bind(null, ROOT_KEYS_ORDER)
   if (lockfile.importers != null) {
     lockfile.importers = sortKeys(lockfile.importers)
@@ -78,7 +82,14 @@ export function sortLockfileKeys (lockfile: LockfileFile) {
       })
     }
   }
-  for (const key of ['specifiers', 'dependencies', 'devDependencies', 'optionalDependencies', 'time', 'patchedDependencies'] as const) {
+  for (const key of [
+    'specifiers',
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+    'time',
+    'patchedDependencies',
+  ] as const) {
     if (!lockfile[key]) continue
     lockfile[key] = sortKeys<any>(lockfile[key]) // eslint-disable-line @typescript-eslint/no-explicit-any
   }

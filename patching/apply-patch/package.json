@@ -36,7 +36,8 @@
   "devDependencies": {
     "@pnpm/patching.apply-patch": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/test-fixtures": "workspace:*"
+    "@pnpm/test-fixtures": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

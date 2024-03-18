@@ -1,16 +1,17 @@
-import path from 'path'
-import {
-  type PackageSnapshot,
-  type PackageSnapshots,
-  type TarballResolution,
+import path from 'node:path'
+import type {
+  PackageSnapshot,
+  PackageSnapshots,
+  TarballResolution,
 } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
-import { type Registries } from '@pnpm/types'
+import type { Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import normalizePath from 'normalize-path'
+import { PackageNode } from './PackageNode'
 
 export interface GetPkgInfoOpts {
   readonly alias: string
@@ -37,12 +38,12 @@ export interface GetPkgInfoOpts {
   readonly rewriteLinkVersionDir?: string
 }
 
-export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
+export function getPkgInfo(opts: GetPkgInfoOpts): PackageInfo {
   let name!: string
   let version: string
   let resolved: string | undefined
   let dev: boolean | undefined
-  let optional: true | undefined
+  let optional: boolean | undefined
   let isSkipped: boolean = false
   let isMissing: boolean = false
   const depPath = refToRelative(opts.ref, opts.alias)
@@ -66,7 +67,13 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
       isMissing = true
       isSkipped = opts.skipped.has(depPath)
     }
-    resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
+    resolved = (
+      pkgSnapshotToResolution(
+        depPath,
+        pkgSnapshot,
+        opts.registries
+      ) as TarballResolution
+    ).tarball
     dev = pkgSnapshot.dev
     optional = pkgSnapshot.optional
   } else {
@@ -77,7 +84,12 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
     version = opts.ref
   }
   const fullPackagePath = depPath
-    ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath), 'node_modules', name)
+    ? path.join(
+      opts.virtualStoreDir ?? '.pnpm',
+      depPathToFilename(depPath),
+      'node_modules',
+      name
+    )
     : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {
@@ -105,7 +117,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   return packageInfo
 }
 
-interface PackageInfo {
+export interface PackageInfo {
   alias: string
   isMissing: boolean
   isPeer: boolean
@@ -113,7 +125,10 @@ interface PackageInfo {
   name: string
   path: string
   version: string
-  resolved?: string
-  optional?: true
-  dev?: boolean
+  resolved?: string | undefined
+  optional?: boolean | undefined
+  dev?: boolean | undefined
+  searched?: boolean | undefined
+  circular?: boolean | undefined
+  dependencies?: PackageNode[] | undefined
 }

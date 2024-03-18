@@ -1,4 +1,7 @@
-export type DependenciesField = 'optionalDependencies' | 'dependencies' | 'devDependencies'
+export type DependenciesField =
+  | 'optionalDependencies'
+  | 'dependencies'
+  | 'devDependencies'
 
 export type DependenciesOrPeersField = DependenciesField | 'peerDependencies'
 
@@ -19,7 +22,10 @@ export interface Registries {
   [scope: string]: string
 }
 
-export type HoistedDependencies = Record<string, Record<string, 'public' | 'private'>>
+export type HoistedDependencies = Record<
+  string,
+  Record<string, 'public' | 'private'>
+>
 
 export interface PatchFile {
   path: string

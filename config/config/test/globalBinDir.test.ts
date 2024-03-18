@@ -1,10 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
+import fs from 'node:fs'
+import path from 'node:path'
+import { homedir } from 'node:os'
 import { tempDir } from '@pnpm/prepare'
-import path from 'path'
 import pathName from 'path-name'
 import symlinkDir from 'symlink-dir'
-import { homedir } from 'os'
 import { getConfig } from '@pnpm/config'
 
 const globalBinDir = path.join(homedir(), '.local', 'pnpm')
@@ -14,14 +14,19 @@ jest.mock('@pnpm/npm-conf/lib/conf', () => {
   const originalModule = jest.requireActual('@pnpm/npm-conf/lib/conf')
   class MockedConf extends originalModule {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    constructor (base: any, types: any) {
+    constructor(base: any, types: any) {
       super(base, types)
-      const globalPrefixDirName = isWindows ? 'global-bin-dir-windows' : 'global-bin-dir'
-      this.prefix = this.globalPrefix = path.join(__dirname, globalPrefixDirName)
+      const globalPrefixDirName = isWindows
+        ? 'global-bin-dir-windows'
+        : 'global-bin-dir'
+      this.prefix = this.globalPrefix = path.join(
+        __dirname,
+        globalPrefixDirName
+      )
       this.localPrefix = __dirname
     }
 
-    get (name: string) {
+    get(name: string) {
       if (name === 'prefix') {
         return this.prefix
       } else {
@@ -29,7 +34,7 @@ jest.mock('@pnpm/npm-conf/lib/conf', () => {
       }
     }
 
-    loadPrefix () {}
+    loadPrefix() {}
   }
   return MockedConf
 })

@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import PATH_NAME from 'path-name'
 import { tempDir } from '@pnpm/prepare'
 import { execPnpmSync } from './utils'
@@ -11,7 +11,9 @@ test('pnpm bin', async () => {
   const result = execPnpmSync(['bin'])
 
   expect(result.status).toStrictEqual(0)
-  expect(result.stdout.toString().trim()).toBe(path.resolve('node_modules/.bin'))
+  expect(result.stdout.toString().trim()).toBe(
+    path.resolve('node_modules/.bin')
+  )
 })
 
 test('pnpm bin -g', async () => {

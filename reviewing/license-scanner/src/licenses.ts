@@ -1,11 +1,11 @@
 import { PnpmError } from '@pnpm/error'
-import { type Lockfile } from '@pnpm/lockfile-file'
-import {
-  type SupportedArchitectures,
-  type DependenciesField,
-  type IncludedDependencies,
-  type ProjectManifest,
-  type Registries,
+import type { Lockfile } from '@pnpm/lockfile-file'
+import type {
+  SupportedArchitectures,
+  DependenciesField,
+  IncludedDependencies,
+  ProjectManifest,
+  Registries,
 } from '@pnpm/types'
 import {
   type LicenseNode,
@@ -32,7 +32,7 @@ export interface LicensePackage {
  * @param licenseNode the license node
  * @returns LicensePackage[]
  */
-function getDependenciesFromLicenseNode (
+function getDependenciesFromLicenseNode(
   licenseNode: LicenseNode
 ): LicensePackage[] {
   if (!licenseNode.dependencies) {
@@ -65,7 +65,7 @@ function getDependenciesFromLicenseNode (
   return dependencies
 }
 
-export async function findDependencyLicenses (opts: {
+export async function findDependencyLicenses(opts: {
   ignoreDependencies?: Set<string>
   include?: IncludedDependencies
   lockfileDir: string

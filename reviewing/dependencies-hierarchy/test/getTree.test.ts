@@ -18,13 +18,21 @@ interface MockPackages {
  * All packages in the resulting object use the same version since the hierarchy
  * tests usually don't care about version.
  */
-function generateMockCurrentPackages (version: string, mockPackages: MockPackages): PackageSnapshots {
+function generateMockCurrentPackages(
+  version: string,
+  mockPackages: MockPackages
+): PackageSnapshots {
   const currentPackages: PackageSnapshots = {}
 
   for (const [pkgName, dependencies] of Object.entries(mockPackages)) {
     currentPackages[refToRelativeOrThrow(version, pkgName)] = {
       resolution: { integrity: `${pkgName}-mock-integrity-for-testing` },
-      dependencies: Object.fromEntries(dependencies.map(depName => [depName, refToRelativeOrThrow(version, depName)])),
+      dependencies: Object.fromEntries(
+        dependencies.map((depName) => [
+          depName,
+          refToRelativeOrThrow(version, depName),
+        ])
+      ),
     }
   }
 
@@ -32,8 +40,8 @@ function generateMockCurrentPackages (version: string, mockPackages: MockPackage
   // this function easier to use.
   const unspecifiedDepPaths = Object.values(mockPackages)
     .flat()
-    .map(pkgName => refToRelativeOrThrow(version, pkgName))
-    .filter(key => currentPackages[key] == null)
+    .map((pkgName) => refToRelativeOrThrow(version, pkgName))
+    .filter((key) => currentPackages[key] == null)
   for (const depPath of unspecifiedDepPaths) {
     currentPackages[depPath] = {
       resolution: { integrity: `${depPath}-mock-integrity-for-testing` },
@@ -44,10 +52,12 @@ function generateMockCurrentPackages (version: string, mockPackages: MockPackage
   return currentPackages
 }
 
-function refToRelativeOrThrow (reference: string, pkgName: string): string {
+function refToRelativeOrThrow(reference: string, pkgName: string): string {
   const relative = refToRelative(reference, pkgName)
   if (relative == null) {
-    throw new Error(`Unable to create key for ${pkgName} with reference ${reference}`)
+    throw new Error(
+      `Unable to create key for ${pkgName} with reference ${reference}`
+    )
   }
   return relative
 }
@@ -65,10 +75,15 @@ function refToRelativeOrThrow (reference: string, pkgName: string): string {
  * expect(node).toEqual(expect.objectContaining({ dependencies: undefined }))
  * ```
  */
-function normalizePackageNodeForTesting (nodes: readonly PackageNode[]): PackageNode[] {
-  return nodes.map(node => ({
+function normalizePackageNodeForTesting(
+  nodes: readonly PackageNode[]
+): PackageNode[] {
+  return nodes.map((node) => ({
     ...node,
-    dependencies: node.dependencies != null ? normalizePackageNodeForTesting(node.dependencies) : undefined,
+    dependencies:
+      node.dependencies != null
+        ? normalizePackageNodeForTesting(node.dependencies)
+        : undefined,
   }))
 }
 
@@ -80,7 +95,10 @@ describe('getTree', () => {
       b1: ['c1'],
       c1: ['d1'],
     })
-    const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'a') }
+    const rootNodeId: TreeNodeId = {
+      type: 'package',
+      depPath: refToRelativeOrThrow(version, 'a'),
+    }
 
     const getTreeArgs = {
       maxDepth: 0,
@@ -98,7 +116,9 @@ describe('getTree', () => {
     }
 
     test('full test case to print when max depth is large', () => {
-      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999 }, rootNodeId))
+      const result = normalizePackageNodeForTesting(
+        getTree({ ...getTreeArgs, maxDepth: 9999 }, rootNodeId)
+      )
 
       expect(result).toEqual([
         expect.objectContaining({
@@ -107,7 +127,10 @@ describe('getTree', () => {
             expect.objectContaining({
               alias: 'c1',
               dependencies: [
-                expect.objectContaining({ alias: 'd1', dependencies: undefined }),
+                expect.objectContaining({
+                  alias: 'd1',
+                  dependencies: undefined,
+                }),
               ],
             }),
           ],
@@ -188,21 +211,26 @@ describe('getTree', () => {
         inflight: ['once'],
         once: ['wrappy'],
       })
-      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+      const rootNodeId: TreeNodeId = {
+        type: 'package',
+        depPath: refToRelativeOrThrow(version, 'root'),
+      }
 
-      const result = getTree({
-        ...commonMockGetTreeArgs,
-        maxDepth: 3,
-        currentPackages,
-        wantedPackages: currentPackages,
-      }, rootNodeId)
+      const result = getTree(
+        {
+          ...commonMockGetTreeArgs,
+          maxDepth: 3,
+          currentPackages,
+          wantedPackages: currentPackages,
+        },
+        rootNodeId
+      )
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         // depth 0
         expect.objectContaining({
           alias: 'glob',
           dependencies: expect.arrayContaining([
-
             // depth 1
             expect.objectContaining({
               alias: 'inflight',
@@ -246,20 +274,25 @@ describe('getTree', () => {
         b: ['c'],
         d: ['b'],
       })
-      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+      const rootNodeId: TreeNodeId = {
+        type: 'package',
+        depPath: refToRelativeOrThrow(version, 'root'),
+      }
 
-      const result = getTree({
-        ...commonMockGetTreeArgs,
-        maxDepth: 3,
-        currentPackages,
-        wantedPackages: currentPackages,
-      }, rootNodeId)
+      const result = getTree(
+        {
+          ...commonMockGetTreeArgs,
+          maxDepth: 3,
+          currentPackages,
+          wantedPackages: currentPackages,
+        },
+        rootNodeId
+      )
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
           alias: 'a',
           dependencies: [
-
             expect.objectContaining({
               alias: 'b',
               dependencies: [
@@ -321,14 +354,20 @@ describe('getTree', () => {
         a: ['b'],
         b: ['c'],
       })
-      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+      const rootNodeId: TreeNodeId = {
+        type: 'package',
+        depPath: refToRelativeOrThrow(version, 'root'),
+      }
 
-      const result = getTree({
-        ...commonMockGetTreeArgs,
-        maxDepth: 4,
-        currentPackages,
-        wantedPackages: currentPackages,
-      }, rootNodeId)
+      const result = getTree(
+        {
+          ...commonMockGetTreeArgs,
+          maxDepth: 4,
+          currentPackages,
+          wantedPackages: currentPackages,
+        },
+        rootNodeId
+      )
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -373,14 +412,20 @@ describe('getTree', () => {
         c: ['d'],
         d: ['a'],
       })
-      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+      const rootNodeId: TreeNodeId = {
+        type: 'package',
+        depPath: refToRelativeOrThrow(version, 'root'),
+      }
 
-      const result = getTree({
-        ...commonMockGetTreeArgs,
-        maxDepth: 4,
-        currentPackages,
-        wantedPackages: currentPackages,
-      }, rootNodeId)
+      const result = getTree(
+        {
+          ...commonMockGetTreeArgs,
+          maxDepth: 4,
+          currentPackages,
+          wantedPackages: currentPackages,
+        },
+        rootNodeId
+      )
 
       const expectedA = expect.objectContaining({
         alias: 'a',
@@ -399,9 +444,7 @@ describe('getTree', () => {
           dependencies: [
             expect.objectContaining({
               alias: 'd',
-              dependencies: [
-                expectedA,
-              ],
+              dependencies: [expectedA],
             }),
           ],
         }),
@@ -424,14 +467,20 @@ describe('getTree', () => {
         c: ['d'],
         d: ['a'],
       })
-      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+      const rootNodeId: TreeNodeId = {
+        type: 'package',
+        depPath: refToRelativeOrThrow(version, 'root'),
+      }
 
-      const result = getTree({
-        ...commonMockGetTreeArgs,
-        maxDepth: 3,
-        currentPackages,
-        wantedPackages: currentPackages,
-      }, rootNodeId)
+      const result = getTree(
+        {
+          ...commonMockGetTreeArgs,
+          maxDepth: 3,
+          currentPackages,
+          wantedPackages: currentPackages,
+        },
+        rootNodeId
+      )
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -485,14 +534,20 @@ describe('getTree', () => {
         f: ['g'],
         g: ['a'],
       })
-      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
+      const rootNodeId: TreeNodeId = {
+        type: 'package',
+        depPath: refToRelativeOrThrow(version, 'root'),
+      }
 
-      const result = getTree({
-        ...commonMockGetTreeArgs,
-        maxDepth: 5,
-        currentPackages,
-        wantedPackages: currentPackages,
-      }, rootNodeId)
+      const result = getTree(
+        {
+          ...commonMockGetTreeArgs,
+          maxDepth: 5,
+          currentPackages,
+          wantedPackages: currentPackages,
+        },
+        rootNodeId
+      )
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({

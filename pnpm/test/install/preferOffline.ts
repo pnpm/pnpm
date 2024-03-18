@@ -1,10 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
-import {
-  addDistTag,
-  execPnpm,
-} from '../utils'
+import { addDistTag, execPnpm } from '../utils'
 
 test('when prefer offline is used, meta from store is used, where latest might be out-of-date', async () => {
   const project = prepare()
@@ -21,5 +18,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
 
   await execPnpm(['install', '@pnpm.e2e/foo', '--prefer-offline'])
 
-  expect(project.requireModule('@pnpm.e2e/foo/package.json').version).toBe('100.0.0')
+  expect(project.requireModule('@pnpm.e2e/foo/package.json').version).toBe(
+    '100.0.0'
+  )
 })

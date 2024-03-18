@@ -19,9 +19,11 @@ test('run the workWithInitModule function', async () => {
 
 test('run the personToString function', () => {
   const expectAuthor = 'pnpm <xxxxxx@pnpm.com> (https://www.github.com/pnpm)'
-  expect(personToString({
-    email: 'xxxxxx@pnpm.com',
-    name: 'pnpm',
-    url: 'https://www.github.com/pnpm',
-  })).toBe(expectAuthor)
+  expect(
+    personToString({
+      email: 'xxxxxx@pnpm.com',
+      name: 'pnpm',
+      url: 'https://www.github.com/pnpm',
+    })
+  ).toBe(expectAuthor)
 })

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { prepare } from '@pnpm/prepare'
 import exists from 'path-exists'

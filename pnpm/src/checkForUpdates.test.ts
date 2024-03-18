@@ -10,7 +10,7 @@ jest.mock('@pnpm/core-loggers', () => ({
 }))
 
 beforeEach(() => {
-  (updateCheckLogger.debug as jest.Mock).mockReset()
+  ;(updateCheckLogger.debug as jest.Mock).mockReset()
 })
 
 test('check for updates when no pnpm state file is present', async () => {
@@ -90,7 +90,9 @@ test('check for updates when last update check happened two days ago', async () 
     latestVersion: expect.any(String),
   })
 
-  const state = await loadJsonFile<{ lastUpdateCheck: string }>('pnpm-state.json')
+  const state = await loadJsonFile<{ lastUpdateCheck: string }>(
+    'pnpm-state.json'
+  )
   expect(state.lastUpdateCheck).toBeDefined()
   expect(state.lastUpdateCheck).not.toEqual(initialLastUpdateCheck)
 })

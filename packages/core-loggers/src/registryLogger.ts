@@ -1,5 +1,5 @@
-import {
-  type LogBase,
-} from '@pnpm/logger'
+import { type LogBase } from '@pnpm/logger'
 
-export type RegistryLog = { name: 'pnpm:registry' } & LogBase & { message: string }
+export type RegistryLog = { name: 'pnpm:registry' } & LogBase & {
+  message: string
+}

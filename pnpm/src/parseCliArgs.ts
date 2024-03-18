@@ -14,15 +14,18 @@ const RENAMED_OPTIONS = {
   store: 'store-dir',
 }
 
-export async function parseCliArgs (inputArgv: string[]) {
-  return parseCliArgsLib({
-    fallbackCommand: 'run',
-    escapeArgs: ['create', 'dlx', 'exec'],
-    getCommandLongName: getCommandFullName,
-    getTypesByCommandName: getCliOptionsTypes,
-    renamedOptions: RENAMED_OPTIONS,
-    shorthandsByCommandName,
-    universalOptionsTypes: GLOBAL_OPTIONS,
-    universalShorthands,
-  }, inputArgv)
+export async function parseCliArgs(inputArgv: string[]) {
+  return parseCliArgsLib(
+    {
+      fallbackCommand: 'run',
+      escapeArgs: ['create', 'dlx', 'exec'],
+      getCommandLongName: getCommandFullName,
+      getTypesByCommandName: getCliOptionsTypes,
+      renamedOptions: RENAMED_OPTIONS,
+      shorthandsByCommandName,
+      universalOptionsTypes: GLOBAL_OPTIONS,
+      universalShorthands,
+    },
+    inputArgv
+  )
 }

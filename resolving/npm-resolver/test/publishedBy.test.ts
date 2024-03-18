@@ -28,9 +28,7 @@ beforeEach(() => {
 })
 
 test('fall back to a newer version if there is no version published by the given date', async () => {
-  nock(registry)
-    .get('/bad-dates')
-    .reply(200, badDatesMeta)
+  nock(registry).get('/bad-dates').reply(200, badDatesMeta)
 
   const cacheDir = tempy.directory()
   const resolve = createResolveFromNpm({
@@ -38,10 +36,13 @@ test('fall back to a newer version if there is no version published by the given
     filterMetadata: true,
     fullMetadata: true,
   })
-  const resolveResult = await resolve({ alias: 'bad-dates', pref: '^1.0.0' }, {
-    registry,
-    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
-  })
+  const resolveResult = await resolve(
+    { alias: 'bad-dates', pref: '^1.0.0' },
+    {
+      registry,
+      publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+    }
+  )
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('registry.npmjs.org/bad-dates/1.0.0')
@@ -55,22 +56,29 @@ test('request metadata when the one in cache does not have a version satisfying 
     time: {},
     cachedAt: '2016-08-17T19:26:00.508Z',
   }
-  fs.mkdirSync(path.join(cacheDir, 'metadata-v1.1/registry.npmjs.org'), { recursive: true })
-  fs.writeFileSync(path.join(cacheDir, 'metadata-v1.1/registry.npmjs.org/bad-dates.json'), JSON.stringify(cachedMeta), 'utf8')
+  fs.mkdirSync(path.join(cacheDir, 'metadata-v1.1/registry.npmjs.org'), {
+    recursive: true,
+  })
+  fs.writeFileSync(
+    path.join(cacheDir, 'metadata-v1.1/registry.npmjs.org/bad-dates.json'),
+    JSON.stringify(cachedMeta),
+    'utf8'
+  )
 
-  nock(registry)
-    .get('/bad-dates')
-    .reply(200, badDatesMeta)
+  nock(registry).get('/bad-dates').reply(200, badDatesMeta)
 
   const resolve = createResolveFromNpm({
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
   })
-  const resolveResult = await resolve({ alias: 'bad-dates', pref: '^1.0.0' }, {
-    registry,
-    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
-  })
+  const resolveResult = await resolve(
+    { alias: 'bad-dates', pref: '^1.0.0' },
+    {
+      registry,
+      publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+    }
+  )
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('registry.npmjs.org/bad-dates/1.0.0')

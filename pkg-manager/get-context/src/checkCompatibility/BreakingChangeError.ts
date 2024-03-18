@@ -10,7 +10,7 @@ export class BreakingChangeError extends PnpmError {
   public relatedIssue?: number
   public relatedPR?: number
   public additionalInformation?: string
-  constructor (opts: BreakingChangeErrorOptions) {
+  constructor(opts: BreakingChangeErrorOptions) {
     super(opts.code, opts.message)
     this.relatedIssue = opts.relatedIssue
     this.relatedPR = opts.relatedPR

@@ -1,6 +1,6 @@
-import { cpus } from 'os'
+import { cpus } from 'node:os'
 
-export function getWorkspaceConcurrency (option: number | undefined): number {
+export function getWorkspaceConcurrency(option: number | undefined): number {
   if (typeof option !== 'number') return 4
 
   if (option <= 0) {

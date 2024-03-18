@@ -1,17 +1,14 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { LockfileMissingDependencyError } from '@pnpm/error'
-import {
-  type Lockfile,
-  type PackageSnapshots,
-} from '@pnpm/lockfile-types'
+import type { Lockfile, PackageSnapshots } from '@pnpm/lockfile-types'
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger } from '@pnpm/logger'
-import { type DependenciesField } from '@pnpm/types'
+import type { DependenciesField } from '@pnpm/types'
 import { filterImporter } from './filterImporter'
 
 const lockfileLogger = logger('lockfile')
 
-export function filterLockfileByImporters (
+export function filterLockfileByImporters(
   lockfile: Lockfile,
   importerIds: string[],
   opts: {
@@ -23,11 +20,10 @@ export function filterLockfileByImporters (
   const packages = {} as PackageSnapshots
   if (lockfile.packages != null) {
     pkgAllDeps(
-      lockfileWalker(
-        lockfile,
-        importerIds,
-        { include: opts.include, skipped: opts.skipped }
-      ).step,
+      lockfileWalker(lockfile, importerIds, {
+        include: opts.include,
+        skipped: opts.skipped,
+      }).step,
       packages,
       {
         failOnMissingDependencies: opts.failOnMissingDependencies,
@@ -35,10 +31,16 @@ export function filterLockfileByImporters (
     )
   }
 
-  const importers = importerIds.reduce((acc, importerId) => {
-    acc[importerId] = filterImporter(lockfile.importers[importerId], opts.include)
-    return acc
-  }, { ...lockfile.importers })
+  const importers = importerIds.reduce(
+    (acc, importerId) => {
+      acc[importerId] = filterImporter(
+        lockfile.importers[importerId],
+        opts.include
+      )
+      return acc
+    },
+    { ...lockfile.importers }
+  )
 
   return {
     ...lockfile,
@@ -47,13 +49,13 @@ export function filterLockfileByImporters (
   }
 }
 
-function pkgAllDeps (
+function pkgAllDeps(
   step: LockfileWalkerStep,
   pickedPackages: PackageSnapshots,
   opts: {
     failOnMissingDependencies: boolean
   }
-) {
+): void {
   for (const { pkgSnapshot, depPath, next } of step.dependencies) {
     pickedPackages[depPath] = pkgSnapshot
     pkgAllDeps(next(), pickedPackages, opts)

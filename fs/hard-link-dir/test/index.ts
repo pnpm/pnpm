@@ -21,16 +21,28 @@ test('hardLinkDirectory()', () => {
   hardLinkDir(srcDir, [dest1Dir, dest2Dir])
 
   // It should link the files from the root
-  expect(fs.readFileSync(path.join(dest1Dir, 'file.txt'), 'utf8')).toBe('Hello World')
-  expect(fs.readFileSync(path.join(dest2Dir, 'file.txt'), 'utf8')).toBe('Hello World')
+  expect(fs.readFileSync(path.join(dest1Dir, 'file.txt'), 'utf8')).toBe(
+    'Hello World'
+  )
+  expect(fs.readFileSync(path.join(dest2Dir, 'file.txt'), 'utf8')).toBe(
+    'Hello World'
+  )
 
   // It should link files from a subdirectory
-  expect(fs.readFileSync(path.join(dest1Dir, 'subdir/file.txt'), 'utf8')).toBe('Hello World')
-  expect(fs.readFileSync(path.join(dest2Dir, 'subdir/file.txt'), 'utf8')).toBe('Hello World')
+  expect(fs.readFileSync(path.join(dest1Dir, 'subdir/file.txt'), 'utf8')).toBe(
+    'Hello World'
+  )
+  expect(fs.readFileSync(path.join(dest2Dir, 'subdir/file.txt'), 'utf8')).toBe(
+    'Hello World'
+  )
 
   // It should not link files from node_modules
-  expect(fs.existsSync(path.join(dest1Dir, 'node_modules/file.txt'))).toBe(false)
-  expect(fs.existsSync(path.join(dest2Dir, 'node_modules/file.txt'))).toBe(false)
+  expect(fs.existsSync(path.join(dest1Dir, 'node_modules/file.txt'))).toBe(
+    false
+  )
+  expect(fs.existsSync(path.join(dest2Dir, 'node_modules/file.txt'))).toBe(
+    false
+  )
 })
 
 test("don't fail on missing source and dest directories", () => {

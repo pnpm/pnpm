@@ -5,7 +5,7 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 
-export async function removeDeps (
+export async function removeDeps(
   packageManifest: ProjectManifest,
   removedPackages: string[],
   opts: {
@@ -20,13 +20,13 @@ export async function removeDeps (
       delete packageManifest[opts.saveType as DependenciesField]![dependency]
     })
   } else {
-    DEPENDENCIES_FIELDS
-      .filter((depField) => packageManifest[depField])
-      .forEach((depField) => {
+    DEPENDENCIES_FIELDS.filter((depField) => packageManifest[depField]).forEach(
+      (depField) => {
         removedPackages.forEach((dependency) => {
           delete packageManifest[depField]![dependency]
         })
-      })
+      }
+    )
   }
   if (packageManifest.peerDependencies != null) {
     for (const removedDependency of removedPackages) {

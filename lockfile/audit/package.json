@@ -38,7 +38,8 @@
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
-    "nock": "13.3.4"
+    "nock": "13.3.4",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",

@@ -35,7 +35,8 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/dedupe.check": "workspace:*"
+    "@pnpm/dedupe.check": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

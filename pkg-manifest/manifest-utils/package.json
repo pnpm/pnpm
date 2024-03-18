@@ -35,7 +35,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/manifest-utils#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/manifest-utils": "workspace:*"
+    "@pnpm/manifest-utils": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

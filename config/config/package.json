@@ -61,8 +61,9 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.2",
     "@types/ramda": "0.28.20",
-    "@types/which": "^2.0.2",
-    "symlink-dir": "^5.2.1"
+    "@types/which": "^3.0.3",
+    "symlink-dir": "^5.2.1",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

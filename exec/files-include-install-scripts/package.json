@@ -31,7 +31,8 @@
   "peerDependencies": {},
   "dependencies": {},
   "devDependencies": {
-    "@pnpm/exec.files-include-install-scripts": "workspace:*"
+    "@pnpm/exec.files-include-install-scripts": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

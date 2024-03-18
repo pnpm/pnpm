@@ -1,7 +1,11 @@
 import { parseString, stripComments } from 'strip-comments-strings'
-import { type CommentSpecifier } from './CommentSpecifier'
+import type { CommentSpecifier } from './CommentSpecifier'
 
-export function extractComments (text: string) {
+export function extractComments(text: string): {
+  text: string;
+  comments: CommentSpecifier[] | undefined;
+  hasFinalNewline: boolean;
+} {
   const hasFinalNewline = text.endsWith('\n')
   if (!hasFinalNewline) {
     /* For the sake of the comment parser, which otherwise loses the
@@ -37,8 +41,7 @@ export function extractComments (text: string) {
         lineNumber -= 1
       }
     }
-    let lineEnd = stripped.indexOf(
-      '\n', (lineStart === 0) ? 0 : lineStart + 1)
+    let lineEnd = stripped.indexOf('\n', lineStart === 0 ? 0 : lineStart + 1)
     if (lineEnd < 0) {
       lineEnd = stripped.length
     }

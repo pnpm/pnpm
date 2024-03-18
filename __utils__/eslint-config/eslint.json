@@ -1,36 +1,41 @@
 {
-  "extends": ["standard-with-typescript"],
+  "extends": ["standard"],
+  "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "project": "./tsconfig.lint.json",
     "sourceType": "module"
   },
   "reportUnusedDisableDirectives": true,
+  "plugins": [
+    "@stylistic/ts",
+    "@typescript-eslint",
+    "import",
+    "n",
+    "node",
+    "promise"
+  ],
   "rules": {
+    "indent": "off",
+    "semi": "off",
+    "quotes": "off",
+    "comma-dangle": "off",
+    "no-undef": "off",
+    "camelcase": "off",
+    "no-unused-vars": "off",
+    "operator-linebreak": "off",
+
+    "no-use-before-define": "off",
+    "@stylistic/ts/indent": ["error", 2],
     "import/no-extraneous-dependencies": [
       "error",
       {
-        "devDependencies": [
-          "**/pnpm/**",
-          "**/test/**"
-        ]
+        "devDependencies": ["**/pnpm/**", "**/test/**"]
       }
     ],
     "import/no-default-export": "error",
-    "@typescript-eslint/indent": [
-        "error",
-        2,
-        {
-            "FunctionDeclaration": {
-                "parameters": "first"
-            },
-            "FunctionExpression": {
-                "parameters": "first"
-            }
-        }
-    ],
+    "@typescript-eslint/indent": "off",
     "@typescript-eslint/consistent-indexed-object-style": "off",
     "@typescript-eslint/prefer-reduce-type-parameter": "off",
-    "@typescript-eslint/naming-convention": "error",
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/no-explicit-any": "error",
     "no-return-await": "error",
@@ -38,14 +43,14 @@
     "@typescript-eslint/return-await": "off",
     "@typescript-eslint/no-require-imports": "error",
     "@typescript-eslint/no-unused-expressions": "error",
-    "@typescript-eslint/no-use-before-define": "error",
+    "@typescript-eslint/no-use-before-define": "off",
     "@typescript-eslint/no-var-requires": "error",
     "@typescript-eslint/quotes": [
-        "error",
-        "single",
-        {
-            "avoidEscape": true
-        }
+      "error",
+      "single",
+      {
+        "avoidEscape": true
+      }
     ],
     "@typescript-eslint/triple-slash-reference": "off",
     "@typescript-eslint/no-non-null-assertion": "off",
@@ -61,19 +66,19 @@
     "@typescript-eslint/no-unnecessary-type-assertion": "off",
     "@typescript-eslint/type-annotation-spacing": "error",
     "@typescript-eslint/ban-ts-comment": "off",
-    "brace-style": [
-        "error",
-        "1tbs"
-    ],
+    "brace-style": ["error", "1tbs"],
     "@typescript-eslint/comma-dangle": [
-        "error",
-        {
-            "arrays": "always-multiline",
-            "exports": "always-multiline",
-            "functions": "never",
-            "imports": "always-multiline",
-            "objects": "always-multiline"
-        }
+      "error",
+      {
+        "arrays": "always-multiline",
+        "objects": "always-multiline",
+        "imports": "always-multiline",
+        "exports": "always-multiline",
+        "functions": "never",
+        "enums": "ignore",
+        "generics": "ignore",
+        "tuples": "ignore"
+      }
     ],
     "curly": "off",
     "eol-last": "off",
@@ -90,9 +95,6 @@
     ],
     "no-trailing-spaces": "error",
     "no-var": "error",
-    "space-before-function-paren": [
-        "error",
-        "always"
-    ]
+    "space-before-function-paren": "off"
   }
 }

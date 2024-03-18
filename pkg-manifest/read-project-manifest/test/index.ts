@@ -1,7 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import { promises as fs } from 'fs'
 import path from 'path'
-import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import {
+  readProjectManifest,
+  tryReadProjectManifest,
+} from '@pnpm/read-project-manifest'
 import tempy from 'tempy'
 
 const fixtures = path.join(__dirname, '../fixtures')
@@ -9,25 +12,18 @@ const fixtures = path.join(__dirname, '../fixtures')
 test('readProjectManifest()', async () => {
   expect(
     (await tryReadProjectManifest(path.join(fixtures, 'package-json'))).manifest
-  ).toStrictEqual(
-    { name: 'foo', version: '1.0.0' }
-  )
+  ).toStrictEqual({ name: 'foo', version: '1.0.0' })
 
   expect(
-    (await tryReadProjectManifest(path.join(fixtures, 'package-json5'))).manifest
-  ).toStrictEqual(
-    { name: 'foo', version: '1.0.0' }
-  )
+    (await tryReadProjectManifest(path.join(fixtures, 'package-json5')))
+      .manifest
+  ).toStrictEqual({ name: 'foo', version: '1.0.0' })
 
   expect(
     (await tryReadProjectManifest(path.join(fixtures, 'package-yaml'))).manifest
-  ).toStrictEqual(
-    { name: 'foo', version: '1.0.0' }
-  )
+  ).toStrictEqual({ name: 'foo', version: '1.0.0' })
 
-  expect(
-    (await tryReadProjectManifest(fixtures)).manifest
-  ).toStrictEqual(null)
+  expect((await tryReadProjectManifest(fixtures)).manifest).toStrictEqual(null)
 })
 
 test('preserve tab indentation in json file', async () => {
@@ -35,12 +31,16 @@ test('preserve tab indentation in json file', async () => {
 
   await fs.writeFile('package.json', '{\n\t"name": "foo"\n}\n', 'utf8')
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+  const { manifest, writeProjectManifest } = await readProjectManifest(
+    process.cwd()
+  )
 
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
   const rawManifest = await fs.readFile('package.json', 'utf8')
-  expect(rawManifest).toBe('{\n\t"name": "foo",\n\t"dependencies": {\n\t\t"bar": "1.0.0"\n\t}\n}\n')
+  expect(rawManifest).toBe(
+    '{\n\t"name": "foo",\n\t"dependencies": {\n\t\t"bar": "1.0.0"\n\t}\n}\n'
+  )
 })
 
 test('preserve space indentation in json file', async () => {
@@ -48,12 +48,16 @@ test('preserve space indentation in json file', async () => {
 
   await fs.writeFile('package.json', '{\n  "name": "foo"\n}\n', 'utf8')
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+  const { manifest, writeProjectManifest } = await readProjectManifest(
+    process.cwd()
+  )
 
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
   const rawManifest = await fs.readFile('package.json', 'utf8')
-  expect(rawManifest).toBe('{\n  "name": "foo",\n  "dependencies": {\n    "bar": "1.0.0"\n  }\n}\n')
+  expect(rawManifest).toBe(
+    '{\n  "name": "foo",\n  "dependencies": {\n    "bar": "1.0.0"\n  }\n}\n'
+  )
 })
 
 test('preserve tab indentation in json5 file', async () => {
@@ -61,12 +65,16 @@ test('preserve tab indentation in json5 file', async () => {
 
   await fs.writeFile('package.json5', "{\n\tname: 'foo',\n}\n", 'utf8')
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+  const { manifest, writeProjectManifest } = await readProjectManifest(
+    process.cwd()
+  )
 
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
   const rawManifest = await fs.readFile('package.json5', 'utf8')
-  expect(rawManifest).toBe("{\n\tname: 'foo',\n\tdependencies: {\n\t\tbar: '1.0.0',\n\t},\n}\n")
+  expect(rawManifest).toBe(
+    "{\n\tname: 'foo',\n\tdependencies: {\n\t\tbar: '1.0.0',\n\t},\n}\n"
+  )
 })
 
 test('preserve space indentation in json5 file', async () => {
@@ -74,24 +82,34 @@ test('preserve space indentation in json5 file', async () => {
 
   await fs.writeFile('package.json5', "{\n  name: 'foo'\n}\n", 'utf8')
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+  const { manifest, writeProjectManifest } = await readProjectManifest(
+    process.cwd()
+  )
 
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
   const rawManifest = await fs.readFile('package.json5', 'utf8')
-  expect(rawManifest).toBe("{\n  name: 'foo',\n  dependencies: {\n    bar: '1.0.0',\n  },\n}\n")
+  expect(rawManifest).toBe(
+    "{\n  name: 'foo',\n  dependencies: {\n    bar: '1.0.0',\n  },\n}\n"
+  )
 })
 
 test('preserve comments in json5 file', async () => {
   const originalManifest = await fs.readFile(
-    path.join(fixtures, 'commented-package-json5/package.json5'), 'utf8')
+    path.join(fixtures, 'commented-package-json5/package.json5'),
+    'utf8'
+  )
   const modifiedManifest = await fs.readFile(
-    path.join(fixtures, 'commented-package-json5/modified.json5'), 'utf8')
+    path.join(fixtures, 'commented-package-json5/modified.json5'),
+    'utf8'
+  )
 
   process.chdir(tempy.directory())
   await fs.writeFile('package.json5', originalManifest, 'utf8')
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+  const { manifest, writeProjectManifest } = await readProjectManifest(
+    process.cwd()
+  )
 
   // Have to make a change to get it to write anything:
   const newManifest = Object.assign({}, manifest, { type: 'commonjs' })
@@ -141,11 +159,17 @@ test('fail on invalid JSON', async () => {
 
   const nodeMajorVersion = parseInt(process.version.slice(1).split('.')[0])
   if (nodeMajorVersion >= 21) {
-    expect(err.message).toContain('Expected \',\' or \'}\' after property value in JSON at position 20 (line 3 column 3) while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in')
+    expect(err.message).toContain(
+      'Expected \',\' or \'}\' after property value in JSON at position 20 (line 3 column 3) while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in'
+    )
   } else if (nodeMajorVersion >= 19) {
-    expect(err.message).toContain('Expected \',\' or \'}\' after property value in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in')
+    expect(err.message).toContain(
+      'Expected \',\' or \'}\' after property value in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in'
+    )
   } else {
-    expect(err.message).toContain('Unexpected string in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in ')
+    expect(err.message).toContain(
+      'Unexpected string in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in '
+    )
   }
 })
 
@@ -172,7 +196,9 @@ test('fail on invalid YAML', async () => {
 
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_YAML_PARSE')
-  expect(err.message).toMatch(/^missed comma between flow collection entries \(3:3\)/)
+  expect(err.message).toMatch(
+    /^missed comma between flow collection entries \(3:3\)/
+  )
 })
 
 test('preserve trailing new line at the end of package.json', async () => {
@@ -180,7 +206,9 @@ test('preserve trailing new line at the end of package.json', async () => {
 
   await fs.writeFile('package.json', '{}', 'utf8')
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+  const { manifest, writeProjectManifest } = await readProjectManifest(
+    process.cwd()
+  )
 
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
@@ -193,7 +221,9 @@ test('preserve trailing new line at the end of package.json5', async () => {
 
   await fs.writeFile('package.json5', '{}', 'utf8')
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+  const { manifest, writeProjectManifest } = await readProjectManifest(
+    process.cwd()
+  )
 
   await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
 
@@ -209,8 +239,12 @@ test('canceling changes to a manifest', async () => {
   const { writeProjectManifest } = await readProjectManifest(process.cwd())
 
   await writeProjectManifest({ name: 'bar' })
-  expect(await fs.readFile('package.json', 'utf8')).toBe(JSON.stringify({ name: 'bar' }))
+  expect(await fs.readFile('package.json', 'utf8')).toBe(
+    JSON.stringify({ name: 'bar' })
+  )
 
   await writeProjectManifest({ name: 'foo' })
-  expect(await fs.readFile('package.json', 'utf8')).toBe(JSON.stringify({ name: 'foo' }))
+  expect(await fs.readFile('package.json', 'utf8')).toBe(
+    JSON.stringify({ name: 'foo' })
+  )
 })

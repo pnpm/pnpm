@@ -1,9 +1,9 @@
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
-import {
-  type Dependencies,
-  type DependenciesMeta,
-  type IncludedDependencies,
-  type ProjectManifest,
+import type {
+  Dependencies,
+  DependenciesMeta,
+  IncludedDependencies,
+  ProjectManifest,
 } from '@pnpm/types'
 import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
 
@@ -20,8 +20,15 @@ export interface WantedDependency {
   updateSpec?: boolean
 }
 
-export function getWantedDependencies (
-  pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies' | 'dependenciesMeta' | 'peerDependencies'>,
+export function getWantedDependencies(
+  pkg: Pick<
+    ProjectManifest,
+    | 'devDependencies'
+    | 'dependencies'
+    | 'optionalDependencies'
+    | 'dependenciesMeta'
+    | 'peerDependencies'
+  >,
   opts?: {
     autoInstallPeers?: boolean
     includeDirect?: IncludedDependencies
@@ -29,12 +36,14 @@ export function getWantedDependencies (
     updateWorkspaceDependencies?: boolean
   }
 ): WantedDependency[] {
-  let depsToInstall = filterDependenciesByType(pkg,
+  let depsToInstall = filterDependenciesByType(
+    pkg,
     opts?.includeDirect ?? {
       dependencies: true,
       devDependencies: true,
       optionalDependencies: true,
-    })
+    }
+  )
   if (opts?.autoInstallPeers) {
     depsToInstall = {
       ...pkg.peerDependencies,
@@ -47,17 +56,18 @@ export function getWantedDependencies (
     optionalDependencies: pkg.optionalDependencies ?? {},
     dependenciesMeta: pkg.dependenciesMeta ?? {},
     peerDependencies: pkg.peerDependencies ?? {},
-    updatePref: opts?.updateWorkspaceDependencies === true
-      ? updateWorkspacePref
-      : (pref) => pref,
+    updatePref:
+      opts?.updateWorkspaceDependencies === true
+        ? updateWorkspacePref
+        : (pref) => pref,
   })
 }
 
-function updateWorkspacePref (pref: string) {
+function updateWorkspacePref(pref: string) {
   return pref.startsWith('workspace:') ? 'workspace:*' : pref
 }
 
-function getWantedDependenciesFromGivenSet (
+function getWantedDependenciesFromGivenSet(
   deps: Dependencies,
   opts: {
     dependencies: Dependencies

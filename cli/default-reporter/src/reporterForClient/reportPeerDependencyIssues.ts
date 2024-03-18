@@ -1,11 +1,11 @@
-import { type PeerDependencyIssuesLog } from '@pnpm/core-loggers'
+import type { PeerDependencyIssuesLog } from '@pnpm/core-loggers'
 import { renderPeerIssues } from '@pnpm/render-peer-issues'
-import { type PeerDependencyRules } from '@pnpm/types'
+import type { PeerDependencyRules } from '@pnpm/types'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import { formatWarn } from './utils/formatWarn'
 
-export function reportPeerDependencyIssues (
+export function reportPeerDependencyIssues(
   log$: {
     peerDependencyIssues: Rx.Observable<PeerDependencyIssuesLog>
   },

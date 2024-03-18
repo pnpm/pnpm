@@ -24,13 +24,17 @@ test('listing packages', async () => {
   await execa('node', [pnpmBin, 'install'])
 
   {
-    const output = await list.handler({
-      dev: false,
-      dir: process.cwd(),
-      optional: false,
-    }, [])
+    const output = await list.handler(
+      {
+        dev: false,
+        dir: process.cwd(),
+        optional: false,
+      },
+      []
+    )
 
-    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+    expect(stripAnsi(output))
+      .toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
 
@@ -39,13 +43,17 @@ is-positive 1.0.0`)
   }
 
   {
-    const output = await list.handler({
-      dir: process.cwd(),
-      optional: false,
-      production: false,
-    }, [])
+    const output = await list.handler(
+      {
+        dir: process.cwd(),
+        optional: false,
+        production: false,
+      },
+      []
+    )
 
-    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+    expect(stripAnsi(output))
+      .toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
 
@@ -54,11 +62,15 @@ is-negative 1.0.0`)
   }
 
   {
-    const output = await list.handler({
-      dir: process.cwd(),
-    }, [])
+    const output = await list.handler(
+      {
+        dir: process.cwd(),
+      },
+      []
+    )
 
-    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+    expect(stripAnsi(output))
+      .toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
 
@@ -89,12 +101,16 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
 
   process.chdir('pkg')
 
-  const output = await list.handler({
-    dir: process.cwd(),
-    lockfileDir: path.resolve('..'),
-  }, [])
+  const output = await list.handler(
+    {
+      dir: process.cwd(),
+      lockfileDir: path.resolve('..'),
+    },
+    []
+  )
 
-  expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+  expect(stripAnsi(output))
+    .toBe(`Legend: production dependency, optional only, dev only
 
 pkg@1.0.0 ${process.cwd()}
 
@@ -107,15 +123,25 @@ is-positive 1.0.0`)
 test.skip('list on a project with skipped optional dependencies', async () => {
   prepare()
 
-  await execa('node', [pnpmBin, 'add', '--no-optional', 'pkg-with-optional', 'is-positive@1.0.0'])
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '--no-optional',
+    'pkg-with-optional',
+    'is-positive@1.0.0',
+  ])
 
   {
-    const output = await list.handler({
-      depth: 10,
-      dir: process.cwd(),
-    }, [])
+    const output = await list.handler(
+      {
+        depth: 10,
+        dir: process.cwd(),
+      },
+      []
+    )
 
-    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+    expect(stripAnsi(output))
+      .toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
 
@@ -126,12 +152,16 @@ pkg-with-optional 1.0.0
   }
 
   {
-    const output = await list.handler({
-      depth: 10,
-      dir: process.cwd(),
-    }, ['not-compatible-with-any-os'])
+    const output = await list.handler(
+      {
+        depth: 10,
+        dir: process.cwd(),
+      },
+      ['not-compatible-with-any-os']
+    )
 
-    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+    expect(stripAnsi(output))
+      .toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
 
@@ -141,11 +171,15 @@ pkg-with-optional 1.0.0
   }
 
   {
-    const output = await why.handler({
-      dir: process.cwd(),
-    }, ['not-compatible-with-any-os'])
+    const output = await why.handler(
+      {
+        dir: process.cwd(),
+      },
+      ['not-compatible-with-any-os']
+    )
 
-    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+    expect(stripAnsi(output))
+      .toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
 
@@ -175,13 +209,17 @@ test('listing packages should not fail on package that has local file directory 
   const pkgDir = path.resolve('pkg')
   await execa('node', [pnpmBin, 'install'], { cwd: pkgDir })
 
-  const output = await list.handler({
-    dev: false,
-    dir: pkgDir,
-    optional: false,
-  }, [])
+  const output = await list.handler(
+    {
+      dev: false,
+      dir: pkgDir,
+      optional: false,
+    },
+    []
+  )
 
-  expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+  expect(stripAnsi(output))
+    .toBe(`Legend: production dependency, optional only, dev only
 
 pkg@1.0.0 ${pkgDir}
 

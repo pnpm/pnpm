@@ -33,7 +33,8 @@
   },
   "devDependencies": {
     "@pnpm/read-modules-dir": "workspace:*",
-    "@types/graceful-fs": "^4.1.9"
+    "@types/graceful-fs": "^4.1.9",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {
     ".": "./lib/index.js"

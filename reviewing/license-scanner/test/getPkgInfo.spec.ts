@@ -27,6 +27,8 @@ describe('licences', () => {
           dir: 'workspace-dir',
         }
       )
-    ).rejects.toThrow('Failed to find package index file for /bogus-package/1.0.0, please consider running \'pnpm install\'')
+    ).rejects.toThrow(
+      "Failed to find package index file for /bogus-package/1.0.0, please consider running 'pnpm install'"
+    )
   })
 })

@@ -1,5 +1,5 @@
-import { type ProjectManifest } from '@pnpm/types'
-import path from 'path'
+import type { ProjectManifest } from '@pnpm/types'
+import path from 'node:path'
 import { readPkg } from './readPkg'
 
 interface PkgData {
@@ -7,19 +7,20 @@ interface PkgData {
   name: string
   version: string
   path: string
-  resolved?: string
+  resolved?: string | undefined
 }
 
-export type PkgInfo = Omit<PkgData, 'name'> & Pick<ProjectManifest, 'description' | 'license' | 'author' | 'homepage'> & {
-  from: string
-  repository?: string
-}
+export type PkgInfo = Omit<PkgData, 'name'> &
+  Pick<ProjectManifest, 'description' | 'license' | 'author' | 'homepage'> & {
+    from: string
+    repository?: string
+  }
 
-export async function getPkgInfo (pkg: PkgData): Promise<PkgInfo> {
+export async function getPkgInfo(pkg: PkgData): Promise<PkgInfo> {
   let manifest
   try {
     manifest = await readPkg(path.join(pkg.path, 'package.json'))
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     // This will probably never happen
     manifest = {
       description: '[Could not find additional info about this dependency]',
@@ -38,9 +39,12 @@ export async function getPkgInfo (pkg: PkgData): Promise<PkgInfo> {
     author: manifest.author,
 
     homepage: manifest.homepage,
-    repository: (manifest.repository && (
-      typeof manifest.repository === 'string' ? manifest.repository : manifest.repository.url
-    )) ?? undefined,
+    repository:
+      (manifest.repository &&
+        (typeof manifest.repository === 'string'
+          ? manifest.repository
+          : manifest.repository.url)) ??
+      undefined,
     path: pkg.path,
   }
 }

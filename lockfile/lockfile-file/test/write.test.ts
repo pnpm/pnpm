@@ -62,11 +62,17 @@ test('writeLockfiles()', async () => {
     wantedLockfile,
     wantedLockfileDir: projectPath,
   })
-  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
-  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+  expect(
+    await readCurrentLockfile(projectPath, { ignoreIncompatible: false })
+  ).toEqual(wantedLockfile)
+  expect(
+    await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+  ).toEqual(wantedLockfile)
 
   // Verifying the formatting of the lockfile
-  expect(fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')).toMatchSnapshot()
+  expect(
+    fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')
+  ).toMatchSnapshot()
 })
 
 test('writeLockfiles() when no specifiers but dependencies present', async () => {
@@ -88,8 +94,12 @@ test('writeLockfiles() when no specifiers but dependencies present', async () =>
     wantedLockfile,
     wantedLockfileDir: projectPath,
   })
-  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
-  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+  expect(
+    await readCurrentLockfile(projectPath, { ignoreIncompatible: false })
+  ).toEqual(wantedLockfile)
+  expect(
+    await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+  ).toEqual(wantedLockfile)
 })
 
 test('write does not use yaml anchors/aliases', async () => {
@@ -147,7 +157,10 @@ test('write does not use yaml anchors/aliases', async () => {
     wantedLockfileDir: projectPath,
   })
 
-  const lockfileContent = fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')
+  const lockfileContent = fs.readFileSync(
+    path.join(projectPath, WANTED_LOCKFILE),
+    'utf8'
+  )
   expect(lockfileContent).not.toMatch('&')
   expect(lockfileContent).not.toMatch('*')
 })
@@ -229,5 +242,7 @@ test('writeLockfiles() when useGitBranchLockfile', async () => {
     useGitBranchLockfile: true,
   })
   expect(fs.existsSync(path.join(projectPath, WANTED_LOCKFILE))).toBeFalsy()
-  expect(fs.existsSync(path.join(projectPath, `pnpm-lock.${branchName}.yaml`))).toBeTruthy()
+  expect(
+    fs.existsSync(path.join(projectPath, `pnpm-lock.${branchName}.yaml`))
+  ).toBeTruthy()
 })

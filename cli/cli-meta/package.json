@@ -28,7 +28,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/cli-meta#readme",
   "devDependencies": {
-    "@pnpm/cli-meta": "workspace:*"
+    "@pnpm/cli-meta": "workspace:*",
+    "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/types": "workspace:*",

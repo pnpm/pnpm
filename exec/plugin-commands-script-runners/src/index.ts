@@ -1,3 +1,4 @@
+import '@total-typescript/ts-reset'
 import * as create from './create'
 import * as dlx from './dlx'
 import * as exec from './exec'

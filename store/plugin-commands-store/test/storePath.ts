@@ -9,21 +9,25 @@ const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 test('CLI prints the current store path', async () => {
   prepare()
 
-  const candidateStorePath = await store.handler({
-    cacheDir: path.resolve('cache'),
-    dir: process.cwd(),
-    pnpmHomeDir: '',
-    rawConfig: {
-      registry: REGISTRY,
+  const candidateStorePath = await store.handler(
+    {
+      cacheDir: path.resolve('cache'),
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: REGISTRY,
+      },
+      registries: { default: REGISTRY },
+      storeDir: '/home/example/.pnpm-store',
+      userConfig: {},
     },
-    registries: { default: REGISTRY },
-    storeDir: '/home/example/.pnpm-store',
-    userConfig: {},
-  }, ['path'])
+    ['path']
+  )
 
-  const expectedStorePath = os.platform() === 'win32'
-    ? '\\home\\example\\.pnpm-store\\v3'
-    : '/home/example/.pnpm-store/v3'
+  const expectedStorePath =
+    os.platform() === 'win32'
+      ? '\\home\\example\\.pnpm-store\\v3'
+      : '/home/example/.pnpm-store/v3'
 
   expect(candidateStorePath).toBe(expectedStorePath)
 })

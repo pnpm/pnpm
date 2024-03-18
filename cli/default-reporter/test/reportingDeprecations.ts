@@ -1,8 +1,5 @@
 import { type Config } from '@pnpm/config'
-import {
-  deprecationLogger,
-  stageLogger,
-} from '@pnpm/core-loggers'
+import { deprecationLogger, stageLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import { map, take } from 'rxjs/operators'
@@ -46,8 +43,10 @@ test('prints summary of deprecated subdependencies', (done) => {
   output$.pipe(take(1), map(normalizeNewline)).subscribe({
     complete: () => done(),
     error: done,
-    next: output => {
-      expect(output).toBe(`${formatWarn(`${chalk.red('2 deprecated subdependencies found:')} bar@2.0.0, qar@3.0.0`)}`)
+    next: (output) => {
+      expect(output).toBe(
+        `${formatWarn(`${chalk.red('2 deprecated subdependencies found:')} bar@2.0.0, qar@3.0.0`)}`
+      )
     },
   })
 })

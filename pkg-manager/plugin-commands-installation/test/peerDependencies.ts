@@ -40,15 +40,20 @@ const DEFAULT_OPTIONS = {
 test('root dependency that has a peer is correctly updated after its version changes', async () => {
   const project = prepare({})
 
-  await add.handler({
-    ...DEFAULT_OPTIONS,
-    dir: process.cwd(),
-    linkWorkspacePackages: true,
-  }, ['ajv@4.10.4', 'ajv-keywords@1.5.0'])
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      dir: process.cwd(),
+      linkWorkspacePackages: true,
+    },
+    ['ajv@4.10.4', 'ajv-keywords@1.5.0']
+  )
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.dependencies['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.4)')
+    expect(lockfile.dependencies['ajv-keywords'].version).toBe(
+      '1.5.0(ajv@4.10.4)'
+    )
   }
 
   await project.writePackageJson({
@@ -69,6 +74,8 @@ test('root dependency that has a peer is correctly updated after its version cha
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.dependencies['ajv-keywords'].version).toBe('1.5.1(ajv@4.10.4)')
+    expect(lockfile.dependencies['ajv-keywords'].version).toBe(
+      '1.5.1(ajv@4.10.4)'
+    )
   }
 })

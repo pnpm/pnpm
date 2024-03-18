@@ -11,7 +11,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  (logger.warn as jest.Mock).mockRestore()
+  ;(logger.warn as jest.Mock).mockRestore()
 })
 
 // This is supported for compatibility with Yarn's implementation
@@ -30,13 +30,18 @@ test('arrayOfWorkspacePackagesToMap() treats private packages with no version as
 })
 
 test('findWorkspacePackagesNoCheck() skips engine checks', async () => {
-  const pkgs = await findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-engine'))
+  const pkgs = await findWorkspacePackagesNoCheck(
+    path.join(__dirname, '__fixtures__/bad-engine')
+  )
   expect(pkgs.length).toBe(1)
   expect(pkgs[0].manifest.name).toBe('pkg')
 })
 
 test('findWorkspacePackages() output warnings for non-root workspace project', async () => {
-  const fixturePath = path.join(__dirname, '__fixtures__/warning-for-non-root-project')
+  const fixturePath = path.join(
+    __dirname,
+    '__fixtures__/warning-for-non-root-project'
+  )
 
   const pkgs = await findWorkspacePackages(fixturePath, {
     sharedWorkspaceLockfile: true,
@@ -45,7 +50,16 @@ test('findWorkspacePackages() output warnings for non-root workspace project', a
   expect(logger.warn).toBeCalledTimes(3)
   const fooPath = path.join(fixturePath, 'packages/foo')
   const barPath = path.join(fixturePath, 'packages/bar')
-  expect(logger.warn).toHaveBeenNthCalledWith(1, { prefix: barPath, message: `The field "pnpm" was found in ${barPath}/package.json. This will not take effect. You should configure "pnpm" at the root of the workspace instead.` })
-  expect(logger.warn).toHaveBeenNthCalledWith(2, { prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. You should configure "resolutions" at the root of the workspace instead.` })
-  expect(logger.warn).toHaveBeenNthCalledWith(3, { prefix: fooPath, message: `The field "pnpm" was found in ${fooPath}/package.json. This will not take effect. You should configure "pnpm" at the root of the workspace instead.` })
+  expect(logger.warn).toHaveBeenNthCalledWith(1, {
+    prefix: barPath,
+    message: `The field "pnpm" was found in ${barPath}/package.json. This will not take effect. You should configure "pnpm" at the root of the workspace instead.`,
+  })
+  expect(logger.warn).toHaveBeenNthCalledWith(2, {
+    prefix: barPath,
+    message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. You should configure "resolutions" at the root of the workspace instead.`,
+  })
+  expect(logger.warn).toHaveBeenNthCalledWith(3, {
+    prefix: fooPath,
+    message: `The field "pnpm" was found in ${fooPath}/package.json. This will not take effect. You should configure "pnpm" at the root of the workspace instead.`,
+  })
 })

@@ -1,4 +1,9 @@
-export interface Completion { name: string, description?: string }
+import '@total-typescript/ts-reset'
+
+export interface Completion {
+  name: string
+  description?: string
+}
 
 export type CompletionFunc = (
   options: Record<string, unknown>,

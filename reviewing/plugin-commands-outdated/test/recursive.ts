@@ -38,7 +38,10 @@ test('pnpm recursive outdated', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -160,34 +163,40 @@ Dependent: project-2
     })
 
     expect(exitCode).toBe(1)
-    expect(stripAnsi(output as unknown as string)).toBe(JSON.stringify({
-      'is-negative': {
-        current: '1.0.0',
-        latest: '2.1.0',
-        wanted: '1.0.0',
-        isDeprecated: false,
-        dependencyType: 'devDependencies',
-        dependentPackages: [
-          {
-            name: 'project-3',
-            location: path.resolve('project-3'),
+    expect(stripAnsi(output as unknown as string)).toBe(
+      JSON.stringify(
+        {
+          'is-negative': {
+            current: '1.0.0',
+            latest: '2.1.0',
+            wanted: '1.0.0',
+            isDeprecated: false,
+            dependencyType: 'devDependencies',
+            dependentPackages: [
+              {
+                name: 'project-3',
+                location: path.resolve('project-3'),
+              },
+            ],
           },
-        ],
-      },
-      'is-positive': {
-        current: '2.0.0',
-        latest: '3.1.0',
-        wanted: '2.0.0',
-        isDeprecated: false,
-        dependencyType: 'dependencies',
-        dependentPackages: [
-          {
-            name: 'project-2',
-            location: path.resolve('project-2'),
+          'is-positive': {
+            current: '2.0.0',
+            latest: '3.1.0',
+            wanted: '2.0.0',
+            isDeprecated: false,
+            dependencyType: 'dependencies',
+            dependentPackages: [
+              {
+                name: 'project-2',
+                location: path.resolve('project-2'),
+              },
+            ],
           },
-        ],
-      },
-    }, null, 2))
+        },
+        null,
+        2
+      )
+    )
   }
 
   {
@@ -226,13 +235,16 @@ https://github.com/kevva/is-positive#readme
   }
 
   {
-    const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
-      allProjects,
-      dir: process.cwd(),
-      recursive: true,
-      selectedProjectsGraph,
-    }, ['is-positive'])
+    const { output, exitCode } = await outdated.handler(
+      {
+        ...DEFAULT_OPTS,
+        allProjects,
+        dir: process.cwd(),
+        recursive: true,
+        selectedProjectsGraph,
+      },
+      ['is-positive']
+    )
 
     expect(exitCode).toBe(1)
     expect(stripAnsi(output as unknown as string)).toBe(`\
@@ -263,7 +275,10 @@ test('pnpm recursive outdated: format json when there are no outdated dependenci
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
   const { output, exitCode } = await outdated.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -308,7 +323,10 @@ test('pnpm recursive outdated in workspace with shared lockfile', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -362,13 +380,16 @@ test('pnpm recursive outdated in workspace with shared lockfile', async () => {
   }
 
   {
-    const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
-      allProjects,
-      dir: process.cwd(),
-      recursive: true,
-      selectedProjectsGraph,
-    }, ['is-positive'])
+    const { output, exitCode } = await outdated.handler(
+      {
+        ...DEFAULT_OPTS,
+        allProjects,
+        dir: process.cwd(),
+        recursive: true,
+        selectedProjectsGraph,
+      },
+      ['is-positive']
+    )
 
     expect(exitCode).toBe(1)
     expect(stripAnsi(output as unknown as string)).toBe(`\

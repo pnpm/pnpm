@@ -13,20 +13,25 @@ test('pnpm store add express@4.16.3', async () => {
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
-  await store.handler({
-    cacheDir,
-    dir: process.cwd(),
-    pnpmHomeDir: '',
-    rawConfig: {
-      registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+  await store.handler(
+    {
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+      },
+      registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
+      storeDir,
+      userConfig: {},
     },
-    registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
-    storeDir,
-    userConfig: {},
-  }, ['add', 'express@4.16.3'])
+    ['add', 'express@4.16.3']
+  )
 
   const { cafsHas } = assertStore(path.join(storeDir, STORE_VERSION))
-  await cafsHas('sha512-CDaOBMB9knI6vx9SpIxEMOJ6VBbC2U/tYNILs0qv1YOZc15K9U2EcF06v10F0JX6IYcWnKYZJwIDJspEHLvUaQ==')
+  await cafsHas(
+    'sha512-CDaOBMB9knI6vx9SpIxEMOJ6VBbC2U/tYNILs0qv1YOZc15K9U2EcF06v10F0JX6IYcWnKYZJwIDJspEHLvUaQ=='
+  )
 })
 
 test('pnpm store add scoped package that uses not the standard registry', async () => {
@@ -35,20 +40,23 @@ test('pnpm store add scoped package that uses not the standard registry', async 
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
-  await store.handler({
-    cacheDir,
-    dir: process.cwd(),
-    pnpmHomeDir: '',
-    rawConfig: {
-      registry: 'https://registry.npmjs.org/',
+  await store.handler(
+    {
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: 'https://registry.npmjs.org/',
+      },
+      registries: {
+        '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+        default: 'https://registry.npmjs.org/',
+      },
+      storeDir,
+      userConfig: {},
     },
-    registries: {
-      '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
-      default: 'https://registry.npmjs.org/',
-    },
-    storeDir,
-    userConfig: {},
-  }, ['add', '@foo/no-deps@1.0.0'])
+    ['add', '@foo/no-deps@1.0.0']
+  )
 
   const { cafsHas } = assertStore(path.join(storeDir, STORE_VERSION))
   await cafsHas('@foo/no-deps', '1.0.0')
@@ -63,20 +71,23 @@ test('should fail if some packages can not be added', async () => {
 
   let thrown = false
   try {
-    await store.handler({
-      cacheDir,
-      dir: process.cwd(),
-      pnpmHomeDir: '',
-      rawConfig: {
-        registry: 'https://registry.npmjs.org/',
+    await store.handler(
+      {
+        cacheDir,
+        dir: process.cwd(),
+        pnpmHomeDir: '',
+        rawConfig: {
+          registry: 'https://registry.npmjs.org/',
+        },
+        registries: {
+          '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+          default: 'https://registry.npmjs.org/',
+        },
+        storeDir,
+        userConfig: {},
       },
-      registries: {
-        '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
-        default: 'https://registry.npmjs.org/',
-      },
-      storeDir,
-      userConfig: {},
-    }, ['add', '@pnpm/this-does-not-exist'])
+      ['add', '@pnpm/this-does-not-exist']
+    )
   } catch (e: any) { // eslint-disable-line
     thrown = true
     expect(e.code).toBe('ERR_PNPM_STORE_ADD_FAILURE')

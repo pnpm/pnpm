@@ -1,4 +1,8 @@
-import { type Dependencies, type DependencyManifest, type DependenciesMeta } from '@pnpm/types'
+import type {
+  Dependencies,
+  DependencyManifest,
+  DependenciesMeta,
+} from '@pnpm/types'
 import pickBy from 'ramda/src/pickBy'
 
 export interface WantedDependency {
@@ -6,10 +10,19 @@ export interface WantedDependency {
   pref: string // package reference
   dev: boolean
   optional: boolean
-  injected?: boolean
+  injected?: boolean | undefined
 }
 
-export function getNonDevWantedDependencies (pkg: Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>) {
+export function getNonDevWantedDependencies(
+  pkg: Pick<
+    DependencyManifest,
+    | 'bundleDependencies'
+    | 'bundledDependencies'
+    | 'optionalDependencies'
+    | 'dependencies'
+    | 'dependenciesMeta'
+  >
+) {
   let bd = pkg.bundledDependencies ?? pkg.bundleDependencies
   if (bd === true) {
     bd = pkg.dependencies != null ? Object.keys(pkg.dependencies) : []
@@ -26,7 +39,7 @@ export function getNonDevWantedDependencies (pkg: Pick<DependencyManifest, 'bund
   )
 }
 
-function getWantedDependenciesFromGivenSet (
+function getWantedDependenciesFromGivenSet(
   deps: Dependencies,
   opts: {
     devDependencies: Dependencies
@@ -44,6 +57,9 @@ function getWantedDependenciesFromGivenSet (
   }))
 }
 
-function getNotBundledDeps (bundledDeps: Set<string>, deps: Dependencies): Record<string, string> {
+function getNotBundledDeps(
+  bundledDeps: Set<string>,
+  deps: Dependencies
+): Record<string, string> {
   return pickBy((_, depName) => !bundledDeps.has(depName), deps)
 }
