@@ -127,7 +127,6 @@ function copyPackageSnapshots (
   const ctx = {
     copiedSnapshots,
     nonOptional: new Set<string>(),
-    notProdOnly: new Set<string>(),
     originalPackages,
     walked: new Set<string>(),
     warn: opts.warn,
@@ -159,7 +158,6 @@ function copyDependencySubGraph (
   ctx: {
     copiedSnapshots: PackageSnapshots
     nonOptional: Set<string>
-    notProdOnly: Set<string>
     originalPackages: PackageSnapshots
     walked: Set<string>
     warn: (msg: string) => void
@@ -189,11 +187,6 @@ function copyDependencySubGraph (
     } else {
       ctx.nonOptional.add(depPath)
       delete depLockfile.optional
-    }
-    if (opts.dev) {
-      ctx.notProdOnly.add(depPath)
-    } else if (depLockfile.dev === true) { // keeping if dev is explicitly false
-    } else if (depLockfile.dev === undefined && !ctx.notProdOnly.has(depPath)) {
     }
     const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {})
     copyDependencySubGraph(ctx, newDependencies, opts)
