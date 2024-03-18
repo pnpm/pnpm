@@ -55,11 +55,17 @@ export async function fetchNode(
   })
   const cafs = createCafsStore(opts.cafsDir)
   const fetchTarball = pickFetcher(fetchers, { tarball })
-  const { filesIndex } = await fetchTarball(cafs, {}, {
-    filesIndexFile: path.join(opts.cafsDir, encodeURIComponent(tarball)), // TODO: change the name or don't save an index file for node.js tarballs
-    lockfileDir: process.cwd(),
-    pkg: {},
-  })
+  // @ts-ignore
+  const { filesIndex } = await fetchTarball(
+    cafs,
+    // @ts-ignore
+    null,
+    {
+      filesIndexFile: path.join(opts.cafsDir, encodeURIComponent(tarball)), // TODO: change the name or don't save an index file for node.js tarballs
+      lockfileDir: process.cwd(),
+      pkg: {},
+    }
+  )
   cafs.importPackage(targetDir, {
     filesResponse: {
       filesIndex: filesIndex as Record<string, string>,

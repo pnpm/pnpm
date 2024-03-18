@@ -8,6 +8,7 @@ import type {
 } from '@pnpm/fetching-types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import type {
+  DirectoryResolution,
   PreferredVersions,
   ResolveResult,
   WantedDependency,
@@ -397,7 +398,13 @@ function resolveFromLocalPackage(
     projectDir: string
     lockfileDir?: string
   }
-) {
+): {
+    id: string;
+    manifest: DependencyManifest;
+    normalizedPref: string | undefined;
+    resolution: DirectoryResolution;
+    resolvedVia: string;
+  } {
   let id!: string
   let directory!: string
   const localPackageDir = resolveLocalPackageDir(localPackage)

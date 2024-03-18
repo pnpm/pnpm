@@ -656,7 +656,7 @@ export async function getConfig(opts: {
   )
 
   if (!pnpmConfig.ignorePnpmfile) {
-    pnpmConfig.hooks = requireHooks(
+    pnpmConfig.hooks = await requireHooks(
       pnpmConfig.lockfileDir ?? pnpmConfig.dir,
       pnpmConfig
     )

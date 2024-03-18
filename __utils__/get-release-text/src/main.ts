@@ -30,12 +30,12 @@ function getChangelogEntry(changelog: string, version: string) {
 
   let highestLevel: number = BumpLevels.dep
 
-  const nodes = ast.children as any[] // eslint-disable-line @typescript-eslint/no-explicit-any
+  const nodes = ast.children
   let headingStartInfo:
     | {
-        index: number // eslint-disable-line @stylistic/ts/indent
-        depth: number // eslint-disable-line @stylistic/ts/indent
-      } // eslint-disable-line @stylistic/ts/indent
+      index: number
+      depth: number
+    }
     | undefined
   let endIndex: number | undefined
 

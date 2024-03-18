@@ -1,5 +1,5 @@
 import * as utils from '@pnpm/read-project-manifest'
-import { type SupportedArchitectures, type ProjectManifest } from '@pnpm/types'
+import type { SupportedArchitectures, ProjectManifest } from '@pnpm/types'
 import { packageIsInstallable } from './packageIsInstallable'
 
 export interface ReadProjectManifestOpts {
@@ -27,7 +27,7 @@ export async function readProjectManifest(
 ): Promise<ReadProjectManifestResult> {
   const { fileName, manifest, writeProjectManifest } =
     await utils.readProjectManifest(projectDir)
-  packageIsInstallable(projectDir, manifest as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+  packageIsInstallable(projectDir, manifest, opts)
   return { fileName, manifest, writeProjectManifest }
 }
 
@@ -36,7 +36,7 @@ export async function readProjectManifestOnly(
   opts: ReadProjectManifestOpts = {}
 ): Promise<ProjectManifest> {
   const manifest = await utils.readProjectManifestOnly(projectDir)
-  packageIsInstallable(projectDir, manifest as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+  packageIsInstallable(projectDir, manifest, opts)
   return manifest
 }
 
@@ -52,6 +52,6 @@ export async function tryReadProjectManifest(
   const { fileName, manifest, writeProjectManifest } =
     await utils.tryReadProjectManifest(projectDir)
   if (manifest == null) return { fileName, manifest, writeProjectManifest }
-  packageIsInstallable(projectDir, manifest as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+  packageIsInstallable(projectDir, manifest, opts)
   return { fileName, manifest, writeProjectManifest }
 }

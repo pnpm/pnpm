@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 
 interface ActionFailure {
   status: 'failure'
-  duration?: number
+  duration?: number | undefined
   prefix: string
   message: string
   error: Error
@@ -10,7 +10,7 @@ interface ActionFailure {
 
 interface ActionPassed {
   status: 'passed'
-  duration?: number
+  duration?: number | undefined
 }
 
 interface ActionQueued {
@@ -19,7 +19,7 @@ interface ActionQueued {
 
 interface ActionRunning {
   status: 'running'
-  duration?: number
+  duration?: number | undefined
 }
 
 interface ActionSkipped {

@@ -6,7 +6,7 @@ import type {
 import type { Registries } from '@pnpm/types'
 import type { SearchFunction } from './types'
 import type { PackageNode } from './PackageNode'
-import { getPkgInfo } from './getPkgInfo'
+import { PackageInfo, getPkgInfo } from './getPkgInfo'
 import { getTreeNodeChildId } from './getTreeNodeChildId'
 import { DependenciesCache } from './DependenciesCache'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId'
@@ -144,7 +144,7 @@ function getTreeHelper(
     })
     let circular: boolean
     const matchedSearched = opts.search?.(packageInfo)
-    let newEntry: PackageNode | null = null
+    let newEntry: PackageNode | PackageInfo | null = null
     const nodeId = getTreeNodeChildId({
       parentId,
       dep: { alias, ref },

@@ -6,7 +6,7 @@ export async function getConfig(
   cliOptions: CliOptions,
   opts: {
     excludeReporter: boolean
-    globalDirShouldAllowWrite?: boolean
+    globalDirShouldAllowWrite?: boolean | undefined
     rcOptionsTypes: Record<string, unknown>
     workspaceDir: string | undefined
     checkUnknownSetting?: boolean

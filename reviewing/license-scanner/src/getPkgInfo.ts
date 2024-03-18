@@ -281,7 +281,7 @@ export async function readPackageIndexFile(
       packageResolution.integrity as string,
       'index'
     )
-  } else if (!packageResolution.type && packageResolution.tarball) {
+  } else if (!packageResolution.type && 'tarball' in packageResolution && packageResolution.tarball) {
     const packageDirInStore = depPathToFilename(id)
     pkgIndexFilePath = path.join(
       opts.storeDir,

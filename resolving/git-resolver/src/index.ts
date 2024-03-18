@@ -1,12 +1,12 @@
 import '@total-typescript/ts-reset'
-import type { ResolveResult } from '@pnpm/resolver-base'
+import type { Resolution, ResolveResult } from '@pnpm/resolver-base'
 import git from 'graceful-git'
 import semver from 'semver'
 import { parsePref, type HostedPackageSpec } from './parsePref'
 
 export type { HostedPackageSpec }
 
-export function createGitResolver(opts: unknown) {
+export function createGitResolver(_opts: unknown) {
   return async function resolveGit(wantedDependency: {
     pref: string
   }): Promise<ResolveResult | null> {
@@ -23,7 +23,7 @@ export function createGitResolver(opts: unknown) {
       pref,
       parsedSpec.gitRange
     )
-    let resolution
+    let resolution: Resolution | null | undefined
 
     if (parsedSpec.hosted != null && !isSsh(parsedSpec.fetchSpec)) {
       // don't use tarball for ssh url, they are likely private repo
@@ -42,7 +42,7 @@ export function createGitResolver(opts: unknown) {
         commit,
         repo: parsedSpec.fetchSpec,
         type: 'git',
-      } as { type: string } & object
+      }
     }
 
     return {

@@ -1,6 +1,5 @@
 import '@total-typescript/ts-reset'
 import { PnpmError } from '@pnpm/error'
-import type { FetchFunction, FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import type {
   FetchFromRegistry,
@@ -11,6 +10,7 @@ import { TarballIntegrityError } from '@pnpm/worker'
 import { createDownloader, type DownloadFunction } from './remoteTarballFetcher'
 import { createLocalTarballFetcher } from './localTarballFetcher'
 import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher'
+import { FetchFunction, FetchOptions } from '../../../resolving/resolver-base/src'
 
 export { BadTarballError } from './errorTypes'
 

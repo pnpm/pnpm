@@ -369,8 +369,8 @@ export async function recursive(
       limitInstallation(async () => {
         const hooks = opts.ignorePnpmfile
           ? {}
-          : (() => {
-            const pnpmfileHooks = requireHooks(rootDir, opts)
+          : (async () => {
+            const pnpmfileHooks = await requireHooks(rootDir, opts)
             return {
               ...opts.hooks,
               ...pnpmfileHooks,

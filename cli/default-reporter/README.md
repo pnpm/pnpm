@@ -4,7 +4,7 @@
 
 ## Installation
 
-```
+```shell
 pnpm add @pnpm/default-reporter
 ```
 

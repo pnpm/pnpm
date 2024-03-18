@@ -56,14 +56,14 @@ export async function requireHooks(
   const globalPnpmfile =
     typeof opts.globalPnpmfile === 'string' &&
     await requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
-
+  // @ts-ignore
   let globalHooks: Hooks = globalPnpmfile?.hooks
 
   const pnpmFile =
     (opts.pnpmfile &&
       await requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix)) ||
     await requirePnpmfile(path.join(prefix, '.pnpmfile.cjs'), prefix)
-
+  // @ts-ignore
   let hooks: Hooks = pnpmFile?.hooks
 
   if (!globalHooks && !hooks)
@@ -79,6 +79,7 @@ export async function requireHooks(
     if (globalHooks[hookName]) {
       const globalHook = globalHooks[hookName]
       const context = createReadPackageHookContext(
+        // @ts-ignore
         globalPnpmfile?.filename,
         prefix,
         hookName
@@ -91,6 +92,7 @@ export async function requireHooks(
     if (hooks[hookName]) {
       const hook = hooks[hookName]
       const context = createReadPackageHookContext(
+        // @ts-ignore
         pnpmFile?.filename,
         prefix,
         hookName

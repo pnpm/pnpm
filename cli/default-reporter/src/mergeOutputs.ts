@@ -10,7 +10,17 @@ export function mergeOutputs(
   let started = false
   let previousOutput: string | null = null
   return Rx.merge(...outputs).pipe(
-    map((log: Rx.Observable<{ msg: string }>) => {
+    map((log: Rx.Observable<{ msg: string, fixed?: boolean | undefined }>): Rx.Observable<{
+      blockNo: number;
+      fixed: boolean;
+      msg: string;
+      prevFixedBlockNo?: undefined;
+    } | {
+      blockNo: number;
+      fixed: boolean;
+      msg: string;
+      prevFixedBlockNo: number;
+    }> => {
       let currentBlockNo = -1
       let currentFixedBlockNo = -1
       return log.pipe(

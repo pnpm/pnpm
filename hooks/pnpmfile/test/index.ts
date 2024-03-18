@@ -37,10 +37,10 @@ test('readPackage hook run fails when returned dependencies is not an object ', 
   )
 })
 
-test('filterLog hook combines with the global hook', () => {
+test('filterLog hook combines with the global hook', async () => {
   const globalPnpmfile = path.join(__dirname, 'pnpmfiles/globalFilterLog.js')
   const pnpmfile = path.join(__dirname, 'pnpmfiles/filterLog.js')
-  const hooks = requireHooks(__dirname, { globalPnpmfile, pnpmfile })
+  const hooks = await requireHooks(__dirname, { globalPnpmfile, pnpmfile })
 
   expect(hooks.filterLog).toBeDefined()
   expect(hooks.filterLog?.length).toBe(2)

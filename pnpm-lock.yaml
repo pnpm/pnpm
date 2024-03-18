@@ -1699,9 +1699,6 @@ importers:
         specifier: ^7.1.5
         version: 7.1.5
     devDependencies:
-      '@pnpm/cafs-types':
-        specifier: workspace:*
-        version: link:../../store/cafs-types
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: 'link:'
@@ -5515,6 +5512,9 @@ importers:
 
   resolving/resolver-base:
     dependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../../store/cafs-types
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base

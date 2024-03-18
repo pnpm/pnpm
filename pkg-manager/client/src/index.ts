@@ -12,8 +12,6 @@ import {
 } from '@pnpm/fetching-types'
 import type {
   CustomFetchers,
-  GitFetcher,
-  DirectoryFetcher,
 } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'
@@ -23,6 +21,7 @@ import {
 } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import mapValues from 'ramda/src/map'
+import { GitFetcher, DirectoryFetcher } from '@pnpm/resolver-base'
 
 export type { ResolveFunction }
 

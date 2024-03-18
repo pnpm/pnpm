@@ -28,7 +28,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/resolver-base#readme",
   "dependencies": {
     "@pnpm/types": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*"
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/cafs-types": "workspace:*"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

@@ -3,9 +3,9 @@ import {
   createPackageImporterAsync,
   type CafsLocker,
 } from '@pnpm/create-cafs-store'
-import type { Fetchers } from '@pnpm/fetcher-base'
+
 import { createPackageRequester } from '@pnpm/package-requester'
-import type { ResolveFunction } from '@pnpm/resolver-base'
+import type { Fetchers, ResolveFunction } from '@pnpm/resolver-base'
 import type {
   ImportIndexedPackageAsync,
   StoreController,

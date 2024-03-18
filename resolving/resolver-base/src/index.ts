@@ -1,6 +1,74 @@
 import '@total-typescript/ts-reset'
 import type { DependencyManifest } from '@pnpm/types'
-import type { Fetchers } from '@pnpm/fetcher-base'
+import type { Cafs } from '@pnpm/cafs-types'
+
+export interface PkgNameVersion {
+  name?: string
+  version?: string
+}
+
+export interface FetchOptions {
+  filesIndexFile: string
+  lockfileDir: string
+  onStart?: ((totalSize: number | null, attempt: number) => void) | undefined
+  onProgress?: ((downloaded: number) => void | undefined)
+  readManifest?: boolean | undefined
+  pkg: PkgNameVersion
+}
+
+export interface FetchResult {
+  local?: boolean | undefined
+  manifest?: DependencyManifest | undefined
+  filesIndex: Record<string, string>
+}
+
+export interface DirectoryFetcherOptions {
+  lockfileDir: string | undefined
+  readManifest?: boolean | undefined
+}
+
+export type FetchFunction<
+  FetcherResolution = Resolution,
+  Options = FetchOptions,
+  Result = FetchResult,
+> = (
+  cafs: Cafs,
+  resolution: FetcherResolution,
+  opts: Options
+) => Promise<Result>
+
+export interface DirectoryFetcherResult {
+  local: true
+  filesIndex: Record<string, string>
+  packageImportMethod: 'hardlink'
+  manifest?: DependencyManifest | undefined
+}
+
+export type DirectoryFetcher = FetchFunction<
+  DirectoryResolution,
+  DirectoryFetcherOptions,
+  DirectoryFetcherResult
+>
+
+export interface GitFetcherOptions {
+  readManifest?: boolean | undefined
+  filesIndexFile: string
+  pkg?: PkgNameVersion | undefined
+}
+
+export type GitFetcher = FetchFunction<
+  GitResolution,
+  GitFetcherOptions,
+  { filesIndex: Record<string, string>; manifest?: DependencyManifest | undefined }
+>
+
+export interface Fetchers {
+  localTarball: FetchFunction
+  remoteTarball: FetchFunction
+  gitHostedTarball: FetchFunction
+  directory: DirectoryFetcher
+  git: GitFetcher
+}
 /**
  * tarball hosted remotely
  */
@@ -32,10 +100,10 @@ export type Resolution =
 
 export interface ResolveResult {
   id: string
-  latest?: string
-  publishedAt?: string
-  manifest?: DependencyManifest
-  normalizedPref?: string // is null for npm-hosted dependencies
+  latest?: string | undefined
+  publishedAt?: string | undefined
+  manifest?: DependencyManifest | undefined
+  normalizedPref?: string | undefined // is null for npm-hosted dependencies
   resolution: Resolution
   resolvedVia:
     | 'npm-registry'

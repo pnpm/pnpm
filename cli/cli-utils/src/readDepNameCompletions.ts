@@ -1,7 +1,7 @@
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 
-export async function readDepNameCompletions(dir?: string): Promise<
+export async function readDepNameCompletions(dir?: string | undefined): Promise<
   {
     name: string
   }[]

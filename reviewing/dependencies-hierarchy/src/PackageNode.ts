@@ -1,15 +1,15 @@
 export interface PackageNode {
   alias: string
-  circular?: true
-  dependencies?: PackageNode[]
+  circular?: boolean | undefined
+  dependencies?: PackageNode[] | undefined
   dev?: boolean
   isPeer: boolean
   isSkipped: boolean
   isMissing: boolean
   name: string
-  optional?: true
+  optional?: boolean | undefined
   path: string
-  resolved?: string
-  searched?: true
+  resolved?: string | undefined
+  searched?: boolean | undefined
   version: string
 }

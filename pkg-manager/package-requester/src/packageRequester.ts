@@ -10,19 +10,18 @@ import {
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { PnpmError } from '@pnpm/error'
-import type {
-  DirectoryFetcherResult,
-  Fetchers,
-  FetchOptions,
-  FetchResult,
-} from '@pnpm/fetcher-base'
+
 import type { Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import type {
+  DirectoryFetcherResult,
   DirectoryResolution,
+  FetchOptions,
+  FetchResult,
+  Fetchers,
   Resolution,
   ResolveFunction,
   ResolveResult,
@@ -564,19 +563,19 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           : 1) * 1000
 
       const fetchedPackage = await ctx.requestsQueue.add(
-        async () =>
-          ctx.fetch(opts.pkg.id, opts.pkg.resolution, {
+        async () => {
+          return ctx.fetch(opts.pkg.id, opts.pkg.resolution, {
             filesIndexFile,
             lockfileDir: opts.lockfileDir,
             readManifest: opts.fetchRawManifest,
-            onProgress: (downloaded) => {
+            onProgress: (downloaded: number): void => {
               fetchingProgressLogger.debug({
                 downloaded,
                 packageId: opts.pkg.id,
                 status: 'in_progress',
               })
             },
-            onStart: (size, attempt) => {
+            onStart: (size: number | null, attempt: number): void => {
               fetchingProgressLogger.debug({
                 attempt,
                 packageId: opts.pkg.id,
@@ -588,7 +587,8 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               name: opts.pkg.name,
               version: opts.pkg.version,
             },
-          }),
+          });
+        },
         { priority }
       )
 

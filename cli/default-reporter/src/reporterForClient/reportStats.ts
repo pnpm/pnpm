@@ -72,14 +72,20 @@ function statsForCurrentPackage(
         ? 2
         : 1
     ),
-    reduce((acc, log) => {
+    reduce((acc: {
+      added: number;
+      removed: number;
+    }, log: { added?: number | undefined; removed?: number | undefined }): {
+      added: number;
+      removed: number;
+    } => {
       if (typeof log.added === 'number') {
         acc.added = log.added
       } else if (typeof log.removed === 'number') {
         acc.removed = log.removed
       }
       return acc
-    }, {}),
+    }, { added: 0, removed: 0 }),
     map((stats) => {
       if (!stats.removed && !stats.added) {
         if (opts.cmd === 'link') {

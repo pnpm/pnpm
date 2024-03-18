@@ -10,14 +10,14 @@ import type { SupportedArchitectures } from '@pnpm/types'
 export function packageIsInstallable(
   pkgPath: string,
   pkg: {
-    engines?: WantedEngine
-    cpu?: string[]
-    os?: string[]
-    libc?: string[]
+    engines?: WantedEngine | undefined
+    cpu?: string[] | undefined
+    os?: string[] | undefined
+    libc?: string[] | undefined
   },
   opts: {
-    engineStrict?: boolean
-    nodeVersion?: string
+    engineStrict?: boolean | undefined
+    nodeVersion?: string | undefined
     supportedArchitectures?: SupportedArchitectures
   }
 ) {

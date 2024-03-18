@@ -87,12 +87,12 @@ export function createServer(
                 filesPromises[body.msgId] = pkgResponse.fetching
               }
               res.end(JSON.stringify(pkgResponse.body))
-        } catch (err: any) { // eslint-disable-line
+            } catch (err: unknown) {
               res.end(
                 JSON.stringify({
                   error: {
-                    message: err.message,
-                    ...JSON.parse(JSON.stringify(err)),
+                    // @ts-ignore
+                    ...err,
                   },
                 })
               )
@@ -107,12 +107,12 @@ export function createServer(
               res.end(
                 JSON.stringify({ filesIndexFile: pkgResponse.filesIndexFile })
               )
-        } catch (err: any) { // eslint-disable-line
+            } catch (err: unknown) {
               res.end(
                 JSON.stringify({
                   error: {
-                    message: err.message,
-                    ...JSON.parse(JSON.stringify(err)),
+                    // @ts-ignore
+                    ...err,
                   },
                 })
               )
@@ -171,11 +171,10 @@ export function createServer(
             res.end(JSON.stringify(error))
           }
         }
-    } catch (e: any) { // eslint-disable-line
+      } catch (e: unknown) {
         res.statusCode = 503
-        const jsonErr = JSON.parse(JSON.stringify(e))
-        jsonErr.message = e.message
-        res.end(JSON.stringify(jsonErr))
+
+        res.end(JSON.stringify(e))
       }
     }
   )

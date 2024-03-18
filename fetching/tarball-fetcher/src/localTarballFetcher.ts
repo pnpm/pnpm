@@ -1,8 +1,9 @@
 import path from 'path'
-import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
+
 import type { Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { addFilesFromTarball } from '@pnpm/worker'
+import type { FetchFunction, FetchOptions } from '../../../resolving/resolver-base/src'
 
 const isAbsolutePath = /^[/]|^[A-Za-z]:/
 

@@ -1,12 +1,15 @@
 import '@total-typescript/ts-reset'
 import path from 'node:path'
-import type { GitFetcher } from '@pnpm/fetcher-base'
+
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { addFilesFromDir } from '@pnpm/worker'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'node:url'
+import { GitFetcher, GitFetcherOptions, GitResolution } from '../../../resolving/resolver-base/src'
+import { Cafs } from '../../../store/cafs-types/src'
+import { DependencyManifest } from '../../../packages/types/src'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[] | undefined
@@ -26,7 +29,10 @@ export function createGitFetcher(createOpts: CreateGitFetcherOptions): {
     unsafePerm: createOpts.unsafePerm,
   })
 
-  const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
+  const gitFetcher: GitFetcher = async (cafs: Cafs, resolution: GitResolution, opts: GitFetcherOptions): Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest;
+  }> => {
     const tempLocation = await cafs.tempDir()
     if (
       allowedHosts.size > 0 &&

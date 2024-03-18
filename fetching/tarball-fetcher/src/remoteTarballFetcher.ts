@@ -1,13 +1,13 @@
 import { type IncomingMessage } from 'http'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError } from '@pnpm/error'
-import { type FetchResult, type FetchOptions } from '@pnpm/fetcher-base'
 import { type Cafs } from '@pnpm/cafs-types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import { addFilesFromTarball } from '@pnpm/worker'
 import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
 import { BadTarballError } from './errorTypes'
+import { FetchOptions, FetchResult } from '../../../resolving/resolver-base/src'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 

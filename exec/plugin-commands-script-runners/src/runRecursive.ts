@@ -195,11 +195,13 @@ export async function runRecursive(params: string[], opts: RecursiveRunOpts): Pr
             result[prefix].status = 'passed'
             // @ts-ignore
             result[prefix].duration = getExecutionDuration(startTime)
-        } catch (err: any) { // eslint-disable-line
+          } catch (err: unknown) {
             result[prefix] = {
               status: 'failure',
               duration: getExecutionDuration(startTime),
+              // @ts-ignore
               error: err,
+              // @ts-ignore
               message: err.message,
               prefix,
             }
@@ -208,7 +210,9 @@ export async function runRecursive(params: string[], opts: RecursiveRunOpts): Pr
               return
             }
 
+            // @ts-ignore
             err.code = 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL'
+            // @ts-ignore
             err.prefix = prefix
 
             if (opts.reportSummary) {

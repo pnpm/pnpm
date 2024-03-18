@@ -12,12 +12,13 @@ import { formatWarn } from './reporterForClient/utils/formatWarn'
 import { reporterForServer } from './reporterForServer'
 import type{ FilterPkgsDiff } from './reporterForClient/reportSummary'
 import type{ PeerDependencyRules } from '@pnpm/types'
+import { StreamParser } from '@pnpm/logger/lib/streamParser'
 
 export { formatWarn }
 
 export function initDefaultReporter(opts: {
   useStderr?: boolean
-  streamParser: object
+  streamParser: StreamParser
   reportingOptions?: {
     appendOnly?: boolean
     logLevel?: LogLevel
@@ -100,7 +101,7 @@ export function initDefaultReporter(opts: {
 }
 
 export function toOutput$(opts: {
-  streamParser: object
+  streamParser: StreamParser
   reportingOptions?: {
     appendOnly?: boolean
     logLevel?: LogLevel

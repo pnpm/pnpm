@@ -81,11 +81,12 @@ export function prepare(
   fs.mkdirSync(dir, { recursive: true })
   switch (opts?.manifestFormat ?? 'JSON') {
     case 'JSON': {
+      // @ts-ignore
       writePkg.sync(dir, {
         name: 'project',
         version: '0.0.0',
         ...manifest,
-      } as any) // eslint-disable-line
+      })
       break
     }
     case 'JSON5': {
@@ -93,7 +94,7 @@ export function prepare(
         name: 'project',
         version: '0.0.0',
         ...manifest,
-      } as any) // eslint-disable-line
+      })
       break
     }
     case 'YAML': {
@@ -101,7 +102,7 @@ export function prepare(
         name: 'project',
         version: '0.0.0',
         ...manifest,
-      } as any) // eslint-disable-line
+      })
       break
     }
   }

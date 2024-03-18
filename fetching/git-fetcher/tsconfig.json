@@ -8,6 +8,9 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
+  "exclude": [
+    "lib/**/*"
+  ],
   "references": [
     {
       "path": "../../exec/prepare-package"

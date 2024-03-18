@@ -1,14 +1,11 @@
 import '@total-typescript/ts-reset'
 import { promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
-import type {
-  DirectoryFetcher,
-  DirectoryFetcherOptions,
-} from '@pnpm/fetcher-base'
 import { logger } from '@pnpm/logger'
 import { packlist } from '@pnpm/fs.packlist'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import type { DependencyManifest } from '@pnpm/types'
+import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/resolver-base'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 
@@ -26,8 +23,13 @@ export function createDirectoryFetcher(opts?: CreateDirectoryFetcherOptions | un
     ? fetchPackageFilesFromDir
     : fetchAllFilesFromDir.bind(null, readFileStat)
 
-  const directoryFetcher: DirectoryFetcher = (cafs, resolution, opts) => {
-    const dir = path.join(opts.lockfileDir, resolution.directory)
+  const directoryFetcher: DirectoryFetcher = (_cafs, resolution, opts): Promise<{
+    local: true;
+    filesIndex: Record<string, string>;
+    packageImportMethod: 'hardlink';
+    manifest?: DependencyManifest | undefined;
+  }> => {
+    const dir = path.join(opts.lockfileDir ?? '', resolution.directory)
     return fetchFromDir(dir, opts)
   }
 

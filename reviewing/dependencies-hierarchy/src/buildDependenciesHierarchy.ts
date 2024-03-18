@@ -22,14 +22,14 @@ import type { PackageNode } from './PackageNode'
 import type { SearchFunction } from './types'
 import { getTree } from './getTree'
 import { getTreeNodeChildId } from './getTreeNodeChildId'
-import { getPkgInfo } from './getPkgInfo'
+import { PackageInfo, getPkgInfo } from './getPkgInfo'
 import type { TreeNodeId } from './TreeNodeId'
 
 export interface DependenciesHierarchy {
-  dependencies?: PackageNode[]
-  devDependencies?: PackageNode[]
-  optionalDependencies?: PackageNode[]
-  unsavedDependencies?: PackageNode[]
+  dependencies?: (PackageNode | PackageInfo)[]
+  devDependencies?: (PackageNode | PackageInfo)[]
+  optionalDependencies?: (PackageNode | PackageInfo)[]
+  unsavedDependencies?: (PackageNode | PackageInfo)[]
 }
 
 export async function buildDependenciesHierarchy(
@@ -177,7 +177,7 @@ async function dependenciesHierarchyForPackage(
         wantedPackages: wantedLockfile?.packages ?? {},
         virtualStoreDir: opts.virtualStoreDir,
       })
-      let newEntry: PackageNode | null = null
+      let newEntry: PackageInfo | PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
       const nodeId = getTreeNodeChildId({
         parentId,
@@ -191,7 +191,7 @@ async function dependenciesHierarchyForPackage(
         if (opts.search != null && !matchedSearched) return
         newEntry = packageInfo
       } else {
-        const dependencies = getChildrenTree(nodeId)
+        const dependencies: PackageNode[] = getChildrenTree(nodeId)
         if (dependencies.length > 0) {
           newEntry = {
             ...packageInfo,
@@ -201,7 +201,7 @@ async function dependenciesHierarchyForPackage(
           newEntry = packageInfo
         }
       }
-      if (newEntry != null) {
+      if (newEntry !== null) {
         if (matchedSearched) {
           newEntry.searched = true
         }

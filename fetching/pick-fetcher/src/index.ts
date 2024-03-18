@@ -1,6 +1,5 @@
 import '@total-typescript/ts-reset'
-import type { Resolution } from '@pnpm/resolver-base'
-import type { DirectoryFetcher, FetchFunction, FetchOptions, FetchResult, Fetchers, GitFetcher } from '@pnpm/fetcher-base'
+import type { DirectoryFetcher, FetchFunction, FetchOptions, FetchResult, Fetchers, GitFetcher, Resolution } from '@pnpm/resolver-base'
 
 export function pickFetcher(
   fetcherByHostingType: Partial<Fetchers>,
