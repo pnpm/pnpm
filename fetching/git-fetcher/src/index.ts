@@ -7,9 +7,10 @@ import { addFilesFromDir } from '@pnpm/worker'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'node:url'
-import { GitFetcher, GitFetcherOptions, GitResolution } from '../../../resolving/resolver-base/src'
-import { Cafs } from '../../../store/cafs-types/src'
-import { DependencyManifest } from '../../../packages/types/src'
+
+import type { GitFetcher, GitFetcherOptions, GitResolution } from '@pnpm/resolver-base'
+import type { Cafs } from '@pnpm/cafs-types'
+import type { DependencyManifest } from '@pnpm/types'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[] | undefined

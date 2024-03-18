@@ -1708,15 +1708,33 @@ importers:
 
   fetching/git-fetcher:
     dependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../../store/cafs-types
+      '@pnpm/create-cafs-store':
+        specifier: workspace:*
+        version: link:../../store/create-cafs-store
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
+      '@pnpm/git-fetcher':
+        specifier: workspace:*
+        version: 'link:'
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -1727,18 +1745,6 @@ importers:
         specifier: npm:safe-execa@0.1.3
         version: /safe-execa@0.1.3
     devDependencies:
-      '@pnpm/create-cafs-store':
-        specifier: workspace:*
-        version: link:../../store/create-cafs-store
-      '@pnpm/git-fetcher':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/store.cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1784,6 +1790,9 @@ importers:
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker

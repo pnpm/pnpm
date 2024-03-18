@@ -873,12 +873,13 @@ async function getRootPackagesToLink(
               // TODO: cover this case with a test
               return (await readProjectManifestOnly(
                 packageDir
-              )) as DependencyManifest
+              ))
             } catch (err: any) { // eslint-disable-line
               if (err.code !== 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') throw err
               return { name: alias, version: '0.0.0' }
             }
-          })()) as DependencyManifest
+          })())
+
           return {
             alias,
             name: linkedPackage.name,

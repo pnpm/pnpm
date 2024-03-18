@@ -41,6 +41,7 @@
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
     "@zkochan/retry": "^0.2.0",
     "lodash.throttle": "4.1.1",
     "p-map-values": "^1.0.0",

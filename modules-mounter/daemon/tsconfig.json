@@ -8,6 +8,7 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
+  "composite": true,
   "references": [
     {
       "path": "../../config/config"
@@ -30,6 +31,5 @@
     {
       "path": "../../store/store-path"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -1,3 +1,3 @@
-import updater from './lib/index.js'
+import { metaUpdater } from './lib/index.js'
 
-export default updater
+export default metaUpdater

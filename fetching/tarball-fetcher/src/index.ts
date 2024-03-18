@@ -10,7 +10,7 @@ import { TarballIntegrityError } from '@pnpm/worker'
 import { createDownloader, type DownloadFunction } from './remoteTarballFetcher'
 import { createLocalTarballFetcher } from './localTarballFetcher'
 import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher'
-import { FetchFunction, FetchOptions } from '../../../resolving/resolver-base/src'
+import type { FetchFunction, FetchOptions } from '@pnpm/resolver-base'
 
 export { BadTarballError } from './errorTypes'
 

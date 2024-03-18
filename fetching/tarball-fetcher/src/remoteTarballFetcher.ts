@@ -7,7 +7,7 @@ import { addFilesFromTarball } from '@pnpm/worker'
 import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
 import { BadTarballError } from './errorTypes'
-import { FetchOptions, FetchResult } from '../../../resolving/resolver-base/src'
+import type { FetchResult, FetchOptions } from '@pnpm/resolver-base'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 

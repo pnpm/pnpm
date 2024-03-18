@@ -7,7 +7,7 @@ import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   type PreferredVersions,
 } from '@pnpm/resolver-base'
-import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import getVersionSelectorType from 'version-selector-type'
 
 export function getAllUniqueSpecs(manifests: DependencyManifest[]) {

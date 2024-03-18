@@ -13,7 +13,7 @@ import writeJsonFile from 'write-json-file'
 const NEXT_TAG = 'next-8'
 const CLI_PKG_NAME = 'pnpm'
 
-export default async (workspaceDir: string): Promise<UpdateOptionsLegacy<"tsconfig.json" | "package.json" | "cspell.json">> => {
+export async function metaUpdater(workspaceDir: string): Promise<UpdateOptionsLegacy<"tsconfig.json" | "package.json" | "cspell.json">> {
   const pnpmManifest = loadJsonFile.sync<any>(path.join(workspaceDir, 'pnpm/package.json'))
   const rootManifest = loadJsonFile.sync<any>(path.join(workspaceDir, 'package.json'))
   const pnpmVersion = pnpmManifest.version
@@ -87,7 +87,7 @@ async function updateTSConfig (
   }: FormatPluginFnOptions
 ) {
   if (tsConfig == null) return tsConfig
-  if (manifest.name === '@pnpm/tsconfig') return tsConfig
+  if (manifest.name === '@pnpm/tsconfig') {return tsConfig}
   const relative = normalizePath(path.relative(context.workspaceDir, dir))
   const importer = context.lockfile.importers[relative]
   if (!importer) return tsConfig
@@ -105,9 +105,7 @@ async function updateTSConfig (
     if (!isSubdir(context.workspaceDir, linkedPkgDir)) continue
     if (
       depName === '@pnpm/package-store' && (
-        manifest.name === '@pnpm/git-fetcher' ||
-        manifest.name === '@pnpm/tarball-fetcher' ||
-        manifest.name === '@pnpm/package-requester'
+        ['@pnpm/git-fetcher', '@pnpm/tarball-fetcher', '@pnpm/package-requester'].includes(manifest.name ?? '')
       )
     ) {
       // This is to avoid a circular graph (which TypeScript references do not support.

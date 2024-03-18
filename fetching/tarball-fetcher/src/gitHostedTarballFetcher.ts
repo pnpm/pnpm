@@ -6,7 +6,7 @@ import { preparePackage } from '@pnpm/prepare-package'
 import { addFilesFromDir } from '@pnpm/worker'
 import renameOverwrite from 'rename-overwrite'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import { FetchFunction, FetchOptions } from '../../../resolving/resolver-base/src'
+import type { FetchFunction, FetchOptions } from '@pnpm/resolver-base'
 
 interface Resolution {
   integrity?: string

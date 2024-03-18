@@ -8,6 +8,7 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
+  "composite": true,
   "references": [
     {
       "path": "../../fetching/fetcher-base"
@@ -24,6 +25,5 @@
     {
       "path": "../store-controller-types"
     }
-  ],
-  "composite": true
+  ]
 }

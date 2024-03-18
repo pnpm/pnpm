@@ -8,6 +8,7 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
+  "composite": true,
   "references": [
     {
       "path": "../../lockfile/lockfile-types"
@@ -24,6 +25,5 @@
     {
       "path": "../assert-store"
     }
-  ],
-  "composite": true
+  ]
 }
