@@ -58,7 +58,7 @@
     "publish-packed": "^4.1.2",
     "rimraf": "^5.0.5",
     "shx": "^0.3.4",
-    "syncpack": "^12.3.0",
+    "syncpack": "^8.5.14",
     "ts-jest": "29.1.2",
     "ts-node": "^10.9.2",
     "typescript": "5.4.2",
