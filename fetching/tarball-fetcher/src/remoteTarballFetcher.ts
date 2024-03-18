@@ -145,7 +145,7 @@ export function createDownloader(
         let downloaded = 0
         const chunks: Buffer[] = []
         // This will handle the 'data', 'error', and 'end' events.
-        for await (const chunk of res.body!) {
+        for await (const chunk of (res.body ?? '')) {
           chunks.push(chunk as Buffer)
           downloaded += chunk.length
           onProgress?.(downloaded)

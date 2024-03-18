@@ -79,9 +79,9 @@ export type CommandResponse = string | { output?: string; exitCode: number }
 
 export type Command =
   | ((
-      opts: PnpmOptions | any, // eslint-disable-line @typescript-eslint/no-explicit-any,@stylistic/ts/indent
-      params: string[] // eslint-disable-line @stylistic/ts/indent
-    ) => CommandResponse | Promise<CommandResponse>) // eslint-disable-line @stylistic/ts/indent
+    opts: PnpmOptions | any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    params: string[]
+  ) => CommandResponse | Promise<CommandResponse>)
   | ((opts: PnpmOptions | any, params: string[]) => void) // eslint-disable-line @typescript-eslint/no-explicit-any
   | ((opts: PnpmOptions | any, params: string[]) => Promise<void>) // eslint-disable-line @typescript-eslint/no-explicit-any
 

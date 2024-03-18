@@ -165,7 +165,7 @@ function toPackageDependenciesMap(
     if (!relDepPath) return [depAlias, ref]
     const { name, version, peersSuffix } = nameVerFromPkgSnapshot(
       relDepPath,
-      lockfile.packages![relDepPath]
+      lockfile.packages?.[relDepPath]
     )
     const pnpVersion = toPnPVersion(version, peersSuffix)
     if (depAlias === name) {

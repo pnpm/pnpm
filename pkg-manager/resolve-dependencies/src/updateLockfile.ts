@@ -159,9 +159,12 @@ function toLockfileDependency(
     for (const [engine, version] of Object.entries(
       pkg.additionalInfo.engines
     )) {
-      if (version === '*') continue
-      result.engines = result.engines ?? ({} as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-      result.engines![engine] = version
+      if (version === '*') {
+        continue
+      }
+
+      result.engines = result.engines ?? {}
+      result.engines[engine] = version
     }
   }
   if (pkg.additionalInfo.cpu != null) {

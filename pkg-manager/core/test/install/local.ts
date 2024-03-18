@@ -266,7 +266,7 @@ test('update tarball local package when its integrity changes', async () => {
 
   const lockfile1 = await project.readLockfile()
   expect(
-    lockfile1.packages['file:../tar.tgz'].dependencies!['is-positive']
+    lockfile1.packages['file:../tar.tgz'].dependencies?.['is-positive']
   ).toBe('1.0.0')
 
   f.copy(
@@ -277,7 +277,7 @@ test('update tarball local package when its integrity changes', async () => {
 
   const lockfile2 = await project.readLockfile()
   expect(
-    lockfile2.packages['file:../tar.tgz'].dependencies!['is-positive']
+    lockfile2.packages['file:../tar.tgz'].dependencies?.['is-positive']
   ).toBe('2.0.0')
 
   const manifestOfTarballDep = await import(

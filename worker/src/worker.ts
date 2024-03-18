@@ -28,7 +28,7 @@ import type {
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
 
-parentPort!.on('message', handleMessage)
+parentPort?.on('message', handleMessage)
 
 const cafsCache = new Map<string, ReturnType<typeof createCafs>>()
 const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
@@ -45,21 +45,21 @@ async function handleMessage(
     | false
 ): Promise<void> {
   if (message === false) {
-    parentPort!.off('message', handleMessage)
+    parentPort?.off('message', handleMessage)
     process.exit(0)
   }
   try {
     switch (message.type) {
       case 'extract': {
-        parentPort!.postMessage(addTarballToStore(message))
+        parentPort?.postMessage(addTarballToStore(message))
         break
       }
       case 'link': {
-        parentPort!.postMessage(importPackage(message))
+        parentPort?.postMessage(importPackage(message))
         break
       }
       case 'add-dir': {
-        parentPort!.postMessage(addFilesFromDir(message))
+        parentPort?.postMessage(addFilesFromDir(message))
         break
       }
       case 'readPkgFromCafs': {
@@ -72,7 +72,7 @@ async function handleMessage(
           // ignoring. It is fine if the integrity file is not present. Just refetch the package
         }
         if (!pkgFilesIndex) {
-          parentPort!.postMessage({
+          parentPort?.postMessage({
             status: 'success',
             value: {
               verified: false,
@@ -96,7 +96,7 @@ async function handleMessage(
               : undefined,
           }
         }
-        parentPort!.postMessage({
+        parentPort?.postMessage({
           status: 'success',
           value: {
             verified: verifyResult.passed,
@@ -107,17 +107,17 @@ async function handleMessage(
         break
       }
       case 'symlinkAllModules': {
-        parentPort!.postMessage(symlinkAllModules(message))
+        parentPort?.postMessage(symlinkAllModules(message))
         break
       }
       case 'hardLinkDir': {
         hardLinkDir(message.src, message.destDirs)
-        parentPort!.postMessage({ status: 'success' })
+        parentPort?.postMessage({ status: 'success' })
         break
       }
     }
   } catch (e: any) { // eslint-disable-line
-    parentPort!.postMessage({
+    parentPort?.postMessage({
       status: 'error',
       error: {
         code: e.code,

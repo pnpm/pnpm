@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import '@total-typescript/ts-reset'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -30,16 +29,17 @@ export default async (workspaceDir: string): Promise<UpdateOptionsLegacy<"tsconf
         return manifest;
       }
       if (manifest.name === 'monorepo-root') {
-        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`
-        return manifest
+        manifest.scripts = manifest.scripts ?? {};
+        manifest.scripts['release'] = `pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`;
+        return manifest;
       }
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
         manifest.devDependencies = {
           ...manifest.devDependencies,
           [manifest.name]: `workspace:*`,
-        }
+        };
       } else if (manifest.name === CLI_PKG_NAME && manifest.devDependencies) {
-        delete manifest.devDependencies[manifest.name]
+        delete manifest.devDependencies[manifest.name];
       }
       if (manifest.name === CLI_PKG_NAME) {
         manifest.pnpm = manifest.pnpm ?? {}
@@ -54,7 +54,8 @@ export default async (workspaceDir: string): Promise<UpdateOptionsLegacy<"tsconf
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
           for (const depName of ['@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
-            manifest.optionalDependencies![depName] = `workspace:*`
+            manifest.optionalDependencies = manifest.optionalDependencies ?? {};
+            manifest.optionalDependencies[depName] = `workspace:*`
           }
         }
         return manifest

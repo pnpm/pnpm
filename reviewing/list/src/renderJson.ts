@@ -1,4 +1,4 @@
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, DependenciesField } from '@pnpm/types'
 import type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import sortBy from 'ramda/src/sortBy'
 import path from 'ramda/src/path'
@@ -28,7 +28,7 @@ export async function renderJson(
   }
 ): Promise<string> {
   const jsonArr = await Promise.all(
-    pkgs.map(async (pkg) => {
+    pkgs.map(async (pkg: PackageDependencyHierarchy): Promise<RenderJsonResultItem> => {
       const jsonObj: RenderJsonResultItem = {
         name: pkg.name,
         version: pkg.version,
@@ -40,13 +40,17 @@ export async function renderJson(
         Object.fromEntries(
           await Promise.all(
             ([...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies'] as const)
-              .filter((dependenciesField) => pkg[dependenciesField]?.length)
-              .map(async (dependenciesField) => [
-                dependenciesField,
-                await toJsonResult(pkg[dependenciesField]!, {
-                  long: opts.long,
-                }),
-              ])
+              .filter((dependenciesField): boolean => {
+                return Boolean(pkg[dependenciesField]?.length);
+              })
+              .map(async (dependenciesField: 'unsavedDependencies' | DependenciesField): Promise<(DependenciesField | 'unsavedDependencies' | Record<string, PackageJsonListItem>)[]> => {
+                return [
+                  dependenciesField,
+                  await toJsonResult(pkg[dependenciesField] ?? [], {
+                    long: opts.long,
+                  }),
+                ];
+              })
           )
         )
       )

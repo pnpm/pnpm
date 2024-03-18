@@ -19,16 +19,16 @@ jest.mock('../lib/getPkgInfo', () => {
       } & Omit<LicensePackage, 'belongsTo'>
     > => {
       const packageInfo = {
-        from: pkg.name!,
-        name: pkg.name!,
-        version: pkg.version!,
+        from: pkg.name ?? '',
+        name: pkg.name ?? '',
+        version: pkg.version ?? '',
         description: 'Package Description',
         license: pkg.name === 'bar' ? 'MIT' : 'Unknown',
         licenseContents: pkg.name === 'bar' ? undefined : 'The MIT License',
         author: 'Package Author',
         homepage: 'Homepage',
         repository: 'Repository',
-        path: `/path/to/package/${pkg.name!}@${pkg.version!}/node_modules`,
+        path: `/path/to/package/${pkg.name ?? ''}@${pkg.version ?? ''}/node_modules`,
       }
 
       return packageInfo

@@ -195,7 +195,8 @@ async function fetchDeps(
     Array.from(deps).map(async (dep) => {
       const depPath = Array.from(dep.references)[0]
       if (opts.skipped.has(depPath) || depPath.startsWith('workspace:')) return
-      const pkgSnapshot = opts.lockfile.packages![depPath]
+      const pkgSnapshot = opts.lockfile.packages?.[depPath]
+
       if (!pkgSnapshot) {
         // it is a link
         return

@@ -356,7 +356,7 @@ test('update a package when installing with a dist-tag', async () => {
   await project.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 
-  expect(manifest.devDependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe(
+  expect(manifest.devDependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe(
     '^100.1.0'
   )
 })

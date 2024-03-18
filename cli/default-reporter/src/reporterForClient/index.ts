@@ -79,9 +79,9 @@ export function reporterForClient(
   const throttle =
     typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
       ? throttleTime(opts.throttleProgress, undefined, {
-          leading: true, // eslint-disable-line @stylistic/ts/indent
-          trailing: true, // eslint-disable-line @stylistic/ts/indent
-        }) // eslint-disable-line @stylistic/ts/indent
+        leading: true,
+        trailing: true,
+      })
       : undefined
 
   const outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>> = [

@@ -412,7 +412,7 @@ export async function headlessInstall(
     })
 
     linkedToRoot = await symlinkDirectDependencies({
-      directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
+      directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId ?? {},
       dedupe: Boolean(opts.dedupeDirectDeps),
       filteredLockfile,
       lockfileDir,
@@ -506,7 +506,7 @@ export async function headlessInstall(
         Object.keys(filteredLockfile.importers).sort()
       )
     ) {
-      Object.assign(filteredLockfile.packages!, currentLockfile.packages)
+      Object.assign(filteredLockfile.packages ?? {}, currentLockfile.packages)
     }
 
     /** Skip linking and due to no project manifest */

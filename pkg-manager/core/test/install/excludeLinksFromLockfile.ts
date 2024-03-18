@@ -149,9 +149,12 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
     fs.existsSync(path.resolve('project-2/node_modules/external-2/index.js'))
   ).toBeTruthy()
 
-  delete allProjects[1].manifest.dependencies!['external-2']
-  allProjects[1].manifest.dependencies!['external-3'] =
+  delete allProjects[1].manifest.dependencies?.['external-2']
+
+  allProjects[1].manifest.dependencies = allProjects[1].manifest.dependencies ?? {}
+  allProjects[1].manifest.dependencies['external-3'] =
     `link:${path.relative(project2Dir, externalPkg3)}`
+
   await mutateModules(
     importers,
     await testDefaults({ allProjects, excludeLinksFromLockfile: true })

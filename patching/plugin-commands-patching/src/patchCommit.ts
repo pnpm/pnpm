@@ -118,7 +118,8 @@ export async function handler(
   } else if (!rootProjectManifest.pnpm.patchedDependencies) {
     rootProjectManifest.pnpm.patchedDependencies = {}
   }
-  rootProjectManifest.pnpm.patchedDependencies![pkgNameAndVersion] =
+  rootProjectManifest.pnpm.patchedDependencies = rootProjectManifest.pnpm.patchedDependencies ?? {}
+  rootProjectManifest.pnpm.patchedDependencies[pkgNameAndVersion] =
     `${patchesDirName}/${patchFileName}.patch`
   await writeProjectManifest(rootProjectManifest)
 

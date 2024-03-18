@@ -101,19 +101,21 @@ describe('FUSE handlers', () => {
       '/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/index.js',
       (returnCode, stat) => {
         expect(returnCode).toBe(0)
-        expect(stat.mode).toBe(33206)
+        // @ts-ignore
+        expect(stat?.mode).toBe(33_206)
       }
     )
     handlers.getattr(
       '/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/test/fixtures',
       (returnCode, stat) => {
         expect(returnCode).toBe(0)
-        expect(stat.mode).toBe(16877)
+        // @ts-ignore
+        expect(stat?.mode).toBe(16_877)
       }
     )
     handlers.getattr(
       '/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/index.jsx',
-      (returnCode, stat) => {
+      (returnCode, _stat) => {
         expect(returnCode).toBe(Fuse.ENOENT)
       }
     )
@@ -121,7 +123,8 @@ describe('FUSE handlers', () => {
       '/.pnpm/is-positive@1.0.0/node_modules/is-positive/package.json',
       (returnCode, stat) => {
         expect(returnCode).toBe(0)
-        expect(stat.mode).toBe(33204)
+        // @ts-ignore
+        expect(stat?.mode).toBe(33_204)
       }
     )
   })
@@ -133,11 +136,11 @@ describe('FUSE handlers', () => {
       expect(fd && fd > 0).toBeTruthy()
       const buffer = Buffer.alloc(10)
 
-      handlers.read(p, fd!, buffer, 10, 0, (readBytes) => {
+      handlers.read(p, fd ?? 0, buffer, 10, 0, (readBytes) => {
         expect(readBytes).toBe(10)
         expect(buffer.toString()).toBe('var ini = ')
 
-        handlers.release(p, fd!, (exitCode) => {
+        handlers.release(p, fd ?? 0, (exitCode) => {
           expect(exitCode).toBe(0)
           done()
         })

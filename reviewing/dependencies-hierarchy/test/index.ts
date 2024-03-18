@@ -1,5 +1,4 @@
-/// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+import path from 'node:path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
 import {
@@ -607,10 +606,10 @@ test('peer dependencies', async () => {
     lockfileDir: withPeerFixture,
   })
   expect(
-    hierarchy[withPeerFixture].dependencies![1].dependencies![0].name
+    hierarchy[withPeerFixture].dependencies?.[1].dependencies?.[0].name
   ).toEqual('ajv')
   expect(
-    hierarchy[withPeerFixture].dependencies![1].dependencies![0].isPeer
+    hierarchy[withPeerFixture].dependencies?.[1].dependencies?.[0].isPeer
   ).toEqual(true)
 })
 
@@ -654,16 +653,16 @@ test('dependency without a package.json', async () => {
   expect(
     Array.isArray(tree[withNonPackageDepFixture].dependencies)
   ).toBeTruthy()
-  expect(tree[withNonPackageDepFixture].dependencies!.length).toBeGreaterThan(0)
-  expect(tree[withNonPackageDepFixture].dependencies![0]).toBeDefined()
+  expect(tree[withNonPackageDepFixture].dependencies?.length).toBeGreaterThan(0)
+  expect(tree[withNonPackageDepFixture].dependencies?.[0]).toBeDefined()
   // verify that dependency without a package.json has no further dependencies
-  expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty([
+  expect(tree[withNonPackageDepFixture].dependencies?.[0]).not.toHaveProperty([
     'dependencies',
   ])
-  expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty([
+  expect(tree[withNonPackageDepFixture].dependencies?.[0]).not.toHaveProperty([
     'devDependencies',
   ])
-  expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty([
+  expect(tree[withNonPackageDepFixture].dependencies?.[0]).not.toHaveProperty([
     'optionalDependencies',
   ])
 })

@@ -3,23 +3,23 @@ import * as dp from '@pnpm/dependency-path'
 
 export function nameVerFromPkgSnapshot(
   depPath: string,
-  pkgSnapshot: PackageSnapshot
+  pkgSnapshot: PackageSnapshot | undefined
 ): {
     name: string;
     peersSuffix: string | undefined;
     version: string;
   } {
-  if (!pkgSnapshot.name) {
+  if (!pkgSnapshot?.name) {
     const pkgInfo = dp.parse(depPath)
     return {
-      name: pkgInfo.name as string,
+      name: pkgInfo.name ?? '',
       peersSuffix: pkgInfo.peersSuffix,
-      version: pkgInfo.version as string,
+      version: pkgInfo.version ?? '',
     }
   }
   return {
     name: pkgSnapshot.name,
     peersSuffix: undefined,
-    version: pkgSnapshot.version as string,
+    version: pkgSnapshot.version ?? '',
   }
 }

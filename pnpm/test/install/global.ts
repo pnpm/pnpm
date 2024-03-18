@@ -96,7 +96,7 @@ test('run lifecycle events of global packages in correct working directory', asy
   fs.mkdirSync(global)
 
   const env = {
-    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME] ?? ''}`,
     PNPM_HOME: pnpmHome,
     XDG_DATA_HOME: global,
   }

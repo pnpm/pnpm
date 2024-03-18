@@ -124,7 +124,7 @@ export interface PackageSnapshot {
   transitivePeerDependencies?: string[] | undefined
   bundledDependencies?: string[] | boolean | undefined
   engines?: (Record<string, string> & {
-    node: string
+    node?: string | undefined
   }) | undefined
   os?: string[] | undefined
   cpu?: string[] | undefined

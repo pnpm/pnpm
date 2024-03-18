@@ -128,7 +128,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
   }
 
   return {
-    fetchSpec: fetchSpec!,
+    fetchSpec: fetchSpec ?? '',
     hosted: {
       ...hosted,
       _fill: hosted._fill,

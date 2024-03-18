@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type PnpmError } from '@pnpm/error'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare } from '@pnpm/prepare'
@@ -40,13 +40,14 @@ test('CLI fails when store status finds modified packages', async () => {
         rawConfig: {
           registry: REGISTRY,
         },
-        registries: modulesState!.registries!,
+        registries: modulesState?.registries ?? { default: '' },
         storeDir,
         userConfig: {},
       },
       ['status']
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')
@@ -94,7 +95,7 @@ test('CLI does not fail when store status does not find modified packages', asyn
       rawConfig: {
         registry: REGISTRY,
       },
-      registries: modulesState!.registries!,
+      registries: modulesState?.registries ?? { default: '' },
       storeDir,
       userConfig: {},
     },

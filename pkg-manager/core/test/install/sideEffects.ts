@@ -119,7 +119,7 @@ test('using side effects cache', async () => {
     sideEffectsKey,
     'generated-by-postinstall.js',
   ])
-  delete filesIndex.sideEffects![sideEffectsKey]['generated-by-postinstall.js']
+  delete filesIndex.sideEffects?.[sideEffectsKey]['generated-by-postinstall.js']
   await writeJsonFile(filesIndexFile, filesIndex)
 
   await rimraf('node_modules')
@@ -326,11 +326,12 @@ test('a corrupted side-effects cache is ignored', async () => {
     'generated-by-preinstall.js',
   ])
   const sideEffectFileStat =
-    filesIndex.sideEffects![sideEffectsKey]['generated-by-preinstall.js']
+    filesIndex.sideEffects?.[sideEffectsKey]['generated-by-preinstall.js']
+
   const sideEffectFile = getFilePathByModeInCafs(
     cafsDir,
-    sideEffectFileStat.integrity,
-    sideEffectFileStat.mode
+    sideEffectFileStat?.integrity ?? '',
+    sideEffectFileStat?.mode ?? 0
   )
   expect(existsSync(sideEffectFile)).toBeTruthy()
   await rimraf(sideEffectFile) // we remove the side effect file to break the store

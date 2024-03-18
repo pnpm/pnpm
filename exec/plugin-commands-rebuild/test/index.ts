@@ -295,7 +295,7 @@ test('rebuild with pending option', async () => {
       cacheDir,
       dir: process.cwd(),
       pending: true,
-      registries: modules?.registries!,
+      registries: modules?.registries ?? { default: '' },
       storeDir,
     },
     []
@@ -360,7 +360,7 @@ test('rebuild dependencies in correct order', async () => {
       cacheDir,
       dir: process.cwd(),
       pending: false,
-      registries: modules?.registries!,
+      registries: modules?.registries ?? { default: '' },
       storeDir,
     },
     []
@@ -425,7 +425,7 @@ test('rebuild links bins', async () => {
       cacheDir,
       dir: process.cwd(),
       pending: true,
-      registries: modules?.registries!,
+      registries: modules?.registries ?? { default: '' },
       storeDir,
     },
     []
@@ -471,7 +471,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
       cacheDir,
       dir: process.cwd(),
       pending: true,
-      registries: modules?.registries!,
+      registries: modules?.registries ?? { default: '' },
       reporter,
       storeDir,
     },

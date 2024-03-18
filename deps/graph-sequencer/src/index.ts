@@ -91,7 +91,7 @@ export function graphSequencer<T>(
 
   // Function to remove a node from the graph.
   function removeNode(node: T) {
-    for (const from of reverseGraph.get(node)!) {
+    for (const from of reverseGraph.get(node) ?? []) {
       changeOutDegree(from, -1)
     }
     visited.add(node)
@@ -103,7 +103,7 @@ export function graphSequencer<T>(
     const cycleVisited = new Set<T>()
     while (queue.length) {
       const [id, cycle] = queue.shift()!
-      for (const to of graph.get(id)!) {
+      for (const to of graph.get(id) ?? []) {
         if (to === startNode) {
           return cycle
         }

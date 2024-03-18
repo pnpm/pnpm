@@ -219,7 +219,9 @@ test('inject local packages', async () => {
   expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
 
   // The injected project is updated when one of its dependencies needs to be updated
-  allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
+  allProjects[0].manifest.dependencies = allProjects[0].manifest.dependencies ?? {}
+  allProjects[0].manifest.dependencies['is-negative'] = '2.0.0'
+
   await mutateModules(
     importers,
     await testDefaults({
@@ -469,7 +471,9 @@ test('inject local packages declared via file protocol', async () => {
   expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
 
   // The injected project is updated when one of its dependencies needs to be updated
-  allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
+  allProjects[0].manifest.dependencies = allProjects[0].manifest.dependencies ?? {}
+  allProjects[0].manifest.dependencies['is-negative'] = '2.0.0'
+
   writeJsonFile('project-1/package.json', allProjects[0].manifest)
   await mutateModules(
     importers,
@@ -705,7 +709,8 @@ test('inject local packages when the file protocol is used', async () => {
   expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
 
   // The injected project is updated when one of its dependencies needs to be updated
-  allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
+  allProjects[0].manifest.dependencies = allProjects[0].manifest.dependencies ?? {}
+  allProjects[0].manifest.dependencies['is-negative'] = '2.0.0'
   writeJsonFile('project-1/package.json', allProjects[0].manifest)
   await mutateModules(
     importers,
@@ -2166,7 +2171,9 @@ test('injected local packages are deduped', async () => {
   expect(fs.readdirSync('node_modules/.pnpm').length).toBe(7)
 
   // The injected project is updated when one of its dependencies needs to be updated
-  allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
+  allProjects[0].manifest.dependencies = allProjects[0].manifest.dependencies ?? {}
+  allProjects[0].manifest.dependencies['is-negative'] = '2.0.0'
+
   await mutateModules(
     importers,
     await testDefaults({

@@ -205,7 +205,7 @@ async function dependenciesHierarchyForPackage(
         if (matchedSearched) {
           newEntry.searched = true
         }
-        result[dependenciesField]!.push(newEntry)
+        result[dependenciesField]?.push(newEntry)
       }
     })
   }

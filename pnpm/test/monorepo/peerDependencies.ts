@@ -31,7 +31,7 @@ test('peer dependency is not unlinked when adding a new dependency', async () =>
   await execPnpm(['--filter=project-1', 'add', 'is-odd@1.0.0'])
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(Object.keys(lockfile!.packages!)).toContain(
+  expect(Object.keys(lockfile?.packages ?? {})).toContain(
     '/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@@pnpm.e2e+peer-a)'
   )
 })

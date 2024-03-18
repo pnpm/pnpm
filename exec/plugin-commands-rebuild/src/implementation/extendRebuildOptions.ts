@@ -62,7 +62,7 @@ const defaults = async (opts: RebuildOptions): Promise<StrictRebuildOptions> => 
     opts.packageManager ??
     (await loadJsonFile<{ name: string; version: string }>(
       path.join(__dirname, '../../package.json')
-    )!)
+    ))
   const dir = opts.dir ?? process.cwd()
   const lockfileDir = opts.lockfileDir ?? dir
   return {
@@ -111,9 +111,9 @@ export async function extendRebuildOptions(
     storeDir: defaultOpts.storeDir,
     ...(opts.rootProjectManifest
       ? getOptionsFromRootManifest(
-          opts.rootProjectManifestDir, // eslint-disable-line @stylistic/ts/indent
-          opts.rootProjectManifest // eslint-disable-line @stylistic/ts/indent
-        ) // eslint-disable-line @stylistic/ts/indent
+        opts.rootProjectManifestDir,
+        opts.rootProjectManifest
+      )
       : {}),
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)

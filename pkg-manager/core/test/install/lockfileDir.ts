@@ -1,6 +1,6 @@
-import path from 'path'
+import path from 'node:path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import type { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import readYamlFile from 'read-yaml-file'
@@ -83,8 +83,8 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
   const lockfile = await readYamlFile<Lockfile>(
     path.resolve('..', WANTED_LOCKFILE)
   )
-  expect(lockfile.packages!['file:project/pkg.tgz']).toBeTruthy()
-  expect(lockfile.packages!['file:project/pkg.tgz'].resolution).toHaveProperty(
+  expect(lockfile.packages?.['file:project/pkg.tgz']).toBeTruthy()
+  expect(lockfile.packages?.['file:project/pkg.tgz'].resolution).toHaveProperty(
     ['tarball'],
     'file:project/pkg.tgz'
   )

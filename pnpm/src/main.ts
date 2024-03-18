@@ -125,7 +125,7 @@ export async function main(inputArgv: string[]) {
     // @ts-ignore
     const hint = err.hint
       ? // @ts-ignore
-        err.hint // eslint-disable-line @stylistic/ts/indent
+      err.hint
       : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
     // @ts-ignore
     printError(err.message, hint)
@@ -273,11 +273,11 @@ export async function main(inputArgv: string[]) {
   let { output, exitCode }: { output?: string | null; exitCode: number } =
     await (async () => {
       // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
-      await new Promise<void>((resolve) =>
-        setTimeout(() => {
+      await new Promise<void>((resolve): NodeJS.Timeout => {
+        return globalThis.setTimeout(() => {
           resolve()
-        }, 0)
-      )
+        }, 0);
+      })
 
       if (
         config.updateNotifier !== false &&
@@ -301,12 +301,12 @@ export async function main(inputArgv: string[]) {
       }
 
       scopeLogger.debug({
-        ...(!cliOptions.recursive
-          ? { selected: 1 }
-          : {
-              selected: Object.keys(config.selectedProjectsGraph!).length, // eslint-disable-line @stylistic/ts/indent
-              total: config.allProjects!.length, // eslint-disable-line @stylistic/ts/indent
-            }), // eslint-disable-line @stylistic/ts/indent
+        ...(cliOptions.recursive
+          ? {
+            selected: Object.keys(config.selectedProjectsGraph ?? {}).length,
+            total: config.allProjects?.length,
+          }
+          : { selected: 1 }),
         ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
       })
 

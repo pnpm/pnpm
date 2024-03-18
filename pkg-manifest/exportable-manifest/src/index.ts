@@ -104,7 +104,7 @@ async function makePublishDependency(
     const semverRangeToken =
       versionAliasSpecParts[2] !== '*' ? versionAliasSpecParts[2] : ''
     if (depName !== manifest.name) {
-      return `npm:${manifest.name!}@${semverRangeToken}${manifest.version}`
+      return `npm:${manifest.name ?? ''}@${semverRangeToken}${manifest.version}`
     }
     return `${semverRangeToken}${manifest.version}`
   }

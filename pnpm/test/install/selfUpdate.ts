@@ -22,7 +22,7 @@ skipOnWindows('self-update stops the store server', async () => {
   const pnpmHome = process.cwd()
 
   const env = {
-    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME] ?? ''}`,
     PNPM_HOME: pnpmHome,
     XDG_DATA_HOME: path.resolve('data'),
   }

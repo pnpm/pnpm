@@ -43,8 +43,8 @@ test('prune removes extraneous packages', async () => {
 
   await project.has('@pnpm.e2e/hello-world-js-bin') // external link added
 
-  delete manifest.dependencies!['is-positive']
-  delete manifest.dependencies!['@zkochan/logger']
+  delete manifest.dependencies?.['is-positive']
+  delete manifest.dependencies?.['@zkochan/logger']
 
   const reporter = sinon.spy()
 

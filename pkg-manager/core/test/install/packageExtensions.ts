@@ -46,7 +46,8 @@ test('manifests are extended with fields specified by packageExtensions', async 
   }
 
   // The lockfile is updated if the overrides are changed
-  packageExtensions['is-positive'].dependencies!['@pnpm.e2e/foobar'] = '100.0.0'
+  packageExtensions['is-positive'].dependencies = packageExtensions['is-positive'].dependencies ?? {}
+  packageExtensions['is-positive'].dependencies['@pnpm.e2e/foobar'] = '100.0.0'
   await mutateModulesInSingleProject(
     {
       manifest,
@@ -104,7 +105,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
     )
   }
 
-  packageExtensions['is-positive'].dependencies!['@pnpm.e2e/bar'] = '100.0.1'
+  packageExtensions['is-positive'].dependencies['@pnpm.e2e/bar'] = '100.0.1'
   await expect(
     mutateModulesInSingleProject(
       {

@@ -61,7 +61,7 @@ export function createPkgGraph<T>(
     }
 
     return Object.entries(dependencies)
-      .map(([depName, rawSpec]) => {
+      .map(([depName, rawSpec]: [string, string]): string | undefined => {
         let spec!: { fetchSpec: string; type: string }
         const isWorkspaceSpec = rawSpec.startsWith('workspace:')
         try {
@@ -76,7 +76,8 @@ export function createPkgGraph<T>(
             depName = name
           }
           spec = npa.resolve(depName, rawSpec, pkg.dir)
-        } catch (err: any) { // eslint-disable-line
+        } catch (err: unknown) {
+          console.error(err)
           return ''
         }
 
@@ -117,14 +118,14 @@ export function createPkgGraph<T>(
         }
         if (isWorkspaceSpec && versions.length === 0) {
           const matchedPkg = pkgs.find((pkg) => pkg.manifest.name === depName)
-          return matchedPkg!.dir
+          return matchedPkg?.dir
         }
         if (versions.includes(rawSpec)) {
           const matchedPkg = pkgs.find(
             (pkg) =>
               pkg.manifest.name === depName && pkg.manifest.version === rawSpec
           )
-          return matchedPkg!.dir
+          return matchedPkg?.dir
         }
         const matched = resolveWorkspaceRange(rawSpec, versions)
         if (!matched) {
@@ -135,7 +136,7 @@ export function createPkgGraph<T>(
           (pkg) =>
             pkg.manifest.name === depName && pkg.manifest.version === matched
         )
-        return matchedPkg!.dir
+        return matchedPkg?.dir
       })
       .filter(Boolean)
   }

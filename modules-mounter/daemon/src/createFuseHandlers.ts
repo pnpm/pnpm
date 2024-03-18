@@ -244,7 +244,7 @@ export function createFuseHandlersFromLockfile(
       if (pkgSnapshot == null) return undefined
       const indexPath = getFilePathInCafs(
         cafsDir,
-        (pkgSnapshot.resolution as TarballResolution).integrity!,
+        (pkgSnapshot.resolution as TarballResolution).integrity ?? '',
         'index'
       )
       pkgSnapshotCache.set(depPath, {

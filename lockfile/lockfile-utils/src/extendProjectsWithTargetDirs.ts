@@ -1,5 +1,5 @@
 import path from 'node:path'
-import type { Lockfile, TarballResolution } from '@pnpm/lockfile-types'
+import type { Lockfile } from '@pnpm/lockfile-types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 
 type GetLocalLocations = (depPath: string, pkgName: string) => string[]
@@ -12,10 +12,9 @@ export function extendProjectsWithTargetDirs<T>(
     pkgLocationsByDepPath?: Record<string, string[]>
   }
 ): Array<T & { id: string; stages: string[]; targetDirs: string[] }> {
-  const getLocalLocations: GetLocalLocations =
-    ctx.pkgLocationsByDepPath != null
-      ? (depPath: string) => ctx.pkgLocationsByDepPath![depPath]
-      : (depPath: string, pkgName: string) => [
+  const getLocalLocations: GetLocalLocations | undefined =
+    typeof ctx.pkgLocationsByDepPath === 'undefined'
+      ? (depPath: string, pkgName: string): string[] => [
         path.join(
           ctx.virtualStoreDir,
           depPathToFilename(depPath),
@@ -23,6 +22,9 @@ export function extendProjectsWithTargetDirs<T>(
           pkgName
         ),
       ]
+      : (depPath: string): string[] => {
+        return ctx.pkgLocationsByDepPath?.[depPath] ?? [];
+      }
   const projectsById: Record<
     string,
     T & { id: string; targetDirs: string[]; stages?: string[] }
@@ -33,12 +35,18 @@ export function extendProjectsWithTargetDirs<T>(
     ])
   )
   Object.entries(lockfile.packages ?? {}).forEach(([depPath, pkg]) => {
-    if ((pkg.resolution as TarballResolution)?.type !== 'directory') return
+    if (!('type' in pkg.resolution) || pkg.resolution.type !== 'directory' || typeof pkg.name === 'undefined' || pkg.name === '') {
+      return
+    }
     const pkgId = pkg.id ?? depPath
     const importerId = pkgId.replace(/^file:/, '')
-    if (projectsById[importerId] == null) return
-    const localLocations = getLocalLocations(depPath, pkg.name!)
-    if (!localLocations) return
+    if (projectsById[importerId] == null) {
+      return
+    }
+    const localLocations = getLocalLocations(depPath, pkg.name)
+    if (!localLocations) {
+      return
+    }
     projectsById[importerId].targetDirs.push(...localLocations)
     projectsById[importerId].stages = [
       'preinstall',

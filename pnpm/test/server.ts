@@ -174,7 +174,9 @@ test('stopping server fails when the server disallows stopping via remote call',
 
   expect(execPnpmSync(['server', 'stop']).status).toBe(1)
 
-  await kill(server.pid!, 'SIGINT')
+  if (typeof server.pid !== 'undefined') {
+    await kill(server.pid, 'SIGINT')
+  }
 })
 
 skipOnWindows(
@@ -355,7 +357,9 @@ async function testParallelServerStart(options: {
         // Windows does not support signals: the server process will be killed without
         // it having a chance to perform cleanup, but the 'server stop' will make sure
         // server.json etc. are removed.
-        await kill(item.childProcess.pid!, 'SIGINT')
+        if (typeof item.childProcess.pid !== 'undefined') {
+          await kill(item.childProcess.pid, 'SIGINT')
+        }
         await item.running.promise
       })
     )

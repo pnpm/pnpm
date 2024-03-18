@@ -91,7 +91,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   const lockfile = await project.readLockfile()
 
   expect(
-    lockfile.packages['/@pnpm.e2e/using-ajv@1.0.0'].dependencies![
+    lockfile.packages['/@pnpm.e2e/using-ajv@1.0.0'].dependencies?.[
       'ajv-keywords'
     ]
   ).toBe('1.5.0(ajv@4.10.4)')
@@ -437,7 +437,9 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
     )
   }
 
-  allProjects[1].manifest.dependencies!['is-positive'] = '1.0.0'
+  allProjects[1].manifest.dependencies = allProjects[1].manifest.dependencies ?? {}
+  allProjects[1].manifest.dependencies['is-positive'] = '1.0.0'
+
   await mutateModules(
     [
       {
@@ -1549,7 +1551,7 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
   expect(
-    Object.keys(lockfile.packages!['/most@1.7.3'].dependencies!)
+    Object.keys(lockfile.packages?.['/most@1.7.3'].dependencies ?? {})
   ).toStrictEqual(['@most/multicast', '@most/prelude', 'symbol-observable'])
 })
 

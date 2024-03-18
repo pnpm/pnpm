@@ -135,16 +135,33 @@ function pkgAllDeps(
   }
 ): void {
   for (const depPath of depPaths) {
-    if (ctx.pickedPackages[depPath]) continue
-    const pkgSnapshot = ctx.lockfile.packages![depPath]
-    if (!pkgSnapshot && !depPath.startsWith('link:')) {
+    if (ctx.pickedPackages[depPath]) {
+      continue
+    }
+    const pkgSnapshot = ctx.lockfile.packages?.[depPath]
+
+    if (typeof pkgSnapshot === 'undefined') {
       if (opts.failOnMissingDependencies) {
         throw new LockfileMissingDependencyError(depPath)
       }
+
       lockfileLogger.debug(`No entry for "${depPath}" in ${WANTED_LOCKFILE}`)
+
       continue
     }
+
+    if (!depPath.startsWith('link:')) {
+      if (opts.failOnMissingDependencies) {
+        throw new LockfileMissingDependencyError(depPath)
+      }
+
+      lockfileLogger.debug(`No entry for "${depPath}" in ${WANTED_LOCKFILE}`)
+
+      continue
+    }
+
     let installable!: boolean
+
     if (!parentIsInstallable) {
       installable = false
       if (!ctx.pickedPackages[depPath] && pkgSnapshot.optional === true) {
@@ -177,7 +194,9 @@ function pkgAllDeps(
         opts.skipped.delete(depPath)
       }
     }
+
     ctx.pickedPackages[depPath] = pkgSnapshot
+
     const { depPaths: nextRelDepPaths, importerIds: additionalImporterIds } =
       parseDepRefs(
         Object.entries({

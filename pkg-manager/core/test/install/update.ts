@@ -287,7 +287,8 @@ test('preserve subdeps when installing on a package that has one dependency spec
     await testDefaults()
   )
 
-  manifest.dependencies!['@pnpm.e2e/foobarqar'] = '^1.0.1'
+  manifest.dependencies = manifest.dependencies ?? {}
+  manifest.dependencies['@pnpm.e2e/foobarqar'] = '^1.0.1'
 
   await Promise.all([
     addDistTag({

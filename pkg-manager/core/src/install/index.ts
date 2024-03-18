@@ -55,6 +55,7 @@ import {
 } from '@pnpm/resolve-dependencies'
 import { type PreferredVersions } from '@pnpm/resolver-base'
 import {
+  PackageExtension,
   type DependenciesField,
   type DependencyManifest,
   type PeerDependencyIssues,
@@ -95,7 +96,7 @@ class LockfileConfigMismatchError extends PnpmError {
   constructor(outdatedLockfileSettingName: string) {
     super(
       'LOCKFILE_CONFIG_MISMATCH',
-      `Cannot proceed with the frozen installation. The current "${outdatedLockfileSettingName!}" configuration doesn't match the value found in the lockfile`,
+      `Cannot proceed with the frozen installation. The current "${outdatedLockfileSettingName}" configuration doesn't match the value found in the lockfile`,
       {
         hint: 'Update your lockfile using "pnpm install --no-frozen-lockfile"',
       }
@@ -357,7 +358,7 @@ export async function mutateModules(
     }
     const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {})
       ? undefined
-      : createObjectChecksum(opts.packageExtensions!)
+      : createObjectChecksum(opts.packageExtensions)
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
       : opts.patchedDependencies
@@ -389,9 +390,9 @@ export async function mutateModules(
           patchedDependencies,
         }
       )
-      outdatedLockfileSettings = outdatedLockfileSettingName != null
+      outdatedLockfileSettings = outdatedLockfileSettingName !== null
       if (frozenLockfile && outdatedLockfileSettings) {
-        throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
+        throw new LockfileConfigMismatchError(outdatedLockfileSettingName ?? '')
       }
     }
     let needsFullResolution =
@@ -642,9 +643,10 @@ Note that in CI environments, this setting is enabled by default.`,
         case 'unlink': {
           const packageDirs = await readModulesDir(projectOpts.modulesDir)
           const externalPackages = await pFilter(
-            packageDirs!,
-            async (packageDir: string) =>
-              isExternalLink(ctx.storeDir, projectOpts.modulesDir, packageDir)
+            packageDirs ?? [],
+            async (packageDir: string): Promise<boolean> => {
+              return isExternalLink(ctx.storeDir, projectOpts.modulesDir, packageDir);
+            }
           )
           const allDeps = getAllDependenciesFromManifest(projectOpts.manifest)
           const packagesToInstall: string[] = []

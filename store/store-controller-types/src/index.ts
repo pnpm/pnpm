@@ -65,7 +65,7 @@ export interface StoreController {
 }
 
 export interface PkgRequestFetchResult {
-  bundledManifest?: BundledManifest
+  bundledManifest?: BundledManifest | undefined
   files: PackageFilesResponse
 }
 
@@ -91,14 +91,14 @@ export type GetFilesIndexFilePath = (
 }
 
 export interface PkgNameVersion {
-  name?: string
-  version?: string
+  name?: string | undefined
+  version?: string | undefined
 }
 
 export interface FetchPackageToStoreOptions {
-  fetchRawManifest?: boolean
+  fetchRawManifest?: boolean | undefined
   force: boolean
-  ignoreScripts?: boolean
+  ignoreScripts?: boolean | undefined
   lockfileDir: string
   pkg: PkgNameVersion & {
     id: string
@@ -107,66 +107,66 @@ export interface FetchPackageToStoreOptions {
   /**
    * Expected package is the package name and version that are found in the lockfile.
    */
-  expectedPkg?: PkgNameVersion
-  onFetchError?: OnFetchError
+  expectedPkg?: PkgNameVersion | undefined
+  onFetchError?: OnFetchError | undefined
 }
 
 export type OnFetchError = (error: Error) => Error
 
 export type RequestPackageFunction = (
-  wantedDependency: WantedDependency & { optional?: boolean },
+  wantedDependency: WantedDependency & { optional?: boolean | undefined },
   options: RequestPackageOptions
 ) => Promise<PackageResponse>
 
 export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
   currentPkg?: {
-    id?: string
-    resolution?: Resolution
-  }
+    id?: string | undefined
+    resolution?: Resolution | undefined
+  } | undefined
   /**
    * Expected package is the package name and version that are found in the lockfile.
    */
-  expectedPkg?: PkgNameVersion
-  defaultTag?: string
-  pickLowestVersion?: boolean
-  publishedBy?: Date
+  expectedPkg?: PkgNameVersion | undefined
+  defaultTag?: string | undefined
+  pickLowestVersion?: boolean | undefined
+  publishedBy?: Date | undefined
   downloadPriority: number
-  ignoreScripts?: boolean
+  ignoreScripts?: boolean | undefined
   projectDir: string
   lockfileDir: string
   preferredVersions: PreferredVersions
-  preferWorkspacePackages?: boolean
+  preferWorkspacePackages?: boolean | undefined
   registry: string
-  sideEffectsCache?: boolean
-  skipFetch?: boolean
-  update?: boolean
-  workspacePackages?: WorkspacePackages
-  forceResolve?: boolean
-  supportedArchitectures?: SupportedArchitectures
-  onFetchError?: OnFetchError
-  updateToLatest?: boolean
+  sideEffectsCache?: boolean | undefined
+  skipFetch?: boolean | undefined
+  update?: boolean | undefined
+  workspacePackages?: WorkspacePackages | undefined
+  forceResolve?: boolean | undefined
+  supportedArchitectures?: SupportedArchitectures | undefined
+  onFetchError?: OnFetchError | undefined
+  updateToLatest?: boolean | undefined
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
 
 export interface PackageResponse {
-  fetching?: () => Promise<PkgRequestFetchResult>
-  filesIndexFile?: string
+  fetching?: (() => Promise<PkgRequestFetchResult>) | undefined
+  filesIndexFile?: string | undefined
   body: {
     isLocal: boolean
-    isInstallable?: boolean
+    isInstallable?: boolean | undefined
     resolution: Resolution
-    manifest?: PackageManifest
+    manifest?: PackageManifest | undefined
     id: string
-    normalizedPref?: string
+    normalizedPref?: string | undefined
     updated: boolean
-    publishedAt?: string
-    resolvedVia?: string
+    publishedAt?: string | undefined
+    resolvedVia?: string | undefined
     // This is useful for recommending updates.
     // If latest does not equal the version of the
     // resolved package, it is out-of-date.
-    latest?: string
+    latest?: string | undefined
   } & (
     | {
       isLocal: true
@@ -181,11 +181,11 @@ export interface PackageResponse {
 export type FilesMap = Record<string, string>
 
 export interface ImportOptions {
-  disableRelinkLocalDirDeps?: boolean
+  disableRelinkLocalDirDeps?: boolean | undefined
   filesMap: FilesMap
   force: boolean
   resolvedFrom: ResolvedFrom
-  keepModulesDir?: boolean
+  keepModulesDir?: boolean | undefined
 }
 
 export type ImportIndexedPackage = (

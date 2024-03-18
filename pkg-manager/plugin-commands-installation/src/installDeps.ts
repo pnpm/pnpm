@@ -385,7 +385,7 @@ when running add/update with the --workspace option"
       {
         ...opts,
         ...OVERWRITE_UPDATE_OPTIONS,
-        allProjectsGraph: opts.allProjectsGraph!,
+        allProjectsGraph: opts.allProjectsGraph ?? {},
         selectedProjectsGraph,
         workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understand that is not undefined
       },

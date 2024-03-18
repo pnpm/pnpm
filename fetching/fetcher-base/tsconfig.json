@@ -17,9 +17,6 @@
     },
     {
       "path": "../../resolving/resolver-base"
-    },
-    {
-      "path": "../../store/cafs-types"
     }
   ],
   "composite": true

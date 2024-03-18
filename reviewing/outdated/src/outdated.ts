@@ -91,12 +91,12 @@ export async function outdated(opts: {
     DEPENDENCIES_FIELDS.map(async (depType) => {
       if (
         opts.include?.[depType] === false ||
-        opts.wantedLockfile!.importers[importerId][depType] == null
+        opts.wantedLockfile?.importers[importerId][depType] == null
       )
         return
 
       let pkgs = Object.keys(
-        opts.wantedLockfile!.importers[importerId][depType]!
+        opts.wantedLockfile?.importers[importerId][depType]!
       )
 
       if (opts.match != null) {
@@ -107,21 +107,23 @@ export async function outdated(opts: {
         pkgs.map(async (alias) => {
           if (!allDeps[alias]) return
           const ref =
-            opts.wantedLockfile!.importers[importerId][depType]![alias]
+            opts.wantedLockfile?.importers[importerId][depType]?.[alias]
 
           if (
-            ref.startsWith('file:') || // ignoring linked packages. (For backward compatibility)
+            ref?.startsWith('file:') || // ignoring linked packages. (For backward compatibility)
             ignoreDependenciesMatcher?.(alias)
           ) {
             return
           }
 
-          const relativeDepPath = dp.refToRelative(ref, alias)
+          const relativeDepPath = dp.refToRelative(ref ?? '', alias)
 
           // ignoring linked packages
-          if (relativeDepPath === null) return
+          if (relativeDepPath === null) {
+            return
+          }
 
-          const pkgSnapshot = opts.wantedLockfile!.packages?.[relativeDepPath]
+          const pkgSnapshot = opts.wantedLockfile?.packages?.[relativeDepPath]
 
           if (pkgSnapshot == null) {
             throw new Error(
@@ -136,7 +138,7 @@ export async function outdated(opts: {
             currentRef && dp.refToRelative(currentRef, alias)
           const current =
             (currentRelative && dp.parse(currentRelative).version) ?? currentRef
-          const wanted = dp.parse(relativeDepPath).version ?? ref
+          const wanted = dp.parse(relativeDepPath).version ?? ref ?? ''
           const { name: packageName } = nameVerFromPkgSnapshot(
             relativeDepPath,
             pkgSnapshot

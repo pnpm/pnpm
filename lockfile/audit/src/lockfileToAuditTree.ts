@@ -93,5 +93,7 @@ function lockfileToAuditNode(
 function toRequires(
   auditNodesByDepName: Record<string, AuditNode>
 ): Record<string, string> {
-  return mapValues((auditNode) => auditNode.version!, auditNodesByDepName)
+  return mapValues((auditNode: AuditNode): string => {
+    return auditNode.version ?? '';
+  }, auditNodesByDepName)
 }

@@ -34,15 +34,15 @@ export function createReadPackageHook({
     )
   }
   if (!isEmpty(packageExtensions ?? {})) {
-    hooks.push(createPackageExtender(packageExtensions!))
+    hooks.push(createPackageExtender(packageExtensions ?? {}))
   }
   if (Array.isArray(readPackageHook)) {
     hooks.push(...readPackageHook)
   } else if (readPackageHook) {
     hooks.push(readPackageHook)
   }
-  if (!isEmpty(overrides ?? {})) {
-    hooks.push(createVersionsOverrider(overrides!, lockfileDir))
+  if (typeof overrides !== 'undefined' && !isEmpty(overrides)) {
+    hooks.push(createVersionsOverrider(overrides, lockfileDir))
   }
   if (
     peerDependencyRules != null &&

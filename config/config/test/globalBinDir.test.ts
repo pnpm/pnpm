@@ -45,7 +45,7 @@ test('respects global-bin-dir in npmrc', async () => {
       global: true,
     },
     env: {
-      [pathName]: `${globalBinDir}${path.delimiter}${process.env[pathName]!}`,
+      [pathName]: `${globalBinDir}${path.delimiter}${process.env[pathName] ?? ''}`,
     },
     packageManager: {
       name: 'pnpm',
@@ -62,7 +62,7 @@ test('respects global-bin-dir rather than dir', async () => {
       dir: __dirname,
     },
     env: {
-      [pathName]: `${globalBinDir}${path.delimiter}${process.env[pathName]!}`,
+      [pathName]: `${globalBinDir}${path.delimiter}${process.env[pathName] ?? ''}`,
     },
     packageManager: {
       name: 'pnpm',
@@ -103,7 +103,7 @@ test('the global directory may be a symlink to a directory that is in PATH', asy
       dir: __dirname,
     },
     env: {
-      [pathName]: `${globalBinDirTarget}${path.delimiter}${process.env[pathName]!}`,
+      [pathName]: `${globalBinDirTarget}${path.delimiter}${process.env[pathName] ?? ''}`,
     },
     packageManager: {
       name: 'pnpm',

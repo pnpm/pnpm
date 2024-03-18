@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import getPort from 'get-port'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
@@ -63,8 +63,8 @@ test('server', async () => {
   expect(bundledManifest?.name).toBe('is-positive')
   expect(response.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
 
-  expect(response.body.manifest!.name).toBe('is-positive')
-  expect(response.body.manifest!.version).toBe('1.0.0')
+  expect(response.body.manifest?.name).toBe('is-positive')
+  expect(response.body.manifest?.version).toBe('1.0.0')
 
   expect(files.resolvedFrom).toBe('remote')
   expect(files.filesIndex).toHaveProperty(['package.json'])

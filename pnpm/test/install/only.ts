@@ -1,6 +1,6 @@
-import path from 'path'
+import path from 'node:path'
 import { prepare } from '@pnpm/prepare'
-import { type PackageManifest } from '@pnpm/types'
+import type { PackageManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import { execPnpm } from '../utils'
 
@@ -13,7 +13,7 @@ test('production install (with --production flag)', async () => {
 
   await execPnpm(['install', '--production'])
 
-  await project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
+  await project.hasNot(Object.keys(basicPackageManifest.devDependencies ?? {})[0])
   await project.has('rimraf')
   await project.has('is-positive')
 })
@@ -23,7 +23,7 @@ test('production install (with production NODE_ENV)', async () => {
 
   await execPnpm(['install'], { env: { NODE_ENV: 'production' } })
 
-  await project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
+  await project.hasNot(Object.keys(basicPackageManifest.devDependencies ?? {})[0])
   await project.has('rimraf')
   await project.has('is-positive')
 })
@@ -33,7 +33,7 @@ test('dev dependencies install (with production NODE_ENV)', async () => {
 
   await execPnpm(['install', '--dev'], { env: { NODE_ENV: 'production' } })
 
-  await project.hasNot(Object.keys(basicPackageManifest.dependencies!)[0])
+  await project.hasNot(Object.keys(basicPackageManifest.dependencies ?? {})[0])
   await project.has('@rstacruz/tap-spec')
 })
 

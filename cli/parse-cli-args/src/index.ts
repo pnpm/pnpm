@@ -57,13 +57,11 @@ export async function parseCliArgs(
   )
   let commandName = getCommandName(noptExploratoryResults.argv.remain)
   let cmd = commandName ? opts.getCommandLongName(commandName) : null
-  const fallbackCommandUsed = Boolean(
-    commandName && !cmd && opts.fallbackCommand
-  )
-  if (fallbackCommandUsed) {
-    cmd = opts.fallbackCommand!
-    commandName = opts.fallbackCommand!
-    inputArgv.unshift(opts.fallbackCommand!)
+
+  if (commandName && !cmd && opts.fallbackCommand) {
+    cmd = opts.fallbackCommand
+    commandName = opts.fallbackCommand
+    inputArgv.unshift(opts.fallbackCommand)
     // The run command has special casing for --help and is handled further below.
   } else if (cmd !== 'run' && noptExploratoryResults.help) {
     return getParsedArgsForHelp()
@@ -112,7 +110,7 @@ export async function parseCliArgs(
     const indexOfRunScriptName =
       1 +
       (recursiveCommandUsed ? 1 : 0) +
-      (fallbackCommandUsed && opts.fallbackCommand === 'run' ? -1 : 0)
+      (commandName && !cmd && opts.fallbackCommand && opts.fallbackCommand === 'run' ? -1 : 0)
     return [noptExploratoryResults.argv.remain[indexOfRunScriptName]]
   }
 
@@ -194,7 +192,7 @@ export async function parseCliArgs(
     cmd,
     params,
     workspaceDir,
-    fallbackCommandUsed,
+    fallbackCommandUsed: commandName !== '' && (cmd === null || cmd === '') && typeof opts.fallbackCommand === 'string',
     ...normalizeOptions(options, knownOptions),
   }
 }

@@ -2,6 +2,7 @@
   "name": "@pnpm-private/updater",
   "version": "1.0.11",
   "private": true,
+  "type": "module",
   "scripts": {
     "compile": "tsc --build"
   },

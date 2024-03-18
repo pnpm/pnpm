@@ -75,8 +75,8 @@ export async function addFilesFromDir(
     filesIndex: Record<string, string>
     manifest: DependencyManifest
   }>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }) => {
-      workerPool!.checkinWorker(localWorker)
+    localWorker.once('message', ({ status, error, value }): void => {
+      workerPool?.checkinWorker(localWorker)
       if (status === 'error') {
         reject(
           new PnpmError(
@@ -157,7 +157,7 @@ export async function addFilesFromTarball(
     manifest: DependencyManifest
   }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
-      workerPool!.checkinWorker(localWorker)
+      workerPool?.checkinWorker(localWorker)
       if (status === 'error') {
         if (error.type === 'integrity_validation_failed') {
           reject(
@@ -207,7 +207,7 @@ export async function readPkgFromCafs(
   return new Promise<{ verified: boolean; pkgFilesIndex: PackageFilesIndex }>(
     (resolve, reject) => {
       localWorker.once('message', ({ status, error, value }) => {
-        workerPool!.checkinWorker(localWorker)
+        workerPool?.checkinWorker(localWorker)
         if (status === 'error') {
           reject(
             new PnpmError(

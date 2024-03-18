@@ -436,12 +436,12 @@ async function linkNewPackages(
     )
   )
   await Promise.all([
-    !opts.symlink
-      ? Promise.resolve()
-      : linkAllModules([...newPkgs, ...existingWithUpdatedDeps], depGraph, {
+    opts.symlink
+      ? linkAllModules([...newPkgs, ...existingWithUpdatedDeps], depGraph, {
         lockfileDir: opts.lockfileDir,
         optional: opts.optional,
-      }),
+      })
+      : Promise.resolve(),
     linkAllPkgs(opts.storeController, newPkgs, {
       depGraph,
       depsStateCache: opts.depsStateCache,
@@ -503,9 +503,12 @@ async function linkAllPkgs(
     lockfileDir: string
     sideEffectsCacheRead: boolean
   }
-) {
+): Promise<(void | null)[]> {
   return Promise.all(
-    depNodes.map(async (depNode) => {
+    depNodes.map(async (depNode: DependenciesGraphNode): Promise<void | null> => {
+      if (typeof depNode.fetching === 'undefined') {
+        return null
+      }
       const { files } = await depNode.fetching()
 
       if (typeof depNode.requiresBuild === 'function') {

@@ -110,8 +110,8 @@ export async function start(
   const connectionOptions = {
     remotePrefix:
       serverOptions.path != null
-        ? `http://unix:${serverOptions.path}:`
-        : `http://${serverOptions.hostname!}:${serverOptions.port!}`,
+        ? `http://unix:${serverOptions.path ?? ''}:`
+        : `http://${serverOptions.hostname ?? ''}:${serverOptions.port ?? ''}`,
   }
   server = createServer(store.ctrl, {
     ...serverOptions,

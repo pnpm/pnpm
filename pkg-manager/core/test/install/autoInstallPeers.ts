@@ -716,7 +716,7 @@ test('do not override the direct dependency with an auto installed peer dependen
               if (pkg[depType]) {
                 for (const depName of Object.keys(pkg[depType] ?? {})) {
                   if (!includedDeps.has(depName)) {
-                    delete pkg[depType]![depName]
+                    delete pkg[depType]?.[depName]
                   }
                 }
               }

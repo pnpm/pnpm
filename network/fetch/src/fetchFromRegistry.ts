@@ -1,5 +1,5 @@
 import { URL } from 'node:url'
-import type { FetchFromRegistry } from '@pnpm/fetching-types'
+import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import { getAgent, type AgentOptions } from '@pnpm/network.agent'
 import {
   fetch,
@@ -38,11 +38,16 @@ export type { AgentOptions }
 
 export function createFetchFromRegistry(
   defaultOpts: {
-    fullMetadata?: boolean
-    userAgent?: string
+    fullMetadata?: boolean | undefined
+    userAgent?: string | undefined
   } & AgentOptions
 ): FetchFromRegistry {
-  return async (url, opts): Promise<Response> => {
+  return async (url: string, opts: {
+    authHeaderValue?: string | undefined;
+    compress?: boolean | undefined;
+    retry?: RetryTimeoutOptions | undefined;
+    timeout?: number | undefined;
+  } | undefined): Promise<Response> => {
     const headers = {
       'user-agent': USER_AGENT,
       ...getHeaders({
@@ -55,7 +60,7 @@ export function createFetchFromRegistry(
     let redirects = 0
     let urlObject = new URL(url)
     const originalHost = urlObject.host
-    /* eslint-disable no-await-in-loop */
+
     while (true) {
       const agentOptions = {
         ...defaultOpts,
@@ -65,6 +70,7 @@ export function createFetchFromRegistry(
 
       // We should pass a URL object to node-fetch till this is not resolved:
       // https://github.com/bitinn/node-fetch/issues/245
+      // eslint-disable-next-line no-await-in-loop
       const response = await fetchWithAgent(urlObject, {
         agentOptions,
         // if verifying integrity, node-fetch must not decompress
@@ -81,11 +87,16 @@ export function createFetchFromRegistry(
       // This is a workaround to remove authorization headers on redirect.
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       redirects++
-      urlObject = new URL(response.headers.get('location')!)
-      if (!headers.authorization || originalHost === urlObject.host) continue
+      const loc = response.headers.get('location')
+      if (!loc) {
+        continue
+      }
+      urlObject = new URL(loc)
+      if (!headers.authorization || originalHost === urlObject.host) {
+        continue
+      }
       delete headers.authorization
     }
-    /* eslint-enable no-await-in-loop */
   }
 }
 

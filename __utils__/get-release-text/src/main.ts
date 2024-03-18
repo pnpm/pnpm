@@ -22,6 +22,7 @@ const changelog = fs.readFileSync(path.join(pnpmDir, 'CHANGELOG.md'), 'utf8')
 const pnpm = JSON.parse(
   fs.readFileSync(path.join(pnpmDir, 'package.json'), 'utf8')
 )
+// @ts-ignore
 const release = getChangelogEntry(changelog, pnpm.version)
 fs.writeFileSync(path.join(dirname, '../../../RELEASE.md'), release.content)
 

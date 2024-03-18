@@ -25,14 +25,17 @@ export async function updateProjectManifestObject(
       const spec =
         packageSpec.pref ?? findSpec(packageSpec.alias, packageManifest)
       if (spec) {
-        packageManifest[packageSpec.saveType] =
-          packageManifest[packageSpec.saveType] ?? {}
-        packageManifest[packageSpec.saveType]![packageSpec.alias] = spec
+        const pm = packageManifest[packageSpec.saveType] ?? {}
+        packageManifest[packageSpec.saveType] = pm
+        pm[packageSpec.alias] = spec
+
         DEPENDENCIES_FIELDS.filter(
-          (depField) => depField !== packageSpec.saveType
-        ).forEach((deptype) => {
+          (depField: DependenciesField): boolean => {
+            return depField !== packageSpec.saveType;
+          }
+        ).forEach((deptype: DependenciesField): void => {
           if (packageManifest[deptype] != null) {
-            delete packageManifest[deptype]![packageSpec.alias]
+            delete packageManifest[deptype]?.[packageSpec.alias]
           }
         })
         if (packageSpec.peer === true) {
@@ -46,8 +49,9 @@ export async function updateProjectManifestObject(
         guessDependencyType(packageSpec.alias, packageManifest) ??
         'dependencies'
       if (usedDepType !== 'peerDependencies') {
-        packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
-        packageManifest[usedDepType]![packageSpec.alias] = packageSpec.pref
+        const pm = packageManifest[usedDepType] ?? {}
+        packageManifest[usedDepType] = pm
+        pm[packageSpec.alias] = packageSpec.pref
       }
     }
     if (packageSpec.nodeExecPath) {
@@ -72,7 +76,7 @@ function findSpec(
   manifest: ProjectManifest
 ): string | undefined {
   const foundDepType = guessDependencyType(alias, manifest)
-  return foundDepType && manifest[foundDepType]![alias]
+  return foundDepType && manifest[foundDepType]?.[alias]
 }
 
 export function guessDependencyType(

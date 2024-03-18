@@ -47,20 +47,20 @@ export function preparePackages(
   const result: { [name: string]: Project } = {}
   const cwd = process.cwd()
   for (const aPkg of pkgs) {
-    if (typeof (aPkg as LocationAndManifest).location === 'string') {
-      result[(aPkg as LocationAndManifest).package.name!] = prepare(
-        (aPkg as LocationAndManifest).package,
+    if ('location' in aPkg && typeof aPkg.location === 'string') {
+      result[(aPkg).package.name!] = prepare(
+        aPkg.package,
         {
           manifestFormat,
-          tempDir: path.join(dirname, (aPkg as LocationAndManifest).location),
+          tempDir: path.join(dirname, aPkg.location),
         }
       )
-    } else {
-      result[(aPkg as ProjectManifest).name!] = prepare(
-        aPkg as ProjectManifest,
+    } else if ('name' in aPkg && typeof aPkg.name === 'string') {
+      result[aPkg.name] = prepare(
+        aPkg,
         {
           manifestFormat,
-          tempDir: path.join(dirname, (aPkg as ProjectManifest).name!),
+          tempDir: path.join(dirname, aPkg.name),
         }
       )
     }

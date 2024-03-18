@@ -195,7 +195,7 @@ function renderOutdatedJSON(
     string,
     OutdatedPackageInWorkspaceJSONOutput
   > = sortOutdatedPackages(Object.values(outdatedMap)).reduce(
-    (acc, outdatedPkg) => {
+    (acc: Record<string, OutdatedPackageInWorkspaceJSONOutput>, outdatedPkg: OutdatedInWorkspace): Record<string, OutdatedPackageInWorkspaceJSONOutput> => {
       acc[outdatedPkg.packageName] = {
         current: outdatedPkg.current,
         latest: outdatedPkg.latestManifest?.version,
@@ -203,7 +203,13 @@ function renderOutdatedJSON(
         isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
         dependencyType: outdatedPkg.belongsTo,
         dependentPackages: outdatedPkg.dependentPkgs.map(
-          ({ manifest, location }) => ({ name: manifest.name!, location })
+          ({ manifest, location }: {
+            location: string;
+            manifest: ProjectManifest;
+          }): {
+            name: string;
+            location: string;
+          } => ({ name: manifest.name ?? '', location })
         ),
       }
       if (opts.long) {
@@ -218,7 +224,12 @@ function renderOutdatedJSON(
 
 function dependentPackages({ dependentPkgs }: OutdatedInWorkspace) {
   return dependentPkgs
-    .map(({ manifest, location }) => manifest.name ?? location)
+    .map(({ manifest, location }: {
+      location: string;
+      manifest: ProjectManifest;
+    }): string => {
+      return manifest.name ?? location;
+    })
     .sort()
     .join(', ')
 }

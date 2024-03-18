@@ -146,13 +146,13 @@ export async function lockfileToDepGraph(
           currentPackages[depPath] &&
           equals(
             currentPackages[depPath].dependencies,
-            lockfile.packages![depPath].dependencies
+            lockfile.packages?.[depPath]?.dependencies
           )
         let dirExists: boolean | undefined
         if (
           depIsPresent &&
           isEmpty(currentPackages[depPath].optionalDependencies ?? {}) &&
-          isEmpty(lockfile.packages![depPath].optionalDependencies ?? {})
+          isEmpty(lockfile.packages?.[depPath].optionalDependencies ?? {})
         ) {
           dirExists = await pathExists(dir)
           if (dirExists) {
@@ -168,7 +168,7 @@ export async function lockfileToDepGraph(
           depIsPresent &&
           equals(
             currentPackages[depPath].optionalDependencies,
-            lockfile.packages![depPath].optionalDependencies
+            lockfile.packages?.[depPath].optionalDependencies
           )
         ) {
           if (dirExists ?? (await pathExists(dir))) {

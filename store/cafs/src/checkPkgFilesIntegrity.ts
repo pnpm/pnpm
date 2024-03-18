@@ -56,7 +56,7 @@ export function checkPkgFilesIntegrity(
     )) {
       const { passed } = _checkFilesIntegrity(files)
       if (!passed) {
-        delete pkgIndex.sideEffects![sideEffectName]
+        delete pkgIndex.sideEffects?.[sideEffectName]
       }
     }
   }

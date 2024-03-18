@@ -339,7 +339,7 @@ function getFilesIndexFilePath(
   const target = path.join(ctx.storeDir, targetRelative)
   const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
     ? ctx.getFilePathInCafs(
-      (opts.pkg.resolution as TarballResolution).integrity!,
+      (opts.pkg.resolution as TarballResolution).integrity ?? '',
       'index'
     )
     : path.join(
@@ -599,7 +599,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
         await fs.mkdir(target, { recursive: true })
         await gfs.writeFile(
           path.join(target, TARBALL_INTEGRITY_FILENAME),
-          (opts.pkg.resolution as TarballResolution).integrity!,
+          (opts.pkg.resolution as TarballResolution).integrity ?? '',
           'utf8'
         )
       }

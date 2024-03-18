@@ -231,7 +231,7 @@ export interface ResolvedPackage {
   prod: boolean
   dev: boolean
   optional: boolean
-  fetching: () => Promise<PkgRequestFetchResult>
+  fetching?: (() => Promise<PkgRequestFetchResult>) | undefined
   filesIndexFile: string
   name: string
   version: string
@@ -244,16 +244,16 @@ export interface ResolvedPackage {
   depPath: string
   requiresBuild: boolean | SafePromiseDefer<boolean>
   additionalInfo: {
-    deprecated?: string
-    bundleDependencies?: string[] | boolean
-    bundledDependencies?: string[] | boolean
+    deprecated?: string | undefined
+    bundleDependencies?: string[] | boolean | undefined
+    bundledDependencies?: string[] | boolean | undefined
     engines?: {
-      node?: string
-      npm?: string
-    }
-    cpu?: string[]
-    os?: string[]
-    libc?: string[]
+      node?: string | undefined
+      npm?: string | undefined
+    } | undefined
+    cpu?: string[] | undefined
+    os?: string[] | undefined
+    libc?: string[] | undefined
   }
   parentImporterIds: Set<string>
 }
@@ -276,14 +276,14 @@ interface ResolvedDependenciesOptions {
   // via this option
   preferredDependencies?: ResolvedDependencies
   proceed: boolean
-  publishedBy?: Date
-  pickLowestVersion?: boolean
-  resolvedDependencies?: ResolvedDependencies
-  updateMatching?: UpdateMatchingFunction
+  publishedBy?: Date | undefined
+  pickLowestVersion?: boolean | undefined
+  resolvedDependencies?: ResolvedDependencies | undefined
+  updateMatching?: UpdateMatchingFunction | undefined
   updateDepth: number
   prefix: string
-  supportedArchitectures?: SupportedArchitectures
-  updateToLatest?: boolean
+  supportedArchitectures?: SupportedArchitectures | undefined
+  updateToLatest?: boolean | undefined
 }
 
 interface PostponedResolutionOpts {
@@ -306,7 +306,7 @@ type PostponedPeersResolutionFunction = (
 
 interface ResolvedRootDependenciesResult {
   pkgAddressesByImporters: Array<Array<PkgAddress | LinkedDependency>>
-  time?: Record<string, string>
+  time?: Record<string, string> | undefined
 }
 
 export async function resolveRootDependencies(
@@ -399,8 +399,8 @@ export interface ImporterToResolve {
 
 interface ResolveDependenciesOfImportersResult {
   pkgAddressesByImportersWithoutPeers: PkgAddressesByImportersWithoutPeers[]
-  publishedBy?: Date
-  time?: Record<string, string>
+  publishedBy?: Date | undefined
+  time?: Record<string, string> | undefined
 }
 
 async function resolveDependenciesOfImporters(
@@ -408,25 +408,28 @@ async function resolveDependenciesOfImporters(
   importers: ImporterToResolve[]
 ): Promise<ResolveDependenciesOfImportersResult> {
   const extendedWantedDepsByImporters = importers.map(
-    ({ wantedDependencies, options }) =>
-      getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
+    ({ wantedDependencies, options }: ImporterToResolve): ExtendedWantedDependency[] => {
+      return getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
         preferredDependencies: options.preferredDependencies,
         prefix: options.prefix,
         proceed: options.proceed || ctx.forceFullResolution,
         registries: ctx.registries,
         resolvedDependencies: options.resolvedDependencies,
-      })
+      });
+    }
   )
   const pickLowestVersion =
     ctx.resolutionMode === 'time-based' ||
     ctx.resolutionMode === 'lowest-direct'
   const resolveResults = await Promise.all(
     zipWith(
-      async (extendedWantedDeps, importer) => {
+      async (extendedWantedDeps: ExtendedWantedDependency[], importer: ImporterToResolve) => {
         const postponedResolutionsQueue: PostponedResolutionFunction[] = []
         const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] =
           []
+
         const pkgAddresses: PkgAddress[] = []
+
         ;(
           await Promise.all(
             extendedWantedDeps.map((extendedWantedDep) =>
@@ -844,7 +847,7 @@ async function resolveDependenciesOfDependency(
     extendedWantedDep.infoFromLockfile?.dependencyLockfile == null ||
     (updateShouldContinue &&
       (options.updateMatching == null ||
-        options.updateMatching(extendedWantedDep.infoFromLockfile.name!))) ||
+        options.updateMatching(extendedWantedDep.infoFromLockfile.name ?? ''))) ||
     Boolean(
       ctx.workspacePackages != null &&
         ctx.linkWorkspacePackagesDepth !== -1 &&
@@ -854,7 +857,7 @@ async function resolveDependenciesOfDependency(
           { defaultTag: ctx.defaultTag, registry: ctx.registries.default }
         )
     ) ||
-    ctx.updatedSet.has(extendedWantedDep.infoFromLockfile.name!)
+    ctx.updatedSet.has(extendedWantedDep.infoFromLockfile.name ?? '')
 
   const resolveDependencyOpts: ResolveDependencyOptions = {
     currentDepth: options.currentDepth,
@@ -1644,10 +1647,13 @@ async function resolveDependency(
     }
 
     if (ctx.dependenciesTree.has(nodeId)) {
-      ctx.dependenciesTree.get(nodeId)!.depth = Math.min(
-        ctx.dependenciesTree.get(nodeId)!.depth,
-        options.currentDepth
-      )
+      const dependencyNode = ctx.dependenciesTree.get(nodeId);
+      if (dependencyNode) {
+        dependencyNode.depth = Math.min(
+          dependencyNode.depth,
+          options.currentDepth
+        );
+      }
     } else {
       ctx.pendingNodes.push({
         alias: wantedDependency.alias || pkg.name,
@@ -1655,7 +1661,7 @@ async function resolveDependency(
         installable,
         nodeId,
         resolvedPackage: ctx.resolvedPackagesByDepPath[depPath],
-      })
+      });
     }
   }
 
@@ -1726,7 +1732,7 @@ async function getManifestFromResponse(
     pkgResponse.body.manifest ?? (await pkgResponse.fetching!()).bundledManifest
   if (pkg) return pkg
   return {
-    name: wantedDependency.pref.split('/').pop()!,
+    name: wantedDependency.pref.split('/').pop() ?? '',
     version: '0.0.0',
   }
 }
@@ -1790,8 +1796,8 @@ function getResolvedPackage(options: {
     parentImporterIds: new Set([options.parentImporterId]),
     depPath: options.depPath,
     dev: options.wantedDependency.dev,
-    fetching: options.pkgResponse.fetching!,
-    filesIndexFile: options.pkgResponse.filesIndexFile!,
+    fetching: options.pkgResponse.fetching,
+    filesIndexFile: options.pkgResponse.filesIndexFile ?? '',
     hasBin: options.hasBin,
     hasBundledDependencies: !(
       (options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) ==

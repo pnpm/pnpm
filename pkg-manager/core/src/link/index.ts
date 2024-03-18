@@ -207,10 +207,14 @@ function addLinkToLockfile(
   for (const depType of DEPENDENCIES_FIELDS) {
     if (!addedTo && opts.manifest?.[depType]?.[opts.linkedPkgName]) {
       addedTo = depType
-      projectSnapshot[depType] = projectSnapshot[depType] ?? {}
-      projectSnapshot[depType]![opts.linkedPkgName] = id
+
+      const snapshot = projectSnapshot[depType] ?? {}
+
+      projectSnapshot[depType] = snapshot
+      // @ts-ignore
+      projectSnapshot[depType][opts.linkedPkgName] = id
     } else if (projectSnapshot[depType] != null) {
-      delete projectSnapshot[depType]![opts.linkedPkgName]
+      delete projectSnapshot[depType]?.[opts.linkedPkgName]
     }
   }
 

@@ -273,7 +273,7 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
     'is-positive': '1.0.0',
   }
   expect(manifest.dependencies).toStrictEqual(expectedDeps)
-  expect(Object.keys(manifest.dependencies!).sort()).toStrictEqual(
+  expect(Object.keys(manifest.dependencies ?? {}).sort()).toStrictEqual(
     Object.keys(expectedDeps).sort()
   )
 })

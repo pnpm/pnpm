@@ -4,7 +4,7 @@ import { PnpmError } from '@pnpm/error'
 import { filesIncludeInstallScripts } from '@pnpm/exec.files-include-install-scripts'
 import { packageManifestLogger } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
-import { type Lockfile, type ProjectSnapshot } from '@pnpm/lockfile-types'
+import type { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
@@ -266,7 +266,7 @@ export async function resolveDependencies(
         dependenciesByProjectId[project.id]
       )) {
         const projectSnapshot = opts.wantedLockfile.importers[project.id]
-        if (project.manifest.dependenciesMeta != null) {
+        if (typeof project.manifest.dependenciesMeta !== 'undefined') {
           projectSnapshot.dependenciesMeta = project.manifest.dependenciesMeta
         }
 
@@ -387,25 +387,29 @@ async function finishLockfileUpdates(
   newLockfile: Lockfile
 ) {
   return Promise.all(
-    pendingRequiresBuilds.map(async (depPath) => {
+    pendingRequiresBuilds.map(async (depPath: string) => {
       const depNode = dependenciesGraph[depPath]
       if (!depNode) return
       try {
-        let requiresBuild!: boolean
+        let requiresBuild: boolean
         if (depNode.optional) {
           // We assume that all optional dependencies have to be built.
           // Optional dependencies are not always downloaded, so there is no way to know whether they need to be built or not.
           requiresBuild = true
         } else {
+          if (typeof depNode.fetching === 'undefined') {
+            requiresBuild = false
+          } else {
           // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-          const { files, bundledManifest: pkgJson } = await depNode.fetching()
-          requiresBuild = Boolean(
-            (pkgJson?.scripts != null &&
+            const { files, bundledManifest: pkgJson } = await depNode.fetching()
+            requiresBuild = Boolean(
+              (pkgJson?.scripts != null &&
               (Boolean(pkgJson.scripts.preinstall) ||
                 Boolean(pkgJson.scripts.install) ||
                 Boolean(pkgJson.scripts.postinstall))) ||
               filesIncludeInstallScripts(files.filesIndex)
-          )
+            )
+          }
         }
         if (typeof depNode.requiresBuild === 'function') {
           depNode.requiresBuild.resolve(requiresBuild)
@@ -522,10 +526,17 @@ function alignDependencyTypes(
   for (const depType of DEPENDENCIES_FIELDS) {
     if (projectSnapshot[depType] == null) continue
     for (const [alias, ref] of Object.entries(projectSnapshot[depType] ?? {})) {
-      if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias])
+      if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) {
         continue
-      projectSnapshot[depTypesOfAliases[alias]]![alias] = ref
-      delete projectSnapshot[depType]![alias]
+      }
+
+      const ps = projectSnapshot[depTypesOfAliases[alias]] ?? {}
+
+      projectSnapshot[depTypesOfAliases[alias]] = ps
+
+      ps[alias] = ref
+
+      delete projectSnapshot[depType]?.[alias]
     }
   }
 }

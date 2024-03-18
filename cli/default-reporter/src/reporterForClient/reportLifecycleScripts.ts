@@ -87,15 +87,15 @@ export function reportLifecycleScripts(
     const exit = 'exitCode' in log && typeof log.exitCode === 'number'
     const msg: string = lifecycleMessages[key].collapsed
       ? renderCollapsedScriptOutput(log, lifecycleMessages[key], {
-          cwd: opts.cwd, // eslint-disable-line @stylistic/ts/indent
-          exit, // eslint-disable-line @stylistic/ts/indent
-          maxWidth: opts.width, // eslint-disable-line @stylistic/ts/indent
-        }) // eslint-disable-line @stylistic/ts/indent
+        cwd: opts.cwd,
+        exit,
+        maxWidth: opts.width,
+      })
       : renderScriptOutput(log, lifecycleMessages[key], {
-          cwd: opts.cwd, // eslint-disable-line @stylistic/ts/indent
-          exit, // eslint-disable-line @stylistic/ts/indent
-          maxWidth: opts.width, // eslint-disable-line @stylistic/ts/indent
-        }) // eslint-disable-line @stylistic/ts/indent
+        cwd: opts.cwd,
+        exit,
+        maxWidth: opts.width,
+      })
     if (exit) {
       delete lifecycleMessages[key]
     }

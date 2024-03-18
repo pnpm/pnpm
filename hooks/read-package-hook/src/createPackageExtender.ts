@@ -1,7 +1,7 @@
-import {
-  type PackageManifest,
-  type PackageExtension,
-  type ReadPackageHook,
+import type {
+  PackageManifest,
+  PackageExtension,
+  ReadPackageHook,
 } from '@pnpm/types'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import semver from 'semver'
@@ -16,13 +16,17 @@ type ExtensionsByPkgName = Map<string, PackageExtensionMatch[]>
 export function createPackageExtender(
   packageExtensions: Record<string, PackageExtension>
 ): ReadPackageHook {
-  const extensionsByPkgName: ExtensionsByPkgName = new Map()
-  Object.entries(packageExtensions).forEach(([selector, packageExtension]) => {
+  const extensionsByPkgName: ExtensionsByPkgName = new Map<string, PackageExtensionMatch[]>()
+  Object.entries(packageExtensions).forEach(([selector, packageExtension]: [string, PackageExtension]): void => {
     const { alias, pref } = parseWantedDependency(selector)
-    if (!extensionsByPkgName.has(alias!)) {
-      extensionsByPkgName.set(alias!, [])
+    if (typeof alias === 'undefined') {
+      return
     }
-    extensionsByPkgName.get(alias!)?.push({ packageExtension, range: pref })
+
+    if (!extensionsByPkgName.has(alias)) {
+      extensionsByPkgName.set(alias, [])
+    }
+    extensionsByPkgName.get(alias)?.push({ packageExtension, range: pref })
   })
   return extendPkgHook.bind(null, extensionsByPkgName) as ReadPackageHook
 }
@@ -49,7 +53,10 @@ function extendPkg(
       'peerDependencies',
       'peerDependenciesMeta',
     ] as const) {
-      if (!packageExtension[field]) continue
+      if (!packageExtension[field]) {
+        continue
+      }
+
       manifest[field] = {
         ...packageExtension[field],
         ...manifest[field],

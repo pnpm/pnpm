@@ -548,7 +548,9 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
     },
   }
 
-  lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies![
+  lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'] = lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'] ?? {}
+  lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies = lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies ?? {}
+  lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies[
     '@pnpm.e2e/dep-of-pkg-with-1-dep'
   ] = '100.1.0'
 
@@ -591,9 +593,12 @@ test("recreates lockfile if it doesn't match the dependencies in package.json", 
   expect(lockfile1.dependencies['is-negative'].version).toBe('1.0.0')
   expect(lockfile1.dependencies['is-negative'].specifier).toBe('1.0.0')
 
-  manifest.dependencies!['is-negative'] = '^2.1.0'
-  manifest.devDependencies!['is-positive'] = '^2.0.0'
-  manifest.optionalDependencies!['map-obj'] = '1.0.1'
+  manifest.dependencies = manifest.dependencies ?? {};
+  manifest.devDependencies = manifest.devDependencies ?? {};
+  manifest.optionalDependencies = manifest.optionalDependencies ?? {};
+  manifest.dependencies['is-negative'] = '^2.1.0'
+  manifest.devDependencies['is-positive'] = '^2.0.0'
+  manifest.optionalDependencies['map-obj'] = '1.0.1'
 
   await install(manifest, await testDefaults())
 
@@ -1241,26 +1246,26 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.importers.project).toBeTruthy()
     expect(lockfile.importers.project.dependencies).toBeTruthy()
     expect(
-      lockfile.importers.project.dependencies!['@pnpm.e2e/pkg-with-1-dep']
+      lockfile.importers.project.dependencies?.['@pnpm.e2e/pkg-with-1-dep']
         .version
     ).toBe('100.0.0')
     expect(
-      lockfile.importers.project.dependencies!['@zkochan/foo']
+      lockfile.importers.project.dependencies?.['@zkochan/foo']
     ).toBeTruthy()
     expect(
-      lockfile.importers.project.dependencies!['is-negative'].version
+      lockfile.importers.project.dependencies?.['is-negative'].version
     ).toContain('/')
 
-    expect(lockfile.packages![id].dependencies).toHaveProperty([
+    expect(lockfile.packages?.[id].dependencies).toHaveProperty([
       '@pnpm.e2e/dep-of-pkg-with-1-dep',
     ])
-    expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
-    expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball'])
+    expect(lockfile.packages?.[id].resolution).toHaveProperty(['integrity'])
+    expect(lockfile.packages?.[id].resolution).not.toHaveProperty(['tarball'])
 
     const absDepPath =
       'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
     expect(lockfile.packages).toHaveProperty([absDepPath])
-    expect(lockfile.packages![absDepPath].name).toBeTruthy()
+    expect(lockfile.packages?.[absDepPath].name).toBeTruthy()
   }
 
   await fs.mkdir('project-2')
@@ -1289,28 +1294,28 @@ test('lockfile file has correct format when lockfile directory does not equal th
     const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
     expect(
-      lockfile.importers.project.dependencies!['@pnpm.e2e/pkg-with-1-dep']
+      lockfile.importers.project.dependencies?.['@pnpm.e2e/pkg-with-1-dep']
         .version
     ).toBe('100.0.0')
     expect(lockfile.importers.project.dependencies).toHaveProperty([
       '@zkochan/foo',
     ])
     expect(
-      lockfile.importers.project.dependencies!['is-negative'].version
+      lockfile.importers.project.dependencies?.['is-negative'].version
     ).toContain('/')
 
     expect(lockfile.packages).toHaveProperty([id])
-    expect(lockfile.packages![id].dependencies).toBeTruthy()
-    expect(lockfile.packages![id].dependencies).toHaveProperty([
+    expect(lockfile.packages?.[id].dependencies).toBeTruthy()
+    expect(lockfile.packages?.[id].dependencies).toHaveProperty([
       '@pnpm.e2e/dep-of-pkg-with-1-dep',
     ])
-    expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
-    expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball'])
+    expect(lockfile.packages?.[id].resolution).toHaveProperty(['integrity'])
+    expect(lockfile.packages?.[id].resolution).not.toHaveProperty(['tarball'])
 
     const absDepPath =
       'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
     expect(lockfile.packages).toHaveProperty([absDepPath])
-    expect(lockfile.packages![absDepPath].name).toBeTruthy()
+    expect(lockfile.packages?.[absDepPath].name).toBeTruthy()
   }
 })
 
@@ -1934,8 +1939,10 @@ test('a broken lockfile should not break the store', async () => {
   })
 
   const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
-  lockfile.packages!['/is-positive@1.0.0'].name = 'bad-name'
-  lockfile.packages!['/is-positive@1.0.0'].version = '1.0.0'
+  lockfile.packages = lockfile.packages ?? {}
+  lockfile.packages['/is-positive@1.0.0'] = lockfile.packages['/is-positive@1.0.0'] ?? {}
+  lockfile.packages['/is-positive@1.0.0'].name = 'bad-name'
+  lockfile.packages['/is-positive@1.0.0'].version = '1.0.0'
 
   await writeYamlFile(WANTED_LOCKFILE, lockfile)
 
@@ -1948,8 +1955,8 @@ test('a broken lockfile should not break the store', async () => {
     await testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') })
   )
 
-  delete lockfile.packages!['/is-positive@1.0.0'].name
-  delete lockfile.packages!['/is-positive@1.0.0'].version
+  delete lockfile.packages?.['/is-positive@1.0.0'].name
+  delete lockfile.packages?.['/is-positive@1.0.0'].version
 
   await writeYamlFile(WANTED_LOCKFILE, lockfile)
   await rimraf(path.resolve('node_modules'))

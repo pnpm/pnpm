@@ -188,5 +188,7 @@ export async function lockfileToLicenseNodeTree(
 function toRequires(
   licenseNodesByDepName: Record<string, LicenseNode>
 ): Record<string, string> {
-  return mapValues((licenseNode) => licenseNode.version!, licenseNodesByDepName)
+  return mapValues((licenseNode: LicenseNode): string => {
+    return licenseNode.version ?? '';
+  }, licenseNodesByDepName)
 }

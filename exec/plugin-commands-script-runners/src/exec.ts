@@ -182,7 +182,7 @@ export async function handler(
     reportSummary?: boolean | undefined
     implicitlyFellbackFromRun?: boolean | undefined
   } & Pick<
-      Config, // eslint-disable-line @stylistic/ts/indent
+    Config,
       | 'extraBinPaths'
       | 'extraEnv'
       | 'lockfileDir'
@@ -191,7 +191,7 @@ export async function handler(
       | 'userAgent'
       | 'recursive'
       | 'workspaceDir'
-    >, // eslint-disable-line @stylistic/ts/indent
+  >,
   params: string[]
 ): Promise<{
     exitCode: number;

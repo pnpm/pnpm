@@ -46,17 +46,19 @@ export function createPeerDependencyPatcher(
         }
       }
       if (allowAnyMatcher(peerName)) {
-        pkg.peerDependencies![peerName] = '*'
+        pkg.peerDependencies = pkg.peerDependencies ?? {}
+        pkg.peerDependencies[peerName] = '*'
         continue
       }
       if (!allowedVersions?.[peerName] || peerVersion === '*') {
         continue
       }
       if (allowedVersions?.[peerName].includes('*')) {
-        pkg.peerDependencies![peerName] = '*'
+        pkg.peerDependencies = pkg.peerDependencies ?? {}
+        pkg.peerDependencies[peerName] = '*'
         continue
       }
-      const currentVersions = parseVersions(pkg.peerDependencies![peerName])
+      const currentVersions = parseVersions(pkg.peerDependencies?.[peerName] ?? '')
 
       allowedVersions[peerName].forEach((allowedVersion) => {
         if (!currentVersions.includes(allowedVersion)) {
@@ -64,7 +66,8 @@ export function createPeerDependencyPatcher(
         }
       })
 
-      pkg.peerDependencies![peerName] = currentVersions.join(' || ')
+      pkg.peerDependencies = pkg.peerDependencies ?? {}
+      pkg.peerDependencies[peerName] = currentVersions.join(' || ')
     }
     return pkg
   }) as ReadPackageHook
@@ -125,7 +128,9 @@ function getAllowedVersionsByParentPkg(
 
   return allowedVersionsByParentPkgName[pkg.name].reduce(
     (acc, { targetPkg, parentPkg, ranges }) => {
-      if (!pkg.peerDependencies![targetPkg.name]) return acc
+      if (!pkg.peerDependencies?.[targetPkg.name]) {
+        return acc
+      }
       if (
         !parentPkg.pref ||
         (pkg.version &&

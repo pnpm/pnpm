@@ -163,9 +163,12 @@ export function pickVersionByVersionRange(
   }
 
   let versions = Object.keys(meta.versions)
+
   if (publishedBy) {
     versions = versions.filter(
-      (version) => new Date(meta.time![version]) <= publishedBy
+      (version: string): boolean => {
+        return new Date(meta.time?.[version] ?? '') <= publishedBy;
+      }
     )
     if (!versions.includes(latest)) {
       latest = undefined

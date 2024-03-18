@@ -34,8 +34,8 @@ export async function handler(
   opts: PatchRemoveCommandOptions,
   params: string[]
 ) {
-  let patchesToRemove = params
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+
   const { writeProjectManifest, manifest } =
     await tryReadProjectManifest(lockfileDir)
   const rootProjectManifest = opts.rootProjectManifest ?? manifest ?? {}
@@ -45,7 +45,7 @@ export async function handler(
   if (!params.length) {
     const allPatches = Object.keys(patchedDependencies)
     if (allPatches.length) {
-      ;({ patches: patchesToRemove } = await prompt<{
+      ;({ patches: params } = await prompt<{
         patches: string[]
       }>({
         type: 'multiselect',
@@ -59,7 +59,7 @@ export async function handler(
     }
   }
 
-  if (!patchesToRemove.length) {
+  if (!params.length) {
     throw new PnpmError(
       'NO_PATCHES_TO_REMOVE',
       'There are no patches that need to be removed'
@@ -68,19 +68,21 @@ export async function handler(
 
   const patchesDirs = new Set<string>()
   await Promise.all(
-    patchesToRemove.map(async (patch) => {
-      if (Object.prototype.hasOwnProperty.call(patchedDependencies, patch)) {
-        const patchFile = path.join(lockfileDir, patchedDependencies[patch])
-        patchesDirs.add(path.dirname(patchFile))
-        await fs.rm(patchFile, { force: true })
-        delete rootProjectManifest.pnpm?.patchedDependencies![patch]
-        if (
-          !Object.keys(rootProjectManifest.pnpm?.patchedDependencies!).length
-        ) {
-          delete rootProjectManifest.pnpm?.patchedDependencies
-          if (!Object.keys(rootProjectManifest.pnpm ?? {}).length) {
-            delete rootProjectManifest.pnpm
-          }
+    params.map(async (patch: string): Promise<void> => {
+      if (!Object.prototype.hasOwnProperty.call(patchedDependencies, patch)) {
+        return;
+      }
+
+      const patchFile = path.join(lockfileDir, patchedDependencies[patch])
+      patchesDirs.add(path.dirname(patchFile))
+      await fs.rm(patchFile, { force: true })
+      delete rootProjectManifest.pnpm?.patchedDependencies?.[patch]
+      if (
+        !Object.keys(rootProjectManifest.pnpm?.patchedDependencies ?? {}).length
+      ) {
+        delete rootProjectManifest.pnpm?.patchedDependencies
+        if (!Object.keys(rootProjectManifest.pnpm ?? {}).length) {
+          delete rootProjectManifest.pnpm
         }
       }
     })

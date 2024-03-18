@@ -167,7 +167,7 @@ export function createServer(
             break
           default: {
             res.statusCode = 404
-            const error = { error: `${req.url!} does not match any route` }
+            const error = { error: `url "${req.url ?? ''}" does not match any route` }
             res.end(JSON.stringify(error))
           }
         }

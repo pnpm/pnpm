@@ -16,7 +16,7 @@ export function writeBufferToCafs(
   fileDest = path.join(cafsDir, fileDest)
   if (locker.has(fileDest)) {
     return {
-      checkedAt: locker.get(fileDest)!,
+      checkedAt: locker.get(fileDest) ?? 0,
       filePath: fileDest,
     }
   }

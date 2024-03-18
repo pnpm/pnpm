@@ -7,7 +7,10 @@ test('hoist', async () => {
     path.join(__dirname, '../../../__fixtures__/fixture'),
     { ignoreIncompatible: true }
   )
-  expect(hoist(lockfile!)).toBeTruthy()
+  expect(lockfile).not.toBeNull()
+
+  // @ts-ignore
+  expect(hoist(lockfile)).toBeTruthy()
 })
 
 test('hoist throws an error if the lockfile is broken', () => {

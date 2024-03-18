@@ -106,7 +106,7 @@ export async function createOrConnectStoreController(
       prefix: opts.dir,
     })
     return {
-      ctrl: await connectStoreController(serverJson!.connectionOptions),
+      ctrl: await connectStoreController(serverJson?.connectionOptions ?? { remotePrefix: '' }),
       dir: storeDir,
     }
   }

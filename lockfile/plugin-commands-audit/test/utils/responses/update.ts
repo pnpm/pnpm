@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { audit } from '@pnpm/audit'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -14,19 +14,25 @@ async function writeResponse(
     dev?: boolean
     optional?: boolean
   }
-) {
+): Promise<void> {
   const lockfile = await readWantedLockfile(lockfileDir, {
     ignoreIncompatible: true,
   })
+
+  if (lockfile === null) {
+    return
+  }
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  const auditReport = await audit(lockfile!, {
-    agentOptions: {},
+  const auditReport = await audit(lockfile, (s) => {
+    return s
+  }, {
     include,
     registry: 'https://registry.npmjs.org/',
+    lockfileDir: '',
   })
   fs.writeFileSync(
     path.join(__dirname, filename),

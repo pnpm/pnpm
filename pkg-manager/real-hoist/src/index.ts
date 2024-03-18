@@ -117,7 +117,7 @@ function toTree(
       const key = `${alias}:${depPath}`
       let node = nodes.get(key)
       if (!node) {
-        const pkgSnapshot = lockfile.packages![depPath]
+        const pkgSnapshot = lockfile.packages?.[depPath]
         if (!pkgSnapshot) {
           throw new LockfileMissingDependencyError(depPath)
         }
@@ -132,7 +132,7 @@ function toTree(
         node = {
           name: alias,
           identName: pkgName,
-          reference: depPathByPkgId.get(id)!,
+          reference: depPathByPkgId.get(id) ?? '',
           dependencyKind: HoisterDependencyKind.REGULAR,
           dependencies: new Set(),
           peerNames: new Set(

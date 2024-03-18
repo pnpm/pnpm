@@ -80,7 +80,7 @@ export async function handler(opts: CatIndexCommandOptions, params: string[]) {
 
   const filesIndexFile = getFilePathInCafs(
     cafsDir,
-    (pkgSnapshot.resolution as TarballResolution).integrity!.toString(),
+    ((pkgSnapshot.resolution as TarballResolution).integrity ?? {}).toString(),
     'index'
   )
   try {

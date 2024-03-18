@@ -301,10 +301,10 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
   process.chdir('..')
 
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
-  expect(lockfile.packages!['/is-positive@1.0.0'].dependencies).toStrictEqual({
+  expect(lockfile.packages?.['/is-positive@1.0.0'].dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
   })
-  expect(lockfile.packages!['/is-negative@1.0.0'].dependencies).toStrictEqual({
+  expect(lockfile.packages?.['/is-negative@1.0.0'].dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
   })
 })
@@ -468,13 +468,19 @@ test('pnpmfile: pass log function to readPackage hook', async () => {
 
   const hookLog = outputs
     .filter(Boolean)
-    .map((output) => JSON.parse(output))
-    .find((log) => log.name === 'pnpm:hook')
+    .map((output): unknown => JSON.parse(output))
+    .find((log): boolean => {
+      return typeof log === 'object' && log !== null && 'name' in log && typeof log.name === 'string' && log.name === 'pnpm:hook';
+    })
 
   expect(hookLog).toBeTruthy()
+  // @ts-ignore
   expect(hookLog.prefix).toBeTruthy()
+  // @ts-ignore
   expect(hookLog.from).toBeTruthy()
+  // @ts-ignore
   expect(hookLog.hook).toBe('readPackage')
+  // @ts-ignore
   expect(hookLog.message).toBe(
     '@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0'
   )
@@ -541,22 +547,34 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
 
   const hookLogs = outputs
     .filter(Boolean)
-    .map((output) => JSON.parse(output))
-    .filter((log) => log.name === 'pnpm:hook')
+    .map((output): unknown => JSON.parse(output))
+    .filter((log: unknown): boolean => {
+      return typeof log === 'object' && log !== null && 'name' in log && typeof log.name === 'string' && log.name === 'pnpm:hook';
+    })
 
   expect(hookLogs[0]).toBeTruthy()
+  // @ts-ignore
   expect(hookLogs[0].prefix).toBeTruthy()
+  // @ts-ignore
   expect(hookLogs[0].from).toBeTruthy()
+  // @ts-ignore
   expect(hookLogs[0].hook).toBe('readPackage')
+  // @ts-ignore
   expect(hookLogs[0].message).toBe('is-positive pinned to 3.0.0')
 
   expect(hookLogs[1]).toBeTruthy()
+  // @ts-ignore
   expect(hookLogs[1].prefix).toBeTruthy()
+  // @ts-ignore
   expect(hookLogs[1].from).toBeTruthy()
+  // @ts-ignore
   expect(hookLogs[1].hook).toBe('readPackage')
+  // @ts-ignore
   expect(hookLogs[1].message).toBe('is-positive pinned to 1.0.0')
 
+  // @ts-ignore
   expect(hookLogs[0].prefix).toBe(hookLogs[1].prefix)
+  // @ts-ignore
   expect(hookLogs[0].from).not.toBe(hookLogs[1].from)
 })
 
@@ -590,13 +608,21 @@ test('pnpmfile: run afterAllResolved hook', async () => {
 
   const hookLog = outputs
     .filter(Boolean)
-    .map((output) => JSON.parse(output))
-    .find((log) => log.name === 'pnpm:hook')
+    .map((output: string): unknown => {
+      return JSON.parse(output);
+    })
+    .find((log: unknown): boolean => {
+      return typeof log === 'object' && log !== null && 'name' in log && typeof log.name === 'string' && log.name === 'pnpm:hook';
+    })
 
   expect(hookLog).toBeTruthy()
+  // @ts-ignore
   expect(hookLog.prefix).toBeTruthy()
+  // @ts-ignore
   expect(hookLog.from).toBeTruthy()
+  // @ts-ignore
   expect(hookLog.hook).toBe('afterAllResolved')
+  // @ts-ignore
   expect(hookLog.message).toBe('All resolved')
 })
 
@@ -631,12 +657,18 @@ test('pnpmfile: run async afterAllResolved hook', async () => {
   const hookLog = outputs
     .filter(Boolean)
     .map((output) => JSON.parse(output))
-    .find((log) => log.name === 'pnpm:hook')
+    .find((log) => {
+      return typeof log === 'object' && log !== null && 'name' in log && typeof log.name === 'string' && log.name === 'pnpm:hook';
+    })
 
   expect(hookLog).toBeTruthy()
+  // @ts-ignore
   expect(hookLog.prefix).toBeTruthy()
+  // @ts-ignore
   expect(hookLog.from).toBeTruthy()
+  // @ts-ignore
   expect(hookLog.hook).toBe('afterAllResolved')
+  // @ts-ignore
   expect(hookLog.message).toBe('All resolved')
 })
 
@@ -748,7 +780,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
     { name: 'is-negative', version: '1.0.0' },
   ])
   expect(
-    lockfile.packages![`/@pnpm.e2e/abc@1.0.0${suffix}`].peerDependencies![
+    lockfile.packages?.[`/@pnpm.e2e/abc@1.0.0${suffix}`].peerDependencies?.[
       'is-negative'
     ]
   ).toBe('1.0.0')

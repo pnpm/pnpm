@@ -172,7 +172,7 @@ async function resolveNpm(
       defaultTag,
       opts.registry
     )
-    : defaultTagForAlias(wantedDependency.alias!, defaultTag)
+    : defaultTagForAlias(wantedDependency.alias ?? '', defaultTag)
   if (spec == null) return null
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(opts.registry)
@@ -409,7 +409,7 @@ function resolveFromLocalPackage(
   let directory!: string
   const localPackageDir = resolveLocalPackageDir(localPackage)
   if (opts.hardLinkLocalPackages) {
-    directory = normalize(path.relative(opts.lockfileDir!, localPackageDir))
+    directory = normalize(path.relative(opts.lockfileDir ?? '', localPackageDir))
     id = `file:${directory}`
   } else {
     directory = localPackageDir

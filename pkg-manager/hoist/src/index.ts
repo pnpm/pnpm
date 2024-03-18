@@ -260,8 +260,8 @@ async function symlinkHoistedDependencies(
   await Promise.all(
     Object.entries(hoistedDependencies).map(
       async ([hoistedDepId, pkgAliases]) => {
-        const pkgSnapshot = opts.lockfile.packages![hoistedDepId]
-        let depLocation!: string
+        const pkgSnapshot = opts.lockfile.packages?.[hoistedDepId]
+        let depLocation: string
         if (pkgSnapshot) {
           const pkgName = nameVerFromPkgSnapshot(hoistedDepId, pkgSnapshot).name
           const modules = path.join(
@@ -269,14 +269,14 @@ async function symlinkHoistedDependencies(
             dp.depPathToFilename(hoistedDepId),
             'node_modules'
           )
-          depLocation = path.join(modules, pkgName as string)
+          depLocation = path.join(modules, pkgName)
         } else {
           if (!opts.lockfile.importers[hoistedDepId]) {
             // This dependency is probably a skipped optional dependency.
             hoistLogger.debug({ hoistFailedFor: hoistedDepId })
             return
           }
-          depLocation = opts.hoistedWorkspacePackages![hoistedDepId].dir
+          depLocation = opts.hoistedWorkspacePackages?.[hoistedDepId].dir ?? ''
         }
         await Promise.all(
           Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {

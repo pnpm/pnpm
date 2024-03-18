@@ -88,16 +88,16 @@ async function renderTreeForPackage(
             dependenciesField === 'unsavedDependencies'
               ? () => NOT_SAVED_DEP_CLR
               : getPkgColor
-          if (useColumns && pkg[dependenciesField]!.length > 10) {
+          if (useColumns && (pkg[dependenciesField]?.length ?? 0) > 10) {
             output +=
               cliColumns(
-                pkg[dependenciesField]!.map(
+                pkg[dependenciesField]?.map(
                   printLabel.bind(printLabel, gPkgColor)
-                )
+                ) ?? []
               ) + '\n'
             return output
           }
-          const data = await toArchyTree(gPkgColor, pkg[dependenciesField]!, {
+          const data = await toArchyTree(gPkgColor, pkg[dependenciesField] ?? [], {
             long: opts.long,
             modules: path.join(pkg.path, 'node_modules'),
           })

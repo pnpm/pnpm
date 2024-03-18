@@ -537,7 +537,7 @@ test('changed-files-ignore-pattern is respected', async () => {
         '--json',
       ].filter(Boolean)
     )
-    return JSON.parse(result.stdout.toString())
+    return (JSON.parse(result.stdout.toString()) as Array<{ name: string }>)
       .map((p: { name: string }) => p.name)
       .sort()
   }
@@ -696,9 +696,9 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   {
     const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
     expect(
-      lockfile.importers.project!.dependencies!['is-positive'].version
+      lockfile.importers.project?.dependencies?.['is-positive'].version
     ).toBe('2.0.0')
-    expect(lockfile.importers.project!.dependencies!.negative.version).toBe(
+    expect(lockfile.importers.project?.dependencies?.negative.version).toBe(
       '/is-negative@1.0.0'
     )
   }
@@ -718,9 +718,9 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   {
     const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
     expect(
-      lockfile.importers.project!.dependencies!['is-positive'].version
+      lockfile.importers.project?.dependencies?.['is-positive'].version
     ).toBe('link:../is-positive')
-    expect(lockfile.importers.project!.dependencies!.negative.version).toBe(
+    expect(lockfile.importers.project?.dependencies?.negative.version).toBe(
       'link:../is-negative'
     )
   }
@@ -784,7 +784,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
 
   const sharedLockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
   expect(
-    sharedLockfile.importers['project-1']!.devDependencies!['is-positive']
+    sharedLockfile.importers['project-1']?.devDependencies?.['is-positive']
       .version
   ).toBe('link:../is-positive')
 
@@ -802,17 +802,17 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
 
   {
     const pkg = await readPackageJsonFromDir(path.resolve('is-positive'))
-    expect(pkg.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBe('100.0.0')
+    expect(pkg.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('100.0.0')
   }
 
   {
     const pkg = await readPackageJsonFromDir(path.resolve('project-1'))
-    expect(pkg.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBe('~100.0.0')
+    expect(pkg.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('~100.0.0')
   }
 
   {
     const pkg = await readPackageJsonFromDir(path.resolve('is-positive2'))
-    expect(pkg.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBe('^100.0.0')
+    expect(pkg.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBe('^100.0.0')
   }
 })
 

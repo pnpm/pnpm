@@ -197,7 +197,7 @@ export async function handler(
       params,
       {
         ...opts,
-        allProjectsGraph: opts.allProjectsGraph!,
+        allProjectsGraph: opts.allProjectsGraph ?? {},
         include,
         selectedProjectsGraph: opts.selectedProjectsGraph,
         workspaceDir: opts.workspaceDir,

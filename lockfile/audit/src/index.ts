@@ -19,35 +19,35 @@ export * from './types'
 export async function audit(
   lockfile: Lockfile,
   getAuthHeader: GetAuthHeader,
-  opts: {
-    agentOptions?: AgentOptions
-    include?: { [dependenciesField in DependenciesField]: boolean }
+  opts?: {
+    agentOptions?: AgentOptions | undefined
+    include?: { [dependenciesField in DependenciesField]: boolean } | undefined
     lockfileDir: string
     registry: string
-    retry?: RetryTimeoutOptions
-    timeout?: number
-  }
-) {
+    retry?: RetryTimeoutOptions | undefined
+    timeout?: number | undefined
+  } | undefined
+): Promise<AuditReport> {
   const auditTree = await lockfileToAuditTree(lockfile, {
-    include: opts.include,
-    lockfileDir: opts.lockfileDir,
+    include: opts?.include,
+    lockfileDir: opts?.lockfileDir ?? '',
   })
-  const registry = opts.registry.endsWith('/')
-    ? opts.registry
-    : `${opts.registry}/`
+  const registry = opts?.registry.endsWith('/')
+    ? opts?.registry ?? ''
+    : `${opts?.registry ?? ''}/`
   const auditUrl = `${registry}-/npm/v1/security/audits`
   const authHeaderValue = getAuthHeader(registry)
 
   const res = await fetchWithAgent(auditUrl, {
-    agentOptions: opts.agentOptions ?? {},
+    agentOptions: opts?.agentOptions ?? {},
     body: JSON.stringify(auditTree),
     headers: {
       'Content-Type': 'application/json',
       ...getAuthHeaders(authHeaderValue),
     },
     method: 'post',
-    retry: opts.retry,
-    timeout: opts.timeout,
+    retry: opts?.retry,
+    timeout: opts?.timeout,
   })
 
   if (res.status === 404) {
@@ -64,8 +64,8 @@ export async function audit(
   try {
     return await extendWithDependencyPaths(auditReport, {
       lockfile,
-      lockfileDir: opts.lockfileDir,
-      include: opts.include,
+      lockfileDir: opts?.lockfileDir ?? '',
+      include: opts?.include,
     })
   } catch (err: unknown) {
     globalWarn(

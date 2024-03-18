@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -47,7 +47,7 @@ test('install with lockfileOnly = true', async () => {
   ).toBeTruthy()
   await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
-  expect(manifest.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
+  expect(manifest.dependencies?.['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
 
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()

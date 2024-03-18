@@ -122,7 +122,7 @@ export async function recursivePublish(
         const pkg = opts.selectedProjectsGraph[pkgDir].package
         const registry =
           pkg.manifest.publishConfig?.registry ??
-          pickRegistryForPackage(opts.registries, pkg.manifest.name!)
+          pickRegistryForPackage(opts.registries, pkg.manifest.name ?? '')
         // eslint-disable-next-line no-await-in-loop
         const publishResult = await publish(
           {

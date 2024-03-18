@@ -351,8 +351,8 @@ function getPkgsDepPathsOwnedOnlyByImporters(
     }
   )
   const packagesOfSelectedOnly = pickAll(
-    difference(Object.keys(selected.packages!), Object.keys(other.packages!)),
-    selected.packages!
+    difference(Object.keys(selected.packages ?? {}), Object.keys(other.packages ?? {})),
+    selected.packages
   ) as PackageSnapshots
   return getPkgsDepPaths(registries, packagesOfSelectedOnly, skipped)
 }

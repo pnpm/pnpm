@@ -97,7 +97,7 @@ export async function fromRegistry(
         requestRetryLogger.debug({
           attempt,
           error,
-          maxRetries: fetchOpts.retry.retries!,
+          maxRetries: fetchOpts.retry.retries ?? 0,
           method: 'GET',
           timeout,
           url: uri,
