@@ -984,9 +984,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
       },
     },
     snapshots: {
-      'is-positive@1.0.0': {
-        dev: false,
-      },
+      'is-positive@1.0.0': {},
     },
   })
 })
@@ -1097,12 +1095,8 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
       },
     },
     snapshots: {
-      'is-negative@1.0.0': {
-        dev: false,
-      },
-      'is-positive@1.0.0': {
-        dev: false,
-      },
+      'is-negative@1.0.0': {},
+      'is-positive@1.0.0': {},
     },
   })
 })
