@@ -41,7 +41,6 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   let name!: string
   let version: string
   let resolved: string | undefined
-  let dev: boolean | undefined
   let optional: true | undefined
   let isSkipped: boolean = false
   let isMissing: boolean = false
@@ -67,7 +66,6 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
       isSkipped = opts.skipped.has(depPath)
     }
     resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
-    dev = pkgSnapshot.dev
     optional = pkgSnapshot.optional
   } else {
     name = opts.alias
@@ -98,9 +96,6 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   }
   if (optional === true) {
     packageInfo.optional = true
-  }
-  if (typeof dev === 'boolean') {
-    packageInfo.dev = dev
   }
   return packageInfo
 }
