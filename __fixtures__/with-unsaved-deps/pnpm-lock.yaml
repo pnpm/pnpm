@@ -157,30 +157,23 @@ snapshots:
   '@types/mz@0.0.32':
     dependencies:
       '@types/node': 10.12.9
-    dev: false
 
-  '@types/node@10.12.9':
-    dev: false
+  '@types/node@10.12.9': {}
 
-  any-promise@1.3.0:
-    dev: false
+  any-promise@1.3.0: {}
 
-  balanced-match@1.0.0:
-    dev: false
+  balanced-match@1.0.0: {}
 
   brace-expansion@1.1.11:
     dependencies:
       balanced-match: 1.0.0
       concat-map: 0.0.1
-    dev: false
 
-  concat-map@0.0.1:
-    dev: false
+  concat-map@0.0.1: {}
 
   define-properties@1.1.3:
     dependencies:
       object-keys: 1.0.12
-    dev: false
 
   es-abstract@1.12.0:
     dependencies:
@@ -189,20 +182,16 @@ snapshots:
       has: 1.0.3
       is-callable: 1.1.4
       is-regex: 1.0.4
-    dev: false
 
   es-to-primitive@1.2.0:
     dependencies:
       is-callable: 1.1.4
       is-date-object: 1.0.1
       is-symbol: 1.0.2
-    dev: false
 
-  fs.realpath@1.0.0:
-    dev: false
+  fs.realpath@1.0.0: {}
 
-  function-bind@1.1.1:
-    dev: false
+  function-bind@1.1.1: {}
 
   glob@7.1.3:
     dependencies:
@@ -212,103 +201,80 @@ snapshots:
       minimatch: 3.0.4
       once: 1.4.0
       path-is-absolute: 1.0.1
-    dev: false
 
-  graceful-fs@4.1.15:
-    dev: false
+  graceful-fs@4.1.15: {}
 
-  has-symbols@1.0.0:
-    dev: false
+  has-symbols@1.0.0: {}
 
   has@1.0.3:
     dependencies:
       function-bind: 1.1.1
-    dev: false
 
   inflight@1.0.6:
     dependencies:
       once: 1.4.0
       wrappy: 1.0.2
-    dev: false
 
-  inherits@2.0.3:
-    dev: false
+  inherits@2.0.3: {}
 
-  is-callable@1.1.4:
-    dev: false
+  is-callable@1.1.4: {}
 
-  is-date-object@1.0.1:
-    dev: false
+  is-date-object@1.0.1: {}
 
   is-regex@1.0.4:
     dependencies:
       has: 1.0.3
-    dev: false
 
   is-symbol@1.0.2:
     dependencies:
       has-symbols: 1.0.0
-    dev: false
 
-  is-windows@1.0.2:
-    dev: false
+  is-windows@1.0.2: {}
 
   minimatch@3.0.4:
     dependencies:
       brace-expansion: 1.1.11
-    dev: false
 
-  minimist@0.0.8:
-    dev: false
+  minimist@0.0.8: {}
 
   mkdirp-promise@5.0.1:
     dependencies:
       mkdirp: 0.5.1
-    dev: false
 
   mkdirp@0.5.1:
     dependencies:
       minimist: 0.0.8
-    dev: false
 
   mz@2.7.0:
     dependencies:
       any-promise: 1.3.0
       object-assign: 4.1.1
       thenify-all: 1.6.0
-    dev: false
 
-  object-assign@4.1.1:
-    dev: false
+  object-assign@4.1.1: {}
 
-  object-keys@1.0.12:
-    dev: false
+  object-keys@1.0.12: {}
 
   object.getownpropertydescriptors@2.0.3:
     dependencies:
       define-properties: 1.1.3
       es-abstract: 1.12.0
-    dev: false
 
   once@1.4.0:
     dependencies:
       wrappy: 1.0.2
-    dev: false
 
-  path-is-absolute@1.0.1:
-    dev: false
+  path-is-absolute@1.0.1: {}
 
   rename-overwrite@1.0.3:
     dependencies:
       graceful-fs: 4.1.15
       rimraf: 2.6.2
       util.promisify: 1.0.0
-    dev: false
 
   rimraf@2.6.2:
     dependencies:
       glob: 7.1.3
-    dev: false
 
   symlink-dir@2.0.2:
     dependencies:
@@ -319,23 +285,18 @@ snapshots:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       rename-overwrite: 1.0.3
-    dev: false
 
   thenify-all@1.6.0:
     dependencies:
       thenify: 3.3.0
-    dev: false
 
   thenify@3.3.0:
     dependencies:
       any-promise: 1.3.0
-    dev: false
 
   util.promisify@1.0.0:
     dependencies:
       define-properties: 1.1.3
       object.getownpropertydescriptors: 2.0.3
-    dev: false
 
-  wrappy@1.0.2:
-    dev: false
+  wrappy@1.0.2: {}

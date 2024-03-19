@@ -27,16 +27,13 @@ packages:
 snapshots:
 
   '@pnpm.e2e/dep-of-optional-pkg@1.0.0':
-    dev: false
     optional: true
 
   '@pnpm.e2e/not-compatible-with-any-os@1.0.0':
     dependencies:
       '@pnpm.e2e/dep-of-optional-pkg': 1.0.0
-    dev: false
     optional: true
 
   '@pnpm.e2e/pkg-with-optional@1.0.0':
     optionalDependencies:
       '@pnpm.e2e/not-compatible-with-any-os': 1.0.0
-    dev: false

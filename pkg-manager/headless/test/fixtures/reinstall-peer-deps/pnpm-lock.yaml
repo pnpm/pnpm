@@ -41,18 +41,13 @@ snapshots:
       '@pnpm.e2e/peer-a': 1.0.1
       '@pnpm.e2e/peer-b': 1.0.0
       '@pnpm.e2e/peer-c': 1.0.1
-    dev: true
 
-  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0':
-    dev: true
+  '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {}
 
-  '@pnpm.e2e/peer-a@1.0.1':
-    dev: true
+  '@pnpm.e2e/peer-a@1.0.1': {}
 
-  '@pnpm.e2e/peer-b@1.0.0':
-    dev: true
+  '@pnpm.e2e/peer-b@1.0.0': {}
 
-  '@pnpm.e2e/peer-c@1.0.1':
-    dev: true
+  '@pnpm.e2e/peer-c@1.0.1': {}
 
 time: {}

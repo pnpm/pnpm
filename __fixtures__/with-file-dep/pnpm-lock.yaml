@@ -23,5 +23,4 @@ packages:
 
 snapshots:
 
-  is-positive@3.1.0:
-    dev: false
+  is-positive@3.1.0: {}

@@ -70,17 +70,14 @@ packages:
 
 snapshots:
 
-  balanced-match@1.0.0:
-    dev: false
+  balanced-match@1.0.0: {}
 
   brace-expansion@1.1.8:
     dependencies:
       balanced-match: 1.0.0
       concat-map: 0.0.1
-    dev: false
 
-  concat-map@0.0.1:
-    dev: false
+  concat-map@0.0.1: {}
 
   glob@6.0.4:
     dependencies:
@@ -89,41 +86,31 @@ snapshots:
       minimatch: 3.0.4
       once: 1.4.0
       path-is-absolute: 1.0.1
-    dev: false
 
   inflight@1.0.6:
     dependencies:
       once: 1.4.0
       wrappy: 1.0.2
-    dev: false
 
-  inherits@2.0.3:
-    dev: false
+  inherits@2.0.3: {}
 
   is-negative@1.0.0:
-    dev: false
     optional: true
 
-  is-positive@1.0.0:
-    dev: true
+  is-positive@1.0.0: {}
 
   minimatch@3.0.4:
     dependencies:
       brace-expansion: 1.1.8
-    dev: false
 
   once@1.4.0:
     dependencies:
       wrappy: 1.0.2
-    dev: false
 
-  path-is-absolute@1.0.1:
-    dev: false
+  path-is-absolute@1.0.1: {}
 
   rimraf@2.5.1:
     dependencies:
       glob: 6.0.4
-    dev: false
 
-  wrappy@1.0.2:
-    dev: false
+  wrappy@1.0.2: {}
