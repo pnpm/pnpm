@@ -6,13 +6,13 @@ import chalk from 'chalk'
 import cliColumns from 'cli-columns'
 import { renderTree } from '../lib/renderTree'
 
-const DEV_DEP_ONLY_CLR = chalk.yellow
+const DEV_DEP_ONLY_CLR = (text: string) => text // chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color
 const OPTIONAL_DEP_CLR = chalk.blue
 const NOT_SAVED_DEP_CLR = chalk.red
 const VERSION_CLR = chalk.gray
 
-const LEGEND = `Legend: ${PROD_DEP_CLR('production dependency')}, ${OPTIONAL_DEP_CLR('optional only')}, ${DEV_DEP_ONLY_CLR('dev only')}`
+const LEGEND = `Legend: ${PROD_DEP_CLR('production dependency')}, ${OPTIONAL_DEP_CLR('optional only')}, ${chalk.yellow('dev only')}`
 const DEPENDENCIES = chalk.cyanBright('dependencies:')
 const DEV_DEPENDENCIES = chalk.cyanBright('devDependencies:')
 const OPTIONAL_DEPENDENCIES = chalk.cyanBright('optionalDependencies:')
