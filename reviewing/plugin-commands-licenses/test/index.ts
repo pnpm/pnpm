@@ -279,6 +279,7 @@ test('pnpm licenses should work with git protocol dep that have patches', async 
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
+    frozenLockfile: true,
     pnpmHomeDir: '',
     storeDir,
   })

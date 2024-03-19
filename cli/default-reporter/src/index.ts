@@ -10,6 +10,7 @@ import { reporterForClient } from './reporterForClient'
 import { formatWarn } from './reporterForClient/utils/formatWarn'
 import { reporterForServer } from './reporterForServer'
 import { type FilterPkgsDiff } from './reporterForClient/reportSummary'
+import { type PeerDependencyRules } from '@pnpm/types'
 
 export { formatWarn }
 
@@ -28,6 +29,7 @@ export function initDefaultReporter (
       hideProgressPrefix?: boolean
       hideLifecycleOutput?: boolean
       hideLifecyclePrefix?: boolean
+      peerDependencyRules?: PeerDependencyRules
     }
     context: {
       argv: string[]
@@ -104,6 +106,7 @@ export function toOutput$ (
       appendOnly?: boolean
       logLevel?: LogLevel
       outputMaxWidth?: number
+      peerDependencyRules?: PeerDependencyRules
       streamLifecycleOutput?: boolean
       aggregateOutput?: boolean
       throttleProgress?: number
@@ -260,6 +263,7 @@ export function toOutput$ (
       config: opts.context.config,
       env: opts.context.env ?? process.env,
       filterPkgsDiff: opts.filterPkgsDiff,
+      peerDependencyRules: opts.reportingOptions?.peerDependencyRules,
       process: opts.context.process ?? process,
       isRecursive: opts.context.config?.['recursive'] === true,
       logLevel: opts.reportingOptions?.logLevel,

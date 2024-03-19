@@ -595,7 +595,7 @@ test('installation with --link-workspace-packages links packages even if they we
   {
     const lockfile = projects.project.readLockfile()
     expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toBe('2.0.0')
-    expect(lockfile.importers['.'].dependencies?.negative.version).toBe('/is-negative@1.0.0')
+    expect(lockfile.importers['.'].dependencies?.negative.version).toBe('is-negative@1.0.0')
   }
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages'])
@@ -636,7 +636,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   {
     const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
     expect(lockfile.importers!.project!.dependencies!['is-positive'].version).toBe('2.0.0')
-    expect(lockfile.importers!.project!.dependencies!.negative.version).toBe('/is-negative@1.0.0')
+    expect(lockfile.importers!.project!.dependencies!.negative.version).toBe('is-negative@1.0.0')
   }
 
   projects['is-positive'].writePackageJson({
@@ -860,7 +860,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store'])
 
   const lockfile = readYamlFile<LockfileFile>(`./${WANTED_LOCKFILE}`)
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store', '--filter', 'project-1'])
 
@@ -974,7 +974,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-positive@1.0.0': {
+      'is-positive@1.0.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -984,7 +984,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
       },
     },
     snapshots: {
-      '/is-positive@1.0.0': {
+      'is-positive@1.0.0': {
         dev: false,
       },
     },
@@ -1079,7 +1079,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative@1.0.0': {
+      'is-negative@1.0.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -1087,7 +1087,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
           integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
         },
       },
-      '/is-positive@1.0.0': {
+      'is-positive@1.0.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -1097,10 +1097,10 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
       },
     },
     snapshots: {
-      '/is-negative@1.0.0': {
+      'is-negative@1.0.0': {
         dev: false,
       },
-      '/is-positive@1.0.0': {
+      'is-positive@1.0.0': {
         dev: false,
       },
     },
@@ -1207,7 +1207,7 @@ test('shared-workspace-lockfile: removing a package recursively', async () => {
 
   const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
-  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/is-negative@1.0.0']) // is-positive removed from ${WANTED_LOCKFILE}
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['is-negative@1.0.0']) // is-positive removed from ${WANTED_LOCKFILE}
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1506
@@ -1857,7 +1857,7 @@ test('peer dependencies are resolved from the root of the workspace when a new d
   await execPnpm(['add', 'ajv-keywords@1.5.0', '--strict-peer-dependencies', '--config.resolve-peers-from-workspace-root=true'])
 
   const lockfile = projects['project-1'].readLockfile()
-  expect(lockfile.snapshots).toHaveProperty(['/ajv-keywords@1.5.0(ajv@4.10.4)'])
+  expect(lockfile.snapshots).toHaveProperty(['ajv-keywords@1.5.0(ajv@4.10.4)'])
 })
 
 test('overrides in workspace project should be taken into account when shared-workspace-lockfiles is false', async () => {

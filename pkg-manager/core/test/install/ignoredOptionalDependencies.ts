@@ -16,8 +16,8 @@ test('ignoredOptionalDependencies causes listed optional dependencies to be skip
 
   const lockfile = project.readLockfile()
   expect(lockfile.ignoredOptionalDependencies).toStrictEqual(['is-positive'])
-  expect(lockfile.packages).not.toHaveProperty(['/is-positive@1.0.0'])
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['is-positive@1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
 })
 
 test('empty ignoredOptionalDependencies is not recorded in lockfile', async () => {
@@ -31,8 +31,8 @@ test('empty ignoredOptionalDependencies is not recorded in lockfile', async () =
 
   const lockfile = project.readLockfile()
   expect(lockfile).not.toHaveProperty(['ignoredOptionalDependencies'])
-  expect(lockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['is-positive@1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
 })
 
 test('names in ignoredOptionalDependencies are sorted alphabetically in the lockfile', async () => {
@@ -60,8 +60,8 @@ test('adding or changing manifest.pnpm.ignoredOptionalDependencies should change
   {
     const lockfile = project.readLockfile()
     expect(lockfile).not.toHaveProperty(['ignoredOptionalDependencies'])
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-good-optional@1.0.0'])
-    expect(lockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+    expect(lockfile.packages).toHaveProperty(['is-positive@1.0.0'])
   }
 
   await install(manifest, testDefaults({
@@ -70,7 +70,7 @@ test('adding or changing manifest.pnpm.ignoredOptionalDependencies should change
   {
     const lockfile = project.readLockfile()
     expect(lockfile.ignoredOptionalDependencies).toStrictEqual(['is-positive'])
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-good-optional@1.0.0'])
-    expect(lockfile.packages).not.toHaveProperty(['/is-positive@1.0.0'])
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+    expect(lockfile.packages).not.toHaveProperty(['is-positive@1.0.0'])
   }
 })

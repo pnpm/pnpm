@@ -13,8 +13,8 @@ test('auto install non-optional peer dependencies', async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/abc-optional-peers@1.0.0'], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.snapshots)).toStrictEqual([
-    '/@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)',
-    '/@pnpm.e2e/peer-a@1.0.0',
+    '@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)',
+    '@pnpm.e2e/peer-a@1.0.0',
   ])
   project.hasNot('@pnpm.e2e/peer-a')
 })
@@ -25,9 +25,9 @@ test('auto install the common peer dependency', async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/wants-peer-c-1', '@pnpm.e2e/wants-peer-c-1.0.0'], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
-    '/@pnpm.e2e/peer-c@1.0.0',
-    '/@pnpm.e2e/wants-peer-c-1.0.0@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
-    '/@pnpm.e2e/wants-peer-c-1@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/peer-c@1.0.0',
+    '@pnpm.e2e/wants-peer-c-1.0.0@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
+    '@pnpm.e2e/wants-peer-c-1@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
   ].sort())
 })
 
@@ -36,8 +36,8 @@ test('do not auto install when there is no common peer dependency range intersec
   await addDependenciesToPackage({}, ['@pnpm.e2e/wants-peer-c-1', '@pnpm.e2e/wants-peer-c-2'], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.snapshots)).toStrictEqual([
-    '/@pnpm.e2e/wants-peer-c-1@1.0.0',
-    '/@pnpm.e2e/wants-peer-c-2@1.0.0',
+    '@pnpm.e2e/wants-peer-c-1@1.0.0',
+    '@pnpm.e2e/wants-peer-c-2@1.0.0',
   ])
 })
 
@@ -50,9 +50,9 @@ test('auto install latest when there is no common peer dependency range intersec
   }))
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
-    '/@pnpm.e2e/peer-c@2.0.0',
-    '/@pnpm.e2e/wants-peer-c-1@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
-    '/@pnpm.e2e/wants-peer-c-2@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+    '@pnpm.e2e/peer-c@2.0.0',
+    '@pnpm.e2e/wants-peer-c-1@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
+    '@pnpm.e2e/wants-peer-c-2@1.0.0(@pnpm.e2e/peer-c@2.0.0)',
   ].sort())
 })
 
@@ -88,15 +88,15 @@ test('hoist a peer dependency in order to reuse it by other dependencies, when i
   const lockfile = project.readLockfile()
   const suffix = createPeersDirSuffix([{ name: '@pnpm/x', version: '1.0.0' }, { name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm/z', version: '1.0.0' }])
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
-    '/@pnpm/x@1.0.0',
-    '/@pnpm/xyz-parent-parent-with-xyz@1.0.0',
-    '/@pnpm/y@1.0.0',
-    '/@pnpm/z@1.0.0',
-    `/@pnpm/xyz-parent-parent-parent-parent@1.0.0${suffix}`,
-    `/@pnpm/xyz-parent-parent-parent@1.0.0${suffix}`,
-    `/@pnpm/xyz-parent-parent@1.0.0${suffix}`,
-    `/@pnpm/xyz-parent@1.0.0${suffix}`,
-    `/@pnpm/xyz@1.0.0${suffix}`,
+    '@pnpm/x@1.0.0',
+    '@pnpm/xyz-parent-parent-with-xyz@1.0.0',
+    '@pnpm/y@1.0.0',
+    '@pnpm/z@1.0.0',
+    `@pnpm/xyz-parent-parent-parent-parent@1.0.0${suffix}`,
+    `@pnpm/xyz-parent-parent-parent@1.0.0${suffix}`,
+    `@pnpm/xyz-parent-parent@1.0.0${suffix}`,
+    `@pnpm/xyz-parent@1.0.0${suffix}`,
+    `@pnpm/xyz@1.0.0${suffix}`,
   ].sort())
 })
 
@@ -112,19 +112,19 @@ test('don\'t hoist a peer dependency when there is a root dependency by that nam
   const suffix1 = createPeersDirSuffix([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
   const suffix2 = createPeersDirSuffix([{ name: '@pnpm/x', version: '1.0.0' }, { name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm/z', version: '1.0.0' }])
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
-    '/@pnpm.e2e/peer-a@1.0.0',
-    '/@pnpm/x@1.0.0',
-    `/@pnpm/xyz-parent-parent-parent-parent@1.0.0${suffix1}`,
-    `/@pnpm/xyz-parent-parent-parent@1.0.0${suffix1}`,
-    '/@pnpm/xyz-parent-parent-with-xyz@1.0.0',
-    `/@pnpm/xyz-parent-parent@1.0.0${suffix1}`,
-    `/@pnpm/xyz-parent@1.0.0${suffix1}`,
-    `/@pnpm/xyz-parent@1.0.0${suffix2}`,
-    `/@pnpm/xyz@1.0.0${suffix1}`,
-    `/@pnpm/xyz@1.0.0${suffix2}`,
-    '/@pnpm/y@1.0.0',
-    '/@pnpm/y@2.0.0',
-    '/@pnpm/z@1.0.0',
+    '@pnpm.e2e/peer-a@1.0.0',
+    '@pnpm/x@1.0.0',
+    `@pnpm/xyz-parent-parent-parent-parent@1.0.0${suffix1}`,
+    `@pnpm/xyz-parent-parent-parent@1.0.0${suffix1}`,
+    '@pnpm/xyz-parent-parent-with-xyz@1.0.0',
+    `@pnpm/xyz-parent-parent@1.0.0${suffix1}`,
+    `@pnpm/xyz-parent@1.0.0${suffix1}`,
+    `@pnpm/xyz-parent@1.0.0${suffix2}`,
+    `@pnpm/xyz@1.0.0${suffix1}`,
+    `@pnpm/xyz@1.0.0${suffix2}`,
+    '@pnpm/y@1.0.0',
+    '@pnpm/y@2.0.0',
+    '@pnpm/z@1.0.0',
   ].sort())
 })
 
@@ -138,14 +138,14 @@ test('don\'t auto-install a peer dependency, when that dependency is in the root
   const lockfile = project.readLockfile()
   const suffix = createPeersDirSuffix([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
-    `/@pnpm/xyz-parent-parent-parent-parent@1.0.0${suffix}`,
-    `/@pnpm/xyz-parent-parent-parent@1.0.0${suffix}`,
-    `/@pnpm/xyz-parent-parent@1.0.0${suffix}`,
-    `/@pnpm/xyz-parent@1.0.0${suffix}`,
-    `/@pnpm/xyz@1.0.0${suffix}`,
-    '/@pnpm/y@2.0.0',
-    '/@pnpm/z@1.0.0',
-    '/@pnpm.e2e/peer-a@1.0.0',
+    `@pnpm/xyz-parent-parent-parent-parent@1.0.0${suffix}`,
+    `@pnpm/xyz-parent-parent-parent@1.0.0${suffix}`,
+    `@pnpm/xyz-parent-parent@1.0.0${suffix}`,
+    `@pnpm/xyz-parent@1.0.0${suffix}`,
+    `@pnpm/xyz@1.0.0${suffix}`,
+    '@pnpm/y@2.0.0',
+    '@pnpm/z@1.0.0',
+    '@pnpm.e2e/peer-a@1.0.0',
   ].sort())
 })
 
@@ -157,9 +157,9 @@ test('don\'t install the same missing peer dependency twice', async () => {
   ], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
-    '/@pnpm/y@1.0.0',
-    '/@pnpm.e2e/has-has-y-peer-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))(@pnpm/y@1.0.0)',
-    '/@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0)',
+    '@pnpm/y@1.0.0',
+    '@pnpm.e2e/has-has-y-peer-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0))(@pnpm/y@1.0.0)',
+    '@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0)',
   ].sort())
 })
 
@@ -175,8 +175,8 @@ test('prefer the peer dependency version already used in the root', async () => 
   }, testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
-    '/@pnpm/y@1.0.0',
-    '/@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0)',
+    '@pnpm/y@1.0.0',
+    '@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@1.0.0)',
   ].sort())
 })
 
@@ -601,34 +601,4 @@ test('do not override the direct dependency with an auto installed peer dependen
   }))
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.rxjs.version).toStrictEqual('6.6.7')
-})
-
-test('auto install peers fails if ignoreMissing is set', async () => {
-  prepareEmpty()
-  await expect(addDependenciesToPackage({}, ['is-odd@1.0.0'], testDefaults({
-    autoInstallPeers: true,
-    peerDependencyRules: {
-      ignoreMissing: ['*'],
-    },
-  }))).rejects.toThrow('Cannot have both autoInstallPeers=true and setting peerDependencyRules.ignoreMissing')
-})
-
-test('auto install peers fails if allowAny is set', async () => {
-  prepareEmpty()
-  await expect(addDependenciesToPackage({}, ['is-odd@1.0.0'], testDefaults({
-    autoInstallPeers: true,
-    peerDependencyRules: {
-      allowAny: ['*'],
-    },
-  }))).rejects.toThrow('Cannot have both autoInstallPeers=true and setting peerDependencyRules.allowAny')
-})
-
-test('auto install peers fails if allowedVersions is set', async () => {
-  prepareEmpty()
-  await expect(addDependenciesToPackage({}, ['is-odd@1.0.0'], testDefaults({
-    autoInstallPeers: true,
-    peerDependencyRules: {
-      allowedVersions: { react: '*' },
-    },
-  }))).rejects.toThrow('Cannot have both autoInstallPeers=true and setting peerDependencyRules.allowedVersions')
 })

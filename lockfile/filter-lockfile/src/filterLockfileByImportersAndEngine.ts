@@ -26,7 +26,7 @@ export function filterLockfileByEngine (
 
 export interface FilterLockfileOptions {
   currentEngine: {
-    nodeVersion: string
+    nodeVersion?: string
     pnpmVersion: string
   }
   engineStrict: boolean
@@ -92,7 +92,7 @@ function pickPkgsWithAllDeps (
   importerIdSet: Set<string>,
   opts: {
     currentEngine: {
-      nodeVersion: string
+      nodeVersion?: string
       pnpmVersion: string
     }
     engineStrict: boolean
@@ -119,7 +119,7 @@ function pkgAllDeps (
   parentIsInstallable: boolean,
   opts: {
     currentEngine: {
-      nodeVersion: string
+      nodeVersion?: string
       pnpmVersion: string
     }
     engineStrict: boolean

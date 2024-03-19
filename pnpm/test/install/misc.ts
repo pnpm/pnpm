@@ -43,7 +43,7 @@ skipOnWindows('install --lockfile-only', async () => {
   project.hasNot('rimraf')
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/rimraf@2.5.1'])
+  expect(lockfile.packages).toHaveProperty(['rimraf@2.5.1'])
 })
 
 test('install --no-lockfile', async () => {

@@ -154,7 +154,7 @@ export interface ResolutionContext {
   preferWorkspacePackages?: boolean
   readPackageHook?: ReadPackageHook
   engineStrict: boolean
-  nodeVersion: string
+  nodeVersion?: string
   pnpmVersion: string
   registries: Registries
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
@@ -1083,6 +1083,9 @@ async function resolveDependency (
     }
   }
   try {
+    if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`)) {
+      wantedDependency.pref = currentPkg.version
+    }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
@@ -1107,9 +1110,7 @@ async function resolveDependency (
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref) || ctx.registries.default,
-      // Unfortunately, even when run with --lockfile-only, we need the *real* package.json
-      // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
-      skipFetch: false,
+      skipFetch: ctx.dryRun,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
@@ -1160,29 +1161,28 @@ async function resolveDependency (
   }
 
   if (pkgResponse.body.isLocal) {
-    const manifest = pkgResponse.body.manifest ?? (await pkgResponse.fetching!()).bundledManifest
-    if (!manifest) {
+    if (!pkgResponse.body.manifest) {
       // This should actually never happen because the local-resolver returns a manifest
       // even if no real manifest exists in the filesystem.
       throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.pref}: Missing package.json file`)
     }
     return {
-      alias: wantedDependency.alias || manifest.name || path.basename(pkgResponse.body.resolution.directory),
+      alias: wantedDependency.alias || pkgResponse.body.manifest.name || path.basename(pkgResponse.body.resolution.directory),
       depPath: pkgResponse.body.id,
       dev: wantedDependency.dev,
       isLinkedDependency: true,
-      name: manifest.name,
+      name: pkgResponse.body.manifest.name,
       normalizedPref: pkgResponse.body.normalizedPref,
       optional: wantedDependency.optional,
       pkgId: pkgResponse.body.id,
       resolution: pkgResponse.body.resolution,
-      version: manifest.version,
+      version: pkgResponse.body.manifest.version,
     }
   }
 
   let prepare!: boolean
   let hasBin!: boolean
-  let pkg: PackageManifest = await getManifestFromResponse(pkgResponse, wantedDependency)
+  let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency)
   if (!pkg.dependencies) {
     pkg.dependencies = {}
   }
@@ -1208,7 +1208,7 @@ async function resolveDependency (
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
-  let depPath = pkgResponse.body.id
+  let depPath = pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`
   const nameAndVersion = `${pkg.name}@${pkg.version}`
   const patchFile = ctx.patchedDependencies?.[nameAndVersion]
   if (patchFile) {
@@ -1397,12 +1397,11 @@ async function resolveDependency (
   }
 }
 
-async function getManifestFromResponse (
+function getManifestFromResponse (
   pkgResponse: PackageResponse,
   wantedDependency: WantedDependency
-): Promise<PackageManifest> {
-  const pkg = pkgResponse.body.manifest ?? (await pkgResponse.fetching!()).bundledManifest
-  if (pkg) return pkg
+): PackageManifest {
+  if (pkgResponse.body.manifest) return pkgResponse.body.manifest
   return {
     name: wantedDependency.pref.split('/').pop()!,
     version: '0.0.0',

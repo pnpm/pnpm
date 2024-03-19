@@ -58,7 +58,7 @@ test('server', async () => {
 
   const { bundledManifest, files } = await response.fetching!()
   expect(bundledManifest?.name).toBe('is-positive')
-  expect(response.body.id).toBe('/is-positive@1.0.0')
+  expect(response.body.id).toBe('is-positive@1.0.0')
 
   expect(response.body.manifest!.name).toBe('is-positive')
   expect(response.body.manifest!.version).toBe('1.0.0')

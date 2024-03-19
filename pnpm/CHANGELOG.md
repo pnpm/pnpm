@@ -1,6 +1,6 @@
 # pnpm
 
-## 9.0.0-alpha.7
+## 9.0.0-alpha.8
 
 ### Major Changes
 
@@ -102,6 +102,12 @@
 - Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped [#7714](https://github.com/pnpm/pnpm/pull/7714).
 
 - The checksum of the `.pnpmfile.cjs` is saved into the lockfile. If the pnpmfile gets modified, the lockfile is reanalyzed to apply the changes [#7662](https://github.com/pnpm/pnpm/pull/7662).
+
+### Patch Changes
+
+- Package tarballs are not downloaded during `--lockfile-only` installation [#1328](https://github.com/pnpm/pnpm/issues/1328).
+- Peer dependency rules should only affect reporting, not data in the lockfile [#7758](https://github.com/pnpm/pnpm/pull/7758).
+- Link overrides should be able to use absolute path [#7749](https://github.com/pnpm/pnpm/pull/7749).
 
 ## 8.15.0
 

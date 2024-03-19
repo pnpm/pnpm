@@ -50,15 +50,15 @@ test('fix broken lockfile with --fix-lockfile', async () => {
 
   const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.packages as PackageSnapshots).length).toBe(2)
-  expect(lockfile.packages?.['/@types/semver@5.3.31']).toBeTruthy()
-  expect(lockfile.packages?.['/@types/semver@5.3.31']?.resolution).toEqual({
+  expect(lockfile.packages?.['@types/semver@5.3.31']).toBeTruthy()
+  expect(lockfile.packages?.['@types/semver@5.3.31']?.resolution).toEqual({
     integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
   })
-  expect(lockfile.packages?.['/core-js-pure@3.16.2']).toBeTruthy()
-  expect(lockfile.packages?.['/core-js-pure@3.16.2']?.resolution).toEqual({
+  expect(lockfile.packages?.['core-js-pure@3.16.2']).toBeTruthy()
+  expect(lockfile.packages?.['core-js-pure@3.16.2']?.resolution).toEqual({
     integrity: 'sha512-oxKe64UH049mJqrKkynWp6Vu0Rlm/BTXO/bJZuN2mmR3RtOFNepLlSWDd1eo16PzHpQAoNG97rLU1V/YxesJjw==',
   })
-  expect(lockfile.snapshots?.['/core-js-pure@3.16.2']?.dev).toBeTruthy()
+  expect(lockfile.snapshots?.['core-js-pure@3.16.2']?.dev).toBeTruthy()
 })
 
 test('--fix-lockfile should preserve all locked dependencies version', async () => {
@@ -119,34 +119,48 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
       },
     },
     packages: {
-      '/@babel/runtime-corejs3@7.15.3': {
+      '@babel/runtime-corejs3@7.15.3': {
         resolution: { integrity: 'sha512-30A3lP+sRL6ml8uhoJSs+8jwpKzbw8CqBvDc1laeptxPm5FahumJxirigcbD2qTs71Sonvj1cyZB0OKGAmxQ+A==' },
         // engines: { node: '>=6.9.0' },
+      },
+      '@babel/runtime-corejs3@7.15.4': {
+        resolution: { integrity: 'sha512-lWcAqKeB624/twtTc3w6w/2o9RqJPaNBhPGK6DKLSiwuVWC7WFkypWyNg+CpZoyJH0jVzv1uMtXZ/5/lQOLtCg==' },
+        engines: { node: '>=6.9.0' },
+      },
+      'core-js-pure@3.17.2': {
+        resolution: { integrity: 'sha512-2VV7DlIbooyTI7Bh+yzOOWL9tGwLnQKHno7qATE+fqZzDKYr6llVjVQOzpD/QLZFgXDPb8T71pJokHEZHEYJhQ==' },
+      },
+      'core-js-pure@3.17.3': {
+      // resolution: { integrity: 'sha512-YusrqwiOTTn8058JDa0cv9unbXdIiIgcgI9gXso0ey4WgkFLd3lYlV9rp9n7nDCsYxXsMDTjA4m1h3T348mdlQ==' },
+      },
+      'regenerator-runtime@0.13.9': {
+        resolution: { integrity: 'sha512-p3VT+cOEgxFsRRA9X4lkI1E+k2/CtnKtU4gcxyaCUreilL/vqI6CdZ3wxVUx3UOUg+gnUOQQcRI7BmSI656MYA==' },
+      },
+    },
+    snapshots: {
+      '@babel/runtime-corejs3@7.15.3': {
+        resolution: { integrity: 'sha512-30A3lP+sRL6ml8uhoJSs+8jwpKzbw8CqBvDc1laeptxPm5FahumJxirigcbD2qTs71Sonvj1cyZB0OKGAmxQ+A==' },
         dependencies: {
           'core-js-pure': '3.17.2',
           'regenerator-runtime': '0.13.9',
         },
         dev: false,
       },
-      '/@babel/runtime-corejs3@7.15.4': {
-        resolution: { integrity: 'sha512-lWcAqKeB624/twtTc3w6w/2o9RqJPaNBhPGK6DKLSiwuVWC7WFkypWyNg+CpZoyJH0jVzv1uMtXZ/5/lQOLtCg==' },
-        engines: { node: '>=6.9.0' },
+      '@babel/runtime-corejs3@7.15.4': {
         dependencies: {
           'core-js-pure': '3.17.3',
           'regenerator-runtime': '0.13.9',
         },
         dev: false,
       },
-      '/core-js-pure@3.17.2': {
-        resolution: { integrity: 'sha512-2VV7DlIbooyTI7Bh+yzOOWL9tGwLnQKHno7qATE+fqZzDKYr6llVjVQOzpD/QLZFgXDPb8T71pJokHEZHEYJhQ==' },
+      'core-js-pure@3.17.2': {
         dev: false,
       },
-      '/core-js-pure@3.17.3': {
+      'core-js-pure@3.17.3': {
       // resolution: { integrity: 'sha512-YusrqwiOTTn8058JDa0cv9unbXdIiIgcgI9gXso0ey4WgkFLd3lYlV9rp9n7nDCsYxXsMDTjA4m1h3T348mdlQ==' },
       // dev: false
       },
-      '/regenerator-runtime@0.13.9': {
-        resolution: { integrity: 'sha512-p3VT+cOEgxFsRRA9X4lkI1E+k2/CtnKtU4gcxyaCUreilL/vqI6CdZ3wxVUx3UOUg+gnUOQQcRI7BmSI656MYA==' },
+      'regenerator-runtime@0.13.9': {
       // dev: false
       },
     },
@@ -193,39 +207,39 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
 
   expect(Object.keys(lockfile.packages as PackageSnapshots).length).toBe(5)
 
-  expect(lockfile.packages?.['/@babel/runtime-corejs3@7.15.3']).toBeTruthy()
-  expect(lockfile.packages?.['/@babel/runtime-corejs3@7.15.3']?.resolution).toEqual({
+  expect(lockfile.packages?.['@babel/runtime-corejs3@7.15.3']).toBeTruthy()
+  expect(lockfile.packages?.['@babel/runtime-corejs3@7.15.3']?.resolution).toEqual({
     integrity: 'sha512-30A3lP+sRL6ml8uhoJSs+8jwpKzbw8CqBvDc1laeptxPm5FahumJxirigcbD2qTs71Sonvj1cyZB0OKGAmxQ+A==',
   })
-  expect(lockfile.packages?.['/@babel/runtime-corejs3@7.15.3']?.engines).toEqual({
+  expect(lockfile.packages?.['@babel/runtime-corejs3@7.15.3']?.engines).toEqual({
     node: '>=6.9.0',
   })
-  expect(lockfile.snapshots?.['/@babel/runtime-corejs3@7.15.3']?.dev).toBeFalsy()
+  expect(lockfile.snapshots?.['@babel/runtime-corejs3@7.15.3']?.dev).toBeFalsy()
 
-  expect(lockfile.packages?.['/@babel/runtime-corejs3@7.15.4']).toBeTruthy()
-  expect(lockfile.packages?.['/@babel/runtime-corejs3@7.15.4']?.resolution).toEqual({
+  expect(lockfile.packages?.['@babel/runtime-corejs3@7.15.4']).toBeTruthy()
+  expect(lockfile.packages?.['@babel/runtime-corejs3@7.15.4']?.resolution).toEqual({
     integrity: 'sha512-lWcAqKeB624/twtTc3w6w/2o9RqJPaNBhPGK6DKLSiwuVWC7WFkypWyNg+CpZoyJH0jVzv1uMtXZ/5/lQOLtCg==',
   })
-  expect(lockfile.packages?.['/@babel/runtime-corejs3@7.15.4']?.engines).toEqual({
+  expect(lockfile.packages?.['@babel/runtime-corejs3@7.15.4']?.engines).toEqual({
     node: '>=6.9.0',
   })
-  expect(lockfile.snapshots?.['/@babel/runtime-corejs3@7.15.4']?.dev).toBeFalsy()
+  expect(lockfile.snapshots?.['@babel/runtime-corejs3@7.15.4']?.dev).toBeFalsy()
 
-  expect(lockfile.packages?.['/core-js-pure@3.17.2']).toBeTruthy()
-  expect(lockfile.packages?.['/core-js-pure@3.17.2']?.resolution).toHaveProperty('integrity', 'sha512-2VV7DlIbooyTI7Bh+yzOOWL9tGwLnQKHno7qATE+fqZzDKYr6llVjVQOzpD/QLZFgXDPb8T71pJokHEZHEYJhQ==')
-  expect(lockfile.snapshots?.['/core-js-pure@3.17.2']?.dev).toBeFalsy()
+  expect(lockfile.packages?.['core-js-pure@3.17.2']).toBeTruthy()
+  expect(lockfile.packages?.['core-js-pure@3.17.2']?.resolution).toHaveProperty('integrity', 'sha512-2VV7DlIbooyTI7Bh+yzOOWL9tGwLnQKHno7qATE+fqZzDKYr6llVjVQOzpD/QLZFgXDPb8T71pJokHEZHEYJhQ==')
+  expect(lockfile.snapshots?.['core-js-pure@3.17.2']?.dev).toBeFalsy()
 
-  expect(lockfile.packages?.['/core-js-pure@3.17.3']).toBeTruthy()
-  expect(lockfile.packages?.['/core-js-pure@3.17.3']?.resolution).toEqual({
+  expect(lockfile.packages?.['core-js-pure@3.17.3']).toBeTruthy()
+  expect(lockfile.packages?.['core-js-pure@3.17.3']?.resolution).toEqual({
     integrity: 'sha512-YusrqwiOTTn8058JDa0cv9unbXdIiIgcgI9gXso0ey4WgkFLd3lYlV9rp9n7nDCsYxXsMDTjA4m1h3T348mdlQ==',
   })
-  expect(lockfile.snapshots?.['/core-js-pure@3.17.3']?.dev).toBeFalsy()
+  expect(lockfile.snapshots?.['core-js-pure@3.17.3']?.dev).toBeFalsy()
 
-  expect(lockfile.packages?.['/regenerator-runtime@0.13.9']).toBeTruthy()
-  expect(lockfile.packages?.['/regenerator-runtime@0.13.9']?.resolution).toEqual({
+  expect(lockfile.packages?.['regenerator-runtime@0.13.9']).toBeTruthy()
+  expect(lockfile.packages?.['regenerator-runtime@0.13.9']?.resolution).toEqual({
     integrity: 'sha512-p3VT+cOEgxFsRRA9X4lkI1E+k2/CtnKtU4gcxyaCUreilL/vqI6CdZ3wxVUx3UOUg+gnUOQQcRI7BmSI656MYA==',
   })
-  expect(lockfile.snapshots?.['/regenerator-runtime@0.13.9']?.dev).toBeFalsy()
+  expect(lockfile.snapshots?.['regenerator-runtime@0.13.9']?.dev).toBeFalsy()
 })
 
 test(

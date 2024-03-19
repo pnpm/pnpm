@@ -73,7 +73,7 @@ test('installing a simple project', async () => {
   } as StageLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: '/is-negative@2.1.0',
+    packageId: 'is-negative@2.1.0',
     requester: prefix,
     status: 'resolved',
   })).toBeTruthy()
@@ -149,8 +149,8 @@ test('installing with package manifest ignored', async () => {
 
   const project = assertProject(prefix)
   const currentLockfile = project.readCurrentLockfile()
-  expect(currentLockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
-  expect(currentLockfile.packages).toHaveProperty(['/is-negative@2.1.0'])
+  expect(currentLockfile.packages).toHaveProperty(['is-positive@1.0.0'])
+  expect(currentLockfile.packages).toHaveProperty(['is-negative@2.1.0'])
   project.storeHas('is-negative')
   project.storeHas('is-positive')
   project.hasNot('is-negative')
@@ -173,8 +173,8 @@ test('installing only prod package with package manifest ignored', async () => {
 
   const project = assertProject(prefix)
   const currentLockfile = project.readCurrentLockfile()
-  expect(currentLockfile.packages).not.toHaveProperty(['/is-negative@2.1.0'])
-  expect(currentLockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
+  expect(currentLockfile.packages).not.toHaveProperty(['is-negative@2.1.0'])
+  expect(currentLockfile.packages).toHaveProperty(['is-positive@1.0.0'])
   project.storeHasNot('is-negative')
   project.storeHas('is-positive')
   project.hasNot('is-negative')
@@ -197,8 +197,8 @@ test('installing only dev package with package manifest ignored', async () => {
 
   const project = assertProject(prefix)
   const currentLockfile = project.readCurrentLockfile()
-  expect(currentLockfile.packages).toHaveProperty(['/is-negative@2.1.0'])
-  expect(currentLockfile.packages).not.toHaveProperty(['/is-positive@1.0.0'])
+  expect(currentLockfile.packages).toHaveProperty(['is-negative@2.1.0'])
+  expect(currentLockfile.packages).not.toHaveProperty(['is-positive@1.0.0'])
   project.storeHasNot('is-negative')
   project.storeHas('is-positive')
   project.hasNot('is-negative')
@@ -225,12 +225,12 @@ test('installing non-prod deps then all deps', async () => {
 
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.snapshots['/is-positive@1.0.0'].dev === false).toBeTruthy()
+    expect(lockfile.snapshots['is-positive@1.0.0'].dev === false).toBeTruthy()
   }
 
   {
     const currentLockfile = project.readCurrentLockfile()
-    expect(currentLockfile.packages).not.toHaveProperty(['/is-positive@1.0.0'])
+    expect(currentLockfile.packages).not.toHaveProperty(['is-positive@1.0.0'])
   }
 
   const reporter = sinon.spy()
@@ -269,7 +269,7 @@ test('installing non-prod deps then all deps', async () => {
 
   {
     const currentLockfile = project.readCurrentLockfile()
-    expect(currentLockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
+    expect(currentLockfile.packages).toHaveProperty(['is-positive@1.0.0'])
   }
 })
 
@@ -360,7 +360,7 @@ test('run pre/postinstall scripts', async () => {
   const nmPath = path.join(prefix, 'node_modules')
   const modulesYaml = await readModulesManifest(nmPath)
   expect(modulesYaml).toBeTruthy()
-  expect(modulesYaml!.pendingBuilds).toStrictEqual(['.', '/@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0'])
+  expect(modulesYaml!.pendingBuilds).toStrictEqual(['.', '@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0'])
 })
 
 test('orphan packages are removed', async () => {
@@ -425,13 +425,13 @@ test('available packages are used when node_modules is not clean', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: '/balanced-match@1.0.2',
+    packageId: 'balanced-match@1.0.2',
     requester: projectDir,
     status: 'resolved',
   })).toBeFalsy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: '/rimraf@2.7.1',
+    packageId: 'rimraf@2.7.1',
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
@@ -462,13 +462,13 @@ test('available packages are relinked during forced install', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: '/balanced-match@1.0.2',
+    packageId: 'balanced-match@1.0.2',
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: '/rimraf@2.7.1',
+    packageId: 'rimraf@2.7.1',
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
@@ -585,14 +585,14 @@ test('installing with hoistPattern=*', async () => {
   } as StageLog))
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'debug',
-    packageId: '/is-negative@2.1.0',
+    packageId: 'is-negative@2.1.0',
     requester: prefix,
     status: 'resolved',
   }))
 
   const modules = project.readModulesManifest()
 
-  expect(modules!.hoistedDependencies['/balanced-match@1.0.2']).toStrictEqual({ 'balanced-match': 'private' })
+  expect(modules!.hoistedDependencies['balanced-match@1.0.2']).toStrictEqual({ 'balanced-match': 'private' })
 })
 
 test('installing with publicHoistPattern=*', async () => {
@@ -641,14 +641,14 @@ test('installing with publicHoistPattern=*', async () => {
   } as StageLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: '/is-negative@2.1.0',
+    packageId: 'is-negative@2.1.0',
     requester: prefix,
     status: 'resolved',
   })).toBeTruthy()
 
   const modules = project.readModulesManifest()
 
-  expect(modules!.hoistedDependencies['/balanced-match@1.0.2']).toStrictEqual({ 'balanced-match': 'public' })
+  expect(modules!.hoistedDependencies['balanced-match@1.0.2']).toStrictEqual({ 'balanced-match': 'public' })
 })
 
 test('installing with publicHoistPattern=* in a project with external lockfile', async () => {
@@ -685,7 +685,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
   delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
 
@@ -760,8 +760,8 @@ test('installing in a workspace', async () => {
   const rootModules = assertProject(workspaceFixture)
   const lockfile = rootModules.readCurrentLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
-    '/is-negative@1.0.0',
-    '/is-positive@1.0.0',
+    'is-negative@1.0.0',
+    'is-positive@1.0.0',
   ])
 })
 

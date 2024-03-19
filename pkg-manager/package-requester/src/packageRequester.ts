@@ -276,13 +276,16 @@ async function resolveAndFetch (
     onFetchError: options.onFetchError,
   })
 
+  if (!manifest) {
+    manifest = (await fetchResult.fetching()).bundledManifest
+  }
   return {
     body: {
       id,
       isLocal: false as const,
       isInstallable: isInstallable ?? undefined,
       latest,
-      manifest,
+      manifest: manifest ?? (await fetchResult.fetching()).bundledManifest,
       normalizedPref,
       resolution,
       resolvedVia,

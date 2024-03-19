@@ -48,12 +48,12 @@ describe('licences', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        '/bar@1.0.0': {
+        'bar@1.0.0': {
           resolution: {
             integrity: 'bar-integrity',
           },
         },
-        '/foo@1.0.0': {
+        'foo@1.0.0': {
           dependencies: {
             bar: '1.0.0',
           },
@@ -131,17 +131,17 @@ describe('licences', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        '/baz@1.0.0': {
+        'baz@1.0.0': {
           resolution: {
             integrity: 'baz-integrity',
           },
         },
-        '/bar@1.0.0': {
+        'bar@1.0.0': {
           resolution: {
             integrity: 'bar-integrity',
           },
         },
-        '/foo@1.0.0': {
+        'foo@1.0.0': {
           resolution: {
             integrity: 'foo-integrity',
           },
@@ -193,27 +193,27 @@ describe('licences', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        '/bar@1.0.1': {
+        'bar@1.0.1': {
           resolution: {
             integrity: 'bar1-integrity',
           },
         },
-        '/bar@1.0.0': {
+        'bar@1.0.0': {
           resolution: {
             integrity: 'bar2-integrity',
           },
         },
-        '/baz@2.0.1': {
+        'baz@2.0.1': {
           resolution: {
             integrity: 'baz1-integrity',
           },
         },
-        '/baz@2.0.0': {
+        'baz@2.0.0': {
           resolution: {
             integrity: 'baz2-integrity',
           },
         },
-        '/foo@1.0.0': {
+        'foo@1.0.0': {
           dependencies: {
             bar: '1.0.0',
             baz: '2.0.1',

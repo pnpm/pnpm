@@ -19,16 +19,23 @@ importers:
 
 packages:
 
-  /is-negative@1.0.0:
-    dev: false
+  is-negative@1.0.0:
     engines:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=
 
-  /is-positive@1.0.0:
-    dev: false
+  is-positive@1.0.0:
     engines:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=
+
+snapshots:
+
+  is-negative@1.0.0:
+    dev: false
+
+  is-positive@1.0.0:
+    dev: false
+

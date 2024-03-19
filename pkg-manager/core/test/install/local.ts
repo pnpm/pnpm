@@ -182,8 +182,7 @@ test('tarball local package', async () => {
   expect(manifest.dependencies).toStrictEqual({ 'tar-pkg': pkgSpec })
 
   const lockfile = project.readLockfile()
-  expect(lockfile.packages[lockfile.importers['.'].dependencies!['tar-pkg'].version]).toStrictEqual({
-    name: 'tar-pkg',
+  expect(lockfile.packages[`tar-pkg@${lockfile.importers['.'].dependencies!['tar-pkg'].version}`]).toStrictEqual({
     resolution: {
       integrity: 'sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==',
       tarball: `file:${normalizePath(path.relative(process.cwd(), f.find('tar-pkg/tar-pkg-1.0.0.tgz')))}`,
@@ -212,8 +211,7 @@ test('tarball local package from project directory', async () => {
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['tar-pkg'].version).toBe(pkgSpec)
-  expect(lockfile.packages[lockfile.importers['.'].dependencies!['tar-pkg'].version]).toStrictEqual({
-    name: 'tar-pkg',
+  expect(lockfile.packages[`tar-pkg@${lockfile.importers['.'].dependencies!['tar-pkg'].version}`]).toStrictEqual({
     resolution: {
       integrity: 'sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==',
       tarball: pkgSpec,
@@ -229,13 +227,13 @@ test('update tarball local package when its integrity changes', async () => {
   const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], testDefaults())
 
   const lockfile1 = project.readLockfile()
-  expect(lockfile1.snapshots['file:../tar.tgz'].dependencies!['is-positive']).toBe('1.0.0')
+  expect(lockfile1.snapshots['tar-pkg-with-dep@file:../tar.tgz'].dependencies!['is-positive']).toBe('1.0.0')
 
   f.copy('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
   await install(manifest, testDefaults())
 
   const lockfile2 = project.readLockfile()
-  expect(lockfile2.snapshots['file:../tar.tgz'].dependencies!['is-positive']).toBe('2.0.0')
+  expect(lockfile2.snapshots['tar-pkg-with-dep@file:../tar.tgz'].dependencies!['is-positive']).toBe('2.0.0')
 
   const manifestOfTarballDep = await import(path.resolve('node_modules/tar-pkg-with-dep/package.json'))
   expect(manifestOfTarballDep.dependencies['is-positive']).toBe('^2.0.0')
@@ -315,7 +313,7 @@ test('deep local', async () => {
   await install(manifest1, testDefaults())
 
   const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
-  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['file:../project-2', 'file:../project-2/project-3'])
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['project-2@file:../project-2', 'project-3@file:../project-2/project-3'])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/5327
@@ -425,13 +423,12 @@ test('re-install should update local file dependency', async () => {
       },
     },
     packages: {
-      'file:../local-pkg': {
+      'local-pkg@file:../local-pkg': {
         resolution: { directory: '../local-pkg', type: 'directory' },
-        name: 'local-pkg',
       },
     },
     snapshots: {
-      'file:../local-pkg': {
+      'local-pkg@file:../local-pkg': {
         dev: false,
       },
     },
@@ -462,7 +459,7 @@ test('re-install should update local file dependency', async () => {
   lockfile = project.readLockfile()
   expect(lockfile).toMatchObject({
     snapshots: {
-      'file:../local-pkg': {
+      'local-pkg@file:../local-pkg': {
         dev: false,
         dependencies: {
           'is-positive': '1.0.0',
@@ -470,9 +467,8 @@ test('re-install should update local file dependency', async () => {
       },
     },
     packages: {
-      'file:../local-pkg': {
+      'local-pkg@file:../local-pkg': {
         resolution: { directory: '../local-pkg', type: 'directory' },
-        name: 'local-pkg',
       },
     },
   })
@@ -490,13 +486,12 @@ test('re-install should update local file dependency', async () => {
   lockfile = project.readLockfile()
   expect(lockfile).toMatchObject({
     packages: {
-      'file:../local-pkg': {
+      'local-pkg@file:../local-pkg': {
         resolution: { directory: '../local-pkg', type: 'directory' },
-        name: 'local-pkg',
       },
     },
     snapshots: {
-      'file:../local-pkg': {
+      'local-pkg@file:../local-pkg': {
         dev: false,
         dependencies: {
           'is-positive': '2.0.0',
