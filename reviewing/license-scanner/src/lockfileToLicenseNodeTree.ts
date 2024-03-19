@@ -87,7 +87,7 @@ export async function lockfileToLicenseNode (
 
       const dep: LicenseNode = {
         name,
-        dev: pkgSnapshot.dev === true,
+        dev: false,
         integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
         version,
         license: packageInfo.license,

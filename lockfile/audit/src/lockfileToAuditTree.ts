@@ -66,7 +66,7 @@ function lockfileToAuditNode (step: LockfileWalkerStep): Record<string, AuditNod
     const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     const subdeps = lockfileToAuditNode(next())
     const dep: AuditNode = {
-      dev: pkgSnapshot.dev === true,
+      dev: false,
       integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
       version,
     }

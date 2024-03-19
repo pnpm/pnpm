@@ -88,13 +88,12 @@ export type LockfileResolution = Resolution | {
   integrity: string
 }
 
-export type PackageSnapshotV7 = Pick<PackageSnapshot, 'dev' | 'optional' | 'dependencies' | 'optionalDependencies' | 'transitivePeerDependencies'>
+export type PackageSnapshotV7 = Pick<PackageSnapshot, 'optional' | 'dependencies' | 'optionalDependencies' | 'transitivePeerDependencies'>
 
 export type PackageInfo = Pick<PackageSnapshot, 'id' | 'patched' | 'hasBin' | 'name' | 'version' | 'resolution' | 'peerDependencies' | 'peerDependenciesMeta' | 'bundledDependencies' | 'engines' | 'cpu' | 'os' | 'libc' | 'deprecated'>
 
 export interface PackageSnapshot {
   id?: string
-  dev?: true | false
   optional?: true
   patched?: true
   hasBin?: true
