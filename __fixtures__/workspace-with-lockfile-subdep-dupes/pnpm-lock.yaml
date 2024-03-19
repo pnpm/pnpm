@@ -38,18 +38,14 @@ packages:
 
 snapshots:
 
-  punycode@2.1.1:
-    dev: false
+  punycode@2.1.1: {}
 
-  punycode@2.3.0:
-    dev: false
+  punycode@2.3.0: {}
 
   uri-js@4.2.2:
     dependencies:
       punycode: 2.1.1
-    dev: false
 
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.0
-    dev: false

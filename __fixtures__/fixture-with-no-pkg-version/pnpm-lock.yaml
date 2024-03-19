@@ -69,47 +69,36 @@ packages:
 
 snapshots:
 
-  detect-indent@5.0.0:
-    dev: false
+  detect-indent@5.0.0: {}
 
-  graceful-fs@4.2.2:
-    dev: false
+  graceful-fs@4.2.2: {}
 
-  imurmurhash@0.1.4:
-    dev: false
+  imurmurhash@0.1.4: {}
 
   is-negative@2.1.0:
-    dev: false
     optional: true
 
-  is-plain-obj@1.1.0:
-    dev: false
+  is-plain-obj@1.1.0: {}
 
-  is-positive@3.1.0:
-    dev: true
+  is-positive@3.1.0: {}
 
   make-dir@1.3.0:
     dependencies:
       pify: 3.0.0
-    dev: false
 
-  pify@3.0.0:
-    dev: false
+  pify@3.0.0: {}
 
-  signal-exit@3.0.2:
-    dev: false
+  signal-exit@3.0.2: {}
 
   sort-keys@2.0.0:
     dependencies:
       is-plain-obj: 1.1.0
-    dev: false
 
   write-file-atomic@2.4.3:
     dependencies:
       graceful-fs: 4.2.2
       imurmurhash: 0.1.4
       signal-exit: 3.0.2
-    dev: false
 
   write-json-file@2.3.0:
     dependencies:
@@ -119,4 +108,3 @@ snapshots:
       pify: 3.0.0
       sort-keys: 2.0.0
       write-file-atomic: 2.4.3
-    dev: false
