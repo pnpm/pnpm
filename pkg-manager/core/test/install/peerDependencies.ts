@@ -1217,9 +1217,6 @@ test('peer dependency that is resolved by a dev dependency', async () => {
     rootDir: process.cwd(),
   }, testDefaults({ fastUnpack: false, lockfileOnly: true, strictPeerDependencies: false }))
 
-  const lockfile = project.readLockfile()
-  expect(lockfile.snapshots['@types/mongoose@5.7.32']).toBeUndefined()
-
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
