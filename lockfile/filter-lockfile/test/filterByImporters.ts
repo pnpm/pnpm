@@ -33,7 +33,6 @@ test('filterByImporters(): only prod dependencies of one importer', () => {
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
         'dev-dep@1.0.0': {
-          dev: true,
           resolution: { integrity: '' },
         },
         'optional-dep@1.0.0': {
@@ -259,7 +258,6 @@ test('filterByImporters(): do not include skipped packages', () => {
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
         'dev-dep@1.0.0': {
-          dev: true,
           resolution: { integrity: '' },
         },
         'optional-dep@1.0.0': {
@@ -325,7 +323,6 @@ test('filterByImporters(): do not include skipped packages', () => {
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       'dev-dep@1.0.0': {
-        dev: true,
         resolution: { integrity: '' },
       },
       'prod-dep-dep@1.0.0': {
