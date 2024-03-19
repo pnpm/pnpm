@@ -429,25 +429,6 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
   expect(lockfile1).toStrictEqual(lockfile2) // lockfile hasn't been changed
 })
 
-test('package is not marked dev if it is also a subdep of a regular dependency', async () => {
-  const project = prepareEmpty()
-
-  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
-
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults())
-
-  // console.log('installed @pnpm.e2e/pkg-with-1-dep')
-
-  await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-pkg-with-1-dep'], testDefaults({ targetDependenciesField: 'devDependencies' }))
-
-  // console.log('installed optional dependency which is also a dependency of @pnpm.e2e/pkg-with-1-dep')
-
-  const lockfile = project.readLockfile()
-
-  expect(lockfile.snapshots['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].dev).toBeFalsy()
-})
-
 test('package is not marked optional if it is also a subdep of a regular dependency', async () => {
   const project = prepareEmpty()
 
@@ -635,22 +616,6 @@ test('pendingBuilds gets updated if install removes packages', async () => {
   expect(modules1).toBeTruthy()
   expect(modules2).toBeTruthy()
   expect(modules1!.pendingBuilds.length > modules2!.pendingBuilds.length).toBeTruthy()
-})
-
-test('dev properties are correctly updated on named install', async () => {
-  const project = prepareEmpty()
-
-  const manifest = await addDependenciesToPackage(
-    {},
-    ['inflight@1.0.6'],
-    testDefaults({ targetDependenciesField: 'devDependencies' })
-  )
-  await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], testDefaults({}))
-
-  const lockfile = project.readLockfile()
-  expect(
-    Object.values(lockfile.snapshots).filter((dep) => typeof dep.dev !== 'undefined')
-  ).toStrictEqual([])
 })
 
 test('optional properties are correctly updated on named install', async () => {

@@ -643,7 +643,7 @@ test.skip('peer dependencies are linked', async () => {
   expect(deepRequireCwd(['@pnpm.e2e/abc-grand-parent-with-c', '@pnpm.e2e/abc-parent-with-ab', '@pnpm.e2e/abc', '@pnpm.e2e/peer-c', './package.json']).version).toBe('1.0.0')
 
   const lockfile = project.readLockfile()
-  expect(lockfile.snapshots['@pnpm.e2e/abc-parent-with-ab/1.0.0/@pnpm.e2e/peer-a@1.0.0+@pnpm.e2e+peer-b@1.0.0'].dev).toBeTruthy()
+  expect(lockfile.snapshots['@pnpm.e2e/abc-parent-with-ab/1.0.0/@pnpm.e2e/peer-a@1.0.0+@pnpm.e2e+peer-b@1.0.0']).toBeTruthy()
 })
 
 test('scoped peer dependency is linked', async () => {
@@ -1218,7 +1218,7 @@ test('peer dependency that is resolved by a dev dependency', async () => {
   }, testDefaults({ fastUnpack: false, lockfileOnly: true, strictPeerDependencies: false }))
 
   const lockfile = project.readLockfile()
-  expect(lockfile.snapshots['@types/mongoose@5.7.32'].dev).toBeUndefined()
+  expect(lockfile.snapshots['@types/mongoose@5.7.32']).toBeUndefined()
 
   await mutateModulesInSingleProject({
     manifest,
