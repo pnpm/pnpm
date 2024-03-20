@@ -1,4 +1,5 @@
 import path from 'path'
+import { type ProjectSnapshot } from '@pnpm/lockfile-types'
 import npa from '@pnpm/npm-package-arg'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import { parsePref, workspacePrefToNpm } from '@pnpm/npm-resolver'
@@ -7,19 +8,11 @@ import mapValues from 'ramda/src/map'
 export interface Manifest {
   name?: string
   version?: string
-  dependencies?: {
-    [name: string]: string
-  }
-  devDependencies?: {
-    [name: string]: string
-  }
-  optionalDependencies?: {
-    [name: string]: string
-  }
 }
 
 export interface Package {
   manifest: Manifest
+  snapshot: ProjectSnapshot
   dir: string
 }
 
@@ -48,9 +41,9 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
 
   function createNode (pkg: Package): string[] {
     const dependencies = {
-      ...(!opts?.ignoreDevDeps && pkg.manifest.devDependencies),
-      ...pkg.manifest.optionalDependencies,
-      ...pkg.manifest.dependencies,
+      ...(!opts?.ignoreDevDeps && pkg.snapshot.devDependencies),
+      ...pkg.snapshot.optionalDependencies,
+      ...pkg.snapshot.dependencies,
     }
 
     return Object.entries(dependencies)

@@ -7,7 +7,7 @@ import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
-import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { arrayOfWorkspacePackagesToMap, findWorkspacePackages, loadLockfileInformationForPackages } from '@pnpm/workspace.find-packages'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
@@ -173,7 +173,11 @@ when running add/update with the --workspace option')
 
       let allProjectsGraph!: ProjectsGraph
       if (opts.dedupePeerDependents) {
-        allProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
+        const allProjectsWithLockfileInfo = await loadLockfileInformationForPackages(allProjects, {
+          workspaceDir: opts.workspaceDir,
+          sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+        })
+        allProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjectsWithLockfileInfo, {
           linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
         }).graph
       } else {
@@ -301,7 +305,11 @@ when running add/update with the --workspace option')
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
-    const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(allProjects, [
+    const allProjectsWithLockfileInfo = await loadLockfileInformationForPackages(allProjects, {
+      workspaceDir: opts.workspaceDir,
+      sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    })
+    const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(allProjectsWithLockfileInfo, [
       {
         excludeSelf: true,
         includeDependencies: true,

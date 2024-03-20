@@ -1,6 +1,6 @@
 import { createMatcher } from '@pnpm/matcher'
 import { type SupportedArchitectures } from '@pnpm/types'
-import { findWorkspacePackages, type Project } from '@pnpm/workspace.find-packages'
+import { findWorkspacePackages, loadLockfileInformationForPackages, type Project } from '@pnpm/workspace.find-packages'
 import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
 import difference from 'ramda/src/difference'
@@ -44,11 +44,16 @@ export async function readProjects (
     linkWorkspacePackages?: boolean
     changedFilesIgnorePattern?: string[]
     supportedArchitectures?: SupportedArchitectures
+    sharedWorkspaceLockfile?: boolean
   }
 ): Promise<ReadProjectsResult> {
   const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict, supportedArchitectures: opts?.supportedArchitectures ?? { os: ['current'], cpu: ['current'], libc: ['current'] } })
+  const allProjectsWithLockfileInfo = await loadLockfileInformationForPackages(allProjects, {
+    workspaceDir,
+    sharedWorkspaceLockfile: opts?.sharedWorkspaceLockfile,
+  })
   const { allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjects(
-    allProjects,
+    allProjectsWithLockfileInfo,
     pkgSelectors,
     {
       linkWorkspacePackages: opts?.linkWorkspacePackages,
@@ -86,9 +91,13 @@ export async function filterPackagesFromDir (
     nodeVersion: opts.nodeVersion,
     supportedArchitectures: opts.supportedArchitectures,
   })
+  const allProjectsWithLockfileInfo = await loadLockfileInformationForPackages(allProjects, {
+    workspaceDir,
+    sharedWorkspaceLockfile: opts?.sharedWorkspaceLockfile,
+  })
   return {
     allProjects,
-    ...(await filterPackages(allProjects, filter, opts)),
+    ...(await filterPackages(allProjectsWithLockfileInfo, filter, opts)),
   }
 }
 

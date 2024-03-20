@@ -19,6 +19,9 @@
       "path": "../../hooks/pnpmfile"
     },
     {
+      "path": "../../lockfile/lockfile-types"
+    },
+    {
       "path": "../../packages/constants"
     },
     {
