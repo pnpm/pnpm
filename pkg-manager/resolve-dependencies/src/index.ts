@@ -41,6 +41,7 @@ import {
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
 import { updateProjectManifest } from './updateProjectManifest'
+import { getPreferredVersionsFromLockfileAndManifests, getAllUniqueSpecs } from './getPreferredVersions'
 
 export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 
@@ -48,6 +49,8 @@ export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPacka
 
 export {
   getWantedDependencies,
+  getPreferredVersionsFromLockfileAndManifests,
+  getAllUniqueSpecs,
   type LinkedDependency,
   type ResolvedPackage,
   type PinnedVersion,

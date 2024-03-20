@@ -48,6 +48,8 @@ import {
   resolveDependencies,
   type UpdateMatchingFunction,
   type WantedDependency,
+  getPreferredVersionsFromLockfileAndManifests,
+  getAllUniqueSpecs,
 } from '@pnpm/resolve-dependencies'
 import {
   type PreferredVersions,
@@ -82,7 +84,6 @@ import {
   type InstallOptions,
   type ProcessedInstallOptions as StrictInstallOptions,
 } from './extendInstallOptions'
-import { getAllUniqueSpecs, getPreferredVersionsFromLockfileAndManifests } from './getPreferredVersions'
 import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 

@@ -47,6 +47,7 @@ import omit from 'ramda/src/omit'
 import zipWith from 'ramda/src/zipWith'
 import semver from 'semver'
 import { encodePkgId } from './encodePkgId'
+import { getPreferredVersionsFromLockfileAndManifests } from './getPreferredVersions'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies'
 import { safeIntersect } from './mergePeers'
 import {
@@ -131,6 +132,7 @@ export interface ResolutionContext {
   autoInstallPeersFromHighestMatch: boolean
   allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
+  allPreferredVersions?: PreferredVersions
   appliedPatches: Set<string>
   updatedSet: Set<string>
   defaultTag: string
@@ -307,7 +309,22 @@ export async function resolveRootDependencies (
         }
       }
       if (!Object.keys(importerResolutionResult.missingPeers).length) break
-      const wantedDependencies = getNonDevWantedDependencies({ dependencies: importerResolutionResult.missingPeers })
+      if (ctx.allPreferredVersions == null) {
+        ctx.allPreferredVersions = getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, [])
+      }
+      for (const node of ctx.dependenciesTree.values()) {
+        if (node.resolvedPackage?.version) {
+          if (!ctx.allPreferredVersions[node.resolvedPackage.name]) {
+            ctx.allPreferredVersions[node.resolvedPackage.name] = {}
+          }
+          ctx.allPreferredVersions[node.resolvedPackage.name][node.resolvedPackage.version] = 'version'
+        }
+      }
+      const dependencies = Object.fromEntries(Object.entries(importerResolutionResult.missingPeers).map(([peerName, peerRange]) => {
+        if (!ctx.allPreferredVersions![peerName]) return [peerName, peerRange]
+        return [peerName, Object.keys(ctx.allPreferredVersions![peerName]).join(' || ')]
+      }))
+      const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
       // eslint-disable-next-line no-await-in-loop
       const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
