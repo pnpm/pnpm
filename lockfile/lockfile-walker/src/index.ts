@@ -1,6 +1,7 @@
-import { type Lockfile, type PackageSnapshot } from '@pnpm/lockfile-types'
+import { type Lockfile, type PackageSnapshot, type PackageSnapshots, type ResolvedDependencies } from '@pnpm/lockfile-types'
 import { type DependenciesField } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
+import unnest from 'ramda/src/unnest'
 
 export interface LockedDependency {
   depPath: string
@@ -121,4 +122,72 @@ function next (opts: { includeOptionalDependencies: boolean }, nextPkg: PackageS
   })
     .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
     .filter((nodeId) => nodeId !== null) as string[]
+}
+
+export function getDevOnlyDepPaths (lockfile: Lockfile) {
+  const dev: Record<string, boolean | undefined> = {}
+  const devDepPaths = unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {})))
+  const optionalDepPaths = unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {})))
+  const prodDepPaths = unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {})))
+  const ctx = {
+    packages: lockfile.packages ?? {},
+    walked: new Set<string>(),
+    notProdOnly: new Set<string>(),
+    dev,
+  }
+  copyDependencySubGraph(ctx, devDepPaths, {
+    dev: true,
+    optional: false,
+  })
+  copyDependencySubGraph(ctx, optionalDepPaths, {
+    dev: false,
+    optional: true,
+  })
+  copyDependencySubGraph(ctx, prodDepPaths, {
+    dev: false,
+    optional: false,
+  })
+  return dev
+}
+
+function copyDependencySubGraph (
+  ctx: {
+    notProdOnly: Set<string>
+    packages: PackageSnapshots
+    walked: Set<string>
+    dev: Record<string, boolean | undefined>
+  },
+  depPaths: string[],
+  opts: {
+    dev: boolean
+    optional: boolean
+  }
+) {
+  for (const depPath of depPaths) {
+    const key = `${depPath}:${opts.optional.toString()}:${opts.dev.toString()}`
+    if (ctx.walked.has(key)) continue
+    ctx.walked.add(key)
+    if (!ctx.packages[depPath]) {
+      continue
+    }
+    const depLockfile = ctx.packages[depPath]
+    if (opts.dev) {
+      ctx.notProdOnly.add(depPath)
+      ctx.dev[depPath] = true
+    } else if (ctx.dev[depPath] === true) { // keeping if dev is explicitly false
+      ctx.dev[depPath] = undefined
+    } else if (ctx.dev[depPath] === undefined && !ctx.notProdOnly.has(depPath)) {
+      ctx.dev[depPath] = false
+    }
+    const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {})
+    copyDependencySubGraph(ctx, newDependencies, opts)
+    const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {})
+    copyDependencySubGraph(ctx, newOptionalDependencies, { dev: opts.dev, optional: true })
+  }
+}
+
+function resolvedDepsToDepPaths (deps: ResolvedDependencies) {
+  return Object.entries(deps)
+    .map(([alias, ref]) => dp.refToRelative(ref, alias))
+    .filter((depPath) => depPath !== null) as string[]
 }

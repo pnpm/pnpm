@@ -3,6 +3,7 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import {
   lockfileWalkerGroupImporterSteps,
+  getDevOnlyDepPaths,
   type LockfileWalkerStep,
 } from '@pnpm/lockfile-walker'
 import { type SupportedArchitectures, type DependenciesField, type Registries } from '@pnpm/types'
@@ -37,6 +38,7 @@ export interface LicenseExtractOptions {
   dir: string
   registries: Registries
   supportedArchitectures?: SupportedArchitectures
+  dev: Record<string, boolean | undefined>
 }
 
 export async function lockfileToLicenseNode (
@@ -87,7 +89,7 @@ export async function lockfileToLicenseNode (
 
       const dep: LicenseNode = {
         name,
-        dev: false,
+        dev: options.dev[depPath] === true,
         integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
         version,
         license: packageInfo.license,
@@ -131,6 +133,7 @@ export async function lockfileToLicenseNodeTree (
     opts.includedImporterIds ?? Object.keys(lockfile.importers),
     { include: opts?.include }
   )
+  const dev = getDevOnlyDepPaths(lockfile)
   const dependencies = Object.fromEntries(
     await Promise.all(
       importerWalkers.map(async (importerWalker) => {
@@ -141,6 +144,7 @@ export async function lockfileToLicenseNodeTree (
           dir: opts.dir,
           registries: opts.registries,
           supportedArchitectures: opts.supportedArchitectures,
+          dev,
         })
         return [importerWalker.importerId, {
           dependencies: importerDeps,
