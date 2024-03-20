@@ -602,3 +602,13 @@ test('do not override the direct dependency with an auto installed peer dependen
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.rxjs.version).toStrictEqual('6.6.7')
 })
+
+test('auto install hoisted peer dependency', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/has-peer-c-in-deps@1.0.0', '@pnpm.e2e/abc'], testDefaults({ autoInstallPeers: true }))
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/peer-c@'))).toStrictEqual([
+    '@pnpm.e2e/peer-c@2.0.0',
+  ])
+})

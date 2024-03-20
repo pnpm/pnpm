@@ -39,7 +39,7 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.25.0"
+    "@pnpm/registry-mock": "3.27.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
