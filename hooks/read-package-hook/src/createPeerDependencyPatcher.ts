@@ -13,52 +13,64 @@ import { isSubRange } from './isSubRange'
 
 export function createPeerDependencyPatcher(
   peerDependencyRules: PeerDependencyRules
-): ReadPackageHook {
+): (pkg: PackageManifest | ProjectManifest | undefined) => PackageManifest | ProjectManifest | undefined {
   const ignoreMissingPatterns = [
     ...new Set(peerDependencyRules.ignoreMissing ?? []),
   ]
   const ignoreMissingMatcher = createMatcher(ignoreMissingPatterns)
+
   const allowAnyPatterns = [...new Set(peerDependencyRules.allowAny ?? [])]
+
   const allowAnyMatcher = createMatcher(allowAnyPatterns)
+
   const { allowedVersionsMatchAll, allowedVersionsByParentPkgName } =
     parseAllowedVersions(peerDependencyRules.allowedVersions ?? {})
+
   const _getAllowedVersionsByParentPkg = getAllowedVersionsByParentPkg.bind(
     null,
     allowedVersionsByParentPkgName
   )
 
-  return ((pkg) => {
-    if (isEmpty(pkg.peerDependencies)) return pkg
+  return (pkg: PackageManifest | ProjectManifest | undefined): PackageManifest | ProjectManifest | undefined => {
+    if (isEmpty(pkg?.peerDependencies)) {
+      return pkg
+    }
     const allowedVersions = {
       ...allowedVersionsMatchAll,
       ..._getAllowedVersionsByParentPkg(pkg),
     }
     for (const [peerName, peerVersion] of Object.entries(
-      pkg.peerDependencies ?? {}
+      pkg?.peerDependencies ?? {}
     )) {
       if (
         ignoreMissingMatcher(peerName) &&
-        !pkg.peerDependenciesMeta?.[peerName]?.optional
+        !pkg?.peerDependenciesMeta?.[peerName]?.optional
       ) {
+        pkg = pkg ?? {}
         pkg.peerDependenciesMeta = pkg.peerDependenciesMeta ?? {}
         pkg.peerDependenciesMeta[peerName] = {
           optional: true,
         }
       }
+
       if (allowAnyMatcher(peerName)) {
+        pkg = pkg ?? {}
         pkg.peerDependencies = pkg.peerDependencies ?? {}
         pkg.peerDependencies[peerName] = '*'
         continue
       }
+
       if (!allowedVersions?.[peerName] || peerVersion === '*') {
         continue
       }
+
       if (allowedVersions?.[peerName].includes('*')) {
+        pkg = pkg ?? {}
         pkg.peerDependencies = pkg.peerDependencies ?? {}
         pkg.peerDependencies[peerName] = '*'
         continue
       }
-      const currentVersions = parseVersions(pkg.peerDependencies?.[peerName] ?? '')
+      const currentVersions = parseVersions(pkg?.peerDependencies?.[peerName] ?? '')
 
       allowedVersions[peerName].forEach((allowedVersion) => {
         if (!currentVersions.includes(allowedVersion)) {
@@ -66,11 +78,13 @@ export function createPeerDependencyPatcher(
         }
       })
 
+      pkg = pkg ?? {}
       pkg.peerDependencies = pkg.peerDependencies ?? {}
       pkg.peerDependencies[peerName] = currentVersions.join(' || ')
     }
+
     return pkg
-  }) as ReadPackageHook
+  }
 }
 
 type AllowedVersionsByParentPkgName = Record<
@@ -122,9 +136,11 @@ function tryParseAllowedVersions(
 
 function getAllowedVersionsByParentPkg(
   allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName,
-  pkg: PackageManifest | ProjectManifest
+  pkg: PackageManifest | ProjectManifest | undefined
 ): Record<string, string[]> {
-  if (!pkg.name || !allowedVersionsByParentPkgName[pkg.name]) return {}
+  if (!pkg?.name || !allowedVersionsByParentPkgName[pkg.name]) {
+    return {}
+  }
 
   return allowedVersionsByParentPkgName[pkg.name].reduce(
     (acc, { targetPkg, parentPkg, ranges }) => {

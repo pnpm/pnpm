@@ -1,8 +1,10 @@
-import type { InstallCheckLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
+
 import { formatWarn } from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
+
+import { InstallCheckLog } from '@pnpm/types'
 
 export function reportInstallChecks(
   installCheck$: Rx.Observable<InstallCheckLog>,

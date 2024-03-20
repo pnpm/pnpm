@@ -31,4 +31,4 @@ export const shorthands = {
   w: '--workspace-root',
   i: '--interactive',
   F: '--filter',
-}
+} as const

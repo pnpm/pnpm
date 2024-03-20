@@ -1,37 +1,25 @@
 // cspell:ignore noent
 import '@total-typescript/ts-reset'
-import { promises as fs } from 'node:fs'
+
 import path from 'node:path'
-import { packageManager } from '@pnpm/cli-meta'
-import { type Config } from '@pnpm/config'
-import { PnpmError } from '@pnpm/error'
-import { logger } from '@pnpm/logger'
-import { type StoreController } from '@pnpm/package-store'
-import { connectStoreController } from '@pnpm/server'
-import { getStorePath } from '@pnpm/store-path'
+import { promises as fs } from 'node:fs'
+
 import delay from 'delay'
+
+import { logger } from '@pnpm/logger'
+import { PnpmError } from '@pnpm/error'
+import { packageManager } from '@pnpm/cli-meta'
+import { getStorePath } from '@pnpm/store-path'
+import { connectStoreController } from '@pnpm/server'
+import type { StoreController, CreateStoreControllerOptions } from '@pnpm/types'
+
 import {
   createNewStoreController,
-  type CreateNewStoreControllerOptions,
 } from './createNewStoreController'
 import { runServerInBackground } from './runServerInBackground'
 import { serverConnectionInfoDir } from './serverConnectionInfoDir'
 
 export { createNewStoreController, serverConnectionInfoDir }
-
-export type CreateStoreControllerOptions = Omit<
-  CreateNewStoreControllerOptions,
-  'storeDir'
-> &
-  Pick<
-    Config,
-    | 'storeDir'
-    | 'dir'
-    | 'pnpmHomeDir'
-    | 'useRunningStoreServer'
-    | 'useStoreServer'
-    | 'workspaceDir'
-  >
 
 export async function createOrConnectStoreControllerCached(
   storeControllerCache: Map<
@@ -68,12 +56,16 @@ export async function createOrConnectStoreController(
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
+
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
+
   const serverJsonPath = path.join(connectionInfoDir, 'server.json')
+
   let serverJson = await tryLoadServerJson({
     serverJsonPath,
     shouldRetryOnNoent: false,
   })
+
   if (serverJson !== null) {
     if (serverJson.pnpmVersion !== packageManager.version) {
       logger.warn({
@@ -81,35 +73,43 @@ export async function createOrConnectStoreController(
         prefix: opts.dir,
       })
     }
+
     logger.info({
       message:
         'A store server is running. All store manipulations are delegated to it.',
       prefix: opts.dir,
     })
+
     return {
       ctrl: await connectStoreController(serverJson.connectionOptions),
       dir: storeDir,
     }
   }
+
   if (opts.useRunningStoreServer) {
     throw new PnpmError('NO_STORE_SERVER', 'No store server is running.')
   }
+
   if (opts.useStoreServer) {
     runServerInBackground(storeDir)
+
     serverJson = await tryLoadServerJson({
       serverJsonPath,
       shouldRetryOnNoent: true,
     })
+
     logger.info({
       message:
         'A store server has been started. To stop it, use `pnpm server stop`',
       prefix: opts.dir,
     })
+
     return {
       ctrl: await connectStoreController(serverJson?.connectionOptions ?? { remotePrefix: '' }),
       dir: storeDir,
     }
   }
+
   return createNewStoreController(
     Object.assign(opts, {
       storeDir,
@@ -128,17 +128,20 @@ export async function tryLoadServerJson(options: {
   pnpmVersion: string
 }> {
   let beforeFirstAttempt = true
+
   const startHRTime = process.hrtime()
-  /* eslint-disable no-await-in-loop */
+
   while (true) {
     if (!beforeFirstAttempt) {
       const elapsedHRTime = process.hrtime(startHRTime)
+
       // Time out after 10 seconds of waiting for the server to start, assuming something went wrong.
       // E.g. server got a SIGTERM or was otherwise abruptly terminated, server has a bug or a third
       // party is interfering.
       if (elapsedHRTime[0] >= 10) {
         // Delete the file in an attempt to recover from this bad state.
         try {
+          // eslint-disable-next-line no-await-in-loop
           await fs.unlink(options.serverJsonPath)
         } catch (error: any) { // eslint-disable-line
           if (error.code !== 'ENOENT') {
@@ -146,25 +149,37 @@ export async function tryLoadServerJson(options: {
           }
           // Either the server.json was manually removed or another process already removed it.
         }
+
         return null
       }
+
       // Poll for server startup every 200 milliseconds.
+      // eslint-disable-next-line no-await-in-loop
       await delay(200)
     }
+
     beforeFirstAttempt = false
+
     let serverJsonStr
+
     try {
+      // eslint-disable-next-line no-await-in-loop
       serverJsonStr = await fs.readFile(options.serverJsonPath, 'utf8')
-    } catch (error: any) { // eslint-disable-line
+    } catch (error: unknown) {
+      // @ts-ignore
       if (error.code !== 'ENOENT') {
         throw error
       }
+
       if (!options.shouldRetryOnNoent) {
         return null
       }
+
       continue
     }
+
     let serverJson: unknown | null | { connectionOptions: { remotePrefix: string; }; pid: number; pnpmVersion: string; } = null
+
     try {
       serverJson = JSON.parse(serverJsonStr)
     } catch (error: any) { // eslint-disable-line
@@ -172,11 +187,12 @@ export async function tryLoadServerJson(options: {
       // We assume the best case and retry.
       continue
     }
+
     if (serverJson === null) {
       // Our server should never write null to server.json, even though it is valid json.
       throw new Error('server.json was modified by a third party')
     }
+
     return serverJson as { connectionOptions: { remotePrefix: string; }; pid: number; pnpmVersion: string; } ?? null
   }
-  /* eslint-enable no-await-in-loop */
 }

@@ -1,9 +1,10 @@
-import { type Completion, type CompletionFunc } from '@pnpm/command'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import type { CompletionFunc, Completion, Project } from '@pnpm/types'
+
 import { getOptionCompletions } from '../getOptionType'
-import { optionTypesToCompletions } from '../optionTypesToCompletions'
 import { shorthands as universalShorthands } from '../shorthands'
+import { optionTypesToCompletions } from '../optionTypesToCompletions'
 
 export async function complete(
   ctx: {
@@ -21,7 +22,10 @@ export async function complete(
     options: Record<string, unknown>
   }
 ) {
-  if (input.options.version) return []
+  if (input.options.version) {
+    return []
+  }
+
   const optionTypes = {
     ...ctx.universalOptionsTypes,
     ...((input.cmd && ctx.cliOptionsTypesByCommandName[input.cmd]?.()) ?? {}),
@@ -32,6 +36,7 @@ export async function complete(
     if (input.lastOption === '--filter') {
       const workspaceDir =
         (await findWorkspaceDir(process.cwd())) ?? process.cwd()
+
       const allProjects = await findWorkspacePackages(workspaceDir, {
         supportedArchitectures: {
           os: ['current'],
@@ -39,9 +44,16 @@ export async function complete(
           libc: ['current'],
         },
       })
+
       return allProjects
-        .filter(({ manifest }) => manifest.name)
-        .map(({ manifest }) => ({ name: manifest.name }))
+        .filter(({ manifest }: Project): boolean => {
+          return typeof manifest?.name === 'string';
+        })
+        .map(({ manifest }: Project): {
+          name: string | undefined;
+        } => {
+          return { name: manifest?.name };
+        }).filter(Boolean)
     } else if (input.lastOption) {
       const optionCompletions = getOptionCompletions(
         optionTypes as any, // eslint-disable-line
@@ -51,12 +63,15 @@ export async function complete(
         },
         input.lastOption
       )
+
       if (optionCompletions !== undefined) {
         return optionCompletions.map((name) => ({ name }))
       }
     }
   }
+
   let completions: Completion[] = []
+
   if (input.currentTypedWordType !== 'option') {
     if (
       !input.cmd ||
@@ -75,9 +90,11 @@ export async function complete(
       }
     }
   }
+
   if (input.currentTypedWordType === 'value') {
     return completions
   }
+
   if (!input.cmd) {
     return [
       ...completions,
@@ -85,6 +102,7 @@ export async function complete(
       { name: '--version' },
     ]
   }
+
   return [
     ...completions,
     ...optionTypesToCompletions(optionTypes as any), // eslint-disable-line

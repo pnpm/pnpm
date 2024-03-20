@@ -1,12 +1,14 @@
-import { type StatsLog } from '@pnpm/core-loggers'
-import * as Rx from 'rxjs'
-import { filter, take, reduce, map } from 'rxjs/operators'
 import chalk from 'chalk'
+import * as Rx from 'rxjs'
 import repeat from 'ramda/src/repeat'
 import stringLength from 'string-length'
+import { filter, take, reduce, map } from 'rxjs/operators'
+
+import { StatsLog } from '@pnpm/types'
+
 import { EOL } from '../constants'
-import { ADDED_CHAR, REMOVED_CHAR } from './outputConstants'
 import { zoomOut } from './utils/zooming'
+import { ADDED_CHAR, REMOVED_CHAR } from './outputConstants'
 
 export function reportStats(
   log$: {
@@ -19,7 +21,9 @@ export function reportStats(
     width: number
     hideProgressPrefix?: boolean
   }
-) {
+): Rx.Observable<Rx.Observable<{
+    msg: string;
+  }>>[] {
   if (opts.hideProgressPrefix) {
     return [
       statsForCurrentPackage(log$.stats, {
@@ -64,11 +68,7 @@ function statsForCurrentPackage(
 ) {
   return stats$.pipe(
     take(
-      opts.cmd === 'install' ||
-        opts.cmd === 'install-test' ||
-        opts.cmd === 'add' ||
-        opts.cmd === 'update' ||
-        opts.cmd === 'dlx'
+      ['install', 'install-test', 'add', 'update', 'dlx'].includes(opts.cmd)
         ? 2
         : 1
     ),
@@ -131,14 +131,18 @@ function statsForNotCurrentPackage(
             return { seed: stats, value: null }
           } else if (
             typeof stats[log.prefix].added === 'number' &&
+            // @ts-ignore
               typeof log.added === 'number'
           ) {
+            // @ts-ignore
             stats[log.prefix].added += log.added
             return { seed: stats, value: null }
           } else if (
             typeof stats[log.prefix].removed === 'number' &&
+            // @ts-ignore
               typeof log.removed === 'number'
           ) {
+            // @ts-ignore
             stats[log.prefix].removed += log.removed
             return { seed: stats, value: null }
           } else {
@@ -149,20 +153,26 @@ function statsForNotCurrentPackage(
         }, {})
       )
       : stats$
+
   return cookedStats$.pipe(
     filter((stats) => stats !== null && (stats.removed || stats.added)),
-    map((stats) => {
+    map((stats): Rx.Observable<{
+      msg: string;
+    }> => {
       const parts = [] as string[]
 
       if (stats.added) {
         parts.push(padStep(chalk.green(`+${stats.added.toString()}`), 4))
       }
+
       if (stats.removed) {
         parts.push(padStep(chalk.red(`-${stats.removed.toString()}`), 4))
       }
 
       let msg = zoomOut(opts.currentPrefix, stats.prefix, parts.join(' '))
+
       const rest = Math.max(0, opts.width - 1 - stringLength(msg))
+
       msg +=
         ' ' +
         printPlusesAndMinuses(
@@ -170,6 +180,7 @@ function statsForNotCurrentPackage(
           roundStats(stats.added || 0),
           roundStats(stats.removed || 0)
         )
+
       return Rx.of({ msg })
     })
   )
@@ -177,15 +188,21 @@ function statsForNotCurrentPackage(
 
 function padStep(s: string, step: number) {
   const sLength = stringLength(s)
+
   const placeholderLength = Math.ceil(sLength / step) * step
+
   if (sLength < placeholderLength) {
     return repeat(' ', placeholderLength - sLength).join('') + s
   }
+
   return s
 }
 
 function roundStats(stat: number): number {
-  if (stat === 0) return 0
+  if (stat === 0) {
+    return 0
+  }
+
   return Math.max(1, Math.round(stat / 10))
 }
 
@@ -193,26 +210,38 @@ function printPlusesAndMinuses(
   maxWidth: number,
   added: number,
   removed: number
-) {
-  if (maxWidth === 0) return ''
+): string {
+  if (maxWidth === 0) {
+    return ''
+  }
+
   const changes = added + removed
+
   let addedChars: number
+
   let removedChars: number
+
   if (changes > maxWidth) {
     if (!added) {
       addedChars = 0
+
       removedChars = maxWidth
     } else if (!removed) {
       addedChars = maxWidth
+
       removedChars = 0
     } else {
       const p = maxWidth / changes
+
       addedChars = Math.min(Math.max(Math.floor(added * p), 1), maxWidth - 1)
+
       removedChars = maxWidth - addedChars
     }
   } else {
     addedChars = added
+
     removedChars = removed
   }
+
   return `${repeat(ADDED_CHAR, addedChars).join('')}${repeat(REMOVED_CHAR, removedChars).join('')}`
 }

@@ -1,20 +1,15 @@
-import path from 'path'
-import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
-import { progressLogger, removalLogger, statsLogger } from '@pnpm/core-loggers'
-import {
-  type DepHierarchy,
-  type DependenciesGraph,
-} from '@pnpm/deps.graph-builder'
-import { linkBins } from '@pnpm/link-bins'
-import { logger } from '@pnpm/logger'
-import {
-  type PackageFilesResponse,
-  type StoreController,
-} from '@pnpm/store-controller-types'
+import path from 'node:path'
+
 import pLimit from 'p-limit'
-import difference from 'ramda/src/difference'
-import isEmpty from 'ramda/src/isEmpty'
 import rimraf from '@zkochan/rimraf'
+import isEmpty from 'ramda/src/isEmpty'
+import difference from 'ramda/src/difference'
+
+import { logger } from '@pnpm/logger'
+import { linkBins } from '@pnpm/link-bins'
+import { calcDepState } from '@pnpm/calc-dep-state'
+import { progressLogger, removalLogger, statsLogger } from '@pnpm/core-loggers'
+import { StoreController, DependenciesGraph, DepHierarchy, DepsStateCache, PackageFilesResponse } from '@pnpm/types'
 
 const limitLinking = pLimit(16)
 
@@ -117,7 +112,7 @@ async function linkAllPkgsInOrder(
           !isEmpty(filesResponse.sideEffects)
         ) {
           sideEffectsCacheKey = _calcDepState(dir, {
-            isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
+            isBuilt: (!opts.ignoreScripts && depNode.requiresBuild as boolean) ?? false,
             patchFileHash: depNode.patchFile?.hash,
           })
         }
@@ -126,19 +121,19 @@ async function linkAllPkgsInOrder(
         // The out of memory error was reproduced on the teambit/bit repository with the "rootComponents" feature turned on
         await limitLinking(async () => {
           const { importMethod, isBuilt } = await storeController.importPackage(
-            depNode.dir,
+            depNode.dir ?? '',
             {
               filesResponse,
               force: true,
               disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
               keepModulesDir: true,
               requiresBuild:
-                depNode.patchFile != null ||
+                (depNode.patchFile != null ||
                 (depNode.optional
                   ? depNode.requiresBuild
                     ? undefined
                     : false
-                  : depNode.requiresBuild),
+                  : depNode.requiresBuild)) as boolean,
               sideEffectsCacheKey,
             }
           )
@@ -147,12 +142,14 @@ async function linkAllPkgsInOrder(
               method: importMethod,
               requester: opts.lockfileDir,
               status: 'imported',
-              to: depNode.dir,
+              to: depNode.dir ?? '',
             })
           }
+
           depNode.isBuilt = isBuilt
         })
       }
+
       return linkAllPkgsInOrder(
         storeController,
         graph,
@@ -163,8 +160,11 @@ async function linkAllPkgsInOrder(
       )
     })
   )
+
   const modulesDir = path.join(parentDir, 'node_modules')
+
   const binsDir = path.join(modulesDir, '.bin')
+
   await linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,

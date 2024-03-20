@@ -34,6 +34,7 @@
     "@pnpm/patch-package": "0.0.0"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

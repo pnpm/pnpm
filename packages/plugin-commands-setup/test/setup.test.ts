@@ -64,10 +64,12 @@ test('hint is added to ERR_PNPM_BAD_ENV_FOUND error object', async () => {
   ;(addDirToEnvPath as jest.Mock).mockReturnValue(
     Promise.reject(new PnpmError('BAD_ENV_FOUND', ''))
   )
-  let err!: PnpmError
+  let err: PnpmError | undefined
+
   try {
     await setup.handler({ pnpmHomeDir: '' })
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
   expect(err?.hint).toBe(
@@ -79,10 +81,13 @@ test('hint is added to ERR_PNPM_BAD_SHELL_SECTION error object', async () => {
   ;(addDirToEnvPath as jest.Mock).mockReturnValue(
     Promise.reject(new PnpmError('BAD_SHELL_SECTION', ''))
   )
-  let err!: PnpmError
+
+  let err: PnpmError | undefined
+
   try {
     await setup.handler({ pnpmHomeDir: '' })
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
   expect(err?.hint).toBe(

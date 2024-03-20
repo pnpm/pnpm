@@ -18,9 +18,6 @@
       "path": "../../dedupe/issues-renderer"
     },
     {
-      "path": "../../dedupe/types"
-    },
-    {
       "path": "../../packages/core-loggers"
     },
     {

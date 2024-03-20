@@ -33,13 +33,10 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dedupe.issues-renderer": "workspace:*",
-    "@pnpm/dedupe.types": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/render-peer-issues": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "ansi-diff": "^1.1.1",
     "boxen": "^5.1.2",
     "chalk": "^4.1.2",
@@ -55,6 +52,7 @@
     "string-length": "^4.0.2"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/default-reporter": "workspace:*",
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",

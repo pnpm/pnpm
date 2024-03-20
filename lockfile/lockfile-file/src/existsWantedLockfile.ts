@@ -9,22 +9,25 @@ interface existsNonEmptyWantedLockfileOptions {
 
 export async function existsNonEmptyWantedLockfile(
   pkgPath: string,
-  opts: existsNonEmptyWantedLockfileOptions = {
+  opts: existsNonEmptyWantedLockfileOptions | undefined = {
     useGitBranchLockfile: false,
     mergeGitBranchLockfiles: false,
   }
 ): Promise<boolean> {
   const wantedLockfile: string = await getWantedLockfileName(opts)
+
   return new Promise((resolve, reject): void => {
     fs.access(path.join(pkgPath, wantedLockfile), (err: NodeJS.ErrnoException | null): void => {
       if (err == null) {
         resolve(true)
         return
       }
+
       if (err.code === 'ENOENT') {
         resolve(false)
         return
       }
+
       reject(err)
     })
   })

@@ -1,19 +1,20 @@
-import { TABLE_OPTIONS } from '@pnpm/cli-utils'
-import { PnpmError } from '@pnpm/error'
-import { outdatedDepsOfProjects, type OutdatedPackage } from '@pnpm/outdated'
-import type {
-  DependenciesField,
-  IncludedDependencies,
-  ProjectManifest,
-} from '@pnpm/types'
-import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import isEmpty from 'ramda/src/isEmpty'
 import sortWith from 'ramda/src/sortWith'
+
+import type {
+  ProjectManifest,
+  DependenciesField,
+  IncludedDependencies,
+  OutdatedCommandOptions,
+  OutdatedPackageJSONOutput,
+} from '@pnpm/types'
+import { table } from '@zkochan/table'
+import { PnpmError } from '@pnpm/error'
+import { TABLE_OPTIONS } from '@pnpm/cli-utils'
+import { outdatedDepsOfProjects, type OutdatedPackage } from '@pnpm/outdated'
 import {
   getCellWidth,
-  type OutdatedCommandOptions,
-  type OutdatedPackageJSONOutput,
   renderCurrent,
   renderDetails,
   renderLatest,

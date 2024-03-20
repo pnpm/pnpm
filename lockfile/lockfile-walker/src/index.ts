@@ -1,30 +1,21 @@
 import '@total-typescript/ts-reset'
-import type { Lockfile, PackageSnapshot } from '@pnpm/lockfile-types'
-import type { DependenciesField } from '@pnpm/types'
+
+import type { DependenciesField, DirectDep, Lockfile, LockfileWalkerStep, PackageSnapshot } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
-
-export interface LockedDependency {
-  depPath: string
-  pkgSnapshot: PackageSnapshot
-  next: () => LockfileWalkerStep
-}
-
-export interface LockfileWalkerStep {
-  dependencies: LockedDependency[]
-  links: string[]
-  missing: string[]
-}
 
 export function lockfileWalkerGroupImporterSteps(
   lockfile: Lockfile,
   importerIds: string[],
   opts?: {
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    skipped?: Set<string>
-  }
-) {
+    include?: { [dependenciesField in DependenciesField]: boolean } | undefined
+    skipped?: Set<string> | undefined
+  } | undefined
+): {
+    importerId: string;
+    step: LockfileWalkerStep;
+  }[] {
   const walked = new Set<string>(
-    opts?.skipped != null ? Array.from(opts?.skipped) : []
+    typeof opts?.skipped === 'undefined' ? [] : Array.from(opts.skipped)
   )
 
   return importerIds.map((importerId) => {
@@ -61,18 +52,22 @@ export function lockfileWalker(
   lockfile: Lockfile,
   importerIds: string[],
   opts?: {
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    skipped?: Set<string>
-  }
-) {
+    include?: { [dependenciesField in DependenciesField]: boolean } | undefined
+    skipped?: Set<string> | undefined
+  } | undefined
+): {
+    directDeps: DirectDep[];
+    step: LockfileWalkerStep;
+  } {
   const walked = new Set<string>(
     opts?.skipped != null ? Array.from(opts?.skipped) : []
   )
-  const entryNodes = [] as string[]
-  const directDeps = [] as Array<{ alias: string; depPath: string }>
+  const entryNodes: string[] = []
+  const directDeps: Array<DirectDep> = []
 
-  importerIds.forEach((importerId) => {
+  importerIds.forEach((importerId: string): void => {
     const projectSnapshot = lockfile.importers[importerId]
+
     Object.entries({
       ...(opts?.include?.devDependencies === false
         ? {}
@@ -83,13 +78,19 @@ export function lockfileWalker(
       ...(opts?.include?.optionalDependencies === false
         ? {}
         : projectSnapshot.optionalDependencies),
-    }).forEach(([pkgName, reference]) => {
+    }).forEach(([pkgName, reference]: [string, string]): void => {
       const depPath = dp.refToRelative(reference, pkgName)
-      if (depPath === null) return
+
+      if (depPath === null) {
+        return
+      }
+
       entryNodes.push(depPath)
+
       directDeps.push({ alias: pkgName, depPath })
     })
   })
+
   return {
     directDeps,
     step: step(
@@ -111,24 +112,33 @@ function step(
     walked: Set<string>
   },
   nextDepPaths: string[]
-) {
+): LockfileWalkerStep {
   const result: LockfileWalkerStep = {
     dependencies: [],
     links: [],
     missing: [],
   }
+
   for (const depPath of nextDepPaths) {
-    if (ctx.walked.has(depPath)) continue
+    if (ctx.walked.has(depPath)) {
+      continue
+    }
+
     ctx.walked.add(depPath)
+
     const pkgSnapshot = ctx.lockfile.packages?.[depPath]
+
     if (pkgSnapshot == null) {
       if (depPath.startsWith('link:')) {
         result.links.push(depPath)
         continue
       }
+
       result.missing.push(depPath)
+
       continue
     }
+
     result.dependencies.push({
       depPath,
       next: () =>
@@ -142,13 +152,14 @@ function step(
       pkgSnapshot,
     })
   }
+
   return result
 }
 
 function next(
   opts: { includeOptionalDependencies: boolean },
   nextPkg: PackageSnapshot
-) {
+): string[] {
   return Object.entries({
     ...nextPkg.dependencies,
     ...(opts.includeOptionalDependencies ? nextPkg.optionalDependencies : {}),

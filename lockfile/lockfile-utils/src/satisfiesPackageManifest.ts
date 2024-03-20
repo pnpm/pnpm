@@ -1,25 +1,27 @@
-import type { ProjectSnapshot } from '@pnpm/lockfile-types'
-import { DEPENDENCIES_FIELDS, type ProjectManifest } from '@pnpm/types'
-import equals from 'ramda/src/equals'
-import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
+import pickBy from 'ramda/src/pickBy'
+import equals from 'ramda/src/equals'
+
+import { DEPENDENCIES_FIELDS, type ProjectManifest, type ProjectSnapshot } from '@pnpm/types'
 
 export function satisfiesPackageManifest(
   opts: {
-    autoInstallPeers?: boolean
-    excludeLinksFromLockfile?: boolean
+    autoInstallPeers?: boolean | undefined
+    excludeLinksFromLockfile?: boolean | undefined
   },
   importer: ProjectSnapshot | undefined,
-  pkg: ProjectManifest
-): { satisfies: boolean; detailedReason?: string } {
-  if (!importer) {
+  pkg?: ProjectManifest | undefined
+): { satisfies: boolean; detailedReason?: string | undefined } {
+  if (typeof importer === 'undefined') {
     return { satisfies: false, detailedReason: 'no importer' }
   }
+
   let existingDeps: Record<string, string> = {
-    ...pkg.devDependencies,
-    ...pkg.dependencies,
-    ...pkg.optionalDependencies,
+    ...pkg?.devDependencies,
+    ...pkg?.dependencies,
+    ...pkg?.optionalDependencies,
   }
+
   if (opts?.autoInstallPeers) {
     pkg = {
       ...pkg,
@@ -27,66 +29,91 @@ export function satisfiesPackageManifest(
         ...omit(
           // @ts-ignore
           Object.keys(existingDeps),
-          pkg.peerDependencies
+          pkg?.peerDependencies
         ),
-        ...pkg.dependencies,
+        ...pkg?.dependencies,
       },
     }
+
     existingDeps = {
       ...pkg.peerDependencies,
       ...existingDeps,
     }
   }
-  const pickNonLinkedDeps = pickBy((spec) => !spec.startsWith('link:'))
+
+  const pickNonLinkedDeps = pickBy((spec): boolean => !spec.startsWith('link:'))
+
   let specs = importer.specifiers
-  if (opts?.excludeLinksFromLockfile) {
+
+  if (opts.excludeLinksFromLockfile) {
     existingDeps = pickNonLinkedDeps(existingDeps)
     specs = pickNonLinkedDeps(specs)
   }
+
   if (!equals(existingDeps, specs)) {
     return {
       satisfies: false,
       detailedReason: `specifiers in the lockfile (${JSON.stringify(specs)}) don't match specs in package.json (${JSON.stringify(existingDeps)})`,
     }
   }
-  if (importer.publishDirectory !== pkg.publishConfig?.directory) {
+
+  if (importer.publishDirectory !== pkg?.publishConfig?.directory) {
     return {
       satisfies: false,
-      detailedReason: `"publishDirectory" in the lockfile (${importer.publishDirectory ?? 'undefined'}) doesn't match "publishConfig.directory" in package.json (${pkg.publishConfig?.directory ?? 'undefined'})`,
+      detailedReason: `"publishDirectory" in the lockfile (${importer.publishDirectory ?? 'undefined'}) doesn't match "publishConfig.directory" in package.json (${pkg?.publishConfig?.directory ?? 'undefined'})`,
     }
   }
-  if (!equals(pkg.dependenciesMeta ?? {}, importer.dependenciesMeta ?? {})) {
+
+  if (!equals(pkg?.dependenciesMeta ?? {}, importer.dependenciesMeta ?? {})) {
     return {
       satisfies: false,
-      detailedReason: `importer dependencies meta (${JSON.stringify(importer.dependenciesMeta)}) doesn't match package manifest dependencies meta (${JSON.stringify(pkg.dependenciesMeta)})`,
+      detailedReason: `importer dependencies meta (${JSON.stringify(importer.dependenciesMeta)}) doesn't match package manifest dependencies meta (${JSON.stringify(pkg?.dependenciesMeta)})`,
     }
   }
+
   for (const depField of DEPENDENCIES_FIELDS) {
     const importerDeps = importer[depField] ?? {}
-    let pkgDeps: Record<string, string> = pkg[depField] ?? {}
-    if (opts?.excludeLinksFromLockfile) {
+
+    let pkgDeps: Record<string, string> = pkg?.[depField] ?? {}
+
+    if (opts.excludeLinksFromLockfile) {
       pkgDeps = pickNonLinkedDeps(pkgDeps)
     }
 
-    let pkgDepNames!: string[]
+    let pkgDepNames: string[] | undefined
+
     switch (depField) {
-      case 'optionalDependencies':
+      case 'optionalDependencies': {
         pkgDepNames = Object.keys(pkgDeps)
+
         break
-      case 'devDependencies':
+      }
+
+      case 'devDependencies': {
         pkgDepNames = Object.keys(pkgDeps).filter(
-          (depName) =>
-            !pkg.optionalDependencies?.[depName] && !pkg.dependencies?.[depName]
+          (depName: string): boolean => {
+            return !pkg?.optionalDependencies?.[depName] && !pkg?.dependencies?.[depName];
+          }
         )
+
         break
-      case 'dependencies':
+      }
+
+      case 'dependencies': {
         pkgDepNames = Object.keys(pkgDeps).filter(
-          (depName) => !pkg.optionalDependencies?.[depName]
+          (depName: string): boolean => {
+            return !pkg?.optionalDependencies?.[depName];
+          }
         )
+
         break
-      default:
+      }
+
+      default: {
         throw new Error(`Unknown dependency type "${depField as string}"`)
+      }
     }
+
     if (
       pkgDepNames.length !== Object.keys(importerDeps).length &&
       pkgDepNames.length !== countOfNonLinkedDeps(importerDeps)
@@ -96,6 +123,7 @@ export function satisfiesPackageManifest(
         detailedReason: `"${depField}" in the lockfile (${JSON.stringify(importerDeps)}) doesn't match the same field in package.json (${JSON.stringify(pkgDeps)})`,
       }
     }
+
     for (const depName of pkgDepNames) {
       if (
         !importerDeps[depName] ||
@@ -108,6 +136,7 @@ export function satisfiesPackageManifest(
       }
     }
   }
+
   return { satisfies: true }
 }
 
@@ -115,7 +144,7 @@ function countOfNonLinkedDeps(lockfileDeps: {
   [depName: string]: string
 }): number {
   return Object.values(lockfileDeps).filter(
-    (ref): boolean => {
+    (ref: string): boolean => {
       return !ref.includes('link:') && !ref.includes('file:');
     }
   ).length

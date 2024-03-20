@@ -28,11 +28,11 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/cli-meta#readme",
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/cli-meta": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
-    "@pnpm/types": "workspace:*",
     "load-json-file": "^6.2.0"
   },
   "funding": "https://opencollective.com/pnpm",

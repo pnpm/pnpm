@@ -1,29 +1,12 @@
 import '@total-typescript/ts-reset'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { refToRelative } from '@pnpm/dependency-path'
-import type { Lockfile } from '@pnpm/lockfile-types'
 import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import sortKeys from 'sort-keys'
-
-export interface DepsGraph {
-  [depPath: string]: DepsGraphNode
-}
-
-export interface DepsGraphNode {
-  children: { [alias: string]: string }
-  depPath: string
-}
-
-export interface DepsStateCache {
-  [depPath: string]: DepStateObj
-}
-
-export interface DepStateObj {
-  [depPath: string]: DepStateObj
-}
+import { DependenciesGraph, DepsStateCache, DepsGraph, DepStateObj, Lockfile } from '@pnpm/types'
 
 export function calcDepState(
-  depsGraph: DepsGraph,
+  depsGraph: DependenciesGraph,
   cache: DepsStateCache,
   depPath: string,
   opts: {

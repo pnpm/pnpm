@@ -1,59 +1,47 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { linkBins } from '@pnpm/link-bins'
-import { logger } from '@pnpm/logger'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
-import type { StoreController } from '@pnpm/store-controller-types'
-import type { ProjectManifest } from '@pnpm/types'
+
 import runGroups from 'run-groups'
+
+import { logger } from '@pnpm/logger'
+import { linkBins } from '@pnpm/link-bins'
+import { fetchFromDir } from '@pnpm/directory-fetcher'
+import { LifecycleImporter, RunLifecycleHooksConcurrentlyOptions } from '@pnpm/types'
+
 import {
   runLifecycleHook,
-  type RunLifecycleHookOptions,
 } from './runLifecycleHook'
-
-export type RunLifecycleHooksConcurrentlyOptions = Omit<
-  RunLifecycleHookOptions,
-  'depPath' | 'pkgRoot' | 'rootModulesDir'
-> & {
-  resolveSymlinksInInjectedDirs?: boolean | undefined
-  storeController: StoreController
-  extraNodePaths?: string[] | undefined
-  preferSymlinkedExecutables?: boolean | undefined
-}
-
-export interface Importer {
-  buildIndex: number
-  manifest: ProjectManifest
-  rootDir: string
-  modulesDir: string
-  stages?: string[] | undefined
-  targetDirs?: string[] | undefined
-}
 
 export async function runLifecycleHooksConcurrently(
   stages: string[],
-  importers: Importer[],
+  importers: LifecycleImporter[],
   childConcurrency: number,
   opts: RunLifecycleHooksConcurrentlyOptions
 ) {
-  const importersByBuildIndex = new Map<number, Importer[]>()
+  const importersByBuildIndex = new Map<number, LifecycleImporter[]>()
+
   for (const importer of importers) {
-    if (!importersByBuildIndex.has(importer.buildIndex)) {
-      importersByBuildIndex.set(importer.buildIndex, [importer])
-    } else {
-      importersByBuildIndex.get(importer.buildIndex)?.push(importer)
+    if (typeof importer.buildIndex !== 'undefined') {
+      if (importersByBuildIndex.has(importer.buildIndex)) {
+        importersByBuildIndex.get(importer.buildIndex)?.push(importer)
+      } else {
+        importersByBuildIndex.set(importer.buildIndex, [importer])
+      }
     }
   }
+
   const sortedBuildIndexes = Array.from(importersByBuildIndex.keys()).sort(
     (a, b) => a - b
   )
-  const groups = sortedBuildIndexes.map((buildIndex) => {
-    const importers = importersByBuildIndex.get(buildIndex)!
-    return importers.map(
-      ({ manifest, modulesDir, rootDir, stages: importerStages, targetDirs }) =>
-        async () => {
+
+  const groups = sortedBuildIndexes.map((buildIndex: number): (() => Promise<void>)[] | undefined => {
+    const importers = importersByBuildIndex.get(buildIndex)
+
+    return importers?.map(
+      ({ manifest, modulesDir, rootDir, stages: importerStages, targetDirs }: LifecycleImporter): () => Promise<void> => {
+        return async (): Promise<void> => {
           // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
-          await linkBins(modulesDir, path.join(modulesDir, '.bin'), {
+          await linkBins(modulesDir, path.join(modulesDir ?? '', '.bin'), {
             extraNodePaths: opts.extraNodePaths,
             allowExoticManifests: true,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -62,26 +50,43 @@ export async function runLifecycleHooksConcurrently(
               logger.warn({ message, prefix: rootDir })
             },
           })
+
           const runLifecycleHookOpts = {
             ...opts,
             depPath: rootDir,
             pkgRoot: rootDir,
             rootModulesDir: modulesDir,
           }
+
           let isBuilt = false
+
           for (const stage of importerStages ?? stages) {
-            if (!manifest.scripts?.[stage]) continue
+            if (!manifest?.scripts?.[stage]) {
+              continue
+            }
+
             await runLifecycleHook(stage, manifest, runLifecycleHookOpts) // eslint-disable-line no-await-in-loop
+
             isBuilt = true
           }
-          if (targetDirs == null || targetDirs.length === 0 || !isBuilt) return
+
+          if (targetDirs == null || targetDirs.length === 0 || !isBuilt) {
+            return
+          }
+
           const filesResponse = await fetchFromDir(rootDir, {
             resolveSymlinks: opts.resolveSymlinksInInjectedDirs,
           })
+
           await Promise.all(
-            targetDirs.map(async (targetDir) => {
+            targetDirs.map(async (targetDir: string): Promise<{
+              isBuilt: boolean;
+              importMethod?: string | undefined;
+            }> => {
               const targetModulesDir = path.join(targetDir, 'node_modules')
+
               const nodeModulesIndex = {}
+
               if (fs.existsSync(targetModulesDir)) {
                 // If the target directory contains a node_modules directory
                 // (it may happen when the hoisted node linker is used)
@@ -94,6 +99,7 @@ export async function runLifecycleHooksConcurrently(
                   nodeModulesIndex
                 )
               }
+
               return opts.storeController.importPackage(targetDir, {
                 filesResponse: {
                   resolvedFrom: 'local-dir',
@@ -107,9 +113,11 @@ export async function runLifecycleHooksConcurrently(
               })
             })
           )
-        }
+        };
+      }
     )
-  })
+  }).filter(Boolean)
+
   await runGroups(childConcurrency, groups)
 }
 
@@ -120,15 +128,20 @@ async function scanDir(
   index: Record<string, string>
 ) {
   const files = await fs.promises.readdir(currentDir)
+
   await Promise.all(
-    files.map(async (file) => {
+    files.map(async (file: string): Promise<void> => {
       const fullPath = path.join(currentDir, file)
+
       const stat = await fs.promises.stat(fullPath)
+
       if (stat.isDirectory()) {
         return scanDir(prefix, rootDir, fullPath, index)
       }
+
       if (stat.isFile()) {
         const relativePath = path.relative(rootDir, fullPath)
+
         index[path.join(prefix, relativePath)] = fullPath
       }
     })

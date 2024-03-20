@@ -1,27 +1,23 @@
 // cspell:ignore checkin
 import '@total-typescript/ts-reset'
-import path from 'node:path'
+
 import os from 'node:os'
-import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
-import type { DependencyManifest } from '@pnpm/types'
-import type {
-  TarballExtractMessage,
-  AddDirToStoreMessage,
-  LinkPkgMessage,
-  SymlinkAllModulesMessage,
-  HardLinkDirMessage,
-} from './types'
+import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
+import type { AddDirToStoreMessage, DependencyManifest, HardLinkDirMessage, LinkPkgMessage, SymlinkAllModulesMessage, TarballExtractMessage } from '@pnpm/types'
 
 let workerPool: WorkerPool | undefined
 
-export async function restartWorkerPool() {
+export async function restartWorkerPool(): Promise<void> {
   await finishWorkers()
+
   workerPool = createTarballWorkerPool()
 }
 
-export async function finishWorkers() {
+export async function finishWorkers(): Promise<void> {
   // @ts-expect-error
   await global.finishWorkers?.()
 }
@@ -35,15 +31,18 @@ function createTarballWorkerPool(): WorkerPool {
           process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0
         )
     ) - 1
+
   const workerPool = new WorkerPool({
     id: 'pnpm',
     maxWorkers,
     workerScriptPath: path.join(__dirname, 'worker.js'),
   })
+
   // @ts-expect-error
   if (global.finishWorkers) {
     // @ts-expect-error
     const previous = global.finishWorkers
+
     // @ts-expect-error
     global.finishWorkers = async () => {
       await previous()
@@ -53,6 +52,7 @@ function createTarballWorkerPool(): WorkerPool {
     // @ts-expect-error
     global.finishWorkers = () => workerPool.finishAsync()
   }
+
   return workerPool
 }
 
@@ -66,17 +66,23 @@ export async function addFilesFromDir(
     | 'readManifest'
     | 'pkg'
   >
-) {
+): Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest;
+  }> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
+
   const localWorker = await workerPool.checkoutWorkerAsync(true)
+
   return new Promise<{
     filesIndex: Record<string, string>
     manifest: DependencyManifest
   }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }): void => {
       workerPool?.checkinWorker(localWorker)
+
       if (status === 'error') {
         reject(
           new PnpmError(
@@ -86,8 +92,10 @@ export async function addFilesFromDir(
         )
         return
       }
+
       resolve(value)
     })
+
     localWorker.postMessage({
       type: 'add-dir',
       cafsDir: opts.cafsDir,
@@ -147,17 +155,23 @@ export async function addFilesFromTarball(
   > & {
     url: string
   }
-) {
+): Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest;
+  }> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
+
   const localWorker = await workerPool.checkoutWorkerAsync(true)
+
   return new Promise<{
     filesIndex: Record<string, string>
     manifest: DependencyManifest
   }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool?.checkinWorker(localWorker)
+
       if (status === 'error') {
         if (error.type === 'integrity_validation_failed') {
           reject(
@@ -168,16 +182,20 @@ export async function addFilesFromTarball(
           )
           return
         }
+
         reject(
           new PnpmError(
             error.code ?? 'TARBALL_EXTRACT',
             `Failed to add tarball from "${opts.url}" to store: ${error.message as string}`
           )
         )
+
         return
       }
+
       resolve(value)
     })
+
     localWorker.postMessage({
       type: 'extract',
       buffer: opts.buffer,
@@ -194,20 +212,23 @@ export async function readPkgFromCafs(
   cafsDir: string,
   verifyStoreIntegrity: boolean,
   filesIndexFile: string,
-  readManifest?: boolean
+  readManifest?: boolean | undefined
 ): Promise<{
     verified: boolean
     pkgFilesIndex: PackageFilesIndex
-    manifest?: DependencyManifest
+    manifest?: DependencyManifest | undefined
   }> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
+
   const localWorker = await workerPool.checkoutWorkerAsync(true)
+
   return new Promise<{ verified: boolean; pkgFilesIndex: PackageFilesIndex }>(
     (resolve, reject) => {
       localWorker.once('message', ({ status, error, value }) => {
         workerPool?.checkinWorker(localWorker)
+
         if (status === 'error') {
           reject(
             new PnpmError(
@@ -215,10 +236,13 @@ export async function readPkgFromCafs(
               error.message as string
             )
           )
+
           return
         }
+
         resolve(value)
       })
+
       localWorker.postMessage({
         type: 'readPkgFromCafs',
         cafsDir,
@@ -236,11 +260,14 @@ export async function importPackage(
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
+
   const localWorker = await workerPool.checkoutWorkerAsync(true)
+
   return new Promise<{ isBuilt: boolean; importMethod: string | undefined }>(
     (resolve, reject) => {
       localWorker.once('message', ({ status, error, value }) => {
         workerPool?.checkinWorker(localWorker)
+
         if (status === 'error') {
           reject(
             new PnpmError(
@@ -248,10 +275,13 @@ export async function importPackage(
               error.message as string
             )
           )
+
           return
         }
+
         resolve(value)
       })
+
       localWorker.postMessage({
         type: 'link',
         ...opts,
@@ -266,7 +296,9 @@ export async function symlinkAllModules(
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
+
   const localWorker = await workerPool.checkoutWorkerAsync(true)
+
   return new Promise<{ isBuilt: boolean; importMethod: string | undefined }>(
     (resolve, reject) => {
       localWorker.once('message', (err) => {
@@ -279,10 +311,13 @@ export async function symlinkAllModules(
               err.error.message as string
             )
           )
+
           return
         }
+
         resolve(err.value)
       })
+
       localWorker.postMessage({
         type: 'symlinkAllModules',
         ...opts,
@@ -298,10 +333,13 @@ export async function hardLinkDir(
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
+
   const localWorker = await workerPool.checkoutWorkerAsync(true)
+
   await new Promise<void>((resolve, reject) => {
     localWorker.once('message', ({ status, error }) => {
       workerPool?.checkinWorker(localWorker)
+
       if (status === 'error') {
         reject(
           new PnpmError(
@@ -309,10 +347,13 @@ export async function hardLinkDir(
             error.message as string
           )
         )
+
         return
       }
+
       resolve()
     })
+
     localWorker.postMessage({
       type: 'hardLinkDir',
       src,

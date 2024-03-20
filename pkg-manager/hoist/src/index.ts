@@ -1,32 +1,37 @@
 import '@total-typescript/ts-reset'
+
 import fs from 'node:fs'
 import path from 'node:path'
-import { linkLogger } from '@pnpm/core-loggers'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/link-bins'
-import { type Lockfile, nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
-import { logger } from '@pnpm/logger'
-import { createMatcher } from '@pnpm/matcher'
-import { type HoistedDependencies } from '@pnpm/types'
-import { lexCompare } from '@pnpm/util.lex-comparator'
-import * as dp from '@pnpm/dependency-path'
+
 import isSubdir from 'is-subdir'
+import symlinkDir from 'symlink-dir'
 import mapObjIndexed from 'ramda/src/mapObjIndexed'
 import resolveLinkTarget from 'resolve-link-target'
-import symlinkDir from 'symlink-dir'
 
-const hoistLogger = logger('hoist')
+import * as dp from '@pnpm/dependency-path'
+import { createMatcher } from '@pnpm/matcher'
+import { linkLogger } from '@pnpm/core-loggers'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { type Logger, logger } from '@pnpm/logger'
+import { lexCompare } from '@pnpm/util.lex-comparator'
+import { lockfileWalker } from '@pnpm/lockfile-walker'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/link-bins'
+import type { Dependency, GetAliasHoistType, GetHoistedDependenciesOpts, HoistGraphResult, HoistOpts, HoistedDependencies, HoistedWorkspaceProject, LinkAllBinsOptions, Lockfile, LockfileWalkerStep } from '@pnpm/types'
 
-export interface HoistOpts extends GetHoistedDependenciesOpts {
-  extraNodePath?: string[]
-  preferSymlinkedExecutables?: boolean
-  virtualStoreDir: string
-}
+const hoistLogger: Logger<
+  { hoistFailedFor: string; } | { skipped: string; reason: string; } | { existingSymlink: string | undefined; skipped: string; reason: string; }
+> = logger<
+  { hoistFailedFor: string; } | { skipped: string; reason: string; } | { existingSymlink: string | undefined; skipped: string; reason: string; }
+>('hoist')
 
-export async function hoist(opts: HoistOpts) {
+export async function hoist(opts: HoistOpts): Promise<HoistedDependencies> {
   const result = getHoistedDependencies(opts)
-  if (!result) return {}
+
+  if (!result) {
+    return {}
+  }
+
   const { hoistedDependencies, hoistedAliasesWithBins } = result
 
   await symlinkHoistedDependencies(hoistedDependencies, {
@@ -49,21 +54,6 @@ export async function hoist(opts: HoistOpts) {
   })
 
   return hoistedDependencies
-}
-
-export interface GetHoistedDependenciesOpts {
-  lockfile: Lockfile
-  importerIds?: string[]
-  privateHoistPattern: string[]
-  privateHoistedModulesDir: string
-  publicHoistPattern: string[]
-  publicHoistedModulesDir: string
-  hoistedWorkspacePackages?: Record<string, HoistedWorkspaceProject>
-}
-
-export interface HoistedWorkspaceProject {
-  name: string
-  dir: string
 }
 
 export function getHoistedDependencies(
@@ -115,8 +105,6 @@ export function getHoistedDependencies(
   })
 }
 
-type GetAliasHoistType = (alias: string) => 'private' | 'public' | false
-
 function createGetAliasHoistType(
   publicHoistPattern: string[],
   privateHoistPattern: string[]
@@ -128,12 +116,6 @@ function createGetAliasHoistType(
     if (privateMatcher(alias)) return 'private'
     return false
   }
-}
-
-interface LinkAllBinsOptions {
-  extraNodePaths?: string[]
-  hoistedAliasesWithBins: string[]
-  preferSymlinkedExecutables?: boolean
 }
 
 async function linkAllBins(modulesDir: string, opts: LinkAllBinsOptions) {
@@ -188,17 +170,6 @@ function getDependencies(
   }
 
   return [...deps, ...nextSteps.flatMap(getDependencies.bind(null, depth + 1))]
-}
-
-export interface Dependency {
-  children: Record<string, string>
-  depPath: string
-  depth: number
-}
-
-interface HoistGraphResult {
-  hoistedDependencies: HoistedDependencies
-  hoistedAliasesWithBins: string[]
 }
 
 function hoistGraph(
@@ -300,30 +271,42 @@ async function symlinkHoistedDependency(
 ) {
   try {
     await symlinkDir(depLocation, dest, { overwrite: false })
+
     linkLogger.debug({ target: dest, link: depLocation })
+
     return
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
+    // @ts-ignore
     if (err.code !== 'EEXIST' && err.code !== 'EISDIR') throw err
   }
-  let existingSymlink!: string
+  let existingSymlink: string | undefined
+
   try {
     existingSymlink = await resolveLinkTarget(dest)
-  } catch (err) {
+  } catch (err: unknown) {
+    console.error(err)
+
     hoistLogger.debug({
       skipped: dest,
       reason: 'a directory is present at the target location',
     })
+
     return
   }
+
   if (!isSubdir(opts.virtualStoreDir, existingSymlink)) {
     hoistLogger.debug({
       skipped: dest,
       existingSymlink,
       reason: 'an external symlink is present at the target location',
     })
+
     return
   }
+
   await fs.promises.unlink(dest)
+
   await symlinkDir(depLocation, dest)
+
   linkLogger.debug({ target: dest, link: depLocation })
 }

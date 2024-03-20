@@ -1,5 +1,4 @@
-/// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+import path from 'node:path'
 import { assertProject } from '../src'
 
 test('assertProject()', async () => {

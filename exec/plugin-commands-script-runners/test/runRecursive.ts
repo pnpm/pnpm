@@ -1,16 +1,18 @@
-import { promises as fs } from 'fs'
 import path from 'path'
-import { preparePackages } from '@pnpm/prepare'
-import { run } from '@pnpm/plugin-commands-script-runners'
-import {
-  filterPkgsBySelectorObjects,
-  readProjects,
-} from '@pnpm/filter-workspace-packages'
-import { type PnpmError } from '@pnpm/error'
-import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { promises as fs } from 'fs'
+
 import execa from 'execa'
 import writeYamlFile from 'write-yaml-file'
+
+import {
+  readProjects,
+  filterPkgsBySelectorObjects,
+} from '@pnpm/filter-workspace-packages'
+import type { PnpmError } from '@pnpm/error'
+import { preparePackages } from '@pnpm/prepare'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
+import { run } from '@pnpm/plugin-commands-script-runners'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
@@ -351,7 +353,8 @@ test('`pnpm recursive run` fails when run without filters and no package has the
     ['this-command-does-not-exist']
   )
 
-  let err!: PnpmError
+  let err: PnpmError | undefined
+
   try {
     await run.handler(
       {
@@ -364,10 +367,11 @@ test('`pnpm recursive run` fails when run without filters and no package has the
       },
       ['this-command-does-not-exist']
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
-  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
+  expect(err?.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
 })
 
 test('`pnpm recursive run` fails when run with a filter that includes all packages and no package has the desired command, unless if-present is set', async () => {
@@ -399,6 +403,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
   ])
 
   console.log('recursive run does not fail when if-present is true')
+
   await run.handler(
     {
       ...DEFAULT_OPTS,
@@ -411,7 +416,8 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
     ['this-command-does-not-exist']
   )
 
-  let err!: PnpmError
+  let err: PnpmError | undefined
+
   try {
     await run.handler(
       {
@@ -423,10 +429,12 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
       },
       ['this-command-does-not-exist']
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
-  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
+
+  expect(err?.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
 })
 
 test('`pnpm recursive run` succeeds when run against a subset of packages and no package has the desired command', async () => {
@@ -565,7 +573,7 @@ Commands available via "pnpm run":
       { workspaceDir: process.cwd() }
     )
 
-    let err!: PnpmError
+    let err: PnpmError | undefined
     try {
       await run.handler(
         {
@@ -578,13 +586,14 @@ Commands available via "pnpm run":
         },
         []
       )
-    } catch (_err: any) { // eslint-disable-line
+    } catch (_err: unknown) {
+      // @ts-ignore
       err = _err
     }
 
     expect(err).toBeTruthy()
-    expect(err.code).toBe('ERR_PNPM_SCRIPT_NAME_IS_REQUIRED')
-    expect(err.message).toBe('You must specify the script you want to run')
+    expect(err?.code).toBe('ERR_PNPM_SCRIPT_NAME_IS_REQUIRED')
+    expect(err?.message).toBe('You must specify the script you want to run')
   }
 })
 
@@ -636,7 +645,7 @@ test('testing the bail config with "pnpm recursive run"', async () => {
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  let err1!: PnpmError
+  let err1: PnpmError | undefined
   try {
     await run.handler(
       {
@@ -650,14 +659,15 @@ test('testing the bail config with "pnpm recursive run"', async () => {
       },
       ['build']
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err1 = _err
   }
-  expect(err1.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+  expect(err1?.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
 
   expect(server.getLines()).toStrictEqual(['project-1', 'project-3'])
 
-  let err2!: PnpmError
+  let err2: PnpmError | undefined
   try {
     await run.handler(
       {
@@ -670,11 +680,12 @@ test('testing the bail config with "pnpm recursive run"', async () => {
       },
       ['build']
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err2 = _err
   }
 
-  expect(err2.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+  expect(err2?.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
 })
 
 test('pnpm recursive run with filtering', async () => {
@@ -855,7 +866,7 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
     },
   ])
 
-  let err!: PnpmError
+  let err: PnpmError | undefined
   try {
     await run.handler(
       {
@@ -874,13 +885,15 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
       },
       ['build']
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
-  expect(err.message).toContain(
+
+  expect(err?.message).toContain(
     'Missing script "build" in packages: project-1, project-3'
   )
-  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
+  expect(err?.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
 })
 
 test('`pnpm -r --resume-from run` should executed from given package', async () => {

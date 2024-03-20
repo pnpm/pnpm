@@ -1,6 +1,8 @@
+import renderHelp from 'render-help'
+
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
-import renderHelp from 'render-help'
+
 import * as run from './run'
 
 export const commandNames = ['test', 't', 'tst']

@@ -36,6 +36,7 @@
     "sort-keys": "^4.2.0"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   },

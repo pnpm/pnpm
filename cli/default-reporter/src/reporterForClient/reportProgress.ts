@@ -1,17 +1,19 @@
-import type { ProgressLog, StageLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, map, mapTo, takeWhile, startWith, take } from 'rxjs/operators'
-import { hlValue } from './outputConstants'
-import { zoomOut } from './utils/zooming'
 
-interface ProgressStats {
+import { ProgressLog, StageLog } from '@pnpm/types'
+
+import { zoomOut } from './utils/zooming'
+import { hlValue } from './outputConstants'
+
+type ProgressStats = {
   fetched: number
   imported: number
   resolved: number
   reused: number
 }
 
-interface ModulesInstallProgress {
+type ModulesInstallProgress = {
   importingDone$: Rx.Observable<boolean>
   progress$: Rx.Observable<ProgressStats>
   requirer: string
@@ -118,7 +120,7 @@ function getModulesInstallProgress$(
   return Rx.from(modulesInstallProgressPushStream)
 }
 
-function stage$ToImportingDone$(stage$: Rx.Observable<StageLog>) {
+function stage$ToImportingDone$(stage$: Rx.Observable<StageLog>): Rx.Observable<boolean> {
   return stage$.pipe(
     filter((log: StageLog) => log.stage === 'importing_done'),
     mapTo(true),
@@ -129,15 +131,14 @@ function stage$ToImportingDone$(stage$: Rx.Observable<StageLog>) {
 
 function getProgressStatsPushStreamByRequirer(
   progress$: Rx.Observable<ProgressLog>
-) {
-  const progressStatsPushStreamByRequirer: {
-    [requirer: string]: Rx.Subject<ProgressStats>
-  } = {}
+): Record<string, Rx.Subject<ProgressStats>> {
+  const progressStatsPushStreamByRequirer: Record<string, Rx.Subject<ProgressStats>> = {}
 
-  const previousProgressStatsByRequirer: { [requirer: string]: ProgressStats } =
+  const previousProgressStatsByRequirer: Record<string, ProgressStats> =
     {}
+
   progress$
-    .forEach((log: ProgressLog) => {
+    .forEach((log: ProgressLog): void => {
       if (!previousProgressStatsByRequirer[log.requester]) {
         previousProgressStatsByRequirer[log.requester] = {
           fetched: 0,
@@ -147,28 +148,36 @@ function getProgressStatsPushStreamByRequirer(
         }
       }
       switch (log.status) {
-        case 'resolved':
+        case 'resolved': {
           previousProgressStatsByRequirer[log.requester].resolved++
           break
-        case 'fetched':
+        }
+        case 'fetched': {
           previousProgressStatsByRequirer[log.requester].fetched++
           break
-        case 'found_in_store':
+        }
+        case 'found_in_store': {
           previousProgressStatsByRequirer[log.requester].reused++
           break
-        case 'imported':
+        }
+        case 'imported': {
           previousProgressStatsByRequirer[log.requester].imported++
           break
+        }
       }
+
       if (!progressStatsPushStreamByRequirer[log.requester]) {
         progressStatsPushStreamByRequirer[log.requester] =
           new Rx.Subject<ProgressStats>()
       }
+
       progressStatsPushStreamByRequirer[log.requester].next(
         previousProgressStatsByRequirer[log.requester]
       )
     })
-    .catch(() => {})
+    .catch((err) => {
+      console.error(err)
+    })
 
   return progressStatsPushStreamByRequirer
 }
@@ -182,6 +191,7 @@ function createStatusMessage([progress, importingDone]: [
   )}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(
     progress.fetched.toString()
   )}, added ${hlValue(progress.imported.toString())}`
+
   if (importingDone) {
     return {
       done: true,
@@ -189,6 +199,7 @@ function createStatusMessage([progress, importingDone]: [
       msg: `${msg}, done`,
     }
   }
+
   return {
     fixed: true,
     msg,
@@ -204,6 +215,7 @@ function createStatusMessageWithoutAdded([progress, importingDone]: [
   )}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(
     progress.fetched.toString()
   )}`
+
   if (importingDone) {
     return {
       done: true,
@@ -211,6 +223,7 @@ function createStatusMessageWithoutAdded([progress, importingDone]: [
       msg: `${msg}, done`,
     }
   }
+
   return {
     fixed: true,
     msg,

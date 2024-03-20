@@ -28,9 +28,6 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
-      "path": "../cli-meta"
-    },
-    {
       "path": "../default-reporter"
     }
   ],

@@ -1,10 +1,5 @@
-import { type CompletionFunc } from '@pnpm/command'
-import { types as allTypes } from '@pnpm/config'
-import { audit } from '@pnpm/plugin-commands-audit'
-import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
-import { doctor } from '@pnpm/plugin-commands-doctor'
-import { env } from '@pnpm/plugin-commands-env'
-import { deploy } from '@pnpm/plugin-commands-deploy'
+import pick from 'ramda/src/pick'
+
 import {
   add,
   ci,
@@ -18,12 +13,6 @@ import {
   update,
   importCommand,
 } from '@pnpm/plugin-commands-installation'
-import { list, ll, why } from '@pnpm/plugin-commands-listing'
-import { licenses } from '@pnpm/plugin-commands-licenses'
-import { outdated } from '@pnpm/plugin-commands-outdated'
-import { pack, publish } from '@pnpm/plugin-commands-publishing'
-import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
-import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import {
   create,
   dlx,
@@ -32,23 +21,35 @@ import {
   run,
   test,
 } from '@pnpm/plugin-commands-script-runners'
-import { server } from '@pnpm/plugin-commands-server'
-import { setup } from '@pnpm/plugin-commands-setup'
-import { store } from '@pnpm/plugin-commands-store'
 import {
   catFile,
   catIndex,
   findHash,
 } from '@pnpm/plugin-commands-store-inspecting'
+import { env } from '@pnpm/plugin-commands-env'
+import { types as allTypes } from '@pnpm/config'
 import { init } from '@pnpm/plugin-commands-init'
-import pick from 'ramda/src/pick'
-import { type PnpmOptions } from '../types'
+import { audit } from '@pnpm/plugin-commands-audit'
+import { store } from '@pnpm/plugin-commands-store'
+import { setup } from '@pnpm/plugin-commands-setup'
+import { doctor } from '@pnpm/plugin-commands-doctor'
+import { deploy } from '@pnpm/plugin-commands-deploy'
+import { server } from '@pnpm/plugin-commands-server'
+import { rebuild } from '@pnpm/plugin-commands-rebuild'
+import { licenses } from '@pnpm/plugin-commands-licenses'
+import { outdated } from '@pnpm/plugin-commands-outdated'
+import { list, ll, why } from '@pnpm/plugin-commands-listing'
+import type { CompletionFunc, PnpmOptions } from '@pnpm/types'
+import { pack, publish } from '@pnpm/plugin-commands-publishing'
+import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
+import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
+
 import * as bin from './bin'
-import { createCompletion } from './completion'
-import { createHelp } from './help'
-import * as installTest from './installTest'
-import * as recursive from './recursive'
 import * as root from './root'
+import { createHelp } from './help'
+import * as recursive from './recursive'
+import * as installTest from './installTest'
+import { createCompletion } from './completion'
 
 export const GLOBAL_OPTIONS = pick(
   [
@@ -84,8 +85,6 @@ export type Command =
   ) => CommandResponse | Promise<CommandResponse>)
   | ((opts: PnpmOptions | any, params: string[]) => void) // eslint-disable-line @typescript-eslint/no-explicit-any
   | ((opts: PnpmOptions | any, params: string[]) => Promise<void>) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-// eslint-enable @stylistic/ts/indent
 
 export interface CommandDefinition {
   /** The main logic of the command. */
@@ -172,18 +171,24 @@ const commands: CommandDefinition[] = [
 ]
 
 const handlerByCommandName: Record<string, Command> = {}
+
 const helpByCommandName: Record<string, () => string> = {}
+
 const cliOptionsTypesByCommandName: Record<
   string,
   () => Record<string, unknown>
 > = {}
+
 const aliasToFullName = new Map<string, string>()
+
 const completionByCommandName: Record<string, CompletionFunc> = {}
-const shorthandsByCommandName: Record<
+
+export const shorthandsByCommandName: Record<
   string,
   Record<string, string | string[]>
 > = {}
-const rcOptionsTypes: Record<string, unknown> = {}
+
+export const rcOptionsTypes: Record<string, unknown> = {}
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -217,6 +222,7 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 handlerByCommandName.help = createHelp(helpByCommandName)
+
 handlerByCommandName.completion = createCompletion({
   cliOptionsTypesByCommandName,
   completionByCommandName,
@@ -225,21 +231,25 @@ handlerByCommandName.completion = createCompletion({
   universalOptionsTypes: GLOBAL_OPTIONS,
 })
 
-function initialCompletion() {
-  return Object.keys(handlerByCommandName).map((name) => ({ name }))
+function initialCompletion(): {
+  name: string;
+}[] {
+  return Object.keys(handlerByCommandName).map((name: string): {
+    name: string;
+  } => {
+    return { name };
+  })
 }
 
 export const pnpmCmds = handlerByCommandName
 
-export function getCliOptionsTypes(commandName: string) {
+export function getCliOptionsTypes(commandName: string): Record<string, unknown> {
   return cliOptionsTypesByCommandName[commandName]?.() || {}
 }
 
-export function getCommandFullName(commandName: string) {
+export function getCommandFullName(commandName: string): string | null {
   return (
     aliasToFullName.get(commandName) ??
     (handlerByCommandName[commandName] ? commandName : null)
   )
 }
-
-export { shorthandsByCommandName, rcOptionsTypes }

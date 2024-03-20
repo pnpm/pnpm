@@ -8,34 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../fs/read-modules-dir"
-    },
-    {
-      "path": "../../lockfile/filter-lockfile"
-    },
-    {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
-      "path": "../../lockfile/lockfile-utils"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../store/store-controller-types"
-    },
-    {
-      "path": "../remove-bins"
-    }
-  ],
   "composite": true
 }

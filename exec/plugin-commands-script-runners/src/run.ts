@@ -1,30 +1,30 @@
 import path from 'node:path'
+
 import pLimit from 'p-limit'
-import {
-  docsUrl,
-  readProjectManifestOnly,
-  tryReadProjectManifest,
-} from '@pnpm/cli-utils'
-import { Completion, type CompletionFunc } from '@pnpm/command'
-import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
-import { PnpmError } from '@pnpm/error'
+import pick from 'ramda/src/pick'
+import renderHelp from 'render-help'
+import realpathMissing from 'realpath-missing'
+
 import {
   runLifecycleHook,
   makeNodeRequireOption,
-  type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
-import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
-import pick from 'ramda/src/pick'
-import realpathMissing from 'realpath-missing'
-import renderHelp from 'render-help'
+import {
+  docsUrl,
+  tryReadProjectManifest,
+  readProjectManifestOnly,
+} from '@pnpm/cli-utils'
+import { PnpmError } from '@pnpm/error'
+import { types as allTypes } from '@pnpm/config'
+import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
+import type { PackageScripts, ProjectManifest, Config, Completion, CompletionFunc, RunLifecycleHookOptions, RecursiveRunOpts } from '@pnpm/types'
+
+import { handler as exec } from './exec'
+import { existsInDir } from './existsInDir'
 import {
   runRecursive,
-  type RecursiveRunOpts,
   getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand,
 } from './runRecursive'
-import { existsInDir } from './existsInDir'
-import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 
 export const IF_PRESENT_OPTION = {
@@ -430,13 +430,16 @@ export const runScript: (
     await runLifecycleHook(
       `pre${scriptName}`,
       opts.manifest,
+      // @ts-ignore
       opts.lifecycleOpts
     )
   }
+  // @ts-ignore
   await runLifecycleHook(scriptName, opts.manifest, {
     ...opts.lifecycleOpts,
     args: opts.passedThruArgs,
   })
+
   if (
     opts.runScriptOptions.enablePrePostScripts &&
     opts.manifest.scripts?.[`post${scriptName}`] &&
@@ -445,6 +448,7 @@ export const runScript: (
     await runLifecycleHook(
       `post${scriptName}`,
       opts.manifest,
+      // @ts-ignore
       opts.lifecycleOpts
     )
   }

@@ -1,8 +1,10 @@
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { docsUrl } from '@pnpm/cli-utils'
+
 import { types } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import pick from 'ramda/src/pick'
+import { docsUrl } from '@pnpm/cli-utils'
+
 import * as dlx from './dlx'
 
 export const commandNames = ['create']
@@ -11,6 +13,7 @@ export async function handler(_opts: dlx.DlxCommandOptions, params: string[]): P
   exitCode: number;
 }> {
   const [packageName, ...packageArgs] = params
+
   if (packageName === undefined) {
     throw new PnpmError(
       'MISSING_ARGS',
@@ -21,6 +24,7 @@ export async function handler(_opts: dlx.DlxCommandOptions, params: string[]): P
   }
 
   const createPackageName = convertToCreateName(packageName)
+
   return dlx.handler(_opts, [createPackageName, ...packageArgs])
 }
 
@@ -30,13 +34,15 @@ export function rcOptionsTypes() {
   }
 }
 
-export function cliOptionsTypes() {
+export function cliOptionsTypes(): {
+  'use-node-version': StringConstructor;
+} {
   return {
     ...rcOptionsTypes(),
   }
 }
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description: 'Creates a project from a `create-*` starter kit.',
     url: docsUrl('create'),
@@ -64,30 +70,26 @@ const CREATE_PREFIX = 'create-'
  *
  * For more info, see https://docs.npmjs.com/cli/v9/commands/npm-init#description
  */
-function convertToCreateName(packageName: string) {
-  if (packageName[0] === '@') {
+function convertToCreateName(packageName: string): string {
+  if (packageName.startsWith('@')) {
     const preferredVersionPosition = packageName.indexOf('@', 1)
+
     let preferredVersion = ''
+
     if (preferredVersionPosition > -1) {
       preferredVersion = packageName.substring(preferredVersionPosition)
+
       packageName = packageName.substring(0, preferredVersionPosition)
     }
+
     const [scope, scopedPackage = ''] = packageName.split('/')
 
-    if (scopedPackage === '') {
-      return `${scope}/create${preferredVersion}`
-    } else {
-      return `${scope}/${ensureCreatePrefixed(scopedPackage)}${preferredVersion}`
-    }
+    return scopedPackage === '' ? `${scope}/create${preferredVersion}` : `${scope}/${ensureCreatePrefixed(scopedPackage)}${preferredVersion}`;
   } else {
     return ensureCreatePrefixed(packageName)
   }
 }
 
-function ensureCreatePrefixed(packageName: string) {
-  if (packageName.startsWith(CREATE_PREFIX)) {
-    return packageName
-  } else {
-    return `${CREATE_PREFIX}${packageName}`
-  }
+function ensureCreatePrefixed(packageName: string): string {
+  return packageName.startsWith(CREATE_PREFIX) ? packageName : `${CREATE_PREFIX}${packageName}`;
 }

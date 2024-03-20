@@ -1,119 +1,35 @@
-import type { Lockfile, PatchFile } from '@pnpm/lockfile-types'
-import type {
-  PreferredVersions,
-  Resolution,
-  WorkspacePackages,
-} from '@pnpm/resolver-base'
-import type { StoreController } from '@pnpm/store-controller-types'
-import type {
-  SupportedArchitectures,
-  AllowedDeprecatedVersions,
-  ProjectManifest,
-  ReadPackageHook,
-  Registries,
-} from '@pnpm/types'
-import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
-import type { WantedDependency } from './getNonDevWantedDependencies'
-import { createNodeId, nodeIdContainsSequence } from './nodeIdUtils'
+import partition from 'ramda/src/partition'
+
+import type {
+  PkgAddress,
+  PendingNode,
+  DependenciesTree,
+  LinkedDependency,
+  ParentPkgAliases,
+  WantedDependency,
+  ResolvedImporters,
+  ImporterToResolveDeps,
+  DependenciesGraphNode,
+  ChildrenByParentDepPath,
+  ImporterToResolveGeneric,
+  ResolvedPackagesByDepPath,
+  ResolveDependenciesOptions,
+} from '@pnpm/types'
+
 import {
-  type ChildrenByParentDepPath,
-  type DependenciesTree,
-  type LinkedDependency,
-  type ImporterToResolve,
-  type ParentPkgAliases,
-  type PendingNode,
-  type PkgAddress,
   resolveRootDependencies,
-  type ResolvedPackage,
-  type ResolvedPackagesByDepPath,
 } from './resolveDependencies'
+import { createNodeId, nodeIdContainsSequence } from './nodeIdUtils'
 
 export * from './nodeIdUtils'
-export type {
-  LinkedDependency,
-  ResolvedPackage,
-  DependenciesTree,
-  DependenciesTreeNode,
-} from './resolveDependencies'
-
-export interface ResolvedImporters {
-  [id: string]: {
-    directDependencies: ResolvedDirectDependency[]
-    directNodeIdsByAlias: {
-      [alias: string]: string
-    }
-    linkedDependencies: LinkedDependency[]
-  }
-}
-
-export interface ResolvedDirectDependency {
-  alias: string
-  optional: boolean
-  dev: boolean
-  resolution: Resolution
-  pkgId: string
-  version: string
-  name: string
-  normalizedPref?: string
-}
-
-export interface Importer<T> {
-  id: string
-  manifest: ProjectManifest
-  modulesDir: string
-  removePackages?: string[]
-  rootDir: string
-  wantedDependencies: Array<T & WantedDependency>
-}
-
-export interface ImporterToResolveGeneric<T> extends Importer<T> {
-  updatePackageManifest: boolean
-  updateMatching?: (pkgName: string) => boolean
-  hasRemovedDependencies?: boolean
-  preferredVersions?: PreferredVersions
-  wantedDependencies: Array<T & WantedDependency & { updateDepth: number }>
-}
-
-export interface ResolveDependenciesOptions {
-  autoInstallPeers?: boolean
-  autoInstallPeersFromHighestMatch?: boolean
-  allowBuild?: (pkgName: string) => boolean
-  allowedDeprecatedVersions: AllowedDeprecatedVersions
-  allowNonAppliedPatches: boolean
-  currentLockfile: Lockfile
-  dryRun: boolean
-  engineStrict: boolean
-  force: boolean
-  forceFullResolution: boolean
-  ignoreScripts?: boolean
-  hooks: {
-    readPackage?: ReadPackageHook
-  }
-  nodeVersion: string
-  registries: Registries
-  patchedDependencies?: Record<string, PatchFile>
-  pnpmVersion: string
-  preferredVersions?: PreferredVersions
-  preferWorkspacePackages?: boolean
-  resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
-  resolvePeersFromWorkspaceRoot?: boolean
-  linkWorkspacePackagesDepth?: number
-  lockfileDir: string
-  storeController: StoreController
-  tag: string
-  virtualStoreDir: string
-  wantedLockfile: Lockfile
-  workspacePackages: WorkspacePackages
-  supportedArchitectures?: SupportedArchitectures
-  updateToLatest?: boolean
-}
 
 export async function resolveDependencyTree<T>(
   importers: Array<ImporterToResolveGeneric<T>>,
   opts: ResolveDependenciesOptions
 ) {
   const wantedToBeSkippedPackageIds = new Set<string>()
+
   const ctx = {
     autoInstallPeers: opts.autoInstallPeers === true,
     autoInstallPeersFromHighestMatch:
@@ -123,7 +39,7 @@ export async function resolveDependencyTree<T>(
     childrenByParentDepPath: {} as ChildrenByParentDepPath,
     currentLockfile: opts.currentLockfile,
     defaultTag: opts.tag,
-    dependenciesTree: new Map() as DependenciesTree<ResolvedPackage>,
+    dependenciesTree: new Map() as DependenciesTree<DependenciesGraphNode>,
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
@@ -151,8 +67,9 @@ export async function resolveDependencyTree<T>(
     missingPeersOfChildrenByPkgId: {},
   }
 
-  const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
+  const resolveArgs: ImporterToResolveDeps[] = importers.map((importer: ImporterToResolveGeneric<T>): ImporterToResolveDeps => {
     const projectSnapshot = opts.wantedLockfile.importers[importer.id]
+
     // This may be optimized.
     // We only need to proceed resolving every dependency
     // if the newly added dependency has peer dependencies.
@@ -160,6 +77,7 @@ export async function resolveDependencyTree<T>(
       importer.id === '.' ||
       importer.hasRemovedDependencies === true ||
       importer.wantedDependencies.some((wantedDep: any) => wantedDep.isNew) // eslint-disable-line @typescript-eslint/no-explicit-any
+
     const resolveOpts = {
       currentDepth: 0,
       parentPkg: {
@@ -181,6 +99,7 @@ export async function resolveDependencyTree<T>(
       supportedArchitectures: opts.supportedArchitectures,
       updateToLatest: opts.updateToLatest,
     }
+
     return {
       updatePackageManifest: importer.updatePackageManifest,
       parentPkgAliases: Object.fromEntries(
@@ -193,10 +112,12 @@ export async function resolveDependencyTree<T>(
       options: resolveOpts,
     }
   })
+
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(
     ctx,
     resolveArgs
   )
+
   const directDepsByImporterId = zipObj(
     importers.map(({ id }) => id),
     pkgAddressesByImporters
@@ -208,7 +129,7 @@ export async function resolveDependencyTree<T>(
         buildTree(
           ctx,
           pendingNode.nodeId,
-          pendingNode.resolvedPackage.id,
+          pendingNode.resolvedPackage.id ?? '',
           ctx.childrenByParentDepPath[pendingNode.resolvedPackage.depPath],
           pendingNode.depth + 1,
           pendingNode.installable
@@ -226,34 +147,45 @@ export async function resolveDependencyTree<T>(
       directDepsByImporterId[id],
       wantedDependencies
     )
+
     const [linkedDependencies, directNonLinkedDeps] = partition(
-      (dep) => dep.isLinkedDependency === true,
+      (dep: PkgAddress | LinkedDependency): boolean => {
+        return dep.isLinkedDependency === true;
+      },
       directDeps
     ) as [LinkedDependency[], PkgAddress[]]
+
     resolvedImporters[id] = {
-      directDependencies: directDeps.map((dep) => {
+      directDependencies: directDeps.map((dep: PkgAddress | LinkedDependency) => {
         if (dep.isLinkedDependency === true) {
           return dep
         }
-        const resolvedPackage = ctx.dependenciesTree.get(dep.nodeId)!
-          .resolvedPackage as ResolvedPackage
+
+        const resolvedPackage = ctx.dependenciesTree.get(dep.nodeId ?? '')?.resolvedPackage
+
         return {
           alias: dep.alias,
-          dev: resolvedPackage.dev,
-          name: resolvedPackage.name,
+          // @ts-ignore
+          dev: resolvedPackage?.dev,
+          name: resolvedPackage?.name,
           normalizedPref: dep.normalizedPref,
-          optional: resolvedPackage.optional,
-          pkgId: resolvedPackage.id,
-          resolution: resolvedPackage.resolution,
-          version: resolvedPackage.version,
+          // @ts-ignore
+          optional: resolvedPackage?.optional,
+          // @ts-ignore
+          pkgId: resolvedPackage?.id,
+          // @ts-ignore
+          resolution: resolvedPackage?.resolution,
+          version: resolvedPackage?.version,
         }
       }),
       directNodeIdsByAlias: directNonLinkedDeps.reduce(
-        (acc, { alias, nodeId }) => {
+        (acc: Record<string, string>, { alias, nodeId }): Record<string, string> => {
+          // @ts-ignore
           acc[alias] = nodeId
+
           return acc
         },
-        {} as Record<string, string>
+        {}
       ),
       linkedDependencies,
     }
@@ -273,7 +205,7 @@ export async function resolveDependencyTree<T>(
 function buildTree(
   ctx: {
     childrenByParentDepPath: ChildrenByParentDepPath
-    dependenciesTree: DependenciesTree<ResolvedPackage>
+    dependenciesTree: DependenciesTree<DependenciesGraphNode>
     resolvedPackagesByDepPath: ResolvedPackagesByDepPath
     skipped: Set<string>
   },
@@ -284,20 +216,26 @@ function buildTree(
   installable: boolean
 ) {
   const childrenNodeIds: Record<string, string> = {}
+
   for (const child of children) {
     if (child.depPath.startsWith('link:')) {
       childrenNodeIds[child.alias] = child.depPath
       continue
     }
+
     if (
       nodeIdContainsSequence(parentNodeId, parentId, child.depPath) ||
       parentId === child.depPath
     ) {
       continue
     }
+
     const childNodeId = createNodeId(parentNodeId, child.depPath)
+
     childrenNodeIds[child.alias] = childNodeId
+
     installable = installable && !ctx.skipped.has(child.depPath)
+
     ctx.dependenciesTree.set(childNodeId, {
       children: () =>
         buildTree(
@@ -313,6 +251,7 @@ function buildTree(
       resolvedPackage: ctx.resolvedPackagesByDepPath[child.depPath],
     })
   }
+
   return childrenNodeIds
 }
 
@@ -325,9 +264,10 @@ function buildTree(
  */
 function dedupeSameAliasDirectDeps(
   directDeps: Array<PkgAddress | LinkedDependency>,
-  wantedDependencies: Array<WantedDependency & { isNew?: boolean }>
-) {
-  const deps = new Map()
+  wantedDependencies: Array<WantedDependency & { isNew?: boolean | undefined }>
+): (PkgAddress | LinkedDependency)[] {
+  const deps = new Map<string, PkgAddress | LinkedDependency>()
+
   for (const directDep of directDeps) {
     const { alias, normalizedPref } = directDep
     if (!deps.has(alias)) {

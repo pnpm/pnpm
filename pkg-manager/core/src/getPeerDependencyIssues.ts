@@ -2,16 +2,13 @@ import {
   resolveDependencies,
   getWantedDependencies,
 } from '@pnpm/resolve-dependencies'
-import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
-import {
-  getContext,
-  type GetContextOptions,
-  type ProjectOptions,
-} from '@pnpm/get-context'
-import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import { getPreferredVersionsFromLockfileAndManifests } from './install/getPreferredVersions'
-import { type InstallOptions } from './install/extendInstallOptions'
+import { getContext } from '@pnpm/get-context'
 import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+import type { ProjectOptions } from '@pnpm/read-projects-context'
+import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
+import type { PeerDependencyIssuesByProjects, GetContextOptions, InstallOptions } from '@pnpm/types'
+
+import { getPreferredVersionsFromLockfileAndManifests } from './install/getPreferredVersions'
 
 export type ListMissingPeersOptions = Partial<GetContextOptions> &
   Pick<
@@ -48,18 +45,22 @@ export async function getPeerDependencyIssues(
     nodeLinker: opts.nodeLinker ?? 'isolated',
     registries: DEFAULT_REGISTRIES,
     useLockfile: true,
+    // @ts-ignore
     allProjects: projects,
     ...opts,
   })
+
   const projectsToResolve = Object.values(ctx.projects).map((project) => ({
     ...project,
     updatePackageManifest: false,
     wantedDependencies: getWantedDependencies(project.manifest),
   }))
+
   const preferredVersions = getPreferredVersionsFromLockfileAndManifests(
     ctx.wantedLockfile.packages,
-    Object.values(ctx.projects).map(({ manifest }) => manifest)
+    Object.values(ctx.projects).map(({ manifest }) => manifest).filter(Boolean)
   )
+
   const { peerDependencyIssuesByProjects, waitTillAllFetchingsFinish } =
     await resolveDependencies(projectsToResolve, {
       currentLockfile: ctx.currentLockfile,

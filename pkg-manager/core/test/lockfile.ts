@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 import {
   LOCKFILE_VERSION_V6 as LOCKFILE_VERSION,
   WANTED_LOCKFILE,
@@ -18,14 +18,7 @@ import {
 } from '@pnpm/registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
-import {
-  addDependenciesToPackage,
-  install,
-  mutateModules,
-  mutateModulesInSingleProject,
-  type MutatedProject,
-  type ProjectOptions,
-} from '@pnpm/core'
+
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
@@ -1046,7 +1039,7 @@ test('lockfile is ignored when lockfile = false', async () => {
 test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`, async () => {
   const project = prepareEmpty()
 
-  let manifest!: ProjectManifest
+  let manifest: ProjectManifest | undefined
   {
     const reporter = sinon.spy()
 
@@ -1520,7 +1513,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
     await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
   }
 
-  let err!: PnpmError
+  let err: PnpmError | undefined
   try {
     await mutateModulesInSingleProject(
       {
@@ -1534,7 +1527,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
     // @ts-ignore
     err = _err
   }
-  expect(err.code).toBe('ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY')
+  expect(err?.code).toBe('ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY')
 
   await mutateModulesInSingleProject(
     {

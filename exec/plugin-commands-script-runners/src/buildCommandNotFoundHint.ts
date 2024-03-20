@@ -1,7 +1,9 @@
-import { type PackageScripts } from '@pnpm/types'
-import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
-import { readdirSync } from 'node:fs'
 import path from 'node:path'
+import { readdirSync } from 'node:fs'
+
+import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
+
+import type { PackageScripts } from '@pnpm/types'
 
 export function getNearestProgram({
   dir,
@@ -16,11 +18,15 @@ export function getNearestProgram({
 }) {
   try {
     const binDir = path.join(dir, modulesDir, '.bin')
+
     const programList = readProgramsFromDir(binDir)
+
     if (workspaceDir && workspaceDir !== dir) {
       const workspaceBinDir = path.join(workspaceDir, modulesDir, '.bin')
+
       programList.push(...readProgramsFromDir(workspaceBinDir))
     }
+
     return getNearest(programName, programList)
   } catch {
     return null
@@ -29,10 +35,16 @@ export function getNearestProgram({
 
 function readProgramsFromDir(binDir: string): string[] {
   const files = readdirSync(binDir)
-  if (process.platform !== 'win32') return files
+
+  if (process.platform !== 'win32') {
+    return files
+  }
+
   const executableExtensions = ['.cmd', '.bat', '.ps1', '.exe', '.com']
+
   return files.map((fullName) => {
     const { name, ext } = path.parse(fullName)
+
     return executableExtensions.includes(ext.toLowerCase()) ? name : fullName
   })
 }
@@ -63,7 +75,10 @@ export function getNearest(
   name: string,
   list: readonly string[]
 ): string | null {
-  if (list == null || list.length === 0) return null
+  if (list == null || list.length === 0) {
+    return null
+  }
+
   return didYouMean(name, list, {
     returnType: ReturnTypeEnums.FIRST_CLOSEST_MATCH,
   })

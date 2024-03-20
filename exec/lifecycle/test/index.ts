@@ -1,19 +1,23 @@
-/// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
-import { runLifecycleHook, runPostinstallHooks } from '@pnpm/lifecycle'
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
-import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { fixtures } from '@pnpm/test-fixtures'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { runLifecycleHook, runPostinstallHooks } from '@pnpm/lifecycle'
 
 const f = fixtures(path.join(__dirname, 'fixtures'))
+
 const rootModulesDir = path.join(__dirname, '..', 'node_modules')
 
 test('runLifecycleHook()', async () => {
   const pkgRoot = f.find('simple')
+
   await using server = await createTestIpcServer(
     path.join(pkgRoot, 'test.sock')
   )
+
   const pkg = await import(path.join(pkgRoot, 'package.json'))
+
   await runLifecycleHook('postinstall', pkg, {
     depPath: '/simple/1.0.0',
     optional: false,
@@ -28,7 +32,9 @@ test('runLifecycleHook()', async () => {
 
 test('runLifecycleHook() escapes the args passed to the script', async () => {
   const pkgRoot = f.find('escape-args')
+
   const pkg = await import(path.join(pkgRoot, 'package.json'))
+
   await runLifecycleHook('echo', pkg, {
     depPath: '/escape-args/1.0.0',
     pkgRoot,
@@ -45,10 +51,13 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
 
 test('runLifecycleHook() sets frozen-lockfile to false', async () => {
   const pkgRoot = f.find('inspect-frozen-lockfile')
+
   await using server = await createTestIpcServer(
     path.join(pkgRoot, 'test.sock')
   )
+
   const pkg = await import(path.join(pkgRoot, 'package.json'))
+
   await runLifecycleHook('postinstall', pkg, {
     depPath: '/inspect-frozen-lockfile/1.0.0',
     pkgRoot,
@@ -64,9 +73,11 @@ test('runLifecycleHook() sets frozen-lockfile to false', async () => {
 
 test('runPostinstallHooks()', async () => {
   const pkgRoot = f.find('with-many-scripts')
+
   await using server = await createTestIpcServer(
     path.join(pkgRoot, 'test.sock')
   )
+
   await runPostinstallHooks({
     depPath: '/with-many-scripts/1.0.0',
     optional: false,

@@ -15,22 +15,29 @@ import semver from 'semver'
 export function renderPeerIssues(
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,
   opts?: {
-    rules?: PeerDependencyRules
-    width?: number
-  }
+    rules?: PeerDependencyRules | undefined
+    width?: number | undefined
+  } | undefined
 ) {
   const ignoreMissingPatterns = [...new Set(opts?.rules?.ignoreMissing ?? [])]
+
   const ignoreMissingMatcher = createMatcher(ignoreMissingPatterns)
+
   const allowAnyPatterns = [...new Set(opts?.rules?.allowAny ?? [])]
+
   const allowAnyMatcher = createMatcher(allowAnyPatterns)
+
   const { allowedVersionsMatchAll, allowedVersionsByParentPkgName } =
     parseAllowedVersions(opts?.rules?.allowedVersions ?? {})
+
   const projects = {} as Record<string, PkgNode>
+
   for (const [
     projectId,
     { bad, missing, conflicts, intersections },
   ] of Object.entries(peerDependencyIssuesByProjects)) {
     projects[projectId] = { dependencies: {}, peerIssues: [] }
+
     for (const [peerName, issues] of Object.entries(missing)) {
       if (
         (!conflicts.includes(peerName) && intersections[peerName] == null) ||
@@ -38,6 +45,7 @@ export function renderPeerIssues(
       ) {
         continue
       }
+
       for (const issue of issues) {
         createTree(
           projects[projectId],
@@ -46,24 +54,31 @@ export function renderPeerIssues(
         )
       }
     }
+
     for (const [peerName, issues] of Object.entries(bad)) {
-      if (allowAnyMatcher(peerName)) continue
+      if (allowAnyMatcher(peerName)) {
+        continue
+      }
+
       for (const issue of issues) {
         if (
           allowedVersionsMatchAll[peerName]?.some((range) =>
             semver.satisfies(issue.foundVersion, range)
           )
-        )
+        ) {
           continue
+        }
+
         const currentParentPkg = issue.parents.at(-1)
+
         if (
-          currentParentPkg &&
+          currentParentPkg?.name && currentParentPkg.version &&
           allowedVersionsByParentPkgName[peerName]?.[currentParentPkg.name]
         ) {
           const allowedVersionsByParent = allowedVersionsByParentPkgName[
             peerName
           ][currentParentPkg.name].reduce(
-            (acc, { targetPkg, parentPkg, ranges }) => {
+            (acc: Record<string, string[]>, { targetPkg, parentPkg, ranges }) => {
               if (
                 !parentPkg.pref ||
                 (currentParentPkg.version &&
@@ -74,15 +89,18 @@ export function renderPeerIssues(
               }
               return acc
             },
-            {} as Record<string, string[]>
+            {}
           )
+
           if (
             allowedVersionsByParent[peerName]?.some((range) =>
               semver.satisfies(issue.foundVersion, range)
             )
-          )
+          ) {
             continue
+          }
         }
+
         createTree(
           projects[projectId],
           issue.parents,
@@ -94,10 +112,12 @@ export function renderPeerIssues(
       }
     }
   }
+
   const cliColumnsOptions = {
     newline: '\n  ',
     width: (opts?.width ?? process.stdout.columns) - 2,
   }
+
   return Object.entries(projects)
     .filter(([, project]) => Object.keys(project.dependencies).length > 0)
     .sort(([projectKey1], [projectKey2]) =>
@@ -105,8 +125,10 @@ export function renderPeerIssues(
     )
     .map(([projectKey, project]) => {
       const summaries = []
+
       const { conflicts, intersections } =
         peerDependencyIssuesByProjects[projectKey]
+
       if (conflicts.length) {
         summaries.push(
           chalk.red(
@@ -114,6 +136,7 @@ export function renderPeerIssues(
           )
         )
       }
+
       if (Object.keys(intersections).length) {
         summaries.push(
           `Peer dependencies that should be installed:\n  ${cliColumns(
@@ -124,11 +147,15 @@ export function renderPeerIssues(
           )}`
         )
       }
+
       const title = chalk.white(projectKey)
+
       let summariesConcatenated = summaries.join('\n')
+
       if (summariesConcatenated) {
         summariesConcatenated += '\n'
       }
+
       return `${archy(toArchyData(title, project))}${summariesConcatenated}`
     })
     .join('\n')
@@ -143,16 +170,19 @@ function formatUnmetPeerMessage({
   peerName: string
 }) {
   const nameAndRange = formatNameAndRange(peerName, wantedRange)
+
   if (resolvedFrom && resolvedFrom.length > 0) {
     return `✕ unmet peer ${nameAndRange}: found ${foundVersion} in ${resolvedFrom[resolvedFrom.length - 1].name}`
   }
+
   return `${chalk.yellowBright('✕ unmet peer')} ${nameAndRange}: found ${foundVersion}`
 }
 
-function formatNameAndRange(name: string, range: string) {
+function formatNameAndRange(name: string, range: string): string {
   if (range.includes(' ') || range === '*') {
     return `${name}@"${range}"`
   }
+
   return `${name}@${range}`
 }
 
@@ -163,18 +193,22 @@ interface PkgNode {
 
 function createTree(
   pkgNode: PkgNode,
-  pkgs: Array<{ name: string; version: string }>,
+  pkgs: Array<{ name?: string | undefined; version?: string | undefined }>,
   issueText: string
 ) {
   const [pkg, ...rest] = pkgs
+
   const label = `${pkg.name} ${chalk.grey(pkg.version)}`
+
   if (!pkgNode.dependencies[label]) {
     pkgNode.dependencies[label] = { dependencies: {}, peerIssues: [] }
   }
+
   if (rest.length === 0) {
     pkgNode.dependencies[label].peerIssues.push(issueText)
     return
   }
+
   createTree(pkgNode.dependencies[label], rest, issueText)
 }
 
@@ -183,12 +217,15 @@ function toArchyData(depName: string, pkgNode: PkgNode): archy.Data {
     label: depName,
     nodes: [],
   }
+
   for (const wantedPeer of pkgNode.peerIssues) {
     result.nodes.push(wantedPeer)
   }
+
   for (const [depName, node] of Object.entries(pkgNode.dependencies)) {
     result.nodes.push(toArchyData(depName, node))
   }
+
   return result
 }
 
@@ -204,28 +241,39 @@ type AllowedVersionsByParentPkgName = Record<
   >
 >
 
-function parseAllowedVersions(allowedVersions: Record<string, string>) {
+function parseAllowedVersions(allowedVersions: Record<string, string>): {
+  allowedVersionsMatchAll: Record<string, string[]>;
+  allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName;
+} {
   const overrides = tryParseAllowedVersions(allowedVersions)
+
   const allowedVersionsMatchAll: Record<string, string[]> = {}
+
   const allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName = {}
+
   for (const { parentPkg, targetPkg, newPref } of overrides) {
     const ranges = parseVersions(newPref)
+
     if (!parentPkg) {
       allowedVersionsMatchAll[targetPkg.name] = ranges
       continue
     }
+
     if (!allowedVersionsByParentPkgName[targetPkg.name]) {
       allowedVersionsByParentPkgName[targetPkg.name] = {}
     }
+
     if (!allowedVersionsByParentPkgName[targetPkg.name][parentPkg.name]) {
       allowedVersionsByParentPkgName[targetPkg.name][parentPkg.name] = []
     }
+
     allowedVersionsByParentPkgName[targetPkg.name][parentPkg.name].push({
       parentPkg,
       targetPkg,
       ranges,
     })
   }
+
   return {
     allowedVersionsMatchAll,
     allowedVersionsByParentPkgName,
@@ -237,7 +285,7 @@ function tryParseAllowedVersions(
 ): VersionOverride[] {
   try {
     return parseOverrides(allowedVersions ?? {})
-  } catch (err) {
+  } catch (err: unknown) {
     throw new PnpmError(
       'INVALID_ALLOWED_VERSION_SELECTOR',
       `${(err as PnpmError).message} in pnpm.peerDependencyRules.allowedVersions`
@@ -249,7 +297,7 @@ function parseVersions(versions: string): string[] {
   return versions.split('||').map((v) => v.trim())
 }
 
-function isSubRange(superRange: string | undefined, subRange: string) {
+function isSubRange(superRange: string | undefined, subRange: string): boolean {
   return (
     !superRange ||
     subRange === superRange ||

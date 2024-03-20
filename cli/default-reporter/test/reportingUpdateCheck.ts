@@ -1,9 +1,10 @@
-import { type Config } from '@pnpm/config'
-import { updateCheckLogger } from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
-import { createStreamParser } from '@pnpm/logger'
-import { take } from 'rxjs/operators'
 import stripAnsi from 'strip-ansi'
+import { take } from 'rxjs/operators'
+
+import type { Config } from '@pnpm/types'
+import { createStreamParser } from '@pnpm/logger'
+import { toOutput$ } from '@pnpm/default-reporter'
+import { updateCheckLogger } from '@pnpm/core-loggers'
 
 test('does not print update if latest is less than current', (done) => {
   const output$ = toOutput$({
@@ -27,7 +28,7 @@ test('does not print update if latest is less than current', (done) => {
     },
   })
 
-  setTimeout(() => {
+  globalThis.setTimeout(() => {
     done()
     subscription.unsubscribe()
   }, 10)

@@ -1,7 +1,8 @@
-import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
+import { take } from 'rxjs/operators'
+
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser, logger } from '@pnpm/logger'
-import { take } from 'rxjs/operators'
+import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
 
 test('print peer dependency issues warning', (done) => {
   const output$ = toOutput$({
@@ -55,7 +56,10 @@ test('print peer dependency issues error', (done) => {
   })
 
   const err = new Error('some error')
+
+  // @ts-ignore
   err.code = 'ERR_PNPM_PEER_DEP_ISSUES'
+  // @ts-ignore
   err.issuesByProjects = {
     '.': {
       missing: {},
@@ -79,6 +83,7 @@ test('print peer dependency issues error', (done) => {
       intersections: {},
     },
   }
+
   logger.error(err, err)
 
   expect.assertions(1)

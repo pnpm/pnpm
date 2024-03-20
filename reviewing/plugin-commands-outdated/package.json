@@ -43,7 +43,6 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/colorize-semver-diff": "^1.0.1",
-    "@pnpm/command": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/default-resolver": "workspace:*",

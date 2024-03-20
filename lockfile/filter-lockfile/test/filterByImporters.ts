@@ -112,7 +112,8 @@ test('filterByImporters(): only prod dependencies of one importer', () => {
 
 // TODO: also fail when filterLockfile() is used
 test('filterByImporters(): fail on missing packages when failOnMissingDependencies is true', () => {
-  let err!: Error
+  let err: Error | undefined
+
   try {
     filterLockfileByImporters(
       {
@@ -152,11 +153,12 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
         skipped: new Set<string>(),
       }
     )
-  } catch (_: any) { // eslint-disable-line
-    err = _
+  } catch (_err: unknown) {
+    // @ts-ignore
+    err = _err
   }
   expect(err).not.toBeNull()
-  expect(err.message).toEqual(
+  expect(err?.message).toEqual(
     `Broken lockfile: no entry for '/prod-dep-dep/1.0.0' in ${WANTED_LOCKFILE}`
   )
 })

@@ -161,7 +161,7 @@ describe('audit', () => {
       .post('/-/npm/v1/security/audits')
       .reply(500, { message: 'Something bad happened' })
 
-    let err!: PnpmError
+    let err: PnpmError | undefined
     try {
       await audit(
         {
@@ -177,13 +177,14 @@ describe('audit', () => {
           },
         }
       )
-    } catch (_err: any) { // eslint-disable-line
+    } catch (_err: unknown) {
+      // @ts-ignore
       err = _err
     }
 
     expect(err).toBeDefined()
-    expect(err.code).toEqual('ERR_PNPM_AUDIT_BAD_RESPONSE')
-    expect(err.message).toEqual(
+    expect(err?.code).toEqual('ERR_PNPM_AUDIT_BAD_RESPONSE')
+    expect(err?.message).toEqual(
       'The audit endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}'
     )
   })

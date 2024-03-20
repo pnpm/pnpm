@@ -1,35 +1,46 @@
-import { type Config } from '@pnpm/config'
-import { type Log } from '@pnpm/core-loggers'
-import type * as Rx from 'rxjs'
 import chalk from 'chalk'
-import { reportError } from './reportError'
+import type * as Rx from 'rxjs'
 
-export function reporterForServer(log$: Rx.Observable<Log>, config?: Config) {
+import { reportError } from './reportError'
+import type { Log, Config } from '@pnpm/types'
+
+export function reporterForServer(log$: Rx.Observable<Log>, config?: Config | undefined) {
   return log$.subscribe({
     complete: () => undefined,
     error: () => undefined,
     next(log) {
       if (log.name === 'pnpm:fetching-progress') {
         console.log(`${chalk.cyan(`fetching_${log.status}`)} ${log.packageId}`)
+
         return
       }
+
       switch (log.level) {
-        case 'warn':
+        case 'warn': {
           console.log(formatWarn(log.message))
+
           return
-        case 'error':
+        }
+
+        case 'error': {
           console.log(reportError(log, config))
+
           return
-        case 'debug':
+        }
+
+        case 'debug': {
           return
-        default:
+        }
+
+        default: {
           console.log(log.message)
+        }
       }
     },
   })
 }
 
-function formatWarn(message: string) {
+function formatWarn(message: string): string {
   // The \u2009 is the "thin space" unicode character
   // It is used instead of ' ' because chalk (as of version 2.1.0)
   // trims whitespace at the beginning

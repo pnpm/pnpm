@@ -1,17 +1,20 @@
 import '@total-typescript/ts-reset'
+
 import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
+
 import {
-  type AgentOptions,
   fetchWithAgent,
+  type AgentOptions,
   type RetryTimeoutOptions,
 } from '@pnpm/fetch'
-import type { GetAuthHeader } from '@pnpm/fetching-types'
-import type { Lockfile } from '@pnpm/lockfile-types'
 import { globalWarn } from '@pnpm/logger'
-import type { DependenciesField } from '@pnpm/types'
-import { lockfileToAuditTree } from './lockfileToAuditTree'
+import type { GetAuthHeader } from '@pnpm/fetching-types'
+import type { DependenciesField, Lockfile } from '@pnpm/types'
+
 import type { AuditReport } from './types'
+import { lockfileToAuditTree } from './lockfileToAuditTree'
 import { searchForPackages, flattenSearchedPackages } from '@pnpm/list'
 
 export * from './types'

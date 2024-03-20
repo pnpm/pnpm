@@ -1,8 +1,10 @@
-import path from 'path'
-import { types as allTypes } from '@pnpm/config'
-import { docsUrl } from '@pnpm/cli-utils'
+import path from 'node:path'
+
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+
+import { docsUrl } from '@pnpm/cli-utils'
+import { types as allTypes } from '@pnpm/config'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -12,7 +14,7 @@ export function cliOptionsTypes() {
 
 export const commandNames = ['root']
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description: 'Print the effective `node_modules` directory.',
     descriptionLists: [
@@ -33,6 +35,6 @@ export function help() {
   })
 }
 
-export async function handler(opts: { dir: string }) {
+export async function handler(opts: { dir: string }): Promise<string> {
   return `${path.join(opts.dir, 'node_modules')}\n`
 }

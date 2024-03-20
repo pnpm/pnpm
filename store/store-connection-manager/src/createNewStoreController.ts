@@ -1,59 +1,16 @@
-import { promises as fs } from 'fs'
-import { createClient, type ClientOptions } from '@pnpm/client'
-import { type Config } from '@pnpm/config'
-import { createPackageStore, type CafsLocker } from '@pnpm/package-store'
+import { promises as fs } from 'node:fs'
+
+import { createClient } from '@pnpm/client'
 import { packageManager } from '@pnpm/cli-meta'
-
-type CreateResolverOptions = Pick<
-  Config,
-  | 'fetchRetries'
-  | 'fetchRetryFactor'
-  | 'fetchRetryMaxtimeout'
-  | 'fetchRetryMintimeout'
-  | 'offline'
-  | 'rawConfig'
-  | 'verifyStoreIntegrity'
-> &
-  Required<Pick<Config, 'cacheDir' | 'storeDir'>>
-
-export type CreateNewStoreControllerOptions = CreateResolverOptions &
-  Pick<
-    Config,
-    | 'ca'
-    | 'cert'
-    | 'engineStrict'
-    | 'force'
-    | 'nodeVersion'
-    | 'fetchTimeout'
-    | 'gitShallowHosts'
-    | 'ignoreScripts'
-    | 'hooks'
-    | 'httpProxy'
-    | 'httpsProxy'
-    | 'key'
-    | 'localAddress'
-    | 'maxSockets'
-    | 'networkConcurrency'
-    | 'noProxy'
-    | 'offline'
-    | 'packageImportMethod'
-    | 'preferOffline'
-    | 'registry'
-    | 'registrySupportsTimeField'
-    | 'resolutionMode'
-    | 'strictSsl'
-    | 'unsafePerm'
-    | 'userAgent'
-    | 'verifyStoreIntegrity'
-  > & {
-    cafsLocker?: CafsLocker
-    ignoreFile?: (filename: string) => boolean
-  } & Partial<Pick<Config, 'userConfig' | 'deployAllFiles'>> &
-  Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
+import { createPackageStore } from '@pnpm/package-store'
+import type { CreateNewStoreControllerOptions, StoreController } from '@pnpm/types'
 
 export async function createNewStoreController(
   opts: CreateNewStoreControllerOptions
-) {
+): Promise<{
+    ctrl: StoreController;
+    dir: string;
+  }> {
   const fullMetadata =
     opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
   const { resolve, fetchers } = createClient({

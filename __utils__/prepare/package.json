@@ -5,13 +5,13 @@
   "types": "lib/index.d.ts",
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "unique-string": "^2.0.0",
     "write-json5-file": "^3.1.0",
     "write-pkg": "4.0.0",
     "write-yaml-file": "^5.0.0"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/node": "^20.11.28",
     "@total-typescript/ts-reset": "0.5.1"

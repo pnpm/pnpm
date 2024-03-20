@@ -1,29 +1,32 @@
 import '@total-typescript/ts-reset'
+
 import path from 'node:path'
-import { type DependencyManifest, type PackageBin } from '@pnpm/types'
+
 import fastGlob from 'fast-glob'
 import isSubdir from 'is-subdir'
 
-export interface Command {
-  name: string
-  path: string
-}
+import { BundledManifest } from '@pnpm/store-controller-types'
+import type { Command, ProjectManifest, PackageBin } from '@pnpm/types'
 
 export async function getBinsFromPackageManifest(
-  manifest: DependencyManifest,
+  manifest: ProjectManifest | BundledManifest,
   pkgPath: string
 ): Promise<Command[]> {
   if (manifest.bin) {
     return commandsFromBin(manifest.bin, manifest.name, pkgPath)
   }
+
   if (manifest.directories?.bin) {
     const binDir = path.join(pkgPath, manifest.directories.bin)
+
     const files = await findFiles(binDir)
+
     return files.map((file) => ({
       name: path.basename(file),
       path: path.join(binDir, file),
     }))
   }
+
   return []
 }
 
@@ -34,16 +37,20 @@ async function findFiles(dir: string): Promise<string[]> {
       onlyFiles: true,
       followSymbolicLinks: false,
     })
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
+
     return []
   }
 }
 
-function commandsFromBin(bin: PackageBin, pkgName: string, pkgPath: string) {
-  if (typeof bin === 'string') {
+function commandsFromBin(bin: PackageBin, pkgName: string | undefined, pkgPath: string): {
+  name: string;
+  path: string;
+}[] {
+  if (typeof bin === 'string' && typeof pkgName === 'string') {
     return [
       {
         name: normalizeBinName(pkgName),
@@ -51,20 +58,33 @@ function commandsFromBin(bin: PackageBin, pkgName: string, pkgPath: string) {
       },
     ]
   }
+
   return Object.keys(bin)
     .filter(
-      (commandName) =>
-        encodeURIComponent(commandName) === commandName ||
-        commandName === '$' ||
-        commandName[0] === '@'
+      (commandName: string): boolean => {
+        return encodeURIComponent(commandName) === commandName ||
+          commandName === '$' ||
+          commandName.startsWith('@');
+      }
     )
-    .map((commandName) => ({
-      name: normalizeBinName(commandName),
-      path: path.join(pkgPath, bin[commandName]),
-    }))
-    .filter((cmd) => isSubdir(pkgPath, cmd.path))
+    .map((commandName: string): {
+      name: string;
+      path: string;
+    } => {
+      return {
+        name: normalizeBinName(commandName),
+        // @ts-ignore
+        path: path.join(pkgPath, bin[commandName]),
+      };
+    })
+    .filter((cmd: {
+      name: string;
+      path: string;
+    }): boolean => {
+      return isSubdir(pkgPath, cmd.path);
+    })
 }
 
 function normalizeBinName(name: string) {
-  return name[0] === '@' ? name.slice(name.indexOf('/') + 1) : name
+  return name.startsWith('@') ? name.slice(name.indexOf('/') + 1) : name
 }

@@ -1,4 +1,3 @@
-/// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
 import { getFilePathInCafs } from '@pnpm/store.cafs'

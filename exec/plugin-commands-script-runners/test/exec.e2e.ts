@@ -254,7 +254,9 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
   ])
 
   let failed = false
-  let err1!: PnpmError
+
+  let err1: PnpmError | undefined
+
   try {
     await exec.handler(
       {
@@ -265,17 +267,22 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
       },
       ['npm', 'run', 'build', '--no-bail']
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err1 = _err
     failed = true
   }
+
+  // @ts-ignore
   expect(err1.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
   expect(failed).toBeTruthy()
 
   expect(server.getLines()).toStrictEqual(['project-1', 'project-3'])
 
   failed = false
-  let err2!: PnpmError
+
+  let err2: PnpmError | undefined
+
   try {
     await exec.handler(
       {
@@ -286,11 +293,13 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
       },
       ['npm', 'run', 'build']
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err2 = _err
     failed = true
   }
 
+  // @ts-ignore
   expect(err2.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
   expect(failed).toBeTruthy()
 })
@@ -862,7 +871,9 @@ test('pnpm exec command not found (implicit fallback)', async () => {
   })
 
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  let error!: Error & { hint?: string }
+
+  let error: (Error & { hint?: string | undefined }) | undefined
+
   try {
     await exec.handler(
       {
@@ -873,11 +884,13 @@ test('pnpm exec command not found (implicit fallback)', async () => {
         selectedProjectsGraph,
         implicitlyFellbackFromRun: true,
       },
-      ['build']
-    ) // cspell:disable-line
-  } catch (err: any) { // eslint-disable-line
+      ['buil'] // cspell:disable-line
+    )
+  } catch (err: unknown) {
+    // @ts-ignore
     error = err
   }
+
   expect(error?.message).toBe('Command "buil" not found') // cspell:disable-line
   expect(error?.hint).toBe('Did you mean "pnpm build"?')
 })
@@ -890,7 +903,8 @@ test('pnpm exec command not found (explicit call, without near name packages)', 
   })
 
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  let error!: Error & { hint?: string }
+  let error: (Error & { hint?: string | undefined }) | undefined
+
   try {
     await exec.handler(
       {
@@ -903,9 +917,11 @@ test('pnpm exec command not found (explicit call, without near name packages)', 
       },
       ['cwsay']
     )
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
+    // @ts-ignore
     error = err
   }
+
   expect(error?.message).toBe('Command "cwsay" not found')
   expect(error?.hint).toBeFalsy()
 })
@@ -927,7 +943,8 @@ test('pnpm exec command not found (explicit call, with a near name package)', as
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  let error!: Error & { hint?: string }
+  let error: (Error & { hint?: string | undefined }) | undefined
+
   try {
     await exec.handler(
       {
@@ -940,9 +957,11 @@ test('pnpm exec command not found (explicit call, with a near name package)', as
       },
       ['cwsay']
     )
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
+    // @ts-ignore
     error = err
   }
+
   expect(error?.message).toBe('Command "cwsay" not found')
   expect(error?.hint).toBe('Did you mean "pnpm exec cowsay"?')
 })
@@ -950,7 +969,8 @@ test('pnpm exec command not found (explicit call, with a near name package)', as
 test('pnpm exec --workspace-root when command not found', async () => {
   prepare({})
 
-  let error!: any // eslint-disable-line
+  let error: { failures: Array<Error> } | undefined
+
   try {
     await run.handler(
       {
@@ -965,7 +985,8 @@ test('pnpm exec --workspace-root when command not found', async () => {
       },
       ['command-that-does-not-exist']
     )
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
+    // @ts-ignore
     error = err
   }
 

@@ -1,40 +1,45 @@
 import '@total-typescript/ts-reset'
+
 import execa from 'execa'
 
 // git checks logic is from https://github.com/sindresorhus/np/blob/master/source/git-tasks.js
 
-export async function isGitRepo() {
+export async function isGitRepo(): Promise<boolean> {
   try {
     await execa('git', ['rev-parse', '--git-dir'])
-  } catch (_: any) { // eslint-disable-line
+  } catch (_: unknown) {
     return false
   }
+
   return true
 }
 
-export async function getCurrentBranch() {
+export async function getCurrentBranch(): Promise<string | null> {
   try {
     const { stdout } = await execa('git', ['symbolic-ref', '--short', 'HEAD'])
+
     return stdout
-  } catch (_: any) {  // eslint-disable-line
+  } catch (_: unknown) {
     // Command will fail with code 1 if the HEAD is detached.
     return null
   }
 }
 
-export async function isWorkingTreeClean() {
+export async function isWorkingTreeClean(): Promise<boolean> {
   try {
     const { stdout: status } = await execa('git', ['status', '--porcelain'])
+
     if (status !== '') {
       return false
     }
+
     return true
-  } catch (_: any) { // eslint-disable-line
+  } catch (_: unknown) {
     return false
   }
 }
 
-export async function isRemoteHistoryClean() {
+export async function isRemoteHistoryClean(): Promise<boolean> {
   let history
   try {
     // Gracefully handle no remote set up.
@@ -45,7 +50,7 @@ export async function isRemoteHistoryClean() {
       '@{u}...HEAD',
     ])
     history = stdout
-  } catch (_: any) { // eslint-disable-line
+  } catch (_: unknown) {
     history = null
   }
   if (history && history !== '0') {

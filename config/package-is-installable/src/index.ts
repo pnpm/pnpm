@@ -22,23 +22,25 @@ export function packageIsInstallable(
   pkg: {
     name: string
     version: string
-    engines?: WantedEngine
-    cpu?: string[]
-    os?: string[]
-    libc?: string[]
+    engines?: WantedEngine | undefined
+    cpu?: string[] | undefined
+    os?: string[] | undefined
+    libc?: string[] | undefined
   },
   options: {
-    engineStrict?: boolean
-    nodeVersion?: string
+    engineStrict?: boolean | undefined
+    nodeVersion?: string | undefined
     optional: boolean
-    pnpmVersion?: string
+    pnpmVersion?: string | undefined
     lockfileDir: string
-    supportedArchitectures?: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures | undefined
   }
 ): boolean | null {
   const warn = checkPackage(pkgId, pkg, options)
 
-  if (warn == null) return true
+  if (warn == null) {
+    return true
+  }
 
   installCheckLogger.warn({
     message: warn.message,
@@ -72,14 +74,14 @@ export function checkPackage(
   pkgId: string,
   manifest: {
     engines?: WantedEngine
-    cpu?: string[]
-    os?: string[]
-    libc?: string[]
+    cpu?: string[] | undefined
+    os?: string[] | undefined
+    libc?: string[] | undefined
   },
   options: {
-    nodeVersion?: string
-    pnpmVersion?: string
-    supportedArchitectures?: SupportedArchitectures
+    nodeVersion?: string | undefined
+    pnpmVersion?: string | undefined
+    supportedArchitectures?: SupportedArchitectures | undefined
   }
 ): null | UnsupportedEngineError | UnsupportedPlatformError {
   return (

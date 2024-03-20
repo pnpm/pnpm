@@ -1,8 +1,10 @@
-import { getConfig } from '@pnpm/config'
-import { updateCheckLogger } from '@pnpm/core-loggers'
-import { prepareEmpty } from '@pnpm/prepare'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
+
+import { getConfig } from '@pnpm/config'
+import { prepareEmpty } from '@pnpm/prepare'
+import { updateCheckLogger } from '@pnpm/core-loggers'
+
 import { checkForUpdates } from './checkForUpdates'
 
 jest.mock('@pnpm/core-loggers', () => ({

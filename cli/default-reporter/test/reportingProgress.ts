@@ -1,4 +1,4 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/types'
 import {
   fetchingProgressLogger,
   progressLogger,

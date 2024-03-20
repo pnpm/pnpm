@@ -1,13 +1,14 @@
 import os from 'node:os'
-import type { Config } from '@pnpm/config'
-import type { Log, RegistryLog } from '@pnpm/core-loggers'
-import type { LogLevel } from '@pnpm/logger'
+
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
+
+import type { Config, Log, PeerDependencyRules, RegistryLog } from '@pnpm/types'
+
+import { autozoom } from './utils/zooming'
 import { reportError } from '../reportError'
 import { formatWarn } from './utils/formatWarn'
-import { autozoom } from './utils/zooming'
-import type { PeerDependencyRules } from '@pnpm/types'
+import { LogLevel } from '@pnpm/logger'
 
 // eslint-disable:object-literal-sort-keys
 export const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {

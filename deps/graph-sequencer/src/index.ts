@@ -25,6 +25,7 @@ export function graphSequencer<T>(
 ): Result<T> {
   // Initialize reverseGraph with empty arrays for all nodes.
   const reverseGraph = new Map<T, T[]>()
+
   for (const key of graph.keys()) {
     reverseGraph.set(key, [])
   }
@@ -33,14 +34,17 @@ export function graphSequencer<T>(
   const nodes = new Set<T>(includedNodes)
   const visited = new Set<T>()
   const outDegree = new Map<T, number>()
+
   for (const [from, edges] of graph.entries()) {
     outDegree.set(from, 0)
+
     for (const to of edges) {
       if (nodes.has(from) && nodes.has(to)) {
         changeOutDegree(from, 1)
         reverseGraph.get(to)?.push(from)
       }
     }
+
     if (!nodes.has(from)) {
       visited.add(from)
     }
@@ -48,25 +52,34 @@ export function graphSequencer<T>(
 
   const chunks: T[][] = []
   const cycles: T[][] = []
+
   let safe = true
+
   while (nodes.size) {
     const chunk: T[] = []
+
     let minDegree = Number.MAX_SAFE_INTEGER
+
     for (const node of nodes) {
       const degree = outDegree.get(node)!
+
       if (degree === 0) {
         chunk.push(node)
       }
+
       minDegree = Math.min(minDegree, degree)
     }
 
     if (minDegree === 0) {
       chunk.forEach(removeNode)
+
       chunks.push(chunk)
     } else {
       const cycleNodes: T[] = []
+
       for (const node of nodes) {
         const cycle = findCycle(node)
+
         if (cycle.length) {
           cycles.push(cycle)
           cycle.forEach(removeNode)
@@ -77,6 +90,7 @@ export function graphSequencer<T>(
           }
         }
       }
+
       chunks.push(cycleNodes)
     }
   }
@@ -84,8 +98,9 @@ export function graphSequencer<T>(
   return { safe, chunks, cycles }
 
   // Function to update the outDegree of a node.
-  function changeOutDegree(node: T, value: number) {
+  function changeOutDegree(node: T, value: number): void {
     const degree = outDegree.get(node) ?? 0
+
     outDegree.set(node, degree + value)
   }
 
@@ -94,26 +109,35 @@ export function graphSequencer<T>(
     for (const from of reverseGraph.get(node) ?? []) {
       changeOutDegree(from, -1)
     }
+
     visited.add(node)
+
     nodes.delete(node)
   }
 
   function findCycle(startNode: T): T[] {
     const queue: Array<[T, T[]]> = [[startNode, [startNode]]]
+
     const cycleVisited = new Set<T>()
+
     while (queue.length) {
       const [id, cycle] = queue.shift()!
+
       for (const to of graph.get(id) ?? []) {
         if (to === startNode) {
           return cycle
         }
+
         if (visited.has(to) || cycleVisited.has(to)) {
           continue
         }
+
         cycleVisited.add(to)
+
         queue.push([to, [...cycle, to]])
       }
     }
+
     return []
   }
 }

@@ -30,6 +30,7 @@
   "devDependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@types/ramda": "0.29.11",
+    "@pnpm/types": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
@@ -40,7 +41,6 @@
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "chalk": "^4.1.2",
     "load-json-file": "^6.2.0"
   },

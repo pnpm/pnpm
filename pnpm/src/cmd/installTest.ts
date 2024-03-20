@@ -1,8 +1,8 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import { install } from '@pnpm/plugin-commands-installation'
-import { test } from '@pnpm/plugin-commands-script-runners'
 import renderHelp from 'render-help'
-import { type PnpmOptions } from '../types'
+
+import { docsUrl } from '@pnpm/cli-utils'
+import { test } from '@pnpm/plugin-commands-script-runners'
+import { install } from '@pnpm/plugin-commands-installation'
 
 export const cliOptionsTypes = install.cliOptionsTypes
 
@@ -10,7 +10,7 @@ export const rcOptionsTypes = install.rcOptionsTypes
 
 export const commandNames = ['install-test', 'it']
 
-export function help() {
+export function help(): string {
   return renderHelp({
     aliases: ['it'],
     description:
@@ -20,7 +20,7 @@ export function help() {
   })
 }
 
-export async function handler(opts: PnpmOptions, params: string[]) {
+export async function handler(opts: install.InstallCommandOptions, params: string[]) {
   await install.handler(opts)
   await test.handler(opts as any, params) // eslint-disable-line
 }

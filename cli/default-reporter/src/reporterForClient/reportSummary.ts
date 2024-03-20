@@ -1,22 +1,19 @@
-import path from 'path'
-import {
-  type DeprecationLog,
-  type PackageManifestLog,
-  type RootLog,
-  type SummaryLog,
-} from '@pnpm/core-loggers'
-import { type Config } from '@pnpm/config'
-import * as Rx from 'rxjs'
-import { map, take } from 'rxjs/operators'
+import path from 'node:path'
+
 import chalk from 'chalk'
+import * as Rx from 'rxjs'
 import semver from 'semver'
-import { EOL } from '../constants'
+import { map, take } from 'rxjs/operators'
+
 import {
   getPkgsDiff,
   type PackageDiff,
   propertyByDependencyType,
 } from './pkgsDiff'
+import { EOL } from '../constants'
 import { ADDED_CHAR, REMOVED_CHAR } from './outputConstants'
+
+import { DeprecationLog, SummaryLog, RootLog, PackageManifestLog, Config } from '@pnpm/types'
 
 const CONFIG_BY_DEP_TYPE = {
   prod: 'production',
@@ -38,10 +35,13 @@ export function reportSummary(
     filterPkgsDiff?: FilterPkgsDiff
     pnpmConfig?: Config
   }
-) {
+): Rx.Observable<Rx.Observable<{
+    msg: string;
+  }>> {
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
 
   const summaryLog$ = log$.summary.pipe(take(1))
+
   const _printDiffs = printDiffs.bind(null, {
     cmd: opts.cmd,
     prefix: opts.cwd,
@@ -52,6 +52,7 @@ export function reportSummary(
     take(1),
     map(([pkgsDiff]) => {
       let msg = ''
+
       for (const depType of [
         'prod',
         'optional',
@@ -62,13 +63,16 @@ export function reportSummary(
         let diffs: PackageDiff[] = Object.values(
           pkgsDiff[depType as keyof typeof pkgsDiff]
         )
+
         if (opts.filterPkgsDiff) {
           // This filtering is only used by Bit CLI currently.
           // Related PR: https://github.com/teambit/bit/pull/7176
           diffs = diffs.filter((pkgDiff) => opts.filterPkgsDiff!(pkgDiff))
         }
+
         if (diffs.length > 0) {
           msg += EOL
+
           if (opts.pnpmConfig?.global) {
             msg += chalk.cyanBright(`${opts.cwd}:`)
           } else {
@@ -76,18 +80,22 @@ export function reportSummary(
               `${propertyByDependencyType[depType] as string}:`
             )
           }
+
           msg += EOL
           msg += _printDiffs(diffs, depType)
           msg += EOL
         } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
           msg += EOL
           msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
+
           if (opts.env.NODE_ENV === 'production' && depType === 'dev') {
             msg += ' because NODE_ENV is set to production'
           }
+
           msg += EOL
         }
       }
+
       return Rx.of({ msg })
     })
   )
@@ -103,45 +111,52 @@ function printDiffs(
   },
   pkgsDiff: PackageDiff[],
   depType: string
-) {
+): string {
   // Sorts by alphabet then by removed/added
   // + ava 0.10.0
   // - chalk 1.0.0
   // + chalk 2.0.0
   pkgsDiff.sort(
-    (a, b) =>
-      a.name.localeCompare(b.name) * 10 + (Number(!b.added) - Number(!a.added))
+    (a: PackageDiff, b: PackageDiff): number => {
+      return a.name.localeCompare(b.name) * 10 + (Number(!b.added) - Number(!a.added));
+    }
   )
-  const msg = pkgsDiff
-    .map((pkg) => {
+
+  return pkgsDiff
+    .map((pkg): string => {
       let result = pkg.added ? ADDED_CHAR : REMOVED_CHAR
+
       if (!pkg.realName || pkg.name === pkg.realName) {
         result += ` ${pkg.name}`
       } else {
         result += ` ${pkg.name} <- ${pkg.realName}`
       }
+
       if (pkg.version) {
         result += ` ${chalk.grey(pkg.version)}`
         if (pkg.latest && semver.lt(pkg.version, pkg.latest)) {
           result += ` ${chalk.grey(`(${pkg.latest} is available)`)}`
         }
       }
+
       if (pkg.deprecated) {
         result += ` ${chalk.red('deprecated')}`
       }
+
       if (pkg.from) {
         result += ` ${chalk.grey(`<- ${(pkg.from && path.relative(opts.prefix, pkg.from)) || '???'}`)}`
       }
+
       if (
         pkg.added &&
-        depType === 'dev' &&
-        opts.pnpmConfig?.saveDev === false &&
-        opts.cmd === 'add'
+      depType === 'dev' &&
+      opts.pnpmConfig?.saveDev === false &&
+      opts.cmd === 'add'
       ) {
         result += `${chalk.yellow(' already in devDependencies, was not moved to dependencies.')}`
       }
+
       return result
     })
     .join(EOL)
-  return msg
 }

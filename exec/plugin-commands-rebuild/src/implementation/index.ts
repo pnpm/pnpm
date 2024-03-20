@@ -1,47 +1,43 @@
 import path from 'node:path'
-import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+
+import semver from 'semver'
+import pLimit from 'p-limit'
+import runGroups from 'run-groups'
+import npa from '@pnpm/npm-package-arg'
+import loadJsonFile from 'load-json-file'
+
 import {
   calcDepState,
   lockfileToDepGraph,
-  type DepsStateCache,
 } from '@pnpm/calc-dep-state'
+import {
+  runPostinstallHooks,
+  runLifecycleHooksConcurrently,
+} from '@pnpm/lifecycle'
+import {
+  packageIsIndependent,
+  nameVerFromPkgSnapshot,
+} from '@pnpm/lockfile-utils'
+import { PnpmError } from '@pnpm/error'
+import { linkBins } from '@pnpm/link-bins'
+import { hardLinkDir } from '@pnpm/worker'
+import * as dp from '@pnpm/dependency-path'
+import { getContext } from '@pnpm/get-context'
+import { logger, streamParser } from '@pnpm/logger'
+import { lockfileWalker } from '@pnpm/lockfile-walker'
+import { writeModulesManifest } from '@pnpm/modules-yaml'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { LAYOUT_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { PnpmError } from '@pnpm/error'
-import { getContext, type PnpmContext } from '@pnpm/get-context'
-import {
-  runLifecycleHooksConcurrently,
-  runPostinstallHooks,
-} from '@pnpm/lifecycle'
-import { linkBins } from '@pnpm/link-bins'
-import type { TarballResolution } from '@pnpm/lockfile-types'
-import {
-  type Lockfile,
-  nameVerFromPkgSnapshot,
-  packageIsIndependent,
-  type PackageSnapshots,
-} from '@pnpm/lockfile-utils'
-import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
-import { logger, streamParser } from '@pnpm/logger'
-import { writeModulesManifest } from '@pnpm/modules-yaml'
+// import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
-import type { ProjectManifest } from '@pnpm/types'
-import { createAllowBuildFunction } from '@pnpm/builder.policy'
-import * as dp from '@pnpm/dependency-path'
-import { hardLinkDir } from '@pnpm/worker'
-import loadJsonFile from 'load-json-file'
-import runGroups from 'run-groups'
-import { graphSequencer } from '@pnpm/deps.graph-sequencer'
-import npa from '@pnpm/npm-package-arg'
-import pLimit from 'p-limit'
-import semver from 'semver'
+import type { DepsStateCache, Lockfile, LockfileWalkerStep, PackageFilesIndex, PackageSnapshots, PnpmContext, ProjectManifest, RebuildOptions, StrictRebuildOptions, TarballResolution } from '@pnpm/types'
+
 import {
   extendRebuildOptions,
-  type RebuildOptions,
-  type StrictRebuildOptions,
 } from './extendRebuildOptions'
-
-export type { RebuildOptions }
+import { getFilePathInCafs } from '@pnpm/store.cafs/src/getFilePathInCafs'
 
 function findPackages(
   packages: PackageSnapshots,
@@ -50,9 +46,11 @@ function findPackages(
     prefix: string
   }
 ): string[] {
-  return Object.keys(packages).filter((relativeDepPath) => {
+  return Object.keys(packages).filter((relativeDepPath): boolean => {
     const pkgLockfile = packages[relativeDepPath]
+
     const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgLockfile)
+
     if (!pkgInfo.name) {
       logger.warn({
         message: `Skipping ${relativeDepPath} because cannot get the package name from ${WANTED_LOCKFILE}.
@@ -61,6 +59,7 @@ function findPackages(
       })
       return false
     }
+
     return matches(searched, pkgInfo)
   })
 }
@@ -70,10 +69,11 @@ function matches(
   searched: PackageSelector[],
   manifest: { name: string; version?: string }
 ): boolean {
-  return searched.some((searchedPkg) => {
+  return searched.some((searchedPkg): boolean => {
     if (typeof searchedPkg === 'string') {
       return manifest.name === searchedPkg
     }
+
     return (
       searchedPkg.name === manifest.name &&
       !!manifest.version &&
@@ -103,6 +103,7 @@ export async function rebuildSelectedPkgs(
     streamParser.on('data', reporter)
   }
   const opts = await extendRebuildOptions(maybeOpts)
+  // @ts-ignore
   const ctx = await getContext({ ...opts, allProjects: projects })
 
   if (ctx.currentLockfile?.packages == null) return
@@ -151,6 +152,7 @@ export async function rebuildProjects(
     streamParser.on('data', reporter)
   }
   const opts = await extendRebuildOptions(maybeOpts)
+  // @ts-ignore
   const ctx = await getContext({ ...opts, allProjects: projects })
 
   let idsToRebuild: string[] = []
@@ -206,11 +208,13 @@ export async function rebuildProjects(
     ...ctx.modulesFile,
     hoistedDependencies: ctx.hoistedDependencies,
     hoistPattern: ctx.hoistPattern,
+    // @ts-ignore
     included: ctx.include,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
     publicHoistPattern: ctx.publicHoistPattern,
+    // @ts-ignore
     registries: ctx.registries,
     skipped: Array.from(ctx.skipped),
     storeDir: ctx.storeDir,
@@ -426,7 +430,7 @@ async function _rebuild(
                   }
                 )
               }
-              await opts.storeController.upload(pkgRoot, {
+              await opts.storeController?.upload(pkgRoot, {
                 sideEffectsCacheKey,
                 filesIndexFile,
               })

@@ -1,6 +1,7 @@
-import { type ScopeLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
+
+import { ScopeLog } from '@pnpm/types'
 
 const COMMANDS_THAT_REPORT_SCOPE = new Set([
   'install',
@@ -41,11 +42,7 @@ export function reportScope(
         }
       }
 
-      if (log.workspacePrefix) {
-        msg += ' workspace projects'
-      } else {
-        msg += ' projects'
-      }
+      msg += log.workspacePrefix ? ' workspace projects' : ' projects';
 
       return Rx.of({ msg })
     })

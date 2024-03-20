@@ -57,17 +57,23 @@ export function makeVirtualNodeModules(lockfile: Lockfile): DirEntry {
 
 function createVirtualStoreDir(lockfile: Lockfile) {
   const rootDir = {} as Record<string, DirEntry>
+
   for (const [depPath, pkgSnapshot] of Object.entries(
     lockfile.packages ?? {}
   )) {
     const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+
     const pkgNodeModules = {} as Record<string, DirEntry>
+
     const currentPath = dp.depPathToFilename(depPath)
+
     const pkgDir: DirEntry = {
       entryType: 'index',
       depPath,
     }
+
     addDirEntry(pkgNodeModules, name, pkgDir)
+
     for (const [depName, ref] of Object.entries({
       ...pkgSnapshot.dependencies,
       ...pkgSnapshot.optionalDependencies,
@@ -111,7 +117,9 @@ function addDirEntry(
 ) {
   const subPathArray =
     typeof subPath === 'string' ? subPath.split('/') : subPath
+
   const p = subPathArray.shift()!
+
   if (subPathArray.length > 0) {
     if (!target[p]) {
       target[p] = {
@@ -121,6 +129,7 @@ function addDirEntry(
     } else if (target[p].entryType !== 'directory') {
       throw new Error()
     }
+
     addDirEntry((target[p] as DirDirEntry).entries, subPathArray, newEntry)
   } else {
     target[p] = newEntry

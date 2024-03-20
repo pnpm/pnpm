@@ -1,13 +1,12 @@
 import { URL } from 'node:url'
-import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
+
+import { isRedirect } from 'node-fetch'
+
+import type { FetchWithAgentOptions } from '@pnpm/types'
 import { getAgent, type AgentOptions } from '@pnpm/network.agent'
-import {
-  fetch,
-  isRedirect,
-  type Response,
-  type RequestInfo,
-  type RequestInit,
-} from './fetch'
+import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
+
+import { fetch } from './fetch'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
@@ -16,18 +15,16 @@ const ABBREVIATED_DOC =
 const JSON_DOC = 'application/json'
 const MAX_FOLLOWED_REDIRECTS = 20
 
-export type FetchWithAgentOptions = RequestInit & {
-  agentOptions: AgentOptions
-}
-
 export function fetchWithAgent(url: RequestInfo, opts: FetchWithAgentOptions) {
   const agent = getAgent(url.toString(), {
     ...opts.agentOptions,
     strictSsl: opts.agentOptions.strictSsl ?? true,
-  } as any) as any // eslint-disable-line
+  } as any) // eslint-disable-line
+
   const headers = opts.headers ?? {}
-  // @ts-expect-error
+
   headers.connection = agent ? 'keep-alive' : 'close'
+
   return fetch(url, {
     ...opts,
     agent,

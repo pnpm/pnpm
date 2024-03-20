@@ -1,4 +1,4 @@
-import { type DedupeCheckIssues } from '@pnpm/dedupe.types'
+import { type DedupeCheckIssues } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 
 export class DedupeCheckIssuesError extends PnpmError {

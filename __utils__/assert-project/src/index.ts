@@ -1,65 +1,27 @@
 import '@total-typescript/ts-reset'
-import path from 'path'
+import path from 'node:path'
 
-import {
-  type LockfileV6 as Lockfile,
-  type ProjectSnapshotV6 as ProjectSnapshot,
-} from '@pnpm/lockfile-types'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
+import { readModulesManifest } from '@pnpm/modules-yaml'
 
 import exists from 'path-exists'
 import writePkg from 'write-pkg'
 import readYamlFile from 'read-yaml-file'
-import type { JsonObject } from 'type-fest'
+// import type { JsonObject } from 'type-fest'
 
-import isExecutable from './isExecutable'
+import { isExecutable } from './isExecutable'
+import { AssertedProject, RawLockfile } from '@pnpm/types'
 
-export { isExecutable, type Modules }
-
-export type RawLockfile = Lockfile & Partial<ProjectSnapshot>
-
-export interface Project {
-  // eslint-disable-next-line
-  requireModule: (moduleName: string) => any
-  dir: () => string
-  has: (pkgName: string, modulesDir?: string) => Promise<void>
-  hasNot: (pkgName: string, modulesDir?: string) => Promise<void>
-  getStorePath: () => Promise<string>
-  resolve: (
-    pkgName: string,
-    version?: string,
-    relativePath?: string
-  ) => Promise<string>
-  getPkgIndexFilePath: (pkgName: string, version?: string) => Promise<string>
-  cafsHas: (pkgName: string, version?: string) => Promise<void>
-  cafsHasNot: (pkgName: string, version?: string) => Promise<void>
-  storeHas: (pkgName: string, version?: string) => Promise<string>
-  storeHasNot: (pkgName: string, version?: string) => Promise<void>
-  isExecutable: (pathToExe: string) => Promise<void>
-  /**
-   * TODO: Remove the `Required<T>` cast.
-   *
-   * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
-   */
-  readCurrentLockfile: () => Promise<Required<RawLockfile>>
-  readModulesManifest: () => Promise<Modules | null>
-  /**
-   * TODO: Remove the `Required<T>` cast.
-   *
-   * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
-   */
-  readLockfile: (lockfileName?: string) => Promise<Required<RawLockfile>>
-  writePackageJson: (pkgJson: JsonObject) => Promise<void>
-}
+export { isExecutable }
 
 export function assertProject(
   projectPath: string,
-  encodedRegistryName?: string
-): Project {
+  encodedRegistryName?: string | undefined
+): AssertedProject {
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
+
   const modules = path.join(projectPath, 'node_modules')
 
   let cachedStore: {
@@ -81,75 +43,89 @@ export function assertProject(
   async function getStoreInstance() {
     if (!cachedStore) {
       const modulesYaml = await readModulesManifest(modules)
+
       if (modulesYaml == null) {
         throw new Error(
           `Cannot find module store. No .modules.yaml found at "${modules}"`
         )
       }
+
       const storePath = modulesYaml.storeDir
+
       cachedStore = {
         storePath,
         ...assertStore(storePath, ern),
       }
     }
+
     return cachedStore
   }
+
   async function getVirtualStoreDir() {
     const modulesYaml = await readModulesManifest(modules)
+
     if (modulesYaml == null) {
       return path.join(modules, '.pnpm')
     }
+
     return modulesYaml.virtualStoreDir
   }
 
   // eslint-disable-next-line
   const ok = (value: any) => expect(value).toBeTruthy()
+
   // eslint-disable-next-line
   const notOk = (value: any) => expect(value).toBeFalsy()
+
   return {
     dir: () => projectPath,
     requireModule(pkgName: string) {
+      // TODO: fix require
       // eslint-disable-next-line
       return require(path.join(modules, pkgName))
     },
-    async has(pkgName: string, _modulesDir?: string) {
+    async has(pkgName: string, _modulesDir?: string | undefined) {
       const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules
+
       ok(await exists(path.join(md, pkgName)))
     },
-    async hasNot(pkgName: string, _modulesDir?: string) {
+    async hasNot(pkgName: string, _modulesDir?: string | undefined) {
       const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules
+
       notOk(await exists(path.join(md, pkgName)))
     },
     async getStorePath() {
       const store = await getStoreInstance()
+
       return store.storePath
     },
-    async resolve(pkgName: string, version?: string, relativePath?: string) {
+    async resolve(pkgName: string, version?: string | undefined, relativePath?: string | undefined) {
       const store = await getStoreInstance()
       return store.resolve(pkgName, version, relativePath)
     },
     async getPkgIndexFilePath(
       pkgName: string,
-      version?: string
+      version?: string | undefined
     ): Promise<string> {
       const store = await getStoreInstance()
       return store.getPkgIndexFilePath(pkgName, version)
     },
-    async cafsHas(pkgName: string, version?: string) {
+    async cafsHas(pkgName: string, version?: string | undefined) {
       const store = await getStoreInstance()
       return store.cafsHas(pkgName, version)
     },
-    async cafsHasNot(pkgName: string, version?: string) {
+    async cafsHasNot(pkgName: string, version?: string | undefined) {
       const store = await getStoreInstance()
       return store.cafsHasNot(pkgName, version)
     },
-    async storeHas(pkgName: string, version?: string) {
+    async storeHas(pkgName: string, version?: string | undefined) {
       const store = await getStoreInstance()
       return store.resolve(pkgName, version)
     },
-    async storeHasNot(pkgName: string, version?: string) {
+    async storeHasNot(pkgName: string, version?: string | undefined) {
       try {
         const store = await getStoreInstance()
+
         return store.storeHasNot(pkgName, version)
       } catch (err: unknown) {
         // @ts-ignore
@@ -174,7 +150,7 @@ export function assertProject(
       }
     },
     readModulesManifest: async () => readModulesManifest(modules),
-    async readLockfile(lockfileName: string = WANTED_LOCKFILE) {
+    async readLockfile(lockfileName: string = WANTED_LOCKFILE): Promise<Required<RawLockfile>> {
       try {
         return await readYamlFile(path.join(projectPath, lockfileName))
       } catch (err: unknown) {
@@ -183,7 +159,8 @@ export function assertProject(
         throw err
       }
     },
-    async writePackageJson(pkgJson: JsonObject) {
+    async writePackageJson(pkgJson) {
+      // @ts-ignore
       return writePkg(projectPath, pkgJson)
     },
   }

@@ -1,12 +1,12 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { LockfileMissingDependencyError } from '@pnpm/error'
-import type { Lockfile, PackageSnapshots } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import type {
   SupportedArchitectures,
   DependenciesField,
+  Lockfile,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import mapValues from 'ramda/src/map'
@@ -104,11 +104,13 @@ function pickPkgsWithAllDeps(
     includeIncompatiblePackages: boolean
     lockfileDir: string
     skipped: Set<string>
-    supportedArchitectures?: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures | undefined
   }
 ): PackageSnapshots {
   const pickedPackages = {} as PackageSnapshots
+
   pkgAllDeps({ lockfile, pickedPackages, importerIdSet }, depPaths, true, opts)
+
   return pickedPackages
 }
 
@@ -160,7 +162,7 @@ function pkgAllDeps(
       continue
     }
 
-    let installable!: boolean
+    let installable: boolean = false
 
     if (!parentIsInstallable) {
       installable = false
@@ -186,6 +188,7 @@ function pkgAllDeps(
           pnpmVersion: opts.currentEngine.pnpmVersion,
           supportedArchitectures: opts.supportedArchitectures,
         }) !== false
+
       if (!installable) {
         if (!ctx.pickedPackages[depPath] && pkgSnapshot.optional === true) {
           opts.skipped.add(depPath)
@@ -207,15 +210,17 @@ function pkgAllDeps(
         }),
         ctx.lockfile
       )
-    additionalImporterIds.forEach((importerId) =>
-      ctx.importerIdSet.add(importerId)
-    )
+    additionalImporterIds.forEach((importerId: string): void => {
+      ctx.importerIdSet.add(importerId);
+    })
+
     nextRelDepPaths.push(
       ...toImporterDepPaths(ctx.lockfile, additionalImporterIds, {
         include: opts.include,
         importerIdSet: ctx.importerIdSet,
       })
     )
+
     pkgAllDeps(ctx, nextRelDepPaths, installable, opts)
   }
 }
@@ -247,9 +252,11 @@ function toImporterDepPaths(
   if (!nextImporterIds.length) {
     return depPaths
   }
-  nextImporterIds.forEach((importerId) => {
+
+  nextImporterIds.forEach((importerId: string): void => {
     opts.importerIdSet.add(importerId)
   })
+
   return [...depPaths, ...toImporterDepPaths(lockfile, nextImporterIds, opts)]
 }
 
@@ -261,19 +268,33 @@ function parseDepRefs(
     importerIds: string[];
   } {
   return refsByPkgNames.reduce(
-    (acc, [pkgName, ref]) => {
+    (acc: {
+      depPaths: string[];
+      importerIds: string[];
+    }, [pkgName, ref]: [string, string]): {
+      depPaths: string[];
+      importerIds: string[];
+    } => {
       if (ref.startsWith('link:')) {
         const importerId = ref.substring(5)
+
         if (lockfile.importers[importerId]) {
           acc.importerIds.push(importerId)
         }
+
         return acc
       }
+
       const depPath = dp.refToRelative(ref, pkgName)
-      if (depPath == null) return acc
+
+      if (depPath == null) {
+        return acc
+      }
+
       acc.depPaths.push(depPath)
+
       return acc
     },
-    { depPaths: [] as string[], importerIds: [] as string[] }
+    { depPaths: [], importerIds: [] }
   )
 }

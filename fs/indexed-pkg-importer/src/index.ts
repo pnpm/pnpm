@@ -154,8 +154,10 @@ function createCloneFunction(): CloneFunction {
 function hardlinkPkg(importFile: ImportFile, to: string, opts: ImportOptions): 'hardlink' | undefined {
   if (opts.force || shouldRelinkPkg(to, opts)) {
     importIndexedDir(importFile, to, opts.filesMap, opts)
+
     return 'hardlink'
   }
+
   return undefined
 }
 
@@ -163,6 +165,7 @@ function shouldRelinkPkg(to: string, opts: ImportOptions): boolean {
   if (opts.disableRelinkLocalDirDeps && opts.resolvedFrom === 'local-dir') {
     try {
       const files = fs.readdirSync(to)
+
       return (
         files.length === 0 ||
         (files.length === 1 && files[0] === 'node_modules')
@@ -171,16 +174,20 @@ function shouldRelinkPkg(to: string, opts: ImportOptions): boolean {
       return true
     }
   }
+
   return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)
 }
 
 function linkOrCopy(existingPath: string, newPath: string): void {
   try {
     fs.linkSync(existingPath, newPath)
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     // If a hard link to the same file already exists
     // then trying to copy it will make an empty file from it.
-    if (err.code === 'EEXIST') return
+    // @ts-ignore
+    if (err.code === 'EEXIST') {
+      return
+    }
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
@@ -208,15 +215,26 @@ function isSameFile(
   filesMap: FilesMap
 ): boolean {
   const linkedFile = path.join(linkedPkgDir, filename)
-  let stats0!: Stats
+
+  let stats0: Stats | undefined
+
   try {
     stats0 = fs.statSync(linkedFile)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') return false
+  } catch (err: unknown) {
+    // @ts-ignore
+    if (err.code === 'ENOENT') {
+      return false
+    }
   }
+
   const stats1 = fs.statSync(filesMap[filename])
-  if (stats0.ino === stats1.ino) return true
+
+  if (stats0?.ino === stats1.ino) {
+    return true
+  }
+
   globalInfo(`Relinking ${linkedPkgDir} from the store`)
+
   return false
 }
 
@@ -227,5 +245,6 @@ export function copyPkg(to: string, opts: ImportOptions): 'copy' | undefined {
     importIndexedDir(fs.copyFileSync, to, opts.filesMap, opts)
     return 'copy'
   }
+
   return undefined
 }

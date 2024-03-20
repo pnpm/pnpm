@@ -8,28 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../lockfile/lockfile-file"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../modules-yaml"
-    },
-    {
-      "path": "../read-projects-context"
-    }
-  ],
   "composite": true
 }

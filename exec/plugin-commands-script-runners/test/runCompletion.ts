@@ -1,5 +1,5 @@
-import { run } from '@pnpm/plugin-commands-script-runners'
 import { prepare } from '@pnpm/prepare'
+import { run } from '@pnpm/plugin-commands-script-runners'
 
 test('run completion', async () => {
   prepare({

@@ -1,31 +1,30 @@
 import { PnpmError } from '@pnpm/error'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import { type WorkspacePackages } from '@pnpm/resolver-base'
-import { type IncludedDependencies, type ProjectManifest } from '@pnpm/types'
+import type { WorkspacePackages, IncludedDependencies, ProjectManifest } from '@pnpm/types'
 
 export function updateToWorkspacePackagesFromManifest(
-  manifest: ProjectManifest,
+  manifest: ProjectManifest | undefined,
   include: IncludedDependencies,
   workspacePackages: WorkspacePackages
 ) {
   const allDeps = {
-    ...(include.devDependencies ? manifest.devDependencies : {}),
-    ...(include.dependencies ? manifest.dependencies : {}),
-    ...(include.optionalDependencies ? manifest.optionalDependencies : {}),
+    ...(include.devDependencies ? manifest?.devDependencies : {}),
+    ...(include.dependencies ? manifest?.dependencies : {}),
+    ...(include.optionalDependencies ? manifest?.optionalDependencies : {}),
   } as Record<string, string>
-  const updateSpecs = Object.keys(allDeps).reduce((acc: string[], depName) => {
+
+  return Object.keys(allDeps).reduce((acc: string[], depName) => {
     if (workspacePackages[depName]) {
       acc.push(`${depName}@workspace:*`)
     }
     return acc
   }, [])
-  return updateSpecs
 }
 
 export function createWorkspaceSpecs(
   specs: string[],
   workspacePackages: WorkspacePackages
-) {
+): string[] {
   return specs.map((spec) => {
     const parsed = parseWantedDependency(spec)
     if (!parsed.alias)

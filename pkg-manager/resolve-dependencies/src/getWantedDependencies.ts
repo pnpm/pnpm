@@ -1,24 +1,12 @@
-import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import type {
   Dependencies,
-  DependenciesMeta,
-  IncludedDependencies,
   ProjectManifest,
+  DependenciesMeta,
+  WantedDependency,
+  IncludedDependencies,
 } from '@pnpm/types'
+import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
-
-export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
-
-export interface WantedDependency {
-  alias: string
-  pref: string // package reference
-  dev: boolean
-  optional: boolean
-  raw: string
-  pinnedVersion?: PinnedVersion
-  nodeExecPath?: string
-  updateSpec?: boolean
-}
 
 export function getWantedDependencies(
   pkg: Pick<
@@ -28,13 +16,13 @@ export function getWantedDependencies(
     | 'optionalDependencies'
     | 'dependenciesMeta'
     | 'peerDependencies'
-  >,
+  > | undefined,
   opts?: {
-    autoInstallPeers?: boolean
-    includeDirect?: IncludedDependencies
-    nodeExecPath?: string
-    updateWorkspaceDependencies?: boolean
-  }
+    autoInstallPeers?: boolean | undefined
+    includeDirect?: IncludedDependencies | undefined
+    nodeExecPath?: string | undefined
+    updateWorkspaceDependencies?: boolean | undefined
+  } | undefined
 ): WantedDependency[] {
   let depsToInstall = filterDependenciesByType(
     pkg,
@@ -44,18 +32,20 @@ export function getWantedDependencies(
       optionalDependencies: true,
     }
   )
+
   if (opts?.autoInstallPeers) {
     depsToInstall = {
-      ...pkg.peerDependencies,
+      ...pkg?.peerDependencies,
       ...depsToInstall,
     }
   }
+
   return getWantedDependenciesFromGivenSet(depsToInstall, {
-    dependencies: pkg.dependencies ?? {},
-    devDependencies: pkg.devDependencies ?? {},
-    optionalDependencies: pkg.optionalDependencies ?? {},
-    dependenciesMeta: pkg.dependenciesMeta ?? {},
-    peerDependencies: pkg.peerDependencies ?? {},
+    dependencies: pkg?.dependencies ?? {},
+    devDependencies: pkg?.devDependencies ?? {},
+    optionalDependencies: pkg?.optionalDependencies ?? {},
+    dependenciesMeta: pkg?.dependenciesMeta ?? {},
+    peerDependencies: pkg?.peerDependencies ?? {},
     updatePref:
       opts?.updateWorkspaceDependencies === true
         ? updateWorkspacePref
@@ -63,7 +53,7 @@ export function getWantedDependencies(
   })
 }
 
-function updateWorkspacePref(pref: string) {
+function updateWorkspacePref(pref: string): string {
   return pref.startsWith('workspace:') ? 'workspace:*' : pref
 }
 
@@ -79,14 +69,25 @@ function getWantedDependenciesFromGivenSet(
     updatePref: (pref: string) => string
   }
 ): WantedDependency[] {
-  if (!deps) return []
+  if (!deps) {
+    return []
+  }
+
   return Object.entries(deps).map(([alias, pref]) => {
     const updatedPref = opts.updatePref(pref)
+
     let depType
-    if (opts.optionalDependencies[alias] != null) depType = 'optional'
-    else if (opts.dependencies[alias] != null) depType = 'prod'
-    else if (opts.devDependencies[alias] != null) depType = 'dev'
-    else if (opts.peerDependencies[alias] != null) depType = 'prod'
+
+    if (typeof opts.optionalDependencies[alias] !== 'undefined') {
+      depType = 'optional'
+    } else if (typeof opts.dependencies[alias] !== 'undefined') {
+      depType = 'prod'
+    } else if (typeof opts.devDependencies[alias] !== 'undefined') {
+      depType = 'dev'
+    } else if (typeof opts.peerDependencies[alias] !== 'undefined') {
+      depType = 'prod'
+    }
+
     return {
       alias,
       dev: depType === 'dev',

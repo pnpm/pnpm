@@ -6,7 +6,7 @@
 
 ## Installation
 
-```sh
+```shell
 pnpm add @pnpm/plugin-commands-env
 ```
 

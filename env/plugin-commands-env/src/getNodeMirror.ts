@@ -1,4 +1,4 @@
-import { type Config } from '@pnpm/config'
+import { type Config } from '@pnpm/types'
 
 export function getNodeMirror(
   rawConfig: Config['rawConfig'],

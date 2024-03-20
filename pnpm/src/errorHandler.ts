@@ -1,6 +1,9 @@
 import { promisify } from 'node:util'
-import { logger } from '@pnpm/logger'
+
 import pidTree from 'pidtree'
+
+import { logger } from '@pnpm/logger'
+
 import { REPORTER_INITIALIZED } from './main'
 
 const getDescendentProcesses = promisify(
@@ -12,9 +15,10 @@ const getDescendentProcesses = promisify(
   }
 )
 
-async function killProcesses() {
+async function killProcesses(): Promise<void> {
   try {
     const descendentProcesses = await getDescendentProcesses(process.pid)
+
     for (const pid of descendentProcesses) {
       try {
         process.kill(pid)
@@ -25,10 +29,11 @@ async function killProcesses() {
   } catch (err) {
     // ignore error here
   }
+
   process.exit(1)
 }
 
-export async function errorHandler(error: Error & { code?: string }) {
+export async function errorHandler(error: Error & { code?: string }): Promise<void> {
   if (
     error.name != null &&
     error.name !== 'pnpm' &&
@@ -55,11 +60,15 @@ export async function errorHandler(error: Error & { code?: string }) {
         2
       )
     )
+
     process.exitCode = 1
+
     return
   }
+
   if (global[REPORTER_INITIALIZED] === 'silent') {
     process.exitCode = 1
+
     return
   }
 
@@ -69,7 +78,7 @@ export async function errorHandler(error: Error & { code?: string }) {
   logger.error(error, error)
 
   // Deferring exit. Otherwise, the reporter wouldn't show the error
-  setTimeout(async () => {
+  globalThis.setTimeout(async (): Promise<void> => {
     await killProcesses()
   }, 0)
 }

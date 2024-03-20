@@ -1,5 +1,6 @@
 export function nodeIdContains(nodeId: string, pkgId: string): boolean {
   const pkgIds = splitNodeId(nodeId)
+
   return pkgIds.includes(pkgId)
 }
 
@@ -9,10 +10,17 @@ export function nodeIdContainsSequence(
   pkgId2: string
 ): boolean {
   const pkgIds = splitNodeId(nodeId)
+
   pkgIds.pop()
+
   const pkg1Index = pkgIds.indexOf(pkgId1)
-  if (pkg1Index === -1) return false
+
+  if (pkg1Index === -1) {
+    return false
+  }
+
   const pkg2Index = pkgIds.lastIndexOf(pkgId2)
+
   return pkg1Index < pkg2Index
 }
 

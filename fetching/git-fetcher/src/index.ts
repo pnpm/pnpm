@@ -1,16 +1,15 @@
 import '@total-typescript/ts-reset'
-import path from 'node:path'
 
-import { globalWarn } from '@pnpm/logger'
-import { preparePackage } from '@pnpm/prepare-package'
-import { addFilesFromDir } from '@pnpm/worker'
-import rimraf from '@zkochan/rimraf'
-import execa from 'execa'
+import path from 'node:path'
 import { URL } from 'node:url'
 
-import type { GitFetcher, GitFetcherOptions, GitResolution } from '@pnpm/resolver-base'
-import type { Cafs } from '@pnpm/cafs-types'
-import type { DependencyManifest } from '@pnpm/types'
+import execa from 'execa'
+import rimraf from '@zkochan/rimraf'
+
+import { globalWarn } from '@pnpm/logger'
+import { addFilesFromDir } from '@pnpm/worker'
+import { preparePackage } from '@pnpm/prepare-package'
+import type { Cafs, DependencyManifest, GitFetcher, GitFetcherOptions, GitResolution } from '@pnpm/types'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[] | undefined

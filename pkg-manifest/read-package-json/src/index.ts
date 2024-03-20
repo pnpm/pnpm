@@ -1,22 +1,29 @@
 import '@total-typescript/ts-reset'
+
 import path from 'node:path'
-import { PnpmError } from '@pnpm/error'
-import type { PackageManifest } from '@pnpm/types'
+
 import loadJsonFile from 'load-json-file'
 import normalizePackageData from 'normalize-package-data'
+
+import { PnpmError } from '@pnpm/error'
+import type { PackageManifest } from '@pnpm/types'
 
 export async function readPackageJson(
   pkgPath: string
 ): Promise<PackageManifest> {
   try {
     const manifest = await loadJsonFile<PackageManifest>(pkgPath)
+
     normalizePackageData(manifest)
+
     return manifest
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
+    // @ts-ignore
     if (err.code) throw err
     throw new PnpmError(
       'BAD_PACKAGE_JSON',
-      `${pkgPath}: ${err.message as string}`
+      // @ts-ignore
+      `${pkgPath}: ${err.message}`
     )
   }
 }
@@ -32,8 +39,11 @@ export async function safeReadPackageJson(
 ): Promise<PackageManifest | null> {
   try {
     return await readPackageJson(pkgPath)
-  } catch (err: any) { // eslint-disable-line
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err
+    }
+
     return null
   }
 }

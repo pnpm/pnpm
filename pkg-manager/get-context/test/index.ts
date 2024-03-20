@@ -1,7 +1,7 @@
-/// <reference path="../../../__typings__/index.d.ts"/>
-import { getContext } from '@pnpm/get-context'
-import path from 'path'
-import { type GetContextOptions } from '../src'
+import path from 'node:path'
+
+import { getContext } from '../src/index'
+import type { GetContextOptions } from '@pnpm/types'
 
 const DEFAULT_OPTIONS: GetContextOptions = {
   allProjects: [],

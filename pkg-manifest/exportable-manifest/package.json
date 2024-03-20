@@ -35,12 +35,12 @@
     "@types/ramda": "0.28.20",
     "cross-spawn": "^7.0.3",
     "write-yaml-file": "^5.0.0",
+    "@pnpm/types": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "p-map-values": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },

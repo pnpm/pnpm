@@ -1,28 +1,13 @@
-import { lifecycleLogger } from '@pnpm/core-loggers'
-import { globalWarn } from '@pnpm/logger'
-import lifecycle from '@pnpm/npm-lifecycle'
-import type { DependencyManifest, ProjectManifest } from '@pnpm/types'
-import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'node:fs'
 
-function noop() {} // eslint-disable-line:no-empty
+import { PnpmError } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
+import lifecycle from '@pnpm/npm-lifecycle'
+import { lifecycleLogger } from '@pnpm/core-loggers'
+import type { DependencyManifest, ProjectManifest, RunLifecycleHookOptions } from '@pnpm/types'
 
-export interface RunLifecycleHookOptions {
-  args?: string[] | undefined
-  depPath: string
-  extraBinPaths?: string[] | undefined
-  extraEnv?: Record<string, string> | undefined
-  initCwd?: string | undefined
-  optional?: boolean | undefined
-  pkgRoot: string
-  rawConfig: object
-  rootModulesDir: string
-  scriptShell?: string | undefined
-  silent?: boolean | undefined
-  scriptsPrependNodePath?: boolean | 'warn-only' | undefined
-  shellEmulator?: boolean | undefined
-  stdio?: string | undefined
-  unsafePerm: boolean
+function noop(): void {
+
 }
 
 export async function runLifecycleHook(
@@ -33,6 +18,7 @@ export async function runLifecycleHook(
   const optional = opts.optional === true
 
   const m = { _id: getId(manifest), ...manifest }
+
   m.scripts = { ...m.scripts }
 
   if (stage === 'start' && !m.scripts.start) {
@@ -42,15 +28,22 @@ export async function runLifecycleHook(
         'Missing script start or file server.js'
       )
     }
+
     m.scripts.start = 'node server.js'
   }
+
   if (opts.args?.length && m.scripts?.[stage]) {
     const escapedArgs = opts.args.map((arg) => JSON.stringify(arg))
+
     m.scripts[stage] = `${m.scripts[stage]} ${escapedArgs.join(' ')}`
   }
+
   // This script is used to prevent the usage of npm or Yarn.
   // It does nothing, when pnpm is used, so we may skip its execution.
-  if (m.scripts[stage] === 'npx only-allow pnpm') return
+  if (m.scripts[stage] === 'npx only-allow pnpm') {
+    return
+  }
+
   if (opts.stdio !== 'inherit') {
     lifecycleLogger.debug({
       depPath: opts.depPath,
@@ -60,8 +53,10 @@ export async function runLifecycleHook(
       wd: opts.pkgRoot,
     })
   }
+
   const logLevel =
     opts.stdio !== 'inherit' || opts.silent ? 'silent' : undefined
+
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,
@@ -103,7 +98,7 @@ export async function runLifecycleHook(
   ): void {
     switch (stdtype) {
       case 'stdout':
-      case 'stderr':
+      case 'stderr': {
         lifecycleLogger.debug({
           depPath: opts.depPath,
           line: line.toString(),
@@ -111,13 +106,18 @@ export async function runLifecycleHook(
           stdio: stdtype,
           wd: opts.pkgRoot,
         })
+
         return
+      }
+
       case 'Returned: code:': {
         if (opts.stdio === 'inherit') {
           // Preventing the pnpm reporter from overriding the project's script output
           return
         }
+
         const code = arguments[3] ?? 1
+
         lifecycleLogger.debug({
           depPath: opts.depPath,
           exitCode: code,

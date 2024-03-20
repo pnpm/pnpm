@@ -1,12 +1,14 @@
 import '@total-typescript/ts-reset'
+
+import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
+
+import nopt from '@pnpm/nopt'
 import { PnpmError } from '@pnpm/error'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
-import nopt from '@pnpm/nopt'
-import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 
-export interface ParsedCliArgs {
+export type ParsedCliArgs = {
   argv: {
     remain: string[]
     cooked: string[]
@@ -18,16 +20,16 @@ export interface ParsedCliArgs {
   cmd: string | null
   unknownOptions: Map<string, string[]>
   fallbackCommandUsed: boolean
-  workspaceDir?: string
+  workspaceDir?: string | undefined
 }
 
 export async function parseCliArgs(
   opts: {
-    escapeArgs?: string[]
-    fallbackCommand?: string
+    escapeArgs?: string[] | undefined
+    fallbackCommand?: string | undefined
     getCommandLongName: (commandName: string) => string | null
     getTypesByCommandName: (commandName: string) => object
-    renamedOptions?: Record<string, string>
+    renamedOptions?: Record<string, string> | undefined
     shorthandsByCommandName: Record<string, Record<string, string | string[]>>
     universalOptionsTypes: Record<string, unknown>
     universalShorthands: Record<string, string | string[]>
@@ -55,12 +57,16 @@ export async function parseCliArgs(
   const recursiveCommandUsed = RECURSIVE_CMDS.has(
     noptExploratoryResults.argv.remain[0]
   )
+
   let commandName = getCommandName(noptExploratoryResults.argv.remain)
+
   let cmd = commandName ? opts.getCommandLongName(commandName) : null
 
   if (commandName && !cmd && opts.fallbackCommand) {
     cmd = opts.fallbackCommand
+
     commandName = opts.fallbackCommand
+
     inputArgv.unshift(opts.fallbackCommand)
     // The run command has special casing for --help and is handled further below.
   } else if (cmd !== 'run' && noptExploratoryResults.help) {
@@ -87,13 +93,15 @@ export async function parseCliArgs(
     if (recursiveCommandUsed) {
       args = args.slice(1)
     }
+
     if (opts.getCommandLongName(args[0]) !== 'install' || args.length === 1) {
       return args[0]
     }
+
     return 'add'
   }
 
-  function getEscapeArgsWithSpecialCaseForRun() {
+  function getEscapeArgsWithSpecialCaseForRun(): string[] | undefined {
     if (cmd !== 'run') {
       return opts.escapeArgs
     }
@@ -150,19 +158,24 @@ export async function parseCliArgs(
     (options.filter || options['filter-prod'] || recursiveCommandUsed)
   ) {
     options.recursive = true
+
     const subCmd: string | null =
       argv.remain[1] && opts.getCommandLongName(argv.remain[1])
+
     if (subCmd && recursiveCommandUsed) {
       params.shift()
       argv.remain.shift()
       cmd = subCmd
     }
   }
+
   const dir = options.dir ?? process.cwd()
+
   const workspaceDir =
     options.global || options['ignore-workspace']
       ? undefined
       : await findWorkspaceDir(dir)
+
   if (options['workspace-root']) {
     if (options.global) {
       throw new PnpmError(
@@ -170,23 +183,27 @@ export async function parseCliArgs(
         '--workspace-root may not be used with --global'
       )
     }
+
     if (!workspaceDir) {
       throw new PnpmError(
         'NOT_IN_WORKSPACE',
         '--workspace-root may only be used inside a workspace'
       )
     }
+
     options.dir = workspaceDir
   }
 
   if (cmd === 'install' && params.length > 0) {
     cmd = 'add'
   }
+
   if (!cmd && options.recursive) {
     cmd = 'recursive'
   }
 
   const knownOptions = new Set(Object.keys(types))
+
   return {
     argv,
     cmd,
@@ -202,37 +219,49 @@ const CUSTOM_OPTION_PREFIX = 'config.'
 function normalizeOptions(
   options: Record<string, unknown>,
   knownOptions: Set<string>
-) {
+): {
+    options: Record<string, unknown>;
+    unknownOptions: Map<string, string[]>;
+  } {
   const standardOptionNames = []
+
   const normalizedOptions: Record<string, unknown> = {}
+
   for (const [optionName, optionValue] of Object.entries(options)) {
     if (optionName.startsWith(CUSTOM_OPTION_PREFIX)) {
       normalizedOptions[optionName.substring(CUSTOM_OPTION_PREFIX.length)] =
         optionValue
       continue
     }
+
     normalizedOptions[optionName] = optionValue
+
     standardOptionNames.push(optionName)
   }
+
   const unknownOptions = getUnknownOptions(standardOptionNames, knownOptions)
+
   return { options: normalizedOptions, unknownOptions }
 }
 
-function getUnknownOptions(usedOptions: string[], knownOptions: Set<string>) {
+function getUnknownOptions(usedOptions: string[], knownOptions: Set<string>): Map<string, string[]> {
   const unknownOptions = new Map<string, string[]>()
+
   const closestMatches = getClosestOptionMatches.bind(
     null,
     Array.from(knownOptions)
   )
+
   for (const usedOption of usedOptions) {
     if (knownOptions.has(usedOption) || usedOption.startsWith('//')) continue
 
     unknownOptions.set(usedOption, closestMatches(usedOption))
   }
+
   return unknownOptions
 }
 
-function getClosestOptionMatches(knownOptions: string[], option: string) {
+function getClosestOptionMatches(knownOptions: string[], option: string): string[] {
   return didYouMean(option, knownOptions, {
     returnType: ReturnTypeEnums.ALL_CLOSEST_MATCHES,
   })

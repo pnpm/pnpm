@@ -1,25 +1,25 @@
-import { type Config } from '@pnpm/config'
-import type * as logs from '@pnpm/core-loggers'
-import { type LogLevel } from '@pnpm/logger'
 import type * as Rx from 'rxjs'
 import { throttleTime } from 'rxjs/operators'
-import { reportBigTarballProgress } from './reportBigTarballsProgress'
-import { reportContext } from './reportContext'
-import { reportExecutionTime } from './reportExecutionTime'
-import { reportDeprecations } from './reportDeprecations'
+
+import type { LogLevel } from '@pnpm/logger'
+import { ContextLog, DeprecationLog, ExecutionTimeLog, FetchingProgressLog, HookLog, InstallCheckLog, LifecycleLog, LinkLog, Log, PackageImportMethodLog, PackageManifestLog, PeerDependencyIssuesLog, ProgressLog, RegistryLog, RequestRetryLog, RootLog, ScopeLog, SkippedOptionalDependencyLog, StageLog, StatsLog, SummaryLog, UpdateCheckLog, type PeerDependencyRules, Config } from '@pnpm/types'
+
+import { reportStats } from './reportStats'
+import { reportScope } from './reportScope'
 import { reportHooks } from './reportHooks'
+import { reportContext } from './reportContext'
+import { reportProgress } from './reportProgress'
+import { reportUpdateCheck } from './reportUpdateCheck'
+import { reportRequestRetry } from './reportRequestRetry'
+import { reportDeprecations } from './reportDeprecations'
+import { reportMisc, LOG_LEVEL_NUMBER } from './reportMisc'
+import { reportExecutionTime } from './reportExecutionTime'
 import { reportInstallChecks } from './reportInstallChecks'
 import { reportLifecycleScripts } from './reportLifecycleScripts'
-import { reportMisc, LOG_LEVEL_NUMBER } from './reportMisc'
-import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
-import { reportProgress } from './reportProgress'
-import { reportRequestRetry } from './reportRequestRetry'
-import { reportScope } from './reportScope'
-import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies'
-import { reportStats } from './reportStats'
 import { reportSummary, type FilterPkgsDiff } from './reportSummary'
-import { reportUpdateCheck } from './reportUpdateCheck'
-import { type PeerDependencyRules } from '@pnpm/types'
+import { reportBigTarballProgress } from './reportBigTarballsProgress'
+import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
+import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies'
 
 const PRINT_EXECUTION_TIME_IN_COMMANDS = {
   install: true,
@@ -30,52 +30,54 @@ const PRINT_EXECUTION_TIME_IN_COMMANDS = {
 
 export function reporterForClient(
   log$: {
-    context: Rx.Observable<logs.ContextLog>
-    fetchingProgress: Rx.Observable<logs.FetchingProgressLog>
-    executionTime: Rx.Observable<logs.ExecutionTimeLog>
-    progress: Rx.Observable<logs.ProgressLog>
-    stage: Rx.Observable<logs.StageLog>
-    deprecation: Rx.Observable<logs.DeprecationLog>
-    summary: Rx.Observable<logs.SummaryLog>
-    lifecycle: Rx.Observable<logs.LifecycleLog>
-    stats: Rx.Observable<logs.StatsLog>
-    installCheck: Rx.Observable<logs.InstallCheckLog>
-    registry: Rx.Observable<logs.RegistryLog>
-    root: Rx.Observable<logs.RootLog>
-    packageManifest: Rx.Observable<logs.PackageManifestLog>
-    peerDependencyIssues: Rx.Observable<logs.PeerDependencyIssuesLog>
-    requestRetry: Rx.Observable<logs.RequestRetryLog>
-    link: Rx.Observable<logs.LinkLog>
-    other: Rx.Observable<logs.Log>
-    hook: Rx.Observable<logs.HookLog>
-    scope: Rx.Observable<logs.ScopeLog>
-    skippedOptionalDependency: Rx.Observable<logs.SkippedOptionalDependencyLog>
-    packageImportMethod: Rx.Observable<logs.PackageImportMethodLog>
-    updateCheck: Rx.Observable<logs.UpdateCheckLog>
+    context: Rx.Observable<ContextLog>
+    fetchingProgress: Rx.Observable<FetchingProgressLog>
+    executionTime: Rx.Observable<ExecutionTimeLog>
+    progress: Rx.Observable<ProgressLog>
+    stage: Rx.Observable<StageLog>
+    deprecation: Rx.Observable<DeprecationLog>
+    summary: Rx.Observable<SummaryLog>
+    lifecycle: Rx.Observable<LifecycleLog>
+    stats: Rx.Observable<StatsLog>
+    installCheck: Rx.Observable<InstallCheckLog>
+    registry: Rx.Observable<RegistryLog>
+    root: Rx.Observable<RootLog>
+    packageManifest: Rx.Observable<PackageManifestLog>
+    peerDependencyIssues: Rx.Observable<PeerDependencyIssuesLog>
+    requestRetry: Rx.Observable<RequestRetryLog>
+    link: Rx.Observable<LinkLog>
+    other: Rx.Observable<Log>
+    hook: Rx.Observable<HookLog>
+    scope: Rx.Observable<ScopeLog>
+    skippedOptionalDependency: Rx.Observable<SkippedOptionalDependencyLog>
+    packageImportMethod: Rx.Observable<PackageImportMethodLog>
+    updateCheck: Rx.Observable<UpdateCheckLog>
   },
   opts: {
-    appendOnly?: boolean
+    appendOnly?: boolean | undefined
     cmd: string
-    config?: Config
+    config?: Config | undefined
     env: NodeJS.ProcessEnv
-    filterPkgsDiff?: FilterPkgsDiff
-    peerDependencyRules?: PeerDependencyRules
+    filterPkgsDiff?: FilterPkgsDiff | undefined
+    peerDependencyRules?: PeerDependencyRules | undefined
     process: NodeJS.Process
     isRecursive: boolean
-    logLevel?: LogLevel
-    pnpmConfig?: Config
-    streamLifecycleOutput?: boolean
-    aggregateOutput?: boolean
-    throttleProgress?: number
-    width?: number
-    hideAddedPkgsProgress?: boolean
-    hideProgressPrefix?: boolean
-    hideLifecycleOutput?: boolean
-    hideLifecyclePrefix?: boolean
+    logLevel?: LogLevel | undefined
+    pnpmConfig?: Config | undefined
+    streamLifecycleOutput?: boolean | undefined
+    aggregateOutput?: boolean | undefined
+    throttleProgress?: number | undefined
+    width?: number | undefined
+    hideAddedPkgsProgress?: boolean | undefined
+    hideProgressPrefix?: boolean | undefined
+    hideLifecycleOutput?: boolean | undefined
+    hideLifecyclePrefix?: boolean | undefined
   }
 ): Array<Rx.Observable<Rx.Observable<{ msg: string }>>> {
   const width = opts.width ?? process.stdout.columns ?? 80
+
   const cwd = opts.pnpmConfig?.dir ?? process.cwd()
+
   const throttle =
     typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
       ? throttleTime(opts.throttleProgress, undefined, {

@@ -1,5 +1,6 @@
 import { encode } from 'ini'
 import sortKeys from 'sort-keys'
+
 import type { ConfigCommandOptions } from './ConfigCommandOptions'
 
 export async function configList(opts: ConfigCommandOptions): Promise<string> {
@@ -8,5 +9,6 @@ export async function configList(opts: ConfigCommandOptions): Promise<string> {
   if (opts.json) {
     return JSON.stringify(sortedConfig, null, 2)
   }
+
   return encode(sortedConfig)
 }

@@ -10,6 +10,7 @@ if (Symbol.asyncDispose === undefined) {
     'Symbol.asyncDispose'
   )
 }
+
 if (Symbol.dispose === undefined) {
   ;(Symbol as { dispose?: symbol }).dispose = Symbol('Symbol.dispose')
 }
@@ -47,10 +48,12 @@ export class TestIpcServer implements AsyncDisposable {
    */
   public static async listen(handle?: string): Promise<TestIpcServer> {
     const listenPath = computeHandlePath(handle)
+
     const server = net.createServer()
+
     const testIpcServer = new TestIpcServer(server, listenPath)
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject): void => {
       server.once('error', reject)
 
       server.listen(listenPath, () => {
@@ -98,6 +101,7 @@ export class TestIpcServer implements AsyncDisposable {
 
   public [Symbol.asyncDispose] = async () => {
     const close = promisify(this.server.close).bind(this.server)
+
     await close()
   }
 }

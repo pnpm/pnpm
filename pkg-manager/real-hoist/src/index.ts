@@ -1,15 +1,16 @@
 import '@total-typescript/ts-reset'
-import { LockfileMissingDependencyError } from '@pnpm/error'
-import { type Lockfile, nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-import * as dp from '@pnpm/dependency-path'
+
 import {
   hoist as _hoist,
-  HoisterDependencyKind,
   type HoisterTree,
   type HoisterResult,
+  type HoisterDependencyKind,
 } from '@yarnpkg/nm'
 
-export type HoistingLimits = Map<string, Set<string>>
+import * as dp from '@pnpm/dependency-path'
+import { HoistingLimits, Lockfile } from '@pnpm/types'
+import { LockfileMissingDependencyError } from '@pnpm/error'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 
 export type { HoisterResult }
 
@@ -21,16 +22,19 @@ export function hoist(
     // However, in the future it might be useful to use it in pnpm for skipping any dependencies added by external tools.
     externalDependencies?: Set<string>
     autoInstallPeers?: boolean
-  }
+  } | undefined
 ): HoisterResult {
   const nodes = new Map<string, HoisterTree>()
+
   const ctx = {
     autoInstallPeers: opts?.autoInstallPeers,
     nodes,
     lockfile,
     depPathByPkgId: new Map<string, string>(),
   }
+
   const _toTree = toTree.bind(null, ctx)
+
   const node: HoisterTree = {
     name: '.',
     identName: '.',
@@ -53,8 +57,12 @@ export function hoist(
       ),
     }),
   }
+
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
-    if (importerId === '.') continue
+    if (importerId === '.') {
+      continue
+    }
+
     const importerNode: HoisterTree = {
       name: encodeURIComponent(importerId),
       identName: encodeURIComponent(importerId),
@@ -62,15 +70,17 @@ export function hoist(
       peerNames: new Set<string>([]),
       dependencyKind: HoisterDependencyKind.WORKSPACE,
       dependencies: _toTree({
-        ...importer.dependencies,
-        ...importer.devDependencies,
-        ...importer.optionalDependencies,
+        ...importer?.dependencies,
+        ...importer?.devDependencies,
+        ...importer?.optionalDependencies,
       }),
     }
+
     node.dependencies.add(importerNode)
   }
 
   const hoisterResult = _hoist(node, opts)
+
   if (opts?.externalDependencies) {
     for (const hoistedDep of hoisterResult.dependencies.values()) {
       if (opts.externalDependencies.has(hoistedDep.name)) {
@@ -78,6 +88,7 @@ export function hoist(
       }
     }
   }
+
   return hoisterResult
 }
 
@@ -88,7 +99,7 @@ function toTree(
     depPathByPkgId,
     autoInstallPeers,
   }: {
-    autoInstallPeers?: boolean
+    autoInstallPeers?: boolean | undefined
     depPathByPkgId: Map<string, string>
     lockfile: Lockfile
     nodes: Map<string, HoisterTree>
@@ -96,11 +107,14 @@ function toTree(
   deps: Record<string, string>
 ): Set<HoisterTree> {
   return new Set(
-    Object.entries(deps).map(([alias, ref]) => {
-      const depPath = dp.refToRelative(ref, alias)!
+    Object.entries(deps).map(([alias, ref]: [string, string]): HoisterTree => {
+      const depPath = dp.refToRelative(ref, alias)
+
       if (!depPath) {
         const key = `${alias}:${ref}`
+
         let node = nodes.get(key)
+
         if (!node) {
           node = {
             name: alias,
@@ -110,25 +124,35 @@ function toTree(
             dependencies: new Set(),
             peerNames: new Set(),
           }
+
           nodes.set(key, node)
         }
+
         return node
       }
+
       const key = `${alias}:${depPath}`
+
       let node = nodes.get(key)
+
       if (!node) {
         const pkgSnapshot = lockfile.packages?.[depPath]
+
         if (!pkgSnapshot) {
           throw new LockfileMissingDependencyError(depPath)
         }
+
         const { name: pkgName, version } = nameVerFromPkgSnapshot(
           depPath,
           pkgSnapshot
         )
+
         const id = `${pkgName}@${version}`
+
         if (!depPathByPkgId.has(id)) {
           depPathByPkgId.set(id, depPath)
         }
+
         node = {
           name: alias,
           identName: pkgName,
@@ -144,12 +168,15 @@ function toTree(
               ]
           ),
         }
+
         nodes.set(key, node)
+
         node.dependencies = toTree(
           { nodes, lockfile, depPathByPkgId, autoInstallPeers },
           { ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies }
         )
       }
+
       return node
     })
   )

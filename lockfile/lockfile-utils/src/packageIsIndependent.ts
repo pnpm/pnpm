@@ -1,4 +1,4 @@
-import type { PackageSnapshot } from '@pnpm/lockfile-types'
+import type { PackageSnapshot } from '@pnpm/types'
 
 export function packageIsIndependent({
   dependencies,

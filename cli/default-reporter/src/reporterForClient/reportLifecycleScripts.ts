@@ -1,7 +1,7 @@
-import cliTruncate from 'cli-truncate'
-import path from 'path'
-import { type LifecycleLog } from '@pnpm/core-loggers'
+import path from 'node:path'
+
 import * as Rx from 'rxjs'
+import cliTruncate from 'cli-truncate'
 import {
   buffer,
   filter,
@@ -12,9 +12,12 @@ import {
 } from 'rxjs/operators'
 import chalk from 'chalk'
 import prettyTime from 'pretty-ms'
+
+import { LifecycleLog } from '@pnpm/types'
+
 import { EOL } from '../constants'
-import { formatPrefix, formatPrefixNoTrim } from './utils/formatPrefix'
 import { hlValue } from './outputConstants'
+import { formatPrefix, formatPrefixNoTrim } from './utils/formatPrefix'
 
 const NODE_MODULES = `${path.sep}node_modules${path.sep}`
 const TMP_DIR_IN_STORE = `tmp${path.sep}_tmp_` // git-hosted dependencies are built in these temporary directories

@@ -6,7 +6,7 @@
 
 ## Installation
 
-```
+```shell
 pnpm add @pnpm/worker
 ```
 

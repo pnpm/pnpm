@@ -1,30 +1,25 @@
-import path from 'node:path'
 import fs from 'node:fs'
-import gfs from '@pnpm/graceful-fs'
+import path from 'node:path'
 import * as crypto from 'node:crypto'
-import { createCafsStore } from '@pnpm/create-cafs-store'
-import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
-import {
-  checkPkgFilesIntegrity,
-  createCafs,
-  type PackageFileInfo,
-  type PackageFilesIndex,
-  type FilesIndex,
-  optimisticRenameOverwrite,
-  readManifestFromStore,
-  type VerifyResult,
-} from '@pnpm/store.cafs'
-import { symlinkDependencySync } from '@pnpm/symlink-dependency'
+import { parentPort } from 'node:worker_threads'
+
 import { sync as loadJsonFile } from 'load-json-file'
-import { parentPort } from 'worker_threads'
-import type {
-  AddDirToStoreMessage,
-  ReadPkgFromCafsMessage,
-  LinkPkgMessage,
-  SymlinkAllModulesMessage,
-  TarballExtractMessage,
-  HardLinkDirMessage,
-} from './types'
+
+import {
+  createCafs,
+  type FilesIndex,
+  type VerifyResult,
+  type PackageFileInfo,
+  readManifestFromStore,
+  type PackageFilesIndex,
+  checkPkgFilesIntegrity,
+  optimisticRenameOverwrite,
+} from '@pnpm/store.cafs'
+import gfs from '@pnpm/graceful-fs'
+import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
+import { createCafsStore } from '@pnpm/create-cafs-store'
+import { symlinkDependencySync } from '@pnpm/symlink-dependency'
+import { TarballExtractMessage, LinkPkgMessage, AddDirToStoreMessage, ReadPkgFromCafsMessage, SymlinkAllModulesMessage, HardLinkDirMessage } from '@pnpm/types'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
 
@@ -48,29 +43,36 @@ async function handleMessage(
     parentPort?.off('message', handleMessage)
     process.exit(0)
   }
+
   try {
     switch (message.type) {
       case 'extract': {
         parentPort?.postMessage(addTarballToStore(message))
         break
       }
+
       case 'link': {
         parentPort?.postMessage(importPackage(message))
         break
       }
+
       case 'add-dir': {
         parentPort?.postMessage(addFilesFromDir(message))
         break
       }
+
       case 'readPkgFromCafs': {
         const { cafsDir, filesIndexFile, readManifest, verifyStoreIntegrity } =
           message
+
         let pkgFilesIndex: PackageFilesIndex | undefined
+
         try {
           pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
         } catch {
           // ignoring. It is fine if the integrity file is not present. Just refetch the package
         }
+
         if (!pkgFilesIndex) {
           parentPort?.postMessage({
             status: 'success',
@@ -79,9 +81,12 @@ async function handleMessage(
               pkgFilesIndex: null,
             },
           })
+
           return
         }
+
         let verifyResult: VerifyResult | undefined
+
         if (verifyStoreIntegrity) {
           verifyResult = checkPkgFilesIntegrity(
             cafsDir,
@@ -96,6 +101,7 @@ async function handleMessage(
               : undefined,
           }
         }
+
         parentPort?.postMessage({
           status: 'success',
           value: {
@@ -104,23 +110,28 @@ async function handleMessage(
             pkgFilesIndex,
           },
         })
+
         break
       }
+
       case 'symlinkAllModules': {
         parentPort?.postMessage(symlinkAllModules(message))
         break
       }
+
       case 'hardLinkDir': {
         hardLinkDir(message.src, message.destDirs)
         parentPort?.postMessage({ status: 'success' })
         break
       }
     }
-  } catch (e: any) { // eslint-disable-line
+  } catch (e: unknown) {
     parentPort?.postMessage({
       status: 'error',
       error: {
+        // @ts-ignore
         code: e.code,
+        // @ts-ignore
         message: e.message ?? e.toString(),
       },
     })
@@ -218,9 +229,12 @@ function addFilesFromDir({
 
 function processFilesIndex(filesIndex: FilesIndex) {
   const filesIntegrity: Record<string, PackageFileInfo> = {}
+
   const filesMap: Record<string, string> = {}
+
   for (const [
     k,
+    // @ts-ignore
     { checkedAt, filePath, integrity, mode, size },
   ] of Object.entries(filesIndex)) {
     filesIntegrity[k] = {
@@ -231,6 +245,7 @@ function processFilesIndex(filesIndex: FilesIndex) {
     }
     filesMap[k] = filePath
   }
+
   return { filesIntegrity, filesMap }
 }
 
@@ -246,13 +261,16 @@ function importPackage({
   disableRelinkLocalDirDeps,
 }: LinkPkgMessage) {
   const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
+
   if (!cafsStoreCache.has(cacheKey)) {
     cafsStoreCache.set(
       cacheKey,
       createCafsStore(storeDir, { packageImportMethod, cafsLocker })
     )
   }
+
   const cafsStore = cafsStoreCache.get(cacheKey)!
+
   const { importMethod, isBuilt } = cafsStore.importPackage(targetDir, {
     filesResponse,
     force,
@@ -261,17 +279,21 @@ function importPackage({
     sideEffectsCacheKey,
     keepModulesDir,
   })
+
   return { status: 'success', value: { isBuilt, importMethod } }
 }
 
-function symlinkAllModules(opts: SymlinkAllModulesMessage) {
+function symlinkAllModules(opts: SymlinkAllModulesMessage): {
+  status: string;
+} {
   for (const dep of opts.deps) {
     for (const [alias, pkgDir] of Object.entries(dep.children)) {
       if (alias !== dep.name) {
-        symlinkDependencySync(pkgDir, dep.modules, alias)
+        symlinkDependencySync(pkgDir, dep.modules ?? '', alias)
       }
     }
   }
+
   return { status: 'success' }
 }
 
@@ -281,10 +303,10 @@ function writeFilesIndexFile(
     pkg,
     files,
   }: {
-    pkg: { name?: string; version?: string }
+    pkg: { name?: string | undefined; version?: string | undefined }
     files: Record<string, PackageFileInfo>
   }
-) {
+): void {
   writeJsonFile(filesIndexFile, {
     name: pkg.name,
     version: pkg.version,
@@ -292,8 +314,9 @@ function writeFilesIndexFile(
   })
 }
 
-function writeJsonFile(filePath: string, data: unknown) {
+function writeJsonFile(filePath: string, data: unknown): void {
   const targetDir = path.dirname(filePath)
+
   // TODO: use the API of @pnpm/cafs to write this file
   // There is actually no need to create the directory in 99% of cases.
   // So by using cafs API, we'll improve performance.
@@ -301,7 +324,9 @@ function writeJsonFile(filePath: string, data: unknown) {
   // We remove the "-index.json" from the end of the temp file name
   // in order to avoid ENAMETOOLONG errors
   const temp = `${filePath.slice(0, -11)}${process.pid}`
+
   gfs.writeFileSync(temp, JSON.stringify(data))
+
   optimisticRenameOverwrite(temp, filePath)
 }
 

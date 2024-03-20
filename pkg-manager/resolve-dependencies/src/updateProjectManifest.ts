@@ -1,16 +1,15 @@
+import semver from 'semver'
+import versionSelectorType from 'version-selector-type'
+
 import {
-  createVersionSpec,
   getPrefix,
-  type PackageSpecObject,
+  createVersionSpec,
   type PinnedVersion,
+  type PackageSpecObject,
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
-import versionSelectorType from 'version-selector-type'
-import semver from 'semver'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
-import type { TarballResolution } from '@pnpm/resolver-base'
-import type { ResolvedDirectDependency } from './resolveDependencyTree'
-import type { ImporterToResolve } from '.'
+import { ImporterToResolve, ResolvedDirectDependency, TarballResolution } from '@pnpm/types'
 
 export async function updateProjectManifest(
   importer: ImporterToResolve,
@@ -23,10 +22,14 @@ export async function updateProjectManifest(
   if (!importer.manifest) {
     throw new Error('Cannot save because no package.json found')
   }
+
   const specsToUpsert = opts.directDependencies
-    .filter((rdd, index) => importer.wantedDependencies[index]?.updateSpec)
-    .map((rdd, index) => {
-      const wantedDep = importer.wantedDependencies[index]!
+    .filter((_rdd: ResolvedDirectDependency, index: number): boolean => {
+      return importer.wantedDependencies[index]?.updateSpec ?? false;
+    })
+    .map((rdd: ResolvedDirectDependency, index: number): PackageSpecObject => {
+      const wantedDep = importer.wantedDependencies[index]
+
       return resolvedDirectDepToSpecObject(
         {
           ...rdd,
@@ -53,11 +56,14 @@ export async function updateProjectManifest(
         }
       )
     })
+
   for (const pkgToInstall of importer.wantedDependencies) {
     if (
       pkgToInstall.updateSpec &&
       pkgToInstall.alias &&
-      !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)
+      !specsToUpsert.some(({ alias }: PackageSpecObject): boolean => {
+        return alias === pkgToInstall.alias;
+      })
     ) {
       specsToUpsert.push({
         alias: pkgToInstall.alias,
@@ -67,11 +73,13 @@ export async function updateProjectManifest(
       })
     }
   }
+
   const hookedManifest = await updateProjectManifestObject(
     importer.rootDir,
     importer.manifest,
     specsToUpsert
   )
+
   const originalManifest =
     importer.originalManifest != null
       ? await updateProjectManifestObject(
@@ -80,6 +88,7 @@ export async function updateProjectManifest(
         specsToUpsert
       )
       : undefined
+
   return [hookedManifest, originalManifest]
 }
 
@@ -111,7 +120,7 @@ function resolvedDirectDepToSpecObject(
     pref = normalizedPref
   } else {
     const shouldUseWorkspaceProtocol =
-      resolution.type === 'directory' &&
+      resolution?.type === 'directory' &&
       (Boolean(opts.saveWorkspaceProtocol) ||
         (opts.preserveWorkspaceProtocol && specRaw.includes('@workspace:'))) &&
       opts.pinnedVersion !== 'none'
@@ -119,10 +128,10 @@ function resolvedDirectDepToSpecObject(
     if (isNew === true) {
       pref = getPrefPreferSpecifiedSpec({
         alias,
-        name,
+        name: name ?? '',
         pinnedVersion: opts.pinnedVersion,
         specRaw,
-        version,
+        version: version ?? '',
         rolling:
           shouldUseWorkspaceProtocol &&
           opts.saveWorkspaceProtocol === 'rolling',
@@ -130,20 +139,22 @@ function resolvedDirectDepToSpecObject(
     } else {
       pref = getPrefPreferSpecifiedExoticSpec({
         alias,
-        name,
+        name: name ?? '',
         pinnedVersion: opts.pinnedVersion,
         specRaw,
-        version,
+        version: version ?? '',
         rolling:
           shouldUseWorkspaceProtocol &&
           opts.saveWorkspaceProtocol === 'rolling',
         preserveNonSemverVersionSpec,
       })
     }
+
     if (shouldUseWorkspaceProtocol && !pref.startsWith('workspace:')) {
       pref = `workspace:${pref}`
     }
   }
+
   return {
     alias,
     nodeExecPath: opts.nodeExecPath,
@@ -158,14 +169,17 @@ function getPrefPreferSpecifiedSpec(opts: {
   name: string
   version: string
   specRaw: string
-  pinnedVersion?: PinnedVersion
+  pinnedVersion?: PinnedVersion | undefined
   rolling: boolean
 }) {
   const prefix = getPrefix(opts.alias, opts.name)
+
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
     const range = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
+
     if (range) {
       const selector = versionSelectorType(range)
+
       if (
         selector != null &&
         (selector.type === 'version' || selector.type === 'range')
@@ -174,10 +188,12 @@ function getPrefPreferSpecifiedSpec(opts: {
       }
     }
   }
+
   // A prerelease version is always added as an exact version
   if (semver.parse(opts.version)?.prerelease.length) {
     return `${prefix}${opts.version}`
   }
+
   return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: opts.rolling })}`
 }
 
@@ -188,13 +204,16 @@ function getPrefPreferSpecifiedExoticSpec(opts: {
   specRaw: string
   pinnedVersion: PinnedVersion
   rolling: boolean
-  preserveNonSemverVersionSpec?: boolean
+  preserveNonSemverVersionSpec?: boolean | undefined
 }) {
   const prefix = getPrefix(opts.alias, opts.name)
+
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
     let specWithoutName = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
+
     if (specWithoutName.startsWith('workspace:')) {
       specWithoutName = specWithoutName.slice(10)
+
       if (
         specWithoutName === '*' ||
         specWithoutName === '^' ||
@@ -203,7 +222,9 @@ function getPrefPreferSpecifiedExoticSpec(opts: {
         return specWithoutName
       }
     }
+
     const selector = versionSelectorType(specWithoutName)
+
     if (
       (selector == null ||
         (selector.type !== 'version' && selector.type !== 'range')) &&
@@ -212,6 +233,7 @@ function getPrefPreferSpecifiedExoticSpec(opts: {
       return opts.specRaw.slice(opts.alias.length + 1)
     }
   }
+
   // A prerelease version is always added as an exact version
   if (semver.parse(opts.version)?.prerelease.length) {
     return `${prefix}${opts.version}`

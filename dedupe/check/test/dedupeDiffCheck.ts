@@ -1,5 +1,5 @@
 import { DedupeCheckIssuesError, dedupeDiffCheck } from '@pnpm/dedupe.check'
-import type { Lockfile } from '@pnpm/lockfile-types'
+import { Lockfile } from '@pnpm/types'
 
 describe('dedupeDiffCheck', () => {
   it('should have no changes for same lockfile', () => {

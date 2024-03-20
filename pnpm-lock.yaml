@@ -186,9 +186,6 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../lockfile/lockfile-file
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../packages/types
       '@types/normalize-path':
         specifier: ^3.0.2
         version: 3.0.2
@@ -211,6 +208,9 @@ importers:
       '@pnpm-private/updater':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -238,9 +238,6 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.26.0
         version: 3.26.0(typanion@3.14.0)
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       is-windows:
         specifier: ^1.0.2
         version: 1.0.2
@@ -263,6 +260,9 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -368,9 +368,6 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../assert-project
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       unique-string:
         specifier: ^2.0.0
         version: 2.0.0
@@ -387,6 +384,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -455,9 +455,6 @@ importers:
 
   cli/cli-meta:
     dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -465,6 +462,9 @@ importers:
       '@pnpm/cli-meta':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -495,9 +495,6 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
@@ -508,21 +505,15 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
       '@types/ramda':
         specifier: 0.29.11
         version: 0.29.11
-
-  cli/command:
-    devDependencies:
-      '@pnpm/command':
-        specifier: workspace:*
-        version: 'link:'
-      '@total-typescript/ts-reset':
-        specifier: 0.5.1
-        version: 0.5.1
 
   cli/common-cli-options-help:
     devDependencies:
@@ -535,18 +526,12 @@ importers:
 
   cli/default-reporter:
     dependencies:
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../../config/config
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
       '@pnpm/dedupe.issues-renderer':
         specifier: workspace:*
         version: link:../../dedupe/issues-renderer
-      '@pnpm/dedupe.types':
-        specifier: workspace:*
-        version: link:../../dedupe/types
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -556,9 +541,6 @@ importers:
       '@pnpm/render-peer-issues':
         specifier: workspace:*
         version: link:../../packages/render-peer-issues
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       ansi-diff:
         specifier: ^1.1.1
         version: 1.1.1
@@ -602,6 +584,9 @@ importers:
       '@pnpm/default-reporter':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -678,9 +663,6 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       better-path-resolve:
         specifier: 1.0.0
         version: 1.0.0
@@ -730,6 +712,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -761,9 +746,6 @@ importers:
 
   config/normalize-registries:
     dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       normalize-registry-url:
         specifier: 2.0.0
         version: 2.0.0
@@ -774,6 +756,9 @@ importers:
       '@pnpm/normalize-registries':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -886,6 +871,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -911,31 +899,25 @@ importers:
 
   dedupe/check:
     dependencies:
-      '@pnpm/dedupe.types':
-        specifier: workspace:*
-        version: link:../types
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+    devDependencies:
+      '@pnpm/dedupe.check':
+        specifier: workspace:*
+        version: 'link:'
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-    devDependencies:
-      '@pnpm/dedupe.check':
-        specifier: workspace:*
-        version: 'link:'
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
 
   dedupe/issues-renderer:
     dependencies:
-      '@pnpm/dedupe.types':
-        specifier: workspace:*
-        version: link:../types
       archy:
         specifier: ^1.0.0
         version: 1.0.0
@@ -946,6 +928,9 @@ importers:
       '@pnpm/dedupe.issues-renderer':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -955,15 +940,6 @@ importers:
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
-
-  dedupe/types:
-    devDependencies:
-      '@pnpm/dedupe.types':
-        specifier: workspace:*
-        version: 'link:'
-      '@total-typescript/ts-reset':
-        specifier: 0.5.1
-        version: 0.5.1
 
   deps/graph-builder:
     dependencies:
@@ -991,12 +967,6 @@ importers:
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -1007,6 +977,12 @@ importers:
       '@pnpm/deps.graph-builder':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../../store/store-controller-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1056,15 +1032,15 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
     devDependencies:
-      '@pnpm/cafs-types':
-        specifier: workspace:*
-        version: link:../../store/cafs-types
       '@pnpm/node.fetcher':
         specifier: workspace:*
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1096,6 +1072,9 @@ importers:
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1166,6 +1145,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1478,9 +1460,6 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
-      '@pnpm/command':
-        specifier: workspace:*
-        version: link:../../cli/command
       '@pnpm/common-cli-options-help':
         specifier: workspace:*
         version: link:../../cli/common-cli-options-help
@@ -1517,9 +1496,6 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
@@ -1569,6 +1545,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1708,9 +1687,6 @@ importers:
 
   fetching/git-fetcher:
     dependencies:
-      '@pnpm/cafs-types':
-        specifier: workspace:*
-        version: link:../../store/cafs-types
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
@@ -1732,9 +1708,6 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -1745,6 +1718,9 @@ importers:
         specifier: npm:safe-execa@0.1.3
         version: /safe-execa@0.1.3
     devDependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1763,6 +1739,9 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1815,9 +1794,6 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
     devDependencies:
-      '@pnpm/cafs-types':
-        specifier: workspace:*
-        version: link:../../store/cafs-types
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
@@ -2041,9 +2017,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/hooks.types':
-        specifier: workspace:*
-        version: link:../types
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types
@@ -2121,22 +2094,6 @@ importers:
       '@yarnpkg/core':
         specifier: 4.0.0-rc.45
         version: 4.0.0-rc.45(typanion@3.14.0)
-
-  hooks/types:
-    dependencies:
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-    devDependencies:
-      '@pnpm/hooks.types':
-        specifier: workspace:*
-        version: 'link:'
-      '@total-typescript/ts-reset':
-        specifier: 0.5.1
-        version: 0.5.1
 
   lockfile/audit:
     dependencies:
@@ -2487,6 +2444,9 @@ importers:
       '@pnpm/merge-lockfile-changes':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -2697,6 +2657,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -2741,6 +2704,9 @@ importers:
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -2866,9 +2832,6 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
@@ -2882,6 +2845,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -2929,6 +2895,9 @@ importers:
       '@pnpm/plugin-commands-doctor':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -3009,9 +2978,6 @@ importers:
       '@pnpm/parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
       archy:
         specifier: ^1.0.0
         version: 1.0.0
@@ -3028,6 +2994,9 @@ importers:
       '@pnpm/render-peer-issues':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -3043,12 +3012,24 @@ importers:
 
   packages/types:
     devDependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: 'link:'
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
+      '@types/ssri':
+        specifier: ^7.1.5
+        version: 7.1.5
+      '@zkochan/retry':
+        specifier: 0.2.0
+        version: 0.2.0
+      node-fetch:
+        specifier: 3.3.2
+        version: 3.3.2
+      safe-promise-defer:
+        specifier: 1.0.1
+        version: 1.0.1
+      type-fest:
+        specifier: ^4.13.0
+        version: 4.13.0
 
   packages/which-version-is-pinned:
     dependencies:
@@ -3081,6 +3062,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -3287,9 +3271,6 @@ importers:
       '@pnpm/hooks.read-package-hook':
         specifier: workspace:*
         version: link:../../hooks/read-package-hook
-      '@pnpm/hooks.types':
-        specifier: workspace:*
-        version: link:../../hooks/types
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
@@ -3350,6 +3331,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/read-projects-context':
+        specifier: workspace:*
+        version: link:../read-projects-context
       '@pnpm/remove-bins':
         specifier: workspace:*
         version: link:../remove-bins
@@ -3580,9 +3564,6 @@ importers:
       '@pnpm/read-projects-context':
         specifier: workspace:*
         version: link:../read-projects-context
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
@@ -3599,9 +3580,9 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
     devDependencies:
-      '@pnpm/get-context':
+      '@pnpm/types':
         specifier: workspace:*
-        version: 'link:'
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -3689,9 +3670,6 @@ importers:
       '@pnpm/symlink-dependency':
         specifier: workspace:*
         version: link:../../fs/symlink-dependency
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -3750,6 +3728,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -3810,9 +3791,6 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/util.lex-comparator':
         specifier: 1.0.0
         version: 1.0.0
@@ -3832,6 +3810,9 @@ importers:
       '@pnpm/hoist':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -3862,6 +3843,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../../store/store-controller-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3953,9 +3937,6 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
@@ -3966,6 +3947,9 @@ importers:
       '@pnpm/modules-cleaner':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -3975,9 +3959,6 @@ importers:
 
   pkg-manager/modules-yaml:
     dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       is-windows:
         specifier: ^1.0.2
         version: 1.0.2
@@ -3994,6 +3975,9 @@ importers:
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4009,6 +3993,9 @@ importers:
 
   pkg-manager/package-bins:
     dependencies:
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../../store/store-controller-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -4152,9 +4139,6 @@ importers:
       '@pnpm/colorize-semver-diff':
         specifier: ^1.0.1
         version: 1.0.1
-      '@pnpm/command':
-        specifier: workspace:*
-        version: link:../../cli/command
       '@pnpm/common-cli-options-help':
         specifier: workspace:*
         version: link:../../cli/common-cli-options-help
@@ -4164,9 +4148,6 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/core':
-        specifier: workspace:*
-        version: link:../core
       '@pnpm/dedupe.check':
         specifier: workspace:*
         version: link:../../dedupe/check
@@ -4260,6 +4241,9 @@ importers:
       enquirer:
         specifier: ^2.4.1
         version: 2.4.1
+      invariant:
+        specifier: 2.2.4
+        version: 2.2.4
       is-subdir:
         specifier: ^1.2.0
         version: 1.2.0
@@ -4303,6 +4287,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/read-projects-context':
+        specifier: workspace:*
+        version: link:../read-projects-context
       '@pnpm/registry-mock':
         specifier: 3.26.0
         version: 3.26.0(typanion@3.14.0)
@@ -4375,9 +4362,6 @@ importers:
       '@pnpm/normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       realpath-missing:
         specifier: ^1.1.0
         version: 1.1.0
@@ -4385,6 +4369,9 @@ importers:
       '@pnpm/read-projects-context':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4410,6 +4397,9 @@ importers:
       '@pnpm/real-hoist':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4428,9 +4418,6 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
@@ -4444,6 +4431,9 @@ importers:
       '@pnpm/remove-bins':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4504,9 +4494,6 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/which-version-is-pinned':
         specifier: workspace:*
         version: link:../../packages/which-version-is-pinned
@@ -4562,6 +4549,9 @@ importers:
       '@pnpm/resolve-dependencies':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4583,9 +4573,6 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../read-project-manifest
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       p-map-values:
         specifier: ^1.0.0
         version: 1.0.0
@@ -4599,6 +4586,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4623,13 +4613,13 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
     devDependencies:
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4639,9 +4629,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -4652,6 +4639,9 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4673,9 +4663,6 @@ importers:
       '@pnpm/text.comments-parser':
         specifier: workspace:*
         version: link:../../text/comments-parser
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/write-project-manifest':
         specifier: workspace:*
         version: link:../write-project-manifest
@@ -4707,6 +4694,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4728,9 +4718,6 @@ importers:
       '@pnpm/text.comments-parser':
         specifier: workspace:*
         version: link:../../text/comments-parser
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       json5:
         specifier: ^2.2.3
         version: 2.2.3
@@ -4741,6 +4728,9 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
     devDependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@pnpm/write-project-manifest':
         specifier: workspace:*
         version: 'link:'
@@ -4779,9 +4769,6 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../pkg-manager/client
-      '@pnpm/command':
-        specifier: workspace:*
-        version: link:../cli/command
       '@pnpm/common-cli-options-help':
         specifier: workspace:*
         version: link:../cli/common-cli-options-help
@@ -5544,6 +5531,9 @@ importers:
       '@pnpm/tarball-resolver':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -5577,9 +5567,6 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -5602,6 +5589,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -5797,9 +5787,6 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
-      '@pnpm/command':
-        specifier: workspace:*
-        version: link:../../cli/command
       '@pnpm/common-cli-options-help':
         specifier: workspace:*
         version: link:../../cli/common-cli-options-help
@@ -5937,9 +5924,6 @@ importers:
       '@pnpm/colorize-semver-diff':
         specifier: ^1.0.1
         version: 1.0.1
-      '@pnpm/command':
-        specifier: workspace:*
-        version: link:../../cli/command
       '@pnpm/common-cli-options-help':
         specifier: workspace:*
         version: link:../../cli/common-cli-options-help
@@ -11805,6 +11789,11 @@ packages:
     resolution: {integrity: sha512-WboRycPNsVw3B3TL559F7kuBUM4d8CgMEvk6xEJlOp7OBPjt6G7z8WMWlD2rOFZLk6OYfFIUGsCOWzcQH9K2og==}
     engines: {node: '>= 6'}
 
+  /data-uri-to-buffer@4.0.1:
+    resolution: {integrity: sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A==}
+    engines: {node: '>= 12'}
+    dev: true
+
   /date-fns@2.30.0:
     resolution: {integrity: sha512-fnULvOpxnC5/Vg3NCiWelDsLiUc9bRwAPs/+LfTLNvetFCtCTN+yQz15C/fs4AwX1R9K5GLtLfn8QW+dWisaAw==}
     engines: {node: '>=0.11'}
@@ -12760,6 +12749,14 @@ packages:
       domexception:
         optional: true
 
+  /fetch-blob@3.2.0:
+    resolution: {integrity: sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==}
+    engines: {node: ^12.20 || >= 14.13}
+    dependencies:
+      node-domexception: 1.0.0
+      web-streams-polyfill: 3.3.3
+    dev: true
+
   /figures@2.0.0:
     resolution: {integrity: sha512-Oa2M9atig69ZkfwiApY8F2Yy+tzMbazyvqv21R0NsSC8floSOC09BbT1ITWAdoMGQvJ/aZnR1KMwdx9tvHnTNA==}
     engines: {node: '>=4'}
@@ -12902,6 +12899,13 @@ packages:
       asynckit: 0.4.0
       combined-stream: 1.0.8
       mime-types: 2.1.35
+
+  /formdata-polyfill@4.0.10:
+    resolution: {integrity: sha512-buewHzMvYL29jdeQTVILecSaZKnt/RJWjoZCF5OW60Z67/GmSLBkOFM7qh1PI3zFNtJbaZL5eQu1vLfazOwj4g==}
+    engines: {node: '>=12.20.0'}
+    dependencies:
+      fetch-blob: 3.2.0
+    dev: true
 
   /forwarded@0.2.0:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
@@ -13689,6 +13693,12 @@ packages:
       from2: 2.3.0
       p-is-promise: 3.0.0
     dev: true
+
+  /invariant@2.2.4:
+    resolution: {integrity: sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA==}
+    dependencies:
+      loose-envify: 1.4.0
+    dev: false
 
   /ip-address@9.0.5:
     resolution: {integrity: sha512-zHtQzGojZXTwZTHQqra+ETKd4Sn3vgi7uBmlPoXVWZqYvuKmtI0l/VZTjqGmJY9x88GGOaZ9+G9ES8hC4T4X8g==}
@@ -14751,6 +14761,13 @@ packages:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
     dev: false
 
+  /loose-envify@1.4.0:
+    resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
+    hasBin: true
+    dependencies:
+      js-tokens: 4.0.0
+    dev: false
+
   /loud-rejection@2.2.0:
     resolution: {integrity: sha512-S0FayMXku80toa5sZ6Ro4C+s+EtFDCsyJNG/AzFMfX3AxD5Si4dZsgzm/kKnbOxHl5Cv8jBlno8+3XYIh2pNjQ==}
     engines: {node: '>=8'}
@@ -15582,6 +15599,11 @@ packages:
       semver: 7.6.0
     dev: true
 
+  /node-domexception@1.0.0:
+    resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
+    engines: {node: '>=10.5.0'}
+    dev: true
+
   /node-fetch@2.6.7:
     resolution: {integrity: sha512-ZjMPFEfVx5j+y2yF35Kzx5sF7kDzxuDj6ziH4FFbOp87zKDZNx8yExJIb05OGF4Nlt9IHFIMBkRl41VdvcNdbQ==}
     engines: {node: 4.x || >=6.0.0}
@@ -15603,6 +15625,15 @@ packages:
         optional: true
     dependencies:
       whatwg-url: 5.0.0
+    dev: true
+
+  /node-fetch@3.3.2:
+    resolution: {integrity: sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+    dependencies:
+      data-uri-to-buffer: 4.0.1
+      fetch-blob: 3.2.0
+      formdata-polyfill: 4.0.10
     dev: true
 
   /node-gyp-build@4.8.0:
@@ -16042,7 +16073,6 @@ packages:
   /p-reflect@2.1.0:
     resolution: {integrity: sha512-paHV8NUz8zDHu5lhr/ngGWQiW067DK/+IbJ+RfZ4k+s8y4EKyYCz8pGYWjxCg35eHztpJAt+NUgvN4L+GCbPlg==}
     engines: {node: '>=8'}
-    dev: false
 
   /p-settle@4.1.1:
     resolution: {integrity: sha512-6THGh13mt3gypcNMm0ADqVNCcYa3BK6DWsuJWFCuEKP1rpY+OKGp7gaZwVmLspmic01+fsg/fN57MfvDzZ/PuQ==}
@@ -16417,7 +16447,6 @@ packages:
     engines: {node: '>=8'}
     dependencies:
       p-reflect: 2.1.0
-    dev: false
 
   /prompts@2.4.2:
     resolution: {integrity: sha512-NxNv/kLguCA7p3jE8oL2aEBsrJWgAakBpgmgK6lpPWV+WuOmY6r2/zbAVnP+T8bQlA0nzHXSJSJW0Hq7ylaD2Q==}
@@ -17005,7 +17034,6 @@ packages:
     engines: {node: '>=12'}
     dependencies:
       promise-share: 1.0.0
-    dev: false
 
   /safe-regex-test@1.0.3:
     resolution: {integrity: sha512-CdASjNJPvRa7roO6Ra/gLYBTzYzzPyyBXxIMdGW3USQLyjWEls2RgW5UBTXaQVp+OrpeCK3bLem8smtmheoRuw==}
@@ -18085,6 +18113,11 @@ packages:
     engines: {node: '>=10'}
     dev: true
 
+  /type-fest@4.13.0:
+    resolution: {integrity: sha512-nKO1N9IFeTec3jnNe/3nZlX+RzwZsvT3c4akWC3IlhYGQbRSPFMBe87vmoaymS3hW2l/rs+4ptDDTxzcbqAcmA==}
+    engines: {node: '>=16'}
+    dev: true
+
   /type-is@1.6.18:
     resolution: {integrity: sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g==}
     engines: {node: '>= 0.6'}
@@ -18518,6 +18551,11 @@ packages:
     resolution: {integrity: sha512-XHPEwS0q6TaxcvG85+8EYkbiCux2XtWG2mkc47Ng2A77BQu9+DqIOJldST4HgPkuea7dvKSj5VgX3P1d4rW8Tg==}
     dependencies:
       defaults: 1.0.4
+    dev: true
+
+  /web-streams-polyfill@3.3.3:
+    resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
+    engines: {node: '>= 8'}
     dev: true
 
   /webidl-conversions@3.0.1:
@@ -19004,6 +19042,7 @@ time:
   /husky@8.0.3: '2023-01-03T08:01:18.807Z'
   /hyperdrive-schemas@2.0.0: '2020-07-14T11:16:33.671Z'
   /ini@4.1.2: '2024-03-04T18:00:44.409Z'
+  /invariant@2.2.4: '2018-03-13T18:36:10.235Z'
   /is-gzip@2.0.0: '2017-08-13T15:56:02.298Z'
   /is-inner-link@4.0.0: '2021-02-11T22:54:33.386Z'
   /is-port-reachable@3.0.0: '2019-11-12T09:49:42.096Z'
@@ -19028,6 +19067,7 @@ time:
   /nerf-dart@1.0.0: '2015-08-20T12:22:17.009Z'
   /nock@13.3.4: '2023-10-10T23:18:23.819Z'
   /nock@13.5.4: '2024-02-26T21:47:37.547Z'
+  /node-fetch@3.3.2: '2023-07-25T11:50:17.626Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'
   /normalize-newline@3.0.0: '2016-09-06T12:35:43.571Z'
   /normalize-package-data@6.0.0: '2023-08-15T17:29:07.249Z'
@@ -19101,6 +19141,7 @@ time:
   /ts-jest@29.1.2: '2024-01-22T10:40:13.538Z'
   /ts-node@10.9.2: '2023-12-08T12:04:46.154Z'
   /type-fest@0.4.1: '2019-04-22T01:46:41.345Z'
+  /type-fest@4.13.0: '2024-03-19T08:24:40.969Z'
   /typescript@5.4.2: '2024-03-06T18:14:58.798Z'
   /unified@11.0.4: '2023-10-26T11:23:34.441Z'
   /unique-string@2.0.0: '2019-04-29T04:18:06.804Z'

@@ -1,32 +1,53 @@
-import {
-  LOCKFILE_VERSION,
-  LOCKFILE_VERSION_V6,
-  WANTED_LOCKFILE,
-} from '@pnpm/constants'
-import {
-  createLockfileObject,
-  existsNonEmptyWantedLockfile,
-  isEmptyLockfile,
-  type Lockfile,
-  readCurrentLockfile,
-  readWantedLockfile,
-  readWantedLockfileAndAutofixConflicts,
-} from '@pnpm/lockfile-file'
-import { logger } from '@pnpm/logger'
 import { isCI } from 'ci-info'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
 
-export interface PnpmContext {
-  currentLockfile: Lockfile
-  existsCurrentLockfile: boolean
-  existsWantedLockfile: boolean
-  existsNonEmptyWantedLockfile: boolean
+import {
+  WANTED_LOCKFILE,
+  LOCKFILE_VERSION,
+  LOCKFILE_VERSION_V6,
+} from '@pnpm/constants'
+import {
+  isEmptyLockfile,
+  readWantedLockfile,
+  readCurrentLockfile,
+  createLockfileObject,
+  existsNonEmptyWantedLockfile,
+  readWantedLockfileAndAutofixConflicts,
+} from '@pnpm/lockfile-file'
+import { logger } from '@pnpm/logger'
+import type { Lockfile, Modules, ProjectOptions } from '@pnpm/types'
+
+export type PnpmContext = {
+  extraBinPaths: string[]
+  extraNodePaths: string[]
   wantedLockfile: Lockfile
+  currentLockfile: Lockfile
+  existsWantedLockfile: boolean
+  existsCurrentLockfile: boolean
+  existsNonEmptyWantedLockfile: boolean
+  hoistedModulesDir: string
+  include: boolean
+  projects: Record<string, ProjectOptions & {
+    binsDir: string;
+    id: string;
+    modulesDir: string;
+  }>
+  skipped: Set<string>
+  rootModulesDir: string
+  registries: string[]
+  publicHoistPattern: string[] | undefined
+  pendingBuilds: string[]
+  modulesFile: Modules | null
+  lockfileDir: string
+  storeDir: string
+  virtualStoreDir: string
+  hoistPattern: string[] | undefined
+  hoistedDependencies: Record<string, Record<string, 'public' | 'private'>>
 }
 
 export async function readLockfiles(opts: {
-  autoInstallPeers: boolean
+  autoInstallPeers?: boolean | undefined
   excludeLinksFromLockfile: boolean
   force: boolean
   forceSharedLockfile: boolean
@@ -38,8 +59,8 @@ export async function readLockfiles(opts: {
   lockfileDir: string
   registry: string
   useLockfile: boolean
-  useGitBranchLockfile?: boolean
-  mergeGitBranchLockfiles?: boolean
+  useGitBranchLockfile?: boolean | undefined
+  mergeGitBranchLockfiles?: boolean | undefined
   virtualStoreDir: string
 }): Promise<{
     currentLockfile: Lockfile
@@ -52,6 +73,7 @@ export async function readLockfiles(opts: {
     lockfileHadConflicts: boolean
   }> {
   const wantedLockfileVersion = LOCKFILE_VERSION_V6
+
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
@@ -60,8 +82,11 @@ export async function readLockfiles(opts: {
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
+
   const fileReads = [] as Array<Promise<Lockfile | undefined | null>>
+
   let lockfileHadConflicts: boolean = false
+
   if (opts.useLockfile) {
     if (!opts.frozenLockfile) {
       fileReads.push(
@@ -93,8 +118,10 @@ export async function readLockfiles(opts: {
         prefix: opts.lockfileDir,
       })
     }
+
     fileReads.push(Promise.resolve(undefined))
   }
+
   fileReads.push(
     (async () => {
       try {
@@ -108,14 +135,19 @@ export async function readLockfiles(opts: {
       }
     })()
   )
+
   const files = await Promise.all<Lockfile | null | undefined>(fileReads)
+
   const sopts = {
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     lockfileVersion: wantedLockfileVersion,
   }
+
   const importerIds = opts.projects.map((importer) => importer.id)
+
   const currentLockfile = files[1] ?? createLockfileObject(importerIds, sopts)
+
   for (const importerId of importerIds) {
     if (!currentLockfile.importers[importerId]) {
       currentLockfile.importers[importerId] = {
@@ -123,11 +155,14 @@ export async function readLockfiles(opts: {
       }
     }
   }
+
   const wantedLockfile =
     files[0] ??
     (currentLockfile && clone(currentLockfile)) ??
     createLockfileObject(importerIds, sopts)
+
   let wantedLockfileIsModified = false
+
   for (const importerId of importerIds) {
     if (!wantedLockfile.importers[importerId]) {
       wantedLockfileIsModified = true
@@ -136,7 +171,9 @@ export async function readLockfiles(opts: {
       }
     }
   }
+
   const existsWantedLockfile = files[0] != null
+
   return {
     currentLockfile,
     currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),

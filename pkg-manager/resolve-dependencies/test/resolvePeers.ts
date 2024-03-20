@@ -1,9 +1,8 @@
-/// <reference path="../../../__typings__/index.d.ts" />
-import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import {
   type DependenciesTreeNode,
   type PeerDependencies,
 } from '../lib/resolveDependencies'
+import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 
 test('resolve peer dependencies of cyclic dependencies', () => {
   const fooPkg = {

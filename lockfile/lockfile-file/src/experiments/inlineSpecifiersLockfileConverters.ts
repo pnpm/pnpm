@@ -1,14 +1,16 @@
-import * as dp from '@pnpm/dependency-path'
 import type {
   Lockfile,
+  PackageSnapshot,
   ProjectSnapshot,
   ResolvedDependencies,
-} from '@pnpm/lockfile-types'
+  InlineSpecifiersLockfile,
+  InlineSpecifiersProjectSnapshot,
+  InlineSpecifiersResolvedDependencies,
+} from '@pnpm/types'
+import * as dp from '@pnpm/dependency-path'
+
 import {
   INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX,
-  type InlineSpecifiersLockfile,
-  type InlineSpecifiersProjectSnapshot,
-  type InlineSpecifiersResolvedDependencies,
 } from './InlineSpecifiersLockfile'
 
 export function isExperimentalInlineSpecifiersFormat(
@@ -28,53 +30,64 @@ export function convertToInlineSpecifiersFormat(
   lockfile: Lockfile
 ): InlineSpecifiersLockfile {
   let importers = lockfile.importers
+
   let packages = lockfile.packages
+
   if (lockfile.lockfileVersion.toString().startsWith('6.')) {
     importers = Object.fromEntries(
       Object.entries(lockfile.importers ?? {}).map(
-        ([importerId, pkgSnapshot]: [string, ProjectSnapshot]) => {
+        ([importerId, pkgSnapshot]: [string, ProjectSnapshot]): [string, ProjectSnapshot] => {
           const newSnapshot = { ...pkgSnapshot }
-          if (newSnapshot.dependencies != null) {
+
+          if (typeof newSnapshot.dependencies !== 'undefined') {
             newSnapshot.dependencies = mapValues(
               newSnapshot.dependencies,
               convertOldRefToNewRef
             )
           }
-          if (newSnapshot.optionalDependencies != null) {
+
+          if (typeof newSnapshot.optionalDependencies !== 'undefined') {
             newSnapshot.optionalDependencies = mapValues(
               newSnapshot.optionalDependencies,
               convertOldRefToNewRef
             )
           }
-          if (newSnapshot.devDependencies != null) {
+
+          if (typeof newSnapshot.devDependencies !== 'undefined') {
             newSnapshot.devDependencies = mapValues(
               newSnapshot.devDependencies,
               convertOldRefToNewRef
             )
           }
+
           return [importerId, newSnapshot]
         }
       )
     )
+
     packages = Object.fromEntries(
-      Object.entries(lockfile.packages ?? {}).map(([depPath, pkgSnapshot]) => {
+      Object.entries(lockfile.packages ?? {}).map(([depPath, pkgSnapshot]): [string, PackageSnapshot] => {
         const newSnapshot = { ...pkgSnapshot }
-        if (newSnapshot.dependencies != null) {
+
+        if (typeof newSnapshot.dependencies !== 'undefined') {
           newSnapshot.dependencies = mapValues(
             newSnapshot.dependencies,
             convertOldRefToNewRef
           )
         }
-        if (newSnapshot.optionalDependencies != null) {
+
+        if (typeof newSnapshot.optionalDependencies !== 'undefined') {
           newSnapshot.optionalDependencies = mapValues(
             newSnapshot.optionalDependencies,
             convertOldRefToNewRef
           )
         }
+
         return [convertOldDepPathToNewDepPath(depPath), newSnapshot]
       })
     )
   }
+
   const newLockfile = {
     ...lockfile,
     packages,
@@ -106,18 +119,21 @@ export function convertToInlineSpecifiersFormat(
 
 function convertOldDepPathToNewDepPath(oldDepPath: string): string {
   const parsedDepPath = dp.parse(oldDepPath)
-  if (!parsedDepPath.name || !parsedDepPath.version) return oldDepPath
+
+  if (!('name' in parsedDepPath) || !parsedDepPath.name || !parsedDepPath.version) {
+    return oldDepPath
+  }
+
   let newDepPath = `/${parsedDepPath.name}@${parsedDepPath.version}`
+
   if (parsedDepPath.peersSuffix) {
-    if (parsedDepPath.peersSuffix.startsWith('(')) {
-      newDepPath += parsedDepPath.peersSuffix
-    } else {
-      newDepPath += `_${parsedDepPath.peersSuffix}`
-    }
+    newDepPath += parsedDepPath.peersSuffix.startsWith('(') ? parsedDepPath.peersSuffix : `_${parsedDepPath.peersSuffix}`;
   }
+
   if (parsedDepPath.host) {
-    newDepPath = `${parsedDepPath.host}${newDepPath}`
+    return `${parsedDepPath.host}${newDepPath}`;
   }
+
   return newDepPath
 }
 
@@ -156,53 +172,65 @@ export function revertFromInlineSpecifiersFormat(
   }
 
   let revertedImporters = mapValues(importers, revertProjectSnapshot)
+
   let packages = lockfile.packages
+
   if (originalVersionStr.startsWith('6.')) {
     revertedImporters = Object.fromEntries(
       Object.entries(revertedImporters ?? {}).map(
         ([importerId, pkgSnapshot]: [string, ProjectSnapshot]) => {
           const newSnapshot = { ...pkgSnapshot }
+
           if (newSnapshot.dependencies != null) {
             newSnapshot.dependencies = mapValues(
               newSnapshot.dependencies,
               convertNewRefToOldRef
             )
           }
+
           if (newSnapshot.optionalDependencies != null) {
             newSnapshot.optionalDependencies = mapValues(
               newSnapshot.optionalDependencies,
               convertNewRefToOldRef
             )
           }
+
           if (newSnapshot.devDependencies != null) {
             newSnapshot.devDependencies = mapValues(
               newSnapshot.devDependencies,
               convertNewRefToOldRef
             )
           }
+
           return [importerId, newSnapshot]
         }
       )
     )
+
     packages = Object.fromEntries(
       Object.entries(lockfile.packages ?? {}).map(([depPath, pkgSnapshot]) => {
+        // @ts-ignore
         const newSnapshot = { ...pkgSnapshot }
+
         if (newSnapshot.dependencies != null) {
           newSnapshot.dependencies = mapValues(
             newSnapshot.dependencies,
             convertNewRefToOldRef
           )
         }
+
         if (newSnapshot.optionalDependencies != null) {
           newSnapshot.optionalDependencies = mapValues(
             newSnapshot.optionalDependencies,
             convertNewRefToOldRef
           )
         }
+
         return [convertLockfileV6DepPathToV5DepPath(depPath), newSnapshot]
       })
     )
   }
+
   const newLockfile = {
     ...rest,
     lockfileVersion: lockfileVersion.endsWith(
@@ -213,7 +241,10 @@ export function revertFromInlineSpecifiersFormat(
     packages,
     importers: revertedImporters,
   }
+
+  // @ts-ignore
   if (originalVersionStr.startsWith('6.') && newLockfile.time) {
+    // @ts-ignore
     newLockfile.time = Object.fromEntries(
       Object.entries(newLockfile.time).map(([depPath, time]) => [
         convertLockfileV6DepPathToV5DepPath(depPath),
@@ -221,15 +252,21 @@ export function revertFromInlineSpecifiersFormat(
       ])
     )
   }
+
   return newLockfile
 }
 
 export function convertLockfileV6DepPathToV5DepPath(newDepPath: string): string {
-  if (!newDepPath.includes('@', 2) || newDepPath.startsWith('file:'))
+  if (!newDepPath.includes('@', 2) || newDepPath.startsWith('file:')) {
     return newDepPath
+  }
+
   const index = newDepPath.indexOf('@', newDepPath.indexOf('/@') + 2)
-  if (newDepPath.includes('(') && index > dp.indexOfPeersSuffix(newDepPath))
+
+  if (newDepPath.includes('(') && index > dp.indexOfPeersSuffix(newDepPath)) {
     return newDepPath
+  }
+
   return `${newDepPath.substring(0, index)}/${newDepPath.substring(index + 1)}`
 }
 
@@ -237,9 +274,11 @@ function convertNewRefToOldRef(oldRef: string): string {
   if (oldRef.startsWith('link:') || oldRef.startsWith('file:')) {
     return oldRef
   }
+
   if (oldRef.includes('@')) {
     return convertLockfileV6DepPathToV5DepPath(oldRef)
   }
+
   return oldRef
 }
 
@@ -247,12 +286,15 @@ function convertProjectSnapshotToInlineSpecifiersFormat(
   projectSnapshot: ProjectSnapshot
 ): InlineSpecifiersProjectSnapshot {
   const { specifiers, ...rest } = projectSnapshot
-  const convertBlock = (block?: ResolvedDependencies) =>
-    block != null
-      ? convertResolvedDependenciesToInlineSpecifiersFormat(block, {
+
+  function convertBlock(block?: ResolvedDependencies | undefined): InlineSpecifiersResolvedDependencies | undefined {
+    return typeof block === 'undefined'
+      ? block
+      : convertResolvedDependenciesToInlineSpecifiersFormat(block, {
         specifiers,
-      })
-      : block
+      });
+  }
+
   return {
     ...rest,
     dependencies: convertBlock(projectSnapshot.dependencies),

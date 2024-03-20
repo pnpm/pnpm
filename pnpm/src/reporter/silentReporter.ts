@@ -1,8 +1,8 @@
 import type { LogBase } from '@pnpm/logger'
 import { StreamParser } from '@pnpm/logger/lib/streamParser'
 
-export function silentReporter(streamParser: StreamParser) {
-  streamParser.on('data', (obj: LogBase) => {
+export function silentReporter(streamParser: StreamParser): void {
+  streamParser.on('data', (obj: LogBase): void => {
     if (obj.level !== 'error') {
       return
     }

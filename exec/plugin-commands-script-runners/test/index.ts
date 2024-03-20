@@ -1,18 +1,20 @@
-/// <reference path="../../../__typings__/index.d.ts" />
-import fsSync, { promises as fs } from 'fs'
 import path from 'path'
+import fsSync, { promises as fs } from 'fs'
+
+import execa from 'execa'
+import isWindows from 'is-windows'
+import writeYamlFile from 'write-yaml-file'
+
 import { type PnpmError } from '@pnpm/error'
-import { readProjects } from '@pnpm/filter-workspace-packages'
 import {
-  restart,
   run,
+  restart,
   test as testCommand,
 } from '@pnpm/plugin-commands-script-runners'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import execa from 'execa'
-import isWindows from 'is-windows'
-import writeYamlFile from 'write-yaml-file'
+import { readProjects } from '@pnpm/filter-workspace-packages'
+
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
@@ -35,7 +37,8 @@ test('pnpm run: returns correct exit code', async () => {
     ['exit0']
   )
 
-  let err!: Error & { errno: number }
+  let err: (Error & { errno: number }) | undefined
+
   try {
     await run.handler(
       {
@@ -46,10 +49,12 @@ test('pnpm run: returns correct exit code', async () => {
       },
       ['exit1']
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
-  expect(err.errno).toBe(1)
+
+  expect(err?.errno).toBe(1)
 })
 
 test('pnpm run --no-bail never fails', async () => {
@@ -58,7 +63,9 @@ test('pnpm run --no-bail never fails', async () => {
       exit1: 'node recordArgs && exit 1',
     },
   })
+
   await fs.writeFile('args.json', '[]', 'utf8')
+
   await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler(
@@ -73,6 +80,7 @@ test('pnpm run --no-bail never fails', async () => {
   )
 
   const { default: args } = await import(path.resolve('args.json'))
+
   expect(args).toStrictEqual([[]])
 })
 
@@ -87,7 +95,9 @@ test('run: pass the args to the command that is specified in the build script', 
       prefoo: 'node recordArgs',
     },
   })
+
   await fs.writeFile('args.json', '[]', 'utf8')
+
   await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler(
@@ -101,6 +111,7 @@ test('run: pass the args to the command that is specified in the build script', 
   )
 
   const { default: args } = await import(path.resolve('args.json'))
+
   expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])
 })
 
@@ -116,6 +127,7 @@ test('run: pass the args to the command that is specified in the build script of
     { manifestFormat: 'YAML' }
   )
   await fs.writeFile('args.json', '[]', 'utf8')
+
   await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler(
@@ -449,7 +461,8 @@ test('if a script is not found but is present in the root, print an info message
     []
   )
 
-  let err!: PnpmError
+  let err: PnpmError | undefined
+
   try {
     await run.handler(
       {
@@ -461,12 +474,14 @@ test('if a script is not found but is present in the root, print an info message
       },
       ['build']
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
 
   expect(err).toBeTruthy()
-  expect(err.hint).toMatch(
+
+  expect(err?.hint).toMatch(
     /But script matched with build is present in the root/
   )
 })
@@ -685,7 +700,8 @@ test('pnpm run with RegExp script selector with flag should throw error', async 
     },
   })
 
-  let err!: Error
+  let err: Error | undefined
+
   try {
     await run.handler(
       {
@@ -697,10 +713,12 @@ test('pnpm run with RegExp script selector with flag should throw error', async 
       },
       ['/build:.*/i']
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
-  expect(err.message).toBe(
+
+  expect(err?.message).toBe(
     'RegExp flags are not supported in script command selector'
   )
 })

@@ -1,14 +1,17 @@
 import path from 'node:path'
-import { removalLogger } from '@pnpm/core-loggers'
-import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DependencyManifest } from '@pnpm/types'
+
+import isWindows from 'is-windows'
 import rimraf from '@zkochan/rimraf'
 import CMD_EXTENSION from 'cmd-extension'
-import isWindows from 'is-windows'
 
-async function removeOnWin(cmd: string) {
+import { removalLogger } from '@pnpm/core-loggers'
+import type { DependencyManifest } from '@pnpm/types'
+import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+
+async function removeOnWin(cmd: string): Promise<void> {
   removalLogger.debug(cmd)
+
   await Promise.all([
     rimraf(cmd),
     rimraf(`${cmd}.ps1`),
@@ -16,8 +19,9 @@ async function removeOnWin(cmd: string) {
   ])
 }
 
-async function removeOnNonWin(p: string) {
+async function removeOnNonWin(p: string): Promise<void> {
   removalLogger.debug(p)
+
   return rimraf(p)
 }
 
@@ -26,15 +30,18 @@ export const removeBin = isWindows() ? removeOnWin : removeOnNonWin
 export async function removeBinsOfDependency(
   dependencyDir: string,
   opts: {
-    dryRun?: boolean
-    binsDir: string
+    dryRun?: boolean | undefined
+    binsDir?: string | undefined
   }
-) {
-  const uninstalledPkgJson = (await safeReadPackageJsonFromDir(
+): Promise<DependencyManifest | undefined> {
+  const uninstalledPkgJson: DependencyManifest | null = (await safeReadPackageJsonFromDir(
     dependencyDir
-  )) as DependencyManifest
+  ))
 
-  if (!uninstalledPkgJson) return
+  if (!uninstalledPkgJson) {
+    return
+  }
+
   const cmds = await getBinsFromPackageManifest(
     uninstalledPkgJson,
     dependencyDir
@@ -42,7 +49,12 @@ export async function removeBinsOfDependency(
 
   if (!opts.dryRun) {
     await Promise.all(
-      cmds.map((cmd) => path.join(opts.binsDir, cmd.name)).map(removeBin)
+      cmds.map((cmd: {
+        name: string;
+        path: string;
+      }): string => {
+        return path.join(opts.binsDir ?? '', cmd.name);
+      }).map(removeBin)
     )
   }
 

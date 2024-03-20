@@ -37,6 +37,7 @@
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/cmd-shim": "^6.0.0",
     "@zkochan/rimraf": "^2.1.3",

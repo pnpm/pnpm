@@ -1,6 +1,5 @@
-/// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
-import { type Config } from '@pnpm/config'
+import path from 'node:path'
+
 import {
   deprecationLogger,
   hookLogger,
@@ -19,6 +18,7 @@ import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
 import repeat from 'ramda/src/repeat'
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
+import { Config } from '@pnpm/types'
 
 const formatErrorCode = (code: string) =>
   chalk.bgRed.black(`\u2009${code}\u2009`)

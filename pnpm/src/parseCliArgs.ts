@@ -1,10 +1,12 @@
-import { parseCliArgs as parseCliArgsLib } from '@pnpm/parse-cli-args'
+import { ParsedCliArgs, parseCliArgs as parseCliArgsLib } from '@pnpm/parse-cli-args'
+
 import {
+  GLOBAL_OPTIONS,
   getCliOptionsTypes,
   getCommandFullName,
-  GLOBAL_OPTIONS,
   shorthandsByCommandName,
 } from './cmd'
+
 import { shorthands as universalShorthands } from './shorthands'
 
 const RENAMED_OPTIONS = {
@@ -14,7 +16,7 @@ const RENAMED_OPTIONS = {
   store: 'store-dir',
 }
 
-export async function parseCliArgs(inputArgv: string[]) {
+export async function parseCliArgs(inputArgv: string[]): Promise<ParsedCliArgs> {
   return parseCliArgsLib(
     {
       fallbackCommand: 'run',

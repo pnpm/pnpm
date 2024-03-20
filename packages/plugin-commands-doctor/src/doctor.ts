@@ -1,7 +1,8 @@
 import renderHelp from 'render-help'
-import { docsUrl } from '@pnpm/cli-utils'
+
 import { logger } from '@pnpm/logger'
-import { type Config } from '@pnpm/config'
+import { docsUrl } from '@pnpm/cli-utils'
+import type { Config } from '@pnpm/types'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -13,7 +14,7 @@ export const shorthands = {}
 
 export const commandNames = ['doctor']
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description: 'Checks for known common issues.',
     url: docsUrl('doctor'),
@@ -21,7 +22,7 @@ export function help() {
   })
 }
 
-export async function handler(opts: Pick<Config, 'failedToLoadBuiltInConfig'>) {
+export async function handler(opts: Pick<Config, 'failedToLoadBuiltInConfig'>): Promise<void> {
   const { failedToLoadBuiltInConfig } = opts
   if (failedToLoadBuiltInConfig) {
     // If true, means loading npm builtin config failed. Then there may have a prefix error, related: https://github.com/pnpm/pnpm/issues/5404

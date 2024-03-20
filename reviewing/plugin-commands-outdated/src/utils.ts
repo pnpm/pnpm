@@ -1,10 +1,4 @@
-import type { OutdatedPackage } from '@pnpm/outdated'
-import type { SEMVER_CHANGE } from '@pnpm/semver-diff'
-
-export type OutdatedWithVersionDiff = OutdatedPackage & {
-  change: SEMVER_CHANGE | null
-  diff?: [string[], string[]]
-}
+import { OutdatedWithVersionDiff } from '@pnpm/types';
 
 /**
  * Default comparators used as the argument to `ramda.sortWith()`.

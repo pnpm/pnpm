@@ -1,58 +1,47 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
+import semver from 'semver'
+
 import {
   getLockfileImporterId,
-  type Lockfile,
-  type ProjectSnapshot,
 } from '@pnpm/lockfile-file'
+import { PnpmError } from '@pnpm/error'
+import { parsePref } from '@pnpm/npm-resolver'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { parsePref } from '@pnpm/npm-resolver'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
-  type DependenciesField,
-  DEPENDENCIES_FIELDS,
-  type IncludedDependencies,
-  type PackageManifest,
-  type ProjectManifest,
+  type Lockfile,
   type Registries,
+  DEPENDENCIES_FIELDS,
+  type ProjectSnapshot,
+  type OutdatedPackage,
+  type ProjectManifest,
+  type IncludedDependencies,
+  type GetLatestManifestFunction,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
-import semver from 'semver'
 import { createMatcher } from '@pnpm/matcher'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 
 export * from './createManifestGetter'
 
-export type GetLatestManifestFunction = (
-  packageName: string,
-  rangeOrTag: string
-) => Promise<PackageManifest | null>
-
-export interface OutdatedPackage {
-  alias: string
-  belongsTo: DependenciesField
-  current?: string // not defined means the package is not installed
-  latestManifest?: PackageManifest
-  packageName: string
-  wanted: string
-  workspace?: string
-}
-
 export async function outdated(opts: {
-  compatible?: boolean
+  compatible?: boolean | undefined
   currentLockfile: Lockfile | null
   getLatestManifest: GetLatestManifestFunction
-  ignoreDependencies?: string[]
-  include?: IncludedDependencies
+  ignoreDependencies?: string[] | undefined
+  include?: IncludedDependencies | undefined
   lockfileDir: string
   manifest: ProjectManifest
-  match?: (dependencyName: string) => boolean
+  match?: ((dependencyName: string) => boolean) | undefined
   prefix: string
   registries: Registries
   wantedLockfile: Lockfile | null
 }): Promise<OutdatedPackage[]> {
-  if (packageHasNoDeps(opts.manifest)) return []
+  if (packageHasNoDeps(opts.manifest)) {
+    return []
+  }
+
   if (opts.wantedLockfile == null) {
     throw new PnpmError(
       'OUTDATED_NO_LOCKFILE',
@@ -63,20 +52,27 @@ export async function outdated(opts: {
   async function getOverriddenManifest() {
     const overrides =
       opts.currentLockfile?.overrides ?? opts.wantedLockfile?.overrides
+
     if (overrides) {
       const readPackageHook = createReadPackageHook({
         lockfileDir: opts.lockfileDir,
         overrides,
       })
+
       const manifest = await readPackageHook?.(opts.manifest, opts.lockfileDir)
-      if (manifest) return manifest
+
+      if (manifest) {
+        return manifest
+      }
     }
 
     return opts.manifest
   }
 
   const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest())
+
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
+
   const currentLockfile = opts.currentLockfile ?? {
     importers: { [importerId]: {} },
   }
@@ -88,7 +84,7 @@ export async function outdated(opts: {
     : undefined
 
   await Promise.all(
-    DEPENDENCIES_FIELDS.map(async (depType) => {
+    DEPENDENCIES_FIELDS.map(async (depType: 'optionalDependencies' | 'dependencies' | 'devDependencies'): Promise<void> => {
       if (
         opts.include?.[depType] === false ||
         opts.wantedLockfile?.importers[importerId][depType] == null
@@ -104,8 +100,11 @@ export async function outdated(opts: {
       }
 
       await Promise.all(
-        pkgs.map(async (alias) => {
-          if (!allDeps[alias]) return
+        pkgs.map(async (alias: string): Promise<void> => {
+          if (!allDeps[alias]) {
+            return
+          }
+
           const ref =
             opts.wantedLockfile?.importers[importerId][depType]?.[alias]
 
@@ -134,16 +133,23 @@ export async function outdated(opts: {
           const currentRef = (
             currentLockfile.importers[importerId] as ProjectSnapshot
           )?.[depType]?.[alias]
+
           const currentRelative =
             currentRef && dp.refToRelative(currentRef, alias)
+
+          const parsed = dp.parse(relativeDepPath)
+
           const current =
-            (currentRelative && dp.parse(currentRelative).version) ?? currentRef
-          const wanted = dp.parse(relativeDepPath).version ?? ref ?? ''
+            (currentRelative && 'version' in parsed ? parsed.version : undefined) ?? currentRef
+
+          const wanted = 'version' in parsed ? parsed.version : ref ?? ''
+
           const { name: packageName } = nameVerFromPkgSnapshot(
             relativeDepPath,
             pkgSnapshot
           )
-          const name = dp.parse(relativeDepPath).name ?? packageName
+
+          const name = 'name' in parsed ? parsed.name : packageName
 
           // If the npm resolve parser cannot parse the spec of the dependency,
           // it means that the package is not from a npm-compatible registry.
@@ -186,6 +192,7 @@ export async function outdated(opts: {
               wanted,
               workspace: opts.manifest.name,
             })
+
             return
           }
 
@@ -209,12 +216,13 @@ export async function outdated(opts: {
     })
   )
 
-  return outdated.sort((pkg1, pkg2) =>
-    pkg1.packageName.localeCompare(pkg2.packageName)
+  return outdated.sort((pkg1: OutdatedPackage, pkg2: OutdatedPackage): number => {
+    return pkg1.packageName.localeCompare(pkg2.packageName);
+  }
   )
 }
 
-function packageHasNoDeps(manifest: ProjectManifest) {
+function packageHasNoDeps(manifest: ProjectManifest): boolean {
   return (
     (manifest.dependencies == null || isEmpty(manifest.dependencies)) &&
     (manifest.devDependencies == null || isEmpty(manifest.devDependencies)) &&
@@ -223,6 +231,6 @@ function packageHasNoDeps(manifest: ProjectManifest) {
   )
 }
 
-function isEmpty(obj: object) {
+function isEmpty(obj: object): boolean {
   return Object.keys(obj).length === 0
 }

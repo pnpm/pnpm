@@ -1,18 +1,21 @@
-import path from 'path'
-import {
-  filterPkgsBySelectorObjects,
-  readProjects,
-} from '@pnpm/filter-workspace-packages'
-import { test as testCommand } from '@pnpm/plugin-commands-script-runners'
-import { preparePackages } from '@pnpm/prepare'
-import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import path from 'node:path'
+
 import execa from 'execa'
+
+import {
+  readProjects,
+  filterPkgsBySelectorObjects,
+} from '@pnpm/filter-workspace-packages'
+import { preparePackages } from '@pnpm/prepare'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { test as testCommand } from '@pnpm/plugin-commands-script-runners'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
 test('pnpm recursive test', async () => {
   await using server1 = await createTestIpcServer()
+
   await using server2 = await createTestIpcServer()
 
   preparePackages([
@@ -58,6 +61,7 @@ test('pnpm recursive test', async () => {
     process.cwd(),
     []
   )
+
   await execa('node', [
     pnpmBin,
     'install',
@@ -67,6 +71,7 @@ test('pnpm recursive test', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
+
   await testCommand.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -77,6 +82,7 @@ test('pnpm recursive test', async () => {
   })
 
   expect(server1.getLines()).toStrictEqual(['project-1', 'project-2'])
+
   expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
 })
 
@@ -114,6 +120,7 @@ test('`pnpm recursive test` does not fail if none of the packages has a test com
     process.cwd(),
     []
   )
+
   await execa('node', [
     pnpmBin,
     'install',
@@ -160,11 +167,13 @@ test('pnpm recursive test with filtering', async () => {
   ])
 
   const { allProjects } = await readProjects(process.cwd(), [])
+
   const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
     allProjects,
     [{ namePattern: 'project-1' }],
     { workspaceDir: process.cwd() }
   )
+
   await execa('node', [
     pnpmBin,
     'install',
@@ -174,6 +183,7 @@ test('pnpm recursive test with filtering', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
+
   await testCommand.handler({
     ...DEFAULT_OPTS,
     allProjects,

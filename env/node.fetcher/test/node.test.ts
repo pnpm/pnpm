@@ -1,10 +1,12 @@
+import path from 'node:path'
+
 import AdmZip from 'adm-zip'
-import { Response } from 'node-fetch'
-import path from 'path'
 import { Readable } from 'stream'
-import { fetchNode, type FetchNodeOptions } from '@pnpm/node.fetcher'
-import { tempDir } from '@pnpm/prepare'
+import { Response } from 'node-fetch'
 import { isNonGlibcLinux } from 'detect-libc'
+
+import { tempDir } from '@pnpm/prepare'
+import { fetchNode, type FetchNodeOptions } from '@pnpm/node.fetcher'
 
 jest.mock('detect-libc', () => ({
   isNonGlibcLinux: jest.fn(),

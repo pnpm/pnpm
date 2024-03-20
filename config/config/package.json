@@ -40,7 +40,6 @@
     "@pnpm/npm-conf": "2.2.2",
     "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "better-path-resolve": "1.0.0",
     "camelcase": "^6.3.0",
     "camelcase-keys": "^6.2.2",
@@ -56,6 +55,7 @@
     "which": "^4.0.0"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

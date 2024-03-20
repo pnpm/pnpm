@@ -1,11 +1,8 @@
 import '@total-typescript/ts-reset'
-import { PnpmError } from '@pnpm/error'
-import { applyPatch } from '@pnpm/patch-package/dist/applyPatches'
 
-export interface ApplyPatchToDirOpts {
-  patchedDir: string
-  patchFilePath: string
-}
+import { PnpmError } from '@pnpm/error'
+import type { ApplyPatchToDirOpts } from '@pnpm/types'
+import { applyPatch } from '@pnpm/patch-package/dist/applyPatches'
 
 export function applyPatchToDir(opts: ApplyPatchToDirOpts) {
   // Ideally, we would just run "patch" or "git apply".

@@ -1,37 +1,41 @@
 import '@total-typescript/ts-reset'
+
 import path from 'node:path'
-import { PnpmError } from '@pnpm/error'
+
+import ssri from 'ssri'
+import semver from 'semver'
+import pMemoize from 'p-memoize'
+import clone from 'ramda/src/clone'
+import { LRUCache } from 'lru-cache'
+import normalize from 'normalize-path'
+
 import type {
-  FetchFromRegistry,
-  GetAuthHeader,
-  RetryTimeoutOptions,
-} from '@pnpm/fetching-types'
-import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
-import type {
-  DirectoryResolution,
-  PreferredVersions,
   ResolveResult,
   WantedDependency,
   WorkspacePackages,
-} from '@pnpm/resolver-base'
-import type { DependencyManifest } from '@pnpm/types'
-import { LRUCache } from 'lru-cache'
-import normalize from 'normalize-path'
-import pMemoize from 'p-memoize'
-import clone from 'ramda/src/clone'
-import semver from 'semver'
-import ssri from 'ssri'
+  DependencyManifest,
+  DirectoryResolution,
+  ResolveFromNpmOptions,
+  ResolverFactoryOptions,
+} from '@pnpm/types'
+import type {
+  GetAuthHeader,
+  FetchFromRegistry,
+} from '@pnpm/fetching-types'
+import { PnpmError } from '@pnpm/error'
+import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
+
 import {
-  type PackageInRegistry,
+  pickPackage,
   type PackageMeta,
   type PackageMetaCache,
+  type PackageInRegistry,
   type PickPackageOptions,
-  pickPackage,
 } from './pickPackage'
-import { parsePref, type RegistryPackageSpec } from './parsePref'
-import { fromRegistry, RegistryResponseError } from './fetch'
 import { createPkgId } from './createNpmPkgId'
 import { workspacePrefToNpm } from './workspacePrefToNpm'
+import { fromRegistry, RegistryResponseError } from './fetch'
+import { parsePref, type RegistryPackageSpec } from './parsePref'
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
@@ -63,16 +67,6 @@ const META_DIR = 'metadata'
 const FULL_META_DIR = 'metadata-full'
 const FULL_FILTERED_META_DIR = 'metadata-v1.1'
 
-export interface ResolverFactoryOptions {
-  cacheDir: string
-  fullMetadata?: boolean
-  filterMetadata?: boolean
-  offline?: boolean
-  preferOffline?: boolean
-  retry?: RetryTimeoutOptions
-  timeout?: number
-}
-
 export function createNpmResolver(
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
@@ -81,10 +75,12 @@ export function createNpmResolver(
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
+
   const fetchOpts = {
     retry: opts.retry ?? {},
-    timeout: opts.timeout ?? 60000,
+    timeout: opts.timeout ?? 60_000,
   }
+
   const fetch = pMemoize(
     fromRegistry.bind(null, fetchFromRegistry, fetchOpts),
     {
@@ -92,10 +88,12 @@ export function createNpmResolver(
       maxAge: 1000 * 20, // 20 seconds
     }
   )
+
   const metaCache = new LRUCache<string, PackageMeta>({
-    max: 10000,
+    max: 10_000,
     ttl: 120 * 1000, // 2 minutes
   })
+
   return resolveNpm.bind(null, {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
@@ -114,28 +112,6 @@ export function createNpmResolver(
   })
 }
 
-export type ResolveFromNpmOptions = {
-  alwaysTryWorkspacePackages?: boolean
-  defaultTag?: string
-  publishedBy?: Date
-  pickLowestVersion?: boolean
-  dryRun?: boolean
-  lockfileDir?: string
-  registry: string
-  preferredVersions?: PreferredVersions
-  preferWorkspacePackages?: boolean
-  updateToLatest?: boolean
-} & (
-  | {
-    projectDir?: string
-    workspacePackages?: undefined
-  }
-  | {
-    projectDir: string
-    workspacePackages: WorkspacePackages
-  }
-)
-
 async function resolveNpm(
   ctx: {
     pickPackage: (
@@ -148,8 +124,12 @@ async function resolveNpm(
   opts: ResolveFromNpmOptions
 ): Promise<ResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
+
   if (wantedDependency.pref?.startsWith('workspace:')) {
-    if (wantedDependency.pref.startsWith('workspace:.')) return null
+    if (wantedDependency.pref.startsWith('workspace:.')) {
+      return null
+    }
+
     const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
       defaultTag,
       lockfileDir: opts.lockfileDir,
@@ -157,6 +137,7 @@ async function resolveNpm(
       registry: opts.registry,
       workspacePackages: opts.workspacePackages,
     })
+
     if (resolvedFromWorkspace != null) {
       return resolvedFromWorkspace
     }

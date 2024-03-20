@@ -1,8 +1,8 @@
-import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
+import crypto from 'node:crypto'
 
-export function computeHandlePath(handle?: string) {
+export function computeHandlePath(handle?: string| undefined): string {
   const handleFilePath =
     handle != null
       ? path.resolve(handle)

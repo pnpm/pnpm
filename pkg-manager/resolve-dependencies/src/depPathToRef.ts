@@ -1,29 +1,36 @@
-import type { Resolution } from '@pnpm/resolver-base'
-import type { Registries } from '@pnpm/types'
-import { getRegistryByPackageName } from '@pnpm/dependency-path'
 import encodeRegistry from 'encode-registry'
+
+import type { Registries, Resolution } from '@pnpm/types'
+import { getRegistryByPackageName } from '@pnpm/dependency-path'
 
 export function depPathToRef(
   depPath: string,
   opts: {
     alias: string
-    realName: string
+    realName?: string | undefined
     registries: Registries
-    resolution: Resolution
+    resolution?: Resolution | undefined
   }
-) {
-  if (opts.resolution.type) return depPath
+): string {
+  if (opts.resolution?.type) {
+    return depPath
+  }
 
   const registryName = encodeRegistry(
     getRegistryByPackageName(opts.registries, opts.realName)
   )
+
   if (depPath.startsWith(`${registryName}/`)) {
     depPath = depPath.replace(`${registryName}/`, '/')
   }
-  if (depPath[0] === '/' && opts.alias === opts.realName) {
+
+  if (depPath.startsWith('/') && opts.alias === opts.realName) {
     const ref = depPath.replace(`/${opts.realName}/`, '')
-    if (!ref.includes('/') || !ref.replace(/(\([^)]+\))+$/, '').includes('/'))
+
+    if (!ref.includes('/') || !ref.replace(/(\([^)]+\))+$/, '').includes('/')) {
       return ref
+    }
   }
+
   return depPath
 }

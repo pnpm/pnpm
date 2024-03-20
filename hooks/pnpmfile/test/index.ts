@@ -1,5 +1,5 @@
-import path from 'path'
-import { type Log } from '@pnpm/core-loggers'
+import path from 'node:path'
+import type { Log } from '@pnpm/core-loggers'
 import {
   requireHooks,
   requirePnpmfile,
@@ -14,10 +14,12 @@ test('ignoring a pnpmfile that exports undefined', () => {
   expect(pnpmfile).toBeUndefined()
 })
 
-test('readPackage hook run fails when returns undefined ', () => {
+test('readPackage hook run fails when returns undefined ', async () => {
   const pnpmfilePath = path.join(__dirname, 'pnpmfiles/readPackageNoReturn.js')
-  const pnpmfile = requirePnpmfile(pnpmfilePath, __dirname)
 
+  const pnpmfile = await requirePnpmfile(pnpmfilePath, __dirname)
+
+  // @ts-ignore
   return expect(pnpmfile.hooks.readPackage({})).rejects.toEqual(
     new BadReadPackageHookError(
       pnpmfilePath,
@@ -28,7 +30,10 @@ test('readPackage hook run fails when returns undefined ', () => {
 
 test('readPackage hook run fails when returned dependencies is not an object ', () => {
   const pnpmfilePath = path.join(__dirname, 'pnpmfiles/readPackageNoObject.js')
+
   const pnpmfile = requirePnpmfile(pnpmfilePath, __dirname)
+
+  // @ts-ignore
   return expect(pnpmfile.hooks.readPackage({})).rejects.toEqual(
     new BadReadPackageHookError(
       pnpmfilePath,
@@ -39,12 +44,17 @@ test('readPackage hook run fails when returned dependencies is not an object ', 
 
 test('filterLog hook combines with the global hook', async () => {
   const globalPnpmfile = path.join(__dirname, 'pnpmfiles/globalFilterLog.js')
+
   const pnpmfile = path.join(__dirname, 'pnpmfiles/filterLog.js')
+
   const hooks = await requireHooks(__dirname, { globalPnpmfile, pnpmfile })
 
   expect(hooks.filterLog).toBeDefined()
+
   expect(hooks.filterLog?.length).toBe(2)
+
   const filterLog = (log: Log) => hooks.filterLog?.every((hook) => hook(log))
+
   expect(
     filterLog({
       name: 'pnpm:summary',

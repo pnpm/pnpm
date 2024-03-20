@@ -44,7 +44,6 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
     "@yarnpkg/core": "4.0.0-rc.45",
     "encode-registry": "^3.0.1",
@@ -64,6 +63,7 @@
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/resolve-dependencies": "workspace:*",
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",

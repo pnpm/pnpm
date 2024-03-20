@@ -4,12 +4,24 @@ import type {
 } from '@pnpm/types'
 
 export function getDependencyTypeFromManifest(
-  manifest: Pick<ProjectManifest, DependenciesOrPeersField>,
+  manifest: Pick<ProjectManifest, DependenciesOrPeersField> | undefined,
   depName: string
 ): DependenciesOrPeersField | null {
-  if (manifest.optionalDependencies?.[depName]) return 'optionalDependencies'
-  if (manifest.dependencies?.[depName]) return 'dependencies'
-  if (manifest.devDependencies?.[depName]) return 'devDependencies'
-  if (manifest.peerDependencies?.[depName]) return 'peerDependencies'
+  if (manifest?.optionalDependencies?.[depName]) {
+    return 'optionalDependencies'
+  }
+
+  if (manifest?.dependencies?.[depName]) {
+    return 'dependencies'
+  }
+
+  if (manifest?.devDependencies?.[depName]) {
+    return 'devDependencies'
+  }
+
+  if (manifest?.peerDependencies?.[depName]) {
+    return 'peerDependencies'
+  }
+
   return null
 }

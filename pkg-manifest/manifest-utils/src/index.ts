@@ -1,9 +1,10 @@
 import '@total-typescript/ts-reset'
 import type {
   Dependencies,
-  IncludedDependencies,
   ProjectManifest,
+  IncludedDependencies,
 } from '@pnpm/types'
+
 import { getSpecFromPackageManifest } from './getSpecFromPackageManifest'
 
 export * from './getPref'
@@ -13,13 +14,13 @@ export * from './getDependencyTypeFromManifest'
 export { getSpecFromPackageManifest }
 
 export function filterDependenciesByType(
-  manifest: ProjectManifest,
+  manifest: ProjectManifest | undefined,
   include: IncludedDependencies
 ): Dependencies {
   return {
-    ...(include.devDependencies ? manifest.devDependencies : {}),
-    ...(include.dependencies ? manifest.dependencies : {}),
-    ...(include.optionalDependencies ? manifest.optionalDependencies : {}),
+    ...(include.devDependencies ? manifest?.devDependencies : {}),
+    ...(include.dependencies ? manifest?.dependencies : {}),
+    ...(include.optionalDependencies ? manifest?.optionalDependencies : {}),
   }
 }
 
@@ -27,11 +28,11 @@ export function getAllDependenciesFromManifest(
   manifest: Pick<
     ProjectManifest,
     'devDependencies' | 'dependencies' | 'optionalDependencies'
-  >
+  > | undefined
 ): Dependencies {
   return {
-    ...manifest.devDependencies,
-    ...manifest.dependencies,
-    ...manifest.optionalDependencies,
-  } as Dependencies
+    ...manifest?.devDependencies,
+    ...manifest?.dependencies,
+    ...manifest?.optionalDependencies,
+  }
 }

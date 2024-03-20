@@ -45,6 +45,7 @@
     "@pnpm/logger": "^5.0.0"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/plugin-commands-config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ini": "4.1.0",

@@ -2,7 +2,6 @@ import crypto from 'node:crypto'
 import path from 'node:path'
 import {
   buildModules,
-  type DepsStateCache,
   linkBinsOfDependencies,
 } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
@@ -15,23 +14,19 @@ import {
 import { stageLogger, summaryLogger } from '@pnpm/core-loggers'
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
-import { getContext, type PnpmContext } from '@pnpm/get-context'
-import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
+import { getContext } from '@pnpm/get-context'
+import { headlessInstall } from '@pnpm/headless'
 import {
   makeNodeRequireOption,
   runLifecycleHook,
   runLifecycleHooksConcurrently,
-  type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
-  type ProjectSnapshot,
-  type Lockfile,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
   cleanGitBranchLockfiles,
-  type PatchFile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
@@ -46,21 +41,37 @@ import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { removeBin } from '@pnpm/remove-bins'
 import {
   getWantedDependencies,
-  type DependenciesGraph,
-  type DependenciesGraphNode,
-  type PinnedVersion,
   resolveDependencies,
-  type UpdateMatchingFunction,
-  type WantedDependency,
 } from '@pnpm/resolve-dependencies'
-import { type PreferredVersions } from '@pnpm/resolver-base'
-import {
-  PackageExtension,
-  type DependenciesField,
-  type DependencyManifest,
-  type PeerDependencyIssues,
-  type ProjectManifest,
-  type ReadPackageHook,
+import type {
+  BundledManifest,
+  InstallDepsMutation,
+  InstallMutationOptions,
+  InstallOptions,
+  InstallSomeDepsMutation,
+  InstallationResultStats,
+  Lockfile,
+  MutateModulesOptions,
+  MutateModulesResult,
+  MutatedProject,
+  PatchFile,
+  PreferredVersions,
+  ProjectOptions,
+  ProjectToBeInstalled,
+  UpdatedProject,
+  ProjectManifest,
+  AddDependenciesToPackageOptions,
+  ProjectSnapshot,
+  DependenciesGraph,
+  DependenciesGraphNode,
+  LinkedDependency,
+  WantedDependency,
+  DependenciesMeta,
+  ResolvedDependencies,
+  RunLifecycleHooksConcurrentlyOptions,
+  DepsStateCache,
+  ImporterToUpdate,
+  InstallFunction,
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
@@ -82,8 +93,6 @@ import { removeDeps } from '../uninstall/removeDeps'
 import { allProjectsAreUpToDate } from './allProjectsAreUpToDate'
 import {
   extendOptions,
-  type InstallOptions,
-  type ProcessedInstallOptions as StrictInstallOptions,
 } from './extendInstallOptions'
 import {
   getAllUniqueSpecs,
@@ -111,63 +120,23 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
 
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
-interface InstallMutationOptions {
-  update?: boolean
-  updateMatching?: UpdateMatchingFunction
-  updatePackageManifest?: boolean
-}
-
-export interface InstallDepsMutation extends InstallMutationOptions {
-  mutation: 'install'
-  pruneDirectDependencies?: boolean
-}
-
-export interface InstallSomeDepsMutation extends InstallMutationOptions {
-  allowNew?: boolean
-  dependencySelectors: string[]
-  mutation: 'installSome'
-  peer?: boolean
-  pruneDirectDependencies?: boolean
-  pinnedVersion?: PinnedVersion
-  targetDependenciesField?: DependenciesField
-}
-
-export interface UninstallSomeDepsMutation {
-  mutation: 'uninstallSome'
-  dependencyNames: string[]
-  targetDependenciesField?: DependenciesField
-}
-
-export interface UnlinkDepsMutation {
-  mutation: 'unlink'
-}
-
-export interface UnlinkSomeDepsMutation {
-  mutation: 'unlinkSome'
-  dependencyNames: string[]
-}
-
-export type DependenciesMutation =
-  | InstallDepsMutation
-  | InstallSomeDepsMutation
-  | UninstallSomeDepsMutation
-  | UnlinkDepsMutation
-  | UnlinkSomeDepsMutation
-
 export async function install(
   manifest: ProjectManifest,
   opts: Omit<InstallOptions, 'allProjects'> & {
-    preferredVersions?: PreferredVersions
-    pruneDirectDependencies?: boolean
+    preferredVersions?: PreferredVersions | undefined
+    pruneDirectDependencies?: boolean | undefined
   } & InstallMutationOptions
-) {
+): Promise<ProjectManifest | undefined> {
   const rootDir = opts.dir ?? process.cwd()
+  const modulesDir = opts.modulesDir ?? path.join(rootDir, 'node_modules')
+
   const { updatedProjects: projects } = await mutateModules(
     [
       {
         mutation: 'install',
         pruneDirectDependencies: opts.pruneDirectDependencies,
         rootDir,
+        modulesDir,
         update: opts.update,
         updateMatching: opts.updateMatching,
         updatePackageManifest: opts.updatePackageManifest,
@@ -184,34 +153,16 @@ export async function install(
       ],
     }
   )
+
   return projects[0].manifest
-}
-
-interface ProjectToBeInstalled {
-  id: string
-  buildIndex: number
-  manifest: ProjectManifest
-  modulesDir: string
-  rootDir: string
-}
-
-export type MutatedProject = DependenciesMutation & { rootDir: string }
-
-export type MutateModulesOptions = InstallOptions & {
-  preferredVersions?: PreferredVersions
-  hooks?:
-    | {
-      readPackage?: ReadPackageHook[] | ReadPackageHook
-    }
-    | InstallOptions['hooks']
 }
 
 export async function mutateModulesInSingleProject(
   project: MutatedProject & {
-    binsDir?: string
+    binsDir?: string | undefined
     manifest: ProjectManifest
     rootDir: string
-    modulesDir?: string
+    modulesDir?: string | undefined
   },
   maybeOpts: Omit<MutateModulesOptions, 'allProjects'> & InstallMutationOptions
 ): Promise<UpdatedProject> {
@@ -234,12 +185,8 @@ export async function mutateModulesInSingleProject(
       ],
     }
   )
-  return result.updatedProjects[0]
-}
 
-interface MutateModulesResult {
-  updatedProjects: UpdatedProject[]
-  stats: InstallationResultStats
+  return result.updatedProjects[0]
 }
 
 export async function mutateModules(
@@ -247,6 +194,7 @@ export async function mutateModules(
   maybeOpts: MutateModulesOptions
 ): Promise<MutateModulesResult> {
   const reporter = maybeOpts?.reporter
+
   if (reporter != null && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
@@ -261,21 +209,26 @@ export async function mutateModules(
   }
 
   const installsOnly = projects.every(
-    (project) =>
-      project.mutation === 'install' &&
-      !project.update &&
-      !project.updateMatching
+    (project: MutatedProject): boolean => {
+      return project.mutation === 'install' &&
+        !project.update &&
+        !project.updateMatching;
+    }
   )
-  if (!installsOnly) opts.strictPeerDependencies = false
-  // @ts-expect-error
+  if (!installsOnly) {
+    opts.strictPeerDependencies = false
+  }
+
   opts.forceNewModules = installsOnly
+
   const rootProjectManifest =
-    opts.allProjects.find(({ rootDir }) => rootDir === opts.lockfileDir)
+    opts.allProjects?.find(({ rootDir }: ProjectOptions): boolean => rootDir === opts.lockfileDir)
       ?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly here.
     (await safeReadProjectManifestOnly(opts.lockfileDir))
 
+  // @ts-ignore
   const ctx = await getContext(opts)
 
   if (opts.hooks.preResolution) {
@@ -312,6 +265,7 @@ export async function mutateModules(
       `The integrity of ${global.verifiedFileIntegrity} files was checked. This might have caused installation to take longer.`
     )
   }
+
   if (reporter != null && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
@@ -327,7 +281,7 @@ export async function mutateModules(
 
   async function _install(): Promise<{
     updatedProjects: UpdatedProject[]
-    stats?: InstallationResultStats
+    stats?: InstallationResultStats | undefined
   }> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
@@ -356,27 +310,41 @@ export async function mutateModules(
         rootModulesDir: ctx.rootModulesDir,
       })
     }
+
     const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {})
       ? undefined
       : createObjectChecksum(opts.packageExtensions)
+
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
       : opts.patchedDependencies
         ? await calcPatchHashes(opts.patchedDependencies, opts.lockfileDir)
         : {}
+
     const patchedDependenciesWithResolvedPath = patchedDependencies
       ? mapValues(
-        (patchFile) => ({
-          hash: patchFile.hash,
-          path: path.join(opts.lockfileDir, patchFile.path),
-        }),
+        (patchFile: {
+          path: string;
+          hash: string;
+        }): {
+          path: string;
+          hash: string;
+        } => {
+          return {
+            hash: patchFile.hash,
+            path: path.join(opts.lockfileDir, patchFile.path),
+          };
+        },
         patchedDependencies
       )
       : undefined
+
     const frozenLockfile =
       opts.frozenLockfile ||
       (opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile)
+
     let outdatedLockfileSettings = false
+
     if (!opts.ignorePackageManifest) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(
         ctx.wantedLockfile,
@@ -390,16 +358,20 @@ export async function mutateModules(
           patchedDependencies,
         }
       )
+
       outdatedLockfileSettings = outdatedLockfileSettingName !== null
+
       if (frozenLockfile && outdatedLockfileSettings) {
         throw new LockfileConfigMismatchError(outdatedLockfileSettingName ?? '')
       }
     }
+
     let needsFullResolution =
       outdatedLockfileSettings ||
       opts.fixLockfile ||
       !ctx.wantedLockfile.lockfileVersion.toString().startsWith('6.') ||
       opts.forceFullResolution
+
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
@@ -435,7 +407,7 @@ export async function mutateModules(
           (await allProjectsAreUpToDate(Object.values(ctx.projects), {
             autoInstallPeers: opts.autoInstallPeers,
             excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-            linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+            linkWorkspacePackages: (opts.linkWorkspacePackagesDepth ?? -1) >= 0,
             wantedLockfile: ctx.wantedLockfile,
             workspacePackages: opts.workspacePackages,
             lockfileDir: opts.lockfileDir,
@@ -601,7 +573,7 @@ Note that in CI environments, this setting is enabled by default.`,
       }
     }
 
-    const projectsToInstall = [] as ImporterToUpdate[]
+    const projectsToInstall: ImporterToUpdate[] = []
 
     let preferredSpecs: Record<string, string> | null = null
 
@@ -792,12 +764,14 @@ Note that in CI environments, this setting is enabled by default.`,
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
-        wantedDependencies: wantedDeps.map((wantedDep) => ({
-          ...wantedDep,
-          isNew: !currentPrefs[wantedDep.alias],
-          updateSpec: true,
-          nodeExecPath: opts.nodeExecPath,
-        })),
+        wantedDependencies: wantedDeps.map((wantedDep: WantedDependency) => {
+          return {
+            ...wantedDep,
+            isNew: typeof wantedDep.alias !== 'undefined' && !currentPrefs[wantedDep.alias],
+            updateSpec: true,
+            nodeExecPath: opts.nodeExecPath,
+          };
+        }),
       })
     }
 
@@ -914,11 +888,11 @@ async function isExternalLink(
   return !link.isInner
 }
 
-function pkgHasDependencies(manifest: ProjectManifest) {
+function pkgHasDependencies(manifest: ProjectManifest | undefined): boolean {
   return Boolean(
-    Object.keys(manifest.dependencies ?? {}).length > 0 ||
-      Object.keys(manifest.devDependencies ?? {}).length ||
-      Object.keys(manifest.optionalDependencies ?? {}).length
+    Object.keys(manifest?.dependencies ?? {}).length > 0 ||
+      Object.keys(manifest?.devDependencies ?? {}).length ||
+      Object.keys(manifest?.optionalDependencies ?? {}).length
   )
 }
 
@@ -949,8 +923,13 @@ function forgetResolutionsOfAllPrevWantedDeps(wantedLockfile: Lockfile) {
   // again.
   if (wantedLockfile.importers != null && !isEmpty(wantedLockfile.importers)) {
     wantedLockfile.importers = mapValues(
-      ({ dependencies, devDependencies, optionalDependencies, ...rest }) =>
-        rest,
+      ({ dependencies, devDependencies, optionalDependencies, ...rest }: ProjectSnapshot): {
+        specifiers: ResolvedDependencies;
+        dependenciesMeta?: DependenciesMeta | undefined;
+        publishDirectory?: string | undefined;
+      } => {
+        return rest;
+      },
       wantedLockfile.importers
     )
   }
@@ -967,20 +946,13 @@ function forgetResolutionsOfAllPrevWantedDeps(wantedLockfile: Lockfile) {
   }
 }
 
-export type AddDependenciesToPackageOptions = Omit<InstallOptions, 'allProjects'> & {
-  bin?: string | undefined
-  allowNew?: boolean | undefined
-  peer?: boolean | undefined
-  pinnedVersion?: 'major' | 'minor' | 'patch' | undefined
-  targetDependenciesField?: DependenciesField | undefined
-} & InstallMutationOptions
-
 export async function addDependenciesToPackage(
-  manifest: ProjectManifest,
+  manifest: ProjectManifest | undefined,
   dependencySelectors: string[],
   opts: AddDependenciesToPackageOptions
 ) {
   const rootDir = opts.dir ?? process.cwd()
+
   const { updatedProjects: projects } = await mutateModules(
     [
       {
@@ -990,6 +962,7 @@ export async function addDependenciesToPackage(
         peer: opts.peer,
         pinnedVersion: opts.pinnedVersion,
         rootDir,
+        modulesDir: opts.modulesDir,
         targetDependenciesField: opts.targetDependenciesField,
         update: opts.update,
         updateMatching: opts.updateMatching,
@@ -1009,60 +982,9 @@ export async function addDependenciesToPackage(
       ],
     }
   )
+
   return projects[0].manifest
 }
-
-export type ImporterToUpdate = {
-  buildIndex: number
-  binsDir: string
-  id: string
-  manifest: ProjectManifest
-  originalManifest?: ProjectManifest
-  modulesDir: string
-  rootDir: string
-  pruneDirectDependencies: boolean
-  removePackages?: string[]
-  updatePackageManifest: boolean
-  wantedDependencies: Array<
-    WantedDependency & {
-      isNew?: boolean
-      updateSpec?: boolean
-      preserveNonSemverVersionSpec?: boolean
-    }
-  >
-} & DependenciesMutation
-
-export interface UpdatedProject {
-  originalManifest?: ProjectManifest
-  manifest: ProjectManifest
-  peerDependencyIssues?: PeerDependencyIssues
-  rootDir: string
-}
-
-interface InstallFunctionResult {
-  newLockfile: Lockfile
-  projects: UpdatedProject[]
-  stats?: InstallationResultStats
-}
-
-type InstallFunction = (
-  projects: ImporterToUpdate[],
-  ctx: PnpmContext,
-  opts: Omit<StrictInstallOptions, 'patchedDependencies'> & {
-    patchedDependencies?: Record<string, PatchFile>
-    makePartialCurrentLockfile: boolean
-    needsFullResolution: boolean
-    neverBuiltDependencies?: string[]
-    onlyBuiltDependencies?: string[]
-    overrides?: Record<string, string>
-    updateLockfileMinorVersion: boolean
-    preferredVersions?: PreferredVersions
-    pruneVirtualStore: boolean
-    scriptsOpts: RunLifecycleHooksConcurrentlyOptions
-    currentLockfileIsUpToDate: boolean
-    hoistWorkspacePackages?: boolean
-  }
-) => Promise<InstallFunctionResult>
 
 const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   // The wanted lockfile is mutated during installation. To compare changes, a
@@ -1083,8 +1005,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       ctx.wantedLockfile.importers[id] = { specifiers: {} }
     }
   }
+
   if (opts.pruneLockfileImporters) {
     const projectIds = new Set(projects.map(({ id }) => id))
+
     for (const wantedImporter of Object.keys(ctx.wantedLockfile.importers)) {
       if (!projectIds.has(wantedImporter)) {
         delete ctx.wantedLockfile.importers[wantedImporter]
@@ -1094,12 +1018,17 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   await Promise.all(
     projects.map(async (project) => {
-      if (project.mutation !== 'uninstallSome') return
-      const _removeDeps = async (manifest: ProjectManifest) =>
-        removeDeps(manifest, project.dependencyNames, {
+      if (project.mutation !== 'uninstallSome') {
+        return
+      }
+
+      const _removeDeps = async (manifest: ProjectManifest | undefined): Promise<ProjectManifest | undefined> => {
+        return removeDeps(manifest, project.dependencyNames, {
           prefix: project.rootDir,
           saveType: project.targetDependenciesField,
-        })
+        });
+      }
+
       project.manifest = await _removeDeps(project.manifest)
       if (project.originalManifest != null) {
         project.originalManifest = await _removeDeps(project.originalManifest)
@@ -1113,16 +1042,20 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   })
 
   const update = projects.some(
-    (project) => (project as InstallMutationOptions).update
+    (project): boolean => {
+      return 'update' in project;
+    }
   )
+
   const preferredVersions =
     opts.preferredVersions ??
-    (!update
-      ? getPreferredVersionsFromLockfileAndManifests(
+    (update
+      ? undefined
+      : getPreferredVersionsFromLockfileAndManifests(
         ctx.wantedLockfile.packages,
-        Object.values(ctx.projects).map(({ manifest }) => manifest)
-      )
-      : undefined)
+        Object.values(ctx.projects).map(({ manifest }) => manifest).filter(Boolean)
+      ))
+
   const forceFullResolution =
     ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
@@ -1139,13 +1072,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     !isEmpty(ctx.wantedLockfile.packages)
   ) {
     ctx.wantedLockfile.packages = mapValues(
-      ({ dependencies, optionalDependencies, resolution }) => ({
-        // These fields are needed to avoid losing information of the locked dependencies if these fields are not broken
-        // If these fields are broken, they will also be regenerated
-        dependencies,
-        optionalDependencies,
-        resolution,
-      }),
+      // @ts-ignore
+      ({ dependencies, optionalDependencies, resolution }) => {
+        return {
+          // These fields are needed to avoid losing information of the locked dependencies if these fields are not broken
+          // If these fields are broken, they will also be regenerated
+          dependencies,
+          optionalDependencies,
+          resolution,
+        };
+      },
       ctx.wantedLockfile.packages
     )
   }
@@ -1169,6 +1105,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     peerDependencyIssuesByProjects,
     wantedToBeSkippedPackageIds,
     waitTillAllFetchingsFinish,
+    // @ts-ignore
   } = await resolveDependencies(projects, {
     // In the next major allow build should be just () => true here always
     allowBuild: opts.onlyBuiltDependenciesFile
@@ -1218,31 +1155,42 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     supportedArchitectures: opts.supportedArchitectures,
   })
+
   if (
     !opts.include.optionalDependencies ||
     !opts.include.devDependencies ||
     !opts.include.dependencies
   ) {
+    // @ts-ignore
     linkedDependenciesByProjectId = mapValues(
-      (linkedDeps) =>
-        linkedDeps.filter(
-          (linkedDep) =>
-            !(
+      (linkedDeps: LinkedDependency[]): LinkedDependency[] => {
+        return linkedDeps.filter(
+          (linkedDep: LinkedDependency): boolean => {
+            return !(
               (linkedDep.dev && !opts.include.devDependencies) ||
-              (linkedDep.optional && !opts.include.optionalDependencies) ||
-              (!linkedDep.dev &&
-                !linkedDep.optional &&
-                !opts.include.dependencies)
-            )
-        ),
+                  (linkedDep.optional && !opts.include.optionalDependencies) ||
+                  (!linkedDep.dev &&
+                    !linkedDep.optional &&
+                    !opts.include.dependencies)
+            );
+          }
+        );
+      },
       linkedDependenciesByProjectId ?? {}
     )
+
     for (const { id, manifest } of projects) {
-      dependenciesByProjectId[id] = pickBy((depPath) => {
+      dependenciesByProjectId[id] = pickBy((depPath): boolean => {
         const dep = dependenciesGraph[depPath]
-        if (!dep) return false
-        const isDev = Boolean(manifest.devDependencies?.[dep.name])
-        const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
+
+        if (!dep) {
+          return false
+        }
+
+        const isDev = dep.name && Boolean(manifest?.devDependencies?.[dep.name])
+
+        const isOptional = dep.name && Boolean(manifest?.optionalDependencies?.[dep.name])
+
         return !(
           (isDev && !opts.include.devDependencies) ||
           (isOptional && !opts.include.optionalDependencies) ||
@@ -1267,13 +1215,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   const depsStateCache: DepsStateCache = {}
+
   const lockfileOpts = {
     forceSharedFormat: opts.forceSharedLockfile,
     useInlineSpecifiersFormat: true,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
+
   let stats: InstallationResultStats | undefined
+
   if (
     !opts.lockfileOnly &&
     !isInstallationOnlyForLockfileCheck &&
@@ -1310,12 +1261,18 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       wantedToBeSkippedPackageIds,
       hoistWorkspacePackages: opts.hoistWorkspacePackages,
     })
+
     stats = result.stats
+
     await finishLockfileUpdates()
+
     if (opts.enablePnp) {
       const importerNames = Object.fromEntries(
-        projects.map(({ manifest, id }) => [id, manifest.name ?? id])
+        projects.map(({ manifest, id }: ImporterToUpdate): [string, string] => {
+          return [id, manifest?.name ?? id];
+        })
       )
+
       await writePnpFile(result.currentLockfile, {
         importerNames,
         lockfileDir: ctx.lockfileDir,
@@ -1325,40 +1282,53 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
 
     ctx.pendingBuilds = ctx.pendingBuilds.filter(
-      (relDepPath) => !result.removedDepPaths.has(relDepPath)
+      (relDepPath: string): boolean => {
+        return !result.removedDepPaths.has(relDepPath);
+      }
     )
 
     if (result.newDepPaths?.length) {
       if (opts.ignoreScripts) {
         // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
         ctx.pendingBuilds = ctx.pendingBuilds.concat(
-          await pFilter(result.newDepPaths, (depPath) => {
+          await pFilter(result.newDepPaths, (depPath: string): boolean | PromiseLike<boolean> => {
             const requiresBuild = dependenciesGraph[depPath].requiresBuild
-            if (typeof requiresBuild === 'function') return requiresBuild()
-            return requiresBuild
+
+            if (typeof requiresBuild === 'function') {
+              return requiresBuild()
+            }
+
+            return requiresBuild ?? false
           })
         )
       }
+
       if (
         !opts.ignoreScripts ||
         Object.keys(opts.patchedDependencies ?? {}).length > 0
       ) {
         // postinstall hooks
         const depPaths = Object.keys(dependenciesGraph)
+
         const rootNodes = depPaths.filter(
           (depPath) => dependenciesGraph[depPath].depth === 0
         )
 
         let extraEnv: Record<string, string> | undefined =
           opts.scriptsOpts.extraEnv
+
         if (opts.enablePnp) {
           extraEnv = {
             ...extraEnv,
             ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
           }
         }
+
+        const allowBuild: ((pkgName: string) => boolean) | undefined = createAllowBuildFunction(opts)
+
         await buildModules(dependenciesGraph, rootNodes, {
-          allowBuild: createAllowBuildFunction(opts),
+          // @ts-ignore
+          allowBuild,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
           depsToBuild: new Set(result.newDepPaths),
@@ -1398,23 +1368,29 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
 
     await Promise.all(
-      projects.map(async (project, index) => {
-        let linkedPackages!: string[]
+      projects.map(async (project: ImporterToUpdate, index: number): Promise<void> => {
+        let linkedPackages: string[] | undefined
+
         if (
           ctx.publicHoistPattern?.length &&
           path.relative(project.rootDir, opts.lockfileDir) === ''
         ) {
           const nodeExecPathByAlias = Object.entries(
-            project.manifest.dependenciesMeta ?? {}
+            project.manifest?.dependenciesMeta ?? {}
           ).reduce(
-            (prev, [alias, { node }]) => {
+            (prev: Record<string, string>, [alias, { node }]: [string, {
+              injected?: boolean | undefined;
+              node?: string | undefined;
+              patch?: string | undefined;
+            }]): Record<string, string> => {
               if (node) {
                 prev[alias] = node
               }
               return prev
             },
-            {} as Record<string, string>
+            {}
           )
+
           linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
             allowExoticManifests: true,
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -1436,18 +1412,29 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
               fetching: undefined,
             })),
           ]
+
           linkedPackages = await linkBinsOfPackages(
             (
               await Promise.all(
-                directPkgs.map(async (dep) => {
+                directPkgs.map(async (dep: DependenciesGraphNode | {
+                  dir: string;
+                  fetching: undefined;
+                }): Promise<{
+                  location?: string | undefined;
+                  manifest: ProjectManifest | BundledManifest | undefined;
+                  nodeExecPath: string | undefined;
+                }> => {
                   const manifest =
                     (await dep.fetching?.())?.bundledManifest ??
-                    (await safeReadProjectManifestOnly(dep.dir))
+                    (await safeReadProjectManifestOnly(dep.dir ?? ''))
+
                   let nodeExecPath: string | undefined
+
                   if (manifest?.name) {
                     nodeExecPath =
-                      project.manifest.dependenciesMeta?.[manifest.name]?.node
+                      project.manifest?.dependenciesMeta?.[manifest.name]?.node
                   }
+
                   return {
                     location: dep.dir,
                     manifest,
@@ -1455,9 +1442,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
                   }
                 })
               )
-            ).filter(({ manifest }) => manifest != null) as Array<{
+            ).filter(({ manifest }): boolean => {
+              return manifest !== null;
+            }) as Array<{
               location: string
-              manifest: DependencyManifest
+              manifest: ProjectManifest | BundledManifest
             }>,
             project.binsDir,
             {
@@ -1469,7 +1458,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         const projectToInstall = projects[index]
         if (opts.global && projectToInstall.mutation.includes('install')) {
           projectToInstall.wantedDependencies.forEach((pkg) => {
-            if (!linkedPackages?.includes(pkg.alias)) {
+            if (typeof pkg.alias !== 'undefined' && !linkedPackages?.includes(pkg.alias)) {
               logger.warn({
                 message: `${pkg.alias ?? pkg.pref} has no binaries`,
                 prefix: opts.lockfileDir,
@@ -1555,6 +1544,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       ) as ProjectToBeInstalled[]
       await runLifecycleHooksConcurrently(
         ['preinstall', 'install', 'postinstall', 'prepare'],
+        // @ts-ignore
         projectsToBeBuilt,
         opts.childConcurrency,
         opts.scriptsOpts
@@ -1622,6 +1612,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         },
         currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
         selectedProjectDirs: projects.map((project) => project.rootDir),
+        // @ts-ignore
         allProjects: ctx.projects,
         prunedAt: ctx.modulesFile?.prunedAt,
         wantedLockfile: result.newLockfile,
@@ -1683,10 +1674,13 @@ async function linkAllBins(
 ) {
   return unnest(
     await Promise.all(
-      depNodes.map(async (depNode) =>
-        limitLinking(async () =>
-          linkBinsOfDependencies(depNode, depGraph, opts)
-        )
+      depNodes.map(async (depNode) => {
+        return limitLinking(async () => {
+          // @ts-ignore
+          return linkBinsOfDependencies(depNode, depGraph, opts);
+        }
+        );
+      }
       )
     )
   )

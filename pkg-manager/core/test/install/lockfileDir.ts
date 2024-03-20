@@ -47,7 +47,7 @@ test.skip('subsequent installation fails if a different lockfile directory is sp
     await testDefaults({ lockfileDir: path.resolve('..') })
   )
 
-  let err!: Error & { code: string }
+  let err: (Error & { code: string }) | undefined
 
   try {
     await addDependenciesToPackage(
@@ -56,11 +56,12 @@ test.skip('subsequent installation fails if a different lockfile directory is sp
       await testDefaults({ lockfileDir: process.cwd() })
     )
     throw new Error('test failed')
-  } catch (_: any) { // eslint-disable-line
-    err = _
+  } catch (_err: unknown) {
+    // @ts-ignore
+    err = _err
   }
 
-  expect(err.code).toBe('ERR_PNPM_LOCKFILE_DIRECTORY_MISMATCH')
+  expect(err?.code).toBe('ERR_PNPM_LOCKFILE_DIRECTORY_MISMATCH')
 })
 
 test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${WANTED_LOCKFILE} is used`, async () => {

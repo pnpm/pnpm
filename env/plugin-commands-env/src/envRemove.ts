@@ -1,15 +1,18 @@
-/* eslint-disable no-await-in-loop */
-import { PnpmError } from '@pnpm/error'
-import { globalInfo, logger } from '@pnpm/logger'
-import { removeBin } from '@pnpm/remove-bins'
-import rimraf from '@zkochan/rimraf'
-import { existsSync } from 'fs'
 import path from 'path'
+import { existsSync } from 'fs'
+
+import rimraf from '@zkochan/rimraf'
+import { PnpmError } from '@pnpm/error'
+import { removeBin } from '@pnpm/remove-bins'
+import { globalInfo, logger } from '@pnpm/logger'
+
+import { getNodeExecPathAndTargetDir } from './utils'
 import { getNodeVersion } from './downloadNodeVersion'
 import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
-import { getNodeExecPathAndTargetDir } from './utils'
 
-export async function envRemove(opts: NvmNodeCommandOptions, params: string[]) {
+export async function envRemove(opts: NvmNodeCommandOptions, params: string[]): Promise<{
+  exitCode: number;
+}> {
   if (!opts.global) {
     throw new PnpmError(
       'NOT_IMPLEMENTED_YET',
@@ -18,13 +21,17 @@ export async function envRemove(opts: NvmNodeCommandOptions, params: string[]) {
   }
 
   let failed = false
+
   for (const version of params) {
+    // eslint-disable-next-line no-await-in-loop
     const err = await removeNodeVersion(opts, version)
+
     if (err) {
       logger.error(err)
       failed = true
     }
   }
+
   return { exitCode: failed ? 1 : 0 }
 }
 
@@ -33,6 +40,7 @@ async function removeNodeVersion(
   version: string
 ): Promise<Error | undefined> {
   const { nodeVersion } = await getNodeVersion(opts, version)
+
   const nodeDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
 
   if (!nodeVersion) {
@@ -76,7 +84,7 @@ async function removeNodeVersion(
 
   await rimraf(versionDir)
 
-  globalInfo(`Node.js ${nodeVersion as string} was removed
-${versionDir}`)
+  globalInfo(`Node.js ${nodeVersion as string} was removed ${versionDir}`)
+
   return undefined
 }

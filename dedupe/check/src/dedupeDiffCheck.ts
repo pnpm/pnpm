@@ -1,10 +1,12 @@
-import { type ResolvedDependencies, type Lockfile } from '@pnpm/lockfile-types'
 import {
-  type ResolutionChangesByAlias,
-  type DedupeCheckIssues,
+  type Lockfile,
+  DEPENDENCIES_FIELDS,
   type SnapshotsChanges,
-} from '@pnpm/dedupe.types'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+  type DedupeCheckIssues,
+  type ResolvedDependencies,
+  type ResolutionChangesByAlias,
+} from '@pnpm/types'
+
 import { DedupeCheckIssuesError } from './DedupeCheckIssuesError'
 
 const PACKAGE_SNAPSHOT_DEP_FIELDS = [
@@ -64,6 +66,7 @@ function diffSnapshots<TSnapshot>(
   fields: ReadonlyArray<PossiblyResolvedDependenciesKeys<TSnapshot>>
 ): SnapshotsChanges {
   const removed: string[] = []
+
   const updated: Record<string, ResolutionChangesByAlias> = {}
 
   for (const [id, prevSnapshot] of Object.entries(prev)) {
@@ -117,6 +120,7 @@ function getResolutionUpdates(
   const newAliases = Object.entries(next).filter(
     ([alias]) => prev[alias] == null
   )
+
   for (const [alias, nextResolution] of newAliases) {
     updates[alias] = { type: 'added', next: nextResolution }
   }

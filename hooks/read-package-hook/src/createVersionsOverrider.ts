@@ -1,10 +1,11 @@
-import path from 'path'
+import path from 'node:path'
 import semver from 'semver'
 import partition from 'ramda/src/partition'
-import {
-  type Dependencies,
-  type PackageManifest,
-  type ReadPackageHook,
+import type {
+  Dependencies,
+  PackageManifest,
+  ProjectManifest,
+  ReadPackageHook,
 } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { parseOverrides } from '@pnpm/parse-overrides'
@@ -16,34 +17,43 @@ export function createVersionsOverrider(
   rootDir: string
 ): ReadPackageHook {
   const parsedOverrides = tryParseOverrides(overrides)
+
   const [versionOverrides, genericVersionOverrides] = partition(
-    ({ parentPkg }) => parentPkg != null,
-    parsedOverrides.map((override) => {
+    ({ parentPkg }): boolean => {
+      return parentPkg != null;
+    },
+    parsedOverrides.map((override: VersionOverride): VersionOverride => {
       let linkTarget: string | undefined
+
       if (override.newPref.startsWith('link:')) {
         linkTarget = path.join(rootDir, override.newPref.substring(5))
       }
+
       let linkFileTarget: string | undefined
+
       if (override.newPref.startsWith('file:')) {
         const pkgPath = override.newPref.substring(5)
+
         linkFileTarget = path.isAbsolute(pkgPath)
           ? pkgPath
           : path.join(rootDir, pkgPath)
       }
+
       return {
         ...override,
         linkTarget,
         linkFileTarget,
       }
     })
-  ) as [VersionOverrideWithParent[], VersionOverride[]]
-  return ((manifest: PackageManifest, dir?: string) => {
+  )
+
+  return (manifest?: PackageManifest | ProjectManifest | undefined, dir?: string | undefined): PackageManifest | ProjectManifest | undefined => {
     const versionOverridesWithParent = versionOverrides.filter(
-      ({ parentPkg }) => {
+      ({ parentPkg }: VersionOverride): boolean => {
         return (
-          parentPkg.name === manifest.name &&
-          (!parentPkg.pref ||
-            semver.satisfies(manifest.version, parentPkg.pref))
+          parentPkg?.name === manifest?.name &&
+          (!parentPkg?.pref ||
+            semver.satisfies(manifest?.version ?? '', parentPkg.pref))
         )
       }
     )
@@ -54,10 +64,10 @@ export function createVersionsOverrider(
     )
 
     return manifest
-  }) as ReadPackageHook
+  }
 }
 
-function tryParseOverrides(overrides: Record<string, string>) {
+function tryParseOverrides(overrides: Record<string, string>): VersionOverride[] {
   try {
     return parseOverrides(overrides)
   } catch (e) {
@@ -90,32 +100,32 @@ interface VersionOverrideWithParent extends VersionOverride {
 }
 
 function overrideDepsOfPkg(
-  { manifest, dir }: { manifest: PackageManifest; dir: string | undefined },
-  versionOverrides: VersionOverrideWithParent[],
+  { manifest, dir }: { manifest: PackageManifest | ProjectManifest | undefined; dir: string | undefined },
+  versionOverrides: VersionOverrideWithParent[] | VersionOverride[],
   genericVersionOverrides: VersionOverride[]
 ) {
-  if (manifest.dependencies != null)
+  if (typeof manifest?.dependencies !== 'undefined')
     overrideDeps(
       versionOverrides,
       genericVersionOverrides,
       manifest.dependencies,
       dir
     )
-  if (manifest.optionalDependencies != null)
+  if (typeof manifest?.optionalDependencies !== 'undefined')
     overrideDeps(
       versionOverrides,
       genericVersionOverrides,
       manifest.optionalDependencies,
       dir
     )
-  if (manifest.devDependencies != null)
+  if (typeof manifest?.devDependencies !== 'undefined')
     overrideDeps(
       versionOverrides,
       genericVersionOverrides,
       manifest.devDependencies,
       dir
     )
-  if (manifest.peerDependencies != null)
+  if (typeof manifest?.peerDependencies !== 'undefined')
     overrideDeps(
       versionOverrides,
       genericVersionOverrides,
@@ -125,7 +135,7 @@ function overrideDepsOfPkg(
 }
 
 function overrideDeps(
-  versionOverrides: VersionOverrideWithParent[],
+  versionOverrides: VersionOverrideWithParent[] | VersionOverride[],
   genericVersionOverrides: VersionOverride[],
   deps: Dependencies,
   dir: string | undefined

@@ -1,36 +1,22 @@
-import { requestRetryLogger } from '@pnpm/core-loggers'
-import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
 import nodeFetch, {
-  type Request,
-  type RequestInit as NodeRequestInit,
   Response,
 } from 'node-fetch'
 
-export { isRedirect } from 'node-fetch'
+import { operation } from '@zkochan/retry'
 
-export { Response, type RetryTimeoutOptions }
-
-interface URLLike {
-  href: string
-}
+import { requestRetryLogger } from '@pnpm/core-loggers'
 
 const NO_RETRY_ERROR_CODES = new Set([
   'SELF_SIGNED_CERT_IN_CHAIN',
   'ERR_OSSL_PEM_NO_START_LINE',
 ])
 
-export type RequestInfo = string | URLLike | Request
-
-export interface RequestInit extends NodeRequestInit {
-  retry?: RetryTimeoutOptions | undefined
-  timeout?: number | undefined
-}
-
 export async function fetch(
   url: RequestInfo,
   opts: RequestInit | undefined = {}
 ): Promise<Response> {
   const retryOpts = opts.retry ?? {}
+
   const maxRetries = retryOpts.retries ?? 2
 
   const op = operation({
@@ -47,6 +33,7 @@ export async function fetch(
         try {
           // this will be retried
           const res = await nodeFetch(url as any, opts) // eslint-disable-line
+
           // A retry on 409 sometimes helps when making requests to the Bit registry.
           if (
             (res.status >= 500 && res.status < 600) ||
@@ -60,11 +47,14 @@ export async function fetch(
           if (error.code && NO_RETRY_ERROR_CODES.has(error.code)) {
             throw error
           }
+
           const timeout = op.retry(error)
+
           if (timeout === false) {
             reject(op.mainError())
             return
           }
+
           requestRetryLogger.debug({
             attempt,
             error,
@@ -76,20 +66,21 @@ export async function fetch(
         }
       })
     })
-  } catch (err) {
+  } catch (err: unknown) {
     if (err instanceof ResponseError) {
       return err.res
     }
+
     throw err
   }
 }
 
 export class ResponseError extends Error {
-  public res: Response
+  public url: string
   public code: number
+  public res: Response
   public status: number
   public statusCode: number
-  public url: string
   constructor(res: Response) {
     super(res.statusText)
 
@@ -98,6 +89,7 @@ export class ResponseError extends Error {
     }
 
     this.name = this.constructor.name
+
     this.res = res
 
     // backward compat

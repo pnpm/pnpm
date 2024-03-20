@@ -1,7 +1,8 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import { types as allTypes } from '@pnpm/config'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+
+import { docsUrl } from '@pnpm/cli-utils'
+import { types as allTypes } from '@pnpm/config'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -11,7 +12,7 @@ export function cliOptionsTypes() {
 
 export const commandNames = ['bin']
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description: 'Print the directory where pnpm will install executables.',
     descriptionLists: [
@@ -32,6 +33,6 @@ export function help() {
   })
 }
 
-export async function handler(opts: { bin: string }) {
+export async function handler(opts: { bin: string }): Promise<string> {
   return opts.bin
 }

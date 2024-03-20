@@ -1,38 +1,40 @@
 import '@total-typescript/ts-reset'
-import path from 'node:path'
+
 import fs from 'node:fs'
-import { LAYOUT_VERSION } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
-import loadNpmConf from '@pnpm/npm-conf'
-import npmTypes from '@pnpm/npm-conf/lib/types'
-import { requireHooks } from '@pnpm/pnpmfile'
-import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { getCurrentBranch } from '@pnpm/git-utils'
-import { createMatcher } from '@pnpm/matcher'
-import betterPathResolve from 'better-path-resolve'
+import path from 'node:path'
+
+import which from 'which'
 import camelcase from 'camelcase'
 import isWindows from 'is-windows'
-import normalizeRegistryUrl from 'normalize-registry-url'
-import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
-import which from 'which'
-import { checkGlobalBinDir } from './checkGlobalBinDir'
-import { getScopeRegistries } from './getScopeRegistries'
-import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
+import realpathMissing from 'realpath-missing'
+import betterPathResolve from 'better-path-resolve'
+import normalizeRegistryUrl from 'normalize-registry-url'
+
 import type {
   Config,
-  ConfigWithDeprecatedSettings,
   UniversalOptions,
-} from './Config'
+  ConfigWithDeprecatedSettings,
+} from '@pnpm/types'
+import { PnpmError } from '@pnpm/error'
+import loadNpmConf from '@pnpm/npm-conf'
+import { requireHooks } from '@pnpm/pnpmfile'
+import { createMatcher } from '@pnpm/matcher'
+import npmTypes from '@pnpm/npm-conf/lib/types'
+import { LAYOUT_VERSION } from '@pnpm/constants'
+import { getCurrentBranch } from '@pnpm/git-utils'
+import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+
+import { checkGlobalBinDir } from './checkGlobalBinDir'
 import { getWorkspaceConcurrency } from './concurrency'
+import { getScopeRegistries } from './getScopeRegistries'
+import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
 
 export {
   getOptionsFromRootManifest,
   type OptionsFromRootManifest,
 } from './getOptionsFromRootManifest'
 export * from './readLocalConfig'
-
-export type { Config, UniversalOptions }
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
@@ -163,22 +165,24 @@ export const types = Object.assign(
 export type CliOptions = Record<string, unknown> & { dir?: string }
 
 export async function getConfig(opts: {
-  globalDirShouldAllowWrite?: boolean
+  globalDirShouldAllowWrite?: boolean | undefined
   cliOptions: CliOptions
   packageManager: {
     name: string
     version: string
   }
-  rcOptionsTypes?: Record<string, unknown>
+  rcOptionsTypes?: Record<string, unknown> | undefined
   workspaceDir?: string | undefined
-  checkUnknownSetting?: boolean
-  env?: Record<string, string | undefined>
+  checkUnknownSetting?: boolean | undefined
+  env?: Record<string, string | undefined> | undefined
 }): Promise<{ config: Config; warnings: string[] }> {
   const env = opts.env ?? process.env
+
   const packageManager = opts.packageManager ?? {
     name: 'pnpm',
     version: 'undefined',
   }
+
   const cliOptions = opts.cliOptions ?? {}
 
   if (cliOptions.hoist === false) {
@@ -188,12 +192,14 @@ export async function getConfig(opts: {
         '--shamefully-hoist cannot be used with --no-hoist'
       )
     }
+
     if (cliOptions['shamefully-flatten'] === true) {
       throw new PnpmError(
         'CONFIG_CONFLICT_HOIST',
         '--shamefully-flatten cannot be used with --no-hoist'
       )
     }
+
     if (cliOptions['hoist-pattern']) {
       throw new PnpmError(
         'CONFIG_CONFLICT_HOIST',
@@ -208,17 +214,22 @@ export async function getConfig(opts: {
   //
   // TODO: use this workaround only during global installation
   const originalExecPath = process.execPath
+
   try {
     const node = await which(process.argv[0])
+
     if (node.toUpperCase() !== process.execPath.toUpperCase()) {
       process.execPath = node
     }
-  } catch (err) {} // eslint-disable-line:no-empty
+  } catch (err) {
+    console.error(err)
+  }
 
   if (cliOptions.dir) {
     cliOptions.dir = await realpathMissing(cliOptions.dir)
     cliOptions.prefix = cliOptions.dir // the npm config system still expects `prefix`
   }
+
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
   const defaultOptions: Partial<KebabCaseConfig> | typeof npmTypes.types = {
     'auto-install-peers': true,
@@ -235,9 +246,9 @@ export async function getConfig(opts: {
     'fail-if-no-match': false,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
-    'fetch-retry-maxtimeout': 60000,
-    'fetch-retry-mintimeout': 10000,
-    'fetch-timeout': 60000,
+    'fetch-retry-maxtimeout': 60_000,
+    'fetch-retry-mintimeout': 10_000,
+    'fetch-timeout': 60_000,
     'git-shallow-hosts': [
       // Follow https://github.com/npm/git/blob/1e1dbd26bd5b87ca055defecc3679777cb480e2a/lib/clone.js#L13-L19
       'github.com',
@@ -330,12 +341,16 @@ export async function getConfig(opts: {
   )
 
   pnpmConfig.maxSockets = npmConfig.maxsockets
+
   // @ts-expect-error
   delete pnpmConfig.maxsockets
 
   pnpmConfig.configDir = configDir
+
   pnpmConfig.workspaceDir = opts.workspaceDir
+
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
+
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
     {},
     ...npmConfig.list
@@ -346,72 +361,89 @@ export async function getConfig(opts: {
       .reverse(),
     cliOptions,
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+
   pnpmConfig.rawConfig = Object.assign.apply(Object, [
     { registry: 'https://registry.npmjs.org/' },
     ...[...npmConfig.list].reverse(),
     cliOptions,
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+
   pnpmConfig.registries = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
     ...getScopeRegistries(pnpmConfig.rawConfig),
   }
+
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
-    if (typeof pnpmConfig.packageLock === 'boolean')
+
+    if (typeof pnpmConfig.packageLock === 'boolean') {
       return pnpmConfig.packageLock
+    }
+
     return false
   })()
+
   pnpmConfig.useGitBranchLockfile = (() => {
-    if (typeof pnpmConfig.gitBranchLockfile === 'boolean')
+    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') {
       return pnpmConfig.gitBranchLockfile
+    }
+
     return false
   })()
+
   pnpmConfig.mergeGitBranchLockfiles = await (async () => {
-    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean')
+    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') {
       return pnpmConfig.mergeGitBranchLockfiles
+    }
+
     if (
       pnpmConfig.mergeGitBranchLockfilesBranchPattern != null &&
       pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0
     ) {
       const branch = await getCurrentBranch()
+
       if (branch) {
         const branchMatcher = createMatcher(
           pnpmConfig.mergeGitBranchLockfilesBranchPattern
         )
+
         return branchMatcher(branch)
       }
     }
+
     return undefined
   })()
+
   pnpmConfig.pnpmHomeDir = getDataDir(process)
 
   if (cliOptions.global) {
-    let globalDirRoot
-    if (pnpmConfig.globalDir) {
-      globalDirRoot = pnpmConfig.globalDir
-    } else {
-      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
-    }
+    const globalDirRoot = pnpmConfig.globalDir ? pnpmConfig.globalDir : path.join(pnpmConfig.pnpmHomeDir, 'global');
+
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
+
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
+
       await checkGlobalBinDir(pnpmConfig.bin, {
         env,
         shouldAllowWrite: opts.globalDirShouldAllowWrite,
       })
     }
+
     pnpmConfig.save = true
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
     pnpmConfig.saveProd = true
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false
+
     if (
       pnpmConfig.hoistPattern != null &&
       (pnpmConfig.hoistPattern.length > 1 || pnpmConfig.hoistPattern[0] !== '*')
@@ -423,6 +455,7 @@ export async function getConfig(opts: {
         )
       }
     }
+
     if (pnpmConfig.linkWorkspacePackages) {
       if (opts.cliOptions['link-workspace-packages']) {
         throw new PnpmError(
@@ -432,6 +465,7 @@ export async function getConfig(opts: {
       }
       pnpmConfig.linkWorkspacePackages = false
     }
+
     if (pnpmConfig.sharedWorkspaceLockfile) {
       if (opts.cliOptions['shared-workspace-lockfile']) {
         throw new PnpmError(
@@ -439,8 +473,10 @@ export async function getConfig(opts: {
           'Configuration conflict. "shared-workspace-lockfile" may not be used with "global"'
         )
       }
+
       pnpmConfig.sharedWorkspaceLockfile = false
     }
+
     if (pnpmConfig.lockfileDir) {
       if (opts.cliOptions['lockfile-dir']) {
         throw new PnpmError(
@@ -450,17 +486,20 @@ export async function getConfig(opts: {
       }
       delete pnpmConfig.lockfileDir
     }
+
     if (opts.cliOptions['virtual-store-dir']) {
       throw new PnpmError(
         'CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
         'Configuration conflict. "virtual-store-dir" may not be used with "global"'
       )
     }
+
     pnpmConfig.virtualStoreDir = '.pnpm'
   } else {
     pnpmConfig.dir = cwd
     pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
   }
+
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {
       throw new PnpmError(
@@ -468,6 +507,7 @@ export async function getConfig(opts: {
         'A package cannot be a peer dependency and a prod dependency at the same time'
       )
     }
+
     if (opts.cliOptions['save-optional']) {
       throw new PnpmError(
         'CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP',
@@ -475,6 +515,7 @@ export async function getConfig(opts: {
       )
     }
   }
+
   if (
     pnpmConfig.sharedWorkspaceLockfile &&
     !pnpmConfig.lockfileDir &&
@@ -489,6 +530,7 @@ export async function getConfig(opts: {
     if (cliOptions.production) {
       pnpmConfig.only = 'production'
     }
+
     if (cliOptions.dev) {
       pnpmConfig.only = 'dev'
     }
@@ -548,11 +590,14 @@ export async function getConfig(opts: {
     warnings.push(
       'The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).'
     )
+
     pnpmConfig.shamefullyHoist = true
   }
+
   if (!pnpmConfig.cacheDir) {
     pnpmConfig.cacheDir = getCacheDir(process)
   }
+
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
   }
@@ -560,15 +605,18 @@ export async function getConfig(opts: {
   if (pnpmConfig.hoist === false) {
     delete pnpmConfig.hoistPattern
   }
+
   switch (pnpmConfig.shamefullyHoist) {
     case false: {
       delete pnpmConfig.publicHoistPattern
       break
     }
+
     case true: {
       pnpmConfig.publicHoistPattern = ['*']
       break
     }
+
     default: {
       if (
         pnpmConfig.publicHoistPattern == null ||
@@ -579,54 +627,72 @@ export async function getConfig(opts: {
       ) {
         delete pnpmConfig.publicHoistPattern
       }
+
       break
     }
   }
+
   if (!pnpmConfig.symlink) {
     delete pnpmConfig.hoistPattern
     delete pnpmConfig.publicHoistPattern
   }
+
   if (typeof pnpmConfig.color === 'boolean') {
     switch (pnpmConfig.color) {
-      case true:
+      case true: {
         pnpmConfig.color = 'always'
         break
-      case false:
+      }
+
+      case false: {
         pnpmConfig.color = 'never'
         break
-      default:
+      }
+
+      default: {
         pnpmConfig.color = 'auto'
         break
+      }
     }
   }
+
   if (!pnpmConfig.httpsProxy) {
     pnpmConfig.httpsProxy = pnpmConfig.proxy ?? getProcessEnv('https_proxy')
   }
+
   if (!pnpmConfig.httpProxy) {
     pnpmConfig.httpProxy =
       pnpmConfig.httpsProxy ??
       getProcessEnv('http_proxy') ??
       getProcessEnv('proxy')
   }
+
   if (!pnpmConfig.noProxy) {
     // @ts-expect-error
     pnpmConfig.noProxy = pnpmConfig.noproxy ?? getProcessEnv('no_proxy')
   }
+
   switch (pnpmConfig.nodeLinker) {
-    case 'pnp':
+    case 'pnp': {
       pnpmConfig.enablePnp = pnpmConfig.nodeLinker === 'pnp'
       break
-    case 'hoisted':
+    }
+
+    case 'hoisted': {
       if (pnpmConfig.preferSymlinkedExecutables == null) {
         pnpmConfig.preferSymlinkedExecutables = true
       }
       break
+    }
   }
+
   if (!pnpmConfig.userConfig) {
     pnpmConfig.userConfig = npmConfig.sources.user?.data
   }
+
   pnpmConfig.sideEffectsCacheRead =
     pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
+
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
 
   if (opts.checkUnknownSetting) {
@@ -634,16 +700,19 @@ export async function getConfig(opts: {
       ...npmConfig?.sources?.workspace?.data,
       ...npmConfig?.sources?.project?.data,
     }).filter((key) => key.trim() !== '')
+
     const unknownKeys = []
+
     for (const key of settingKeys) {
       if (
         !rcOptions.includes(key) &&
         !key.startsWith('//') &&
-        !(key[0] === '@' && key.endsWith(':registry'))
+        !(key.startsWith('@') && key.endsWith(':registry'))
       ) {
         unknownKeys.push(key)
       }
     }
+
     if (unknownKeys.length > 0) {
       warnings.push(
         `Your .npmrc file contains unknown setting: ${unknownKeys.join(', ')}`
@@ -661,11 +730,14 @@ export async function getConfig(opts: {
       pnpmConfig
     )
   }
+
   pnpmConfig.rootProjectManifestDir =
     pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
+
   pnpmConfig.rootProjectManifest =
     (await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir)) ??
     undefined
+
   if (
     pnpmConfig.rootProjectManifest?.workspaces?.length &&
     !pnpmConfig.workspaceDir
@@ -680,7 +752,7 @@ export async function getConfig(opts: {
   return { config: pnpmConfig, warnings }
 }
 
-function getProcessEnv(env: string) {
+function getProcessEnv(env: string): string | undefined {
   return (
     process.env[env] ??
     process.env[env.toUpperCase()] ??

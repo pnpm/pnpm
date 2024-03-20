@@ -1,22 +1,16 @@
+import type { KeyValuePair } from 'ramda'
+import partition from 'ramda/src/partition'
+import mergeRight from 'ramda/src/mergeRight'
+import getNpmTarballUrl from 'get-npm-tarball-url'
+import type { SafePromiseDefer } from 'safe-promise-defer'
+
 import { logger } from '@pnpm/logger'
 import {
-  type Lockfile,
-  type LockfileResolution,
-  type PackageSnapshot,
   pruneSharedLockfile,
-  type ResolvedDependencies,
 } from '@pnpm/prune-lockfile'
-import type { DirectoryResolution, Resolution } from '@pnpm/resolver-base'
-import type { Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
-import getNpmTarballUrl from 'get-npm-tarball-url'
-import type { KeyValuePair } from 'ramda'
-import mergeRight from 'ramda/src/mergeRight'
-import partition from 'ramda/src/partition'
-import type { SafePromiseDefer } from 'safe-promise-defer'
+import type { DependenciesGraph, DependenciesGraphNode, DirectoryResolution, GenericDependenciesGraph, Lockfile, LockfileResolution, PackageSnapshot, Registries, Resolution, ResolvedDependencies } from '@pnpm/types'
 import { depPathToRef } from './depPathToRef'
-import type { ResolvedPackage } from './resolveDependencies'
-import type { DependenciesGraph } from '.'
 
 export function updateLockfile({
   dependenciesGraph,
@@ -35,15 +29,21 @@ export function updateLockfile({
     pendingRequiresBuilds: string[]
   } {
   lockfile.packages = lockfile.packages ?? {}
+
   const pendingRequiresBuilds = [] as string[]
+
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
-      (child) => depNode.optionalDependencies.has(child.alias),
-      Object.entries(depNode.children).map(([alias, depPath]) => ({
+      // @ts-ignore
+      (child) => {
+        return depNode.optionalDependencies?.has(child.alias);
+      },
+      Object.entries(depNode.children ?? {}).map(([alias, depPath]) => ({
         alias,
         depPath,
       }))
     )
+
     lockfile.packages[depPath] = toLockfileDependency(
       pendingRequiresBuilds,
       depNode,
@@ -70,20 +70,20 @@ export function updateLockfile({
 
 function toLockfileDependency(
   pendingRequiresBuilds: string[],
-  pkg: ResolvedPackage & { transitivePeerDependencies: Set<string> },
+  pkg: DependenciesGraphNode,
   opts: {
     depPath: string
     registry: string
     registries: Registries
-    updatedDeps: Array<{ alias: string; depPath: string }>
-    updatedOptionalDeps: Array<{ alias: string; depPath: string }>
+    updatedDeps: Array<{ alias: string; depPath: string }> | string[]
+    updatedOptionalDeps: Array<{ alias: string; depPath: string }> | string[]
     depGraph: DependenciesGraph
     prevSnapshot?: PackageSnapshot
     lockfileIncludeTarballUrl?: boolean
   }
 ): PackageSnapshot {
   const lockfileResolution = toLockfileResolution(
-    { id: pkg.id, name: pkg.name, version: pkg.version },
+    { id: pkg.id ?? '', name: pkg.name ?? '', version: pkg.version ?? '' },
     opts.depPath,
     pkg.resolution,
     opts.registry,
@@ -130,10 +130,10 @@ function toLockfileDependency(
   if (pkg.optional) {
     result.optional = true
   }
-  if (opts.depPath[0] !== '/' && !pkg.id.endsWith(opts.depPath)) {
+  if (opts.depPath[0] !== '/' && !pkg.id?.endsWith(opts.depPath)) {
     result.id = pkg.id
   }
-  if (pkg.transitivePeerDependencies.size) {
+  if (pkg.transitivePeerDependencies?.size) {
     result.transitivePeerDependencies = Array.from(
       pkg.transitivePeerDependencies
     ).sort()
@@ -143,7 +143,7 @@ function toLockfileDependency(
     const normalizedPeerDependenciesMeta: Record<string, { optional: true }> =
       {}
     for (const [peer, { version, optional }] of Object.entries(
-      pkg.peerDependencies
+      pkg.peerDependencies ?? {}
     )) {
       peerPkgs[peer] = version
       if (optional) {
@@ -155,7 +155,7 @@ function toLockfileDependency(
       result.peerDependenciesMeta = normalizedPeerDependenciesMeta
     }
   }
-  if (pkg.additionalInfo.engines != null) {
+  if (pkg.additionalInfo?.engines != null) {
     for (const [engine, version] of Object.entries(
       pkg.additionalInfo.engines
     )) {
@@ -167,27 +167,27 @@ function toLockfileDependency(
       result.engines[engine] = version
     }
   }
-  if (pkg.additionalInfo.cpu != null) {
+  if (pkg.additionalInfo?.cpu != null) {
     result.cpu = pkg.additionalInfo.cpu
   }
-  if (pkg.additionalInfo.os != null) {
+  if (pkg.additionalInfo?.os != null) {
     result.os = pkg.additionalInfo.os
   }
-  if (pkg.additionalInfo.libc != null) {
+  if (pkg.additionalInfo?.libc != null) {
     result.libc = pkg.additionalInfo.libc
   }
   if (
-    Array.isArray(pkg.additionalInfo.bundledDependencies) ||
-    pkg.additionalInfo.bundledDependencies === true
+    Array.isArray(pkg?.additionalInfo?.bundledDependencies) ||
+    pkg.additionalInfo?.bundledDependencies === true
   ) {
     result.bundledDependencies = pkg.additionalInfo.bundledDependencies
   } else if (
-    Array.isArray(pkg.additionalInfo.bundleDependencies) ||
-    pkg.additionalInfo.bundleDependencies === true
+    Array.isArray(pkg.additionalInfo?.bundleDependencies) ||
+    pkg.additionalInfo?.bundleDependencies === true
   ) {
     result.bundledDependencies = pkg.additionalInfo.bundleDependencies
   }
-  if (pkg.additionalInfo.deprecated) {
+  if (pkg.additionalInfo?.deprecated) {
     result.deprecated = pkg.additionalInfo.deprecated
   }
   if (pkg.hasBin) {
@@ -229,27 +229,35 @@ function toLockfileDependency(
 // the `depth` property defines how deep should dependencies be checked
 function updateResolvedDeps(
   prevResolvedDeps: ResolvedDependencies,
-  updatedDeps: Array<{ alias: string; depPath: string }>,
+  updatedDeps: Array<{ alias: string; depPath: string }> | string[],
   registries: Registries,
   depGraph: DependenciesGraph
 ) {
   const newResolvedDeps = Object.fromEntries(
-    updatedDeps.map(({ alias, depPath }): KeyValuePair<string, string> => {
-      if (depPath.startsWith('link:')) {
-        return [alias, depPath]
+    updatedDeps.map((item): KeyValuePair<string, string> => {
+      if (typeof item === 'string') {
+        // TODO: handle string case correctly
+        return [item, item]
+      } else {
+        if (item.depPath.startsWith('link:')) {
+          return [item.alias, item.depPath]
+        }
+
+        const depNode = depGraph[item.depPath]
+
+        return [
+          item.alias,
+          depPathToRef(depNode.depPath, {
+            alias: item.alias,
+            realName: depNode.name,
+            registries,
+            resolution: depNode.resolution,
+          }),
+        ]
       }
-      const depNode = depGraph[depPath]
-      return [
-        alias,
-        depPathToRef(depNode.depPath, {
-          alias,
-          realName: depNode.name,
-          registries,
-          resolution: depNode.resolution,
-        }),
-      ]
     })
   )
+
   return mergeRight(prevResolvedDeps, newResolvedDeps)
 }
 
@@ -260,34 +268,39 @@ function toLockfileResolution(
     version: string
   },
   depPath: string,
-  resolution: Resolution,
+  resolution: Resolution | undefined,
   registry: string,
   lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
   if (
     dp.isAbsolute(depPath) ||
-    resolution.type !== undefined ||
-    !resolution.integrity
+    resolution?.type !== undefined ||
+    !resolution?.integrity
   ) {
     return resolution as LockfileResolution
   }
+
   if (lockfileIncludeTarballUrl) {
     return {
       integrity: resolution.integrity,
       tarball: resolution.tarball,
     }
   }
+
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
   // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072
   const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
+
   const actualTarball = resolution.tarball.replace('%2f', '/')
+
   if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
     return {
       integrity: resolution.integrity,
       tarball: resolution.tarball,
     }
   }
+
   return {
     integrity: resolution.integrity,
   }

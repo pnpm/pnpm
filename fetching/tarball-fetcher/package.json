@@ -50,7 +50,6 @@
     "rename-overwrite": "^5.0.0"
   },
   "devDependencies": {
-    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",

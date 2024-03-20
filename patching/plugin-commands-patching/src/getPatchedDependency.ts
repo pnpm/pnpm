@@ -1,25 +1,21 @@
 import path from 'node:path'
+
+import semver from 'semver'
+import { prompt } from 'enquirer'
+import realpathMissing from 'realpath-missing'
+
 import {
   parseWantedDependency,
-  type ParseWantedDependencyResult,
 } from '@pnpm/parse-wanted-dependency'
-import { prompt } from 'enquirer'
 import {
   readCurrentLockfile,
-  type TarballResolution,
 } from '@pnpm/lockfile-file'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { PnpmError } from '@pnpm/error'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { readModulesManifest } from '@pnpm/modules-yaml'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
-import realpathMissing from 'realpath-missing'
-import semver from 'semver'
-import { type Config } from '@pnpm/config'
-
-export type GetPatchedDependencyOptions = {
-  lockfileDir: string
-} & Pick<Config, 'virtualStoreDir' | 'modulesDir'>
+import { readModulesManifest } from '@pnpm/modules-yaml'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import type { ParseWantedDependencyResult, TarballResolution, Config, GetPatchedDependencyOptions } from '@pnpm/types'
 
 export async function getPatchedDependency(
   rawDependency: string,
@@ -40,6 +36,7 @@ export async function getPatchedDependency(
   }
 
   dep.alias = dep.alias ?? rawDependency
+
   if (preferredVersions.length > 1) {
     const { version } = await prompt<{
       version: string
@@ -60,11 +57,14 @@ export async function getPatchedDependency(
         return selectedVersion.gitTarballUrl ?? selected
       },
     })
+
     dep.pref = version
   } else {
     const preferred = preferredVersions[0]
+
     dep.pref = preferred.gitTarballUrl ?? preferred.version
   }
+
   return dep
 }
 

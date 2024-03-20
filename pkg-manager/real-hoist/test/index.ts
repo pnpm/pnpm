@@ -1,4 +1,5 @@
-import path from 'path'
+import path from 'node:path'
+
 import { hoist } from '@pnpm/real-hoist'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 
@@ -7,6 +8,7 @@ test('hoist', async () => {
     path.join(__dirname, '../../../__fixtures__/fixture'),
     { ignoreIncompatible: true }
   )
+
   expect(lockfile).not.toBeNull()
 
   // @ts-ignore

@@ -59,15 +59,21 @@ export async function handler(
       'patchesDir' | 'rootProjectManifest' | 'rootProjectManifestDir'
     >,
   params: string[]
-) {
+): Promise<string | void> {
   const userDir = params[0]
+
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+
   const patchesDirName = normalizePath(
     path.normalize(opts.patchesDir ?? 'patches')
   )
+
   const patchesDir = path.join(lockfileDir, patchesDirName)
+
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
+
   const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
+
   const gitTarballUrl = await getGitTarballUrlFromLockfile(
     {
       alias: patchedPkgManifest.name,
@@ -79,7 +85,9 @@ export async function handler(
       virtualStoreDir: opts.virtualStoreDir,
     }
   )
+
   const srcDir = tempy.directory()
+
   await writePackage(
     parseWantedDependency(
       gitTarballUrl
@@ -89,27 +97,32 @@ export async function handler(
     srcDir,
     opts
   )
+
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
+
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
 
-  if (!patchContent.length) {
+  if (!patchContent?.length) {
     return `No changes were found to the following directory: ${userDir}`
   }
+
   await fs.promises.mkdir(patchesDir, { recursive: true })
 
   const patchFileName = pkgNameAndVersion.replace('/', '__')
+
   await fs.promises.writeFile(
     path.join(patchesDir, `${patchFileName}.patch`),
     patchContent,
     'utf8'
   )
+
   const { writeProjectManifest, manifest } =
     await tryReadProjectManifest(lockfileDir)
 
   const rootProjectManifest =
-    (!opts.sharedWorkspaceLockfile
-      ? manifest
-      : opts.rootProjectManifest ?? manifest) ?? {}
+    (opts.sharedWorkspaceLockfile
+      ? opts.rootProjectManifest ?? manifest
+      : manifest) ?? {}
 
   if (!rootProjectManifest.pnpm) {
     rootProjectManifest.pnpm = {
@@ -118,9 +131,11 @@ export async function handler(
   } else if (!rootProjectManifest.pnpm.patchedDependencies) {
     rootProjectManifest.pnpm.patchedDependencies = {}
   }
+
   rootProjectManifest.pnpm.patchedDependencies = rootProjectManifest.pnpm.patchedDependencies ?? {}
   rootProjectManifest.pnpm.patchedDependencies[pkgNameAndVersion] =
     `${patchesDirName}/${patchFileName}.patch`
+
   await writeProjectManifest(rootProjectManifest)
 
   if (opts?.selectedProjectsGraph?.[lockfileDir]) {
@@ -142,11 +157,12 @@ export async function handler(
   })
 }
 
-async function diffFolders(folderA: string, folderB: string) {
+async function diffFolders(folderA: string, folderB: string): Promise<string | undefined> {
   const folderAN = folderA.replace(/\\/g, '/')
   const folderBN = folderB.replace(/\\/g, '/')
-  let stdout!: string
-  let stderr!: string
+
+  let stdout: string | undefined
+  let stderr: string | undefined
 
   try {
     const result = await execa(
@@ -189,19 +205,19 @@ async function diffFolders(folderA: string, folderB: string) {
   }
   // we cannot rely on exit code, because --no-index implies --exit-code
   // i.e. git diff will exit with 1 if there were differences
-  if (stderr.length > 0)
+  if (typeof stderr === 'string' && stderr.length > 0) {
     throw new Error(
       `Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported by 'git':\n${stderr}`
     )
+  }
 
-  return stdout
-    .replace(
-      new RegExp(
-        `(a|b)(${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderAN)}/`)})`,
-        'g'
-      ),
-      '$1/'
-    )
+  return stdout?.replace(
+    new RegExp(
+      `(a|b)(${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderAN)}/`)})`,
+      'g'
+    ),
+    '$1/'
+  )
     .replace(
       new RegExp(
         `(a|b)${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderBN)}/`)}`,
@@ -214,10 +230,11 @@ async function diffFolders(folderA: string, folderB: string) {
     .replace(/\n\\ No newline at end of file\n$/, '\n')
 }
 
-function removeTrailingAndLeadingSlash(p: string) {
-  if (p[0] === '/' || p.endsWith('/')) {
+function removeTrailingAndLeadingSlash(p: string): string {
+  if (p.startsWith('/') || p.endsWith('/')) {
     return p.replace(/^\/|\/$/g, '')
   }
+
   return p
 }
 
@@ -249,17 +266,19 @@ async function preparePkgFilesForDiff(src: string): Promise<string> {
   return dest
 }
 
-async function areAllFilesInPkg(files: string[], basePath: string) {
+async function areAllFilesInPkg(files: string[], basePath: string): Promise<boolean> {
   const allFiles = await glob('**', {
     cwd: basePath,
   })
+
   return equals(allFiles.sort(), files.sort())
 }
 
 async function getGitTarballUrlFromLockfile(
   dep: ParseWantedDependencyResult,
   opts: GetPatchedDependencyOptions
-) {
+): Promise<string | undefined> {
   const { preferredVersions } = await getVersionsFromLockfile(dep, opts)
+
   return preferredVersions[0]?.gitTarballUrl
 }

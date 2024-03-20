@@ -6,15 +6,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import readYamlFile from 'read-yaml-file'
-import {
-  addDependenciesToPackage,
-  install,
-  type MutatedProject,
-  mutateModules,
-  mutateModulesInSingleProject,
-  type PeerDependencyIssuesError,
-  type ProjectOptions,
-} from '@pnpm/core'
+
 import rimraf from '@zkochan/rimraf'
 import exists from 'path-exists'
 import sinon from 'sinon'
@@ -330,7 +322,8 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
 test('strict-peer-dependencies: error is thrown when cannot resolve peer dependency for top-level dependency', async () => {
   prepareEmpty()
 
-  let err!: PeerDependencyIssuesError
+  let err: PeerDependencyIssuesError | undefined
+
   try {
     await install(
       {
@@ -343,7 +336,8 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
         strictPeerDependencies: true,
       })
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
 
@@ -586,7 +580,8 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
   })
   prepareEmpty()
 
-  let err!: PeerDependencyIssuesError
+  let err: PeerDependencyIssuesError | undefined
+
   try {
     await install(
       {
@@ -597,7 +592,8 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
       },
       await testDefaults({ strictPeerDependencies: true })
     )
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
 

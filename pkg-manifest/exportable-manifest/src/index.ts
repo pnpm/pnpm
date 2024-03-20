@@ -1,10 +1,14 @@
 import '@total-typescript/ts-reset'
+
 import path from 'node:path'
-import { PnpmError } from '@pnpm/error'
-import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
-import type { Dependencies, ProjectManifest } from '@pnpm/types'
+
 import omit from 'ramda/src/omit'
 import pMapValues from 'p-map-values'
+
+import { PnpmError } from '@pnpm/error'
+import type { Dependencies, ProjectManifest } from '@pnpm/types'
+import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+
 import { overridePublishConfig } from './overridePublishConfig'
 
 const PREPUBLISH_SCRIPTS = [
@@ -16,7 +20,7 @@ const PREPUBLISH_SCRIPTS = [
   'postpublish',
 ]
 
-export interface MakePublishManifestOptions {
+export type MakePublishManifestOptions = {
   modulesDir?: string | undefined
   readmeFile?: string | undefined
 }
@@ -30,9 +34,11 @@ export async function createExportableManifest(
     ['pnpm', 'scripts'],
     originalManifest
   )
+
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
+
   await Promise.all(
     (
       [

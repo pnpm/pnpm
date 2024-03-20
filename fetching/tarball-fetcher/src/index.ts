@@ -1,22 +1,22 @@
 import '@total-typescript/ts-reset'
-import { PnpmError } from '@pnpm/error'
-import type { Cafs } from '@pnpm/cafs-types'
+
 import type {
   FetchFromRegistry,
   GetAuthHeader,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
+import { PnpmError } from '@pnpm/error'
 import { TarballIntegrityError } from '@pnpm/worker'
-import { createDownloader, type DownloadFunction } from './remoteTarballFetcher'
+
+import { FetchFunction, Cafs, FetchOptions } from '@pnpm/types'
 import { createLocalTarballFetcher } from './localTarballFetcher'
 import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher'
-import type { FetchFunction, FetchOptions } from '@pnpm/resolver-base'
-
-export { BadTarballError } from './errorTypes'
+import { createDownloader, type DownloadFunction } from './remoteTarballFetcher'
 
 export { TarballIntegrityError }
+export { BadTarballError } from './errorTypes'
 
-export interface TarballFetchers {
+export type TarballFetchers = {
   localTarball: FetchFunction
   remoteTarball: FetchFunction
   gitHostedTarball: FetchFunction
@@ -27,11 +27,11 @@ export function createTarballFetcher(
   getAuthHeader: GetAuthHeader,
   opts: {
     rawConfig: object
-    unsafePerm?: boolean
-    ignoreScripts?: boolean
-    timeout?: number
-    retry?: RetryTimeoutOptions
-    offline?: boolean
+    unsafePerm?: boolean | undefined
+    ignoreScripts?: boolean | undefined
+    timeout?: number | undefined
+    retry?: RetryTimeoutOptions | undefined
+    offline?: boolean | undefined
   }
 ): TarballFetchers {
   const download = createDownloader(fetchFromRegistry, {
@@ -72,6 +72,7 @@ async function fetchFromTarball(
       `A package is missing from the store but cannot download it in offline mode. The missing package may be downloaded from ${resolution.tarball}.`
     )
   }
+
   return ctx.download(resolution.tarball, {
     getAuthHeaderByURI: ctx.getAuthHeaderByURI,
     cafs,

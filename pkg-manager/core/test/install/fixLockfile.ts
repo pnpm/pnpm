@@ -1,13 +1,13 @@
-import path from 'path'
+import path from 'node:path'
 import {
   LOCKFILE_VERSION_V6 as LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { install, type MutatedProject, mutateModules } from '@pnpm/core'
+
 import writeYamlFile from 'write-yaml-file'
 import readYamlFile from 'read-yaml-file'
-import { type Lockfile, type PackageSnapshots } from '@pnpm/lockfile-file'
+import type { Lockfile, PackageSnapshots } from '@pnpm/lockfile-file'
 import { testDefaults } from '../utils'
 
 test('fix broken lockfile with --fix-lockfile', async () => {

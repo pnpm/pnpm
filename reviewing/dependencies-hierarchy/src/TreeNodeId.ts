@@ -1,20 +1,4 @@
-export type TreeNodeId = TreeNodeIdImporter | TreeNodeIdPackage
-
-/**
- * A project local to the pnpm workspace.
- */
-interface TreeNodeIdImporter {
-  readonly type: 'importer'
-  readonly importerId: string
-}
-
-/**
- * An npm package depended on externally.
- */
-interface TreeNodeIdPackage {
-  readonly type: 'package'
-  readonly depPath: string
-}
+import { TreeNodeId } from '@pnpm/types'
 
 export function serializeTreeNodeId(treeNodeId: TreeNodeId): string {
   switch (treeNodeId.type) {

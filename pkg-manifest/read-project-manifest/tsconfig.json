@@ -8,22 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../fs/graceful-fs"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../text/comments-parser"
-    },
-    {
-      "path": "../write-project-manifest"
-    }
-  ],
   "composite": true
 }

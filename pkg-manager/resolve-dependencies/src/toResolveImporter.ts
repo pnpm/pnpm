@@ -1,15 +1,11 @@
+import getVerSelType from 'version-selector-type'
+
 import { logger } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import {
-  type PreferredVersions,
-  type WorkspacePackages,
-} from '@pnpm/resolver-base'
-import type { Dependencies, ProjectManifest } from '@pnpm/types'
-import getVerSelType from 'version-selector-type'
-import type { ImporterToResolve } from '.'
+import type { Dependencies, ImporterToResolve, PreferredVersions, ProjectManifest, VersionSpecsByRealNames, WantedDependency, WorkspacePackages } from '@pnpm/types'
+
 import {
   getWantedDependencies,
-  type WantedDependency,
 } from './getWantedDependencies'
 import { safeIsInnerLink } from './safeIsInnerLink'
 
@@ -38,23 +34,29 @@ export async function toResolveImporter(
       ? opts.defaultUpdateDepth
       : -1
   const existingDeps = nonLinkedDependencies.filter(
-    ({ alias }) =>
-      !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias)
+    ({ alias }: WantedDependency): boolean => {
+      return !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias);
+    }
   )
+
   if (opts.updateToLatest && opts.noDependencySelectors) {
     for (const dep of existingDeps) {
       dep.updateSpec = true
     }
   }
+
   let wantedDependencies!: Array<
     WantedDependency & { isNew?: boolean; updateDepth: number }
   >
+
   if (!project.manifest) {
     wantedDependencies = [...project.wantedDependencies, ...existingDeps].map(
-      (dep) => ({
-        ...dep,
-        updateDepth: defaultUpdateDepth,
-      })
+      (dep) => {
+        return {
+          ...dep,
+          updateDepth: defaultUpdateDepth,
+        };
+      }
     )
   } else {
     // Direct local tarballs are always checked,
@@ -64,10 +66,11 @@ export async function toResolveImporter(
       updateDepth:
         project.updateMatching != null
           ? defaultUpdateDepth
-          : prefIsLocalTarball(dep.pref)
+          : prefIsLocalTarball(dep.pref ?? '')
             ? 0
             : defaultUpdateDepth,
     })
+
     wantedDependencies = [
       ...project.wantedDependencies.map(
         defaultUpdateDepth < 0
@@ -81,6 +84,7 @@ export async function toResolveImporter(
       ),
     ]
   }
+
   return {
     ...project,
     hasRemovedDependencies: Boolean(project.removePackages?.length),
@@ -92,7 +96,7 @@ export async function toResolveImporter(
   }
 }
 
-function prefIsLocalTarball(pref: string) {
+function prefIsLocalTarball(pref: string): boolean {
   return pref.startsWith('file:') && pref.endsWith('.tgz')
 }
 
@@ -103,21 +107,25 @@ async function partitionLinkedPackages(
     lockfileOnly: boolean
     modulesDir: string
     virtualStoreDir: string
-    workspacePackages?: WorkspacePackages
+    workspacePackages?: WorkspacePackages | undefined
   }
 ): Promise<WantedDependency[]> {
   const nonLinkedDependencies: WantedDependency[] = []
+
   const linkedAliases = new Set<string>()
+
   await Promise.all(
-    dependencies.map(async (dependency) => {
+    dependencies.map(async (dependency: WantedDependency): Promise<void> => {
       if (
         !dependency.alias ||
         opts.workspacePackages?.[dependency.alias] != null ||
-        dependency.pref.startsWith('workspace:')
+        dependency.pref?.startsWith('workspace:')
       ) {
         nonLinkedDependencies.push(dependency)
+
         return
       }
+
       const isInnerLink = await safeIsInnerLink(
         opts.modulesDir,
         dependency.alias,
@@ -127,20 +135,25 @@ async function partitionLinkedPackages(
           virtualStoreDir: opts.virtualStoreDir,
         }
       )
+
       if (isInnerLink === true) {
         nonLinkedDependencies.push(dependency)
+
         return
       }
-      if (!dependency.pref.startsWith('link:')) {
+
+      if (!dependency.pref?.startsWith('link:')) {
         // This info-log might be better to be moved to the reporter
         logger.info({
           message: `${dependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
           prefix: opts.projectDir,
         })
       }
+
       linkedAliases.add(dependency.alias)
     })
   )
+
   return nonLinkedDependencies
 }
 
@@ -152,11 +165,6 @@ function getPreferredVersionsFromPackage(
 ): PreferredVersions {
   return getVersionSpecsByRealNames(getAllDependenciesFromManifest(pkg))
 }
-
-type VersionSpecsByRealNames = Record<
-  string,
-  Record<string, 'version' | 'range' | 'tag'>
->
 
 function getVersionSpecsByRealNames(
   deps: Dependencies

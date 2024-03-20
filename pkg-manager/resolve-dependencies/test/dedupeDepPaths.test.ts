@@ -1,5 +1,5 @@
+import type { DependenciesTreeNode } from '../lib/resolveDependencies'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
-import { type DependenciesTreeNode } from '../lib/resolveDependencies'
 
 test('packages are not deduplicated when versions do not match', () => {
   const fooPkg: PartialResolvedPackage = {

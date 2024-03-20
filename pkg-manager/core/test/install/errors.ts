@@ -1,4 +1,4 @@
-import { type PnpmError } from '@pnpm/error'
+import type { PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
@@ -15,7 +15,8 @@ const f = fixtures(__dirname)
 test('fail if none of the available resolvers support a version spec', async () => {
   prepareEmpty()
 
-  let err!: PnpmError
+  let err: PnpmError | undefined
+
   try {
     await mutateModulesInSingleProject(
       {
@@ -30,12 +31,13 @@ test('fail if none of the available resolvers support a version spec', async () 
       await testDefaults()
     )
     throw new Error('should have failed')
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
-  expect(err.code).toBe('ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER')
-  expect(err.prefix).toBe(process.cwd())
-  expect(err.pkgsStack).toStrictEqual([
+  expect(err?.code).toBe('ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER')
+  expect(err?.prefix).toBe(process.cwd())
+  expect(err?.pkgsStack).toStrictEqual([
     {
       id: `localhost+${REGISTRY_MOCK_PORT}/@types/plotly.js/1.44.29`,
       name: '@types/plotly.js',
@@ -63,7 +65,8 @@ test('fail if a package cannot be fetched', async () => {
     )
     .reply(403)
 
-  let err!: PnpmError
+  let err: PnpmError | undefined
+
   try {
     await addDependenciesToPackage(
       {},
@@ -71,13 +74,14 @@ test('fail if a package cannot be fetched', async () => {
       await testDefaults({}, {}, { retry: { retries: 0 } })
     )
     throw new Error('should have failed')
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
     nock.restore()
+    // @ts-ignore
     err = _err
   }
-  expect(err.code).toBe('ERR_PNPM_FETCH_403')
-  expect(err.prefix).toBe(process.cwd())
-  expect(err.pkgsStack).toStrictEqual([
+  expect(err?.code).toBe('ERR_PNPM_FETCH_403')
+  expect(err?.prefix).toBe(process.cwd())
+  expect(err?.pkgsStack).toStrictEqual([
     {
       id: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
       name: '@pnpm.e2e/pkg-with-1-dep',

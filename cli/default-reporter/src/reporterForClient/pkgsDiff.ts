@@ -1,5 +1,4 @@
-import type * as logs from '@pnpm/core-loggers'
-import { type PackageManifest } from '@pnpm/types'
+import { DeprecationLog, PackageManifestLog, RootLog, SummaryLog, type PackageManifest } from '@pnpm/types'
 import * as Rx from 'rxjs'
 import {
   filter,
@@ -15,12 +14,12 @@ import difference from 'ramda/src/difference'
 
 export interface PackageDiff {
   added: boolean
-  from?: string
+  from?: string | undefined
   name: string
-  realName?: string
-  version?: string
-  deprecated?: boolean
-  latest?: string
+  realName?: string | undefined
+  version?: string | undefined
+  deprecated?: boolean | undefined
+  latest?: string | undefined
 }
 
 export interface Map<T> {
@@ -33,21 +32,23 @@ export const propertyByDependencyType = {
   optional: 'optionalDependencies',
   peer: 'peerDependencies',
   prod: 'dependencies',
-}
+} as const
 
 export function getPkgsDiff(
   log$: {
-    deprecation: Rx.Observable<logs.DeprecationLog>
-    summary: Rx.Observable<logs.SummaryLog>
-    root: Rx.Observable<logs.RootLog>
-    packageManifest: Rx.Observable<logs.PackageManifestLog>
+    deprecation: Rx.Observable<DeprecationLog>
+    summary: Rx.Observable<SummaryLog>
+    root: Rx.Observable<RootLog>
+    packageManifest: Rx.Observable<PackageManifestLog>
   },
   opts: {
     prefix: string
   }
 ) {
   const deprecationSet$ = log$.deprecation.pipe(
-    filter((log) => log.prefix === opts.prefix),
+    filter((log): boolean => {
+      return log.prefix === opts.prefix;
+    }),
     scan((acc, log) => {
       acc.add(log.pkgId)
       return acc
@@ -56,7 +57,9 @@ export function getPkgsDiff(
   )
 
   const filterPrefix = filter(
-    (log: { prefix: string }) => log.prefix === opts.prefix
+    (log: { prefix: string }) => {
+      return log.prefix === opts.prefix;
+    }
   )
   const pkgsDiff$ = Rx.combineLatest(
     log$.root.pipe(filterPrefix),
@@ -67,7 +70,8 @@ export function getPkgsDiff(
         const rootLog = args[0]
         const deprecationSet = args[1] as Set<string>
         let action: '-' | '+' | undefined
-        let log!: any // eslint-disable-line
+
+        let log: any // eslint-disable-line @typescript-eslint/no-explicit-any
         if ('added' in rootLog) {
           action = '+'
           log = rootLog.added
@@ -77,14 +81,19 @@ export function getPkgsDiff(
         } else {
           return pkgsDiff
         }
+
         const depType = (log.dependencyType ||
           'nodeModulesOnly') as keyof typeof pkgsDiff
-        const oppositeKey = `${action === '-' ? '+' : '-'}${log.name as string}`
+
+        const oppositeKey = `${action === '-' ? '+' : '-'}${log.name}`
+
         const previous = pkgsDiff[depType][oppositeKey]
+
         if (previous && previous.version === log.version) {
           delete pkgsDiff[depType][oppositeKey]
           return pkgsDiff
         }
+
         pkgsDiff[depType][`${action}${log.name as string}`] = {
           added: action === '+',
           deprecated: deprecationSet.has(log.id),
@@ -152,7 +161,7 @@ export function getPkgsDiff(
             pkgsDiff[depType][`-${removedDep}`] = {
               added: false,
               name: removedDep,
-              version: initialPackageManifest[prop][removedDep],
+              version: initialPackageManifest[prop]?.[removedDep],
             }
           }
         }
@@ -164,7 +173,7 @@ export function getPkgsDiff(
             pkgsDiff[depType][`+${addedDep}`] = {
               added: true,
               name: addedDep,
-              version: updatedPackageManifest[prop][addedDep],
+              version: updatedPackageManifest[prop]?.[addedDep],
             }
           }
         }
@@ -175,7 +184,10 @@ export function getPkgsDiff(
 }
 
 function removeOptionalFromProdDeps(pkg: PackageManifest): PackageManifest {
-  if (pkg.dependencies == null || pkg.optionalDependencies == null) return pkg
+  if (pkg.dependencies == null || pkg.optionalDependencies == null) {
+    return pkg
+  }
+
   for (const depName of Object.keys(pkg.dependencies)) {
     if (pkg.optionalDependencies[depName]) {
       delete pkg.dependencies[depName]

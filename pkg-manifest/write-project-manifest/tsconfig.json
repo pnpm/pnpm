@@ -8,13 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../text/comments-parser"
-    }
-  ],
   "composite": true
 }

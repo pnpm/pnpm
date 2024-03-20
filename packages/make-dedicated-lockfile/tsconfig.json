@@ -8,34 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../__utils__/test-fixtures"
-    },
-    {
-      "path": "../../lockfile/lockfile-file"
-    },
-    {
-      "path": "../../lockfile/prune-lockfile"
-    },
-    {
-      "path": "../../pkg-manifest/exportable-manifest"
-    },
-    {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
-      "path": "../../pnpm"
-    },
-    {
-      "path": "../../workspace/find-workspace-dir"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../types"
-    }
-  ],
   "composite": true
 }

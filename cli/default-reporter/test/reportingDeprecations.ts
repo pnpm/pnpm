@@ -1,4 +1,4 @@
-import { type Config } from '@pnpm/config'
+import type { Config } from '@pnpm/types'
 import { deprecationLogger, stageLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'

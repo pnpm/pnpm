@@ -2,7 +2,8 @@ import path from 'path'
 import { type PackageManifest } from '@pnpm/types'
 import { sync as loadJsonFileSync } from 'load-json-file'
 
-let pnpmPkgJson!: PackageManifest
+let pnpmPkgJson: PackageManifest | undefined
+
 try {
   pnpmPkgJson = loadJsonFileSync<PackageManifest>(
     path.resolve(__dirname, '../package.json')
@@ -13,4 +14,5 @@ try {
     version: '0.0.0',
   }
 }
+
 export { pnpmPkgJson }

@@ -1,11 +1,10 @@
 import fs from 'node:fs'
 
-import gfs from '@pnpm/graceful-fs'
-import type { DependencyManifest } from '@pnpm/types'
-import type { PackageFileInfo } from '@pnpm/cafs-types'
-
 import ssri from 'ssri'
 import rimraf from '@zkochan/rimraf'
+
+import gfs from '@pnpm/graceful-fs'
+import type { DependencyManifest, FileInfo, PackageFileInfo, PackageFilesIndex, VerifyResult } from '@pnpm/types'
 
 import { parseJsonBufferSync } from './parseJson'
 import { getFilePathByModeInCafs } from './getFilePathInCafs'
@@ -17,39 +16,28 @@ import { getFilePathByModeInCafs } from './getFilePathInCafs'
 // @ts-expect-error
 global.verifiedFileIntegrity = 0
 
-export interface VerifyResult {
-  passed: boolean
-  manifest?: DependencyManifest
-}
-
-export interface PackageFilesIndex {
-  // name and version are nullable for backward compatibility
-  // the initial specs of pnpm store v3 did not require these fields.
-  // However, it might be possible that some types of dependencies don't
-  // have the name/version fields, like the local tarball dependencies.
-  name?: string
-  version?: string
-
-  files: Record<string, PackageFileInfo>
-  sideEffects?: Record<string, Record<string, PackageFileInfo>>
-}
-
 export function checkPkgFilesIntegrity(
   cafsDir: string,
   pkgIndex: PackageFilesIndex,
-  readManifest?: boolean
+  readManifest?: boolean | undefined
 ): VerifyResult {
   // It might make sense to use this cache for all files in the store
   // but there's a smaller chance that the same file will be checked twice
   // so it's probably not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
+
   const _checkFilesIntegrity = checkFilesIntegrity.bind(
     null,
     verifiedFilesCache,
     cafsDir
   )
+
   const verified = _checkFilesIntegrity(pkgIndex.files, readManifest)
-  if (!verified) return { passed: false }
+
+  if (!verified) {
+    return { passed: false }
+  }
+
   if (pkgIndex.sideEffects) {
     // We verify all side effects cache. We could optimize it to verify only the side effects cache
     // that satisfies the current os/arch/platform.
@@ -58,11 +46,13 @@ export function checkPkgFilesIntegrity(
       pkgIndex.sideEffects
     )) {
       const { passed } = _checkFilesIntegrity(files)
+
       if (!passed) {
         delete pkgIndex.sideEffects?.[sideEffectName]
       }
     }
   }
+
   return verified
 }
 
@@ -70,39 +60,46 @@ function checkFilesIntegrity(
   verifiedFilesCache: Set<string>,
   cafsDir: string,
   files: Record<string, PackageFileInfo>,
-  readManifest?: boolean
+  readManifest?: boolean | undefined
 ): VerifyResult {
   let allVerified = true
+
   let manifest: DependencyManifest | undefined
+
   for (const [f, fstat] of Object.entries(files)) {
     if (!fstat.integrity) {
       throw new Error(`Integrity checksum is missing for ${f}`)
     }
+
     const filename = getFilePathByModeInCafs(
       cafsDir,
       fstat.integrity,
       fstat.mode
     )
+
     const readFile = readManifest && f === 'package.json'
-    if (!readFile && verifiedFilesCache.has(filename)) continue
+
+    if (!readFile && verifiedFilesCache.has(filename)) {
+      continue
+    }
+
     const verifyResult = verifyFile(filename, fstat, readFile)
+
     if (readFile) {
       manifest = verifyResult.manifest
     }
+
     if (verifyResult.passed) {
       verifiedFilesCache.add(filename)
     } else {
       allVerified = false
     }
   }
+
   return {
     passed: allVerified,
     manifest,
   }
-}
-
-type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt'> & {
-  integrity: string | ssri.IntegrityLike
 }
 
 function verifyFile(

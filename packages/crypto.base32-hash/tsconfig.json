@@ -8,10 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "composite": true,
-  "references": [
-    {
-      "path": "../../__utils__/prepare"
-    }
-  ]
+  "composite": true
 }

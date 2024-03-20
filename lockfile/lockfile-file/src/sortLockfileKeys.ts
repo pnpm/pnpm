@@ -29,7 +29,7 @@ const ORDERED_KEYS = {
   transitivePeerDependencies: 18,
   dev: 19,
   optional: 20,
-}
+} as const
 
 const ROOT_KEYS_ORDER = {
   lockfileVersion: 1,
@@ -47,7 +47,7 @@ const ROOT_KEYS_ORDER = {
   dependenciesMeta: 14,
   importers: 15,
   packages: 16,
-}
+} as const
 
 function compareWithPriority(
   priority: Record<string, number>,
@@ -55,17 +55,30 @@ function compareWithPriority(
   right: string
 ): number {
   const leftPriority = priority[left]
+
   const rightPriority = priority[right]
-  if (leftPriority && rightPriority) return leftPriority - rightPriority
-  if (leftPriority) return -1
-  if (rightPriority) return 1
+
+  if (leftPriority && rightPriority) {
+    return leftPriority - rightPriority
+  }
+
+  if (leftPriority) {
+    return -1
+  }
+
+  if (rightPriority) {
+    return 1
+  }
+
   return lexCompare(left, right)
 }
 
 export function sortLockfileKeys(lockfile: LockfileFile): LockfileFile {
   const compareRootKeys = compareWithPriority.bind(null, ROOT_KEYS_ORDER)
+
   if (lockfile.importers != null) {
     lockfile.importers = sortKeys(lockfile.importers)
+
     for (const [importerId, importer] of Object.entries(lockfile.importers)) {
       lockfile.importers[importerId] = sortKeys(importer, {
         compare: compareRootKeys,
@@ -73,8 +86,10 @@ export function sortLockfileKeys(lockfile: LockfileFile): LockfileFile {
       })
     }
   }
+
   if (lockfile.packages != null) {
     lockfile.packages = sortKeys(lockfile.packages)
+
     for (const [pkgId, pkg] of Object.entries(lockfile.packages)) {
       lockfile.packages[pkgId] = sortKeys(pkg, {
         compare: compareWithPriority.bind(null, ORDERED_KEYS),
@@ -82,6 +97,7 @@ export function sortLockfileKeys(lockfile: LockfileFile): LockfileFile {
       })
     }
   }
+
   for (const key of [
     'specifiers',
     'dependencies',
@@ -90,8 +106,14 @@ export function sortLockfileKeys(lockfile: LockfileFile): LockfileFile {
     'time',
     'patchedDependencies',
   ] as const) {
-    if (!lockfile[key]) continue
-    lockfile[key] = sortKeys<any>(lockfile[key]) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const lfk = lockfile[key]
+    if (typeof lfk === 'undefined') {
+      continue
+    }
+
+    // @ts-ignore
+    lockfile[key] = sortKeys(lfk)
   }
+
   return sortKeys(lockfile, { compare: compareRootKeys })
 }

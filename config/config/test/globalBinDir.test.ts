@@ -1,10 +1,11 @@
-/// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'node:fs'
 import path from 'node:path'
 import { homedir } from 'node:os'
-import { tempDir } from '@pnpm/prepare'
+
 import pathName from 'path-name'
 import symlinkDir from 'symlink-dir'
+
+import { tempDir } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'
 
 const globalBinDir = path.join(homedir(), '.local', 'pnpm')
@@ -27,15 +28,12 @@ jest.mock('@pnpm/npm-conf/lib/conf', () => {
     }
 
     get(name: string) {
-      if (name === 'prefix') {
-        return this.prefix
-      } else {
-        return super.get(name)
-      }
+      return name === 'prefix' ? this.prefix : super.get(name);
     }
 
     loadPrefix() {}
   }
+
   return MockedConf
 })
 
@@ -92,10 +90,15 @@ test('an exception is thrown when the global dir is not in PATH', async () => {
 
 test('the global directory may be a symlink to a directory that is in PATH', async () => {
   const tmp = tempDir()
+
   const globalBinDirTarget = path.join(tmp, 'global-target')
+
   fs.mkdirSync(globalBinDirTarget)
+
   const globalBinDirSymlink = path.join(tmp, 'global-symlink')
+
   await symlinkDir(globalBinDirTarget, globalBinDirSymlink)
+
   const { config } = await getConfig({
     cliOptions: {
       global: true,
@@ -110,5 +113,6 @@ test('the global directory may be a symlink to a directory that is in PATH', asy
       version: '1.0.0',
     },
   })
+
   expect(config.bin).toBe(globalBinDirSymlink)
 })

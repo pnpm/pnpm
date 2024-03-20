@@ -1,23 +1,17 @@
 // cspell:ignore ents
 import fs from 'node:fs'
 
+import Fuse from 'fuse-native'
+import loadJsonFile from 'load-json-file'
+import * as schemas from 'hyperdrive-schemas'
+
 import {
-  getFilePathInCafs,
-  getFilePathByModeInCafs,
-  type PackageFilesIndex,
-} from '@pnpm/store.cafs'
-import {
-  type Lockfile,
   readWantedLockfile,
-  type PackageSnapshot,
-  type TarballResolution,
 } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { getFilePathByModeInCafs, getFilePathInCafs } from '@pnpm/store.cafs'
+import { Lockfile, PackageSnapshot, PackageFilesIndex, TarballResolution } from '@pnpm/types'
 
-import * as schemas from 'hyperdrive-schemas'
-import loadJsonFile from 'load-json-file'
-import Fuse from 'fuse-native'
-import * as cafsExplorer from './cafsExplorer'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules'
 
 const TIME = new Date()
@@ -42,8 +36,11 @@ export async function createFuseHandlers(lockfileDir: string, cafsDir: string): 
   const lockfile = await readWantedLockfile(lockfileDir, {
     ignoreIncompatible: true,
   })
-  if (lockfile == null)
+
+  if (lockfile == null) {
     throw new Error('Cannot generate a .pnp.cjs without a lockfile')
+  }
+
   return createFuseHandlersFromLockfile(lockfile, cafsDir)
 }
 
@@ -67,7 +64,9 @@ export function createFuseHandlersFromLockfile(
       index: PackageFilesIndex
     }
   >()
+
   const virtualNodeModules = makeVirtualNodeModules(lockfile)
+
   return {
     open(
       p: string,
@@ -75,20 +74,25 @@ export function createFuseHandlersFromLockfile(
       cb: (exitCode: number, fd?: number) => void
     ) {
       const dirEnt = getDirEnt(p)
+
       if (dirEnt?.entryType !== 'index') {
         cb(-1)
         return
       }
+
       const fileInfo = dirEnt.index.files[dirEnt.subPath]
+
       if (!fileInfo) {
         cb(-1)
         return
       }
+
       const filePathInStore = getFilePathByModeInCafs(
         cafsDir,
         fileInfo.integrity,
         fileInfo.mode
       )
+
       fs.open(filePathInStore, flags, (err, fd) => {
         if (err != null) {
           cb(-1)
@@ -119,22 +123,26 @@ export function createFuseHandlersFromLockfile(
         cb(bytesRead)
       })
     },
-    readlink(p: string, cb: (returnCode: number, target?: string) => void) {
+    readlink(p: string, cb: (returnCode: number, target?: string | undefined) => void) {
       const dirEnt = getDirEnt(p)
+
       if (dirEnt?.entryType !== 'symlink') {
         cb(Fuse.ENOENT)
         return
       }
+
       // eslint-disable-next-line n/no-callback-literal
       cb(0, dirEnt.target)
     },
-    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-    getattr(p: string, cb: (returnCode: number, files?: any) => void) {
+
+    getattr(p: string, cb: (returnCode: number, files?: string[] | undefined) => void) {
       const dirEnt = getDirEnt(p)
+
       if (dirEnt == null) {
         cb(Fuse.ENOENT)
         return
       }
+
       if (
         dirEnt.entryType === 'directory' ||
         (dirEnt.entryType === 'index' && !dirEnt.subPath)
@@ -147,8 +155,10 @@ export function createFuseHandlersFromLockfile(
             size: 1,
           })
         )
+
         return
       }
+
       if (dirEnt.entryType === 'symlink') {
         // eslint-disable-next-line n/no-callback-literal
         cb(
@@ -158,8 +168,10 @@ export function createFuseHandlersFromLockfile(
             size: 1,
           })
         )
+
         return
       }
+
       if (dirEnt.entryType === 'index') {
         switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
           case 'file': {
@@ -190,13 +202,15 @@ export function createFuseHandlersFromLockfile(
             return
         }
       }
+
       cb(Fuse.ENOENT)
     },
     readdir,
   }
+
   function readdir(
     p: string,
-    cb: (returnCode: number, files?: string[]) => void
+    cb: (returnCode: number, files?: string[] | undefined) => void
   ) {
     const dirEnt = getDirEnt(p)
     if (dirEnt?.entryType === 'index') {

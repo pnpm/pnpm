@@ -1,11 +1,13 @@
 import path from 'node:path'
-import { packageManager } from '@pnpm/cli-meta'
-import type { Config } from '@pnpm/config'
-import { createResolver } from '@pnpm/client'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { updateCheckLogger } from '@pnpm/core-loggers'
+
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
+
+import type { Config } from '@pnpm/types'
+import { createResolver } from '@pnpm/client'
+import { packageManager } from '@pnpm/cli-meta'
+import { updateCheckLogger } from '@pnpm/core-loggers'
+import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 
 interface State {
   lastUpdateCheck?: string
@@ -13,19 +15,23 @@ interface State {
 
 const UPDATE_CHECK_FREQUENCY = 24 * 60 * 60 * 1000 // 1 day
 
-export async function checkForUpdates(config: Config) {
+export async function checkForUpdates(config: Config): Promise<void> {
   const stateFile = path.join(config.stateDir, 'pnpm-state.json')
+
   let state: State | undefined
+
   try {
     state = await loadJsonFile(stateFile)
   } catch (err) {}
 
   if (
     state?.lastUpdateCheck &&
+
     Date.now() - new Date(state.lastUpdateCheck).valueOf() <
       UPDATE_CHECK_FREQUENCY
-  )
+  ) {
     return
+  }
 
   const resolve = createResolver({
     ...config,
@@ -34,6 +40,7 @@ export async function checkForUpdates(config: Config) {
       retries: 0,
     },
   })
+
   const resolution = await resolve(
     { alias: packageManager.name, pref: 'latest' },
     {
@@ -47,12 +54,14 @@ export async function checkForUpdates(config: Config) {
       ),
     }
   )
+
   if (resolution?.manifest?.version) {
     updateCheckLogger.debug({
       currentVersion: packageManager.version,
       latestVersion: resolution?.manifest.version,
     })
   }
+
   await writeJsonFile(stateFile, {
     ...state,
     lastUpdateCheck: new Date().toUTCString(),

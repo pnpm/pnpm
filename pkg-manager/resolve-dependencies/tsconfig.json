@@ -8,58 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
-      "path": "../../exec/files-include-install-scripts"
-    },
-    {
-      "path": "../../fetching/pick-fetcher"
-    },
-    {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
-      "path": "../../lockfile/lockfile-utils"
-    },
-    {
-      "path": "../../lockfile/prune-lockfile"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../packages/which-version-is-pinned"
-    },
-    {
-      "path": "../../pkg-manifest/manifest-utils"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
-    },
-    {
-      "path": "../../resolving/npm-resolver"
-    },
-    {
-      "path": "../../resolving/resolver-base"
-    },
-    {
-      "path": "../../store/store-controller-types"
-    }
-  ],
   "composite": true
 }

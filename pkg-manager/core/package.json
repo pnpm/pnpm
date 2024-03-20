@@ -16,6 +16,7 @@
     "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
+    "@pnpm/read-projects-context": "workspace:*",
     "@pnpm/build-modules": "workspace:*",
     "@pnpm/builder.policy": "1.1.0",
     "@pnpm/calc-dep-state": "workspace:*",
@@ -26,11 +27,10 @@
     "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/filter-lockfile": "workspace:*",
-    "@pnpm/get-context": "workspace:*",
     "@pnpm/headless": "workspace:*",
     "@pnpm/hoist": "workspace:*",
+    "@pnpm/get-context": "workspace:*",
     "@pnpm/hooks.read-package-hook": "workspace:*",
-    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
@@ -73,10 +73,10 @@
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
+    "@pnpm/core": "workspace:*",
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/client": "workspace:*",
-    "@pnpm/core": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",

@@ -1,18 +1,23 @@
-import path from 'path'
-import { toOutput$ } from '@pnpm/default-reporter'
-import { PnpmError } from '@pnpm/error'
-import { createStreamParser, logger } from '@pnpm/logger'
-import { map, take } from 'rxjs/operators'
-import chalk from 'chalk'
-import loadJsonFile from 'load-json-file'
-import normalizeNewline from 'normalize-newline'
-import StackTracey from 'stacktracey'
+import path from 'node:path'
 
-const formatErrorCode = (code: string) =>
-  chalk.bgRed.black(`\u2009${code}\u2009`)
-const formatError = (code: string, message: string) => {
+import chalk from 'chalk'
+import StackTracey from 'stacktracey'
+import loadJsonFile from 'load-json-file'
+import { map, take } from 'rxjs/operators'
+import normalizeNewline from 'normalize-newline'
+
+import { PnpmError } from '@pnpm/error'
+import { toOutput$ } from '@pnpm/default-reporter'
+import { createStreamParser, logger } from '@pnpm/logger'
+
+const formatErrorCode = (code: string): string => {
+  return chalk.bgRed.black(`\u2009${code}\u2009`);
+}
+
+const formatError = (code: string, message: string): string => {
   return `${formatErrorCode(code)} ${chalk.red(message)}`
 }
+
 const ERROR_PAD = ''
 
 test('prints generic error', (done) => {
@@ -43,6 +48,8 @@ test('prints generic error when recursive install fails', (done) => {
   })
 
   const err = new Error('some error')
+
+  // @ts-ignore
   err.prefix = '/home/src/'
   logger.error(err, err)
 
@@ -90,6 +97,8 @@ ${ERROR_PAD}If you need the full list of all 281 published versions run "$ pnpm 
     'NO_MATCHING_VERSION',
     'No matching version found for pnpm@1000.0.0'
   )
+
+  // @ts-ignore
   err.packageMeta = loadJsonFile.sync(path.join(__dirname, 'pnpm-meta.json'))
   logger.error(err, err)
 })
@@ -119,9 +128,12 @@ ${ERROR_PAD}If you need the full list of all 4 published versions run "$ pnpm vi
     'NO_MATCHING_VERSION',
     'No matching version found for is-positive@1000.0.0'
   )
+
+  // @ts-ignore
   err.packageMeta = loadJsonFile.sync(
     path.join(__dirname, 'is-positive-meta.json')
   )
+
   logger.error(err, err)
 })
 
@@ -171,8 +183,11 @@ ${ERROR_PAD}For instance, \`pnpm install --fetch-retries 5 --network-concurrency
       version: '1.0.0',
     },
   ]
+  // @ts-ignore
   err.expectedSize = 100
+  // @ts-ignore
   err.receivedSize = 99
+
   logger.error(err, err)
 })
 
@@ -220,9 +235,14 @@ test('prints command error with exit code', (done) => {
   })
 
   const err = new Error('Command failed')
+
+  // @ts-ignore
   err.errno = 100
+  // @ts-ignore
   err.stage = 'lint'
+  // @ts-ignore
   err.code = 'ELIFECYCLE'
+
   logger.error(err, err)
 })
 
@@ -243,8 +263,12 @@ test('prints command error without exit code', (done) => {
   })
 
   const err = new Error('Command failed')
+
+  // @ts-ignore
   err.stage = 'lint'
+  // @ts-ignore
   err.code = 'ELIFECYCLE'
+
   logger.error(err, err)
 })
 
@@ -277,9 +301,14 @@ ${ERROR_PAD}To check your pnpm version, run "pnpm -v".`)
   })
 
   const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
+
+  // @ts-ignore
   err.packageId = '/home/zoltan/project'
+  // @ts-ignore
   err.wanted = { pnpm: '2' }
+  // @ts-ignore
   err.current = { pnpm: '3.0.0', node: '10.0.0' }
+
   logger.error(err, err)
 })
 
@@ -309,9 +338,14 @@ ${ERROR_PAD}To fix this issue, install the required Node version.`)
   })
 
   const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
+
+  // @ts-ignore
   err.packageId = '/home/zoltan/project'
+  // @ts-ignore
   err.wanted = { node: '>=12' }
+  // @ts-ignore
   err.current = { pnpm: '3.0.0', node: '10.0.0' }
+
   logger.error(err, err)
 })
 
@@ -354,9 +388,14 @@ ${ERROR_PAD}To fix this issue, install the required Node version.`
   })
 
   const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
+
+  // @ts-ignore
   err.packageId = '/home/zoltan/project'
+  // @ts-ignore
   err.wanted = { pnpm: '2', node: '>=12' }
+  // @ts-ignore
   err.current = { pnpm: '3.0.0', node: '10.0.0' }
+
   logger.error(err, err)
 })
 

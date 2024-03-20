@@ -30,12 +30,12 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/write-project-manifest#readme",
   "dependencies": {
     "@pnpm/text.comments-parser": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "json5": "^2.2.3",
     "write-file-atomic": "^5.0.1",
     "write-yaml-file": "^5.0.0"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "@types/write-file-atomic": "^4.0.3",
     "tempy": "^1.0.1",

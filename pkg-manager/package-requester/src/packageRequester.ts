@@ -1,22 +1,23 @@
-import { createReadStream, promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {
-  type FileType,
-  getFilePathByModeInCafs as _getFilePathByModeInCafs,
-  getFilePathInCafs as _getFilePathInCafs,
-  type PackageFilesIndex,
-} from '@pnpm/store.cafs'
-import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
-import { pickFetcher } from '@pnpm/pick-fetcher'
-import { PnpmError } from '@pnpm/error'
+import { createReadStream, promises as fs } from 'node:fs'
 
-import type { Cafs } from '@pnpm/cafs-types'
+import {
+  getFilePathInCafs as _getFilePathInCafs,
+  getFilePathByModeInCafs as _getFilePathByModeInCafs,
+} from '@pnpm/store.cafs'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
-import { packageIsInstallable } from '@pnpm/package-is-installable'
+import { PnpmError } from '@pnpm/error'
+import { pickFetcher } from '@pnpm/pick-fetcher'
 import { readPackageJson } from '@pnpm/read-package-json'
+import { packageIsInstallable } from '@pnpm/package-is-installable'
+import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
+
 import type {
+  Cafs,
+  FileType,
+  PackageFilesIndex,
   DirectoryFetcherResult,
   DirectoryResolution,
   FetchOptions,
@@ -26,8 +27,6 @@ import type {
   ResolveFunction,
   ResolveResult,
   TarballResolution,
-} from '@pnpm/resolver-base'
-import type {
   BundledManifest,
   PkgRequestFetchResult,
   FetchPackageToStoreFunction,
@@ -38,8 +37,9 @@ import type {
   RequestPackageFunction,
   RequestPackageOptions,
   WantedDependency,
-} from '@pnpm/store-controller-types'
-import type { DependencyManifest } from '@pnpm/types'
+  DependencyManifest,
+} from '@pnpm/types'
+
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
 import PQueue from 'p-queue'
@@ -197,6 +197,7 @@ async function resolveAndFetch(
           lockfileDir: options.lockfileDir,
           preferredVersions: options.preferredVersions,
           preferWorkspacePackages: options.preferWorkspacePackages,
+          // @ts-ignore
           projectDir: options.projectDir,
           registry: options.registry,
           workspacePackages: options.workspacePackages,

@@ -1,7 +1,9 @@
-import path from 'path'
-import { runNpm } from '@pnpm/run-npm'
+import path from 'node:path'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
+
+import { runNpm } from '@pnpm/run-npm'
+
 import type { ConfigCommandOptions } from './ConfigCommandOptions'
 
 export async function configSet(
@@ -12,22 +14,31 @@ export async function configSet(
   const configPath = opts.global
     ? path.join(opts.configDir, 'rc')
     : path.join(opts.dir, '.npmrc')
+
   if (opts.global && settingShouldFallBackToNpm(key)) {
     const _runNpm = runNpm.bind(null, opts.npmPath)
+
     if (value == null) {
       _runNpm(['config', 'delete', key])
     } else {
       _runNpm(['config', 'set', `${key}=${value}`])
     }
+
     return
   }
+
   const settings = await safeReadIniFile(configPath)
+
   if (value == null) {
-    if (settings[key] == null) return
+    if (settings[key] == null) {
+      return
+    }
+
     delete settings[key]
   } else {
     settings[key] = value
   }
+
   await writeIniFile(configPath, settings)
 }
 
@@ -36,7 +47,7 @@ function settingShouldFallBackToNpm(key: string): boolean {
     ['registry', '_auth', '_authToken', 'username', '_password'].includes(
       key
     ) ||
-    key[0] === '@' ||
+    key.startsWith('@') ||
     key.startsWith('//')
   )
 }

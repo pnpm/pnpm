@@ -1,11 +1,13 @@
-import path from 'path'
-import { lifecycleLogger } from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
-import { createStreamParser } from '@pnpm/logger'
-import { map, skip, take, toArray } from 'rxjs/operators'
+import path from 'node:path'
+
 import chalk from 'chalk'
-import normalizeNewline from 'normalize-newline'
 import { firstValueFrom } from 'rxjs'
+import normalizeNewline from 'normalize-newline'
+import { map, skip, take, toArray } from 'rxjs/operators'
+
+import { createStreamParser } from '@pnpm/logger'
+import { toOutput$ } from '@pnpm/default-reporter'
+import { lifecycleLogger } from '@pnpm/core-loggers'
 
 const hlValue = chalk.cyanBright
 const hlPkgId = chalk.whiteBright
@@ -18,7 +20,7 @@ const STATUS_INDENTATION = chalk.magentaBright('└─')
 const STATUS_RUNNING = chalk.magentaBright('Running...')
 const STATUS_DONE = chalk.magentaBright('Done in 1s')
 
-function replaceTimeWith1Sec(text: string) {
+function replaceTimeWith1Sec(text: string): string {
   return text
     .replace(/Done in [a-z0-9μ]+/g, 'Done in 1s')
     .replace(/done in [a-z0-9μ]+/g, 'done in 1s')
@@ -1078,7 +1080,7 @@ test('do not fail if the debug log has no output', (done) => {
       expect(replaceTimeWith1Sec(output)).toBe(`\
 ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
 .../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
-${OUTPUT_INDENTATION} 
+${OUTPUT_INDENTATION}
 ${STATUS_INDENTATION} ${failedAt(wd)}`)
     },
   })

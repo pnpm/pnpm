@@ -1,12 +1,15 @@
 /// <reference path="../../../__typings__/local.d.ts" />
 import '@total-typescript/ts-reset'
+
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import mdastToString from 'mdast-util-to-string'
+
 import type { RootContent } from 'mdast'
 
 export const BumpLevels = {
@@ -21,8 +24,8 @@ const pnpmDir = path.join(dirname, '../../../pnpm')
 const changelog = fs.readFileSync(path.join(pnpmDir, 'CHANGELOG.md'), 'utf8')
 const pnpm = JSON.parse(
   fs.readFileSync(path.join(pnpmDir, 'package.json'), 'utf8')
-)
-// @ts-ignore
+) as { version: string}
+
 const release = getChangelogEntry(changelog, pnpm.version)
 fs.writeFileSync(path.join(dirname, '../../../RELEASE.md'), release.content)
 
@@ -42,20 +45,27 @@ function getChangelogEntry(changelog: string, version: string) {
 
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i]
+
     if (node.type === 'heading') {
       const stringified: string = mdastToString(node)
+
       const match = stringified.toLowerCase().match(/(major|minor|patch)/)
+
       if (match !== null) {
         const level = BumpLevels[match[0] as 'major' | 'minor' | 'patch']
+
         highestLevel = Math.max(level, highestLevel)
       }
+
       if (headingStartInfo === undefined && stringified === version) {
         headingStartInfo = {
           index: i,
           depth: node.depth,
         }
+
         continue
       }
+
       if (
         endIndex === undefined &&
         headingStartInfo !== undefined &&
@@ -66,12 +76,14 @@ function getChangelogEntry(changelog: string, version: string) {
       }
     }
   }
+
   if (headingStartInfo != null) {
     ast.children = (ast.children as RootContent[]).slice(
       headingStartInfo.index + 1,
       endIndex
     )
   }
+
   return {
     content: `${unified().use(remarkStringify).stringify(ast)}
 

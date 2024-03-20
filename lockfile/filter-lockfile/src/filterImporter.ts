@@ -6,13 +6,13 @@ export function filterImporter(
   include: { [dependenciesField in DependenciesField]: boolean }
 ): ProjectSnapshot {
   return {
-    dependencies: !include.dependencies ? {} : importer.dependencies ?? {},
-    devDependencies: !include.devDependencies
-      ? {}
-      : importer.devDependencies ?? {},
-    optionalDependencies: !include.optionalDependencies
-      ? {}
-      : importer.optionalDependencies ?? {},
+    dependencies: include.dependencies ? importer.dependencies ?? {} : {},
+    devDependencies: include.devDependencies
+      ? importer.devDependencies ?? {}
+      : {},
+    optionalDependencies: include.optionalDependencies
+      ? importer.optionalDependencies ?? {}
+      : {},
     specifiers: importer.specifiers,
   }
 }

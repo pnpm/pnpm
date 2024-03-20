@@ -1,10 +1,11 @@
-/// <reference path="../../../__typings__/index.d.ts"/>
-import { createExportableManifest } from '@pnpm/exportable-manifest'
-import { preparePackages } from '@pnpm/prepare'
-import writeYamlFile from 'write-yaml-file'
-import type { ProjectManifest } from '@pnpm/types'
+import path from 'node:path'
+
 import crossSpawn from 'cross-spawn'
-import path from 'path'
+import writeYamlFile from 'write-yaml-file'
+
+import { preparePackages } from '@pnpm/prepare'
+import type { ProjectManifest } from '@pnpm/types'
+import { createExportableManifest } from '@pnpm/exportable-manifest'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 

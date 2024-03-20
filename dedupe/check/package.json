@@ -29,12 +29,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/dedupe/check#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/dedupe.types": "workspace:*",
-    "@pnpm/error": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
-    "@pnpm/types": "workspace:*"
+    "@pnpm/error": "workspace:*"
   },
   "devDependencies": {
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@pnpm/dedupe.check": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   },

@@ -1,10 +1,10 @@
 import { packageExtensions as compatPackageExtensions } from '@yarnpkg/extensions'
-import {
-  type PackageExtension,
-  type PackageManifest,
-  type PeerDependencyRules,
-  type ProjectManifest,
-  type ReadPackageHook,
+import type {
+  PackageExtension,
+  PackageManifest,
+  PeerDependencyRules,
+  ProjectManifest,
+  ReadPackageHook,
 } from '@pnpm/types'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
@@ -28,6 +28,7 @@ export function createReadPackageHook({
   readPackageHook?: ReadPackageHook[] | ReadPackageHook
 }): ReadPackageHook | undefined {
   const hooks: ReadPackageHook[] = []
+
   if (!ignoreCompatibilityDb) {
     hooks.push(
       createPackageExtender(Object.fromEntries(compatPackageExtensions))
@@ -59,7 +60,7 @@ export function createReadPackageHook({
   const readPackageAndExtend =
     hooks.length === 1
       ? hooks[0]
-      : (((pkg: PackageManifest | ProjectManifest, dir: string): ProjectManifest | Promise<ProjectManifest> => {
+      : (((pkg: PackageManifest | ProjectManifest, dir: string): ProjectManifest | PackageManifest | Promise<ProjectManifest | PackageManifest> | undefined => {
         return pipeWith(
           async (f, res) => {
             return f(await res, dir);

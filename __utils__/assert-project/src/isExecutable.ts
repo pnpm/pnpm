@@ -7,11 +7,10 @@ import isexeCB from 'isexe'
 const IS_WINDOWS = isWindows()
 const isexe = promisify(isexeCB.isexe)
 
-// eslint-disable-next-line
-export default async (
+export async function isExecutable(
   ok: (value: unknown, comment: string) => void,
   filePath: string
-) => {
+): Promise<void> {
   if (IS_WINDOWS) {
     ok(
       await isexe(`${filePath}.cmd`, undefined),

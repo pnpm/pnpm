@@ -1,13 +1,11 @@
 import url from 'node:url'
-import type {
-  PackageSnapshot,
-  TarballResolution,
-} from '@pnpm/lockfile-types'
-import type { Resolution } from '@pnpm/resolver-base'
-import type { Registries } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
+
 import getNpmTarballUrl from 'get-npm-tarball-url'
+
+import * as dp from '@pnpm/dependency-path'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
+import type { Registries, Resolution, PackageSnapshot, TarballResolution } from '@pnpm/types'
+
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot'
 
 export function pkgSnapshotToResolution(
@@ -26,37 +24,36 @@ export function pkgSnapshotToResolution(
   ) {
     return pkgSnapshot.resolution as Resolution
   }
+
   const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  let registry: string = ''
-  if (name != null) {
-    if (name.startsWith('@')) {
-      registry = registries[name.split('/')[0]]
-    }
-  }
+
+  let registry: string = name?.startsWith('@') ? registries[name.split('/')[0]] : ''
+
   if (!registry) {
     registry = registries.default
   }
-  let tarball!: string
-  if (!(pkgSnapshot.resolution as TarballResolution).tarball) {
-    tarball = getTarball(registry)
-  } else {
-    tarball = new url.URL(
+
+  const tarball: string = (pkgSnapshot.resolution as TarballResolution).tarball
+    ? new url.URL(
       (pkgSnapshot.resolution as TarballResolution).tarball,
       registry.endsWith('/') ? registry : `${registry}/`
     ).toString()
-  }
+    : getTarball(registry);
+
   return {
     ...pkgSnapshot.resolution,
     tarball,
   } as Resolution
 
-  function getTarball(registry: string) {
-    const { name, version } = dp.parse(depPath)
-    if (!name || !version) {
+  function getTarball(registry: string): string {
+    const parsed = dp.parse(depPath)
+
+    if (!('name' in parsed) || !parsed.name || !parsed.version) {
       throw new Error(
         `Couldn't get tarball URL from dependency path ${depPath}`
       )
     }
-    return getNpmTarballUrl(name, version, { registry })
+
+    return getNpmTarballUrl(parsed.name, parsed.version, { registry })
   }
 }

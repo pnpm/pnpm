@@ -1,22 +1,27 @@
-import {
-  nameVerFromPkgSnapshot,
-  type PackageSnapshots,
-} from '@pnpm/lockfile-utils'
-import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
+import getVersionSelectorType from 'version-selector-type'
+
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
-  type PreferredVersions,
 } from '@pnpm/resolver-base'
-import type { DependencyManifest, ProjectManifest } from '@pnpm/types'
-import getVersionSelectorType from 'version-selector-type'
+import {
+  nameVerFromPkgSnapshot,
+} from '@pnpm/lockfile-utils'
+import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
+import type { DependencyManifest, PackageSnapshots, PreferredVersions, ProjectManifest } from '@pnpm/types'
 
 export function getAllUniqueSpecs(manifests: DependencyManifest[]) {
   const allSpecs: Record<string, string> = {}
+
   const ignored = new Set<string>()
+
   for (const manifest of manifests) {
     const specs = getAllDependenciesFromManifest(manifest)
+
     for (const [name, spec] of Object.entries(specs)) {
-      if (ignored.has(name)) continue
+      if (ignored.has(name)) {
+        continue
+      }
+
       if (
         (allSpecs[name] != null && allSpecs[name] !== spec) ||
         spec.includes(':')
@@ -25,9 +30,11 @@ export function getAllUniqueSpecs(manifests: DependencyManifest[]) {
         delete allSpecs[name]
         continue
       }
+
       allSpecs[name] = spec
     }
   }
+
   return allSpecs
 }
 
@@ -36,20 +43,32 @@ export function getPreferredVersionsFromLockfileAndManifests(
   manifests: Array<DependencyManifest | ProjectManifest>
 ): PreferredVersions {
   const preferredVersions: PreferredVersions = {}
+
   for (const manifest of manifests) {
     const specs = getAllDependenciesFromManifest(manifest)
+
     for (const [name, spec] of Object.entries(specs)) {
       const selector = getVersionSelectorType(spec)
-      if (!selector) continue
+
+      if (!selector) {
+        continue
+      }
+
       preferredVersions[name] = preferredVersions[name] ?? {}
+
       preferredVersions[name][spec] = {
         selectorType: selector.type,
         weight: DIRECT_DEP_SELECTOR_WEIGHT,
       }
     }
   }
-  if (!snapshots) return preferredVersions
+
+  if (!snapshots) {
+    return preferredVersions
+  }
+
   addPreferredVersionsFromLockfile(snapshots, preferredVersions)
+
   return preferredVersions
 }
 
@@ -59,6 +78,7 @@ function addPreferredVersionsFromLockfile(
 ) {
   for (const [depPath, snapshot] of Object.entries(snapshots)) {
     const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
+
     if (!preferredVersions[name]) {
       preferredVersions[name] = { [version]: 'version' }
     } else if (!preferredVersions[name][version]) {

@@ -1,13 +1,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
+
+import { readIniFileSync } from 'read-ini-file'
+
 import { tempDir } from '@pnpm/prepare'
 import { config } from '@pnpm/plugin-commands-config'
-import { readIniFileSync } from 'read-ini-file'
 
 test('config delete', async (): Promise<void> => {
   const tmp = tempDir()
+
   const configDir = path.join(tmp, 'global-config')
+
   fs.mkdirSync(configDir, { recursive: true })
+
   fs.writeFileSync(
     path.join(configDir, 'rc'),
     `store-dir=~/store

@@ -1,17 +1,22 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
-import { envRemove } from './envRemove'
+
+import { PnpmError } from '@pnpm/error'
+import { docsUrl } from '@pnpm/cli-utils'
+
 import { envUse } from './envUse'
-import { type NvmNodeCommandOptions } from './node'
-import { envList } from './envList'
 import { envAdd } from './envAdd'
+import { envList } from './envList'
+import { envRemove } from './envRemove'
+import { type NvmNodeCommandOptions } from './node'
 
 export function rcOptionsTypes() {
   return {}
 }
 
-export function cliOptionsTypes() {
+export function cliOptionsTypes(): {
+  global: BooleanConstructor;
+  remote: BooleanConstructor;
+} {
   return {
     global: Boolean,
     remote: Boolean,
@@ -89,12 +94,15 @@ export function help() {
   })
 }
 
-export async function handler(opts: NvmNodeCommandOptions, params: string[]) {
+export async function handler(opts: NvmNodeCommandOptions, params: string[]): Promise<string | {
+  exitCode: number;
+}> {
   if (params.length === 0) {
     throw new PnpmError('ENV_NO_SUBCOMMAND', 'Please specify the subcommand', {
       hint: help(),
     })
   }
+
   if (opts.global && !opts.bin) {
     throw new PnpmError(
       'CANNOT_MANAGE_NODE',
@@ -104,23 +112,28 @@ export async function handler(opts: NvmNodeCommandOptions, params: string[]) {
       }
     )
   }
+
   switch (params[0]) {
     case 'add': {
       return envAdd(opts, params.slice(1))
     }
+
     case 'use': {
       return envUse(opts, params.slice(1))
     }
+
     case 'remove':
     case 'rm':
     case 'uninstall':
     case 'un': {
       return envRemove(opts, params.slice(1))
     }
+
     case 'list':
     case 'ls': {
       return envList(opts, params.slice(1))
     }
+
     default: {
       throw new PnpmError(
         'ENV_UNKNOWN_SUBCOMMAND',

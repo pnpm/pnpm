@@ -1,50 +1,10 @@
 import path from 'node:path'
-import type {
-  PreResolutionHook,
-  PreResolutionHookContext,
-  PreResolutionHookLogger,
-} from '@pnpm/hooks.types'
+
 import { hookLogger } from '@pnpm/core-loggers'
 import pathAbsolute from 'path-absolute'
-import type { Lockfile } from '@pnpm/lockfile-types'
-import type { Log } from '@pnpm/core-loggers'
-import type { CustomFetchers } from '@pnpm/fetcher-base'
-import type { ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
+
 import { requirePnpmfile } from './requirePnpmfile'
-
-interface HookContext {
-  log: (message: string) => void
-}
-
-interface Hooks {
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readPackage?: ((pkg: any, context: HookContext) => any) | undefined
-  preResolution?: PreResolutionHook | undefined
-  afterAllResolved?: ((
-    lockfile: Lockfile,
-    context: HookContext
-  ) => Lockfile | Promise<Lockfile>) | undefined
-  filterLog?: ((log: Log) => boolean) | undefined
-  importPackage?: ImportIndexedPackageAsync | undefined
-  fetchers?: CustomFetchers | undefined
-}
-
-// eslint-disable-next-line
-type Cook<T extends (...args: any[]) => any> = (
-  arg: Parameters<T>[0],
-  // eslint-disable-next-line
-  ...otherArgs: any[]
-) => ReturnType<T>
-
-export interface CookedHooks {
-  readPackage?: Array<Cook<Required<Hooks>['readPackage']>> | undefined
-  preResolution?: Cook<Required<Hooks>['preResolution']> | undefined
-  afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>> | undefined
-  filterLog?: Array<Cook<Required<Hooks>['filterLog']>> | undefined
-  importPackage?: ImportIndexedPackageAsync | undefined
-  fetchers?: CustomFetchers | undefined
-}
+import { CookedHooks, HookContext, Lockfile, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/types'
 
 export async function requireHooks(
   prefix: string,

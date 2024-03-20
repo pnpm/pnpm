@@ -1,9 +1,11 @@
-import type { DeprecationLog, StageLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
-import { map, filter, buffer, switchMap } from 'rxjs/operators'
 import chalk from 'chalk'
-import { formatWarn } from './utils/formatWarn'
+import { map, filter, buffer, switchMap } from 'rxjs/operators'
+
 import { zoomOut } from './utils/zooming'
+import { formatWarn } from './utils/formatWarn'
+
+import { DeprecationLog, StageLog } from '@pnpm/types'
 
 export function reportDeprecations(
   log$: {

@@ -31,10 +31,10 @@
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "realpath-missing": "^1.1.0"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   },

@@ -43,31 +43,38 @@ export async function requirePnpmfile<T>(pnpmFilePath: string, prefix: string): 
       })
       return undefined
     }
+
     if (
       pnpmfile?.hooks?.readPackage &&
       typeof pnpmfile.hooks.readPackage !== 'function'
     ) {
       throw new TypeError('hooks.readPackage should be a function')
     }
+
     if (pnpmfile?.hooks?.readPackage) {
       const readPackage = pnpmfile.hooks.readPackage
+
       pnpmfile.hooks.readPackage = async function (pkg: PackageManifest, ...args: any[]) { // eslint-disable-line
         pkg.dependencies = pkg.dependencies ?? {}
         pkg.devDependencies = pkg.devDependencies ?? {}
         pkg.optionalDependencies = pkg.optionalDependencies ?? {}
         pkg.peerDependencies = pkg.peerDependencies ?? {}
+
         const newPkg = await readPackage(pkg, ...args)
+
         if (!newPkg) {
           throw new BadReadPackageHookError(
             pnpmFilePath,
             'readPackage hook did not return a package manifest object.'
           )
         }
+
         const dependencies = [
           'dependencies',
           'optionalDependencies',
           'peerDependencies',
         ]
+
         for (const dep of dependencies) {
           if (newPkg[dep] && typeof newPkg[dep] !== 'object') {
             throw new BadReadPackageHookError(
@@ -76,18 +83,23 @@ export async function requirePnpmfile<T>(pnpmFilePath: string, prefix: string): 
             )
           }
         }
+
         return newPkg
       }
     }
+
     pnpmfile.filename = pnpmFilePath
+
     return pnpmfile
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     if (err instanceof SyntaxError) {
       console.error(chalk.red('A syntax error in the .pnpmfile.cjs\n'))
       console.error(err)
       process.exit(1)
     }
+    // @ts-ignore
     if (err.code !== 'MODULE_NOT_FOUND' || pnpmFileExistsSync(pnpmFilePath)) {
+      // @ts-ignore
       throw new PnpmFileFailError(pnpmFilePath, err)
     }
     return undefined

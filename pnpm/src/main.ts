@@ -6,27 +6,30 @@ if (!global.pnpm__startedAt) {
   global.pnpm__startedAt = Date.now()
 }
 
+import path from 'node:path'
+
+import chalk from 'chalk'
+import which from 'which'
+import { isCI } from 'ci-info'
+import stripAnsi from 'strip-ansi'
+import isEmpty from 'ramda/src/isEmpty'
+
+import type { Config, ReporterType } from '@pnpm/types'
 import loudRejection from 'loud-rejection'
-import { packageManager } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
-import type { Config } from '@pnpm/config'
-import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
-import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
+import { finishWorkers } from '@pnpm/worker'
+import { packageManager } from '@pnpm/cli-meta'
+import { node } from '@pnpm/plugin-commands-env'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { ParsedCliArgs } from '@pnpm/parse-cli-args'
-import { node } from '@pnpm/plugin-commands-env'
-import { finishWorkers } from '@pnpm/worker'
-import chalk from 'chalk'
-import { checkForUpdates } from './checkForUpdates'
-import { pnpmCmds, rcOptionsTypes } from './cmd'
-import { formatUnknownOptionsError } from './formatError'
+import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
+import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
+
+import { initReporter } from './reporter'
 import { parseCliArgs } from './parseCliArgs'
-import { initReporter, type ReporterType } from './reporter'
-import { isCI } from 'ci-info'
-import path from 'path'
-import isEmpty from 'ramda/src/isEmpty'
-import stripAnsi from 'strip-ansi'
-import which from 'which'
+import { pnpmCmds, rcOptionsTypes } from './cmd'
+import { checkForUpdates } from './checkForUpdates'
+import { formatUnknownOptionsError } from './formatError'
 
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
@@ -41,17 +44,21 @@ const DEPRECATED_OPTIONS = new Set([
 // A workaround for the https://github.com/vercel/pkg/issues/897 issue.
 delete process.env.PKG_EXECPATH
 
-export async function main(inputArgv: string[]) {
-  let parsedCliArgs!: ParsedCliArgs
+export async function main(inputArgv: string[]): Promise<void> {
+  let parsedCliArgs: ParsedCliArgs
+
   try {
     parsedCliArgs = await parseCliArgs(inputArgv)
   } catch (err: unknown) {
     // Reporting is not initialized at this point, so just printing the error
     // @ts-ignore
     printError(err.message, err.hint)
+
     process.exitCode = 1
+
     return
   }
+
   const {
     argv,
     params: cliParams,
@@ -61,28 +68,36 @@ export async function main(inputArgv: string[]) {
     unknownOptions,
     workspaceDir,
   } = parsedCliArgs
+
   if (cmd !== null && !pnpmCmds[cmd]) {
     printError(`Unknown command '${cmd}'`, 'For help, run: pnpm help')
+
     process.exitCode = 1
+
     return
   }
 
   if (unknownOptions.size > 0 && !fallbackCommandUsed) {
     const unknownOptionsArray: string[] = Array.from(unknownOptions.keys())
+
     if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
       let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
+
       if (unknownOptionsArray.length === 1) {
         deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${unknownOptionsArray[0]}'`)}`
       } else {
         deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptionsArray.map((unknownOption) => `'${unknownOption}'`).join(', ')}`)}`
       }
+
       console.log(deprecationMsg)
     } else {
       printError(
         formatUnknownOptionsError(unknownOptions),
         `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
       )
+
       process.exitCode = 1
+
       return
     }
   }
@@ -92,10 +107,12 @@ export async function main(inputArgv: string[]) {
     argv: { remain: string[]; cooked: string[]; original: string[] }
     fallbackCommandUsed: boolean
   }
+
   try {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
+
     config = (await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
@@ -103,14 +120,19 @@ export async function main(inputArgv: string[]) {
       workspaceDir,
       checkUnknownSetting: false,
     })) as typeof config
+
     if (cmd === 'dlx') {
       config.useStderr = true
     }
+
     config.forceSharedLockfile =
       typeof config.workspaceDir === 'string' &&
       config.sharedWorkspaceLockfile === true
+
     config.argv = argv
+
     config.fallbackCommandUsed = fallbackCommandUsed
+
     // Set 'npm_command' env variable to current command name
     if (cmd) {
       config.extraEnv = {
@@ -127,13 +149,17 @@ export async function main(inputArgv: string[]) {
       ? // @ts-ignore
       err.hint
       : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
+
     // @ts-ignore
     printError(err.message, hint)
+
     process.exitCode = 1
+
     return
   }
 
   let write: (text: string) => void = process.stdout.write.bind(process.stdout)
+
   // chalk reads the FORCE_COLOR env variable
   if (config.color === 'always') {
     process.env.FORCE_COLOR = '1'
@@ -149,19 +175,30 @@ export async function main(inputArgv: string[]) {
   }
 
   const reporterType: ReporterType = (() => {
-    if (config.loglevel === 'silent') return 'silent'
-    if (config.reporter) return config.reporter as ReporterType
-    if (isCI || !process.stdout.isTTY) return 'append-only'
+    if (config.loglevel === 'silent') {
+      return 'silent'
+    }
+
+    if (config.reporter) {
+      return config.reporter as ReporterType
+    }
+
+    if (isCI || !process.stdout.isTTY) {
+      return 'append-only'
+    }
+
     return 'default'
   })()
 
   // @ts-ignore
   const printLogs = !config.parseable && !config.json
+
   if (printLogs) {
     initReporter(reporterType, {
       cmd,
       config,
     })
+
     global[REPORTER_INITIALIZED] = reporterType
   }
 
@@ -172,8 +209,10 @@ export async function main(inputArgv: string[]) {
 
   if (selfUpdate) {
     await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
     try {
       const currentPnpmDir = path.dirname(which.sync('pnpm'))
+
       if (path.relative(currentPnpmDir, config.bin) !== '') {
         console.log(`The location of the currently running pnpm differs from the location where pnpm will be installed
  Current pnpm location: ${currentPnpmDir}
@@ -186,15 +225,11 @@ export async function main(inputArgv: string[]) {
   }
 
   if (
-    (cmd === 'install' ||
-      cmd === 'import' ||
-      cmd === 'dedupe' ||
-      cmd === 'patch-commit' ||
-      cmd === 'patch' ||
-      cmd === 'patch-remove') &&
+    (['install', 'import', 'dedupe', 'patch-commit', 'patch', 'patch-remove'].includes(cmd ?? '')) &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions.recursive = true
+
     config.recursive = true
 
     if (!config.recursiveInstall && !config.filter && !config.filterProd) {
@@ -206,6 +241,7 @@ export async function main(inputArgv: string[]) {
     const wsDir = workspaceDir ?? process.cwd()
 
     config.filter = config.filter ?? []
+
     config.filterProd = config.filterProd ?? []
 
     const filters = [
@@ -215,7 +251,9 @@ export async function main(inputArgv: string[]) {
         followProdDepsOnly: true,
       })),
     ]
+
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
+
     if (config.workspaceRoot) {
       filters.push({
         filter: `{${relativeWSDirPath()}}`,
@@ -249,24 +287,34 @@ export async function main(inputArgv: string[]) {
       if (printLogs) {
         console.log(`No projects found in "${wsDir}"`)
       }
+
       process.exitCode = config.failIfNoMatch ? 1 : 0
+
       return
     }
+
     config.allProjectsGraph = filterResults.allProjectsGraph
+
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
+
     if (isEmpty(config.selectedProjectsGraph)) {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }
+
       process.exitCode = config.failIfNoMatch ? 1 : 0
+
       return
     }
+
     if (filterResults.unmatchedFilters.length !== 0 && printLogs) {
       console.log(
         `No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`
       )
     }
+
     config.allProjects = filterResults.allProjects
+
     config.workspaceDir = wsDir
   }
 
@@ -316,55 +364,72 @@ export async function main(inputArgv: string[]) {
             'Automatic installation of different Node.js versions is not supported in WebContainer'
           )
         } else {
+          // TODO: fix types
+          // @ts-ignore
           const nodePath = await node.getNodeBinDir(config)
+
           config.extraBinPaths.push(nodePath)
+
           config.nodeVersion = config.useNodeVersion
         }
       }
+
       let result = pnpmCmds[cmd ?? 'help'](
         // TypeScript doesn't currently infer that the type of config
         // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
         config as Omit<typeof config, 'reporter'>,
         cliParams
       )
+
       if (result instanceof Promise) {
         result = await result
       }
+
       executionTimeLogger.debug({
         // @ts-ignore
         startedAt: global.pnpm__startedAt,
         endedAt: Date.now(),
       })
+
       if (!result) {
         return { output: null, exitCode: 0 }
       }
+
       if (typeof result === 'string') {
         return { output: result, exitCode: 0 }
       }
+
       return result
     })()
+
   // When use-node-version is set and "pnpm run" is executed,
   // this will be the only place where the tarball worker pool is finished.
   await finishWorkers()
+
   if (output) {
     if (!output.endsWith('\n')) {
       output = `${output}\n`
     }
+
     write(output)
   }
+
   if (!cmd) {
     exitCode = 1
   }
+
   if (exitCode) {
     process.exitCode = exitCode
   }
 }
 
-function printError(message: string, hint?: string) {
+function printError(message: string, hint?: string): void {
   const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
+
   console.log(
     `${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`
   )
+
   if (hint) {
     console.log(hint)
   }

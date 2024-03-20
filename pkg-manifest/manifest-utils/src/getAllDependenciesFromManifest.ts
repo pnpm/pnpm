@@ -1,7 +1,7 @@
 import type {
   Dependencies,
-  DependenciesField,
   ProjectManifest,
+  DependenciesField,
 } from '@pnpm/types'
 
 export function getAllDependenciesFromManifest(
@@ -11,5 +11,5 @@ export function getAllDependenciesFromManifest(
     ...pkg.devDependencies,
     ...pkg.dependencies,
     ...pkg.optionalDependencies,
-  } as Dependencies
+  }
 }

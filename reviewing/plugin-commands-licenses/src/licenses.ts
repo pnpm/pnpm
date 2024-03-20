@@ -1,11 +1,13 @@
-import { docsUrl, readDepNameCompletions } from '@pnpm/cli-utils'
-import type { CompletionFunc } from '@pnpm/command'
-import { types as allTypes } from '@pnpm/config'
-import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { licensesList, type LicensesCommandOptions } from './licensesList'
+
+import { PnpmError } from '@pnpm/error'
+import { types as allTypes } from '@pnpm/config'
+import type { CompletionFunc } from '@pnpm/types'
 import { FILTERING } from '@pnpm/common-cli-options-help'
+import { docsUrl, readDepNameCompletions } from '@pnpm/cli-utils'
+
+import { licensesList, type LicensesCommandOptions } from './licensesList'
 
 export function rcOptionsTypes() {
   return {
@@ -18,10 +20,12 @@ export function rcOptionsTypes() {
   }
 }
 
-export const cliOptionsTypes = () => ({
-  ...rcOptionsTypes(),
-  recursive: Boolean,
-})
+export const cliOptionsTypes = () => {
+  return {
+    ...rcOptionsTypes(),
+    recursive: Boolean,
+  };
+}
 
 export const shorthands = {
   D: '--dev',
@@ -30,7 +34,7 @@ export const shorthands = {
 
 export const commandNames = ['licenses']
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description: 'Check the licenses of the installed packages.',
     descriptionLists: [
@@ -76,7 +80,7 @@ To display the details, pass this option.',
   })
 }
 
-export const completion: CompletionFunc = async (cliOpts) => {
+export const completion: CompletionFunc = async (cliOpts: { dir: string }) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 

@@ -1,8 +1,10 @@
-import path from 'path'
+import path from 'node:path'
+
+import type { Modules } from '@pnpm/types'
 import { LAYOUT_VERSION } from '@pnpm/constants'
-import { type Modules } from '@pnpm/modules-yaml'
-import { ModulesBreakingChangeError } from './ModulesBreakingChangeError'
+
 import { UnexpectedStoreError } from './UnexpectedStoreError'
+import { ModulesBreakingChangeError } from './ModulesBreakingChangeError'
 import { UnexpectedVirtualStoreDirError } from './UnexpectedVirtualStoreDirError'
 
 export function checkCompatibility(
@@ -18,6 +20,7 @@ export function checkCompatibility(
       modulesPath: opts.modulesDir,
     })
   }
+
   // Important: comparing paths with path.relative()
   // is the only way to compare paths correctly on Windows
   // as of Node.js 4-9
@@ -32,6 +35,7 @@ export function checkCompatibility(
       modulesDir: opts.modulesDir,
     })
   }
+
   if (
     modules.virtualStoreDir &&
     path.relative(modules.virtualStoreDir, opts.virtualStoreDir) !== ''

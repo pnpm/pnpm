@@ -1,37 +1,41 @@
-import path from 'path'
-import { summaryLogger } from '@pnpm/core-loggers'
-import { PnpmError } from '@pnpm/error'
-import { getContextForSingleImporter } from '@pnpm/get-context'
-import { linkBinsOfPackages } from '@pnpm/link-bins'
+import path from 'node:path'
+
+import normalize from 'normalize-path'
+
 import {
-  getLockfileImporterId,
+  type LinkOptions,
+  DEPENDENCIES_FIELDS,
+  type ProjectManifest,
   type ProjectSnapshot,
-  writeCurrentLockfile,
+  type DependenciesField,
+  type DependencyManifest,
+} from '@pnpm/types'
+import {
   writeLockfiles,
+  writeCurrentLockfile,
+  getLockfileImporterId,
 } from '@pnpm/lockfile-file'
-import { logger, streamParser } from '@pnpm/logger'
 import {
   getPref,
-  getSpecFromPackageManifest,
-  getDependencyTypeFromManifest,
   guessDependencyType,
   type PackageSpecObject,
+  getSpecFromPackageManifest,
   updateProjectManifestObject,
+  getDependencyTypeFromManifest,
 } from '@pnpm/manifest-utils'
+import { PnpmError } from '@pnpm/error'
+import { summaryLogger } from '@pnpm/core-loggers'
+import { logger, streamParser } from '@pnpm/logger'
+import { linkBinsOfPackages } from '@pnpm/link-bins'
+import { getContextForSingleImporter } from '@pnpm/get-context'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import {
-  type DependenciesField,
-  DEPENDENCIES_FIELDS,
-  type DependencyManifest,
-  type ProjectManifest,
-} from '@pnpm/types'
-import normalize from 'normalize-path'
-import { extendOptions, type LinkOptions } from './options'
+
+import { extendOptions } from './options'
 
 type LinkFunctionOptions = LinkOptions & {
-  linkToBin?: string
+  linkToBin?: string | undefined
   dir: string
 }
 
@@ -41,13 +45,17 @@ export async function link(
   linkFromPkgs: Array<{ alias: string; path: string } | string>,
   destModules: string,
   maybeOpts: LinkFunctionOptions
-) {
+): Promise<ProjectManifest | undefined> {
   const reporter = maybeOpts?.reporter
-  if (reporter != null && typeof reporter === 'function') {
+
+  if (typeof reporter !== 'undefined' && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
+
   const opts = await extendOptions(maybeOpts)
+
   const ctx = await getContextForSingleImporter(
+    // @ts-ignore
     opts.manifest,
     {
       ...opts,
@@ -57,21 +65,30 @@ export async function link(
   )
 
   const importerId = getLockfileImporterId(ctx.lockfileDir, opts.dir)
+
   const specsToUpsert = [] as PackageSpecObject[]
 
   const linkedPkgs = await Promise.all(
-    linkFromPkgs.map(async (linkFrom) => {
+    linkFromPkgs.map(async (linkFrom): Promise<{
+      alias: string;
+      manifest: DependencyManifest;
+      path: string;
+    }> => {
       let linkFromPath: string
+
       let linkFromAlias: string | undefined
+
       if (typeof linkFrom === 'string') {
         linkFromPath = linkFrom
       } else {
         linkFromPath = linkFrom.path
         linkFromAlias = linkFrom.alias
       }
+
       const { manifest } = (await readProjectManifest(linkFromPath)) as {
         manifest: DependencyManifest
       }
+
       if (typeof linkFrom === 'string' && manifest.name === undefined) {
         throw new PnpmError(
           'INVALID_PACKAGE_NAME',
@@ -97,11 +114,13 @@ export async function link(
       })
 
       const packagePath = normalize(path.relative(opts.dir, linkFromPath))
+
       const addLinkOpts = {
         linkedPkgName: linkFromAlias ?? manifest.name,
         manifest: ctx.manifest,
         packagePath,
       }
+
       addLinkToLockfile(ctx.currentLockfile.importers[importerId], addLinkOpts)
       addLinkToLockfile(ctx.wantedLockfile.importers[importerId], addLinkOpts)
 
@@ -115,9 +134,10 @@ export async function link(
 
   const updatedCurrentLockfile = pruneSharedLockfile(ctx.currentLockfile)
 
-  const warn = (message: string) => {
+  function warn(message: string): void {
     logger.warn({ message, prefix: opts.dir })
   }
+
   const updatedWantedLockfile = pruneSharedLockfile(ctx.wantedLockfile, {
     warn,
   })
@@ -125,12 +145,14 @@ export async function link(
   // Linking should happen after removing orphans
   // Otherwise would've been removed
   await Promise.all(
-    linkedPkgs.map(async ({ alias, manifest, path }) => {
+    linkedPkgs.map(async ({ alias, manifest, path }): Promise<void> => {
       // TODO: cover with test that linking reports with correct dependency types
       const stu = specsToUpsert.find((s) => s.alias === manifest.name)
+
       const targetDependencyType =
         getDependencyTypeFromManifest(opts.manifest, manifest.name) ??
         opts.targetDependenciesField
+
       await symlinkDirectRootDependency(path, destModules, alias, {
         fromDependenciesField:
           stu?.saveType ?? (targetDependencyType as DependenciesField),
@@ -141,8 +163,18 @@ export async function link(
   )
 
   const linkToBin = maybeOpts?.linkToBin ?? path.join(destModules, '.bin')
+
   await linkBinsOfPackages(
-    linkedPkgs.map((p) => ({ manifest: p.manifest, location: p.path })),
+    linkedPkgs.map((p: {
+      alias: string;
+      manifest: DependencyManifest;
+      path: string;
+    }): {
+      manifest: DependencyManifest;
+      location: string;
+    } => {
+      return { manifest: p.manifest, location: p.path };
+    }),
     linkToBin,
     {
       extraNodePaths: ctx.extraNodePaths,
@@ -150,25 +182,30 @@ export async function link(
     }
   )
 
-  let newPkg!: ProjectManifest
+  let newPkg: ProjectManifest | undefined
+
   if (opts.targetDependenciesField) {
     newPkg = await updateProjectManifestObject(
       opts.dir,
       opts.manifest,
       specsToUpsert
     )
+
     for (const { alias } of specsToUpsert) {
       updatedWantedLockfile.importers[importerId].specifiers[alias] =
+        // @ts-ignore
         getSpecFromPackageManifest(newPkg, alias)
     }
   } else {
     newPkg = opts.manifest
   }
+
   const lockfileOpts = {
     forceSharedFormat: opts.forceSharedLockfile,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
+
   if (opts.useLockfile) {
     await writeLockfiles({
       currentLockfile: updatedCurrentLockfile,
@@ -199,11 +236,13 @@ function addLinkToLockfile(
   opts: {
     linkedPkgName: string
     packagePath: string
-    manifest?: ProjectManifest
+    manifest?: ProjectManifest | undefined
   }
-) {
+): void {
   const id = `link:${opts.packagePath}`
+
   let addedTo: DependenciesField | undefined
+
   for (const depType of DEPENDENCIES_FIELDS) {
     if (!addedTo && opts.manifest?.[depType]?.[opts.linkedPkgName]) {
       addedTo = depType
@@ -211,6 +250,7 @@ function addLinkToLockfile(
       const snapshot = projectSnapshot[depType] ?? {}
 
       projectSnapshot[depType] = snapshot
+
       // @ts-ignore
       projectSnapshot[depType][opts.linkedPkgName] = id
     } else if (projectSnapshot[depType] != null) {
@@ -225,6 +265,7 @@ function addLinkToLockfile(
     opts.manifest,
     opts.linkedPkgName
   )
+
   if (availableSpec) {
     projectSnapshot.specifiers[opts.linkedPkgName] = availableSpec
   } else {

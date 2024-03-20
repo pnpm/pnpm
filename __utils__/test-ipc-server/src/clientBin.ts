@@ -5,5 +5,7 @@ const [handle] = process.argv.slice(2)
 const connectPath = computeHandlePath(handle)
 
 const client = net.connect(connectPath, () => {
-  process.stdin.pipe(client).on('end', () => client.destroy())
+  process.stdin.pipe(client).on('end', () => {
+    return client.destroy();
+  })
 })

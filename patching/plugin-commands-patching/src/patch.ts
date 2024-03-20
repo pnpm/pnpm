@@ -1,15 +1,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import { docsUrl } from '@pnpm/cli-utils'
-import { type Config, types as allTypes } from '@pnpm/config'
-import type { LogBase } from '@pnpm/logger'
-import type { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+
+import tempy from 'tempy'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import tempy from 'tempy'
+
 import { PnpmError } from '@pnpm/error'
-import type { ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
+import { docsUrl } from '@pnpm/cli-utils'
+import { types as allTypes } from '@pnpm/config'
+import { applyPatchToDir } from '@pnpm/patching.apply-patch'
+import type { ParseWantedDependencyResult, PatchCommandOptions } from '@pnpm/types'
+
 import { writePackage } from './writePackage'
 import { getPatchedDependency } from './getPatchedDependency'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
@@ -18,7 +19,10 @@ export function rcOptionsTypes() {
   return pick([], allTypes)
 }
 
-export function cliOptionsTypes() {
+export function cliOptionsTypes(): {
+  'edit-dir': StringConstructor;
+  'ignore-existing': BooleanConstructor;
+} {
   return { ...rcOptionsTypes(), 'edit-dir': String, 'ignore-existing': Boolean }
 }
 
@@ -28,7 +32,7 @@ export const shorthands = {
 
 export const commandNames = ['patch']
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description: 'Prepare a package for patching',
     descriptionLists: [
@@ -52,25 +56,7 @@ export function help() {
   })
 }
 
-export type PatchCommandOptions = Pick<
-  Config,
-  | 'dir'
-  | 'registries'
-  | 'tag'
-  | 'storeDir'
-  | 'rootProjectManifest'
-  | 'lockfileDir'
-  | 'modulesDir'
-  | 'virtualStoreDir'
-  | 'sharedWorkspaceLockfile'
-> &
-  CreateStoreControllerOptions & {
-    editDir?: string
-    reporter?: (logObj: LogBase) => void
-    ignoreExisting?: boolean
-  }
-
-export async function handler(opts: PatchCommandOptions, params: string[]) {
+export async function handler(opts: PatchCommandOptions, params: string[]): Promise<string> {
   if (
     opts.editDir &&
     fs.existsSync(opts.editDir) &&
@@ -81,14 +67,18 @@ export async function handler(opts: PatchCommandOptions, params: string[]) {
       `The target directory already exists: '${opts.editDir}'`
     )
   }
+
   if (!params[0]) {
     throw new PnpmError(
       'MISSING_PACKAGE_NAME',
       '`pnpm patch` requires the package name'
     )
   }
+
   const editDir = opts.editDir ?? tempy.directory()
+
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+
   const patchedDep = await getPatchedDependency(params[0], {
     lockfileDir,
     modulesDir: opts.modulesDir,
@@ -99,12 +89,15 @@ export async function handler(opts: PatchCommandOptions, params: string[]) {
 
   if (!opts.ignoreExisting) {
     let rootProjectManifest = opts.rootProjectManifest
+
     if (!opts.sharedWorkspaceLockfile) {
       const { manifest } = await tryReadProjectManifest(lockfileDir)
+
       if (manifest) {
         rootProjectManifest = manifest
       }
     }
+
     if (rootProjectManifest?.pnpm?.patchedDependencies) {
       tryPatchWithExistingPatchFile({
         patchedDep,
@@ -114,6 +107,7 @@ export async function handler(opts: PatchCommandOptions, params: string[]) {
       })
     }
   }
+
   return `You can now edit the following folder: ${editDir}
 
 Once you're done with your changes, run "pnpm patch-commit '${editDir}'"`
@@ -133,17 +127,22 @@ function tryPatchWithExistingPatchFile({
   if (!patchedDep.alias || !patchedDep.pref) {
     return
   }
+
   const existingPatchFile =
     patchedDependencies[`${patchedDep.alias}@${patchedDep.pref}`]
+
   if (!existingPatchFile) {
     return
   }
+
   const existingPatchFilePath = path.resolve(lockfileDir, existingPatchFile)
+
   if (!fs.existsSync(existingPatchFilePath)) {
     throw new PnpmError(
       'PATCH_FILE_NOT_FOUND',
       `Unable to find patch file ${existingPatchFilePath}`
     )
   }
+
   applyPatchToDir({ patchedDir, patchFilePath: existingPatchFilePath })
 }

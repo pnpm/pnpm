@@ -1,25 +1,16 @@
-import { refToRelative } from '@pnpm/dependency-path'
 import path from 'node:path'
+
 import {
   getLockfileImporterId,
-  type ProjectSnapshot,
 } from '@pnpm/lockfile-file'
-import type { TreeNodeId } from './TreeNodeId'
-
-export interface getTreeNodeChildIdOpts {
-  readonly parentId: TreeNodeId
-  readonly dep: {
-    readonly alias: string
-    readonly ref: string
-  }
-  readonly lockfileDir: string
-  readonly importers: Record<string, ProjectSnapshot>
-}
+import { refToRelative } from '@pnpm/dependency-path'
+import type { GetTreeNodeChildIdOpts, TreeNodeId } from '@pnpm/types'
 
 export function getTreeNodeChildId(
-  opts: getTreeNodeChildIdOpts
+  opts: GetTreeNodeChildIdOpts
 ): TreeNodeId | undefined {
   const depPath = refToRelative(opts.dep.ref, opts.dep.alias)
+
   if (depPath !== null) {
     return { type: 'package', depPath }
   }
@@ -40,6 +31,7 @@ export function getTreeNodeChildId(
         opts.parentId.importerId,
         linkValue
       )
+
       const childImporterId = getLockfileImporterId(
         opts.lockfileDir,
         absoluteLinkedPath
@@ -49,10 +41,12 @@ export function getTreeNodeChildId(
       // Return undefined in that case since it would be difficult to list/traverse
       // that package outside of the pnpm workspace.
       const isLinkOutsideWorkspace = opts.importers[childImporterId] == null
+
       return isLinkOutsideWorkspace
         ? undefined
         : { type: 'importer', importerId: childImporterId }
     }
+
     case 'package':
       // In theory an external package could be overridden to link to a
       // dependency in the pnpm workspace. Avoid traversing through this

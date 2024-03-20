@@ -29,6 +29,7 @@
     "pnpm8"
   ],
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",

@@ -6,7 +6,7 @@ import type {
 export function getSpecFromPackageManifest(
   manifest: Pick<ProjectManifest, DependenciesOrPeersField>,
   depName: string
-) {
+): string {
   return (
     manifest.optionalDependencies?.[depName] ??
     manifest.dependencies?.[depName] ??

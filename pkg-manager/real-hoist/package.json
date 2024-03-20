@@ -37,6 +37,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/real-hoist": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"

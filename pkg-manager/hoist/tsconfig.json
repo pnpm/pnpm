@@ -8,34 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../config/matcher"
-    },
-    {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
-      "path": "../../lockfile/lockfile-utils"
-    },
-    {
-      "path": "../../lockfile/lockfile-walker"
-    },
-    {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../link-bins"
-    }
-  ],
   "composite": true
 }

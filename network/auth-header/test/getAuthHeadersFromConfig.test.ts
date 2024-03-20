@@ -1,7 +1,9 @@
-import path from 'path'
-import os from 'os'
-import { getAuthHeadersFromConfig } from '../src/getAuthHeadersFromConfig'
+import os from 'node:os'
+import path from 'node:path'
+
 import { Buffer } from 'safe-buffer'
+
+import { getAuthHeadersFromConfig } from '../src/getAuthHeadersFromConfig'
 
 const osTokenHelper = {
   linux: path.join(__dirname, 'utils/test-exec.js'),

@@ -1,8 +1,8 @@
-import type { FetchingProgressLog } from '@pnpm/core-loggers'
 import type * as Rx from 'rxjs'
 import { filter, map, startWith } from 'rxjs/operators'
 import prettyBytes from 'pretty-bytes'
 import { hlPkgId, hlValue } from './outputConstants'
+import { FetchingProgressLog } from '@pnpm/types'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 const PRETTY_OPTS = {
@@ -23,7 +23,10 @@ export function reportBigTarballProgress(log$: {
         // Fixing issue: https://github.com/pnpm/pnpm/issues/1013
         log.attempt === 1
     ),
-    map((startedLog: FetchingProgressLog) => {
+    map((startedLog: FetchingProgressLog): Rx.Observable<{
+      fixed: boolean;
+      msg: string;
+    }> => {
       const size =
         'size' in startedLog && typeof startedLog.size === 'number'
           ? prettyBytes(startedLog.size, PRETTY_OPTS)
@@ -31,15 +34,16 @@ export function reportBigTarballProgress(log$: {
 
       return log$.fetchingProgress.pipe(
         filter(
-          (log: FetchingProgressLog) =>
-            log.status === 'in_progress' &&
-            log.packageId === startedLog.packageId
+          (log: FetchingProgressLog): boolean => {
+            return log.status === 'in_progress' &&
+              log.packageId === startedLog.packageId;
+          }
         ),
-        map((log: FetchingProgressLog) =>
-          'downloaded' in log && typeof log.downloaded === 'number'
+        map((log: FetchingProgressLog): number => {
+          return 'downloaded' in log && typeof log.downloaded === 'number'
             ? log.downloaded
-            : 0
-        ),
+            : 0;
+        }),
         startWith(0),
         map(
           (
@@ -52,7 +56,9 @@ export function reportBigTarballProgress(log$: {
               'size' in startedLog &&
               typeof startedLog.size === 'number' &&
               startedLog.size === downloadedRaw
+
             const downloaded = prettyBytes(downloadedRaw, PRETTY_OPTS)
+
             return {
               fixed: !done,
               msg: `Downloading ${hlPkgId(startedLog.packageId)}: ${hlValue(downloaded)}/${hlValue(size)}${done ? ', done' : ''}`,

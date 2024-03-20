@@ -1,13 +1,7 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import {
-  addDependenciesToPackage,
-  install,
-  mutateModules,
-  type MutatedProject,
-  type ProjectOptions,
-} from '@pnpm/core'
+
 import { type Lockfile, type LockfileV6 } from '@pnpm/lockfile-types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -37,6 +31,7 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
       package: { name: 'project-2' },
     },
   ])
+
   const importers: MutatedProject[] = [
     {
       mutation: 'install',

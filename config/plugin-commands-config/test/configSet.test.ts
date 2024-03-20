@@ -1,14 +1,19 @@
-import fs from 'fs'
-import path from 'path'
-import { PnpmError } from '@pnpm/error'
-import { tempDir } from '@pnpm/prepare'
-import { config } from '@pnpm/plugin-commands-config'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { readIniFileSync } from 'read-ini-file'
+
+import { tempDir } from '@pnpm/prepare'
+import { PnpmError } from '@pnpm/error'
+import { config } from '@pnpm/plugin-commands-config'
 
 test('config set using the global option', async () => {
   const tmp = tempDir()
+
   const configDir = path.join(tmp, 'global-config')
+
   fs.mkdirSync(configDir, { recursive: true })
+
   fs.writeFileSync(path.join(configDir, 'rc'), 'store-dir=~/store')
 
   await config.handler(
@@ -30,8 +35,11 @@ test('config set using the global option', async () => {
 
 test('config set using the location=global option', async () => {
   const tmp = tempDir()
+
   const configDir = path.join(tmp, 'global-config')
+
   fs.mkdirSync(configDir, { recursive: true })
+
   fs.writeFileSync(path.join(configDir, 'rc'), 'store-dir=~/store')
 
   await config.handler(
@@ -53,8 +61,11 @@ test('config set using the location=global option', async () => {
 
 test('config set using the location=project option', async () => {
   const tmp = tempDir()
+
   const configDir = path.join(tmp, 'global-config')
+
   fs.mkdirSync(configDir, { recursive: true })
+
   fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
 
   await config.handler(
@@ -76,7 +87,9 @@ test('config set using the location=project option', async () => {
 
 test('config set in project .npmrc file', async () => {
   const tmp = tempDir()
+
   const configDir = path.join(tmp, 'global-config')
+
   fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
 
   await config.handler(
@@ -99,8 +112,11 @@ test('config set in project .npmrc file', async () => {
 
 test('config set key=value', async () => {
   const tmp = tempDir()
+
   const configDir = path.join(tmp, 'global-config')
+
   fs.mkdirSync(configDir, { recursive: true })
+
   fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
 
   await config.handler(
@@ -122,8 +138,11 @@ test('config set key=value', async () => {
 
 test('config set key=value, when value contains a "="', async () => {
   const tmp = tempDir()
+
   const configDir = path.join(tmp, 'global-config')
+
   fs.mkdirSync(configDir, { recursive: true })
+
   fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
 
   await config.handler(
@@ -145,8 +164,11 @@ test('config set key=value, when value contains a "="', async () => {
 
 test('config set or delete throws missing params error', async () => {
   const tmp = tempDir()
+
   const configDir = path.join(tmp, 'global-config')
+
   fs.mkdirSync(configDir, { recursive: true })
+
   fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
 
   await expect(

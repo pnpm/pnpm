@@ -1,13 +1,15 @@
-/// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
-import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
-import readYamlFile from 'read-yaml-file'
-import isWindows from 'is-windows'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import tempy from 'tempy'
+import isWindows from 'is-windows'
+import readYamlFile from 'read-yaml-file'
+
+import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
 
 test('writeModulesManifest() and readModulesManifest()', async () => {
   const modulesDir = tempy.directory()
+
   const modulesYaml = {
     hoistedDependencies: {},
     included: {
@@ -28,11 +30,15 @@ test('writeModulesManifest() and readModulesManifest()', async () => {
     storeDir: '/.pnpm-store',
     virtualStoreDir: path.join(modulesDir, '.pnpm'),
   }
+
   await writeModulesManifest(modulesDir, modulesYaml)
+
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
 
   const raw = await readYamlFile<any>(path.join(modulesDir, '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
+
   expect(raw.virtualStoreDir).toBeDefined()
+
   expect(path.isAbsolute(raw.virtualStoreDir)).toEqual(isWindows())
 })
 
@@ -40,10 +46,13 @@ test('backward compatible read of .modules.yaml created with shamefully-hoist=tr
   const modulesYaml = await readModulesManifest(
     path.join(__dirname, 'fixtures/old-shamefully-hoist')
   )
+
   if (modulesYaml == null) {
     fail('modulesYaml was nullish')
   }
+
   expect(modulesYaml.publicHoistPattern).toEqual(['*'])
+
   expect(modulesYaml.hoistedDependencies).toEqual({
     '/accepts/1.3.7': { accepts: 'public' },
     '/array-flatten/1.1.1': { 'array-flatten': 'public' },
@@ -55,10 +64,13 @@ test('backward compatible read of .modules.yaml created with shamefully-hoist=fa
   const modulesYaml = await readModulesManifest(
     path.join(__dirname, 'fixtures/old-no-shamefully-hoist')
   )
+
   if (modulesYaml == null) {
     fail('modulesYaml was nullish')
   }
+
   expect(modulesYaml.publicHoistPattern).toEqual([])
+
   expect(modulesYaml.hoistedDependencies).toEqual({
     '/accepts/1.3.7': { accepts: 'private' },
     '/array-flatten/1.1.1': { 'array-flatten': 'private' },
@@ -68,6 +80,7 @@ test('backward compatible read of .modules.yaml created with shamefully-hoist=fa
 
 test('readModulesManifest() should not create a node_modules directory if it does not exist', async () => {
   const modulesDir = path.join(tempy.directory(), 'node_modules')
+
   const modulesYaml = {
     hoistedDependencies: {},
     included: {
@@ -88,12 +101,15 @@ test('readModulesManifest() should not create a node_modules directory if it doe
     storeDir: '/.pnpm-store',
     virtualStoreDir: path.join(modulesDir, '.pnpm'),
   }
+
   await writeModulesManifest(modulesDir, modulesYaml)
+
   expect(fs.existsSync(modulesDir)).toBeFalsy()
 })
 
 test('readModulesManifest() should create a node_modules directory if makeModuleDir is set to true', async () => {
   const modulesDir = path.join(tempy.directory(), 'node_modules')
+
   const modulesYaml = {
     hoistedDependencies: {},
     included: {
@@ -114,7 +130,9 @@ test('readModulesManifest() should create a node_modules directory if makeModule
     storeDir: '/.pnpm-store',
     virtualStoreDir: path.join(modulesDir, '.pnpm'),
   }
+
   await writeModulesManifest(modulesDir, modulesYaml, { makeModulesDir: true })
+
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
 })
 
@@ -122,5 +140,6 @@ test('readModulesManifest does not fail on empty file', async () => {
   const modulesYaml = await readModulesManifest(
     path.join(__dirname, 'fixtures/empty-modules-yaml')
   )
+
   expect(modulesYaml).toBeUndefined()
 })

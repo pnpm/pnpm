@@ -1,7 +1,9 @@
-import os from 'os'
+import os from 'node:os'
+
+import tempy from 'tempy'
+
 import { type PnpmError } from '@pnpm/error'
 import { parseCliArgs } from '@pnpm/parse-cli-args'
-import tempy from 'tempy'
 
 const DEFAULT_OPTS = {
   getCommandLongName: (commandName: string) => commandName,
@@ -374,25 +376,28 @@ test('--workspace-root changes the directory to the workspace root', async () =>
 })
 
 test('--workspace-root fails if used with --global', async () => {
-  let err!: PnpmError
+  let err: PnpmError | undefined
   try {
     await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root', '--global'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err).toBeTruthy()
+
+  // @ts-ignore
   expect(err.code).toBe('ERR_PNPM_OPTIONS_CONFLICT')
 })
 
 test('--workspace-root fails if used outside of a workspace', async () => {
   process.chdir(tempy.directory())
-  let err!: PnpmError
+  let err: PnpmError | undefined
   try {
     await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err).toBeTruthy()
+  // @ts-ignore
   expect(err.code).toBe('ERR_PNPM_NOT_IN_WORKSPACE')
 })
 

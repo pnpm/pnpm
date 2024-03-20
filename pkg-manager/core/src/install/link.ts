@@ -1,40 +1,29 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
-import { progressLogger, stageLogger, statsLogger } from '@pnpm/core-loggers'
-import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
-import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
-import { type InstallationResultStats } from '@pnpm/headless'
-import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
-import { type Lockfile } from '@pnpm/lockfile-file'
-import { logger } from '@pnpm/logger'
-import { prune } from '@pnpm/modules-cleaner'
-import { type IncludedDependencies } from '@pnpm/modules-yaml'
-import {
-  type DependenciesGraph,
-  type DependenciesGraphNode,
-  type LinkedDependency,
-} from '@pnpm/resolve-dependencies'
-import {
-  type StoreController,
-  type TarballResolution,
-} from '@pnpm/store-controller-types'
-import { symlinkDependency } from '@pnpm/symlink-dependency'
-import { type HoistedDependencies, type Registries } from '@pnpm/types'
-import { symlinkAllModules } from '@pnpm/worker'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
 import pLimit from 'p-limit'
-import pathExists from 'path-exists'
-import equals from 'ramda/src/equals'
-import isEmpty from 'ramda/src/isEmpty'
-import difference from 'ramda/src/difference'
 import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
-import pickBy from 'ramda/src/pickBy'
 import props from 'ramda/src/props'
-import { type ImporterToUpdate } from './index'
-import { refIsLocalDirectory } from '@pnpm/lockfile-utils'
+import pathExists from 'path-exists'
+import equals from 'ramda/src/equals'
+import pickBy from 'ramda/src/pickBy'
+import isEmpty from 'ramda/src/isEmpty'
+import difference from 'ramda/src/difference'
 
-const brokenModulesLogger = logger('_broken_node_modules')
+import { type Logger, logger } from '@pnpm/logger'
+import { prune } from '@pnpm/modules-cleaner'
+import { symlinkAllModules } from '@pnpm/worker'
+import { calcDepState } from '@pnpm/calc-dep-state'
+import { refIsLocalDirectory } from '@pnpm/lockfile-utils'
+import { symlinkDependency } from '@pnpm/symlink-dependency'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
+import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
+import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
+import { progressLogger, stageLogger, statsLogger } from '@pnpm/core-loggers'
+import type { DependenciesGraph, DependenciesGraphNode, ImporterToUpdate, DepsStateCache, HoistedDependencies, IncludedDependencies, InstallationResultStats, LinkedDependency, Lockfile, Registries, StoreController, TarballResolution } from '@pnpm/types'
+
+const brokenModulesLogger: Logger<'_broken_node_modules'> = logger<'_broken_node_modules'>('_broken_node_modules')
 
 export async function linkPackages(
   projects: ImporterToUpdate[],
@@ -43,15 +32,15 @@ export async function linkPackages(
     currentLockfile: Lockfile
     dedupeDirectDeps: boolean
     dependenciesByProjectId: Record<string, Record<string, string>>
-    disableRelinkLocalDirDeps?: boolean
+    disableRelinkLocalDirDeps?: boolean | undefined
     force: boolean
     depsStateCache: DepsStateCache
     extraNodePaths: string[]
     hoistedDependencies: HoistedDependencies
     hoistedModulesDir: string
-    hoistPattern?: string[]
+    hoistPattern?: string[] | undefined
     ignoreScripts: boolean
-    publicHoistPattern?: string[]
+    publicHoistPattern?: string[] | undefined
     include: IncludedDependencies
     linkedDependenciesByProjectId: Record<string, LinkedDependency[]>
     lockfileDir: string
@@ -68,7 +57,7 @@ export async function linkPackages(
     virtualStoreDir: string
     wantedLockfile: Lockfile
     wantedToBeSkippedPackageIds: Set<string>
-    hoistWorkspacePackages?: boolean
+    hoistWorkspacePackages?: boolean | undefined
   }
 ): Promise<{
     currentLockfile: Lockfile
@@ -77,7 +66,7 @@ export async function linkPackages(
     removedDepPaths: Set<string>
     stats: InstallationResultStats
   }> {
-  let depNodes = Object.values(depGraph).filter(({ depPath, id }) => {
+  let depNodes = Object.values(depGraph).filter(({ depPath, id }): boolean => {
     if (
       opts.wantedLockfile.packages?.[depPath] != null &&
       !opts.wantedLockfile.packages[depPath].optional
@@ -85,25 +74,34 @@ export async function linkPackages(
       opts.skipped.delete(depPath)
       return true
     }
-    if (opts.wantedToBeSkippedPackageIds.has(id)) {
+
+    if (opts.wantedToBeSkippedPackageIds.has(id ?? '')) {
       opts.skipped.add(depPath)
       return false
     }
+
     opts.skipped.delete(depPath)
+
     return true
   })
+
   if (!opts.include.dependencies) {
     depNodes = depNodes.filter(({ dev, optional }) => dev || optional)
   }
+
   if (!opts.include.devDependencies) {
     depNodes = depNodes.filter(({ optional, prod }) => prod || optional)
   }
+
   if (!opts.include.optionalDependencies) {
     depNodes = depNodes.filter(({ optional }) => !optional)
   }
+
   depGraph = Object.fromEntries(
     depNodes.map((depNode) => [depNode.depPath, depNode])
   )
+
+  // @ts-ignore
   const removedDepPaths = await prune(projects, {
     currentLockfile: opts.currentLockfile,
     dedupeDirectDeps: opts.dedupeDirectDeps,
@@ -129,11 +127,13 @@ export async function linkPackages(
   })
 
   const projectIds = projects.map(({ id }) => id)
+
   const filterOpts = {
     include: opts.include,
     registries: opts.registries,
     skipped: opts.skipped,
   }
+
   const newCurrentLockfile = filterLockfileByImporters(
     opts.wantedLockfile,
     projectIds,
@@ -143,6 +143,7 @@ export async function linkPackages(
       skipped: new Set(),
     }
   )
+
   const { newDepPaths, added } = await linkNewPackages(
     filterLockfileByImporters(opts.currentLockfile, projectIds, {
       ...filterOpts,
@@ -170,13 +171,16 @@ export async function linkPackages(
     stage: 'importing_done',
   })
 
-  let currentLockfile: Lockfile
+  let currentLockfile: Lockfile | undefined
+
   const allImportersIncluded = equals(
     projectIds.sort(),
     Object.keys(opts.wantedLockfile.importers).sort()
   )
+
   if (opts.makePartialCurrentLockfile || !allImportersIncluded) {
     const packages = opts.currentLockfile.packages ?? {}
+
     if (opts.wantedLockfile.packages != null) {
       for (const depPath in opts.wantedLockfile.packages) {
         // eslint-disable-line:forin
@@ -185,10 +189,12 @@ export async function linkPackages(
         }
       }
     }
+
     const projects = {
       ...opts.currentLockfile.importers,
       ...pick(projectIds, opts.wantedLockfile.importers),
     }
+
     currentLockfile = filterLockfileByImporters(
       {
         ...opts.wantedLockfile,
@@ -213,7 +219,8 @@ export async function linkPackages(
     currentLockfile = newCurrentLockfile
   }
 
-  let newHoistedDependencies!: HoistedDependencies
+  let newHoistedDependencies: HoistedDependencies | undefined
+
   if (opts.hoistPattern == null && opts.publicHoistPattern == null) {
     newHoistedDependencies = {}
   } else if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
@@ -225,6 +232,7 @@ export async function linkPackages(
       packages: omit(
         // @ts-ignore
         Array.from(opts.skipped),
+        // @ts-ignore
         currentLockfile.packages
       ),
     }
@@ -240,7 +248,7 @@ export async function linkPackages(
       hoistedWorkspacePackages: opts.hoistWorkspacePackages
         ? projects.reduce(
           (hoistedWorkspacePackages, project) => {
-            if (project.manifest.name && project.id !== '.') {
+            if (project.manifest?.name && project.id !== '.') {
               hoistedWorkspacePackages[project.id] = {
                 dir: project.rootDir,
                 name: project.manifest.name,
@@ -257,12 +265,15 @@ export async function linkPackages(
   }
 
   let linkedToRoot = 0
+
   if (opts.symlink) {
     const projectsToLink = Object.fromEntries(
       await Promise.all(
         projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
           const deps = opts.dependenciesByProjectId[id]
+
           const importerFromLockfile = newCurrentLockfile.importers[id]
+
           return [
             id,
             {
@@ -271,20 +282,29 @@ export async function linkPackages(
               dependencies: await Promise.all([
                 ...Object.entries(deps)
                   .filter(
-                    ([rootAlias]) => importerFromLockfile.specifiers[rootAlias]
+                    ([rootAlias]) => {
+                      return importerFromLockfile.specifiers[rootAlias];
+                    }
                   )
-                  .map(([rootAlias, depPath]) => ({
-                    rootAlias,
-                    depGraphNode: depGraph[depPath],
-                  }))
-                  .filter(({ depGraphNode }) => depGraphNode)
+                  .map(([rootAlias, depPath]) => {
+                    return {
+                      rootAlias,
+                      depGraphNode: depGraph[depPath],
+                    };
+                  })
+                  .filter(({ depGraphNode }): boolean => {
+                    // @ts-ignore
+                    return depGraphNode;
+                  })
                   .map(async ({ rootAlias, depGraphNode }) => {
-                    const isDev = Boolean(
-                      manifest.devDependencies?.[depGraphNode.name]
+                    const isDev = Boolean(depGraphNode.name &&
+                      manifest?.devDependencies?.[depGraphNode.name]
                     )
-                    const isOptional = Boolean(
-                      manifest.optionalDependencies?.[depGraphNode.name]
+
+                    const isOptional = Boolean(depGraphNode.name &&
+                      manifest?.optionalDependencies?.[depGraphNode.name]
                     )
+
                     return {
                       alias: rootAlias,
                       name: depGraphNode.name,
@@ -294,7 +314,7 @@ export async function linkPackages(
                       dependencyType: ((isDev && 'dev') ||
                         (isOptional && 'optional') ||
                         'prod') as 'dev' | 'optional' | 'prod',
-                      latest: opts.outdatedDependencies[depGraphNode.id],
+                      latest: opts.outdatedDependencies[depGraphNode.id ?? ''],
                       isExternalLink: false,
                     }
                   }),
@@ -302,14 +322,14 @@ export async function linkPackages(
                   async (linkedDependency) => {
                     const dir = resolvePath(
                       rootDir,
-                      linkedDependency.resolution.directory
+                      linkedDependency.resolution?.directory ?? ''
                     )
                     return {
                       alias: linkedDependency.alias,
                       name: linkedDependency.name,
                       version: linkedDependency.version,
                       dir,
-                      id: linkedDependency.resolution.directory,
+                      id: linkedDependency.resolution?.directory,
                       dependencyType: ((linkedDependency.dev && 'dev') ||
                         (linkedDependency.optional && 'optional') ||
                         'prod') as 'dev' | 'optional' | 'prod',
@@ -323,12 +343,14 @@ export async function linkPackages(
         })
       )
     )
+
     linkedToRoot = await linkDirectDeps(projectsToLink, {
       dedupe: opts.dedupeDirectDeps,
     })
   }
 
   return {
+    // @ts-ignore
     currentLockfile,
     newDepPaths,
     newHoistedDependencies,
@@ -344,8 +366,11 @@ export async function linkPackages(
 const isAbsolutePath = /^[/]|^[A-Za-z]:/
 
 // This function is copied from @pnpm/local-resolver
-function resolvePath(where: string, spec: string) {
-  if (isAbsolutePath.test(spec)) return spec
+function resolvePath(where: string, spec: string): string {
+  if (isAbsolutePath.test(spec)) {
+    return spec
+  }
+
   return path.resolve(where, spec)
 }
 
@@ -372,7 +397,8 @@ async function linkNewPackages(
     Array.from(opts.skipped)
   )
 
-  let newDepPathsSet: Set<string>
+  let newDepPathsSet: Set<string> | undefined
+
   if (opts.force) {
     newDepPathsSet = new Set(
       wantedRelDepPaths
@@ -389,12 +415,14 @@ async function linkNewPackages(
   }
 
   const added = newDepPathsSet.size
+
   statsLogger.debug({
     added,
     prefix: opts.lockfileDir,
   })
 
   const existingWithUpdatedDeps = []
+
   if (
     !opts.force &&
     currentLockfile.packages != null &&
@@ -423,18 +451,20 @@ async function linkNewPackages(
     }
   }
 
-  if (!newDepPathsSet.size && existingWithUpdatedDeps.length === 0)
+  if (!newDepPathsSet.size && existingWithUpdatedDeps.length === 0) {
     return { newDepPaths: [], added }
+  }
 
   const newDepPaths = Array.from(newDepPathsSet)
 
   const newPkgs = props<string, DependenciesGraphNode>(newDepPaths, depGraph)
 
   await Promise.all(
-    newPkgs.map(async (depNode) =>
-      fs.mkdir(depNode.modules, { recursive: true })
-    )
+    newPkgs.map(async (depNode: DependenciesGraphNode) => {
+      return fs.mkdir(depNode.modules ?? '', { recursive: true });
+    })
   )
+
   await Promise.all([
     opts.symlink
       ? linkAllModules([...newPkgs, ...existingWithUpdatedDeps], depGraph, {
@@ -462,12 +492,19 @@ async function selectNewFromWantedDeps(
   depGraph: DependenciesGraph
 ) {
   const newDeps = new Set<string>()
+
   const prevDeps = currentLockfile.packages ?? {}
+
   await Promise.all(
     wantedRelDepPaths.map(async (depPath: string) => {
       const depNode = depGraph[depPath]
-      if (!depNode) return
+
+      if (!depNode) {
+        return
+      }
+
       const prevDep = prevDeps[depPath]
+
       if (
         prevDep &&
         // Local file should always be treated as a new dependency
@@ -476,16 +513,20 @@ async function selectNewFromWantedDeps(
         (depNode.resolution as TarballResolution).integrity ===
           (prevDep.resolution as TarballResolution).integrity
       ) {
-        if (await pathExists(depNode.dir)) {
+        if (await pathExists(depNode.dir ?? '')) {
           return
         }
+
+        // @ts-ignore
         brokenModulesLogger.debug({
           missing: depNode.dir,
         })
       }
+
       newDeps.add(depPath)
     })
   )
+
   return newDeps
 }
 
@@ -497,7 +538,7 @@ async function linkAllPkgs(
   opts: {
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
-    disableRelinkLocalDirDeps?: boolean
+    disableRelinkLocalDirDeps?: boolean | undefined
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -509,29 +550,34 @@ async function linkAllPkgs(
       if (typeof depNode.fetching === 'undefined') {
         return null
       }
+
       const { files } = await depNode.fetching()
 
       if (typeof depNode.requiresBuild === 'function') {
         depNode.requiresBuild = await depNode.requiresBuild()
       }
+
       let sideEffectsCacheKey: string | undefined
+
       if (
         opts.sideEffectsCacheRead &&
         files.sideEffects &&
         !isEmpty(files.sideEffects)
       ) {
         sideEffectsCacheKey = calcDepState(
+          // @ts-ignore
           opts.depGraph,
           opts.depsStateCache,
           depNode.depPath,
           {
-            isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
+            isBuilt: !opts.ignoreScripts && (depNode.requiresBuild ?? false),
             patchFileHash: depNode.patchFile?.hash,
           }
         )
       }
+
       const { importMethod, isBuilt } = await storeController.importPackage(
-        depNode.dir,
+        depNode.dir ?? '',
         {
           disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
           filesResponse: files,
@@ -546,27 +592,36 @@ async function linkAllPkgs(
               : depNode.requiresBuild),
         }
       )
+
       if (importMethod) {
         progressLogger.debug({
           method: importMethod,
           requester: opts.lockfileDir,
           status: 'imported',
-          to: depNode.dir,
+          to: depNode.dir ?? '',
         })
       }
+
       depNode.isBuilt = isBuilt
 
-      const selfDep = depNode.children[depNode.name]
+      const selfDep = depNode.children?.[depNode.name ?? '']
+
       if (selfDep) {
         const pkg = opts.depGraph[selfDep]
-        if (!pkg || (!pkg.installable && pkg.optional)) return
+
+        if (!pkg || (!pkg.installable && pkg.optional)) {
+          return
+        }
+
         const targetModulesDir = path.join(
-          depNode.modules,
-          depNode.name,
+          depNode.modules ?? '',
+          depNode.name ?? '',
           'node_modules'
         )
-        await limitLinking(async () =>
-          symlinkDependency(pkg.dir, targetModulesDir, depNode.name)
+
+        await limitLinking(async () => {
+          return symlinkDependency(pkg.dir ?? '', targetModulesDir, depNode.name ?? '');
+        }
         )
       }
     })
@@ -582,14 +637,17 @@ async function linkAllModules(
   }
 ) {
   await symlinkAllModules({
-    deps: depNodes.map((depNode) => {
+    // @ts-ignore
+    deps: depNodes.map((depNode: DependenciesGraphNode) => {
       const children = opts.optional
         ? depNode.children
         : pickBy(
-          (_, childAlias) => !depNode.optionalDependencies.has(childAlias),
+          (_, childAlias) => !depNode.optionalDependencies?.has(childAlias),
           depNode.children
         )
-      const childrenPaths: Record<string, string> = {}
+
+      const childrenPaths: Record<string, string | undefined> = {}
+
       for (const [alias, childDepPath] of Object.entries(children ?? {})) {
         if (childDepPath.startsWith('link:')) {
           childrenPaths[alias] = path.resolve(
@@ -598,15 +656,19 @@ async function linkAllModules(
           )
         } else {
           const pkg = depGraph[childDepPath]
+
           if (
             !pkg ||
             (!pkg.installable && pkg.optional) ||
             alias === depNode.name
-          )
+          ) {
             continue
+          }
+
           childrenPaths[alias] = pkg.dir
         }
       }
+
       return {
         children: childrenPaths,
         modules: depNode.modules,

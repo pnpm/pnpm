@@ -1,73 +1,44 @@
 import path from 'node:path'
-import { throwOnCommandFail } from '@pnpm/cli-utils'
-import type { Config } from '@pnpm/config'
+
+import pLimit from 'p-limit'
+import realpathMissing from 'realpath-missing'
+
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,
-  type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { groupStart } from '@pnpm/log.group'
 import { sortPackages } from '@pnpm/sort-packages'
-import pLimit from 'p-limit'
-import realpathMissing from 'realpath-missing'
-import { existsInDir } from './existsInDir'
+import { throwOnCommandFail } from '@pnpm/cli-utils'
+import type { PackageScripts, RunLifecycleHookOptions, Project, RecursiveRunOpts } from '@pnpm/types'
+
 import {
-  createEmptyRecursiveSummary,
   getExecutionDuration,
-  getResumedPackageChunks,
   writeRecursiveSummary,
+  getResumedPackageChunks,
+  createEmptyRecursiveSummary,
 } from './exec'
 import { runScript } from './run'
+import { existsInDir } from './existsInDir'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
-import type { PackageScripts } from '@pnpm/types'
-
-export type RecursiveRunOpts = Pick<
-  Config,
-  | 'enablePrePostScripts'
-  | 'unsafePerm'
-  | 'rawConfig'
-  | 'rootProjectManifest'
-  | 'scriptsPrependNodePath'
-  | 'scriptShell'
-  | 'shellEmulator'
-  | 'stream'
-> &
-  Required<
-    Pick<
-      Config,
-      'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'
-    >
-  > &
-  Partial<
-    Pick<
-      Config,
-      | 'extraBinPaths'
-      | 'extraEnv'
-      | 'bail'
-      | 'reverse'
-      | 'sort'
-      | 'workspaceConcurrency'
-    >
-  > & {
-    ifPresent?: boolean | undefined
-    resumeFrom?: string | undefined
-    reportSummary?: boolean | undefined
-  }
 
 export async function runRecursive(params: string[], opts: RecursiveRunOpts): Promise<void> {
   const [scriptName, ...passedThruArgs] = params
+
   if (!scriptName) {
     throw new PnpmError(
       'SCRIPT_NAME_IS_REQUIRED',
       'You must specify the script you want to run'
     )
   }
+
   let hasCommand = 0
 
   const sortedPackageChunks = opts.sort
     ? sortPackages(opts.selectedProjectsGraph)
     : [Object.keys(opts.selectedProjectsGraph).sort()]
+
   let packageChunks = opts.reverse
     ? sortedPackageChunks.reverse()
     : sortedPackageChunks
@@ -81,27 +52,46 @@ export async function runRecursive(params: string[], opts: RecursiveRunOpts): Pr
   }
 
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+
   const stdio =
     !opts.stream &&
     (opts.workspaceConcurrency === 1 ||
       (packageChunks.length === 1 && packageChunks[0].length === 1))
       ? 'inherit'
       : 'pipe'
+
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
+
   const workspacePnpPath =
     opts.workspaceDir && (await existsPnp(opts.workspaceDir))
 
   const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
+
   if (requiredScripts.includes(scriptName)) {
     const missingScriptPackages: string[] = packageChunks
       .flat()
-      .map((prefix) => opts.selectedProjectsGraph[prefix])
+      .map((prefix: string): {
+        dependencies: string[];
+        package: Project;
+      } => {
+        return opts.selectedProjectsGraph[prefix];
+      })
       .filter(
-        (pkg) =>
-          getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName)
-            .length < 1
+        (pkg: {
+          dependencies: string[];
+          package: Project;
+        }): boolean => {
+          return getSpecifiedScripts(pkg.package.manifest?.scripts ?? {}, scriptName)
+            .length < 1;
+        }
       )
-      .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
+      .map((pkg: {
+        dependencies: string[];
+        package: Project;
+      }): string => {
+        return pkg.package.manifest?.name ?? pkg.package.dir;
+      })
+
     if (missingScriptPackages.length) {
       throw new PnpmError(
         'RECURSIVE_RUN_NO_SCRIPT',
@@ -114,15 +104,21 @@ export async function runRecursive(params: string[], opts: RecursiveRunOpts): Pr
 
   for (const chunk of packageChunks) {
     const selectedScripts = chunk
-      .map((prefix) => {
+      .map((prefix: string): {
+        prefix: string;
+        scriptName: string;
+      }[] => {
         const pkg = opts.selectedProjectsGraph[prefix]
+
         const specifiedScripts = getSpecifiedScripts(
-          pkg.package.manifest.scripts ?? {},
+          pkg.package.manifest?.scripts ?? {},
           scriptName
         )
+
         if (!specifiedScripts.length) {
           result[prefix].status = 'skipped'
         }
+
         return specifiedScripts.map((script) => ({
           prefix,
           scriptName: script,
@@ -132,19 +128,27 @@ export async function runRecursive(params: string[], opts: RecursiveRunOpts): Pr
 
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(
-      selectedScripts.map(async ({ prefix, scriptName }) =>
-        limitRun(async () => {
+      selectedScripts.map(async ({ prefix, scriptName }: {
+        prefix: string;
+        scriptName: string;
+      }): Promise<void> => {
+        return limitRun(async () => {
           const pkg = opts.selectedProjectsGraph[prefix]
+
           if (
-            !pkg.package.manifest.scripts?.[scriptName] ||
-            (process.env.npm_lifecycle_event === scriptName &&
-              process.env.PNPM_SCRIPT_SRC_DIR === prefix)
+            !pkg.package.manifest?.scripts?.[scriptName] ||
+              (process.env.npm_lifecycle_event === scriptName &&
+                process.env.PNPM_SCRIPT_SRC_DIR === prefix)
           ) {
             return
           }
+
           result[prefix].status = 'running'
+
           const startTime = process.hrtime()
+
           hasCommand++
+
           try {
             const lifecycleOpts: RunLifecycleHookOptions = {
               depPath: prefix,
@@ -161,7 +165,9 @@ export async function runRecursive(params: string[], opts: RecursiveRunOpts): Pr
               stdio,
               unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
             }
+
             const pnpPath = workspacePnpPath ?? (await existsPnp(prefix))
+
             if (pnpPath) {
               lifecycleOpts.extraEnv = {
                 ...lifecycleOpts.extraEnv,
@@ -177,22 +183,27 @@ export async function runRecursive(params: string[], opts: RecursiveRunOpts): Pr
               },
               passedThruArgs,
             })
+
             const groupEnd =
-              (opts.workspaceConcurrency ?? 4) > 1
-                ? undefined
-                : groupStart(
-                  formatSectionName({
-                    name: pkg.package.manifest.name,
-                    script: scriptName,
-                    version: pkg.package.manifest.version,
-                    prefix: path.normalize(
-                      path.relative(opts.workspaceDir, prefix)
-                    ),
-                  })
-                )
+                (opts.workspaceConcurrency ?? 4) > 1
+                  ? undefined
+                  : groupStart(
+                    formatSectionName({
+                      name: pkg.package.manifest.name,
+                      script: scriptName,
+                      version: pkg.package.manifest.version,
+                      prefix: path.normalize(
+                        path.relative(opts.workspaceDir, prefix)
+                      ),
+                    })
+                  )
+
             await _runScript(scriptName)
+
             groupEnd?.()
+
             result[prefix].status = 'passed'
+
             // @ts-ignore
             result[prefix].duration = getExecutionDuration(startTime)
           } catch (err: unknown) {
@@ -224,7 +235,8 @@ export async function runRecursive(params: string[], opts: RecursiveRunOpts): Pr
 
             throw err
           }
-        })
+        });
+      }
       )
     )
   }
@@ -232,6 +244,7 @@ export async function runRecursive(params: string[], opts: RecursiveRunOpts): Pr
   if (scriptName !== 'test' && !hasCommand && !opts.ifPresent) {
     const allPackagesAreSelected =
       Object.keys(opts.selectedProjectsGraph).length === opts.allProjects.length
+
     if (allPackagesAreSelected) {
       throw new PnpmError(
         'RECURSIVE_RUN_NO_SCRIPT',
@@ -244,12 +257,14 @@ export async function runRecursive(params: string[], opts: RecursiveRunOpts): Pr
       })
     }
   }
+
   if (opts.reportSummary) {
     await writeRecursiveSummary({
       dir: opts.workspaceDir ?? opts.dir,
       summary: result,
     })
   }
+
   throwOnCommandFail('pnpm recursive run', result)
 }
 
@@ -259,10 +274,10 @@ function formatSectionName({
   version,
   prefix,
 }: {
-  script?: string
-  name?: string
-  version?: string
-  prefix: string
+  script?: string | undefined
+  name?: string | undefined
+  version?: string | undefined
+  prefix?: string | undefined
 }) {
   return `${name ?? 'unknown'}${version ? `@${version}` : ''} ${script ? `: ${script}` : ''} ${prefix}`
 }
@@ -281,6 +296,7 @@ export function getSpecifiedScripts(
   // if scriptName which a user passes is RegExp (like /build:.*/), multiple scripts to execute will be selected with RegExp
   if (scriptSelector) {
     const scriptKeys = Object.keys(scripts)
+
     return scriptKeys.filter((script) => script.match(scriptSelector))
   }
 

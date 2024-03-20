@@ -1,32 +1,34 @@
 import path from 'node:path'
-import {
-  docsUrl,
-  type RecursiveSummary,
-  throwOnCommandFail,
-  readProjectManifestOnly,
-} from '@pnpm/cli-utils'
-import { type Config, types } from '@pnpm/config'
-import { makeNodeRequireOption } from '@pnpm/lifecycle'
-import { logger } from '@pnpm/logger'
-import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
-import { sortPackages } from '@pnpm/sort-packages'
-import type { Project, ProjectsGraph } from '@pnpm/types'
+
 import execa from 'execa'
+import which from 'which'
 import pLimit from 'p-limit'
 import PATH from 'path-name'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { existsInDir } from './existsInDir'
-import { makeEnv } from './makeEnv'
+import writeJsonFile from 'write-json-file'
+
+import {
+  docsUrl,
+  throwOnCommandFail,
+  readProjectManifestOnly,
+} from '@pnpm/cli-utils'
+import { logger } from '@pnpm/logger'
+import { PnpmError } from '@pnpm/error'
+import { types } from '@pnpm/config'
+import { sortPackages } from '@pnpm/sort-packages'
+import { makeNodeRequireOption } from '@pnpm/lifecycle'
+import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import type { Project, ProjectsGraph, Config, RecursiveSummary, CommandError } from '@pnpm/types'
+
 import {
   PARALLEL_OPTION_HELP,
-  REPORT_SUMMARY_OPTION_HELP,
   RESUME_FROM_OPTION_HELP,
+  REPORT_SUMMARY_OPTION_HELP,
   shorthands as runShorthands,
 } from './run'
-import { PnpmError } from '@pnpm/error'
-import which from 'which'
-import writeJsonFile from 'write-json-file'
+import { makeEnv } from './makeEnv'
+import { existsInDir } from './existsInDir'
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
 
 export const shorthands = {
@@ -127,8 +129,9 @@ export function getResumedPackageChunks({
   selectedProjectsGraph: ProjectsGraph
 }) {
   const resumeFromPackagePrefix = Object.keys(selectedProjectsGraph).find(
-    (prefix) =>
-      selectedProjectsGraph[prefix]?.package.manifest.name === resumeFrom
+    (prefix: string): boolean => {
+      return selectedProjectsGraph[prefix]?.package.manifest?.name === resumeFrom;
+    }
   )
 
   if (!resumeFromPackagePrefix) {
@@ -141,6 +144,7 @@ export function getResumedPackageChunks({
   const chunkPosition = chunks.findIndex((chunk) =>
     chunk.includes(resumeFromPackagePrefix)
   )
+
   return chunks.slice(chunkPosition)
 }
 
@@ -158,7 +162,7 @@ export function createEmptyRecursiveSummary(
 ): RecursiveSummary {
   return chunks
     .flat()
-    .reduce<RecursiveSummary>((acc, prefix): RecursiveSummary => {
+    .reduce<RecursiveSummary>((acc: RecursiveSummary, prefix: string): RecursiveSummary => {
     acc[prefix] = { status: 'queued' }
     return acc
   }, {})
@@ -166,6 +170,7 @@ export function createEmptyRecursiveSummary(
 
 export function getExecutionDuration(start: [number, number]): number {
   const end = process.hrtime(start)
+
   return (end[0] * 1e9 + end[1]) / 1e6
 }
 
@@ -202,17 +207,21 @@ export async function handler(
   }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
-  let chunks!: string[][]
+  let chunks: string[][]
+
   if (opts.recursive) {
     chunks = opts.sort
       ? sortPackages(opts.selectedProjectsGraph)
       : [Object.keys(opts.selectedProjectsGraph).sort()]
+
     if (opts.reverse) {
       chunks = chunks.reverse()
     }
   } else {
     chunks = [[opts.dir]]
+
     const project = await tryReadProjectManifest(opts.dir)
+
     if (project.manifest != null) {
       opts.selectedProjectsGraph = {
         [opts.dir]: {
@@ -220,6 +229,9 @@ export async function handler(
           package: {
             ...project,
             dir: opts.dir,
+            modulesDir: '',
+            id: '',
+            rootDir: '',
           } as Project,
         },
       }
@@ -235,40 +247,50 @@ export async function handler(
   }
 
   const result = createEmptyRecursiveSummary(chunks)
+
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
+
   const workspacePnpPath =
     opts.workspaceDir && (await existsPnp(opts.workspaceDir))
 
   let exitCode = 0
+
   const prependPaths = ['./node_modules/.bin', ...opts.extraBinPaths]
+
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(
       chunk.map(async (prefix: string) =>
         limitRun(async () => {
           result[prefix].status = 'running'
+
           const startTime = process.hrtime()
+
           try {
             const pnpPath = workspacePnpPath ?? (await existsPnp(prefix))
+
             const extraEnv = {
               ...opts.extraEnv,
               ...(pnpPath ? makeNodeRequireOption(pnpPath) : {}),
             }
+
             const env = makeEnv({
               extraEnv: {
                 ...extraEnv,
                 PNPM_PACKAGE_NAME:
-                  opts.selectedProjectsGraph[prefix]?.package.manifest.name,
+                  opts.selectedProjectsGraph[prefix]?.package.manifest?.name,
               },
               prependPaths,
               userAgent: opts.userAgent,
             })
+
             await execa(params[0], params.slice(1), {
               cwd: prefix,
               env,
               stdio: 'inherit',
               shell: opts.shellMode ?? false,
             })
+
             result[prefix].status = 'passed'
 
             // Add the 'duration' property to the 'Actions' type and the 'ActionQueued' type
@@ -279,6 +301,7 @@ export async function handler(
             if (err && isErrorCommandNotFound(params[0], err, prependPaths)) {
               // @ts-ignore
               err.message = `Command "${params[0]}" not found`
+
               // @ts-ignore
               err.hint = await createExecCommandNotFoundHint(params[0], {
                 implicitlyFellbackFromRun:
@@ -287,12 +310,15 @@ export async function handler(
                 workspaceDir: opts.workspaceDir,
                 modulesDir: opts.modulesDir ?? 'node_modules',
               })
+
               // @ts-ignore
             } else if (!opts.recursive && typeof err.exitCode === 'number') {
               // @ts-ignore
               exitCode = err.exitCode
+
               return
             }
+
             // @ts-ignore
             logger.info(err)
 
@@ -315,8 +341,10 @@ export async function handler(
               // @ts-ignore
               err.code = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
             }
+
             // @ts-ignore
             err.prefix = prefix
+
             // @ts-ignore
             if (opts.reportSummary) {
               await writeRecursiveSummary({
@@ -338,7 +366,9 @@ export async function handler(
       summary: result,
     })
   }
+
   throwOnCommandFail('pnpm recursive exec', result)
+
   return { exitCode }
 }
 
@@ -353,41 +383,44 @@ async function createExecCommandNotFoundHint(
 ): Promise<string | undefined> {
   if (opts.implicitlyFellbackFromRun) {
     let nearestScript: string | null | undefined
+
     try {
       nearestScript = getNearestScript(
         programName,
         (await readProjectManifestOnly(opts.dir)).scripts
       )
-    } catch (_err) {}
+    } catch (_err: unknown) {}
+
     if (nearestScript) {
       return `Did you mean "pnpm ${nearestScript}"?`
     }
+
     const nearestProgram = getNearestProgram({
       programName,
       dir: opts.dir,
       workspaceDir: opts.workspaceDir,
       modulesDir: opts.modulesDir,
     })
+
     if (nearestProgram) {
       return `Did you mean "pnpm ${nearestProgram}"?`
     }
+
     return undefined
   }
+
   const nearestProgram = getNearestProgram({
     programName,
     dir: opts.dir,
     workspaceDir: opts.workspaceDir,
     modulesDir: opts.modulesDir,
   })
+
   if (nearestProgram) {
     return `Did you mean "pnpm exec ${nearestProgram}"?`
   }
-  return undefined
-}
 
-interface CommandError extends Error {
-  originalMessage: string
-  shortMessage: string
+  return undefined
 }
 
 function isErrorCommandNotFound(

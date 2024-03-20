@@ -20,7 +20,8 @@
     "@types/is-windows": "^1.0.2",
     "@types/isexe": "2.0.4",
     "@types/node": "^20.11.28",
-    "@total-typescript/ts-reset": "0.5.1"
+    "@total-typescript/ts-reset": "0.5.1",
+    "@pnpm/types": "workspace:*"
   },
   "directories": {
     "test": "test"
@@ -46,7 +47,6 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/registry-mock": "3.26.0",
-    "@pnpm/types": "workspace:*",
     "type-fest": "^0.4.1",
     "is-windows": "^1.0.2",
     "isexe": "3.1.1",

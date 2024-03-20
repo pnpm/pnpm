@@ -19,8 +19,10 @@
     "@pnpm/logger": "^5.0.0"
   },
   "devDependencies": {
-    "@pnpm/deps.graph-builder": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@types/ramda": "0.29.11",
+    "@pnpm/deps.graph-builder": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/deps/graph-builder#readme",
@@ -47,8 +49,6 @@
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "path-exists": "^4.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   }

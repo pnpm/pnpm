@@ -1,7 +1,9 @@
-import { requestRetryLogger } from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
-import { createStreamParser } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
+
+import { createStreamParser } from '@pnpm/logger'
+import { toOutput$ } from '@pnpm/default-reporter'
+import { requestRetryLogger } from '@pnpm/core-loggers'
+
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
 
 test('print warning about request retry', (done) => {

@@ -1,17 +1,8 @@
 import '@total-typescript/ts-reset'
+
 import validateNpmPackageName from 'validate-npm-package-name'
 
-export interface ParsedWantedDependency {
-  alias: string
-  pref: string
-}
-
-export type ParseWantedDependencyResult = Partial<ParsedWantedDependency> &
-  (
-    | Omit<ParsedWantedDependency, 'pref'>
-    | Omit<ParsedWantedDependency, 'alias'>
-    | ParsedWantedDependency
-  )
+import type { ParseWantedDependencyResult } from '@pnpm/types'
 
 export function parseWantedDependency(
   rawWantedDependency: string

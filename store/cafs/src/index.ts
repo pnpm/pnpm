@@ -1,53 +1,24 @@
 import '@total-typescript/ts-reset'
 
-import type {
-  FileWriteResult,
-  PackageFileInfo,
-  FilesIndex,
-} from '@pnpm/cafs-types'
-
 import ssri from 'ssri'
-import { addFilesFromDir } from './addFilesFromDir'
-import { addFilesFromTarball } from './addFilesFromTarball'
+
+import { CreateCafsOpts, FileWriteResult, WriteBufferToCafs } from '@pnpm/types'
+
 import {
-  checkPkgFilesIntegrity,
-  type PackageFilesIndex,
-  type VerifyResult,
-} from './checkPkgFilesIntegrity'
-import { readManifestFromStore } from './readManifestFromStore'
-import {
+  modeIsExecutable,
   getFilePathInCafs,
   contentPathFromHex,
-  type FileType,
   getFilePathByModeInCafs,
-  modeIsExecutable,
 } from './getFilePathInCafs'
 import {
-  optimisticRenameOverwrite,
   writeBufferToCafs,
 } from './writeBufferToCafs'
+import { addFilesFromDir } from './addFilesFromDir'
+import { addFilesFromTarball } from './addFilesFromTarball'
 
 export type { IntegrityLike } from 'ssri'
 
-export {
-  checkPkgFilesIntegrity,
-  readManifestFromStore,
-  type FileType,
-  getFilePathByModeInCafs,
-  getFilePathInCafs,
-  type PackageFileInfo,
-  type PackageFilesIndex,
-  optimisticRenameOverwrite,
-  type FilesIndex,
-  type VerifyResult,
-}
-
-export type CafsLocker = Map<string, number>
-
-export interface CreateCafsOpts {
-  ignoreFile?: (filename: string) => boolean
-  cafsLocker?: CafsLocker
-}
+export { getFilePathInCafs, getFilePathByModeInCafs }
 
 export function createCafs(
   cafsDir: string,
@@ -58,7 +29,9 @@ export function createCafs(
     cafsLocker ?? new Map(),
     cafsDir
   )
+
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
+
   return {
     addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
     addFilesFromTarball: addFilesFromTarball.bind(
@@ -71,13 +44,6 @@ export function createCafs(
   }
 }
 
-type WriteBufferToCafs = (
-  buffer: Buffer,
-  fileDest: string,
-  mode: number | undefined,
-  integrity: ssri.IntegrityLike
-) => { checkedAt: number; filePath: string }
-
 function addBufferToCafs(
   writeBufferToCafs: WriteBufferToCafs,
   buffer: Buffer,
@@ -87,16 +53,20 @@ function addBufferToCafs(
   // 30K files are calculated in 1 second.
   // Hence, from a performance perspective, there is no win in fetching the package index file from the registry.
   const integrity = ssri.fromData(buffer)
+
   const isExecutable = modeIsExecutable(mode)
+
   const fileDest = contentPathFromHex(
     isExecutable ? 'exec' : 'nonexec',
     integrity.hexDigest()
   )
+
   const { checkedAt, filePath } = writeBufferToCafs(
     buffer,
     fileDest,
-    isExecutable ? 0o755 : undefined,
+    isExecutable ? 0o7_5_5 : undefined,
     integrity
   )
+
   return { checkedAt, integrity, filePath }
 }

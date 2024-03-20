@@ -17,8 +17,8 @@ export * from '@pnpm/lockfile-types'
 export function pruneSharedLockfile(
   lockfile: Lockfile,
   opts?: {
-    warn?: (msg: string) => void
-  }
+    warn?: ((msg: string) => void) | undefined
+  } | undefined
 ): Lockfile {
   const copiedPackages =
     lockfile.packages == null
@@ -46,9 +46,11 @@ export function pruneSharedLockfile(
     ...lockfile,
     packages: copiedPackages,
   }
+
   if (isEmpty(prunedLockfile.packages)) {
     delete prunedLockfile.packages
   }
+
   return prunedLockfile
 }
 
@@ -61,30 +63,44 @@ export function pruneLockfile(
   }
 ): Lockfile {
   const packages: PackageSnapshots = {}
+
   const importer = lockfile.importers[importerId]
+
   const lockfileSpecs: ResolvedDependencies = importer.specifiers ?? {}
+
   const optionalDependencies = Object.keys(pkg.optionalDependencies ?? {})
+
   const dependencies = difference(
     Object.keys(pkg.dependencies ?? {}),
     optionalDependencies
   )
+
   const devDependencies = difference(
     difference(Object.keys(pkg.devDependencies ?? {}), optionalDependencies),
     dependencies
   )
+
   const allDeps = new Set([
     ...optionalDependencies,
     ...devDependencies,
     ...dependencies,
   ])
+
   const specifiers: ResolvedDependencies = {}
+
   const lockfileDependencies: ResolvedDependencies = {}
+
   const lockfileOptionalDependencies: ResolvedDependencies = {}
+
   const lockfileDevDependencies: ResolvedDependencies = {}
 
-  Object.entries(lockfileSpecs).forEach(([depName, spec]) => {
-    if (!allDeps.has(depName)) return
+  Object.entries(lockfileSpecs).forEach(([depName, spec]: [string, string]): void => {
+    if (!allDeps.has(depName)) {
+      return
+    }
+
     specifiers[depName] = spec
+
     if (importer.dependencies?.[depName]) {
       lockfileDependencies[depName] = importer.dependencies[depName]
     } else if (importer.optionalDependencies?.[depName]) {
@@ -94,6 +110,7 @@ export function pruneLockfile(
       lockfileDevDependencies[depName] = importer.devDependencies[depName]
     }
   })
+
   if (importer.dependencies != null) {
     for (const [alias, dep] of Object.entries(importer.dependencies)) {
       if (
@@ -111,6 +128,7 @@ export function pruneLockfile(
   const updatedImporter: ProjectSnapshot = {
     specifiers,
   }
+
   const prunedLockfile: Lockfile = {
     importers: {
       ...lockfile.importers,
@@ -119,18 +137,23 @@ export function pruneLockfile(
     lockfileVersion: lockfile.lockfileVersion || LOCKFILE_VERSION,
     packages: lockfile.packages,
   }
+
   if (!isEmpty(packages)) {
     prunedLockfile.packages = packages
   }
+
   if (!isEmpty(lockfileDependencies)) {
     updatedImporter.dependencies = lockfileDependencies
   }
+
   if (!isEmpty(lockfileOptionalDependencies)) {
     updatedImporter.optionalDependencies = lockfileOptionalDependencies
   }
+
   if (!isEmpty(lockfileDevDependencies)) {
     updatedImporter.devDependencies = lockfileDevDependencies
   }
+
   return pruneSharedLockfile(prunedLockfile, opts)
 }
 
@@ -144,6 +167,7 @@ function copyPackageSnapshots(
   }
 ): PackageSnapshots {
   const copiedSnapshots: PackageSnapshots = {}
+
   const ctx = {
     copiedSnapshots,
     nonOptional: new Set<string>(),
@@ -157,10 +181,12 @@ function copyPackageSnapshots(
     dev: true,
     optional: false,
   })
+
   copyDependencySubGraph(ctx, opts.optionalDepPaths, {
     dev: false,
     optional: true,
   })
+
   copyDependencySubGraph(ctx, opts.prodDepPaths, {
     dev: false,
     optional: false,
@@ -171,8 +197,10 @@ function copyPackageSnapshots(
 
 function resolvedDepsToDepPaths(deps: ResolvedDependencies): string[] {
   return Object.entries(deps)
-    .map(([alias, ref]) => refToRelative(ref, alias))
-    .filter((depPath) => depPath !== null) as string[]
+    .map(([alias, ref]): string | null => {
+      return refToRelative(ref, alias);
+    })
+    .filter(Boolean)
 }
 
 function copyDependencySubGraph(
@@ -192,28 +220,39 @@ function copyDependencySubGraph(
 ): void {
   for (const depPath of depPaths) {
     const key = `${depPath}:${opts.optional.toString()}:${opts.dev.toString()}`
-    if (ctx.walked.has(key)) continue
+
+    if (ctx.walked.has(key)) {
+      continue
+    }
+
     ctx.walked.add(key)
+
     if (!ctx.originalPackages[depPath]) {
       // local dependencies don't need to be resolved in pnpm-lock.yaml
       // except local tarball dependencies
       if (
         depPath.startsWith('link:') ||
         (depPath.startsWith('file:') && !depPath.endsWith('.tar.gz'))
-      )
+      ) {
         continue
+      }
 
       ctx.warn(`Cannot find resolution of ${depPath} in lockfile`)
+
       continue
     }
+
     const depLockfile = ctx.originalPackages[depPath]
+
     ctx.copiedSnapshots[depPath] = depLockfile
+
     if (opts.optional && !ctx.nonOptional.has(depPath)) {
       depLockfile.optional = true
     } else {
       ctx.nonOptional.add(depPath)
       delete depLockfile.optional
     }
+
     if (opts.dev) {
       ctx.notProdOnly.add(depPath)
       depLockfile.dev = true
@@ -223,13 +262,17 @@ function copyDependencySubGraph(
     } else if (depLockfile.dev === undefined && !ctx.notProdOnly.has(depPath)) {
       depLockfile.dev = false
     }
+
     const newDependencies = resolvedDepsToDepPaths(
       depLockfile.dependencies ?? {}
     )
+
     copyDependencySubGraph(ctx, newDependencies, opts)
+
     const newOptionalDependencies = resolvedDepsToDepPaths(
       depLockfile.optionalDependencies ?? {}
     )
+
     copyDependencySubGraph(ctx, newOptionalDependencies, {
       dev: opts.dev,
       optional: true,

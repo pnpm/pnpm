@@ -1,22 +1,26 @@
+import archy from 'archy'
+import chalk from 'chalk'
+
 import {
   type ResolutionChange,
   type DedupeCheckIssues,
   type ResolutionChangesByAlias,
   type SnapshotsChanges,
-} from '@pnpm/dedupe.types'
-import archy from 'archy'
-import chalk from 'chalk'
+} from '@pnpm/types'
 
-export function renderDedupeCheckIssues(dedupeCheckIssues: DedupeCheckIssues) {
+export function renderDedupeCheckIssues(dedupeCheckIssues: DedupeCheckIssues): string {
   const importersReport = report(dedupeCheckIssues.importerIssuesByImporterId)
+
   const packagesReport = report(dedupeCheckIssues.packageIssuesByDepPath)
 
   const lines = []
+
   if (importersReport !== '') {
     lines.push(chalk.blueBright.underline('Importers'))
     lines.push(importersReport)
     lines.push('')
   }
+
   if (packagesReport !== '') {
     lines.push(chalk.blueBright.underline('Packages'))
     lines.push(packagesReport)
@@ -53,15 +57,20 @@ function toArchyResolution(
   change: ResolutionChange
 ): archy.Data {
   switch (change.type) {
-    case 'added':
+    case 'added': {
       return {
         label: `${chalk.green('+')} ${alias} ${chalk.gray(change.next)}`,
       }
-    case 'removed':
+    }
+
+    case 'removed': {
       return { label: `${chalk.red('-')} ${alias} ${chalk.gray(change.prev)}` }
-    case 'updated':
+    }
+
+    case 'updated': {
       return {
         label: `${alias} ${chalk.red(change.prev)} ${chalk.gray('→')} ${chalk.green(change.next)}`,
       }
+    }
   }
 }

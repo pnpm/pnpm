@@ -1,5 +1,6 @@
-import type { ProjectManifest } from '@pnpm/types'
 import isEmpty from 'ramda/src/isEmpty'
+
+import type { ProjectManifest } from '@pnpm/types'
 
 // property keys that are copied from publishConfig into the manifest
 const PUBLISH_CONFIG_WHITELIST = new Set([
@@ -28,11 +29,14 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
 
 export function overridePublishConfig(publishManifest: ProjectManifest): void {
   const { publishConfig } = publishManifest
-  if (!publishConfig) return
+
+  if (!publishConfig) {
+    return
+  }
 
   Object.entries(publishConfig)
     .filter(([key]) => PUBLISH_CONFIG_WHITELIST.has(key))
-    .forEach(([key, value]) => {
+    .forEach(([key, value]: [string, unknown]): void => {
       publishManifest[key as keyof ProjectManifest] = value as any // eslint-disable-line @typescript-eslint/no-explicit-any
       delete publishConfig[key]
     })

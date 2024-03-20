@@ -3,10 +3,12 @@ import execa from 'execa'
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
-import { setTimeout } from 'timers/promises'
 import { promisify } from 'node:util'
+
 import { prepare } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+
+import { setTimeout } from 'timers/promises'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 

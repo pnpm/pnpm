@@ -31,6 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-bins#readme",
   "dependencies": {
+    "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "fast-glob": "^3.3.2",
     "is-subdir": "^1.2.0"

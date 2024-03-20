@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type ErrorRelatedSources } from './ErrorRelatedSources'
+import type { ErrorRelatedSources } from './ErrorRelatedSources'
 
 export type BreakingChangeErrorOptions = ErrorRelatedSources & {
   code: string
@@ -7,9 +7,9 @@ export type BreakingChangeErrorOptions = ErrorRelatedSources & {
 }
 
 export class BreakingChangeError extends PnpmError {
-  public relatedIssue?: number
-  public relatedPR?: number
-  public additionalInformation?: string
+  public relatedIssue?: number | undefined
+  public relatedPR?: number | undefined
+  public additionalInformation?: string | undefined
   constructor(opts: BreakingChangeErrorOptions) {
     super(opts.code, opts.message)
     this.relatedIssue = opts.relatedIssue

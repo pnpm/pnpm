@@ -1,7 +1,9 @@
 import { cpus } from 'node:os'
 
 export function getWorkspaceConcurrency(option: number | undefined): number {
-  if (typeof option !== 'number') return 4
+  if (typeof option !== 'number') {
+    return 4
+  }
 
   if (option <= 0) {
     // If option is <= 0, it uses the amount of cores minus the absolute of the number given

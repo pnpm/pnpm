@@ -40,6 +40,7 @@
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "nock": "13.3.4",
     "@total-typescript/ts-reset": "0.5.1"

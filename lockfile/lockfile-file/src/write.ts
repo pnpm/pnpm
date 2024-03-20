@@ -1,16 +1,18 @@
-import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import type { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import rimraf from '@zkochan/rimraf'
-import * as dp from '@pnpm/dependency-path'
+import { promises as fs } from 'node:fs'
+
 import yaml from 'js-yaml'
+import rimraf from '@zkochan/rimraf'
 import equals from 'ramda/src/equals'
 import pickBy from 'ramda/src/pickBy'
-import isEmpty from 'ramda/src/isEmpty'
 import mapValues from 'ramda/src/map'
+import isEmpty from 'ramda/src/isEmpty'
 import writeFileAtomicCB from 'write-file-atomic'
+
+import * as dp from '@pnpm/dependency-path'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { DEPENDENCIES_FIELDS, type Lockfile, type ProjectSnapshot } from '@pnpm/types'
+
 import { lockfileLogger as logger } from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
 import { getWantedLockfileName } from './lockfileName'
@@ -23,6 +25,7 @@ async function writeFileAtomic(filename: string, data: string): Promise<void> {
         reject(err)
         return
       }
+
       resolve()
     })
   })
@@ -128,47 +131,53 @@ export function normalizeLockfile(
       ...lockfile,
       ...lockfile.importers['.'],
     }
+
     delete lockfileToSave.importers
+
     for (const depType of DEPENDENCIES_FIELDS) {
       if (isEmpty(lockfileToSave[depType])) {
         delete lockfileToSave[depType]
       }
     }
-    if (isEmpty(lockfileToSave.packages) || lockfileToSave.packages == null) {
-      delete lockfileToSave.packages
-    }
   } else {
     lockfileToSave = {
       ...lockfile,
-      importers: mapValues((importer) => {
-        const normalizedImporter: Partial<ProjectSnapshot> = {}
+      importers: mapValues((importer: ProjectSnapshot): ProjectSnapshot => {
+        const normalizedImporter: ProjectSnapshot = { specifiers: {} }
+
         if (
           !isEmpty(importer.specifiers ?? {}) ||
           opts.includeEmptySpecifiersField
         ) {
           normalizedImporter.specifiers = importer.specifiers ?? {}
         }
+
         if (
           importer.dependenciesMeta != null &&
           !isEmpty(importer.dependenciesMeta)
         ) {
           normalizedImporter.dependenciesMeta = importer.dependenciesMeta
         }
+
         for (const depType of DEPENDENCIES_FIELDS) {
           if (!isEmpty(importer[depType] ?? {})) {
             normalizedImporter[depType] = importer[depType]
           }
         }
+
         if (importer.publishDirectory) {
           normalizedImporter.publishDirectory = importer.publishDirectory
         }
-        return normalizedImporter as ProjectSnapshot
+
+        return normalizedImporter
       }, lockfile.importers),
     }
-    if (isEmpty(lockfileToSave.packages) || lockfileToSave.packages == null) {
-      delete lockfileToSave.packages
-    }
   }
+
+  if (isEmpty(lockfileToSave.packages) || lockfileToSave.packages == null) {
+    delete lockfileToSave.packages
+  }
+
   if (lockfileToSave.time) {
     lockfileToSave.time = (
       lockfileToSave.lockfileVersion.toString().startsWith('6.')
@@ -176,15 +185,18 @@ export function normalizeLockfile(
         : pruneTime
     )(lockfileToSave.time, lockfile.importers)
   }
+
   if (lockfileToSave.overrides != null && isEmpty(lockfileToSave.overrides)) {
     delete lockfileToSave.overrides
   }
+
   if (
     lockfileToSave.patchedDependencies != null &&
     isEmpty(lockfileToSave.patchedDependencies)
   ) {
     delete lockfileToSave.patchedDependencies
   }
+
   if (lockfileToSave.neverBuiltDependencies != null) {
     if (isEmpty(lockfileToSave.neverBuiltDependencies)) {
       delete lockfileToSave.neverBuiltDependencies
@@ -193,13 +205,16 @@ export function normalizeLockfile(
         lockfileToSave.neverBuiltDependencies.sort()
     }
   }
+
   if (lockfileToSave.onlyBuiltDependencies != null) {
     lockfileToSave.onlyBuiltDependencies =
       lockfileToSave.onlyBuiltDependencies.sort()
   }
+
   if (!lockfileToSave.packageExtensionsChecksum) {
     delete lockfileToSave.packageExtensionsChecksum
   }
+
   return lockfileToSave
 }
 
@@ -208,20 +223,34 @@ function pruneTimeInLockfileV6(
   importers: Record<string, ProjectSnapshot>
 ): Record<string, string> {
   const rootDepPaths = new Set<string>()
+
   for (const importer of Object.values(importers)) {
     for (const depType of DEPENDENCIES_FIELDS) {
       for (let [depName, ref] of Object.entries(importer[depType] ?? {})) {
         // @ts-expect-error
-        if (ref.version) ref = ref.version
+        if (ref.version) {
+          // @ts-expect-error
+          ref = ref.version
+        }
+
+        // @ts-ignore
         const suffixStart = ref.indexOf('(')
+
         const refWithoutPeerSuffix =
+        // @ts-ignore
           suffixStart === -1 ? ref : ref.slice(0, suffixStart)
+
         const depPath = refToRelative(refWithoutPeerSuffix, depName)
-        if (!depPath) continue
+
+        if (!depPath) {
+          continue
+        }
+
         rootDepPaths.add(depPath)
       }
     }
   }
+
   return pickBy((_, depPath): boolean => {
     return rootDepPaths.has(depPath);
   }, time)
@@ -231,15 +260,18 @@ function refToRelative(reference: string, pkgName: string): string | null {
   if (reference.startsWith('link:')) {
     return null
   }
+
   if (reference.startsWith('file:')) {
     return reference
   }
+
   if (
     !reference.includes('/') ||
     !reference.replace(/(\([^)]+\))+$/, '').includes('/')
   ) {
     return `/${pkgName}@${reference}`
   }
+
   return reference
 }
 
@@ -252,12 +284,24 @@ function pruneTime(
     for (const depType of DEPENDENCIES_FIELDS) {
       for (let [depName, ref] of Object.entries(importer[depType] ?? {})) {
         // @ts-expect-error
-        if (ref.version) ref = ref.version
+        if (ref.version) {
+          // @ts-expect-error
+          ref = ref.version
+        }
+
+        // @ts-ignore
         const suffixStart = ref.indexOf('_')
+
         const refWithoutPeerSuffix =
+        // @ts-ignore
           suffixStart === -1 ? ref : ref.slice(0, suffixStart)
+
         const depPath = dp.refToRelative(refWithoutPeerSuffix, depName)
-        if (!depPath) continue
+
+        if (!depPath) {
+          continue
+        }
+
         rootDepPaths.add(depPath)
       }
     }
@@ -275,25 +319,31 @@ export async function writeLockfiles(opts: {
   mergeGitBranchLockfiles?: boolean | undefined
 }): Promise<void> {
   const wantedLockfileName: string = await getWantedLockfileName(opts)
+
   const wantedLockfilePath = path.join(
     opts.wantedLockfileDir,
     wantedLockfileName
   )
+
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
   const forceSharedFormat = opts?.forceSharedFormat === true
+
   const isLockfileV6 = opts.wantedLockfile.lockfileVersion
     .toString()
     .startsWith('6.')
+
   const wantedLockfileToStringify = isLockfileV6
     ? (convertToInlineSpecifiersFormat(
       opts.wantedLockfile
     ) as unknown as Lockfile)
     : opts.wantedLockfile
+
   const normalizeOpts = {
     forceSharedFormat,
     includeEmptySpecifiersField: !isLockfileV6,
   }
+
   const yamlDoc = yamlStringify(wantedLockfileToStringify, normalizeOpts)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
@@ -326,6 +376,7 @@ export async function writeLockfiles(opts: {
       opts.currentLockfile
     ) as unknown as Lockfile)
     : opts.currentLockfile
+
   const currentYamlDoc = yamlStringify(
     currentLockfileToStringify,
     normalizeOpts

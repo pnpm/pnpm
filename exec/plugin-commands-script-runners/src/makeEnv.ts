@@ -1,6 +1,8 @@
-import { PnpmError } from '@pnpm/error'
 import path from 'node:path'
+
 import PATH from 'path-name'
+
+import { PnpmError } from '@pnpm/error'
 
 export function makeEnv(opts: {
   extraEnv?: NodeJS.ProcessEnv | undefined
@@ -21,6 +23,7 @@ export function makeEnv(opts: {
       )
     }
   }
+
   return {
     ...process.env,
     ...opts.extraEnv,

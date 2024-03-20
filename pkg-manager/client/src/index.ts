@@ -10,9 +10,6 @@ import {
   type GetAuthHeader,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import type {
-  CustomFetchers,
-} from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'
 import {
@@ -21,37 +18,18 @@ import {
 } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import mapValues from 'ramda/src/map'
-import { GitFetcher, DirectoryFetcher } from '@pnpm/resolver-base'
+import { ClientOptions, Client, GitFetcher, DirectoryFetcher, CustomFetchers } from '@pnpm/types'
 
 export type { ResolveFunction }
 
-export type ClientOptions = {
-  authConfig: Record<string, string>
-  customFetchers?: CustomFetchers
-  ignoreScripts?: boolean
-  rawConfig: object
-  retry?: RetryTimeoutOptions
-  timeout?: number
-  unsafePerm?: boolean
-  userAgent?: string
-  userConfig?: Record<string, string>
-  gitShallowHosts?: string[]
-  resolveSymlinksInInjectedDirs?: boolean
-  includeOnlyPackageFiles?: boolean
-} & ResolverFactoryOptions &
-  AgentOptions
-
-export interface Client {
-  fetchers: Fetchers
-  resolve: ResolveFunction
-}
-
 export function createClient(opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
+
   const getAuthHeader = createGetAuthHeaderByURI({
     allSettings: opts.authConfig,
     userSettings: opts.userConfig,
   })
+
   return {
     fetchers: createFetchers(
       fetchFromRegistry,
@@ -63,12 +41,14 @@ export function createClient(opts: ClientOptions): Client {
   }
 }
 
-export function createResolver(opts: ClientOptions) {
+export function createResolver(opts: ClientOptions): ResolveFunction {
   const fetchFromRegistry = createFetchFromRegistry(opts)
+
   const getAuthHeader = createGetAuthHeaderByURI({
     allSettings: opts.authConfig,
     userSettings: opts.userConfig,
   })
+
   return _createResolver(fetchFromRegistry, getAuthHeader, opts)
 }
 

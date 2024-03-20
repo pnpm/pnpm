@@ -13,15 +13,19 @@ export function filterLockfile(
   let pairs = Object.entries(lockfile.packages ?? {}).filter(
     ([depPath]) => !opts.skipped.has(depPath)
   )
+
   if (!opts.include.dependencies) {
     pairs = pairs.filter(([_, pkg]) => pkg.dev !== false || pkg.optional)
   }
+
   if (!opts.include.devDependencies) {
     pairs = pairs.filter(([_, pkg]) => pkg.dev !== true)
   }
+
   if (!opts.include.optionalDependencies) {
     pairs = pairs.filter(([_, pkg]) => !pkg.optional)
   }
+
   return {
     ...lockfile,
     importers: mapValues(

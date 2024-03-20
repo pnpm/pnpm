@@ -25,9 +25,6 @@
       "path": "../../cli/cli-utils"
     },
     {
-      "path": "../../cli/command"
-    },
-    {
       "path": "../../cli/common-cli-options-help"
     },
     {

@@ -68,13 +68,15 @@ test('do not fail on non-compatible node_modules when forced with a named instal
 
   await saveModulesYaml('0.50.0', opts.storeDir)
 
-  let err!: PnpmError
+  let err: PnpmError | undefined
+
   try {
     await addDependenciesToPackage({}, ['is-negative'], opts)
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
-  expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
+  expect(err?.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
 
   await install(
     {},
@@ -100,13 +102,15 @@ test('do not fail on non-compatible store when forced during named installation'
 
   await saveModulesYaml('0.32.0', opts.storeDir)
 
-  let err!: PnpmError
+  let err: PnpmError | undefined
+
   try {
     await addDependenciesToPackage({}, ['is-negative'], opts)
-  } catch (_err: any) { // eslint-disable-line
+  } catch (_err: unknown) {
+    // @ts-ignore
     err = _err
   }
-  expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
+  expect(err?.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
 
   await install(
     {},

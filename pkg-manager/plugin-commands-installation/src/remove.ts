@@ -1,36 +1,35 @@
+import pick from 'ramda/src/pick'
+import renderHelp from 'render-help'
+import without from 'ramda/src/without'
+
 import {
   docsUrl,
   readDepNameCompletions,
   readProjectManifest,
 } from '@pnpm/cli-utils'
-import { type CompletionFunc } from '@pnpm/command'
 import {
   FILTERING,
   OPTIONS,
   UNIVERSAL_OPTIONS,
 } from '@pnpm/common-cli-options-help'
 import {
-  type Config,
-  getOptionsFromRootManifest,
   types as allTypes,
+  getOptionsFromRootManifest,
 } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import {
-  arrayOfWorkspacePackagesToMap,
   findWorkspacePackages,
+  arrayOfWorkspacePackagesToMap,
 } from '@pnpm/workspace.find-packages'
-import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import {
   createOrConnectStoreController,
-  type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import type { DependenciesField } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
-import pick from 'ramda/src/pick'
-import without from 'ramda/src/without'
-import renderHelp from 'render-help'
-import { getSaveType } from './getSaveType'
+import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
+import type { DependenciesField, Config, CompletionFunc, CreateStoreControllerOptions } from '@pnpm/types'
+
 import { recursive } from './recursive'
+import { getSaveType } from './getSaveType'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor(opts: {
@@ -139,7 +138,9 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 // This way we avoid the confusion about whether "pnpm r" means remove, run, or recursive.
 export const commandNames = ['remove', 'uninstall', 'rm', 'un', 'uni']
 
-export const completion: CompletionFunc = async (cliOpts, params) => {
+export const completion: CompletionFunc = async (cliOpts: Record<string, unknown>, _params): Promise<{
+  name: string;
+}[]> => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
@@ -181,11 +182,13 @@ export async function handler(
       'MUST_REMOVE_SOMETHING',
       'At least one dependency name should be specified for removal'
     )
+
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
+
   if (
     opts.recursive &&
     opts.allProjects != null &&
@@ -204,9 +207,12 @@ export async function handler(
       },
       'remove'
     )
+
     return
   }
+
   const store = await createOrConnectStoreController(opts)
+
   const removeOpts = Object.assign(opts, {
     ...getOptionsFromRootManifest(
       opts.rootProjectManifestDir,
@@ -216,21 +222,28 @@ export async function handler(
     storeDir: store.dir,
     include,
   })
+
   // @ts-expect-error
   removeOpts.workspacePackages = opts.workspaceDir
     ? arrayOfWorkspacePackagesToMap(
       await findWorkspacePackages(opts.workspaceDir, opts)
     )
     : undefined
+
+  // @ts-ignore
   const targetDependenciesField = getSaveType(opts)
+
   const { manifest: currentManifest, writeProjectManifest } =
     await readProjectManifest(opts.dir, opts)
+
   const availableDependencies = Object.keys(
     targetDependenciesField === undefined
       ? getAllDependenciesFromManifest(currentManifest)
       : currentManifest[targetDependenciesField] ?? {}
   )
+
   const nonMatchedDependencies = without(availableDependencies, params)
+
   if (nonMatchedDependencies.length !== 0) {
     throw new RemoveMissingDepsError({
       availableDependencies,
@@ -238,6 +251,7 @@ export async function handler(
       targetDependenciesField,
     })
   }
+
   const mutationResult = await mutateModulesInSingleProject(
     {
       binsDir: opts.bin,
@@ -249,5 +263,6 @@ export async function handler(
     },
     removeOpts
   )
-  await writeProjectManifest(mutationResult.manifest)
+
+  await writeProjectManifest(mutationResult.manifest ?? {})
 }

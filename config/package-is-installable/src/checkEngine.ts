@@ -1,5 +1,6 @@
-import { PnpmError } from '@pnpm/error'
 import semver from 'semver'
+
+import { PnpmError } from '@pnpm/error'
 
 export class UnsupportedEngineError extends PnpmError {
   public wanted: WantedEngine
@@ -21,9 +22,13 @@ export function checkEngine(
   packageId: string,
   wantedEngine: WantedEngine,
   currentEngine: Engine
-) {
-  if (!wantedEngine) return null
+): UnsupportedEngineError | null {
+  if (!wantedEngine) {
+    return null
+  }
+
   const unsatisfiedWanted: WantedEngine = {}
+
   if (
     wantedEngine.node &&
     !semver.satisfies(currentEngine.node, wantedEngine.node, {
@@ -32,6 +37,7 @@ export function checkEngine(
   ) {
     unsatisfiedWanted.node = wantedEngine.node
   }
+
   if (
     currentEngine.pnpm &&
     wantedEngine.pnpm &&
@@ -41,6 +47,7 @@ export function checkEngine(
   ) {
     unsatisfiedWanted.pnpm = wantedEngine.pnpm
   }
+
   if (Object.keys(unsatisfiedWanted).length > 0) {
     return new UnsupportedEngineError(
       packageId,
@@ -48,12 +55,13 @@ export function checkEngine(
       currentEngine
     )
   }
+
   return null
 }
 
 export interface Engine {
   node: string
-  pnpm?: string
+  pnpm?: string | undefined
 }
 
 export type WantedEngine = Partial<Engine>

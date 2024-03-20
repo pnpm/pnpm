@@ -1,29 +1,31 @@
+import chalk from 'chalk'
+import { prompt } from 'enquirer'
+import pick from 'ramda/src/pick'
+import pluck from 'ramda/src/pluck'
+import unnest from 'ramda/src/unnest'
+import renderHelp from 'render-help'
+
 import {
   docsUrl,
   readDepNameCompletions,
   readProjectManifestOnly,
 } from '@pnpm/cli-utils'
-import type { CompletionFunc } from '@pnpm/command'
 import {
   FILTERING,
   OPTIONS,
   UNIVERSAL_OPTIONS,
 } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
+import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
+import { types as allTypes } from '@pnpm/config'
+import type { CompletionFunc } from '@pnpm/types'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
-import { PnpmError } from '@pnpm/error'
-import { prompt } from 'enquirer'
-import chalk from 'chalk'
-import pick from 'ramda/src/pick'
-import pluck from 'ramda/src/pluck'
-import unnest from 'ramda/src/unnest'
-import renderHelp from 'render-help'
-import type { InstallCommandOptions } from '../install'
+
 import { installDeps } from '../installDeps'
-import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices'
 import { parseUpdateParam } from '../recursive'
+import type { InstallCommandOptions } from '../install'
+import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices'
 
 export function rcOptionsTypes() {
   return pick(
@@ -191,6 +193,7 @@ export async function handler(
   if (opts.interactive) {
     return interactiveUpdate(params, opts)
   }
+
   return update(params, opts)
 }
 
@@ -198,15 +201,21 @@ async function interactiveUpdate(input: string[], opts: UpdateCommandOptions) {
   const include = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const projects =
     opts.selectedProjectsGraph != null
-      ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
+      ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => {
+        // @ts-ignore
+        return wsPkg.package;
+      })
       : [
         {
           dir: opts.dir,
           manifest: await readProjectManifestOnly(opts.dir, opts),
         },
       ]
+
   const rootDir = opts.workspaceDir ?? opts.dir
+
   const rootProject = projects.find((project) => project.dir === rootDir)
+
   const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
     ...opts,
     compatible: opts.latest !== true,
@@ -221,17 +230,22 @@ async function interactiveUpdate(input: string[], opts: UpdateCommandOptions) {
     },
     timeout: opts.fetchTimeout,
   })
+
   const workspacesEnabled = !!opts.workspaceDir
+
   const choices = getUpdateChoices(
     unnest(outdatedPkgsOfProjects),
     workspacesEnabled
   )
+
   if (choices.length === 0) {
     if (opts.latest) {
       return 'All of your dependencies are already up to date'
     }
+
     return 'All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json'
   }
+
   const { updateDependencies } = (await prompt({
     choices,
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
@@ -261,6 +275,7 @@ async function interactiveUpdate(input: string[], opts: UpdateCommandOptions) {
             .join(', ')
         )
       }
+
       return this.styles.primary(this.selected.name)
     },
     styles: {
@@ -273,6 +288,7 @@ async function interactiveUpdate(input: string[], opts: UpdateCommandOptions) {
       if (value.length === 0) {
         return 'You must choose at least one package.'
       }
+
       return true
     },
 
@@ -309,13 +325,17 @@ async function update(dependencies: string[], opts: UpdateCommandOptions) {
       )
     }
   }
+
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
+
   const include = {
     dependencies: opts.rawConfig.production !== false,
     devDependencies: opts.rawConfig.dev !== false,
     optionalDependencies: opts.rawConfig.optional !== false,
   }
+
   const depth = opts.depth ?? Infinity
+
   return installDeps(
     {
       ...opts,
@@ -341,9 +361,9 @@ async function update(dependencies: string[], opts: UpdateCommandOptions) {
 }
 
 function makeIncludeDependenciesFromCLI(opts: {
-  production?: boolean
-  dev?: boolean
-  optional?: boolean
+  production?: boolean | undefined
+  dev?: boolean | undefined
+  optional?: boolean | undefined
 }) {
   return {
     dependencies:

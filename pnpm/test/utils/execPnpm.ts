@@ -1,6 +1,6 @@
 import {
-  type ChildProcess as NodeChildProcess,
   type StdioOptions,
+  type ChildProcess as NodeChildProcess,
 } from 'node:child_process'
 import path from 'node:path'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

@@ -34,18 +34,17 @@
     "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
-    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.3",
     "execa": "npm:safe-execa@0.1.3"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1",
     "tempy": "^1.0.1"

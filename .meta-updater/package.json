@@ -8,7 +8,6 @@
   },
   "dependencies": {
     "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "@types/normalize-path": "^3.0.2",
     "is-subdir": "^1.2.0",
     "load-json-file": "^6.2.0",
@@ -17,6 +16,7 @@
     "write-json-file": "^4.3.0"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm-private/updater": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   }

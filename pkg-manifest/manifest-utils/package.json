@@ -29,12 +29,12 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/error": "workspace:*",
-    "@pnpm/types": "workspace:*"
+    "@pnpm/error": "workspace:*"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/manifest-utils#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   },

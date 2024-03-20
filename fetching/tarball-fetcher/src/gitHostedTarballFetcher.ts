@@ -1,39 +1,41 @@
 import fs from 'node:fs/promises'
 
-import type { Cafs } from '@pnpm/cafs-types'
-import { globalWarn } from '@pnpm/logger'
-import { preparePackage } from '@pnpm/prepare-package'
-import { addFilesFromDir } from '@pnpm/worker'
 import renameOverwrite from 'rename-overwrite'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import type { FetchFunction, FetchOptions } from '@pnpm/resolver-base'
 
-interface Resolution {
-  integrity?: string
-  registry?: string
+import { globalWarn } from '@pnpm/logger'
+import { addFilesFromDir } from '@pnpm/worker'
+import { preparePackage } from '@pnpm/prepare-package'
+import type { FetchFunction, Cafs, FetchOptions, DependencyManifest } from '@pnpm/types'
+
+type Resolution = {
+  integrity?: string | undefined
+  registry?: string | undefined
   tarball: string
 }
 
 export interface CreateGitHostedTarballFetcher {
-  ignoreScripts?: boolean
+  ignoreScripts?: boolean | undefined
   rawConfig: object
-  unsafePerm?: boolean
+  unsafePerm?: boolean | undefined
 }
 
 export function createGitHostedTarballFetcher(
   fetchRemoteTarball: FetchFunction,
   fetcherOpts: CreateGitHostedTarballFetcher
 ): FetchFunction {
-  const fetch = async (
-    cafs: Cafs,
+  async function fetch(cafs: Cafs,
     resolution: Resolution,
-    opts: FetchOptions
-  ) => {
+    opts: FetchOptions): Promise<{
+      filesIndex: Record<string, string>
+      manifest: DependencyManifest | undefined
+    }> {
     // This solution is not perfect but inside the fetcher we don't currently know the location
     // of the built and non-built index files.
     const nonBuiltIndexFile = fetcherOpts.ignoreScripts
       ? opts.filesIndexFile
       : pathTemp(opts.filesIndexFile)
+
     const { filesIndex, manifest } = await fetchRemoteTarball(
       cafs,
       resolution,
@@ -42,6 +44,7 @@ export function createGitHostedTarballFetcher(
         filesIndexFile: nonBuiltIndexFile,
       }
     )
+
     try {
       const prepareResult = await prepareGitHostedPkg(
         filesIndex as Record<string, string>,
@@ -51,11 +54,13 @@ export function createGitHostedTarballFetcher(
         fetcherOpts,
         opts
       )
+
       if (prepareResult.ignoredBuild) {
         globalWarn(
           `The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`
         )
       }
+
       return { filesIndex: prepareResult.filesIndex, manifest }
     } catch (err: any) { // eslint-disable-line
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
@@ -73,8 +78,9 @@ async function prepareGitHostedPkg(
   filesIndexFile: string,
   opts: CreateGitHostedTarballFetcher,
   fetcherOpts: FetchOptions
-) {
+): Promise<{ filesIndex: Record<string, string>; ignoredBuild: boolean; } | { ignoredBuild: boolean; filesIndex: Record<string, string>; manifest: DependencyManifest; }> {
   const tempLocation = await cafs.tempDir()
+
   cafs.importPackage(tempLocation, {
     filesResponse: {
       filesIndex,
@@ -82,22 +88,27 @@ async function prepareGitHostedPkg(
     },
     force: true,
   })
+
   const shouldBeBuilt = await preparePackage(opts, tempLocation)
+
   if (!shouldBeBuilt) {
     if (filesIndexFileNonBuilt !== filesIndexFile) {
       await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
     }
+
     return {
       filesIndex,
       ignoredBuild: false,
     }
   }
+
   if (opts.ignoreScripts) {
     return {
       filesIndex,
       ignoredBuild: true,
     }
   }
+
   try {
     // The temporary index file may be deleted
     await fs.unlink(filesIndexFileNonBuilt)

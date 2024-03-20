@@ -30,8 +30,12 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/types#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/types": "workspace:*",
-    "@total-typescript/ts-reset": "0.5.1"
+    "node-fetch": "3.3.2",
+    "@zkochan/retry": "0.2.0",
+    "@total-typescript/ts-reset": "0.5.1",
+    "@types/ssri": "^7.1.5",
+    "safe-promise-defer": "1.0.1",
+    "type-fest": "^4.13.0"
   },
   "exports": {
     ".": "./lib/index.js"

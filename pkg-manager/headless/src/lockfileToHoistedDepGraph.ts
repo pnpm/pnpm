@@ -1,61 +1,57 @@
+import path from 'node:path'
+
 import pathExists from 'path-exists'
-import path from 'path'
+
+import type {
+  Lockfile,
+  PatchFile,
+  Registries,
+  DepHierarchy,
+  HoistingLimits,
+  PackageSnapshot,
+  ProjectSnapshot,
+  StoreController,
+  DependenciesGraph,
+  IncludedDependencies,
+  SupportedArchitectures,
+  LockfileToDepGraphResult,
+  FetchPackageToStoreFunction,
+  DirectDependenciesByImporterId,
+} from '@pnpm/types'
 import {
-  type Lockfile,
-  type PackageSnapshot,
-  type ProjectSnapshot,
-} from '@pnpm/lockfile-file'
+  hoist,
+  type HoisterResult,
+} from '@pnpm/real-hoist'
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
-import { type IncludedDependencies } from '@pnpm/modules-yaml'
+import * as dp from '@pnpm/dependency-path'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import {
-  type SupportedArchitectures,
-  type PatchFile,
-  type Registries,
-} from '@pnpm/types'
-import {
-  type FetchPackageToStoreFunction,
-  type StoreController,
-} from '@pnpm/store-controller-types'
-import {
-  hoist,
-  type HoistingLimits,
-  type HoisterResult,
-} from '@pnpm/real-hoist'
-import * as dp from '@pnpm/dependency-path'
-import {
-  type DependenciesGraph,
-  type DepHierarchy,
-  type DirectDependenciesByImporterId,
-  type LockfileToDepGraphResult,
-} from '@pnpm/deps.graph-builder'
 
-export interface LockfileToHoistedDepGraphOptions {
-  autoInstallPeers: boolean
-  engineStrict: boolean
+export type LockfileToHoistedDepGraphOptions = {
   force: boolean
-  hoistingLimits?: HoistingLimits
-  externalDependencies?: Set<string>
+  engineStrict: boolean
+  autoInstallPeers: boolean
+  hoistingLimits?: HoistingLimits | undefined
+  externalDependencies?: Set<string> | undefined
   importerIds: string[]
   include: IncludedDependencies
   ignoreScripts: boolean
-  currentHoistedLocations?: Record<string, string[]>
+  currentHoistedLocations?: Record<string, string[]> | undefined
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
-  patchedDependencies?: Record<string, PatchFile>
+  patchedDependencies?: Record<string, PatchFile> | undefined
   sideEffectsCacheRead: boolean
   skipped: Set<string>
   storeController: StoreController
   storeDir: string
   virtualStoreDir: string
-  supportedArchitectures?: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures | undefined
 }
 
 export async function lockfileToHoistedDepGraph(
@@ -64,6 +60,7 @@ export async function lockfileToHoistedDepGraph(
   opts: LockfileToHoistedDepGraphOptions
 ): Promise<LockfileToDepGraphResult> {
   let prevGraph!: DependenciesGraph
+
   if (currentLockfile?.packages != null) {
     prevGraph = (
       await _lockfileToHoistedDepGraph(currentLockfile, {
@@ -75,6 +72,7 @@ export async function lockfileToHoistedDepGraph(
   } else {
     prevGraph = {}
   }
+
   return {
     ...(await _lockfileToHoistedDepGraph(lockfile, opts)),
     prevGraph,
@@ -90,8 +88,11 @@ async function _lockfileToHoistedDepGraph(
     externalDependencies: opts.externalDependencies,
     autoInstallPeers: opts.autoInstallPeers,
   })
+
   const graph: DependenciesGraph = {}
+
   const modulesDir = path.join(opts.lockfileDir, 'node_modules')
+
   const fetchDepsOpts = {
     ...opts,
     lockfile,
@@ -99,6 +100,7 @@ async function _lockfileToHoistedDepGraph(
     pkgLocationsByDepPath: {},
     hoistedLocations: {} as Record<string, string[]>,
   }
+
   const hierarchy = {
     [opts.lockfileDir]: await fetchDeps(
       fetchDepsOpts,
@@ -106,29 +108,40 @@ async function _lockfileToHoistedDepGraph(
       tree.dependencies
     ),
   }
+
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {
     '.': directDepsMap(Object.keys(hierarchy[opts.lockfileDir]), graph),
   }
+
   const symlinkedDirectDependenciesByImporterId: DirectDependenciesByImporterId =
     { '.': {} }
+
   await Promise.all(
     Array.from(tree.dependencies).map(async (rootDep) => {
       const reference = Array.from(rootDep.references)[0]
+
       if (reference.startsWith('workspace:')) {
         const importerId = reference.replace('workspace:', '')
+
         const projectDir = path.join(opts.lockfileDir, importerId)
+
         const modulesDir = path.join(projectDir, 'node_modules')
+
         const nextHierarchy = await fetchDeps(
           fetchDepsOpts,
           modulesDir,
           rootDep.dependencies
         )
+
         hierarchy[projectDir] = nextHierarchy
 
         const importer = lockfile.importers[importerId]
+
         const importerDir = path.join(opts.lockfileDir, importerId)
+
         symlinkedDirectDependenciesByImporterId[importerId] =
           pickLinkedDirectDeps(importer, importerDir, opts.include)
+
         directDependenciesByImporterId[importerId] = directDepsMap(
           Object.keys(nextHierarchy),
           graph
@@ -136,6 +149,7 @@ async function _lockfileToHoistedDepGraph(
       }
     })
   )
+
   return {
     directDependenciesByImporterId,
     graph,
@@ -169,14 +183,15 @@ function pickLinkedDirectDeps(
     ...(include.dependencies ? importer.dependencies : {}),
     ...(include.optionalDependencies ? importer.optionalDependencies : {}),
   }
+
   return Object.entries(rootDeps).reduce(
-    (directDeps, [alias, ref]) => {
+    (directDeps: Record<string, string>, [alias, ref]: [string, string]): Record<string, string> => {
       if (ref.startsWith('link:')) {
         directDeps[alias] = path.resolve(importerDir, ref.slice(5))
       }
       return directDeps
     },
-    {} as Record<string, string>
+    {}
   )
 }
 
@@ -191,20 +206,27 @@ async function fetchDeps(
   deps: Set<HoisterResult>
 ): Promise<DepHierarchy> {
   const depHierarchy: Record<string, DepHierarchy> = {}
+
   await Promise.all(
     Array.from(deps).map(async (dep) => {
       const depPath = Array.from(dep.references)[0]
-      if (opts.skipped.has(depPath) || depPath.startsWith('workspace:')) return
+
+      if (opts.skipped.has(depPath) || depPath.startsWith('workspace:')) {
+        return
+      }
+
       const pkgSnapshot = opts.lockfile.packages?.[depPath]
 
       if (!pkgSnapshot) {
         // it is a link
         return
       }
+
       const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(
         depPath,
         pkgSnapshot
       )
+
       const packageId = packageIdFromSnapshot(
         depPath,
         pkgSnapshot,
@@ -219,6 +241,7 @@ async function fetchDeps(
         os: pkgSnapshot.os,
         libc: pkgSnapshot.libc,
       }
+
       if (
         !opts.force &&
         packageIsInstallable(packageId, pkg, {
@@ -231,16 +254,22 @@ async function fetchDeps(
         }) === false
       ) {
         opts.skipped.add(depPath)
+
         return
       }
+
       const dir = path.join(modules, dep.name)
+
       const depLocation = path.relative(opts.lockfileDir, dir)
+
       const resolution = pkgSnapshotToResolution(
         depPath,
         pkgSnapshot,
         opts.registries
       )
+
       let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
+
       // We check for the existence of the package inside node_modules.
       // It will only be missing if the user manually removed it.
       // That shouldn't normally happen but Bit CLI does remove node_modules in component directories:
@@ -255,15 +284,18 @@ async function fetchDeps(
           path.join(opts.lockfileDir, depLocation),
           pkgVersion
         ))
+
       const pkgResolution = {
         id: packageId,
         resolution,
       }
+
       if (skipFetch) {
         const { filesIndexFile } = opts.storeController.getFilesIndexFilePath({
           ignoreScripts: opts.ignoreScripts,
           pkg: pkgResolution,
         })
+
         fetchResponse = { filesIndexFile } as any // eslint-disable-line @typescript-eslint/no-explicit-any
       } else {
         try {
@@ -276,11 +308,16 @@ async function fetchDeps(
               name: pkgName,
               version: pkgVersion,
             },
-        }) as any // eslint-disable-line
-          if (fetchResponse instanceof Promise)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          }) as any
+          if (fetchResponse instanceof Promise) {
             fetchResponse = await fetchResponse
-      } catch (err: any) { // eslint-disable-line
-          if (pkgSnapshot.optional) return
+          }
+        } catch (err: unknown) {
+          if (pkgSnapshot.optional) {
+            return
+          }
+
           throw err
         }
       }
@@ -303,19 +340,25 @@ async function fetchDeps(
         requiresBuild: pkgSnapshot.requiresBuild === true,
         patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
       }
+
       if (!opts.pkgLocationsByDepPath[depPath]) {
         opts.pkgLocationsByDepPath[depPath] = []
       }
+
       opts.pkgLocationsByDepPath[depPath].push(dir)
+
       depHierarchy[dir] = await fetchDeps(
         opts,
         path.join(dir, 'node_modules'),
         dep.dependencies
       )
+
       if (!opts.hoistedLocations[depPath]) {
         opts.hoistedLocations[depPath] = []
       }
+
       opts.hoistedLocations[depPath].push(depLocation)
+
       opts.graph[dir].children = getChildren(
         pkgSnapshot,
         opts.pkgLocationsByDepPath,
@@ -323,6 +366,7 @@ async function fetchDeps(
       )
     })
   )
+
   return depHierarchy
 }
 
@@ -330,9 +374,13 @@ async function dirHasPackageJsonWithVersion(
   dir: string,
   expectedVersion?: string
 ): Promise<boolean> {
-  if (!expectedVersion) return pathExists(dir)
+  if (!expectedVersion) {
+    return pathExists(dir)
+  }
+
   try {
     const manifest = await safeReadPackageJsonFromDir(dir)
+
     return manifest?.version === expectedVersion
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') {
@@ -346,19 +394,23 @@ function getChildren(
   pkgSnapshot: PackageSnapshot,
   pkgLocationsByDepPath: Record<string, string[]>,
   opts: { include: IncludedDependencies }
-) {
+): Record<string, string> {
   const allDeps = {
     ...pkgSnapshot.dependencies,
     ...(opts.include.optionalDependencies
       ? pkgSnapshot.optionalDependencies
       : {}),
   }
+
   const children: Record<string, string> = {}
+
   for (const [childName, childRef] of Object.entries(allDeps)) {
     const childDepPath = dp.refToRelative(childRef, childName)
+
     if (childDepPath && pkgLocationsByDepPath[childDepPath]) {
       children[childName] = pkgLocationsByDepPath[childDepPath][0]
     }
   }
+
   return children
 }

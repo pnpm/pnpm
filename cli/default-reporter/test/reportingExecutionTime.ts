@@ -1,7 +1,8 @@
-import { executionTimeLogger } from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
-import { createStreamParser } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
+
+import { createStreamParser } from '@pnpm/logger'
+import { toOutput$ } from '@pnpm/default-reporter'
+import { executionTimeLogger } from '@pnpm/core-loggers'
 
 test('does not print execution time for help command', (done) => {
   const output$ = toOutput$({
@@ -12,8 +13,8 @@ test('does not print execution time for help command', (done) => {
   })
 
   executionTimeLogger.debug({
-    startedAt: 1665279402859,
-    endedAt: 1665279413671,
+    startedAt: 1_665_279_402_859,
+    endedAt: 1_665_279_413_671,
   })
 
   const subscription = output$.subscribe({
