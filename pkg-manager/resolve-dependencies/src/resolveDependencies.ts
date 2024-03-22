@@ -38,6 +38,7 @@ import {
   type Registries,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
+import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'
@@ -47,7 +48,6 @@ import omit from 'ramda/src/omit'
 import zipWith from 'ramda/src/zipWith'
 import semver from 'semver'
 import { encodePkgId } from './encodePkgId'
-import { getPreferredVersionsFromLockfileAndManifests } from './getPreferredVersions'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies'
 import { safeIntersect } from './mergePeers'
 import {

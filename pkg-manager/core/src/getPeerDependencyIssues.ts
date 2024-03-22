@@ -1,4 +1,5 @@
-import { resolveDependencies, getWantedDependencies, getPreferredVersionsFromLockfileAndManifests } from '@pnpm/resolve-dependencies'
+import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
+import { resolveDependencies, getWantedDependencies } from '@pnpm/resolve-dependencies'
 import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
 import { getContext, type GetContextOptions, type ProjectOptions } from '@pnpm/get-context'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'

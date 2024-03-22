@@ -2408,6 +2408,28 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
 
+  lockfile/preferred-versions:
+    dependencies:
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../lockfile-utils
+      '@pnpm/manifest-utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/manifest-utils
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      version-selector-type:
+        specifier: ^3.0.0
+        version: 3.0.0
+    devDependencies:
+      '@pnpm/lockfile.preferred-versions':
+        specifier: workspace:*
+        version: 'link:'
+
   lockfile/prune-lockfile:
     dependencies:
       '@pnpm/constants':
@@ -3083,6 +3105,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-walker
+      '@pnpm/lockfile.preferred-versions':
+        specifier: workspace:*
+        version: link:../../lockfile/preferred-versions
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4216,6 +4241,9 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile.preferred-versions':
+        specifier: workspace:*
+        version: link:../../lockfile/preferred-versions
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
