@@ -290,6 +290,19 @@ export async function resolveRootDependencies (
   importers: ImporterToResolve[]
 ): Promise<ResolvedRootDependenciesResult> {
   const { pkgAddressesByImportersWithoutPeers, publishedBy, time } = await resolveDependenciesOfImporters(ctx, importers)
+  if (ctx.autoInstallPeers && pkgAddressesByImportersWithoutPeers.some(({ missingPeers }) => Object.keys(missingPeers).length)) {
+    if (ctx.allPreferredVersions == null) {
+      ctx.allPreferredVersions = getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, [])
+    }
+    for (const node of ctx.dependenciesTree.values()) {
+      if (node.resolvedPackage?.version) {
+        if (!ctx.allPreferredVersions[node.resolvedPackage.name]) {
+          ctx.allPreferredVersions[node.resolvedPackage.name] = {}
+        }
+        ctx.allPreferredVersions[node.resolvedPackage.name][node.resolvedPackage.version] = 'version'
+      }
+    }
+  }
   const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
     const pkgAddresses = importerResolutionResult.pkgAddresses
     if (!ctx.autoInstallPeers) return pkgAddresses
@@ -309,21 +322,13 @@ export async function resolveRootDependencies (
         }
       }
       if (!Object.keys(importerResolutionResult.missingPeers).length) break
-      if (ctx.allPreferredVersions == null) {
-        ctx.allPreferredVersions = getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, [])
-      }
-      for (const node of ctx.dependenciesTree.values()) {
-        if (node.resolvedPackage?.version) {
-          if (!ctx.allPreferredVersions[node.resolvedPackage.name]) {
-            ctx.allPreferredVersions[node.resolvedPackage.name] = {}
-          }
-          ctx.allPreferredVersions[node.resolvedPackage.name][node.resolvedPackage.version] = 'version'
-        }
-      }
-      const dependencies = Object.fromEntries(Object.entries(importerResolutionResult.missingPeers).map(([peerName, peerRange]) => {
-        if (!ctx.allPreferredVersions![peerName]) return [peerName, peerRange]
-        return [peerName, Object.keys(ctx.allPreferredVersions![peerName]).join(' || ')]
-      }))
+      const dependencies = Object.fromEntries(
+        Object.entries(importerResolutionResult.missingPeers)
+          .map(([peerName, peerRange]) => {
+            if (!ctx.allPreferredVersions![peerName]) return [peerName, peerRange]
+            return [peerName, Object.keys(ctx.allPreferredVersions![peerName]).join(' || ')]
+          })
+      )
       const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
       // eslint-disable-next-line no-await-in-loop

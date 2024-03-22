@@ -1,11 +1,11 @@
-# @pnpm/lockfile-utils
+# @pnpm/lockfile.preferred-versions
 
-> Utils for dealing with pnpm-lock.yaml
+> Get preferred version from lockfile
 
 ## Install
 
 ```
-pnpm add @pnpm/lockfile-utils
+pnpm add @pnpm/lockfile.preferred-versions
 ```
 
 ## License
