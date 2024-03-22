@@ -133,15 +133,12 @@ function copyPackageSnapshots (
   }
 
   copyDependencySubGraph(ctx, opts.devDepPaths, {
-    dev: true,
     optional: false,
   })
   copyDependencySubGraph(ctx, opts.optionalDepPaths, {
-    dev: false,
     optional: true,
   })
   copyDependencySubGraph(ctx, opts.prodDepPaths, {
-    dev: false,
     optional: false,
   })
 
@@ -164,12 +161,11 @@ function copyDependencySubGraph (
   },
   depPaths: string[],
   opts: {
-    dev: boolean
     optional: boolean
   }
 ) {
   for (const depPath of depPaths) {
-    const key = `${depPath}:${opts.optional.toString()}:${opts.dev.toString()}`
+    const key = `${depPath}:${opts.optional.toString()}`
     if (ctx.walked.has(key)) continue
     ctx.walked.add(key)
     if (!ctx.originalPackages[depPath]) {
@@ -191,6 +187,6 @@ function copyDependencySubGraph (
     const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {})
     copyDependencySubGraph(ctx, newDependencies, opts)
     const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {})
-    copyDependencySubGraph(ctx, newOptionalDependencies, { dev: opts.dev, optional: true })
+    copyDependencySubGraph(ctx, newOptionalDependencies, { optional: true })
   }
 }
