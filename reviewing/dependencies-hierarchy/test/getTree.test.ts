@@ -95,6 +95,7 @@ describe('getTree', () => {
       },
       currentPackages,
       wantedPackages: currentPackages,
+      lockfile: { lockfileVersion: '7.0', importers: {} },
     }
 
     test('full test case to print when max depth is large', () => {
@@ -164,6 +165,7 @@ describe('getTree', () => {
       importers: {},
       includeOptionalDependencies: false,
       lockfileDir: '',
+      lockfile: { lockfileVersion: '7.0', importers: {} },
       skipped: new Set<string>(),
       registries: {
         default: 'mock-registry-for-testing.example',
@@ -299,6 +301,7 @@ describe('getTree', () => {
       importers: {},
       includeOptionalDependencies: false,
       lockfileDir: '',
+      lockfile: { lockfileVersion: '7.0', importers: {} },
       skipped: new Set<string>(),
       registries: {
         default: 'mock-registry-for-testing.example',

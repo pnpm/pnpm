@@ -27,6 +27,7 @@ test('one package depth 0', async () => {
       dependencies: [
         {
           alias: 'minimatch',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -37,6 +38,7 @@ test('one package depth 0', async () => {
         },
         {
           alias: 'rimraf',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -49,6 +51,7 @@ test('one package depth 0', async () => {
       devDependencies: [
         {
           alias: 'is-positive',
+          dev: true,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -61,6 +64,7 @@ test('one package depth 0', async () => {
       optionalDependencies: [
         {
           alias: 'is-negative',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -84,6 +88,7 @@ test('one package depth 1', async () => {
       dependencies: [
         {
           alias: 'minimatch',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -95,6 +100,7 @@ test('one package depth 1', async () => {
           dependencies: [
             {
               alias: 'brace-expansion',
+              dev: false,
               isMissing: false,
               isPeer: false,
               isSkipped: false,
@@ -107,6 +113,7 @@ test('one package depth 1', async () => {
         },
         {
           alias: 'rimraf',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -118,6 +125,7 @@ test('one package depth 1', async () => {
           dependencies: [
             {
               alias: 'glob',
+              dev: false,
               isMissing: false,
               isPeer: false,
               isSkipped: false,
@@ -132,6 +140,7 @@ test('one package depth 1', async () => {
       devDependencies: [
         {
           alias: 'is-positive',
+          dev: true,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -144,6 +153,7 @@ test('one package depth 1', async () => {
       optionalDependencies: [
         {
           alias: 'is-negative',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -178,6 +188,7 @@ test('only prod depth 0', async () => {
       dependencies: [
         {
           alias: 'minimatch',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -188,6 +199,7 @@ test('only prod depth 0', async () => {
         },
         {
           alias: 'rimraf',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -221,6 +233,7 @@ test('only dev depth 0', async () => {
       devDependencies: [
         {
           alias: 'is-positive',
+          dev: true,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -266,6 +279,7 @@ test('filter 1 package with depth 0', async () => {
       dependencies: [
         {
           alias: 'rimraf',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -332,6 +346,7 @@ test('local package depth 0', async () => {
         },
         {
           alias: 'is-positive',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -417,6 +432,7 @@ test('unsaved dependencies are listed', async () => {
         dependencies: [
           {
             alias: 'symlink-dir',
+            dev: false,
             isMissing: false,
             isPeer: false,
             isSkipped: false,
@@ -459,6 +475,7 @@ test('unsaved dependencies are listed and filtered', async () => {
       dependencies: [
         {
           alias: 'symlink-dir',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -489,6 +506,7 @@ test('dependency with an alias', async () => {
       dependencies: [
         {
           alias: 'positive',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,
@@ -522,6 +540,7 @@ test('dependency without a package.json', async () => {
       dependencies: [
         {
           alias: 'camelcase',
+          dev: false,
           isMissing: false,
           isPeer: false,
           isSkipped: false,

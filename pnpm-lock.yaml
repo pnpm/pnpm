@@ -5259,6 +5259,9 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile.detect-dep-types':
+        specifier: workspace:*
+        version: link:../../lockfile/detect-dep-types
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
