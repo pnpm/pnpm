@@ -1,6 +1,5 @@
 import { type Lockfile, type PackageSnapshots, type ResolvedDependencies } from '@pnpm/lockfile-types'
 import * as dp from '@pnpm/dependency-path'
-import unnest from 'ramda/src/unnest'
 
 export enum DepType {
   DevOnly,
@@ -12,9 +11,12 @@ export type DepTypes = Record<string, DepType>
 
 export function detectDepTypes (lockfile: Lockfile): DepTypes {
   const dev: DepTypes = {}
-  const devDepPaths = unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {})))
-  const optionalDepPaths = unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {})))
-  const prodDepPaths = unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {})))
+  const devDepPaths = Object.values(lockfile.importers)
+    .map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {})).flat()
+  const optionalDepPaths = Object.values(lockfile.importers)
+    .map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {})).flat()
+  const prodDepPaths = Object.values(lockfile.importers)
+    .map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {})).flat()
   const ctx = {
     packages: lockfile.packages ?? {},
     walked: new Set<string>(),
@@ -23,15 +25,12 @@ export function detectDepTypes (lockfile: Lockfile): DepTypes {
   }
   detectDepTypesInSubGraph(ctx, devDepPaths, {
     dev: true,
-    optional: false,
   })
   detectDepTypesInSubGraph(ctx, optionalDepPaths, {
     dev: false,
-    optional: true,
   })
   detectDepTypesInSubGraph(ctx, prodDepPaths, {
     dev: false,
-    optional: false,
   })
   return dev
 }
@@ -46,17 +45,15 @@ function detectDepTypesInSubGraph (
   depPaths: string[],
   opts: {
     dev: boolean
-    optional: boolean
   }
 ) {
   for (const depPath of depPaths) {
-    const key = `${depPath}:${opts.optional.toString()}:${opts.dev.toString()}`
+    const key = `${depPath}:${opts.dev.toString()}`
     if (ctx.walked.has(key)) continue
     ctx.walked.add(key)
     if (!ctx.packages[depPath]) {
       continue
     }
-    const depLockfile = ctx.packages[depPath]
     if (opts.dev) {
       ctx.notProdOnly.add(depPath)
       ctx.dev[depPath] = DepType.DevOnly
@@ -65,10 +62,11 @@ function detectDepTypesInSubGraph (
     } else if (ctx.dev[depPath] === undefined && !ctx.notProdOnly.has(depPath)) {
       ctx.dev[depPath] = DepType.ProdOnly
     }
+    const depLockfile = ctx.packages[depPath]
     const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {})
     detectDepTypesInSubGraph(ctx, newDependencies, opts)
     const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {})
-    detectDepTypesInSubGraph(ctx, newOptionalDependencies, { dev: opts.dev, optional: true })
+    detectDepTypesInSubGraph(ctx, newOptionalDependencies, { dev: opts.dev })
   }
 }
 
