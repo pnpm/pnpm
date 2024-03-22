@@ -36,6 +36,7 @@
     "@pnpm/exec.files-include-install-scripts": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.preferred-versions": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",

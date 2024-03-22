@@ -37,6 +37,7 @@
     "@pnpm/lockfile-to-pnp": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
+    "@pnpm/lockfile.preferred-versions": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-cleaner": "workspace:*",

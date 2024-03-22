@@ -25,6 +25,9 @@
       "path": "../../lockfile/lockfile-utils"
     },
     {
+      "path": "../../lockfile/preferred-versions"
+    },
+    {
       "path": "../../lockfile/prune-lockfile"
     },
     {

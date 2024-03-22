@@ -73,6 +73,9 @@
       "path": "../../lockfile/lockfile-walker"
     },
     {
+      "path": "../../lockfile/preferred-versions"
+    },
+    {
       "path": "../../lockfile/prune-lockfile"
     },
     {
