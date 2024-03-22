@@ -110,12 +110,7 @@ export async function findAllPackages (workspaceRoot: string, opts: {
   }
 
   const workspacePackages = await findWorkspacePackagesNoCheck(workspaceRoot, { patterns })
-
-  const result: Array<PackageItem | ProjectItem> = []
-  for (const { dir } of workspacePackages) {
-    result.push(...await fromSingleLockfile(dir, { ignoreIncompatible }))
-  }
-  return result
+  return Promise.all(workspacePackages.map(({ dir }) => fromSingleLockfile(dir, { ignoreIncompatible }))).then(results => results.flat())
 
   async function fromSingleLockfile (lockfileDir: string, opts: { ignoreIncompatible: boolean }): Promise<Array<PackageItem | ProjectItem>> {
     const lockfile = await readWantedLockfile(lockfileDir, opts)
