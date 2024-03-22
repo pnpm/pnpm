@@ -61,7 +61,6 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
           resolution: { integrity: '' },
         },
         'dev-dep@1.0.0': {
-          dev: true,
           resolution: { integrity: '' },
         },
         'foo@1.0.0': {
@@ -161,7 +160,6 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
         resolution: { integrity: '' },
       },
       'dev-dep@1.0.0': {
-        dev: true,
         resolution: { integrity: '' },
       },
       'foo@1.0.0': {
@@ -248,7 +246,6 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
           resolution: { integrity: '' },
         },
         'dev-dep@1.0.0': {
-          dev: true,
           resolution: { integrity: '' },
         },
         'foo@1.0.0': {
@@ -347,7 +344,6 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
         resolution: { integrity: '' },
       },
       'dev-dep@1.0.0': {
-        dev: true,
         resolution: { integrity: '' },
       },
       'foo@1.0.0': {
@@ -424,7 +420,6 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
           resolution: { integrity: '' },
         },
         'dev-dep@1.0.0': {
-          dev: true,
           resolution: { integrity: '' },
         },
         'foo@1.0.0': {
@@ -522,7 +517,6 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
         resolution: { integrity: '' },
       },
       'dev-dep@1.0.0': {
-        dev: true,
         resolution: { integrity: '' },
       },
       'foo@1.0.0': {

@@ -1,13 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
-import { type LockfileFileV7 as LockfileFile } from '@pnpm/lockfile-file'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
-import isEmpty from 'ramda/src/isEmpty'
 import ssri from 'ssri'
 
 const STORE_VERSION = 'v3'
@@ -134,14 +132,6 @@ test('keep dependencies used by others', async () => {
 
   project.storeHas('map-obj', '1.0.1')
   project.hasNot('map-obj')
-
-  // all dependencies are marked as dev
-  const lockfile = project.readLockfile() as LockfileFile
-  expect(isEmpty(lockfile.snapshots)).toBeFalsy()
-
-  Object.entries(lockfile.snapshots ?? {}).forEach(([_, dep]) => {
-    expect(dep.dev).toBeTruthy()
-  })
 
   await store.handler({
     cacheDir,

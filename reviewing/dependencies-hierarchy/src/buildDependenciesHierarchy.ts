@@ -6,6 +6,7 @@ import {
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
+import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
@@ -123,6 +124,7 @@ async function dependenciesHierarchyForPackage (
     currentPackages: currentLockfile.packages ?? {},
     importers: currentLockfile.importers,
     includeOptionalDependencies: opts.include.optionalDependencies,
+    lockfile: currentLockfile,
     lockfileDir: opts.lockfileDir,
     onlyProjects: opts.onlyProjects,
     rewriteLinkVersionDir: projectPath,
@@ -139,10 +141,12 @@ async function dependenciesHierarchyForPackage (
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
     result[dependenciesField] = []
+    const depTypes = detectDepTypes(currentLockfile)
     Object.entries(topDeps).forEach(([alias, ref]) => {
       const packageInfo = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
+        depTypes,
         rewriteLinkVersionDir: projectPath,
         linkedPathBaseDir: projectPath,
         ref,

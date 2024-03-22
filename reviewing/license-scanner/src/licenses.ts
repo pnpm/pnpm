@@ -1,5 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { type Lockfile } from '@pnpm/lockfile-file'
+import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import {
   type SupportedArchitectures,
   type DependenciesField,
@@ -85,6 +86,7 @@ export async function findDependencyLicenses (opts: {
     )
   }
 
+  const depTypes = detectDepTypes(opts.wantedLockfile)
   const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
     dir: opts.lockfileDir,
     modulesDir: opts.modulesDir,
@@ -94,6 +96,7 @@ export async function findDependencyLicenses (opts: {
     registries: opts.registries,
     includedImporterIds: opts.includedImporterIds,
     supportedArchitectures: opts.supportedArchitectures,
+    depTypes,
   })
 
   // map: name@ver -> LicensePackage

@@ -2007,6 +2007,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../lockfile-walker
+      '@pnpm/lockfile.detect-dep-types':
+        specifier: workspace:*
+        version: link:../detect-dep-types
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2038,6 +2041,22 @@ importers:
       nock:
         specifier: 13.3.4
         version: 13.3.4
+
+  lockfile/detect-dep-types:
+    dependencies:
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../lockfile-types
+    devDependencies:
+      '@pnpm/lockfile.detect-dep-types':
+        specifier: workspace:*
+        version: 'link:'
+      tempy:
+        specifier: ^1.0.1
+        version: 1.0.1
 
   lockfile/filter-lockfile:
     dependencies:
@@ -2283,16 +2302,10 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
-        version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: 'link:'
-      '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -5243,6 +5256,9 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile.detect-dep-types':
+        specifier: workspace:*
+        version: link:../../lockfile/detect-dep-types
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
@@ -5316,6 +5332,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-walker
+      '@pnpm/lockfile.detect-dep-types':
+        specifier: workspace:*
+        version: link:../../lockfile/detect-dep-types
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0

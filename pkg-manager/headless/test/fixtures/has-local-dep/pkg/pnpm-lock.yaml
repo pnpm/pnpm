@@ -20,5 +20,4 @@ packages:
 
 snapshots:
 
-  tar-pkg@file:../tar-pkg-1.0.0.tgz:
-    dev: false
+  tar-pkg@file:../tar-pkg-1.0.0.tgz: {}

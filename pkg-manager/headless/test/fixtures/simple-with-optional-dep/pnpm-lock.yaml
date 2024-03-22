@@ -30,18 +30,15 @@ packages:
 
 snapshots:
 
-  '@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0':
-    dev: false
+  '@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0': {}
 
   '@pnpm.e2e/pkg-with-good-optional@1.0.0':
     dependencies:
       '@pnpm.e2e/dep-of-pkg-with-1-dep': 101.0.0
     optionalDependencies:
       is-positive: 1.0.0
-    dev: false
 
   is-positive@1.0.0:
-    dev: false
     optional: true
 
 time: {}

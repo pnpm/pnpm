@@ -40,10 +40,8 @@ snapshots:
     dependencies:
       once: 1.4.0
       wrappy: 1.0.2
-    dev: true
 
-  is-positive@1.0.0:
-    dev: false
+  is-positive@1.0.0: {}
 
   once@1.4.0:
     dependencies:

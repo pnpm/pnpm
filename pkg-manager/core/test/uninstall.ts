@@ -344,9 +344,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
       },
     },
     snapshots: {
-      'is-negative@1.0.0': {
-        dev: false,
-      },
+      'is-negative@1.0.0': {},
     },
   })
 })

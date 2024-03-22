@@ -428,9 +428,7 @@ test('re-install should update local file dependency', async () => {
       },
     },
     snapshots: {
-      'local-pkg@file:../local-pkg': {
-        dev: false,
-      },
+      'local-pkg@file:../local-pkg': {},
     },
     lockfileVersion: LOCKFILE_VERSION,
   })
@@ -460,7 +458,6 @@ test('re-install should update local file dependency', async () => {
   expect(lockfile).toMatchObject({
     snapshots: {
       'local-pkg@file:../local-pkg': {
-        dev: false,
         dependencies: {
           'is-positive': '1.0.0',
         },
@@ -492,7 +489,6 @@ test('re-install should update local file dependency', async () => {
     },
     snapshots: {
       'local-pkg@file:../local-pkg': {
-        dev: false,
         dependencies: {
           'is-positive': '2.0.0',
         },

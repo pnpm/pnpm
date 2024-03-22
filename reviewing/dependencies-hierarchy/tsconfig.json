@@ -22,6 +22,9 @@
       "path": "../../fs/read-modules-dir"
     },
     {
+      "path": "../../lockfile/detect-dep-types"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {

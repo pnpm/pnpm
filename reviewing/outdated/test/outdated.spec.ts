@@ -48,13 +48,11 @@ test('outdated()', async () => {
       lockfileVersion: 5,
       packages: {
         'is-negative@2.1.0': {
-          dev: true,
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
         'is-positive@1.0.0': {
-          dev: true,
           resolution: {
             integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
@@ -62,7 +60,6 @@ test('outdated()', async () => {
         'from-github@https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
           version: '1.1.0',
 
-          dev: false,
           resolution: {
             tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
           },
@@ -200,7 +197,6 @@ test('outdated() should return deprecated package even if its current version is
     lockfileVersion: 5,
     packages: {
       'deprecated-pkg@1.0.0': {
-        dev: false,
         resolution: {
           integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
         },
@@ -454,19 +450,16 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
     lockfileVersion: 5,
     packages: {
       'foo@1.0.0': {
-        dev: false,
         resolution: {
           integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
         },
       },
       'foo2@2.0.0-0': {
-        dev: false,
         resolution: {
           integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
         },
       },
       'foo3@2.0.0': {
-        dev: false,
         resolution: {
           integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
         },
@@ -561,13 +554,11 @@ test('should ignore dependencies as expected', async () => {
       lockfileVersion: 5,
       packages: {
         'is-negative@2.1.0': {
-          dev: true,
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
         'is-positive@1.0.0': {
-          dev: true,
           resolution: {
             integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
@@ -576,7 +567,6 @@ test('should ignore dependencies as expected', async () => {
           name: 'from-github',
           version: '1.1.0',
 
-          dev: false,
           resolution: {
             tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
           },

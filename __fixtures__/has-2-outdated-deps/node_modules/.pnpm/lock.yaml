@@ -28,8 +28,6 @@ packages:
 
 snapshots:
 
-  is-negative@1.0.1:
-    dev: false
+  is-negative@1.0.1: {}
 
-  is-positive@1.0.0:
-    dev: true
+  is-positive@1.0.0: {}

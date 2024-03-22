@@ -9,7 +9,7 @@ export type LockfileFileV7 = Omit<InlineSpecifiersLockfile, 'importers' | 'packa
 Partial<InlineSpecifiersProjectSnapshot> &
 Partial<Pick<InlineSpecifiersLockfile, 'importers'>> & {
   packages?: Record<string, Pick<PackageSnapshot, 'resolution' | 'engines' | 'cpu' | 'os' | 'hasBin' | 'name' | 'version' | 'bundledDependencies' | 'peerDependencies' | 'peerDependenciesMeta' | 'deprecated'>>
-  snapshots?: Record<string, Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies' | 'patched' | 'dev' | 'optional' | 'transitivePeerDependencies' | 'id'>>
+  snapshots?: Record<string, Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies' | 'patched' | 'optional' | 'transitivePeerDependencies' | 'id'>>
 }
 
 /**

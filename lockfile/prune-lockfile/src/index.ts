@@ -127,22 +127,18 @@ function copyPackageSnapshots (
   const ctx = {
     copiedSnapshots,
     nonOptional: new Set<string>(),
-    notProdOnly: new Set<string>(),
     originalPackages,
     walked: new Set<string>(),
     warn: opts.warn,
   }
 
   copyDependencySubGraph(ctx, opts.devDepPaths, {
-    dev: true,
     optional: false,
   })
   copyDependencySubGraph(ctx, opts.optionalDepPaths, {
-    dev: false,
     optional: true,
   })
   copyDependencySubGraph(ctx, opts.prodDepPaths, {
-    dev: false,
     optional: false,
   })
 
@@ -159,19 +155,17 @@ function copyDependencySubGraph (
   ctx: {
     copiedSnapshots: PackageSnapshots
     nonOptional: Set<string>
-    notProdOnly: Set<string>
     originalPackages: PackageSnapshots
     walked: Set<string>
     warn: (msg: string) => void
   },
   depPaths: string[],
   opts: {
-    dev: boolean
     optional: boolean
   }
 ) {
   for (const depPath of depPaths) {
-    const key = `${depPath}:${opts.optional.toString()}:${opts.dev.toString()}`
+    const key = `${depPath}:${opts.optional.toString()}`
     if (ctx.walked.has(key)) continue
     ctx.walked.add(key)
     if (!ctx.originalPackages[depPath]) {
@@ -190,17 +184,9 @@ function copyDependencySubGraph (
       ctx.nonOptional.add(depPath)
       delete depLockfile.optional
     }
-    if (opts.dev) {
-      ctx.notProdOnly.add(depPath)
-      depLockfile.dev = true
-    } else if (depLockfile.dev === true) { // keeping if dev is explicitly false
-      delete depLockfile.dev
-    } else if (depLockfile.dev === undefined && !ctx.notProdOnly.has(depPath)) {
-      depLockfile.dev = false
-    }
     const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {})
     copyDependencySubGraph(ctx, newDependencies, opts)
     const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {})
-    copyDependencySubGraph(ctx, newOptionalDependencies, { dev: opts.dev, optional: true })
+    copyDependencySubGraph(ctx, newOptionalDependencies, { optional: true })
   }
 }

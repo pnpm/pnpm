@@ -23,10 +23,8 @@ packages:
 
 snapshots:
 
-  '@pnpm.e2e/hello-world-js-bin@1.0.0':
-    dev: false
+  '@pnpm.e2e/hello-world-js-bin@1.0.0': {}
 
   '@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0':
     dependencies:
       '@pnpm.e2e/hello-world-js-bin': 1.0.0
-    dev: false

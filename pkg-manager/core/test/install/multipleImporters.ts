@@ -1401,7 +1401,6 @@ test('resolve a subdependency from the workspace', async () => {
   const project = assertProject(process.cwd())
 
   const wantedLockfile = project.readLockfile()
-  console.log(JSON.stringify(wantedLockfile, null, 2))
   expect(wantedLockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   rimraf('node_modules')

@@ -106,31 +106,22 @@ snapshots:
   debug@2.6.9:
     dependencies:
       ms: 2.0.0
-    dev: false
 
-  depd@1.1.2:
-    dev: false
+  depd@1.1.2: {}
 
-  destroy@1.0.4:
-    dev: false
+  destroy@1.0.4: {}
 
-  ee-first@1.1.1:
-    dev: false
+  ee-first@1.1.1: {}
 
-  encodeurl@1.0.2:
-    dev: false
+  encodeurl@1.0.2: {}
 
-  escape-html@1.0.3:
-    dev: false
+  escape-html@1.0.3: {}
 
-  etag@1.8.1:
-    dev: false
+  etag@1.8.1: {}
 
-  fresh@0.5.2:
-    dev: false
+  fresh@0.5.2: {}
 
-  has-flag@1.0.0:
-    dev: false
+  has-flag@1.0.0: {}
 
   http-errors@1.8.1:
     dependencies:
@@ -139,30 +130,22 @@ snapshots:
       setprototypeof: 1.2.0
       statuses: 1.5.0
       toidentifier: 1.0.1
-    dev: false
 
-  inherits@2.0.4:
-    dev: false
+  inherits@2.0.4: {}
 
-  mime@1.6.0:
-    dev: false
+  mime@1.6.0: {}
 
-  ms@1.0.0:
-    dev: false
+  ms@1.0.0: {}
 
-  ms@2.0.0:
-    dev: false
+  ms@2.0.0: {}
 
-  ms@2.1.3:
-    dev: false
+  ms@2.1.3: {}
 
   on-finished@2.3.0:
     dependencies:
       ee-first: 1.1.1
-    dev: false
 
-  range-parser@1.2.1:
-    dev: false
+  range-parser@1.2.1: {}
 
   send@0.17.2:
     dependencies:
@@ -181,13 +164,9 @@ snapshots:
       statuses: 1.5.0
     transitivePeerDependencies:
       - supports-color
-    dev: false
 
-  setprototypeof@1.2.0:
-    dev: false
+  setprototypeof@1.2.0: {}
 
-  statuses@1.5.0:
-    dev: false
+  statuses@1.5.0: {}
 
-  toidentifier@1.0.1:
-    dev: false
+  toidentifier@1.0.1: {}

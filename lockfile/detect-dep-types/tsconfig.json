@@ -1,0 +1,20 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../lockfile-types"
+    }
+  ],
+  "composite": true
+}

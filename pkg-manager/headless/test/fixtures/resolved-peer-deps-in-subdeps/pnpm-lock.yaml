@@ -211,129 +211,98 @@ snapshots:
     dependencies:
       '@most/prelude': 1.7.0
       most: 1.7.3
-    dev: false
 
-  '@most/prelude@1.7.0':
-    dev: false
+  '@most/prelude@1.7.0': {}
 
-  '@types/common-tags@1.4.0':
-    dev: false
+  '@types/common-tags@1.4.0': {}
 
-  '@types/node@8.10.0':
-    dev: false
+  '@types/node@8.10.0': {}
 
-  '@types/node@9.6.0':
-    dev: false
+  '@types/node@9.6.0': {}
 
-  '@types/ramda@0.25.20':
-    dev: false
+  '@types/ramda@0.25.20': {}
 
-  '@types/semver@5.5.0':
-    dev: false
+  '@types/semver@5.5.0': {}
 
   ansi-diff@1.0.10:
     dependencies:
       ansi-split: 1.0.1
-    dev: false
 
-  ansi-regex@3.0.0:
-    dev: false
+  ansi-regex@3.0.0: {}
 
   ansi-split@1.0.1:
     dependencies:
       ansi-regex: 3.0.0
-    dev: false
 
   ansi-styles@3.2.1:
     dependencies:
       color-convert: 1.9.1
-    dev: false
 
   as-table@1.0.31:
     dependencies:
       printable-characters: 1.0.38
-    dev: false
 
   babel-runtime@6.26.0:
     dependencies:
       core-js: 2.5.3
       regenerator-runtime: 0.11.1
-    dev: false
 
   chalk@2.3.2:
     dependencies:
       ansi-styles: 3.2.1
       escape-string-regexp: 1.0.5
       supports-color: 5.3.0
-    dev: false
 
   cli-cursor@2.1.0:
     dependencies:
       restore-cursor: 2.0.0
-    dev: false
 
   color-convert@1.9.1:
     dependencies:
       color-name: 1.1.3
-    dev: false
 
-  color-name@1.1.3:
-    dev: false
+  color-name@1.1.3: {}
 
   common-tags@1.7.2:
     dependencies:
       babel-runtime: 6.26.0
-    dev: false
 
-  core-js@2.5.3:
-    dev: false
+  core-js@2.5.3: {}
 
-  core-util-is@1.0.2:
-    dev: false
+  core-util-is@1.0.2: {}
 
   data-uri-to-buffer@2.0.0:
     dependencies:
       '@types/node': 8.10.0
-    dev: false
 
-  escape-string-regexp@1.0.5:
-    dev: false
+  escape-string-regexp@1.0.5: {}
 
   get-source@1.0.24:
     dependencies:
       data-uri-to-buffer: 2.0.0
       source-map: 0.6.1
-    dev: false
 
-  has-flag@3.0.0:
-    dev: false
+  has-flag@3.0.0: {}
 
-  inherits@2.0.3:
-    dev: false
+  inherits@2.0.3: {}
 
-  isarray@1.0.0:
-    dev: false
+  isarray@1.0.0: {}
 
-  json-stringify-safe@5.0.1:
-    dev: false
+  json-stringify-safe@5.0.1: {}
 
-  mimic-fn@1.2.0:
-    dev: false
+  mimic-fn@1.2.0: {}
 
-  minimist@1.2.0:
-    dev: false
+  minimist@1.2.0: {}
 
   most-last@1.0.0(most@1.7.3):
     dependencies:
       most: 1.7.3
-    dev: false
 
   most@1.7.3:
     dependencies:
       '@most/multicast': 1.3.0(most@1.7.3)
       '@most/prelude': 1.7.0
       symbol-observable: 1.2.0
-    dev: false
 
   ndjson@1.5.0:
     dependencies:
@@ -341,12 +310,10 @@ snapshots:
       minimist: 1.2.0
       split2: 2.2.0
       through2: 2.0.3
-    dev: false
 
   onetime@2.0.1:
     dependencies:
       mimic-fn: 1.2.0
-    dev: false
 
   pnpm-default-reporter@0.14.7:
     dependencies:
@@ -366,19 +333,14 @@ snapshots:
       semver: 5.5.0
       stacktracey: 1.2.100
       zen-push: 0.2.1
-    dev: false
 
-  pretty-bytes@4.0.2:
-    dev: false
+  pretty-bytes@4.0.2: {}
 
-  printable-characters@1.0.38:
-    dev: false
+  printable-characters@1.0.38: {}
 
-  process-nextick-args@2.0.0:
-    dev: false
+  process-nextick-args@2.0.0: {}
 
-  ramda@0.25.0:
-    dev: false
+  ramda@0.25.0: {}
 
   readable-stream@2.3.5:
     dependencies:
@@ -389,71 +351,54 @@ snapshots:
       safe-buffer: 5.1.1
       string_decoder: 1.0.3
       util-deprecate: 1.0.2
-    dev: false
 
-  regenerator-runtime@0.11.1:
-    dev: false
+  regenerator-runtime@0.11.1: {}
 
   restore-cursor@2.0.0:
     dependencies:
       onetime: 2.0.1
       signal-exit: 3.0.2
-    dev: false
 
-  safe-buffer@5.1.1:
-    dev: false
+  safe-buffer@5.1.1: {}
 
-  semver@5.5.0:
-    dev: false
+  semver@5.5.0: {}
 
-  signal-exit@3.0.2:
-    dev: false
+  signal-exit@3.0.2: {}
 
-  source-map@0.6.1:
-    dev: false
+  source-map@0.6.1: {}
 
   split2@2.2.0:
     dependencies:
       through2: 2.0.3
-    dev: false
 
   stacktracey@1.2.100:
     dependencies:
       as-table: 1.0.31
       get-source: 1.0.24
-    dev: false
 
   string_decoder@1.0.3:
     dependencies:
       safe-buffer: 5.1.1
-    dev: false
 
   supports-color@5.3.0:
     dependencies:
       has-flag: 3.0.0
-    dev: false
 
-  symbol-observable@1.2.0:
-    dev: false
+  symbol-observable@1.2.0: {}
 
   through2@2.0.3:
     dependencies:
       readable-stream: 2.3.5
       xtend: 4.0.1
-    dev: false
 
-  util-deprecate@1.0.2:
-    dev: false
+  util-deprecate@1.0.2: {}
 
-  xtend@4.0.1:
-    dev: false
+  xtend@4.0.1: {}
 
-  zen-observable@0.7.1:
-    dev: false
+  zen-observable@0.7.1: {}
 
   zen-push@0.2.1:
     dependencies:
       zen-observable: 0.7.1
-    dev: false
 
 time: {}

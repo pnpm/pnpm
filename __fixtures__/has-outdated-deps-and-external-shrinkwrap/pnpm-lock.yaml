@@ -1,4 +1,5 @@
 lockfileVersion: '7.0'
+
 importers:
   pkg:
     dependencies:
@@ -8,10 +9,19 @@ importers:
       is-positive:
         version: 3.1.0
         specifier: ^3.1.0
+
 packages:
-  /is-negative@1.1.0:
+
+  is-negative@1.1.0:
     resolution:
       integrity: sha512-+iCKT4ZcvjRnjkHnQjZ8/qfciLLGD8BFKS0GNR5VjDU6jEiwh899R0GSMkaYcuTNd7fEKXb3Qib0webe6HczNw==
-  /is-positive@3.1.0:
+
+  is-positive@3.1.0:
     resolution:
       integrity: sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==
+
+snapshots:
+
+  is-negative@1.1.0: {}
+
+  is-positive@3.1.0: {}

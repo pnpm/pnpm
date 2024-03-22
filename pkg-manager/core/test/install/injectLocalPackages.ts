@@ -157,7 +157,6 @@ test('inject local packages', async () => {
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',
       },
-      dev: false,
     })
     expect(lockfile.packages['project-2@file:project-2']).toEqual({
       resolution: {
@@ -170,7 +169,6 @@ test('inject local packages', async () => {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
-      dev: false,
     })
 
     const modulesState = rootModules.readModulesManifest()
@@ -227,7 +225,6 @@ test('inject local packages', async () => {
         'is-negative': '2.0.0',
         'is-positive': '1.0.0',
       },
-      dev: false,
     })
     const modulesState = rootModules.readModulesManifest()
     expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
@@ -377,7 +374,6 @@ test('inject local packages declared via file protocol', async () => {
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',
       },
-      dev: false,
     })
     expect(lockfile.packages['project-1@file:project-1']).toEqual({
       resolution: {
@@ -393,7 +389,6 @@ test('inject local packages declared via file protocol', async () => {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
-      dev: false,
     })
     expect(lockfile.packages['project-2@file:project-2']).toEqual({
       resolution: {
@@ -448,7 +443,6 @@ test('inject local packages declared via file protocol', async () => {
         'is-negative': '2.0.0',
         'is-positive': '1.0.0',
       },
-      dev: false,
     })
     expect(lockfile.packages['project-1@file:project-1']).toEqual({
       resolution: {
@@ -592,7 +586,6 @@ test('inject local packages when the file protocol is used', async () => {
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',
       },
-      dev: false,
     })
     expect(lockfile.packages['project-1@file:project-1']).toEqual({
       resolution: {
@@ -608,7 +601,6 @@ test('inject local packages when the file protocol is used', async () => {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
-      dev: false,
     })
     expect(lockfile.packages['project-2@file:project-2']).toEqual({
       resolution: {
@@ -662,7 +654,6 @@ test('inject local packages when the file protocol is used', async () => {
         'is-negative': '2.0.0',
         'is-positive': '1.0.0',
       },
-      dev: false,
     })
     expect(lockfile.packages['project-1@file:project-1']).toEqual({
       resolution: {
@@ -784,7 +775,6 @@ test('inject local packages and relink them after build', async () => {
       'is-negative': '1.0.0',
       'is-positive': '1.0.0',
     },
-    dev: false,
   })
   expect(lockfile.packages['project-1@file:project-1']).toEqual({
     resolution: {
@@ -894,7 +884,6 @@ test('inject local packages and relink them after build (file protocol is used)'
       'is-negative': '1.0.0',
       'is-positive': '1.0.0',
     },
-    dev: false,
   })
   expect(lockfile.packages['project-1@file:project-1']).toEqual({
     resolution: {
@@ -1068,7 +1057,6 @@ test('inject local packages when node-linker is hoisted', async () => {
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',
       },
-      dev: false,
     })
     expect(lockfile.packages['project-1@file:project-1']).toEqual({
       resolution: {
@@ -1085,7 +1073,6 @@ test('inject local packages when node-linker is hoisted', async () => {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
-      dev: false,
     })
     expect(lockfile.packages['project-2@file:project-2']).toEqual({
       resolution: {
@@ -1246,7 +1233,6 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
       },
     })
     expect(lockfile.snapshots['project-1@file:project-1(is-positive@1.0.0)']).toEqual({
-      dev: false,
       dependencies: {
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         'is-negative': '1.0.0',
@@ -1268,7 +1254,6 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
-      dev: false,
     })
     expect(lockfile.packages['project-2@file:project-2']).toEqual({
       resolution: {
@@ -1990,7 +1975,6 @@ test('injected local packages are deduped', async () => {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
-      dev: false,
     })
     expect(lockfile.packages['project-2@file:project-2']).toEqual({
       resolution: {
