@@ -35,7 +35,7 @@ import {
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs, satisfiesPackageManifest } from '@pnpm/lockfile-utils'
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
-import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
+import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
@@ -49,7 +49,6 @@ import {
   type UpdateMatchingFunction,
   type WantedDependency,
   getPreferredVersionsFromLockfileAndManifests,
-  getAllUniqueSpecs,
 } from '@pnpm/resolve-dependencies'
 import {
   type PreferredVersions,
