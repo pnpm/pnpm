@@ -35,7 +35,7 @@
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.25.0",
+    "@pnpm/registry-mock": "3.27.0",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/cross-spawn": "^6.0.6",
     "@types/is-windows": "^1.0.2",

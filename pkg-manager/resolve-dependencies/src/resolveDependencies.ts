@@ -38,6 +38,7 @@ import {
   type Registries,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
+import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'
@@ -131,6 +132,7 @@ export interface ResolutionContext {
   autoInstallPeersFromHighestMatch: boolean
   allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
+  allPreferredVersions?: PreferredVersions
   appliedPatches: Set<string>
   updatedSet: Set<string>
   defaultTag: string
@@ -287,6 +289,9 @@ export async function resolveRootDependencies (
   ctx: ResolutionContext,
   importers: ImporterToResolve[]
 ): Promise<ResolvedRootDependenciesResult> {
+  if (ctx.autoInstallPeers) {
+    ctx.allPreferredVersions = getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, [])
+  }
   const { pkgAddressesByImportersWithoutPeers, publishedBy, time } = await resolveDependenciesOfImporters(ctx, importers)
   const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
     const pkgAddresses = importerResolutionResult.pkgAddresses
@@ -307,7 +312,14 @@ export async function resolveRootDependencies (
         }
       }
       if (!Object.keys(importerResolutionResult.missingPeers).length) break
-      const wantedDependencies = getNonDevWantedDependencies({ dependencies: importerResolutionResult.missingPeers })
+      const dependencies = Object.fromEntries(
+        Object.entries(importerResolutionResult.missingPeers)
+          .map(([peerName, peerRange]) => {
+            if (!ctx.allPreferredVersions![peerName]) return [peerName, peerRange]
+            return [peerName, Object.keys(ctx.allPreferredVersions![peerName]).join(' || ')]
+          })
+      )
+      const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
       // eslint-disable-next-line no-await-in-loop
       const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
@@ -1151,6 +1163,13 @@ async function resolveDependency (
   })
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
+
+  if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
+    if (!ctx.allPreferredVersions[pkgResponse.body.manifest.name]) {
+      ctx.allPreferredVersions[pkgResponse.body.manifest.name] = {}
+    }
+    ctx.allPreferredVersions[pkgResponse.body.manifest.name][pkgResponse.body.manifest.version] = 'version'
+  }
 
   if (
     !pkgResponse.body.updated &&

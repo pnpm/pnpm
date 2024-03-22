@@ -35,7 +35,7 @@
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.25.0",
+    "@pnpm/registry-mock": "3.27.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/ramda": "0.28.20",
