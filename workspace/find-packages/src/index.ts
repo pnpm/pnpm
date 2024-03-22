@@ -1,5 +1,8 @@
+import path from 'path'
 import { packageIsInstallable } from '@pnpm/cli-utils'
 import { type ProjectManifest, type Project, type SupportedArchitectures } from '@pnpm/types'
+import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { type PackageSnapshot, type ProjectSnapshot } from '@pnpm/lockfile-types'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
@@ -77,5 +80,59 @@ function checkNonRootProjectManifest ({ manifest, dir }: Project) {
         prefix: dir,
       })
     }
+  }
+}
+
+export interface PackageItem {
+  type: 'package'
+  lockfileDir: string
+  id: string
+  snapshot: PackageSnapshot
+}
+
+export interface ProjectItem {
+  type: 'project'
+  lockfileDir: string
+  relativeDir: string
+  resolvedDir: string
+  snapshot: ProjectSnapshot
+}
+
+export async function findAllPackages (workspaceRoot: string, opts: {
+  sharedWorkspaceLockfile?: boolean
+  ignoreIncompatible: boolean
+  patterns?: string[]
+}): Promise<Array<PackageItem | ProjectItem>> {
+  const { sharedWorkspaceLockfile = true, ignoreIncompatible, patterns } = opts
+
+  if (sharedWorkspaceLockfile) {
+    return fromSingleLockfile(workspaceRoot, { ignoreIncompatible })
+  }
+
+  const workspacePackages = await findWorkspacePackagesNoCheck(workspaceRoot, { patterns })
+
+  const result: Array<PackageItem | ProjectItem> = []
+  for (const { dir } of workspacePackages) {
+    result.push(...await fromSingleLockfile(dir, { ignoreIncompatible }))
+  }
+  return result
+
+  async function fromSingleLockfile (lockfileDir: string, opts: { ignoreIncompatible: boolean }): Promise<Array<PackageItem | ProjectItem>> {
+    const lockfile = await readWantedLockfile(lockfileDir, opts)
+    if (!lockfile) return []
+    const packageItems: PackageItem[] = Object.entries(lockfile.packages ?? {}).map(([id, snapshot]) => ({
+      type: 'package',
+      lockfileDir,
+      id,
+      snapshot,
+    }))
+    const projectItems: ProjectItem[] = Object.entries(lockfile.importers).map(([relativeDir, snapshot]) => ({
+      type: 'project',
+      lockfileDir,
+      relativeDir,
+      resolvedDir: path.join(lockfileDir, relativeDir),
+      snapshot,
+    }))
+    return [...packageItems, ...projectItems]
   }
 }

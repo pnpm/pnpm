@@ -16,6 +16,12 @@
       "path": "../../fs/find-packages"
     },
     {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../lockfile/lockfile-types"
+    },
+    {
       "path": "../../packages/types"
     },
     {
