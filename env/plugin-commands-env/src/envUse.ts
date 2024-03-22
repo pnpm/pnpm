@@ -12,9 +12,9 @@ import {
   CURRENT_NODE_DIRNAME,
   getNodeExecPathInBinDir,
   getNodeExecPathInNodeDir,
-} from './utils'
-import { type NvmNodeCommandOptions } from './node'
-import { downloadNodeVersion } from './downloadNodeVersion'
+} from './utils.js'
+import { type NvmNodeCommandOptions } from './node.js'
+import { downloadNodeVersion } from './downloadNodeVersion.js'
 
 export async function envUse(opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (!opts.global) {
@@ -39,7 +39,7 @@ export async function envUse(opts: NvmNodeCommandOptions, params: string[]): Pro
 
   const dest = getNodeExecPathInBinDir(opts.bin)
 
-  await symlinkDir(nodeDir, path.join(opts.pnpmHomeDir, CURRENT_NODE_DIRNAME))
+  await symlinkDir(nodeDir, path.join(opts.pnpmHomeDir ?? '', CURRENT_NODE_DIRNAME))
 
   try {
     gfs.unlinkSync(dest)

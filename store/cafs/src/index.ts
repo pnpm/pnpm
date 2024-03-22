@@ -2,7 +2,7 @@ import '@total-typescript/ts-reset'
 
 import ssri from 'ssri'
 
-import { CreateCafsOpts, FileWriteResult, WriteBufferToCafs } from '@pnpm/types'
+import { AddToStoreResult, CreateCafsOpts, FileType, FileWriteResult, WriteBufferToCafs } from '@pnpm/types'
 
 import {
   modeIsExecutable,
@@ -10,20 +10,26 @@ import {
   contentPathFromHex,
   getFilePathByModeInCafs,
 } from './getFilePathInCafs'
-import {
-  writeBufferToCafs,
-} from './writeBufferToCafs'
 import { addFilesFromDir } from './addFilesFromDir'
+import { writeBufferToCafs } from './writeBufferToCafs'
 import { addFilesFromTarball } from './addFilesFromTarball'
 
 export type { IntegrityLike } from 'ssri'
 
 export { getFilePathInCafs, getFilePathByModeInCafs }
+export { readManifestFromStore } from './readManifestFromStore'
+export { optimisticRenameOverwrite } from './writeBufferToCafs'
+export { checkPkgFilesIntegrity } from './checkPkgFilesIntegrity'
 
 export function createCafs(
   cafsDir: string,
   { ignoreFile, cafsLocker }: CreateCafsOpts = {}
-) {
+): {
+    addFilesFromDir: (dirname: string, readManifest?: boolean | undefined) => AddToStoreResult;
+    addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean | undefined) => AddToStoreResult;
+    getFilePathInCafs: (integrity: string | ssri.IntegrityLike, fileType: FileType) => string;
+    getFilePathByModeInCafs: (integrity: string | ssri.IntegrityLike, mode: number) => string;
+  } {
   const _writeBufferToCafs = writeBufferToCafs.bind(
     null,
     cafsLocker ?? new Map(),

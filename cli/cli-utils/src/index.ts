@@ -5,7 +5,6 @@ import chalk from 'chalk'
 import {
   checkPackage,
   UnsupportedEngineError,
-  type WantedEngine,
 } from '@pnpm/package-is-installable'
 import { logger } from '@pnpm/logger'
 import { PnpmError } from '@pnpm/error'
@@ -14,7 +13,7 @@ import { formatWarn } from '@pnpm/default-reporter'
 import * as utils from '@pnpm/read-project-manifest'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { getConfig as _getConfig, type CliOptions } from '@pnpm/config'
-import type { ActionFailure, Actions, BaseReadProjectManifestResult, ProjectManifest, ReadProjectManifestOpts, ReadProjectManifestResult, RecursiveSummary, SupportedArchitectures } from '@pnpm/types'
+import type { ActionFailure, Actions, BaseReadProjectManifestResult, Config, ProjectManifest, ReadProjectManifestOpts, ReadProjectManifestResult, RecursiveSummary, SupportedArchitectures } from '@pnpm/types'
 
 export const TABLE_OPTIONS = {
   border: {
@@ -51,6 +50,7 @@ export async function readDepNameCompletions(dir?: string | undefined): Promise<
   }[]
 > {
   const { manifest } = await readProjectManifest(dir ?? process.cwd())
+
   return Object.keys(getAllDependenciesFromManifest(manifest)).map(
     (
       name: string
@@ -73,14 +73,14 @@ export async function getConfig(
     workspaceDir: string | undefined
     checkUnknownSetting?: boolean | undefined
   }
-) {
+): Promise<Config> {
   const { config, warnings } = await _getConfig({
     cliOptions,
-    globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
+    globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite ?? false,
     packageManager,
     rcOptionsTypes: opts.rcOptionsTypes,
     workspaceDir: opts.workspaceDir,
-    checkUnknownSetting: opts.checkUnknownSetting,
+    checkUnknownSetting: opts.checkUnknownSetting ?? false,
   })
 
   config.cliOptions = cliOptions
@@ -104,12 +104,7 @@ export async function getConfig(
 
 export function packageIsInstallable(
   pkgPath: string,
-  pkg: {
-    engines?: WantedEngine | undefined
-    cpu?: string[] | undefined
-    os?: string[] | undefined
-    libc?: string[] | undefined
-  },
+  pkg: ProjectManifest | undefined,
   opts: {
     engineStrict?: boolean | undefined
     nodeVersion?: string | undefined
@@ -118,6 +113,7 @@ export function packageIsInstallable(
 ) {
   const pnpmVersion =
     packageManager.name === 'pnpm' ? packageManager.stableVersion : undefined
+
   const err = checkPackage(pkgPath, pkg, {
     nodeVersion: opts.nodeVersion,
     pnpmVersion,
@@ -127,12 +123,18 @@ export function packageIsInstallable(
       libc: ['current'],
     },
   })
-  if (err === null) return
+
+  if (err === null) {
+    return
+  }
+
   if (
     (err instanceof UnsupportedEngineError && err.wanted.pnpm) ??
     opts.engineStrict
-  )
+  ) {
     throw err
+  }
+
   logger.warn({
     message: `Unsupported ${
       err instanceof UnsupportedEngineError ? 'engine' : 'platform'
@@ -147,7 +149,9 @@ export async function readProjectManifest(
 ): Promise<ReadProjectManifestResult> {
   const { fileName, manifest, writeProjectManifest } =
     await utils.readProjectManifest(projectDir)
+
   packageIsInstallable(projectDir, manifest, opts)
+
   return { fileName, manifest, writeProjectManifest }
 }
 
@@ -156,12 +160,13 @@ export async function readProjectManifestOnly(
   opts: ReadProjectManifestOpts = {}
 ): Promise<ProjectManifest> {
   const manifest = await utils.readProjectManifestOnly(projectDir)
+
   packageIsInstallable(projectDir, manifest, opts)
+
   return manifest
 }
 
-export interface TryReadProjectManifestResult
-  extends BaseReadProjectManifestResult {
+export type TryReadProjectManifestResult = BaseReadProjectManifestResult & {
   manifest: ProjectManifest | undefined
 }
 
@@ -214,7 +219,13 @@ export function throwOnCommandFail(
   }
 }
 
-export function docsUrl(cmd: string): string {
-  const [pnpmMajorVersion] = packageManager.version.split('.')
-  return `https://pnpm.io/${pnpmMajorVersion}.x/cli/${cmd}`
+export function docsUrl(cmd: string): string | undefined {
+  const version = packageManager.version
+
+  if (typeof version !== 'string') {
+    return undefined
+  }
+
+  const [pnpmMajorVersion] = version.split('.')
+  return `https://pnpm.io/${pnpmMajorVersion ?? ''}.x/cli/${cmd}`
 }

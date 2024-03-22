@@ -3,6 +3,7 @@
   "version": "0.0.90",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "type": "module",
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
     "unique-string": "^2.0.0",

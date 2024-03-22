@@ -1,30 +1,35 @@
 import path from 'node:path'
 
-import {
-  deprecationLogger,
-  hookLogger,
-  packageManifestLogger,
-  peerDependencyIssuesLogger,
-  rootLogger,
-  skippedOptionalDependencyLogger,
-  statsLogger,
-  summaryLogger,
-} from '@pnpm/core-loggers'
-import { toOutput$ } from '@pnpm/default-reporter'
-import { PnpmError } from '@pnpm/error'
-import { createStreamParser, logger } from '@pnpm/logger'
-import { map, skip, take } from 'rxjs/operators'
 import chalk from 'chalk'
+import { map, skip, take } from 'rxjs/operators'
 import normalizeNewline from 'normalize-newline'
 import repeat from 'ramda/src/repeat'
-import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
-import { Config } from '@pnpm/types'
 
-const formatErrorCode = (code: string) =>
-  chalk.bgRed.black(`\u2009${code}\u2009`)
-const formatError = (code: string, message: string) => {
+import {
+  hookLogger,
+  rootLogger,
+  statsLogger,
+  summaryLogger,
+  deprecationLogger,
+  packageManifestLogger,
+  peerDependencyIssuesLogger,
+  skippedOptionalDependencyLogger,
+} from '@pnpm/core-loggers'
+import { Config } from '@pnpm/types'
+import { PnpmError } from '@pnpm/error'
+import { toOutput$ } from '@pnpm/default-reporter'
+import { createStreamParser, logger } from '@pnpm/logger'
+
+import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
+
+const formatErrorCode = (code: string): string => {
+  return chalk.bgRed.black(`\u2009${code}\u2009`);
+}
+
+const formatError = (code: string, message: string): string => {
   return `${formatErrorCode(code)} ${chalk.red(message)}`
 }
+
 const DEPRECATED = chalk.red('deprecated')
 const versionColor = chalk.grey
 const ADD = chalk.green('+')
@@ -35,6 +40,7 @@ const EOL = '\n'
 
 test('prints summary (of current package only)', (done) => {
   const prefix = '/home/jane/project'
+
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -45,6 +51,7 @@ test('prints summary (of current package only)', (done) => {
 
   statsLogger.debug({ added: 5, prefix: `${prefix}/packages/foo` })
   statsLogger.debug({ removed: 1, prefix: `${prefix}/packages/foo` })
+
   packageManifestLogger.debug({
     initial: {
       name: 'foo',
@@ -59,6 +66,7 @@ test('prints summary (of current package only)', (done) => {
     },
     prefix,
   })
+
   deprecationLogger.debug({
     deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
@@ -67,6 +75,7 @@ test('prints summary (of current package only)', (done) => {
     pkgVersion: '2.0.0',
     prefix,
   })
+
   rootLogger.debug({
     added: {
       dependencyType: 'prod',

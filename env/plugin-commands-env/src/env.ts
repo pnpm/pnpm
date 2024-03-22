@@ -2,12 +2,12 @@ import renderHelp from 'render-help'
 
 import { PnpmError } from '@pnpm/error'
 import { docsUrl } from '@pnpm/cli-utils'
+import type { NvmNodeCommandOptions } from '@pnpm/types'
 
-import { envUse } from './envUse'
-import { envAdd } from './envAdd'
-import { envList } from './envList'
-import { envRemove } from './envRemove'
-import { type NvmNodeCommandOptions } from './node'
+import { envUse } from './envUse.js'
+import { envAdd } from './envAdd.js'
+import { envList } from './envList.js'
+import { envRemove } from './envRemove.js'
 
 export function rcOptionsTypes() {
   return {}
@@ -25,7 +25,7 @@ export function cliOptionsTypes(): {
 
 export const commandNames = ['env']
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description: 'Manage Node.js versions.',
     descriptionLists: [

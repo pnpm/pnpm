@@ -1,24 +1,22 @@
 import path from 'node:path'
-import type { Lockfile, TarballResolution } from '@pnpm/lockfile-types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-import {
-  lockfileWalkerGroupImporterSteps,
-  type LockfileWalkerStep,
-} from '@pnpm/lockfile-walker'
-import type { DependenciesField } from '@pnpm/types'
-import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+
 import mapValues from 'ramda/src/map'
 
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { lockfileWalkerGroupImporterSteps } from '@pnpm/lockfile-walker'
+import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import type { DependenciesField, LockfileWalkerStep, Lockfile, TarballResolution } from '@pnpm/types'
+
 export interface AuditNode {
-  version?: string
-  integrity?: string
-  requires?: Record<string, string>
-  dependencies?: { [name: string]: AuditNode }
+  version?: string | undefined
+  integrity?: string | undefined
+  requires?: Record<string, string> | undefined
+  dependencies?: { [name: string]: AuditNode } | undefined
   dev: boolean
 }
 
 export type AuditTree = AuditNode & {
-  name?: string
+  name?: string | undefined
   install: string[]
   remove: string[]
   metadata: unknown
@@ -27,7 +25,7 @@ export type AuditTree = AuditNode & {
 export async function lockfileToAuditTree(
   lockfile: Lockfile,
   opts: {
-    include?: { [dependenciesField in DependenciesField]: boolean }
+    include?: { [dependenciesField in DependenciesField]: boolean } | undefined
     lockfileDir: string
   }
 ): Promise<AuditTree> {
@@ -36,16 +34,24 @@ export async function lockfileToAuditTree(
     Object.keys(lockfile.importers),
     { include: opts?.include }
   )
+
   const dependencies: Record<string, AuditNode> = {}
+
   await Promise.all(
-    importerWalkers.map(async (importerWalker) => {
+    importerWalkers.map(async (importerWalker: {
+      importerId: string;
+      step: LockfileWalkerStep;
+    }): Promise<void> => {
       const importerDeps = lockfileToAuditNode(importerWalker.step)
+
       // For some reason the registry responds with 500 if the keys in dependencies have slashes
       // see issue: https://github.com/pnpm/pnpm/issues/2848
       const depName = importerWalker.importerId.replace(/\//g, '__')
+
       const manifest = await safeReadProjectManifestOnly(
         path.join(opts.lockfileDir, importerWalker.importerId)
       )
+
       dependencies[depName] = {
         dependencies: importerDeps,
         dev: false,
@@ -54,6 +60,7 @@ export async function lockfileToAuditTree(
       }
     })
   )
+
   const auditTree: AuditTree = {
     name: undefined,
     version: undefined,
@@ -66,6 +73,7 @@ export async function lockfileToAuditTree(
     remove: [],
     requires: toRequires(dependencies),
   }
+
   return auditTree
 }
 

@@ -1,31 +1,22 @@
-import type { ProjectManifest } from '@pnpm/types'
 import path from 'node:path'
-import { readPkg } from './readPkg'
 
-interface PkgData {
-  alias: string | undefined
-  name: string
-  version: string
-  path: string
-  resolved?: string | undefined
-}
+import type { PackageManifest, PkgData, PkgInfo } from '@pnpm/types'
 
-export type PkgInfo = Omit<PkgData, 'name'> &
-  Pick<ProjectManifest, 'description' | 'license' | 'author' | 'homepage'> & {
-    from: string
-    repository?: string
-  }
+import { readPkg } from './readPkg.js'
 
 export async function getPkgInfo(pkg: PkgData): Promise<PkgInfo> {
-  let manifest
+  let manifest: PackageManifest
+
   try {
     manifest = await readPkg(path.join(pkg.path, 'package.json'))
   } catch (err: unknown) {
     // This will probably never happen
+    // @ts-ignore
     manifest = {
       description: '[Could not find additional info about this dependency]',
     }
   }
+
   return {
     alias: pkg.alias,
     from: pkg.name,

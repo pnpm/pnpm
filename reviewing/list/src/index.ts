@@ -1,18 +1,20 @@
 import '@total-typescript/ts-reset'
+
 import path from 'node:path'
-import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import type { DependenciesField, Registries } from '@pnpm/types'
+
 import {
   type PackageNode,
+  createPackagesSearcher,
   buildDependenciesHierarchy,
   type DependenciesHierarchy,
-  createPackagesSearcher,
 } from '@pnpm/reviewing.dependencies-hierarchy'
-import { renderJson } from './renderJson'
-import { renderParseable } from './renderParseable'
-import { renderTree } from './renderTree'
-import type { PackageDependencyHierarchy } from './types'
-import { pruneDependenciesTrees } from './pruneTree'
+import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import type { PackageInfo, DependenciesField, Registries, PackageDependencyHierarchy } from '@pnpm/types'
+
+import { renderJson } from './renderJson.js'
+import { renderTree } from './renderTree.js'
+import { renderParseable } from './renderParseable.js'
+import { pruneDependenciesTrees } from './pruneTree.js'
 
 export type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 export {
@@ -29,16 +31,24 @@ const DEFAULTS = {
   registries: undefined,
   reportAs: 'tree' as const,
   showExtraneous: true,
-}
+} as const
 
 export function flattenSearchedPackages(
   pkgs: PackageDependencyHierarchy[],
   opts: {
     lockfileDir: string
   }
-) {
+): (DependenciesHierarchy & {
+    name?: string | undefined;
+    version?: string | undefined;
+    path: string;
+    private?: boolean | undefined;
+  } & {
+    depPath: string;
+  })[] {
   const flattedPkgs: Array<PackageDependencyHierarchy & { depPath: string }> =
     []
+
   for (const pkg of pkgs) {
     _walker(
       [
@@ -53,9 +63,10 @@ export function flattenSearchedPackages(
 
   return flattedPkgs
 
-  function _walker(packages: PackageNode[], depPath: string) {
+  function _walker(packages: (PackageNode | PackageInfo)[], depPath: string) {
     for (const pkg of packages) {
       const nextDepPath = `${depPath} > ${pkg.name}@${pkg.version}`
+
       if (pkg.dependencies?.length) {
         _walker(pkg.dependencies, nextDepPath)
       } else {
@@ -72,12 +83,12 @@ export async function searchForPackages(
   packages: string[],
   projectPaths: string[],
   opts: {
-    depth: number
+    depth?: number | undefined
     lockfileDir: string
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    onlyProjects?: boolean
-    registries?: Registries
-    modulesDir?: string
+    include?: { [dependenciesField in DependenciesField]: boolean } | undefined
+    onlyProjects?: boolean | undefined
+    registries?: Registries | undefined
+    modulesDir?: string | undefined
   }
 ) {
   const search = createPackagesSearcher(packages)
@@ -93,15 +104,16 @@ export async function searchForPackages(
         search,
         modulesDir: opts.modulesDir,
       })
-    ).map(async ([projectPath, buildDependenciesHierarchy]) => {
+    ).map(async ([projectPath, depsHierarchy]: [string, DependenciesHierarchy]): Promise<PackageDependencyHierarchy> => {
       const entryPkg = (await safeReadProjectManifestOnly(projectPath)) ?? {}
+
       return {
         name: entryPkg.name,
         version: entryPkg.version,
 
         path: projectPath,
-        ...buildDependenciesHierarchy,
-      } as PackageDependencyHierarchy
+        ...depsHierarchy,
+      }
     })
   )
 }
@@ -111,14 +123,14 @@ export async function listForPackages(
   projectPaths: string[],
   maybeOpts: {
     alwaysPrintRootPackage?: boolean
-    depth?: number
+    depth?: number | undefined
     lockfileDir: string
-    long?: boolean
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    onlyProjects?: boolean
-    reportAs?: 'parseable' | 'tree' | 'json'
-    registries?: Registries
-    modulesDir?: string
+    long?: boolean | undefined
+    include?: { [dependenciesField in DependenciesField]: boolean } | undefined
+    onlyProjects?: boolean | undefined
+    reportAs?: 'parseable' | 'tree' | 'json' | undefined
+    registries?: Registries | undefined
+    modulesDir?: string | undefined
   }
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }

@@ -5,15 +5,14 @@ import * as Rx from 'rxjs'
 import semver from 'semver'
 import { map, take } from 'rxjs/operators'
 
+import type { DeprecationLog, SummaryLog, RootLog, PackageManifestLog, Config, PackageDiff } from '@pnpm/types'
+
 import {
   getPkgsDiff,
-  type PackageDiff,
   propertyByDependencyType,
-} from './pkgsDiff'
-import { EOL } from '../constants'
-import { ADDED_CHAR, REMOVED_CHAR } from './outputConstants'
-
-import { DeprecationLog, SummaryLog, RootLog, PackageManifestLog, Config } from '@pnpm/types'
+} from './pkgsDiff.js'
+import { EOL } from '../constants.js'
+import { ADDED_CHAR, REMOVED_CHAR } from './outputConstants.js'
 
 const CONFIG_BY_DEP_TYPE = {
   prod: 'production',
@@ -29,11 +28,11 @@ export function reportSummary(
     packageManifest: Rx.Observable<PackageManifestLog>
   },
   opts: {
-    cmd: string
+    cmd?: string | undefined
     cwd: string
     env: NodeJS.ProcessEnv
-    filterPkgsDiff?: FilterPkgsDiff
-    pnpmConfig?: Config
+    filterPkgsDiff?: FilterPkgsDiff | undefined
+    pnpmConfig?: Config | undefined
   }
 ): Rx.Observable<Rx.Observable<{
     msg: string;
@@ -105,9 +104,9 @@ export type FilterPkgsDiff = (pkgsDiff: PackageDiff) => boolean
 
 function printDiffs(
   opts: {
-    cmd: string
+    cmd?: string | undefined
     prefix: string
-    pnpmConfig?: Config
+    pnpmConfig?: Config | undefined
   },
   pkgsDiff: PackageDiff[],
   depType: string
@@ -126,14 +125,11 @@ function printDiffs(
     .map((pkg): string => {
       let result = pkg.added ? ADDED_CHAR : REMOVED_CHAR
 
-      if (!pkg.realName || pkg.name === pkg.realName) {
-        result += ` ${pkg.name}`
-      } else {
-        result += ` ${pkg.name} <- ${pkg.realName}`
-      }
+      result += !pkg.realName || pkg.name === pkg.realName ? ` ${pkg.name}` : ` ${pkg.name} <- ${pkg.realName}`;
 
       if (pkg.version) {
         result += ` ${chalk.grey(pkg.version)}`
+
         if (pkg.latest && semver.lt(pkg.version, pkg.latest)) {
           result += ` ${chalk.grey(`(${pkg.latest} is available)`)}`
         }

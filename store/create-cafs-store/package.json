@@ -25,6 +25,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",

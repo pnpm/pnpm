@@ -1,13 +1,14 @@
 import semver from 'semver'
 
 import { PnpmError } from '@pnpm/error'
+import type { WantedEngine, Engine } from '@pnpm/types'
 
 export class UnsupportedEngineError extends PnpmError {
   public wanted: WantedEngine
-  public current: Engine
+  public current: Engine | undefined
   public packageId: string
 
-  constructor(packageId: string, wanted: WantedEngine, current: Engine) {
+  constructor(packageId: string, wanted: WantedEngine, current: Engine | undefined) {
     super(
       'UNSUPPORTED_ENGINE',
       `Unsupported engine for ${packageId}: wanted: ${JSON.stringify(wanted)} (current: ${JSON.stringify(current)})`
@@ -20,8 +21,8 @@ export class UnsupportedEngineError extends PnpmError {
 
 export function checkEngine(
   packageId: string,
-  wantedEngine: WantedEngine,
-  currentEngine: Engine
+  wantedEngine: { node?: string | undefined; npm?: string | undefined; pnpm?: string | undefined; },
+  currentEngine: Engine | undefined
 ): UnsupportedEngineError | null {
   if (!wantedEngine) {
     return null
@@ -31,7 +32,7 @@ export function checkEngine(
 
   if (
     wantedEngine.node &&
-    !semver.satisfies(currentEngine.node, wantedEngine.node, {
+    !semver.satisfies(currentEngine?.node ?? '', wantedEngine.node, {
       includePrerelease: true,
     })
   ) {
@@ -39,7 +40,7 @@ export function checkEngine(
   }
 
   if (
-    currentEngine.pnpm &&
+    currentEngine?.pnpm &&
     wantedEngine.pnpm &&
     !semver.satisfies(currentEngine.pnpm, wantedEngine.pnpm, {
       includePrerelease: true,
@@ -58,10 +59,3 @@ export function checkEngine(
 
   return null
 }
-
-export interface Engine {
-  node: string
-  pnpm?: string | undefined
-}
-
-export type WantedEngine = Partial<Engine>

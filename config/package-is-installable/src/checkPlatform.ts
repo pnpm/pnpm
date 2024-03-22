@@ -1,7 +1,7 @@
 import { familySync } from 'detect-libc'
 
 import { PnpmError } from '@pnpm/error'
-import type { SupportedArchitectures } from '@pnpm/types'
+import type { Platform, SupportedArchitectures, WantedPlatform } from '@pnpm/types'
 
 const currentLibc = familySync() ?? 'unknown'
 
@@ -68,14 +68,6 @@ export function checkPlatform(
   return null
 }
 
-export type Platform = {
-  cpu: string | string[]
-  os: string | string[]
-  libc: string | string[]
-}
-
-export type WantedPlatform = Partial<Platform>
-
 function checkList(value: string | string[], list: string | string[]): boolean {
   let tmp
   let match = false
@@ -92,10 +84,10 @@ function checkList(value: string | string[], list: string | string[]): boolean {
   const values = Array.isArray(value) ? value : [value]
 
   for (const value of values) {
-    for (let i = 0; i < list.length; ++i) {
-      tmp = list[i]
+    for (const element of list) {
+      tmp = element
 
-      if (tmp[0] === '!') {
+      if (tmp && tmp[0] === '!') {
         tmp = tmp.slice(1)
 
         if (tmp === value) {

@@ -1,9 +1,10 @@
-import type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
-import sortBy from 'ramda/src/sortBy'
 import prop from 'ramda/src/prop'
-import type { PackageDependencyHierarchy } from './types'
+import sortBy from 'ramda/src/sortBy'
 
-const sortPackages = sortBy(prop('name'))
+import type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import type { PackageDependencyHierarchy } from '@pnpm/types'
+
+const sortPackages = sortBy.default(prop.default('name'))
 
 export async function renderParseable(
   pkgs: PackageDependencyHierarchy[],
@@ -65,8 +66,9 @@ interface PackageInfo {
   path: string
 }
 
-function flatten(depPaths: Set<string>, nodes: PackageNode[]): PackageInfo[] {
+function flatten(depPaths: Set<string>, nodes: PackageNode[] | PackageInfo[]): PackageInfo[] {
   let packages: PackageInfo[] = []
+
   for (const node of nodes) {
     // The content output by renderParseable is flat,
     // so we can deduplicate packages that are repeatedly dependent on multiple packages.
@@ -74,9 +76,11 @@ function flatten(depPaths: Set<string>, nodes: PackageNode[]): PackageInfo[] {
       depPaths.add(node.path)
       packages.push(node)
     }
-    if (node.dependencies?.length) {
+
+    if ('dependencies' in node && Array.isArray(node.dependencies)) {
       packages = packages.concat(flatten(depPaths, node.dependencies))
     }
   }
+
   return packages
 }

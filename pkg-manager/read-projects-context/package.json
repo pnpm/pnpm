@@ -15,6 +15,7 @@
   "engines": {
     "node": ">=16.14"
   },
+  "type": "module",
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
   },

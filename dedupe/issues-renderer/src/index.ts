@@ -4,8 +4,8 @@ import chalk from 'chalk'
 import {
   type ResolutionChange,
   type DedupeCheckIssues,
-  type ResolutionChangesByAlias,
   type SnapshotsChanges,
+  type ResolutionChangesByAlias,
 } from '@pnpm/types'
 
 export function renderDedupeCheckIssues(dedupeCheckIssues: DedupeCheckIssues): string {
@@ -13,7 +13,7 @@ export function renderDedupeCheckIssues(dedupeCheckIssues: DedupeCheckIssues): s
 
   const packagesReport = report(dedupeCheckIssues.packageIssuesByDepPath)
 
-  const lines = []
+  const lines: string[] = []
 
   if (importersReport !== '') {
     lines.push(chalk.blueBright.underline('Importers'))

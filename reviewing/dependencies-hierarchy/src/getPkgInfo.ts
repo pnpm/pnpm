@@ -32,7 +32,7 @@ export function getPkgInfo(opts: GetPkgInfoOpts): PackageInfo {
   const depPath = refToRelative(opts.ref, opts.alias)
 
   if (depPath) {
-    let pkgSnapshot!: PackageSnapshot
+    let pkgSnapshot!: PackageSnapshot | undefined
 
     if (opts.currentPackages[depPath]) {
       pkgSnapshot = opts.currentPackages[depPath]
@@ -67,12 +67,12 @@ export function getPkgInfo(opts: GetPkgInfoOpts): PackageInfo {
         depPath,
         pkgSnapshot,
         opts.registries
-      ) as TarballResolution
+      )
     ).tarball
 
-    dev = pkgSnapshot.dev
+    dev = pkgSnapshot?.dev
 
-    optional = pkgSnapshot.optional
+    optional = pkgSnapshot?.optional
   } else {
     name = opts.alias
 

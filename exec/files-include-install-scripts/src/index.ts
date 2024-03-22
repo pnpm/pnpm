@@ -1,11 +1,11 @@
 import '@total-typescript/ts-reset'
 
 export function filesIncludeInstallScripts(
-  filesIndex: Record<string, unknown>
+  filesIndex: Record<string, unknown> | undefined
 ): boolean {
   return (
-    filesIndex['binding.gyp'] != null ||
-    Object.keys(filesIndex).some(
+    filesIndex?.['binding.gyp'] != null ||
+    Object.keys(filesIndex ?? {}).some(
       (filename: string): boolean => {
         return filename.match(/^[.]hooks[\\/]/) != null;
       }

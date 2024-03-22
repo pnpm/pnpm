@@ -13,7 +13,6 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 
 import type {
   Config,
-  UniversalOptions,
   ConfigWithDeprecatedSettings,
 } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
@@ -25,16 +24,16 @@ import { LAYOUT_VERSION } from '@pnpm/constants'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 
-import { checkGlobalBinDir } from './checkGlobalBinDir'
-import { getWorkspaceConcurrency } from './concurrency'
-import { getScopeRegistries } from './getScopeRegistries'
-import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
+import { checkGlobalBinDir } from './checkGlobalBinDir.js'
+import { getWorkspaceConcurrency } from './concurrency.js'
+import { getScopeRegistries } from './getScopeRegistries.js'
+import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 
 export {
   getOptionsFromRootManifest,
   type OptionsFromRootManifest,
-} from './getOptionsFromRootManifest'
-export * from './readLocalConfig'
+} from './getOptionsFromRootManifest.js'
+export * from './readLocalConfig.js'
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
@@ -216,7 +215,7 @@ export async function getConfig(opts: {
   const originalExecPath = process.execPath
 
   try {
-    const node = await which(process.argv[0])
+    const node = await which(process.argv[0] ?? '')
 
     if (node.toUpperCase() !== process.execPath.toUpperCase()) {
       process.execPath = node
@@ -396,7 +395,7 @@ export async function getConfig(opts: {
     return false
   })()
 
-  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
+  pnpmConfig.mergeGitBranchLockfiles = await (async (): Promise<boolean | undefined> => {
     if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') {
       return pnpmConfig.mergeGitBranchLockfiles
     }

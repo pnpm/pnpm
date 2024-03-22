@@ -7,22 +7,15 @@ import { isNonGlibcLinux } from 'detect-libc'
 import renameOverwrite from 'rename-overwrite'
 
 import type {
+  FetchNodeOptions,
   FetchFromRegistry,
-  RetryTimeoutOptions,
-} from '@pnpm/fetching-types'
+} from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 
-import { getNodeTarball } from './getNodeTarball'
-
-export type FetchNodeOptions = {
-  cafsDir: string
-  fetchTimeout?: number | undefined
-  nodeMirrorBaseUrl?: string | undefined
-  retry?: RetryTimeoutOptions | undefined
-}
+import { getNodeTarball } from './getNodeTarball.js'
 
 export async function fetchNode(
   fetch: FetchFromRegistry,
@@ -52,7 +45,9 @@ export async function fetchNode(
     return
   }
 
-  const getAuthHeader = () => undefined
+  function getAuthHeader(): undefined {
+    return undefined
+  }
 
   const fetchers = createTarballFetcher(fetch, getAuthHeader, {
     retry: opts.retry,

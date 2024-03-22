@@ -1,30 +1,17 @@
-import { PnpmError } from '@pnpm/error'
-import type { Lockfile } from '@pnpm/lockfile-file'
-import type {
-  SupportedArchitectures,
-  DependenciesField,
-  IncludedDependencies,
-  ProjectManifest,
-  Registries,
-} from '@pnpm/types'
-import {
-  type LicenseNode,
-  lockfileToLicenseNodeTree,
-} from './lockfileToLicenseNodeTree'
 import { gt } from 'semver'
 
-export interface LicensePackage {
-  belongsTo: DependenciesField
-  version: string
-  name: string
-  license: string
-  licenseContents?: string
-  author?: string
-  homepage?: string
-  description?: string
-  repository?: string
-  path?: string
-}
+import type {
+  Lockfile,
+  Registries,
+  LicenseNode,
+  LicensePackage,
+  ProjectManifest,
+  IncludedDependencies,
+  SupportedArchitectures,
+} from '@pnpm/types'
+import { PnpmError } from '@pnpm/error'
+
+import { lockfileToLicenseNodeTree } from './lockfileToLicenseNodeTree'
 
 /**
  * @private
@@ -40,8 +27,10 @@ function getDependenciesFromLicenseNode(
   }
 
   let dependencies: LicensePackage[] = []
+
   for (const dependencyName in licenseNode.dependencies) {
     const dependencyNode = licenseNode.dependencies[dependencyName]
+
     const dependenciesOfNode = getDependenciesFromLicenseNode(dependencyNode)
 
     dependencies = [
@@ -66,17 +55,17 @@ function getDependenciesFromLicenseNode(
 }
 
 export async function findDependencyLicenses(opts: {
-  ignoreDependencies?: Set<string>
-  include?: IncludedDependencies
+  ignoreDependencies?: Set<string> | undefined
+  include?: IncludedDependencies | undefined
   lockfileDir: string
   manifest: ProjectManifest
   storeDir: string
   virtualStoreDir: string
-  modulesDir?: string
+  modulesDir?: string | undefined
   registries: Registries
   wantedLockfile: Lockfile | null
-  includedImporterIds?: string[]
-  supportedArchitectures?: SupportedArchitectures
+  includedImporterIds?: string[] | undefined
+  supportedArchitectures?: SupportedArchitectures | undefined
 }): Promise<LicensePackage[]> {
   if (opts.wantedLockfile == null) {
     throw new PnpmError(
@@ -97,12 +86,15 @@ export async function findDependencyLicenses(opts: {
   })
 
   const licensePackages = new Map<string, LicensePackage>()
+
   for (const dependencyName in licenseNodeTree.dependencies) {
     const licenseNode = licenseNodeTree.dependencies[dependencyName]
+
     const dependenciesOfNode = getDependenciesFromLicenseNode(licenseNode)
 
     dependenciesOfNode.forEach((dependencyNode) => {
       const existingVersion = licensePackages.get(dependencyNode.name)?.version
+
       // This just ensures that we use a deterministic version of each dependency,
       // in the event that multiple versions are depended on.
       if (
@@ -116,6 +108,7 @@ export async function findDependencyLicenses(opts: {
 
   // Get all non-duplicate dependencies of the project
   const projectDependencies = Array.from(licensePackages.values())
+
   return Array.from(projectDependencies).sort((pkg1, pkg2) =>
     pkg1.name.localeCompare(pkg2.name)
   )

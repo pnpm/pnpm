@@ -1,7 +1,7 @@
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll, scan } from 'rxjs/operators'
 
-import { EOL } from './constants'
+import { EOL } from './constants.js'
 
 export function mergeOutputs(
   outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>>
@@ -19,7 +19,7 @@ export function mergeOutputs(
       blockNo: number;
       fixed: boolean;
       msg: string;
-      prevFixedBlockNo?: undefined;
+      prevFixedBlockNo?: number | undefined;
     } | {
       blockNo: number;
       fixed: boolean;
@@ -31,7 +31,10 @@ export function mergeOutputs(
       let currentFixedBlockNo = -1
 
       return log.pipe(
-        map((msg) => {
+        map((msg: {
+          msg: string;
+          fixed?: boolean | undefined;
+        }) => {
           if (msg.fixed) {
             if (currentFixedBlockNo === -1) {
               currentFixedBlockNo = fixedBlockNo++
@@ -59,20 +62,22 @@ export function mergeOutputs(
     }),
     mergeAll(),
     scan(
-      (acc, log) => {
+      (acc: {
+        fixedBlocks: string[]
+        blocks: string[]
+      }, log) => {
         if (log.fixed) {
           acc.fixedBlocks[log.blockNo] = log.msg
         } else {
-          delete acc.fixedBlocks[log.prevFixedBlockNo as number]
-          acc.blocks[log.blockNo] = log.msg
+          if (typeof log.prevFixedBlockNo !== 'undefined') {
+            delete acc.fixedBlocks[log.prevFixedBlockNo]
+            acc.blocks[log.blockNo] = log.msg
+          }
         }
 
         return acc
       },
-      { fixedBlocks: [], blocks: [] } as {
-        fixedBlocks: string[]
-        blocks: string[]
-      }
+      { fixedBlocks: [], blocks: [] }
     ),
     map((sections: {
       fixedBlocks: string[];
@@ -94,7 +99,7 @@ export function mergeOutputs(
 
       return `${nonFixedPart}${EOL}${fixedPart}`
     }),
-    filter((msg) => {
+    filter((msg: string): boolean => {
       if (started) {
         return true
       }
@@ -107,7 +112,7 @@ export function mergeOutputs(
 
       return true
     }),
-    filter((msg) => {
+    filter((msg: string): boolean => {
       if (msg !== previousOutput) {
         previousOutput = msg
 

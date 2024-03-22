@@ -1,4 +1,4 @@
-import { getNormalizedArch } from './normalizeArch'
+import { getNormalizedArch } from './normalizeArch.js'
 
 export function getNodeTarball(
   nodeVersion: string,

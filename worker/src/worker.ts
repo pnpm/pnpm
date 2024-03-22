@@ -7,11 +7,7 @@ import { sync as loadJsonFile } from 'load-json-file'
 
 import {
   createCafs,
-  type FilesIndex,
-  type VerifyResult,
-  type PackageFileInfo,
   readManifestFromStore,
-  type PackageFilesIndex,
   checkPkgFilesIntegrity,
   optimisticRenameOverwrite,
 } from '@pnpm/store.cafs'
@@ -19,7 +15,7 @@ import gfs from '@pnpm/graceful-fs'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
-import { TarballExtractMessage, LinkPkgMessage, AddDirToStoreMessage, ReadPkgFromCafsMessage, SymlinkAllModulesMessage, HardLinkDirMessage } from '@pnpm/types'
+import type { PackageFileInfo, VerifyResult, FilesIndex, PackageFilesIndex, TarballExtractMessage, LinkPkgMessage, AddDirToStoreMessage, ReadPkgFromCafsMessage, SymlinkAllModulesMessage, HardLinkDirMessage } from '@pnpm/types'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
 
@@ -287,9 +283,9 @@ function symlinkAllModules(opts: SymlinkAllModulesMessage): {
   status: string;
 } {
   for (const dep of opts.deps) {
-    for (const [alias, pkgDir] of Object.entries(dep.children)) {
+    for (const [alias, pkgDir] of Object.entries(dep.children ?? {})) {
       if (alias !== dep.name) {
-        symlinkDependencySync(pkgDir, dep.modules ?? '', alias)
+        symlinkDependencySync(pkgDir ?? '', dep.modules ?? '', alias)
       }
     }
   }

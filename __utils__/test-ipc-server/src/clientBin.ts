@@ -1,5 +1,5 @@
 import net from 'node:net'
-import { computeHandlePath } from './computeHandlePath'
+import { computeHandlePath } from './index.js'
 
 const [handle] = process.argv.slice(2)
 const connectPath = computeHandlePath(handle)

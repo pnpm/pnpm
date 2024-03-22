@@ -36,7 +36,7 @@ if (require.main == null) {
 export const packageManager = {
   name: pkgJson.name,
   // Never a prerelease version
-  stableVersion: pkgJson.version.includes('-')
+  stableVersion: pkgJson.version?.includes('-')
     ? pkgJson.version.slice(0, pkgJson.version.indexOf('-'))
     : pkgJson.version,
   // This may be a 3.0.0-beta.2

@@ -7,7 +7,7 @@ import {
   type ResolutionChangesByAlias,
 } from '@pnpm/types'
 
-import { DedupeCheckIssuesError } from './DedupeCheckIssuesError'
+import { DedupeCheckIssuesError } from './DedupeCheckIssuesError.js'
 
 const PACKAGE_SNAPSHOT_DEP_FIELDS = [
   'dependencies',

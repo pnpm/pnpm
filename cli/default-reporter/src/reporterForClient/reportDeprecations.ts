@@ -1,11 +1,11 @@
-import * as Rx from 'rxjs'
 import chalk from 'chalk'
+import * as Rx from 'rxjs'
 import { map, filter, buffer, switchMap } from 'rxjs/operators'
 
-import { zoomOut } from './utils/zooming'
-import { formatWarn } from './utils/formatWarn'
+import { zoomOut } from './utils/zooming.js'
+import { formatWarn } from './utils/formatWarn.js'
 
-import { DeprecationLog, StageLog } from '@pnpm/types'
+import type { DeprecationLog, StageLog } from '@pnpm/types'
 
 export function reportDeprecations(
   log$: {
@@ -16,17 +16,29 @@ export function reportDeprecations(
     cwd: string
     isRecursive: boolean
   }
-) {
+): Rx.Observable<Rx.Observable<{
+  msg: string;
+}> | Rx.Observable<{
+  msg: string;
+}>> {
   const [deprecatedDirectDeps$, deprecatedSubdeps$] = Rx.partition(
     log$.deprecation,
-    (log) => log.depth === 0
+    (log: DeprecationLog): boolean => {
+      return log.depth === 0;
+    }
   )
+
   const resolutionDone$ = log$.stage.pipe(
-    filter((log) => log.stage === 'resolution_done')
+    filter((log: StageLog): boolean => {
+      return log.stage === 'resolution_done';
+    })
   )
+
   return Rx.merge(
     deprecatedDirectDeps$.pipe(
-      map((log) => {
+      map((log: DeprecationLog): Rx.Observable<{
+        msg: string;
+      }> => {
         if (!opts.isRecursive && log.prefix === opts.cwd) {
           return Rx.of({
             msg: formatWarn(
@@ -34,6 +46,7 @@ export function reportDeprecations(
             ),
           })
         }
+
         return Rx.of({
           msg: zoomOut(
             opts.cwd,
@@ -47,7 +60,9 @@ export function reportDeprecations(
     ),
     deprecatedSubdeps$.pipe(
       buffer(resolutionDone$),
-      switchMap((deprecatedSubdeps) => {
+      switchMap((deprecatedSubdeps: DeprecationLog[]): Rx.Observable<Rx.Observable<{
+        msg: string;
+      }>> => {
         if (deprecatedSubdeps.length > 0) {
           return Rx.of(
             Rx.of({
@@ -60,6 +75,7 @@ export function reportDeprecations(
             })
           )
         }
+
         return Rx.EMPTY
       })
     )

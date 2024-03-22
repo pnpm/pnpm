@@ -3,15 +3,15 @@ import '@total-typescript/ts-reset'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { Lockfile, ProjectManifest } from '@pnpm/types'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
-import { createUpdateOptions, FormatPluginFnOptions, UpdateOptionsLegacy } from '@pnpm/meta-updater'
-
 import isSubdir from 'is-subdir'
 import exists from 'path-exists'
 import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
 import writeJsonFile from 'write-json-file'
+
+import { readWantedLockfile } from '@pnpm/lockfile-file'
+import type { Lockfile, ProjectManifest } from '@pnpm/types'
+import { createUpdateOptions, type FormatPluginFnOptions, type UpdateOptionsLegacy } from '@pnpm/meta-updater'
 
 const NEXT_TAG = 'next-8'
 const CLI_PKG_NAME = 'pnpm'
@@ -34,14 +34,16 @@ export async function metaUpdater(workspaceDir: string): Promise<UpdateOptionsLe
   }
 
   return createUpdateOptions({
-    'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }) => {
+    'package.json': (manifest: ProjectManifest & { keywords?: string[] | undefined } | null, { dir }: { dir: string }) => {
       if (!manifest) {
         return manifest;
       }
 
       if (manifest.name === 'monorepo-root') {
         manifest.scripts = manifest.scripts ?? {};
+
         manifest.scripts['release'] = `pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`;
+
         return manifest;
       }
 
@@ -56,6 +58,7 @@ export async function metaUpdater(workspaceDir: string): Promise<UpdateOptionsLe
 
       if (manifest.name === CLI_PKG_NAME) {
         manifest.pnpm = manifest.pnpm ?? {}
+
         manifest.pnpm.overrides = rootManifest.pnpm.overrides
       }
 
@@ -105,7 +108,9 @@ async function updateTSConfig (
     manifest,
   }: FormatPluginFnOptions
 ): Promise<object | null> {
-  if (tsConfig == null) {return tsConfig}
+  if (tsConfig == null) {
+    return tsConfig
+  }
 
   if (manifest.name === '@pnpm/tsconfig') {return tsConfig}
 

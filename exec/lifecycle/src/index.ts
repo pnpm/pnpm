@@ -31,7 +31,11 @@ export async function runPostinstallHooks(
   opts: RunLifecycleHookOptions
 ): Promise<boolean> {
   const pkg = await safeReadPackageJsonFromDir(opts.pkgRoot)
-  if (pkg == null) return false
+
+  if (pkg == null) {
+    return false
+  }
+
   if (pkg.scripts == null) {
     pkg.scripts = {}
   }
@@ -43,9 +47,11 @@ export async function runPostinstallHooks(
   if (pkg.scripts.preinstall) {
     await runLifecycleHook('preinstall', pkg, opts)
   }
+
   if (pkg.scripts.install) {
     await runLifecycleHook('install', pkg, opts)
   }
+
   if (pkg.scripts.postinstall) {
     await runLifecycleHook('postinstall', pkg, opts)
   }

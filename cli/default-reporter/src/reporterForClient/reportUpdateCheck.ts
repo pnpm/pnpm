@@ -4,7 +4,7 @@ import * as Rx from 'rxjs'
 import semver from 'semver'
 import { filter, map, take } from 'rxjs/operators'
 
-import { UpdateCheckLog } from '@pnpm/types'
+import type { UpdateCheckLog } from '@pnpm/types'
 
 export function reportUpdateCheck(
   log$: Rx.Observable<UpdateCheckLog>,
@@ -48,7 +48,7 @@ Follow ${chalk.magenta('@pnpmjs')} for updates: https://twitter.com/pnpmjs`,
   )
 }
 
-interface UpdateMessageOptions {
+type UpdateMessageOptions = {
   currentPkgIsExecutable: boolean
   env: NodeJS.ProcessEnv
   latestVersion: string

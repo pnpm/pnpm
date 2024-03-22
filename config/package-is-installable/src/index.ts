@@ -1,32 +1,17 @@
 import '@total-typescript/ts-reset'
-import {
-  installCheckLogger,
-  skippedOptionalDependencyLogger,
-} from '@pnpm/core-loggers'
-import {
-  checkEngine,
-  UnsupportedEngineError,
-  type WantedEngine,
-} from './checkEngine'
-import { checkPlatform, UnsupportedPlatformError } from './checkPlatform'
-import { getSystemNodeVersion } from './getSystemNodeVersion'
-import type { SupportedArchitectures } from '@pnpm/types'
 
-export type { Engine } from './checkEngine'
-export type { Platform, WantedPlatform } from './checkPlatform'
+import type { ProjectManifest, SupportedArchitectures } from '@pnpm/types'
+import { installCheckLogger, skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 
-export { UnsupportedEngineError, UnsupportedPlatformError, type WantedEngine }
+import { getSystemNodeVersion } from './getSystemNodeVersion.js'
+import { checkEngine, UnsupportedEngineError } from './checkEngine.js'
+import { checkPlatform, UnsupportedPlatformError } from './checkPlatform.js'
+
+export { UnsupportedEngineError, UnsupportedPlatformError }
 
 export function packageIsInstallable(
   pkgId: string,
-  pkg: {
-    name: string
-    version: string
-    engines?: WantedEngine | undefined
-    cpu?: string[] | undefined
-    os?: string[] | undefined
-    libc?: string[] | undefined
-  },
+  pkg: ProjectManifest,
   options: {
     engineStrict?: boolean | undefined
     nodeVersion?: string | undefined
@@ -52,8 +37,8 @@ export function packageIsInstallable(
       details: warn.toString(),
       package: {
         id: pkgId,
-        name: pkg.name,
-        version: pkg.version,
+        name: pkg.name ?? '',
+        version: pkg.version ?? '',
       },
       prefix: options.lockfileDir,
       reason:
@@ -65,19 +50,16 @@ export function packageIsInstallable(
     return false
   }
 
-  if (options.engineStrict) throw warn
+  if (options.engineStrict) {
+    throw warn
+  }
 
   return null
 }
 
 export function checkPackage(
   pkgId: string,
-  manifest: {
-    engines?: WantedEngine
-    cpu?: string[] | undefined
-    os?: string[] | undefined
-    libc?: string[] | undefined
-  },
+  manifest: ProjectManifest | undefined,
   options: {
     nodeVersion?: string | undefined
     pnpmVersion?: string | undefined
@@ -88,15 +70,15 @@ export function checkPackage(
     checkPlatform(
       pkgId,
       {
-        cpu: manifest.cpu ?? ['any'],
-        os: manifest.os ?? ['any'],
-        libc: manifest.libc ?? ['any'],
+        cpu: manifest?.cpu ?? ['any'],
+        os: manifest?.os ?? ['any'],
+        libc: manifest?.libc ?? ['any'],
       },
       options.supportedArchitectures
     ) ??
-    (manifest.engines == null
+    (manifest?.engines == null
       ? null
-      : checkEngine(pkgId, manifest.engines, {
+      : checkEngine(pkgId, manifest?.engines, {
         node: options.nodeVersion ?? getSystemNodeVersion(),
         pnpm: options.pnpmVersion,
       }))

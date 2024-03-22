@@ -1,67 +1,32 @@
-import crypto from 'crypto'
-import { promises as fs } from 'fs'
-import path from 'path'
-import { PnpmError } from '@pnpm/error'
-import { logger } from '@pnpm/logger'
-import gfs from '@pnpm/graceful-fs'
-import { type VersionSelectors } from '@pnpm/resolver-base'
-import { type PackageManifest } from '@pnpm/types'
-import getRegistryName from 'encode-registry'
-import loadJsonFile from 'load-json-file'
-import pLimit from 'p-limit'
-import { fastPathTemp as pathTemp } from 'path-temp'
-import pick from 'ramda/src/pick'
+import path from 'node:path'
+import crypto from 'node:crypto'
+import { promises as fs } from 'node:fs'
+
 import semver from 'semver'
+import pLimit from 'p-limit'
+import pick from 'ramda/src/pick'
+import loadJsonFile from 'load-json-file'
+import getRegistryName from 'encode-registry'
 import renameOverwrite from 'rename-overwrite'
-import { toRaw } from './toRaw'
+import { fastPathTemp as pathTemp } from 'path-temp'
+
+import gfs from '@pnpm/graceful-fs'
+import { logger } from '@pnpm/logger'
+import { PnpmError } from '@pnpm/error'
+import type { RefCountedLimiter, VersionSelectors, PickPackageOptions, PackageMeta, PackageInRegistry, PackageMetaCache, RegistryPackageSpec } from '@pnpm/types'
+
 import {
   pickPackageFromMeta,
   pickVersionByVersionRange,
   pickLowestVersionByVersionRange,
-} from './pickPackageFromMeta'
-import { type RegistryPackageSpec } from './parsePref'
-
-export interface PackageMeta {
-  name: string
-  'dist-tags': Record<string, string>
-  versions: Record<string, PackageInRegistry>
-  time?: PackageMetaTime
-  cachedAt?: number
-}
-
-export type PackageMetaTime = Record<string, string> & {
-  unpublished?: {
-    time: string
-    versions: string[]
-  }
-}
-
-export interface PackageMetaCache {
-  get: (key: string) => PackageMeta | undefined
-  set: (key: string, meta: PackageMeta) => void
-  has: (key: string) => boolean
-}
-
-export type PackageInRegistry = PackageManifest & {
-  dist: {
-    integrity?: string
-    shasum: string
-    tarball: string
-  }
-}
-
-interface RefCountedLimiter {
-  count: number
-  limit: pLimit.Limit
-}
+} from './pickPackageFromMeta.js'
+import { toRaw } from './toRaw.js'
 
 /**
  * prevents simultaneous operations on the meta.json
  * otherwise it would cause EPERM exceptions
  */
-const metafileOperationLimits = {} as {
-  [pkgMirror: string]: RefCountedLimiter | undefined
-}
+const metafileOperationLimits: Record<string, RefCountedLimiter | undefined> = {}
 
 /**
  * To prevent metafileOperationLimits from holding onto objects in memory on
@@ -73,38 +38,33 @@ async function runLimited<T>(
   pkgMirror: string,
   fn: (limit: pLimit.Limit) => Promise<T>
 ): Promise<T> {
-  let entry!: RefCountedLimiter
+  let entry: RefCountedLimiter | undefined
+
   try {
     entry = metafileOperationLimits[pkgMirror] ??= {
       count: 0,
       limit: pLimit(1),
     }
+
     entry.count++
     return await fn(entry.limit)
   } finally {
-    entry.count--
-    if (entry.count === 0) {
-      metafileOperationLimits[pkgMirror] = undefined
+    if (entry) {
+      entry.count--
+
+      if (entry.count === 0) {
+        metafileOperationLimits[pkgMirror] = undefined
+      }
     }
   }
-}
-
-export interface PickPackageOptions {
-  authHeaderValue?: string
-  publishedBy?: Date
-  preferredVersionSelectors: VersionSelectors | undefined
-  pickLowestVersion?: boolean
-  registry: string
-  dryRun: boolean
-  updateToLatest?: boolean
 }
 
 function pickPackageFromMetaUsingTime(
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
-  publishedBy?: Date
-) {
+  publishedBy?: Date | undefined
+): PackageInRegistry | null | undefined {
   const pickedPackage = pickPackageFromMeta(
     pickVersionByVersionRange,
     spec,
@@ -127,19 +87,20 @@ export async function pickPackage(
     fetch: (
       pkgName: string,
       registry: string,
-      authHeaderValue?: string
+      authHeaderValue?: string | undefined
     ) => Promise<PackageMeta>
     metaDir: string
     metaCache: PackageMetaCache
     cacheDir: string
-    offline?: boolean
-    preferOffline?: boolean
-    filterMetadata?: boolean
+    offline?: boolean | undefined
+    preferOffline?: boolean | undefined
+    filterMetadata?: boolean | undefined
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
-): Promise<{ meta: PackageMeta; pickedPackage: PackageInRegistry | null }> {
-  opts = opts || {}
+): Promise<{ meta: PackageMeta; pickedPackage: PackageInRegistry | null | undefined }> {
+  opts = opts ?? {}
+
   let _pickPackageFromMeta = opts.publishedBy
     ? pickPackageFromMetaUsingTime
     : pickPackageFromMeta.bind(
@@ -151,18 +112,30 @@ export async function pickPackage(
 
   if (opts.updateToLatest) {
     const _pickPackageBase = _pickPackageFromMeta
+
     _pickPackageFromMeta = (spec, ...rest) => {
       const latestStableSpec: RegistryPackageSpec = {
         ...spec,
         type: 'tag',
         fetchSpec: 'latest',
       }
+
       const latestStable = _pickPackageBase(latestStableSpec, ...rest)
+
       const current = _pickPackageBase(spec, ...rest)
 
-      if (!latestStable) return current
-      if (!current) return latestStable
-      if (semver.lt(latestStable.version, current.version)) return current
+      if (!latestStable) {
+        return current
+      }
+
+      if (!current) {
+        return latestStable
+      }
+
+      if (semver.lt(latestStable.version ?? '', current.version ?? '')) {
+        return current
+      }
+
       return latestStable
     }
   }

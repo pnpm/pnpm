@@ -13,6 +13,7 @@ export async function createNewStoreController(
   }> {
   const fullMetadata =
     opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
+
   const { resolve, fetchers } = createClient({
     customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
@@ -50,7 +51,9 @@ export async function createNewStoreController(
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     includeOnlyPackageFiles: !opts.deployAllFiles,
   })
+
   await fs.mkdir(opts.storeDir, { recursive: true })
+
   return {
     ctrl: await createPackageStore(resolve, fetchers, {
       cafsLocker: opts.cafsLocker,

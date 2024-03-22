@@ -1,23 +1,15 @@
-import { PnpmError } from '@pnpm/error'
-import { type VersionSelectors } from '@pnpm/resolver-base'
 import semver from 'semver'
-import { type RegistryPackageSpec } from './parsePref'
-import { type PackageInRegistry, type PackageMeta } from './pickPackage'
 
-export type PickVersionByVersionRange = (
-  meta: PackageMeta,
-  versionRange: string,
-  preferredVerSels?: VersionSelectors,
-  publishedBy?: Date
-) => string | null
+import { PnpmError } from '@pnpm/error'
+import type { PickVersionByVersionRange, VersionSelectors, RegistryPackageSpec, PackageInRegistry, PackageMeta } from '@pnpm/types'
 
 export function pickPackageFromMeta(
-  pickVersionByVersionRangeFn: PickVersionByVersionRange,
+  pickVersionByVersionRangeFn: PickVersionByVersionRange | undefined,
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
-  publishedBy?: Date
-): PackageInRegistry | null {
+  publishedBy?: Date | undefined
+): PackageInRegistry | null | undefined {
   if (
     (!meta.versions || Object.keys(meta.versions).length === 0) &&
     !publishedBy
@@ -30,31 +22,47 @@ export function pickPackageFromMeta(
         `No versions available for ${spec.name} because it was unpublished`
       )
     }
+
     throw new PnpmError(
       'NO_VERSIONS',
       `No versions available for ${spec.name}. The package may be unpublished.`
     )
   }
+
   try {
-    let version!: string | null
+    let version: string | null | undefined
+
     switch (spec.type) {
-      case 'version':
+      case 'version': {
         version = spec.fetchSpec
+
         break
-      case 'tag':
+      }
+
+      case 'tag': {
         version = meta['dist-tags'][spec.fetchSpec]
+
         break
-      case 'range':
-        version = pickVersionByVersionRangeFn(
+      }
+
+      case 'range': {
+        version = pickVersionByVersionRangeFn?.(
           meta,
           spec.fetchSpec,
           preferredVersionSelectors,
           publishedBy
         )
+
         break
+      }
     }
-    if (!version) return null
+
+    if (!version) {
+      return null
+    }
+
     const manifest = meta.versions[version]
+
     if (manifest && meta.name) {
       // Packages that are published to the GitHub registry are always published with a scope.
       // However, the name in the package.json for some reason may omit the scope.
@@ -63,8 +71,9 @@ export function pickPackageFromMeta(
       // In order to avoid issues, we consider that the real name of the package is the one with the scope.
       manifest.name = meta.name
     }
+
     return manifest
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     throw new PnpmError(
       'MALFORMED_METADATA',
       `Received malformed metadata for "${spec.name}"`,
@@ -82,12 +91,14 @@ const semverRangeCache = new Map<string, semver.Range | null>()
 // and ensuring we give it a SemVer instance greatly speeds things up.
 function semverSatisfiesLoose(version: string, range: string): boolean {
   let semverRange = semverRangeCache.get(range)
-  if (semverRange === undefined) {
+
+  if (typeof semverRange === 'undefined') {
     try {
       semverRange = new semver.Range(range, true)
     } catch {
       semverRange = null
     }
+
     semverRangeCache.set(range, semverRange)
   }
 
@@ -106,36 +117,40 @@ export function pickLowestVersionByVersionRange(
   meta: PackageMeta,
   versionRange: string,
   preferredVerSels?: VersionSelectors
-) {
+): string | null | undefined {
   if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(
       meta,
       versionRange,
       preferredVerSels
     )
+
     for (const preferredVersions of prioritizedPreferredVersions) {
       const preferredVersion = semver.minSatisfying(
         preferredVersions,
         versionRange,
         true
       )
+
       if (preferredVersion) {
         return preferredVersion
       }
     }
   }
+
   if (versionRange === '*') {
     return Object.keys(meta.versions).sort(semver.compare)[0]
   }
+
   return semver.minSatisfying(Object.keys(meta.versions), versionRange, true)
 }
 
 export function pickVersionByVersionRange(
   meta: PackageMeta,
   versionRange: string,
-  preferredVerSels?: VersionSelectors,
-  publishedBy?: Date
-) {
+  preferredVerSels?: VersionSelectors | undefined,
+  publishedBy?: Date | undefined
+): string | semver.SemVer | null | undefined {
   let latest: string | undefined = meta['dist-tags'].latest
 
   if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
@@ -144,18 +159,21 @@ export function pickVersionByVersionRange(
       versionRange,
       preferredVerSels
     )
+
     for (const preferredVersions of prioritizedPreferredVersions) {
       if (
-        preferredVersions.includes(latest) &&
-        semverSatisfiesLoose(latest, versionRange)
+        preferredVersions.includes(latest ?? '') &&
+        semverSatisfiesLoose(latest ?? '', versionRange)
       ) {
         return latest
       }
+
       const preferredVersion = semver.maxSatisfying(
         preferredVersions,
         versionRange,
         true
       )
+
       if (preferredVersion) {
         return preferredVersion
       }
@@ -170,10 +188,11 @@ export function pickVersionByVersionRange(
         return new Date(meta.time?.[version] ?? '') <= publishedBy;
       }
     )
-    if (!versions.includes(latest)) {
+    if (!versions.includes(latest ?? '')) {
       latest = undefined
     }
   }
+
   if (
     latest &&
     (versionRange === '*' || semverSatisfiesLoose(latest, versionRange))
@@ -188,21 +207,29 @@ export function pickVersionByVersionRange(
   // if the selected version is deprecated, try to find a non-deprecated one that satisfies the range
   if (
     maxVersion &&
-    meta.versions[maxVersion].deprecated &&
+    meta.versions[maxVersion]?.deprecated &&
     versions.length > 1
   ) {
     const nonDeprecatedVersions = versions
-      .map((version) => meta.versions[version])
-      .filter((versionMeta) => !versionMeta.deprecated)
-      .map((versionMeta) => versionMeta.version)
+      .map((version: string): PackageInRegistry | undefined => {
+        return meta.versions[version];
+      })
+      .filter((versionMeta: PackageInRegistry | undefined): boolean => {
+        return !versionMeta?.deprecated;
+      })
+      .map((versionMeta: PackageInRegistry | undefined): string | undefined => {
+        return versionMeta?.version;
+      }).filter(Boolean)
 
     const maxNonDeprecatedVersion = semver.maxSatisfying(
       nonDeprecatedVersions,
       versionRange,
       true
     )
+
     if (maxNonDeprecatedVersion) return maxNonDeprecatedVersion
   }
+
   return maxVersion
 }
 
@@ -212,7 +239,9 @@ function prioritizePreferredVersions(
   preferredVerSelectors?: VersionSelectors
 ): string[][] {
   const preferredVerSelectorsArr = Object.entries(preferredVerSelectors ?? {})
+
   const versionsPrioritizer = new PreferredVersionsPrioritizer()
+
   for (const [
     preferredSelector,
     preferredSelectorType,
@@ -221,12 +250,22 @@ function prioritizePreferredVersions(
       typeof preferredSelectorType === 'string'
         ? { selectorType: preferredSelectorType, weight: 1 }
         : preferredSelectorType
-    if (preferredSelector === versionRange) continue
+
+    if (preferredSelector === versionRange) {
+      continue
+    }
+
     switch (selectorType) {
       case 'tag': {
-        versionsPrioritizer.add(meta['dist-tags'][preferredSelector], weight)
+        const selector = meta['dist-tags'][preferredSelector]
+
+        if (typeof selector === 'string') {
+          versionsPrioritizer.add(selector, weight)
+        }
+
         break
       }
+
       case 'range': {
         const versions = Object.keys(meta.versions)
         for (const version of versions) {
@@ -236,14 +275,17 @@ function prioritizePreferredVersions(
         }
         break
       }
+
       case 'version': {
         if (meta.versions[preferredSelector]) {
           versionsPrioritizer.add(preferredSelector, weight)
         }
+
         break
       }
     }
   }
+
   return versionsPrioritizer.versionsByPriority()
 }
 
@@ -251,24 +293,31 @@ class PreferredVersionsPrioritizer {
   private preferredVersions: Record<string, number> = {}
 
   add(version: string, weight: number) {
-    if (!this.preferredVersions[version]) {
-      this.preferredVersions[version] = weight
-    } else {
+    if (this.preferredVersions[version]) {
       this.preferredVersions[version] += weight
+    } else {
+      this.preferredVersions[version] = weight
     }
   }
 
-  versionsByPriority() {
+  versionsByPriority(): string[][] {
     const versionsByWeight = Object.entries(this.preferredVersions).reduce(
-      (acc, [version, weight]) => {
+      (acc: Record<number, string[]>, [version, weight]): Record<number, string[]> => {
         acc[weight] = acc[weight] ?? []
-        acc[weight].push(version)
+
+        acc[weight]?.push(version)
+
         return acc
       },
-      {} as Record<number, string[]>
+      {}
     )
+
     return Object.keys(versionsByWeight)
-      .sort((a, b) => parseInt(b, 10) - parseInt(a, 10))
-      .map((weight) => versionsByWeight[parseInt(weight, 10)])
+      .sort((a: string, b: string): number => {
+        return parseInt(b, 10) - parseInt(a, 10);
+      })
+      .map((weight: string): string[] | undefined => {
+        return versionsByWeight[parseInt(weight, 10)];
+      }).filter(Boolean)
   }
 }

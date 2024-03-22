@@ -1,21 +1,10 @@
 import '@total-typescript/ts-reset'
 
 import { PnpmError } from '@pnpm/error'
+import type { VersionOverride } from '@pnpm/types'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 
 const DELIMITER_REGEX = /[^ |@]>/
-
-export interface VersionOverride {
-  parentPkg?: {
-    name: string
-    pref?: string | undefined
-  } | undefined
-  targetPkg: {
-    name: string
-    pref?: string | undefined
-  }
-  newPref: string
-}
 
 export function parseOverrides(
   overrides: Record<string, string>

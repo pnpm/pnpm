@@ -6,7 +6,7 @@ import { fastPathTemp as pathTemp } from 'path-temp'
 import { globalWarn } from '@pnpm/logger'
 import { addFilesFromDir } from '@pnpm/worker'
 import { preparePackage } from '@pnpm/prepare-package'
-import type { FetchFunction, Cafs, FetchOptions, DependencyManifest } from '@pnpm/types'
+import type { Cafs, FetchOptions, DependencyManifest, FetchResult } from '@pnpm/types'
 
 type Resolution = {
   integrity?: string | undefined
@@ -21,10 +21,17 @@ export interface CreateGitHostedTarballFetcher {
 }
 
 export function createGitHostedTarballFetcher(
-  fetchRemoteTarball: FetchFunction,
+  fetchRemoteTarball: (cafs: Cafs, resolution: {
+    tarball: string;
+    integrity?: string | undefined;
+    registry?: string | undefined;
+  }, opts: FetchOptions) => Promise<FetchResult>,
   fetcherOpts: CreateGitHostedTarballFetcher
-): FetchFunction {
-  async function fetch(cafs: Cafs,
+): (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest | undefined;
+  }> {
+  return async function fetch(cafs: Cafs,
     resolution: Resolution,
     opts: FetchOptions): Promise<{
       filesIndex: Record<string, string>
@@ -62,13 +69,11 @@ export function createGitHostedTarballFetcher(
       }
 
       return { filesIndex: prepareResult.filesIndex, manifest }
-    } catch (err: any) { // eslint-disable-line
+      } catch (err: any) { // eslint-disable-line
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
       throw err
     }
   }
-
-  return fetch as FetchFunction
 }
 
 async function prepareGitHostedPkg(

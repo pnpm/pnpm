@@ -2,14 +2,14 @@ import '@total-typescript/ts-reset'
 
 import nerfDart from 'nerf-dart'
 
-import { removePort } from './helpers/removePort'
-import { getAuthHeadersFromConfig, loadToken } from './getAuthHeadersFromConfig'
+import { removePort } from './helpers/removePort.js'
+import { getAuthHeadersFromConfig, loadToken } from './getAuthHeadersFromConfig.js'
 
 export { loadToken }
 
 export function createGetAuthHeaderByURI(opts: {
-  allSettings: Record<string, string>
-  userSettings?: Record<string, string>
+  allSettings: Record<string, string> | undefined
+  userSettings?: Record<string, string> | undefined
 }) {
   const authHeaders = getAuthHeadersFromConfig({
     allSettings: opts.allSettings,
@@ -27,7 +27,7 @@ export function createGetAuthHeaderByURI(opts: {
   )
 }
 
-function getMaxParts(uris: string[]) {
+function getMaxParts(uris: string[]): number {
   return uris.reduce((max: number, uri: string): number => {
     const parts = uri.split('/').length
 
@@ -74,7 +74,11 @@ function getAuthHeaderByURI(
 }
 
 function basicAuth(uri: URL): string | undefined {
-  if (!uri.username && !uri.password) return undefined
+  if (!uri.username && !uri.password) {
+    return undefined
+  }
+
   const auth64 = btoa(`${uri.username}:${uri.password}`)
+
   return `Basic ${auth64}`
 }

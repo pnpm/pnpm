@@ -6,7 +6,7 @@ import * as dp from '@pnpm/dependency-path'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import type { Registries, Resolution, PackageSnapshot, TarballResolution } from '@pnpm/types'
 
-import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot'
+import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 
 export function pkgSnapshotToResolution(
   depPath: string,
@@ -27,15 +27,15 @@ export function pkgSnapshotToResolution(
 
   const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
-  let registry: string = name?.startsWith('@') ? registries[name.split('/')[0]] : ''
+  let registry: string | undefined = name?.startsWith('@') ? registries[name.split('/')[0] ?? ''] : ''
 
   if (!registry) {
     registry = registries.default
   }
 
-  const tarball: string = (pkgSnapshot.resolution as TarballResolution).tarball
+  const tarball: string = typeof pkgSnapshot.resolution !== 'undefined' && 'tarball' in pkgSnapshot.resolution
     ? new url.URL(
-      (pkgSnapshot.resolution as TarballResolution).tarball,
+      pkgSnapshot.resolution.tarball,
       registry.endsWith('/') ? registry : `${registry}/`
     ).toString()
     : getTarball(registry);
@@ -43,7 +43,7 @@ export function pkgSnapshotToResolution(
   return {
     ...pkgSnapshot.resolution,
     tarball,
-  } as Resolution
+  }
 
   function getTarball(registry: string): string {
     const parsed = dp.parse(depPath)

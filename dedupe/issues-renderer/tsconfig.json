@@ -7,11 +7,5 @@
   "include": [
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
-  ],
-  "references": [
-    {
-      "path": "../types"
-    }
-  ],
-  "composite": true
+  ]
 }

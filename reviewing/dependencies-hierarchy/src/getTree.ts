@@ -10,15 +10,15 @@ import type {
   ProjectSnapshot,
 } from '@pnpm/types'
 
-import { getPkgInfo } from './getPkgInfo'
-import { serializeTreeNodeId } from './TreeNodeId'
-import { DependenciesCache } from './DependenciesCache'
-import { getTreeNodeChildId } from './getTreeNodeChildId'
+import { getPkgInfo } from './getPkgInfo.js'
+import { serializeTreeNodeId } from './TreeNodeId.js'
+import { DependenciesCache } from './DependenciesCache.js'
+import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 
 export function getTree(
   opts: GetTreeOpts,
   parentId: TreeNodeId
-): PackageNode[] {
+): (PackageNode | PackageInfo)[] {
   const dependenciesCache = new DependenciesCache()
 
   return getTreeHelper(
@@ -39,7 +39,7 @@ function getTreeHelper(
     return { dependencies: [], height: 'unknown' }
   }
 
-  function getSnapshot(treeNodeId: TreeNodeId): ProjectSnapshot | PackageSnapshot {
+  function getSnapshot(treeNodeId: TreeNodeId): ProjectSnapshot | PackageSnapshot | undefined {
     switch (treeNodeId.type) {
       case 'importer': {
         return opts.importers[treeNodeId.importerId]
@@ -109,7 +109,7 @@ function getTreeHelper(
 
   const linkedPathBaseDir = getLinkedPathBaseDir()
 
-  const resultDependencies: PackageNode[] = []
+  const resultDependencies: (PackageNode | PackageInfo)[] = []
 
   let resultHeight: number | 'unknown' = 0
 

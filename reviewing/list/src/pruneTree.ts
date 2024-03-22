@@ -1,9 +1,10 @@
-import type {
-  DependenciesHierarchy,
-  PackageNode,
-} from '@pnpm/reviewing.dependencies-hierarchy'
-import type { PackageDependencyHierarchy } from './types'
 import { createHash } from 'crypto'
+
+import type {
+  PackageNode,
+  DependenciesHierarchy,
+} from '@pnpm/reviewing.dependencies-hierarchy'
+import type { PackageDependencyHierarchy, PackageInfo } from '@pnpm/types'
 
 export function pruneDependenciesTrees(
   trees: PackageDependencyHierarchy[] | null,
@@ -14,10 +15,10 @@ export function pruneDependenciesTrees(
   }
 
   return trees.map((tree) => {
-    const endLeafPaths: PackageNode[][] = []
+    const endLeafPaths: (PackageNode | PackageInfo)[][] = []
     const visitedNodes = new Set<string>()
 
-    function findEndLeaves(node: PackageNode, path: PackageNode[]): void {
+    function findEndLeaves(node: PackageNode | PackageInfo, path: (PackageNode | PackageInfo)[]): void {
       if (node.circular) {
         return
       }
@@ -28,10 +29,11 @@ export function pruneDependenciesTrees(
       }
 
       visitedNodes.add(nodeId)
-      const newPath = [...path, node]
+      const newPath: PackageInfo[] = [...path, node]
 
       if (!node.dependencies || node.dependencies.length === 0) {
         endLeafPaths.push(newPath)
+
         if (endLeafPaths.length >= limit) {
           return
         }
@@ -39,6 +41,7 @@ export function pruneDependenciesTrees(
 
       for (const child of node.dependencies ?? []) {
         findEndLeaves(child, newPath)
+
         if (endLeafPaths.length >= limit) {
           return
         }
@@ -54,21 +57,28 @@ export function pruneDependenciesTrees(
     }
 
     const firstNPaths = endLeafPaths.slice(0, limit)
-    const map = new Map<string, PackageNode>()
+
+    const map = new Map<string, PackageNode | PackageInfo>()
+
     const newTree: DependenciesHierarchy = { dependencies: [] }
 
     for (const path of firstNPaths) {
-      let currentDependencies: PackageNode[] = newTree.dependencies!
+      let currentDependencies: (PackageNode | PackageInfo)[] | undefined = newTree.dependencies
+
       let pathSoFar = ''
 
       for (const node of path) {
         pathSoFar += `${node.name}@${node.version},`
+
         const id = createHash('sha256').update(pathSoFar).digest('hex')
+
         let existingNode = map.get(id)
 
         if (!existingNode) {
           existingNode = { ...node, dependencies: [] }
-          currentDependencies.push(existingNode)
+
+          currentDependencies?.push(existingNode)
+
           map.set(id, existingNode)
         }
 

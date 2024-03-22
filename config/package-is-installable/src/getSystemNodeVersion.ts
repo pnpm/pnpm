@@ -1,5 +1,5 @@
 import mem from 'mem'
-import * as execa from 'execa'
+import execa from 'execa'
 
 export function getSystemNodeVersionNonCached(): string {
   // @ts-expect-error

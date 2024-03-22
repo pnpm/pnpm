@@ -26,9 +26,9 @@ import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 
-import { getTree } from './getTree'
-import { getPkgInfo } from './getPkgInfo'
-import { getTreeNodeChildId } from './getTreeNodeChildId'
+import { getTree } from './getTree.js'
+import { getPkgInfo } from './getPkgInfo.js'
+import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 
 export async function buildDependenciesHierarchy(
   projectPaths: string[] | undefined,
@@ -41,7 +41,7 @@ export async function buildDependenciesHierarchy(
     lockfileDir: string
     modulesDir?: string | undefined
   }
-): Promise<{ [projectDir: string]: DependenciesHierarchy }> {
+): Promise<Record<string, DependenciesHierarchy>> {
   if (!maybeOpts?.lockfileDir) {
     throw new TypeError('opts.lockfileDir is required')
   }
@@ -74,7 +74,7 @@ export async function buildDependenciesHierarchy(
     )
   }
 
-  const result = {} as { [projectDir: string]: DependenciesHierarchy }
+  const result: Record<string, DependenciesHierarchy> = {}
 
   if (!currentLockfile) {
     for (const projectPath of projectPaths) {
@@ -101,7 +101,7 @@ export async function buildDependenciesHierarchy(
 
   ;(
     await Promise.all(
-      projectPaths.map(async (projectPath) => {
+      projectPaths.map(async (projectPath: string): Promise<[string, DependenciesHierarchy]> => {
         return [
           projectPath,
           await dependenciesHierarchyForPackage(
@@ -110,10 +110,10 @@ export async function buildDependenciesHierarchy(
             wantedLockfile,
             opts
           ),
-        ] as [string, DependenciesHierarchy]
+        ]
       })
     )
-  ).forEach(([projectPath, dependenciesHierarchy]) => {
+  ).forEach(([projectPath, dependenciesHierarchy]: [string, DependenciesHierarchy]): void => {
     result[projectPath] = dependenciesHierarchy
   })
 
@@ -135,7 +135,7 @@ async function dependenciesHierarchyForPackage(
     modulesDir?: string | undefined
     virtualStoreDir?: string | undefined
   }
-) {
+): Promise<DependenciesHierarchy> {
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
   if (!currentLockfile.importers[importerId]) {
@@ -173,10 +173,12 @@ async function dependenciesHierarchyForPackage(
   const result: DependenciesHierarchy = {}
 
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(
-    (dependenciesField) => opts.include[dependenciesField]
+    (dependenciesField: 'optionalDependencies' | 'dependencies' | 'devDependencies'): boolean => {
+      return opts.include[dependenciesField];
+    }
   )) {
     const topDeps =
-      currentLockfile.importers[importerId][dependenciesField] ?? {}
+      currentLockfile.importers[importerId]?.[dependenciesField] ?? {}
 
     result[dependenciesField] = []
 
@@ -193,7 +195,7 @@ async function dependenciesHierarchyForPackage(
         virtualStoreDir: opts.virtualStoreDir,
       })
 
-      let newEntry: PackageInfo | PackageNode | null = null
+      let newEntry: (PackageInfo | PackageNode) | null = null
 
       const matchedSearched = opts.search?.(packageInfo)
 
@@ -213,7 +215,7 @@ async function dependenciesHierarchyForPackage(
 
         newEntry = packageInfo
       } else {
-        const dependencies: PackageNode[] = getChildrenTree(nodeId)
+        const dependencies: (PackageNode | PackageInfo)[] = getChildrenTree(nodeId)
 
         if (dependencies.length > 0) {
           newEntry = {
@@ -236,10 +238,10 @@ async function dependenciesHierarchyForPackage(
   }
 
   await Promise.all(
-    unsavedDeps.map(async (unsavedDep) => {
+    unsavedDeps.map(async (unsavedDep: string): Promise<void> => {
       let pkgPath = path.join(modulesDir, unsavedDep)
 
-      let version!: string
+      let version: string | undefined
 
       try {
         pkgPath = await resolveLinkTarget(pkgPath)
@@ -252,7 +254,7 @@ async function dependenciesHierarchyForPackage(
         version = pkg?.version ?? 'undefined'
       }
 
-      const pkg = {
+      const pkg: PackageNode = {
         alias: unsavedDep,
         isMissing: false,
         isPeer: false,
@@ -283,12 +285,10 @@ async function dependenciesHierarchyForPackage(
   return result
 }
 
-function getAllDirectDependencies(projectSnapshot: ProjectSnapshot): {
-  [x: string]: string;
-} {
+function getAllDirectDependencies(projectSnapshot: ProjectSnapshot | undefined): Record<string, string> {
   return {
-    ...projectSnapshot.dependencies,
-    ...projectSnapshot.devDependencies,
-    ...projectSnapshot.optionalDependencies,
+    ...projectSnapshot?.dependencies,
+    ...projectSnapshot?.devDependencies,
+    ...projectSnapshot?.optionalDependencies,
   }
 }

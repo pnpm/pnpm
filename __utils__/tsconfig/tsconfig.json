@@ -4,8 +4,8 @@
     "composite": true,
     "declaration": true,
     "esModuleInterop": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "noImplicitAny": true,
     "noImplicitReturns": true,
     "preserveConstEnums": true,
@@ -13,7 +13,12 @@
     "sourceMap": true,
     "strict": true,
     "skipLibCheck": true,
-    "target": "es2021"
+    "exactOptionalPropertyTypes": true,
+    "incremental": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "verbatimModuleSyntax": true,
+    "target": "es2022"
   },
   "atom": {
     "rewriteTsconfig": true

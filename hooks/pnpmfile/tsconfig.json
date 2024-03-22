@@ -26,9 +26,6 @@
     },
     {
       "path": "../../store/store-controller-types"
-    },
-    {
-      "path": "../types"
     }
   ],
   "composite": true

@@ -31,7 +31,7 @@ function hashUnknown(object: unknown, options: hash.BaseOptions): string {
   return hash(object, options)
 }
 
-export const hashObjectWithoutSorting = (object: unknown): string => {
+export function hashObjectWithoutSorting(object: unknown): string {
   return hashUnknown(object, withoutSortingOptions);
 }
 

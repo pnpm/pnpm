@@ -1,8 +1,10 @@
 import type * as Rx from 'rxjs'
-import { filter, map, startWith } from 'rxjs/operators'
 import prettyBytes from 'pretty-bytes'
-import { hlPkgId, hlValue } from './outputConstants'
-import { FetchingProgressLog } from '@pnpm/types'
+import { filter, map, startWith } from 'rxjs/operators'
+
+import type { FetchingProgressLog } from '@pnpm/types'
+
+import { hlPkgId, hlValue } from './outputConstants.js'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 const PRETTY_OPTS = {
@@ -12,7 +14,10 @@ const PRETTY_OPTS = {
 
 export function reportBigTarballProgress(log$: {
   fetchingProgress: Rx.Observable<FetchingProgressLog>
-}) {
+}): Rx.Observable<Rx.Observable<{
+    fixed: boolean;
+    msg: string;
+  }>> {
   return log$.fetchingProgress.pipe(
     filter(
       (log: FetchingProgressLog) =>

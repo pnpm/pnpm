@@ -8,6 +8,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "engines": {
     "node": ">=16.14"
   },
@@ -34,7 +35,6 @@
     "@pnpm/default-resolver": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/fetch": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
@@ -42,6 +42,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@types/ramda": "0.29.11",

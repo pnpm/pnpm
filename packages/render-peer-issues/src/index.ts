@@ -1,16 +1,19 @@
 import '@total-typescript/ts-reset'
-import { PnpmError } from '@pnpm/error'
-import { createMatcher } from '@pnpm/matcher'
-import type {
-  BadPeerDependencyIssue,
-  PeerDependencyIssuesByProjects,
-  PeerDependencyRules,
-} from '@pnpm/types'
-import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
+
 import archy from 'archy'
 import chalk from 'chalk'
-import cliColumns from 'cli-columns'
 import semver from 'semver'
+import cliColumns from 'cli-columns'
+
+import type {
+  VersionOverride,
+  PeerDependencyRules,
+  BadPeerDependencyIssue,
+  PeerDependencyIssuesByProjects,
+} from '@pnpm/types'
+import { PnpmError } from '@pnpm/error'
+import { createMatcher } from '@pnpm/matcher'
+import { parseOverrides } from '@pnpm/parse-overrides'
 
 export function renderPeerIssues(
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,
@@ -62,8 +65,9 @@ export function renderPeerIssues(
 
       for (const issue of issues) {
         if (
-          allowedVersionsMatchAll[peerName]?.some((range) =>
-            semver.satisfies(issue.foundVersion, range)
+          allowedVersionsMatchAll[peerName]?.some((range: string): boolean => {
+            return semver.satisfies(issue.foundVersion ?? '', range);
+          }
           )
         ) {
           continue
@@ -77,8 +81,11 @@ export function renderPeerIssues(
         ) {
           const allowedVersionsByParent = allowedVersionsByParentPkgName[
             peerName
+
           ][currentParentPkg.name].reduce(
-            (acc: Record<string, string[]>, { targetPkg, parentPkg, ranges }) => {
+            (acc: Record<string, string[]>, { targetPkg, parentPkg, ranges }: Required<Pick<VersionOverride, 'parentPkg' | 'targetPkg'>> & {
+              ranges: string[];
+            }): Record<string, string[]> => {
               if (
                 !parentPkg.pref ||
                 (currentParentPkg.version &&
@@ -93,9 +100,9 @@ export function renderPeerIssues(
           )
 
           if (
-            allowedVersionsByParent[peerName]?.some((range) =>
-              semver.satisfies(issue.foundVersion, range)
-            )
+            allowedVersionsByParent[peerName]?.some((range: string): boolean => {
+              return semver.satisfies(issue.foundVersion ?? '', range);
+            })
           ) {
             continue
           }
@@ -123,7 +130,7 @@ export function renderPeerIssues(
     .sort(([projectKey1], [projectKey2]) =>
       projectKey1.localeCompare(projectKey2)
     )
-    .map(([projectKey, project]) => {
+    .map(([projectKey, project]): string => {
       const summaries = []
 
       const { conflicts, intersections } =

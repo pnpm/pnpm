@@ -1,23 +1,20 @@
-import { DEPENDENCIES_FIELDS, DependenciesField } from '@pnpm/types'
-import type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
-import sortBy from 'ramda/src/sortBy'
-import path from 'ramda/src/path'
 import type { Ord } from 'ramda'
-import { getPkgInfo, type PkgInfo } from './getPkgInfo'
-import type { PackageDependencyHierarchy } from './types'
+import path from 'ramda/src/path'
+import sortBy from 'ramda/src/sortBy'
 
-const sortPackages = sortBy(path(['pkg', 'alias']) as (pkg: PackageNode) => Ord)
+import {
+  type PackageInfo,
+  DEPENDENCIES_FIELDS,
+  type DependenciesField,
+  type PackageJsonListItem,
+  type RenderJsonResultItem,
+  type PackageDependencyHierarchy,
+} from '@pnpm/types'
+import type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 
-type RenderJsonResultItem = Pick<
-  PackageDependencyHierarchy,
-  'name' | 'version' | 'path'
-> &
-  Required<Pick<PackageDependencyHierarchy, 'private'>> & {
-    dependencies?: Record<string, PackageJsonListItem>
-    devDependencies?: Record<string, PackageJsonListItem>
-    optionalDependencies?: Record<string, PackageJsonListItem>
-    unsavedDependencies?: Record<string, PackageJsonListItem>
-  }
+import { getPkgInfo } from './getPkgInfo.js'
+
+const sortPackages = sortBy.default(path.default(['pkg', 'alias']) as (pkg: PackageNode | PackageInfo) => Ord)
 
 export async function renderJson(
   pkgs: PackageDependencyHierarchy[],
@@ -35,6 +32,7 @@ export async function renderJson(
         path: pkg.path,
         private: !!pkg.private,
       }
+
       Object.assign(
         jsonObj,
         Object.fromEntries(
@@ -63,7 +61,7 @@ export async function renderJson(
 }
 
 export async function toJsonResult(
-  entryNodes: PackageNode[],
+  entryNodes: PackageNode[] | PackageInfo[],
   opts: {
     long: boolean
   }
@@ -87,13 +85,12 @@ export async function toJsonResult(
       if (!dep.resolved) {
         delete dep.resolved
       }
+      // @ts-ignore
       delete dep.alias
+
       dependencies[node.alias] = dep
     })
   )
-  return dependencies
-}
 
-interface PackageJsonListItem extends PkgInfo {
-  dependencies?: Record<string, PackageJsonListItem>
+  return dependencies
 }

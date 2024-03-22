@@ -6,9 +6,9 @@ import { PnpmError } from '@pnpm/error'
 import { removeBin } from '@pnpm/remove-bins'
 import { globalInfo, logger } from '@pnpm/logger'
 
-import { getNodeExecPathAndTargetDir } from './utils'
-import { getNodeVersion } from './downloadNodeVersion'
-import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
+import { getNodeExecPathAndTargetDir } from './utils.js'
+import { getNodeVersion } from './downloadNodeVersion.js'
+import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node.js'
 
 export async function envRemove(opts: NvmNodeCommandOptions, params: string[]): Promise<{
   exitCode: number;

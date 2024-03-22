@@ -9,6 +9,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "exports": {
     ".": "./lib/index.js"
   },
@@ -38,7 +39,6 @@
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "adm-zip": "^0.5.12",

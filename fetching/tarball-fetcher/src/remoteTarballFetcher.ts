@@ -1,66 +1,37 @@
-import { type IncomingMessage } from 'http'
-import { requestRetryLogger } from '@pnpm/core-loggers'
-import { FetchError } from '@pnpm/error'
-import { type Cafs } from '@pnpm/cafs-types'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { addFilesFromTarball } from '@pnpm/worker'
-import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
-import { BadTarballError } from './errorTypes'
-import type { FetchResult, FetchOptions } from '@pnpm/resolver-base'
+import * as retry from '@zkochan/retry'
+
+import { FetchError } from '@pnpm/error'
+import { addFilesFromTarball } from '@pnpm/worker'
+import { requestRetryLogger } from '@pnpm/core-loggers'
+import type { Cafs, FetchFromRegistry, FetchResult, FetchOptions, DownloadFunction } from '@pnpm/types'
+
+import { BadTarballError } from './errorTypes/index.js'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
-
-export interface HttpResponse {
-  body: string
-}
-
-export type DownloadFunction = (
-  url: string,
-  opts: {
-    getAuthHeaderByURI: (registry: string) => string | undefined
-    cafs: Cafs
-    readManifest?: boolean
-    registry?: string
-    onStart?: (totalSize: number | null, attempt: number) => void
-    onProgress?: (downloaded: number) => void
-    integrity?: string
-    filesIndexFile: string
-  } & Pick<FetchOptions, 'pkg'>
-) => Promise<FetchResult>
-
-export interface NpmRegistryClient {
-  get: (
-    url: string,
-    getOpts: object,
-    cb: (err: Error, data: object, raw: object, res: HttpResponse) => void
-  ) => void
-  fetch: (
-    url: string,
-    opts: { auth?: object },
-    cb: (err: Error, res: IncomingMessage) => void
-  ) => void
-}
 
 export function createDownloader(
   fetchFromRegistry: FetchFromRegistry,
   gotOpts: {
     // retry
     retry?: {
-      retries?: number
-      factor?: number
-      minTimeout?: number
-      maxTimeout?: number
-      randomize?: boolean
-    }
-    timeout?: number
+      retries: number
+      factor: number
+      minTimeout: number
+      maxTimeout: number
+      randomize: boolean
+    } | undefined
+    timeout?: number | undefined
   }
 ): DownloadFunction {
-  const retryOpts = {
+  const retryOpts: retry.RetryTimeoutOptions & {
+    maxRetryTime: number;
+  } = {
     factor: 10,
     maxTimeout: 6e4, // 1 minute
     minTimeout: 1e4, // 10 seconds
     retries: 2,
+    maxRetryTime: 6e4 * 2, // 2 minutes
     ...gotOpts.retry,
   }
 
@@ -69,11 +40,11 @@ export function createDownloader(
     opts: {
       getAuthHeaderByURI: (registry: string) => string | undefined
       cafs: Cafs
-      readManifest?: boolean
-      registry?: string
-      onStart?: (totalSize: number | null, attempt: number) => void
-      onProgress?: (downloaded: number) => void
-      integrity?: string
+      readManifest?: boolean | undefined
+      registry?: string | undefined
+      onStart?: ((totalSize: number | null, attempt: number) => void) | undefined
+      onProgress?: ((downloaded: number) => void) | undefined
+      integrity?: string | undefined
       filesIndexFile: string
     } & Pick<FetchOptions, 'pkg'>
   ): Promise<FetchResult> {
@@ -103,7 +74,7 @@ export function createDownloader(
           requestRetryLogger.debug({
             attempt,
             error,
-            maxRetries: retryOpts.retries,
+            maxRetries: retryOpts.retries ?? 0,
             method: 'GET',
             timeout,
             url,
@@ -122,7 +93,7 @@ export function createDownloader(
           // Requests should also be retried when the tarball's integrity check fails.
           // Hence, we tell fetch to not retry,
           // and we perform the retries from this function instead.
-          retry: { retries: 0 },
+          retry: { retries: 0, factor: 0, minTimeout: 0, maxTimeout: 0, randomize: false },
           timeout: gotOpts.timeout,
         })
 

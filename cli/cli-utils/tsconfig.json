@@ -8,28 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../config/config"
-    },
-    {
-      "path": "../../config/package-is-installable"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/manifest-utils"
-    },
-    {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
-      "path": "../default-reporter"
-    }
-  ],
   "composite": true
 }

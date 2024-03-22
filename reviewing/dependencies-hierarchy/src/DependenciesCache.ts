@@ -1,44 +1,13 @@
-import type { PackageNode } from './PackageNode'
-import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId'
+import type {
+  CacheHit,
+  TreeNodeId,
+  PackageNode,
+  TraversalResultFullyVisited,
+  GetDependenciesCacheEntryArgs,
+  TraversalResultPartiallyVisited,
+} from '@pnpm/types'
 
-export interface GetDependenciesCacheEntryArgs {
-  readonly parentId: TreeNodeId
-  readonly requestedDepth: number
-}
-
-export interface TraversalResultFullyVisited {
-  readonly dependencies: PackageNode[]
-
-  /**
-   * Describes the height of the parent node in the fully enumerated dependency
-   * tree. A height of 0 means no entries are present in the dependencies array.
-   * A height of 1 means entries in the dependencies array do not have any of
-   * their own dependencies.
-   */
-  readonly height: number
-}
-
-export interface TraversalResultPartiallyVisited {
-  readonly dependencies: PackageNode[]
-
-  /**
-   * Describes how deep the dependencies tree was previously traversed. Since
-   * the traversal result was limited by a max depth, there are likely more
-   * dependencies present deeper in the tree not shown.
-   *
-   * A depth of 0 would indicate no entries in the dependencies array. A depth
-   * of 1 means entries in the dependencies array do not have any of their own
-   * dependencies.
-   */
-  readonly depth: number
-}
-
-export interface CacheHit {
-  readonly dependencies: PackageNode[]
-  readonly height: number | 'unknown'
-  // Circular dependencies are not stored in the cache.
-  readonly circular: false
-}
+import { serializeTreeNodeId } from './TreeNodeId.js'
 
 /**
  * A cache for the dependencies of a package.

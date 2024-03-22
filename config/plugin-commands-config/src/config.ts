@@ -2,11 +2,11 @@ import renderHelp from 'render-help'
 
 import { PnpmError } from '@pnpm/error'
 import { docsUrl } from '@pnpm/cli-utils'
+import type { ConfigCommandOptions } from '@pnpm/types'
 
-import { configGet } from './configGet'
-import { configSet } from './configSet'
-import { configList } from './configList'
-import type { ConfigCommandOptions } from './ConfigCommandOptions'
+import { configGet } from './configGet.js'
+import { configSet } from './configSet.js'
+import { configList } from './configList.js'
 
 export function rcOptionsTypes() {
   return {}
@@ -113,11 +113,11 @@ export async function handler(opts: ConfigCommandOptions, params: string[]) {
         let [key, value] = params.slice(1)
 
         if (value == null) {
-          const parts = key.split('=')
+          const parts = key?.split('=')
 
-          key = parts.shift()!
+          key = parts?.shift()
 
-          value = parts.join('=')
+          value = parts?.join('=')
         }
 
         return configSet(opts, key, value ?? '')

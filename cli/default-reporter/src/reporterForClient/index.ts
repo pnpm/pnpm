@@ -2,24 +2,24 @@ import type * as Rx from 'rxjs'
 import { throttleTime } from 'rxjs/operators'
 
 import type { LogLevel } from '@pnpm/logger'
-import { ContextLog, DeprecationLog, ExecutionTimeLog, FetchingProgressLog, HookLog, InstallCheckLog, LifecycleLog, LinkLog, Log, PackageImportMethodLog, PackageManifestLog, PeerDependencyIssuesLog, ProgressLog, RegistryLog, RequestRetryLog, RootLog, ScopeLog, SkippedOptionalDependencyLog, StageLog, StatsLog, SummaryLog, UpdateCheckLog, type PeerDependencyRules, Config } from '@pnpm/types'
+import type { ContextLog, DeprecationLog, ExecutionTimeLog, FetchingProgressLog, HookLog, InstallCheckLog, LifecycleLog, LinkLog, Log, PackageImportMethodLog, PackageManifestLog, PeerDependencyIssuesLog, ProgressLog, RegistryLog, RequestRetryLog, RootLog, ScopeLog, SkippedOptionalDependencyLog, StageLog, StatsLog, SummaryLog, UpdateCheckLog, PeerDependencyRules, Config } from '@pnpm/types'
 
-import { reportStats } from './reportStats'
-import { reportScope } from './reportScope'
-import { reportHooks } from './reportHooks'
-import { reportContext } from './reportContext'
-import { reportProgress } from './reportProgress'
-import { reportUpdateCheck } from './reportUpdateCheck'
-import { reportRequestRetry } from './reportRequestRetry'
-import { reportDeprecations } from './reportDeprecations'
-import { reportMisc, LOG_LEVEL_NUMBER } from './reportMisc'
-import { reportExecutionTime } from './reportExecutionTime'
-import { reportInstallChecks } from './reportInstallChecks'
-import { reportLifecycleScripts } from './reportLifecycleScripts'
-import { reportSummary, type FilterPkgsDiff } from './reportSummary'
-import { reportBigTarballProgress } from './reportBigTarballsProgress'
-import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
-import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies'
+import { reportStats } from './reportStats.js'
+import { reportScope } from './reportScope.js'
+import { reportHooks } from './reportHooks.js'
+import { reportContext } from './reportContext.js'
+import { reportProgress } from './reportProgress.js'
+import { reportUpdateCheck } from './reportUpdateCheck.js'
+import { reportRequestRetry } from './reportRequestRetry.js'
+import { reportDeprecations } from './reportDeprecations.js'
+import { reportMisc, LOG_LEVEL_NUMBER } from './reportMisc.js'
+import { reportExecutionTime } from './reportExecutionTime.js'
+import { reportInstallChecks } from './reportInstallChecks.js'
+import { reportLifecycleScripts } from './reportLifecycleScripts.js'
+import { reportSummary, type FilterPkgsDiff } from './reportSummary.js'
+import { reportBigTarballProgress } from './reportBigTarballsProgress.js'
+import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies.js'
 
 const PRINT_EXECUTION_TIME_IN_COMMANDS = {
   install: true,
@@ -55,7 +55,7 @@ export function reporterForClient(
   },
   opts: {
     appendOnly?: boolean | undefined
-    cmd: string
+    cmd?: string | undefined
     config?: Config | undefined
     env: NodeJS.ProcessEnv
     filterPkgsDiff?: FilterPkgsDiff | undefined
@@ -115,7 +115,7 @@ export function reporterForClient(
     outputs.push(reportContext(log$, { cwd }))
   }
 
-  if (opts.cmd in PRINT_EXECUTION_TIME_IN_COMMANDS) {
+  if (typeof opts.cmd !== 'undefined' && opts.cmd in PRINT_EXECUTION_TIME_IN_COMMANDS) {
     outputs.push(reportExecutionTime(log$.executionTime))
   }
 

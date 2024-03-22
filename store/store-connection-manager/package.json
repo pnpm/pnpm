@@ -29,6 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/store-connection-manager#readme",
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   },

@@ -11,13 +11,11 @@ import { PnpmError } from '@pnpm/error'
 import { packageManager } from '@pnpm/cli-meta'
 import { getStorePath } from '@pnpm/store-path'
 import { connectStoreController } from '@pnpm/server'
-import type { StoreController, CreateStoreControllerOptions } from '@pnpm/types'
+import type { StoreController, CreateStoreControllerOptions, StrictRebuildOptions } from '@pnpm/types'
 
-import {
-  createNewStoreController,
-} from './createNewStoreController'
 import { runServerInBackground } from './runServerInBackground'
 import { serverConnectionInfoDir } from './serverConnectionInfoDir'
+import { createNewStoreController } from './createNewStoreController'
 
 export { createNewStoreController, serverConnectionInfoDir }
 
@@ -26,23 +24,22 @@ export async function createOrConnectStoreControllerCached(
     string,
     Promise<{ ctrl: StoreController; dir: string }>
   >,
-  opts: CreateStoreControllerOptions
+  opts: CreateStoreControllerOptions | StrictRebuildOptions
 ): Promise<{
-    ctrl: StoreController;
-    dir: string;
-  }> {
+  ctrl: StoreController;
+  dir: string;
+} | undefined> {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
+
   if (!storeControllerCache.has(storeDir)) {
     storeControllerCache.set(storeDir, createOrConnectStoreController(opts))
   }
-  return (await storeControllerCache.get(storeDir)) as {
-    ctrl: StoreController
-    dir: string
-  }
+
+  return storeControllerCache.get(storeDir)
 }
 
 export async function createOrConnectStoreController(

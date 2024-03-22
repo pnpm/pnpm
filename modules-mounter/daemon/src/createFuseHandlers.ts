@@ -12,6 +12,7 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { getFilePathByModeInCafs, getFilePathInCafs } from '@pnpm/store.cafs'
 import { Lockfile, PackageSnapshot, PackageFilesIndex, TarballResolution } from '@pnpm/types'
 
+import * as cafsExplorer from './cafsExplorer'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules'
 
 const TIME = new Date()

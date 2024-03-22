@@ -1,17 +1,30 @@
 import '@total-typescript/ts-reset'
 
+import type { IncomingMessage } from 'http'
+
+import semver from 'semver'
 import type ssri from 'ssri'
-import { AgentOptions } from 'http'
+import pLimit from 'p-limit'
 import type { IntegrityLike } from 'ssri'
+import type { AgentOptions } from '@pnpm/network.agent'
 
 import {
-  // Response,
+  isRedirect,
   type Request,
+  type Response,
+  type HeadersInit,
   type RequestInit as NodeRequestInit,
 } from 'node-fetch'
 import type { JsonObject } from 'type-fest'
-import type { RetryTimeoutOptions } from '@zkochan/retry'
 import type { SafePromiseDefer } from 'safe-promise-defer'
+
+export {
+  isRedirect,
+  type Request,
+  type Response,
+  type HeadersInit,
+  type AgentOptions,
+}
 
 // NOTE: The order in this array is important.
 export const DEPENDENCIES_FIELDS = [
@@ -25,6 +38,414 @@ export const DEPENDENCIES_OR_PEER_FIELDS = [
   'peerDependencies',
 ] as const satisfies DependenciesOrPeersField[]
 
+export type RegistryPackageSpec = {
+  type: 'tag' | 'version' | 'range'
+  name: string
+  fetchSpec: string
+  normalizedPref?: string | undefined
+}
+
+export type PickPackageOptions = {
+  authHeaderValue?: string | undefined
+  publishedBy?: Date | undefined
+  preferredVersionSelectors: VersionSelectors | undefined
+  pickLowestVersion?: boolean | undefined
+  registry: string
+  dryRun: boolean
+  updateToLatest?: boolean | undefined
+}
+
+export type PackageMeta = {
+  name: string
+  'dist-tags': Record<string, string>
+  versions: Record<string, PackageInRegistry>
+  time?: PackageMetaTime | undefined
+  cachedAt?: number | undefined
+}
+
+export type PackageMetaTime = Record<string, string> & {
+  unpublished?: {
+    time: string
+    versions: string[]
+  } | undefined
+}
+
+export type PackageMetaCache = {
+  get: (key: string) => PackageMeta | undefined
+  set: (key: string, meta: PackageMeta) => void
+  has: (key: string) => boolean
+}
+
+export type PackageInRegistry = PackageManifest & {
+  dist: {
+    integrity?: string | undefined
+    shasum: string
+    tarball: string
+  }
+}
+
+export type RefCountedLimiter = {
+  count: number
+  limit: pLimit.Limit
+}
+
+export type PickVersionByVersionRange = (
+  meta: PackageMeta,
+  versionRange: string,
+  preferredVerSels?: VersionSelectors | undefined,
+  publishedBy?: Date | undefined
+) => string | semver.SemVer | null | undefined
+
+export type RegistryResponse = {
+  status: number
+  statusText: string
+  json: () => Promise<PackageMeta>
+}
+
+export type GetDependenciesCacheEntryArgs = {
+  readonly parentId: TreeNodeId
+  readonly requestedDepth: number
+}
+
+export type TraversalResultFullyVisited = {
+  readonly dependencies: PackageNode[]
+
+  /**
+   * Describes the height of the parent node in the fully enumerated dependency
+   * tree. A height of 0 means no entries are present in the dependencies array.
+   * A height of 1 means entries in the dependencies array do not have any of
+   * their own dependencies.
+   */
+  readonly height: number
+}
+
+export type TraversalResultPartiallyVisited = {
+  readonly dependencies: (PackageNode | PackageInfo)[]
+
+  /**
+   * Describes how deep the dependencies tree was previously traversed. Since
+   * the traversal result was limited by a max depth, there are likely more
+   * dependencies present deeper in the tree not shown.
+   *
+   * A depth of 0 would indicate no entries in the dependencies array. A depth
+   * of 1 means entries in the dependencies array do not have any of their own
+   * dependencies.
+   */
+  readonly depth: number
+}
+
+export type CacheHit = {
+  readonly dependencies: PackageNode[]
+  readonly height: number | 'unknown'
+  // Circular dependencies are not stored in the cache.
+  readonly circular: false
+}
+
+export interface PkgData {
+  alias: string | undefined
+  name: string
+  version: string
+  path: string
+  resolved?: string | undefined
+}
+
+export type RenderJsonResultItem = Pick<
+  PackageDependencyHierarchy,
+  'name' | 'version' | 'path'
+> &
+  Required<Pick<PackageDependencyHierarchy, 'private'>> & {
+    dependencies?: Record<string, PackageJsonListItem>
+    devDependencies?: Record<string, PackageJsonListItem>
+    optionalDependencies?: Record<string, PackageJsonListItem>
+    unsavedDependencies?: Record<string, PackageJsonListItem>
+  }
+
+export type PackageJsonListItem = PkgInfo & {
+  dependencies?: Record<string, PackageJsonListItem> | undefined
+}
+
+export type PkgInfo = Omit<PkgData, 'name'> &
+  Pick<ProjectManifest, 'description' | 'license' | 'author' | 'homepage'> & {
+    from: string
+    repository?: string | undefined
+  }
+
+export type GetPkgColor = (node: PackageNode | PackageInfo) => (s: string) => string
+
+export type RenderTreeOptions = {
+  alwaysPrintRootPackage: boolean
+  depth: number
+  long: boolean
+  search: boolean
+  showExtraneous: boolean
+}
+
+export type PackageDependencyHierarchy = DependenciesHierarchy & {
+  name?: string | undefined
+  version?: string | undefined
+  path: string
+  private?: boolean | undefined
+}
+
+export type AuditVulnerabilityCounts = {
+  info: number
+  low: number
+  moderate: number
+  high: number
+  critical: number
+}
+
+export type AuditResolution = {
+  id: number
+  path: string
+  dev: boolean
+  optional: boolean
+  bundled: boolean
+}
+
+export type AuditAction = {
+  action: string
+  module: string
+  target: string
+  isMajor: boolean
+  resolves: AuditResolution[]
+}
+
+export type AuditAdvisory = {
+  findings: [
+    {
+      version: string
+      paths: string[]
+      dev: boolean
+      optional: boolean
+      bundled: boolean
+    },
+  ]
+  id: number
+  created: string
+  updated: string
+  deleted?: boolean | undefined
+  title: string
+  found_by: {
+    name: string
+  }
+  reported_by: {
+    name: string
+  }
+  module_name: string
+  cves: string[]
+  vulnerable_versions: string
+  patched_versions: string
+  overview: string
+  recommendation: string
+  references: string
+  access: string
+  severity: string
+  cwe: string
+  metadata: {
+    module_type: string
+    exploitability: number
+    affected_components: string
+  }
+  url: string
+}
+
+export type AuditMetadata = {
+  vulnerabilities: AuditVulnerabilityCounts
+  dependencies: number
+  devDependencies: number
+  optionalDependencies: number
+  totalDependencies: number
+}
+
+export type AuditReport = {
+  actions: AuditAction[]
+  advisories: { [id: string]: AuditAdvisory }
+  muted: unknown[]
+  metadata: AuditMetadata
+}
+
+export type AuditActionRecommendation = {
+  cmd: string
+  isBreaking: boolean
+  action: AuditAction
+}
+
+export type HttpResponse = {
+  body: string
+}
+
+export type DownloadFunction = (
+  url: string,
+  opts: {
+    getAuthHeaderByURI: (registry: string) => string | undefined
+    cafs: Cafs
+    readManifest?: boolean | undefined
+    registry?: string | undefined
+    onStart?: ((totalSize: number | null, attempt: number) => void) | undefined
+    onProgress?: ((downloaded: number) => void) | undefined
+    integrity?: string | undefined
+    filesIndexFile: string
+  } & Pick<FetchOptions, 'pkg'>
+) => Promise<FetchResult>
+
+export type NpmRegistryClient = {
+  get: (
+    url: string,
+    getOpts: object,
+    cb: (err: Error, data: object, raw: object, res: HttpResponse) => void
+  ) => void
+  fetch: (
+    url: string,
+    opts: { auth?: object | undefined },
+    cb: (err: Error, res: IncomingMessage) => void
+  ) => void
+}
+
+export type NvmNodeCommandOptions = Pick<
+  Config,
+  | 'bin'
+  | 'global'
+  | 'fetchRetries'
+  | 'fetchRetryFactor'
+  | 'fetchRetryMaxtimeout'
+  | 'fetchRetryMintimeout'
+  | 'fetchTimeout'
+  | 'userAgent'
+  | 'ca'
+  | 'cert'
+  | 'httpProxy'
+  | 'httpsProxy'
+  | 'key'
+  | 'localAddress'
+  | 'noProxy'
+  | 'rawConfig'
+  | 'strictSsl'
+  | 'storeDir'
+  | 'useNodeVersion'
+  | 'pnpmHomeDir'
+> &
+  Partial<Pick<Config, 'configDir' | 'cliOptions'>> & {
+    remote?: boolean | undefined
+  }
+
+export type NodeVersion = {
+  version: string
+  lts: false | string
+}
+
+export type RetryTimeoutOptions = {
+  factor: number;
+  maxTimeout: number;
+  minTimeout: number;
+  randomize: boolean;
+  retries: number;
+}
+
+export type FetchNodeOptions = {
+  cafsDir: string
+  fetchTimeout?: number | undefined
+  nodeMirrorBaseUrl?: string | undefined
+  retry?: RetryTimeoutOptions | undefined
+}
+
+export type FetchFromRegistry = (
+  url: string,
+  opts?: {
+    authHeaderValue?: string | undefined
+    compress?: boolean | undefined
+    retry?: RetryTimeoutOptions | undefined
+    timeout?: number | undefined
+  } | undefined
+) => Promise<Response>
+
+export type GetAuthHeader = (uri: string) => string | undefined
+
+export type PackageDiff = {
+  added: boolean
+  from?: string | undefined
+  name: string
+  realName?: string | undefined
+  version?: string | undefined
+  deprecated?: boolean | undefined
+  latest?: string | undefined
+}
+
+export type ConfigCommandOptions = Pick<
+  Config,
+  'configDir' | 'cliOptions' | 'dir' | 'global' | 'npmPath' | 'rawConfig'
+> & {
+  json?: boolean
+  location?: 'global' | 'project'
+}
+
+export type Engine = { node?: string | undefined; npm?: string | undefined; pnpm?: string | undefined; }
+
+export type WantedEngine = Partial<Engine>
+
+export type Platform = {
+  cpu: string | string[]
+  os: string | string[]
+  libc: string | string[]
+}
+
+export type WantedPlatform = Partial<Platform>
+
+export type LicenseNode = {
+  name?: string | undefined
+  version?: string | undefined
+  license: string
+  licenseContents?: string | undefined
+  dir: string
+  author?: string | undefined
+  homepage?: string | undefined
+  description?: string | undefined
+  repository?: string | undefined
+  integrity?: string | undefined
+  requires?: Record<string, string> | undefined
+  dependencies?: { [name: string]: LicenseNode } | undefined
+  dev: boolean
+}
+
+export type LicenseNodeTree = Omit<
+  LicenseNode,
+  'dir' | 'license' | 'licenseContents' | 'author' | 'homepages' | 'repository'
+>
+
+export type LicenseExtractOptions = {
+  storeDir: string
+  virtualStoreDir: string
+  modulesDir?: string | undefined
+  dir: string
+  registries: Registries
+  supportedArchitectures?: SupportedArchitectures | undefined
+}
+
+export type LicensePackage = {
+  belongsTo: DependenciesField
+  version: string
+  name: string
+  license: string
+  licenseContents?: string | undefined
+  author?: string | undefined
+  homepage?: string | undefined
+  description?: string | undefined
+  repository?: string | undefined
+  path?: string | undefined
+}
+
+export type VersionOverride = {
+  parentPkg?: {
+    name: string
+    pref?: string | undefined
+  } | undefined
+  targetPkg: {
+    name: string
+    pref?: string | undefined
+  }
+  newPref: string
+}
+
 export type GetTreeNodeChildIdOpts = {
   readonly parentId: TreeNodeId
   readonly dep: {
@@ -33,6 +454,19 @@ export type GetTreeNodeChildIdOpts = {
   }
   readonly lockfileDir: string
   readonly importers: Record<string, ProjectSnapshot>
+}
+
+export type LocalPackageSpec = {
+  dependencyPath: string
+  fetchSpec: string
+  id: string
+  type: 'directory' | 'file'
+  normalizedPref: string
+}
+
+export type WantedLocalDependency = {
+  pref: string
+  injected?: boolean | undefined
 }
 
 export type GetTreeOpts = {
@@ -51,7 +485,7 @@ export type GetTreeOpts = {
 }
 
 export type DependencyInfo = {
-  dependencies: PackageNode[]
+  dependencies: (PackageNode | PackageInfo)[]
 
   circular?: true | undefined
 
@@ -112,7 +546,7 @@ export type PackageInfo = {
   dev?: boolean | undefined
   searched?: boolean | undefined
   circular?: boolean | undefined
-  dependencies?: PackageNode[] | undefined
+  dependencies?: (PackageNode | PackageInfo)[] | undefined
 }
 
 export type TreeNodeId = TreeNodeIdImporter | TreeNodeIdPackage
@@ -656,10 +1090,10 @@ export type Cook<T extends (...args: any[]) => any> = (
 ) => ReturnType<T>
 
 export type CookedHooks = {
-  readPackage?: Array<Cook<Required<Hook>['readPackage']>> | undefined
-  preResolution?: Cook<Required<Hook>['preResolution']> | undefined
-  afterAllResolved?: Array<Cook<Required<Hook>['afterAllResolved']>> | undefined
-  filterLog?: Array<Cook<Required<Hook>['filterLog']>> | undefined
+  readPackage?: Array<Cook<Exclude<Hook['readPackage'], undefined>>> | undefined
+  preResolution?: Cook<Exclude<Hook['preResolution'], undefined>> | undefined
+  afterAllResolved?: Array<Cook<Exclude<Hook['afterAllResolved'], undefined>>> | undefined
+  filterLog?: Array<Cook<Exclude<Hook['filterLog'], undefined>>> | undefined
   importPackage?: ImportIndexedPackageAsync | undefined
   fetchers?: CustomFetchers | undefined
 }
@@ -708,7 +1142,7 @@ export type Config = {
   scriptShell?: string | undefined
   stream?: boolean | undefined
   pnpmExecPath: string
-  pnpmHomeDir: string
+  pnpmHomeDir?: string | undefined
   production?: boolean | undefined
   fetchRetries?: number | undefined
   fetchRetryFactor?: number | undefined
@@ -773,7 +1207,7 @@ export type Config = {
   updateNotifier?: boolean | undefined
 
   // pnpm specific configs
-  cacheDir: string
+  cacheDir?: string | undefined
   configDir: string
   stateDir: string
   storeDir?: string | undefined
@@ -853,7 +1287,7 @@ export type Config = {
 }
 
 export type StrictRebuildOptions = {
-  allProjects: Project[]
+  allProjects?: Project[] | undefined
   autoInstallPeers?: boolean | undefined
   cacheDir?: string | undefined
   childConcurrency: number
@@ -1103,7 +1537,7 @@ export type LinkPkgMessage = {
   type: 'link'
   storeDir: string
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy' | undefined
-  filesResponse: PackageFilesResponse
+  filesResponse?: PackageFilesResponse | undefined
   sideEffectsCacheKey?: string | undefined
   targetDir: string
   requiresBuild?: boolean | undefined
@@ -1371,19 +1805,7 @@ export type WriteBufferToCafs = (
   integrity: ssri.IntegrityLike
 ) => { checkedAt: number; filePath: string }
 
-export type CreateResolverOptions = Pick<
-  Config,
-  | 'fetchRetries'
-  | 'fetchRetryFactor'
-  | 'fetchRetryMaxtimeout'
-  | 'fetchRetryMintimeout'
-  | 'offline'
-  | 'rawConfig'
-  | 'verifyStoreIntegrity'
-> &
-  Required<Pick<Config, 'cacheDir' | 'storeDir'>>
-
-export type CreateNewStoreControllerOptions = CreateResolverOptions &
+export type CreateNewStoreControllerOptions =
   Pick<
     Config,
     | 'ca'
@@ -1412,10 +1834,19 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions &
     | 'unsafePerm'
     | 'userAgent'
     | 'verifyStoreIntegrity'
+    | 'cacheDir'
+    | 'fetchRetries'
+    | 'fetchRetryFactor'
+    | 'fetchRetryMaxtimeout'
+    | 'fetchRetryMintimeout'
+    | 'offline'
+    | 'rawConfig'
+    | 'verifyStoreIntegrity'
   > & {
-    cafsLocker?: CafsLocker
-    ignoreFile?: (filename: string) => boolean
+    cafsLocker?: CafsLocker | undefined
+    ignoreFile?: ((filename: string) => boolean) | undefined
   } & Partial<Pick<Config, 'userConfig' | 'deployAllFiles'>> &
+  Required<Pick<Config, 'storeDir'>> &
   Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
 export type CreateStoreControllerOptions = Omit<
@@ -3138,9 +3569,9 @@ export type FilesMap = Record<string, string>
 
 export type ImportOptions = {
   disableRelinkLocalDirDeps?: boolean | undefined
-  filesMap: FilesMap
+  filesMap?: FilesMap | undefined
   force: boolean
-  resolvedFrom: ResolvedFrom
+  resolvedFrom?: ResolvedFrom | undefined
   keepModulesDir?: boolean | undefined
 }
 

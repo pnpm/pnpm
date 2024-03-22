@@ -1,6 +1,7 @@
-import { readPackageJson } from '@pnpm/read-package-json'
-import { PackageManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
+
+import type { PackageManifest } from '@pnpm/types'
+import { readPackageJson } from '@pnpm/read-package-json'
 
 const limitPkgReads = pLimit(4)
 

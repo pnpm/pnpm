@@ -9,6 +9,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "exports": {
     ".": "./lib/index.js"
   },
@@ -35,8 +36,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/env/node.resolver#readme",
   "dependencies": {
-    "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/node.fetcher": "workspace:*",
     "semver": "^7.6.0",
     "version-selector-type": "^3.0.0"
   },

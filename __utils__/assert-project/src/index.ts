@@ -11,8 +11,9 @@ import writePkg from 'write-pkg'
 import readYamlFile from 'read-yaml-file'
 // import type { JsonObject } from 'type-fest'
 
-import { isExecutable } from './isExecutable'
-import { AssertedProject, RawLockfile } from '@pnpm/types'
+import type { AssertedProject, RawLockfile } from '@pnpm/types'
+
+import { isExecutable } from './isExecutable.js'
 
 export { isExecutable }
 
@@ -40,6 +41,7 @@ export function assertProject(
       relativePath?: string | undefined
     ) => Promise<string>
   }
+
   async function getStoreInstance() {
     if (!cachedStore) {
       const modulesYaml = await readModulesManifest(modules)
@@ -140,7 +142,7 @@ export function assertProject(
     },
     async readCurrentLockfile() {
       try {
-        return await readYamlFile(
+        return await readYamlFile.default(
           path.join(await getVirtualStoreDir(), 'lock.yaml')
         )
       } catch (err: unknown) {
@@ -152,7 +154,7 @@ export function assertProject(
     readModulesManifest: async () => readModulesManifest(modules),
     async readLockfile(lockfileName: string = WANTED_LOCKFILE): Promise<Required<RawLockfile>> {
       try {
-        return await readYamlFile(path.join(projectPath, lockfileName))
+        return await readYamlFile.default(path.join(projectPath, lockfileName))
       } catch (err: unknown) {
         // @ts-ignore
         if (err.code === 'ENOENT') return null!

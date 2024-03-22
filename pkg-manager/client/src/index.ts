@@ -1,26 +1,19 @@
 import '@total-typescript/ts-reset'
+
+import mapValues from 'ramda/src/map'
+
 import {
   createResolver as _createResolver,
-  type ResolveFunction,
-  type ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
-import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
-import {
-  type FetchFromRegistry,
-  type GetAuthHeader,
-  type RetryTimeoutOptions,
-} from '@pnpm/fetching-types'
-import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'
+import { createFetchFromRegistry } from '@pnpm/fetch'
+import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import {
   createTarballFetcher,
   type TarballFetchers,
 } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import mapValues from 'ramda/src/map'
-import { ClientOptions, Client, GitFetcher, DirectoryFetcher, CustomFetchers } from '@pnpm/types'
-
-export type { ResolveFunction }
+import type{ ClientOptions, Client, GitFetcher, DirectoryFetcher, CustomFetchers, ResolveFunction, FetchFromRegistry, GetAuthHeader } from '@pnpm/types'
 
 export function createClient(opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
@@ -52,7 +45,7 @@ export function createResolver(opts: ClientOptions): ResolveFunction {
   return _createResolver(fetchFromRegistry, getAuthHeader, opts)
 }
 
-type Fetchers = {
+export type Fetchers = {
   git: GitFetcher
   directory: DirectoryFetcher
 } & TarballFetchers
@@ -81,8 +74,10 @@ function createFetchers(
   }
 
   const overwrites = mapValues(
-    (factory: any) => factory({ defaultFetchers }), // eslint-disable-line @typescript-eslint/no-explicit-any
-    customFetchers ?? ({} as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    (factory: any) => {
+      return factory({ defaultFetchers });
+    },
+    customFetchers ?? {}
   )
 
   return {

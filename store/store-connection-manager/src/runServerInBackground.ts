@@ -1,6 +1,7 @@
-import { PnpmError } from '@pnpm/error'
 // cspell:ignore diable
 import diable from '@zkochan/diable'
+
+import { PnpmError } from '@pnpm/error'
 
 export function runServerInBackground(storePath: string) {
   if (require.main == null) {
@@ -9,6 +10,7 @@ export function runServerInBackground(storePath: string) {
       'pnpm server cannot be started when pnpm is streamed to Node.js'
     )
   }
+
   return diable.daemonize(
     require.main.filename,
     ['server', 'start', '--store-dir', storePath],

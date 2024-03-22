@@ -92,17 +92,20 @@ type PackageSelector =
 export async function rebuildSelectedPkgs(
   projects: Array<{
     buildIndex: number
-    manifest: ProjectManifest
+    manifest: ProjectManifest | undefined
     rootDir: string
   }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
 ): Promise<void> {
   const reporter = maybeOpts?.reporter
+
   if (reporter != null && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
+
   const opts = await extendRebuildOptions(maybeOpts)
+
   // @ts-ignore
   const ctx = await getContext({ ...opts, allProjects: projects })
 
@@ -111,14 +114,17 @@ export async function rebuildSelectedPkgs(
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {
     const { fetchSpec, name, raw, type } = npa(arg)
+
     if (raw === name) {
       return name
     }
+
     if (type !== 'version' && type !== 'range') {
       throw new Error(
         `Invalid argument - ${arg}. Rebuild can only select by version or range`
       )
     }
+
     return {
       name,
       range: fetchSpec,
@@ -126,6 +132,7 @@ export async function rebuildSelectedPkgs(
   })
 
   let pkgs = [] as string[]
+
   for (const { rootDir } of projects) {
     pkgs = [...pkgs, ...findPackages(packages, searched, { prefix: rootDir })]
   }
@@ -142,16 +149,19 @@ export async function rebuildSelectedPkgs(
 export async function rebuildProjects(
   projects: Array<{
     buildIndex: number
-    manifest: ProjectManifest
+    manifest: ProjectManifest | undefined
     rootDir: string
   }>,
   maybeOpts: RebuildOptions
 ): Promise<void> {
   const reporter = maybeOpts?.reporter
+
   if (reporter != null && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
+
   const opts = await extendRebuildOptions(maybeOpts)
+
   // @ts-ignore
   const ctx = await getContext({ ...opts, allProjects: projects })
 
@@ -172,10 +182,13 @@ export async function rebuildProjects(
   )
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter(
-    (depPath) => !pkgsThatWereRebuilt.has(depPath)
+    (depPath: string): boolean => {
+      return !pkgsThatWereRebuilt.has(depPath);
+    }
   )
 
   const store = await createOrConnectStoreController(opts)
+
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
     extraNodePaths: ctx.extraNodePaths,
@@ -188,12 +201,14 @@ export async function rebuildProjects(
     storeController: store.ctrl,
     unsafePerm: opts.unsafePerm || false,
   }
+
   await runLifecycleHooksConcurrently(
     ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
     Object.values(ctx.projects),
     opts.childConcurrency || 5,
     scriptsOpts
   )
+
   for (const { id, manifest } of Object.values(ctx.projects)) {
     if (
       manifest?.scripts != null &&

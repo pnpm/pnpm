@@ -1,19 +1,27 @@
+import { URL } from 'node:url'
 import nodeFetch, {
   Response,
+  RequestInit,
 } from 'node-fetch'
 
 import { operation } from '@zkochan/retry'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
 
-const NO_RETRY_ERROR_CODES = new Set([
+const NO_RETRY_ERROR_CODES = new Set<string>([
   'SELF_SIGNED_CERT_IN_CHAIN',
   'ERR_OSSL_PEM_NO_START_LINE',
 ])
 
 export async function fetch(
-  url: RequestInfo,
-  opts: RequestInit | undefined = {}
+  url: URL,
+  opts: (RequestInit & {
+    retry?: {
+      factor?: number | undefined
+      maxTimeout?: number | undefined
+      minTimeout?: number | undefined
+      retries?: number | undefined
+    } | undefined }) | undefined = {}
 ): Promise<Response> {
   const retryOpts = opts.retry ?? {}
 
@@ -32,7 +40,7 @@ export async function fetch(
       op.attempt(async (attempt: number): Promise<void> => {
         try {
           // this will be retried
-          const res = await nodeFetch(url as any, opts) // eslint-disable-line
+          const res = await nodeFetch(url.toString(), opts)
 
           // A retry on 409 sometimes helps when making requests to the Bit registry.
           if (
@@ -43,11 +51,13 @@ export async function fetch(
           } else {
             resolve(res)
           }
-        } catch (error: any) { // eslint-disable-line
+        } catch (error: unknown) {
+          // @ts-ignore
           if (error.code && NO_RETRY_ERROR_CODES.has(error.code)) {
             throw error
           }
 
+          // @ts-ignore
           const timeout = op.retry(error)
 
           if (timeout === false) {
@@ -57,6 +67,7 @@ export async function fetch(
 
           requestRetryLogger.debug({
             attempt,
+            // @ts-ignore
             error,
             maxRetries,
             method: opts.method ?? 'GET',

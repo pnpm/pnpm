@@ -1,12 +1,7 @@
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import getVersionSelectorType from 'version-selector-type'
 
-export interface RegistryPackageSpec {
-  type: 'tag' | 'version' | 'range'
-  name: string
-  fetchSpec: string
-  normalizedPref?: string
-}
+import type { RegistryPackageSpec } from '@pnpm/types'
 
 export function parsePref(
   pref: string,
@@ -15,9 +10,12 @@ export function parsePref(
   registry: string
 ): RegistryPackageSpec | null {
   let name = alias
+
   if (pref.startsWith('npm:')) {
     pref = pref.slice(4)
+
     const index = pref.lastIndexOf('@')
+
     if (index < 1) {
       name = pref
       pref = defaultTag
@@ -26,8 +24,10 @@ export function parsePref(
       pref = pref.slice(index + 1)
     }
   }
+
   if (name) {
     const selector = getVersionSelectorType(pref)
+
     if (selector != null) {
       return {
         fetchSpec: selector.normalized,
@@ -36,9 +36,11 @@ export function parsePref(
       }
     }
   }
+
   if (pref.startsWith(registry)) {
-    const pkg = parseNpmTarballUrl(pref)
-    if (pkg != null) {
+    const pkg = parseNpmTarballUrl.default(pref)
+
+    if (pkg !== null) {
       return {
         fetchSpec: pkg.version,
         name: pkg.name,
@@ -47,5 +49,6 @@ export function parsePref(
       }
     }
   }
+
   return null
 }

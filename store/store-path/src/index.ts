@@ -1,14 +1,17 @@
 import '@total-typescript/ts-reset'
+
 import os from 'node:os'
 import path from 'node:path'
 import { promises as fs } from 'node:fs'
-import { PnpmError } from '@pnpm/error'
-import rimraf from '@zkochan/rimraf'
-import canLink from 'can-link'
-import pathAbsolute from 'path-absolute'
-import pathTemp from 'path-temp'
-import rootLinkTarget from 'root-link-target'
+
 import touch from 'touch'
+import canLink from 'can-link'
+import pathTemp from 'path-temp'
+import rimraf from '@zkochan/rimraf'
+import pathAbsolute from 'path-absolute'
+import rootLinkTarget from 'root-link-target'
+
+import { PnpmError } from '@pnpm/error'
 
 const STORE_VERSION = 'v3'
 
@@ -18,9 +21,9 @@ export function getStorePath({
   pnpmHomeDir,
 }: {
   pkgRoot: string
-  storePath?: string
-  pnpmHomeDir: string
-}) {
+  storePath?: string | undefined
+  pnpmHomeDir?: string | undefined
+}): string | Promise<string> {
   if (!storePath) {
     if (!pnpmHomeDir) {
       throw new PnpmError(
@@ -28,11 +31,13 @@ export function getStorePath({
         'The pnpm home directory is unknown. Cannot calculate the store directory location.'
       )
     }
+
     return storePathRelativeToHome(pkgRoot, 'store', pnpmHomeDir)
   }
 
   if (isHomepath(storePath)) {
     const homedir = getHomedir()
+
     return storePathRelativeToHome(pkgRoot, storePath.substring(2), homedir)
   }
 
@@ -41,6 +46,7 @@ export function getStorePath({
   if (storeBasePath.endsWith(`${path.sep}${STORE_VERSION}`)) {
     return storeBasePath
   }
+
   return path.join(storeBasePath, STORE_VERSION)
 }
 
@@ -48,35 +54,45 @@ async function storePathRelativeToHome(
   pkgRoot: string,
   relStore: string,
   homedir: string
-) {
+): Promise<string> {
   const tempFile = pathTemp(pkgRoot)
-  if (path.parse(pkgRoot).root !== pkgRoot)
+
+  if (path.parse(pkgRoot).root !== pkgRoot) {
     await fs.mkdir(path.dirname(tempFile), { recursive: true })
+  }
+
   await touch(tempFile)
+
   const storeInHomeDir = path.join(homedir, relStore, STORE_VERSION)
+
   if (await canLinkToSubdir(tempFile, homedir)) {
     await fs.unlink(tempFile)
     // If the project is on the drive on which the OS home directory
     // then the store is placed in the home directory
     return storeInHomeDir
   }
+
   try {
     let mountpoint = await rootLinkTarget(tempFile)
+
     // Usually, it is disallowed to write files into the drive's root.
     // So we create an empty directory and try to link there.
     // The store will be a directory anyway.
     const mountpointParent = path.join(mountpoint, '..')
+
     if (
       !dirsAreEqual(mountpointParent, mountpoint) &&
       (await canLinkToSubdir(tempFile, mountpointParent))
     ) {
       mountpoint = mountpointParent
     }
+
     // If linking works only in the project folder
     // then prefer to place the store inside the homedir
     if (dirsAreEqual(pkgRoot, mountpoint)) {
       return storeInHomeDir
     }
+
     return path.join(mountpoint, '.pnpm-store', STORE_VERSION)
   } catch (err) {
     // this is an unlikely situation but if there is no way to find
@@ -87,21 +103,25 @@ async function storePathRelativeToHome(
   }
 }
 
-async function canLinkToSubdir(fileToLink: string, dir: string) {
+async function canLinkToSubdir(fileToLink: string, dir: string): Promise<boolean> {
   let result = false
+
   const tmpDir = pathTemp(dir)
+
   try {
     await fs.mkdir(tmpDir, { recursive: true })
+
     result = await canLink(fileToLink, pathTemp(tmpDir))
   } catch (err) {
     result = false
   } finally {
     await safeRmdir(tmpDir)
   }
+
   return result
 }
 
-async function safeRmdir(dir: string) {
+async function safeRmdir(dir: string): Promise<void> {
   try {
     // We cannot use just fs.rmdir here because can-link
     // sometimes might not remove the temporary file in time
@@ -112,16 +132,20 @@ async function safeRmdir(dir: string) {
   }
 }
 
-function dirsAreEqual(dir1: string, dir2: string) {
+function dirsAreEqual(dir1: string, dir2: string): boolean {
   return path.relative(dir1, dir2) === '.'
 }
 
-function getHomedir() {
+function getHomedir(): string {
   const home = os.homedir()
-  if (!home) throw new Error('Could not find the homedir')
+
+  if (!home) {
+    throw new Error('Could not find the homedir')
+  }
+
   return home
 }
 
-function isHomepath(filepath: string) {
+function isHomepath(filepath: string): boolean {
   return filepath.indexOf('~/') === 0 || filepath.indexOf('~\\') === 0
 }

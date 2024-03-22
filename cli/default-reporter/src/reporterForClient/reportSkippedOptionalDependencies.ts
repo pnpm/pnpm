@@ -1,7 +1,7 @@
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
 
-import { SkippedOptionalDependencyLog } from '@pnpm/types'
+import type { SkippedOptionalDependencyLog } from '@pnpm/types'
 
 export function reportSkippedOptionalDependencies(
   skippedOptionalDependency$: Rx.Observable<SkippedOptionalDependencyLog>,

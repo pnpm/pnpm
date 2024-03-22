@@ -1,8 +1,8 @@
 import '@total-typescript/ts-reset'
+
+export type { SearchFunction, DependenciesHierarchy, PackageNode } from '@pnpm/types'
+
 export {
   buildDependenciesHierarchy,
-  type DependenciesHierarchy,
 } from './buildDependenciesHierarchy'
-export type { PackageNode } from './PackageNode'
-export type { SearchFunction } from './types'
 export { createPackagesSearcher } from './createPackagesSearcher'

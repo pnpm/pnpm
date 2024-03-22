@@ -11,7 +11,7 @@ export async function checkGlobalBinDir(
   {
     env,
     shouldAllowWrite,
-  }: { env: Record<string, string | undefined>; shouldAllowWrite?: boolean }
+  }: { env: Record<string, string | undefined>; shouldAllowWrite?: boolean |undefined }
 ): Promise<void> {
   if (!env[PATH]) {
     throw new PnpmError(
@@ -49,8 +49,9 @@ async function globalBinDirIsInPath(
   return dirs.some((dir) => areDirsEqual(realGlobalBinDir, dir))
 }
 
-const areDirsEqual = (dir1: string, dir2: string) =>
-  path.relative(dir1, dir2) === ''
+const areDirsEqual = (dir1: string, dir2: string): boolean => {
+  return path.relative(dir1, dir2) === '';
+}
 
 function canWriteToDirAndExists(dir: string): boolean {
   try {

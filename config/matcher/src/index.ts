@@ -9,10 +9,11 @@ export function createMatcher(patterns: string[] | string): Matcher {
   const m = createMatcherWithIndex(
     Array.isArray(patterns) ? patterns : [patterns]
   )
+
   return (input) => m(input) !== -1
 }
 
-interface MatcherFunction {
+type MatcherFunction = {
   match: Matcher
   ignore: boolean
 }
@@ -65,7 +66,9 @@ function matchInputWithNonIgnoreMatchers(
   input: string
 ): number {
   for (let i = 0; i < matchArr.length; i++) {
-    if (matchArr[i].match(input)) return i
+    if (matchArr[i]?.match(input)) {
+      return i
+    }
   }
 
   return -1
@@ -84,8 +87,11 @@ function matchInputWithMatchersArray(
 ): number {
   let matchedPatternIndex = -1
 
-  for (let i = 0; i < matchArr.length; i++) {
-    const { ignore, match } = matchArr[i]
+  matchArr.forEach((element: {
+    match: Matcher;
+    ignore: boolean;
+  }, i: number): void => {
+    const { ignore, match } = element
 
     if (ignore) {
       if (match(input)) {
@@ -94,17 +100,17 @@ function matchInputWithMatchersArray(
     } else if (matchedPatternIndex === -1 && match(input)) {
       matchedPatternIndex = i
     }
-  }
+  });
 
   return matchedPatternIndex
 }
 
-function matcherFromPattern(pattern: string): Matcher {
+function matcherFromPattern(pattern: string | undefined): Matcher {
   if (pattern === '*') {
     return () => true
   }
 
-  const escapedPattern = escapeStringRegexp(pattern).replace(/\\\*/g, '.*')
+  const escapedPattern = escapeStringRegexp(pattern ?? '').replace(/\\\*/g, '.*')
 
   if (escapedPattern === pattern) {
     return (input: string) => input === pattern
@@ -115,24 +121,26 @@ function matcherFromPattern(pattern: string): Matcher {
   return (input: string) => regexp.test(input)
 }
 
-function isIgnorePattern(pattern: string): boolean {
-  return pattern.startsWith('!')
+function isIgnorePattern(pattern: string | undefined): boolean {
+  return pattern?.startsWith('!') ?? false
 }
 
-function matcherWhenOnlyOnePatternWithIndex(pattern: string): MatcherWithIndex {
+function matcherWhenOnlyOnePatternWithIndex(pattern: string | undefined): MatcherWithIndex {
   const m = matcherWhenOnlyOnePattern(pattern)
 
   return (input) => (m(input) ? 0 : -1)
 }
 
-function matcherWhenOnlyOnePattern(pattern: string): Matcher {
+function matcherWhenOnlyOnePattern(pattern: string | undefined): Matcher {
   if (!isIgnorePattern(pattern)) {
     return matcherFromPattern(pattern)
   }
 
-  const ignorePattern = pattern.substring(1)
+  const ignorePattern = pattern?.substring(1)
 
   const m = matcherFromPattern(ignorePattern)
 
-  return (input) => !m(input)
+  return (input: string): boolean => {
+    return !m(input);
+  }
 }

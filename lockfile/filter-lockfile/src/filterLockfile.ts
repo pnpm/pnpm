@@ -1,7 +1,6 @@
-import type { Lockfile } from '@pnpm/lockfile-types'
-import type { DependenciesField } from '@pnpm/types'
+import type { DependenciesField, Lockfile } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
-import { filterImporter } from './filterImporter'
+import { filterImporter } from './filterImporter.js'
 
 export function filterLockfile(
   lockfile: Lockfile,

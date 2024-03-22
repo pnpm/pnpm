@@ -8,6 +8,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
@@ -38,7 +39,6 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",

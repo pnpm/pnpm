@@ -10,8 +10,8 @@ export function getAuthHeadersFromConfig({
   allSettings,
   userSettings,
 }: {
-  allSettings: Record<string, string>
-  userSettings: Record<string, string>
+  allSettings?: Record<string, string> | undefined
+  userSettings?: Record<string, string> | undefined
 }) {
   const authHeaderValueByURI: Record<string, string> = {}
 
@@ -33,8 +33,10 @@ export function getAuthHeadersFromConfig({
 
       case 'username': {
         if (`${uri}:_password` in allSettings) {
+          const arrayBuffer = allSettings?.[`${uri}:_password`] ?? ''
+
           const password = Buffer.from(
-            allSettings[`${uri}:_password`],
+            arrayBuffer,
             'base64'
           ).toString('utf8')
 

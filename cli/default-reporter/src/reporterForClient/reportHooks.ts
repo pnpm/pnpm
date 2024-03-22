@@ -2,9 +2,9 @@ import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
 import chalk from 'chalk'
 
-import { autozoom } from './utils/zooming'
+import { autozoom } from './utils/zooming.js'
 
-import { HookLog } from '@pnpm/types'
+import type { HookLog } from '@pnpm/types'
 
 export function reportHooks(
   hook$: Rx.Observable<HookLog>,
@@ -12,10 +12,14 @@ export function reportHooks(
     cwd: string
     isRecursive: boolean
   }
-) {
+): Rx.Observable<Rx.Observable<{
+    msg: string;
+  }>> {
   return hook$.pipe(
-    map((log) =>
-      Rx.of({
+    map((log: HookLog): Rx.Observable<{
+      msg: string;
+    }> => {
+      return Rx.of({
         msg: autozoom(
           opts.cwd,
           log.prefix,
@@ -24,7 +28,8 @@ export function reportHooks(
             zoomOutCurrent: opts.isRecursive,
           }
         ),
-      })
+      });
+    }
     )
   )
 }

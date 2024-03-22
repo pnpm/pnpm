@@ -11,6 +11,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "keywords": [
     "pnpm8"
   ],
@@ -33,6 +34,7 @@
     "@pnpm/parse-wanted-dependency": "workspace:*"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   },

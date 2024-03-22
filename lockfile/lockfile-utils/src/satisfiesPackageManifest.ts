@@ -41,7 +41,7 @@ export function satisfiesPackageManifest(
     }
   }
 
-  const pickNonLinkedDeps = pickBy((spec): boolean => !spec.startsWith('link:'))
+  const pickNonLinkedDeps = pickBy((spec: string): boolean => !spec.startsWith('link:'))
 
   let specs = importer.specifiers
 

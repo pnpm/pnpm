@@ -14,7 +14,7 @@ export function checkCompatibility(
     modulesDir: string
     virtualStoreDir: string
   }
-) {
+): void {
   if (!modules.layoutVersion || modules.layoutVersion !== LAYOUT_VERSION) {
     throw new ModulesBreakingChangeError({
       modulesPath: opts.modulesDir,

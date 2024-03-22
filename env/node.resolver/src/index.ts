@@ -2,12 +2,7 @@ import semver from 'semver'
 
 import versionSelectorType from 'version-selector-type'
 
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
-
-interface NodeVersion {
-  version: string
-  lts: false | string
-}
+import type { FetchFromRegistry, NodeVersion } from '@pnpm/types'
 
 const SEMVER_OPTS = {
   includePrerelease: true,
@@ -16,18 +11,18 @@ const SEMVER_OPTS = {
 
 export async function resolveNodeVersion(
   fetch: FetchFromRegistry,
-  versionSpec: string,
+  versionSpec: string | undefined,
   nodeMirrorBaseUrl?: string | undefined
 ): Promise<string | null> {
   const allVersions = await fetchAllVersions(fetch, nodeMirrorBaseUrl)
 
   if (versionSpec === 'latest') {
-    return allVersions[0].version
+    return allVersions[0]?.version ?? null
   }
 
   const { versions, versionRange } = filterVersions(allVersions, versionSpec)
 
-  return semver.maxSatisfying(versions, versionRange, SEMVER_OPTS) ?? null
+  return semver.maxSatisfying(versions, versionRange ?? '', SEMVER_OPTS) ?? null
 }
 
 export async function resolveNodeVersions(
@@ -42,15 +37,14 @@ export async function resolveNodeVersions(
   }
 
   if (versionSpec === 'latest') {
-    return [allVersions[0].version]
+    return typeof allVersions[0]?.version === 'string' ? [allVersions[0].version] : []
   }
 
   const { versions, versionRange } = filterVersions(allVersions, versionSpec)
 
-  return versions.filter((version) => {
-    return semver.satisfies(version, versionRange, SEMVER_OPTS);
-  }
-  )
+  return versions.filter((version: string): boolean => {
+    return semver.satisfies(version, versionRange ?? '', SEMVER_OPTS);
+  })
 }
 
 async function fetchAllVersions(
@@ -67,20 +61,24 @@ async function fetchAllVersions(
   }))
 }
 
-function filterVersions(versions: NodeVersion[], versionSelector: string): {
+function filterVersions(versions: NodeVersion[], versionSelector: string | undefined): {
   versions: string[];
-  versionRange: string;
+  versionRange: string | undefined;
 } {
   if (versionSelector === 'lts') {
     return {
       versions: versions
-        .filter(({ lts }) => lts !== false)
-        .map(({ version }) => version),
+        .filter(({ lts }: NodeVersion): boolean => {
+          return lts !== false;
+        })
+        .map(({ version }: NodeVersion): string => {
+          return version;
+        }),
       versionRange: '*',
     }
   }
 
-  const vst = versionSelectorType(versionSelector)
+  const vst = versionSelectorType(versionSelector ?? '')
 
   if (vst?.type === 'tag') {
     const wantedLtsVersion = vst.normalized.toLowerCase()
@@ -88,16 +86,19 @@ function filterVersions(versions: NodeVersion[], versionSelector: string): {
     return {
       versions: versions
         .filter(
-          ({ lts }) =>
-            typeof lts === 'string' && lts.toLowerCase() === wantedLtsVersion
+          ({ lts }: NodeVersion): boolean => {
+            return typeof lts === 'string' && lts.toLowerCase() === wantedLtsVersion;
+          }
         )
-        .map(({ version }) => version),
+        .map(({ version }: NodeVersion): string => {
+          return version;
+        }),
       versionRange: '*',
     }
   }
 
   return {
-    versions: versions.map(({ version }) => version),
+    versions: versions.map(({ version }: NodeVersion): string => version),
     versionRange: versionSelector,
   }
 }

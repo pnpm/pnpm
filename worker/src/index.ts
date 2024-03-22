@@ -5,9 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
-import type { AddDirToStoreMessage, DependencyManifest, HardLinkDirMessage, LinkPkgMessage, SymlinkAllModulesMessage, TarballExtractMessage } from '@pnpm/types'
+import type { PackageFilesIndex, AddDirToStoreMessage, DependencyManifest, HardLinkDirMessage, LinkPkgMessage, SymlinkAllModulesMessage, TarballExtractMessage } from '@pnpm/types'
 
 let workerPool: WorkerPool | undefined
 

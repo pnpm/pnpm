@@ -1,22 +1,31 @@
-import path from 'path'
+import path from 'node:path'
 
-import type { Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { addFilesFromTarball } from '@pnpm/worker'
-import type { FetchFunction, FetchOptions } from '@pnpm/resolver-base'
+import type { Cafs, DependencyManifest, FetchOptions } from '@pnpm/types'
 
 const isAbsolutePath = /^[/]|^[A-Za-z]:/
 
-interface Resolution {
-  integrity?: string
-  registry?: string
+export function createLocalTarballFetcher(): (cafs: Cafs, resolution: {
+  integrity?: string | undefined
+  registry?: string | undefined
   tarball: string
-}
-
-export function createLocalTarballFetcher(): FetchFunction {
-  const fetch = (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
+}, opts: FetchOptions) => Promise<{
+  filesIndex: Record<string, string>;
+  manifest: DependencyManifest;
+}> {
+  return (cafs: Cafs, resolution: {
+    integrity?: string | undefined
+    registry?: string | undefined
+    tarball: string
+  }, opts: FetchOptions): Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest;
+  }> => {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
-    const buffer = gfs.readFileSync(tarball)
+
+    const buffer = gfs.default.readFileSync(tarball)
+
     return addFilesFromTarball({
       cafsDir: cafs.cafsDir,
       buffer,
@@ -27,11 +36,12 @@ export function createLocalTarballFetcher(): FetchFunction {
       pkg: opts.pkg,
     })
   }
-
-  return fetch as FetchFunction
 }
 
-function resolvePath(where: string, spec: string) {
-  if (isAbsolutePath.test(spec)) return spec
+function resolvePath(where: string, spec: string): string {
+  if (isAbsolutePath.test(spec)) {
+    return spec
+  }
+
   return path.resolve(where, spec)
 }

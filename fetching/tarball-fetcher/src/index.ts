@@ -1,25 +1,48 @@
 import '@total-typescript/ts-reset'
 
-import type {
-  FetchFromRegistry,
-  GetAuthHeader,
-  RetryTimeoutOptions,
-} from '@pnpm/fetching-types'
 import { PnpmError } from '@pnpm/error'
 import { TarballIntegrityError } from '@pnpm/worker'
 
-import { FetchFunction, Cafs, FetchOptions } from '@pnpm/types'
-import { createLocalTarballFetcher } from './localTarballFetcher'
-import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher'
-import { createDownloader, type DownloadFunction } from './remoteTarballFetcher'
+import type {
+  Cafs,
+  FetchResult,
+  FetchOptions,
+  GetAuthHeader,
+  DownloadFunction,
+  FetchFromRegistry,
+  DependencyManifest,
+  RetryTimeoutOptions,
+} from '@pnpm/types'
+
+import { createDownloader } from './remoteTarballFetcher.js'
+import { createLocalTarballFetcher } from './localTarballFetcher.js'
+import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
 
 export { TarballIntegrityError }
-export { BadTarballError } from './errorTypes'
+export { BadTarballError } from './errorTypes/index.js'
 
 export type TarballFetchers = {
-  localTarball: FetchFunction
-  remoteTarball: FetchFunction
-  gitHostedTarball: FetchFunction
+  localTarball: (cafs: Cafs, resolution: {
+    integrity?: string | undefined
+    registry?: string | undefined
+    tarball: string
+  }, opts: FetchOptions) => Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest;
+  }>
+  remoteTarball: (cafs: Cafs, resolution: {
+    tarball: string;
+    integrity: string | undefined;
+    registry: string | undefined;
+  }, opts: FetchOptions) => Promise<FetchResult>
+  gitHostedTarball: (cafs: Cafs, resolution: {
+    tarball: string;
+    integrity?: string | undefined;
+    registry?: string | undefined;
+  }, opts: FetchOptions) => Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest | undefined;
+  }>
 }
 
 export function createTarballFetcher(
@@ -43,7 +66,7 @@ export function createTarballFetcher(
     download,
     getAuthHeaderByURI: getAuthHeader,
     offline: opts.offline,
-  }) as FetchFunction
+  })
 
   return {
     localTarball: createLocalTarballFetcher(),
@@ -56,16 +79,16 @@ async function fetchFromTarball(
   ctx: {
     download: DownloadFunction
     getAuthHeaderByURI: (registry: string) => string | undefined
-    offline?: boolean
+    offline?: boolean | undefined
   },
   cafs: Cafs,
   resolution: {
-    integrity?: string
-    registry?: string
     tarball: string
+    integrity?: string | undefined
+    registry?: string | undefined
   },
   opts: FetchOptions
-) {
+): Promise<FetchResult> {
   if (ctx.offline) {
     throw new PnpmError(
       'NO_OFFLINE_TARBALL',

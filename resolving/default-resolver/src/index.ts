@@ -1,19 +1,19 @@
 import '@total-typescript/ts-reset'
 import { PnpmError } from '@pnpm/error'
 import type {
-  FetchFromRegistry,
+  PackageMeta,
   GetAuthHeader,
-} from '@pnpm/fetching-types'
+  ResolveFunction,
+  PackageMetaCache,
+  WantedDependency,
+  FetchFromRegistry,
+  ResolveResult,
+  ResolveFromNpmOptions,
+  ResolverFactoryOptions,
+} from '@pnpm/types'
 import { createGitResolver } from '@pnpm/git-resolver'
 import { resolveFromLocal } from '@pnpm/local-resolver'
-import {
-  createNpmResolver,
-  type PackageMeta,
-  type PackageMetaCache,
-  type ResolveFromNpmOptions,
-  type ResolverFactoryOptions,
-} from '@pnpm/npm-resolver'
-import type { ResolveFunction } from '@pnpm/resolver-base'
+import { createNpmResolver } from '@pnpm/npm-resolver'
 import { resolveFromTarball } from '@pnpm/tarball-resolver'
 
 export type {
@@ -33,20 +33,24 @@ export function createResolver(
     getAuthHeader,
     pnpmOpts
   )
+
   const resolveFromGit = createGitResolver(pnpmOpts)
-  return async (wantedDependency, opts) => {
-    const resolution =
-      (await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions)) ??
+
+  return async (wantedDependency: WantedDependency, opts: ResolveFromNpmOptions) => {
+    const resolution: ResolveResult | null =
+      (await resolveFromNpm(wantedDependency, opts)) ??
       (wantedDependency.pref &&
-        ((await resolveFromTarball(wantedDependency as { pref: string })) ??
-          (await resolveFromGit(wantedDependency as { pref: string })) ??
-          (await resolveFromLocal(wantedDependency as { pref: string }, opts))))
+        ((await resolveFromTarball(wantedDependency)) ??
+          (await resolveFromGit(wantedDependency)) ??
+          (await resolveFromLocal(wantedDependency, opts))))
+
     if (!resolution) {
       throw new PnpmError(
         'SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER',
         `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''} isn't supported by any available resolver.`
       )
     }
+
     return resolution
   }
 }

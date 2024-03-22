@@ -4,6 +4,7 @@
   "description": "Reads the metainfo of the currently running pnpm instance",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "type": "module",
   "files": [
     "lib",
     "!*.map"

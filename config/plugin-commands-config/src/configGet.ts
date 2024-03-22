@@ -1,5 +1,4 @@
-import type { Config } from '@pnpm/types'
-import type { ConfigCommandOptions } from './ConfigCommandOptions'
+import type { Config, ConfigCommandOptions } from '@pnpm/types'
 
 export function configGet(opts: ConfigCommandOptions, key: string): Config | string {
   const config = opts.rawConfig[key]

@@ -3,25 +3,24 @@ import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 
 import { runNpm } from '@pnpm/run-npm'
-
-import type { ConfigCommandOptions } from './ConfigCommandOptions'
+import type { ConfigCommandOptions } from '@pnpm/types'
 
 export async function configSet(
   opts: ConfigCommandOptions,
-  key: string,
+  key: string | undefined,
   value: string | null
 ): Promise<void> {
   const configPath = opts.global
     ? path.join(opts.configDir, 'rc')
     : path.join(opts.dir, '.npmrc')
 
-  if (opts.global && settingShouldFallBackToNpm(key)) {
+  if (opts.global && settingShouldFallBackToNpm(key ?? '')) {
     const _runNpm = runNpm.bind(null, opts.npmPath)
 
     if (value == null) {
-      _runNpm(['config', 'delete', key])
+      _runNpm(['config', 'delete', key ?? ''])
     } else {
-      _runNpm(['config', 'set', `${key}=${value}`])
+      _runNpm(['config', 'set', `${key ?? ''}=${value}`])
     }
 
     return
@@ -30,13 +29,13 @@ export async function configSet(
   const settings = await safeReadIniFile(configPath)
 
   if (value == null) {
-    if (settings[key] == null) {
+    if (settings[key ?? ''] == null) {
       return
     }
 
-    delete settings[key]
+    delete settings[key ?? '']
   } else {
-    settings[key] = value
+    settings[key ?? ''] = value
   }
 
   await writeIniFile(configPath, settings)

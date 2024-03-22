@@ -1,17 +1,45 @@
 import '@total-typescript/ts-reset'
 
 import * as Rx from 'rxjs'
-import { filter, map, mergeAll } from 'rxjs/operators'
 import createDiffer from 'ansi-diff'
-import { EOL } from './constants'
-import { mergeOutputs } from './mergeOutputs'
-import { reporterForClient } from './reporterForClient'
-import { formatWarn } from './reporterForClient/utils/formatWarn'
-import { reporterForServer } from './reporterForServer'
-import type { FilterPkgsDiff } from './reporterForClient/reportSummary'
-import type { Config, ContextLog, DeprecationLog, ExecutionTimeLog, FetchingProgressLog, HookLog, InstallCheckLog, LifecycleLog, LinkLog, Log, PackageImportMethodLog, PackageManifestLog, PeerDependencyIssuesLog, PeerDependencyRules, ProgressLog, RegistryLog, RequestRetryLog, RootLog, ScopeLog, SkippedOptionalDependencyLog, StageLog, StatsLog, SummaryLog, UpdateCheckLog } from '@pnpm/types'
+import { filter, map, mergeAll } from 'rxjs/operators'
+
+import type {
+  Log,
+  Cook,
+  Config,
+  HookLog,
+  LinkLog,
+  RootLog,
+  ScopeLog,
+  StageLog,
+  StatsLog,
+  ContextLog,
+  SummaryLog,
+  LifecycleLog,
+  ProgressLog,
+  RegistryLog,
+  DeprecationLog,
+  UpdateCheckLog,
+  InstallCheckLog,
+  RequestRetryLog,
+  ExecutionTimeLog,
+  PackageManifestLog,
+  FetchingProgressLog,
+  PeerDependencyRules,
+  PackageImportMethodLog,
+  PeerDependencyIssuesLog,
+  SkippedOptionalDependencyLog,
+} from '@pnpm/types'
 import type { LogLevel } from '@pnpm/logger'
-import { StreamParser } from '@pnpm/logger/lib/streamParser'
+
+import { EOL } from './constants.js'
+import { mergeOutputs } from './mergeOutputs.js'
+import { reporterForServer } from './reporterForServer.js'
+import { reporterForClient } from './reporterForClient/index.js'
+import { formatWarn } from './reporterForClient/utils/formatWarn.js'
+import type { StreamParser } from '@pnpm/logger/lib/streamParser.js'
+import type { FilterPkgsDiff } from './reporterForClient/reportSummary.js'
 
 export { formatWarn }
 
@@ -41,7 +69,8 @@ export function initDefaultReporter(opts: {
 }): () => void {
   if (opts.context.argv[0] === 'server') {
     // eslint-disable-next-line
-    const log$ = Rx.fromEvent<Log>(opts.streamParser as any, 'data')
+    const log$ = Rx.fromEvent<Log>(opts.streamParser as any,
+      'data')
 
     const subscription = reporterForServer(log$, opts.context.config)
 
@@ -117,27 +146,28 @@ export function initDefaultReporter(opts: {
 export function toOutput$(opts: {
   streamParser: StreamParser
   reportingOptions?: {
-    appendOnly?: boolean
-    logLevel?: LogLevel
-    outputMaxWidth?: number
-    peerDependencyRules?: PeerDependencyRules
-    streamLifecycleOutput?: boolean
-    aggregateOutput?: boolean
-    throttleProgress?: number
-    hideAddedPkgsProgress?: boolean
-    hideProgressPrefix?: boolean
-    hideLifecycleOutput?: boolean
-    hideLifecyclePrefix?: boolean
-  }
+    appendOnly?: boolean | undefined
+    logLevel?: LogLevel | undefined
+    outputMaxWidth?: number | undefined
+    peerDependencyRules?: PeerDependencyRules | undefined
+    streamLifecycleOutput?: boolean | undefined
+    aggregateOutput?: boolean | undefined
+    throttleProgress?: number | undefined
+    hideAddedPkgsProgress?: boolean | undefined
+    hideProgressPrefix?: boolean | undefined
+    hideLifecycleOutput?: boolean | undefined
+    hideLifecyclePrefix?: boolean | undefined
+  } | undefined
   context: {
     argv: string[]
-    config?: Config
-    env?: NodeJS.ProcessEnv
-    process?: NodeJS.Process
+    config?: Config | undefined
+    env?: NodeJS.ProcessEnv | undefined
+    process?: NodeJS.Process | undefined
   }
-  filterPkgsDiff?: FilterPkgsDiff
+  filterPkgsDiff?: FilterPkgsDiff | undefined
 }): Rx.Observable<string> {
   opts = opts || {}
+
   const contextPushStream = new Rx.Subject<ContextLog>()
   const fetchingProgressPushStream = new Rx.Subject<FetchingProgressLog>()
   const executionTimePushStream = new Rx.Subject<ExecutionTimeLog>()
@@ -163,90 +193,120 @@ export function toOutput$(opts: {
   const scopePushStream = new Rx.Subject<ScopeLog>()
   const requestRetryPushStream = new Rx.Subject<RequestRetryLog>()
   const updateCheckPushStream = new Rx.Subject<UpdateCheckLog>()
+
   globalThis.setTimeout(() => {
     opts.streamParser.on('data', (log: Log) => {
       switch (log.name) {
-        case 'pnpm:context':
+        case 'pnpm:context': {
           contextPushStream.next(log)
           break
-        case 'pnpm:execution-time':
+        }
+        case 'pnpm:execution-time': {
           executionTimePushStream.next(log)
           break
-        case 'pnpm:fetching-progress':
+        }
+        case 'pnpm:fetching-progress': {
           fetchingProgressPushStream.next(log)
           break
-        case 'pnpm:progress':
+        }
+        case 'pnpm:progress': {
           progressPushStream.next(log)
           break
-        case 'pnpm:stage':
+        }
+        case 'pnpm:stage': {
           stagePushStream.next(log)
           break
-        case 'pnpm:deprecation':
+        }
+        case 'pnpm:deprecation': {
           deprecationPushStream.next(log)
           break
-        case 'pnpm:summary':
+        }
+        case 'pnpm:summary': {
           summaryPushStream.next(log)
           break
-        case 'pnpm:lifecycle':
+        }
+        case 'pnpm:lifecycle': {
           lifecyclePushStream.next(log)
           break
-        case 'pnpm:stats':
+        }
+        case 'pnpm:stats': {
           statsPushStream.next(log)
           break
-        case 'pnpm:package-import-method':
+        }
+        case 'pnpm:package-import-method': {
           packageImportMethodPushStream.next(log)
           break
-        case 'pnpm:peer-dependency-issues':
+        }
+        case 'pnpm:peer-dependency-issues': {
           peerDependencyIssuesPushStream.next(log)
           break
-        case 'pnpm:install-check':
+        }
+        case 'pnpm:install-check': {
           installCheckPushStream.next(log)
           break
-        case 'pnpm:registry':
+        }
+        case 'pnpm:registry': {
           registryPushStream.next(log)
           break
-        case 'pnpm:root':
+        }
+        case 'pnpm:root': {
           rootPushStream.next(log)
           break
-        case 'pnpm:package-manifest':
+        }
+        case 'pnpm:package-manifest': {
           packageManifestPushStream.next(log)
           break
-        case 'pnpm:link':
+        }
+        case 'pnpm:link': {
           linkPushStream.next(log)
           break
-        case 'pnpm:hook':
+        }
+        case 'pnpm:hook': {
           hookPushStream.next(log)
           break
-        case 'pnpm:skipped-optional-dependency':
+        }
+        case 'pnpm:skipped-optional-dependency': {
           skippedOptionalDependencyPushStream.next(log)
           break
-        case 'pnpm:scope':
+        }
+        case 'pnpm:scope': {
           scopePushStream.next(log)
           break
-        case 'pnpm:request-retry':
+        }
+        case 'pnpm:request-retry': {
           requestRetryPushStream.next(log)
           break
-        case 'pnpm:update-check':
+        }
+        case 'pnpm:update-check': {
           updateCheckPushStream.next(log)
           break
+        }
       case 'pnpm' as any: // eslint-disable-line
       case 'pnpm:global' as any: // eslint-disable-line
       case 'pnpm:store' as any: // eslint-disable-line
-      case 'pnpm:lockfile' as any: // eslint-disable-line
+      case 'pnpm:lockfile' as any: { // eslint-disable-line
           otherPushStream.next(log)
           break
+        }
       }
     })
   }, 0)
+
   let other = Rx.from(otherPushStream)
+
   if (opts.context.config?.hooks?.filterLog != null) {
     const filterLogs = opts.context.config.hooks.filterLog
+
     const filterFn =
-      filterLogs.length === 1
-        ? filterLogs[0]
-        : (log: Log) => filterLogs.every!((filterLog) => filterLog(log))
+      filterLogs.length === 1 && typeof filterLogs[0] === 'function'
+        ? (filterLogs[0])
+        : (log: Log) => filterLogs.every!((filterLog: Cook<(log: Log) => boolean>): boolean => {
+          return filterLog(log);
+        })
+
     other = other.pipe(filter(filterFn))
   }
+
   const log$ = {
     context: Rx.from(contextPushStream),
     deprecation: Rx.from(deprecationPushStream),
@@ -271,7 +331,9 @@ export function toOutput$(opts: {
     summary: Rx.from(summaryPushStream),
     updateCheck: Rx.from(updateCheckPushStream),
   }
+
   const cmd = opts.context.argv[0]
+
   const outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>> =
     reporterForClient(log$, {
       appendOnly: opts.reportingOptions?.appendOnly,

@@ -2,16 +2,21 @@ import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
 import prettyMilliseconds from 'pretty-ms'
 
-import { formatWarn } from './utils/formatWarn'
+import type { RequestRetryLog } from '@pnpm/types'
 
-import { RequestRetryLog } from '@pnpm/types'
+import { formatWarn } from './utils/formatWarn.js'
 
 export function reportRequestRetry(
   requestRetry$: Rx.Observable<RequestRetryLog>
-) {
+): Rx.Observable<Rx.Observable<{
+    msg: string;
+  }>> {
   return requestRetry$.pipe(
-    map((log) => {
+    map((log: RequestRetryLog): Rx.Observable<{
+      msg: string;
+    }> => {
       const retriesLeft = log.maxRetries - log.attempt + 1
+
       const errorCode =
       // @ts-ignore
         log.error.httpStatusCode ||

@@ -1,7 +1,10 @@
 import { createMatcher } from '@pnpm/matcher'
-import npa from '@pnpm/npm-package-arg'
-import type { SearchFunction } from './types'
+
 import semver from 'semver'
+
+import npa from '@pnpm/npm-package-arg'
+
+import type { SearchFunction } from '@pnpm/types'
 
 export function createPackagesSearcher(queries: string[]): (pkg: {
   name: string;
@@ -9,7 +12,10 @@ export function createPackagesSearcher(queries: string[]): (pkg: {
 }) => boolean {
   const searchers: SearchFunction[] = queries
     .map(parseSearchQuery)
-    .map((packageSelector) => search.bind(null, packageSelector))
+    .map((packageSelector) => {
+      return search.bind(null, packageSelector);
+    })
+
   return (pkg: { name: string; version: string }): boolean => {
     return searchers.some((search: SearchFunction): boolean => {
       return search(pkg);
@@ -29,9 +35,11 @@ function search(
   if (!packageSelector.matchName(pkg.name)) {
     return false
   }
+
   if (packageSelector.matchVersion == null) {
     return true
   }
+
   return (
     !pkg.version.startsWith('link:') &&
     packageSelector.matchVersion(pkg.version)
@@ -40,17 +48,21 @@ function search(
 
 function parseSearchQuery(query: string) {
   const parsed = npa(query)
+
   if (parsed.raw === parsed.name) {
     return { matchName: createMatcher(parsed.name) }
   }
+
   if (parsed.type !== 'version' && parsed.type !== 'range') {
     throw new Error(
       `Invalid query - ${query}. List can search only by version or range`
     )
   }
+
   return {
     matchName: createMatcher(parsed.name),
-    matchVersion: (version: string) =>
-      semver.satisfies(version, parsed.fetchSpec),
+    matchVersion: (version: string): boolean => {
+      return semver.satisfies(version, parsed.fetchSpec);
+    },
   }
 }

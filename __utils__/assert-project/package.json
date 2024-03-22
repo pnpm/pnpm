@@ -15,6 +15,7 @@
   "files": [
     "lib/"
   ],
+  "type": "module",
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@types/is-windows": "^1.0.2",

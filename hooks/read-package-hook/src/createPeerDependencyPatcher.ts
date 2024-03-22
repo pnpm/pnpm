@@ -1,15 +1,16 @@
 import semver from 'semver'
 import isEmpty from 'ramda/src/isEmpty'
-import {
-  type PeerDependencyRules,
-  type ReadPackageHook,
-  type PackageManifest,
-  type ProjectManifest,
+
+import type {
+  PackageManifest,
+  ProjectManifest,
+  VersionOverride,
+  PeerDependencyRules,
 } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
-import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
-import { createMatcher } from '@pnpm/matcher'
 import { isSubRange } from './isSubRange'
+import { createMatcher } from '@pnpm/matcher'
+import { parseOverrides } from '@pnpm/parse-overrides'
 
 export function createPeerDependencyPatcher(
   peerDependencyRules: PeerDependencyRules

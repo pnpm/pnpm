@@ -11,6 +11,8 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
+  "module": "lib/index.js",
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"

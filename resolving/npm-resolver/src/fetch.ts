@@ -1,23 +1,20 @@
-import url from 'url'
-import { requestRetryLogger } from '@pnpm/core-loggers'
+import url from 'node:url'
+
+import * as retry from '@zkochan/retry'
+
 import {
+  PnpmError,
   FetchError,
   type FetchErrorRequest,
   type FetchErrorResponse,
-  PnpmError,
 } from '@pnpm/error'
-import {
-  type FetchFromRegistry,
-  type RetryTimeoutOptions,
-} from '@pnpm/fetching-types'
-import * as retry from '@zkochan/retry'
-import { type PackageMeta } from './pickPackage'
-
-interface RegistryResponse {
-  status: number
-  statusText: string
-  json: () => Promise<PackageMeta>
-}
+import type {
+  PackageMeta,
+  RegistryResponse,
+  FetchFromRegistry,
+  RetryTimeoutOptions,
+} from '@pnpm/types'
+import { requestRetryLogger } from '@pnpm/core-loggers'
 
 // https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
 const semverRegex =
@@ -49,13 +46,16 @@ export async function fromRegistry(
   fetchOpts: { retry: RetryTimeoutOptions; timeout: number },
   pkgName: string,
   registry: string,
-  authHeaderValue?: string
+  authHeaderValue?: string | undefined
 ): Promise<PackageMeta> {
   const uri = toUri(pkgName, registry)
+
   const op = retry.operation(fetchOpts.retry)
+
   return new Promise((resolve, reject) => {
     op.attempt(async (attempt) => {
       let response: RegistryResponse
+
       try {
         response = (await fetch(uri, {
           authHeaderValue,
@@ -63,22 +63,26 @@ export async function fromRegistry(
           retry: fetchOpts.retry,
           timeout: fetchOpts.timeout,
         })) as RegistryResponse
-      } catch (error: any) { // eslint-disable-line
+      } catch (error: unknown) {
         reject(
           new PnpmError(
             'META_FETCH_FAIL',
+            // @ts-ignore
             `GET ${uri}: ${error.message as string}`,
             { attempts: attempt }
           )
         )
         return
       }
+
       if (response.status > 400) {
         const request = {
           authHeaderValue,
           url: uri,
         }
+
         reject(new RegistryResponseError(request, response, pkgName))
+
         return
       }
 
@@ -86,14 +90,17 @@ export async function fromRegistry(
       // Other HTTP issues are retried by the @pnpm/fetch library
       try {
         resolve(await response.json())
-      } catch (error: any) { // eslint-disable-line
+      } catch (error: unknown) {
         const timeout = op.retry(
+          // @ts-ignore
           new PnpmError('BROKEN_METADATA_JSON', error.message)
         )
+
         if (timeout === false) {
           reject(op.mainError())
           return
         }
+
         requestRetryLogger.debug({
           attempt,
           error,
@@ -108,13 +115,9 @@ export async function fromRegistry(
 }
 
 function toUri(pkgName: string, registry: string) {
-  let encodedName: string
-
-  if (pkgName[0] === '@') {
-    encodedName = `@${encodeURIComponent(pkgName.slice(1))}`
-  } else {
-    encodedName = encodeURIComponent(pkgName)
-  }
+  const encodedName: string = pkgName.startsWith('@')
+    ? `@${encodeURIComponent(pkgName.slice(1))}`
+    : encodeURIComponent(pkgName);
 
   return new url.URL(
     encodedName,

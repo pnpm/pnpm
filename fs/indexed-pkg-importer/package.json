@@ -29,6 +29,7 @@
     "sanitize-filename": "^1.6.3"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/fs-extra": "11.0.4",

@@ -1,5 +1,5 @@
+import { ErrorRelatedSources } from '@pnpm/types'
 import { BreakingChangeError } from './BreakingChangeError'
-import type { ErrorRelatedSources } from './ErrorRelatedSources'
 
 export type ModulesBreakingChangeErrorOptions = ErrorRelatedSources & {
   modulesPath: string
@@ -15,6 +15,7 @@ export class ModulesBreakingChangeError extends BreakingChangeError {
       relatedIssue: opts.relatedIssue,
       relatedPR: opts.relatedPR,
     })
+
     this.modulesPath = opts.modulesPath
   }
 }

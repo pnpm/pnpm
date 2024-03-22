@@ -6,18 +6,12 @@ import { PnpmError } from '@pnpm/error'
 
 import {
   fetchWithAgent,
-  type AgentOptions,
-  type RetryTimeoutOptions,
 } from '@pnpm/fetch'
 import { globalWarn } from '@pnpm/logger'
-import type { GetAuthHeader } from '@pnpm/fetching-types'
-import type { DependenciesField, Lockfile } from '@pnpm/types'
-
-import type { AuditReport } from './types'
-import { lockfileToAuditTree } from './lockfileToAuditTree'
 import { searchForPackages, flattenSearchedPackages } from '@pnpm/list'
+import type { AgentOptions, DependenciesField, Lockfile, GetAuthHeader, RetryTimeoutOptions, AuditReport, AuditAdvisory } from '@pnpm/types'
 
-export * from './types'
+import { lockfileToAuditTree } from './lockfileToAuditTree.js'
 
 export async function audit(
   lockfile: Lockfile,
@@ -38,7 +32,7 @@ export async function audit(
   const registry = opts?.registry.endsWith('/')
     ? opts?.registry ?? ''
     : `${opts?.registry ?? ''}/`
-  const auditUrl = `${registry}-/npm/v1/security/audits`
+  const auditUrl = new URL(`${registry}-/npm/v1/security/audits`)
   const authHeaderValue = getAuthHeader(registry)
 
   const res = await fetchWithAgent(auditUrl, {
@@ -54,7 +48,7 @@ export async function audit(
   })
 
   if (res.status === 404) {
-    throw new AuditEndpointNotExistsError(auditUrl)
+    throw new AuditEndpointNotExistsError(auditUrl.toString())
   }
 
   if (res.status !== 200) {
@@ -96,22 +90,29 @@ async function extendWithDependencyPaths(
   }
 ): Promise<AuditReport> {
   const { advisories } = auditReport
-  if (!Object.keys(advisories).length) return auditReport
-  const projectDirs = Object.keys(opts.lockfile.importers).map((importerId) =>
-    path.join(opts.lockfileDir, importerId)
-  )
+
+  if (!Object.keys(advisories).length) {
+    return auditReport
+  }
+
+  const projectDirs = Object.keys(opts.lockfile.importers).map((importerId): string => {
+    return path.join(opts.lockfileDir, importerId)
+  })
+
   const searchOpts = {
     lockfileDir: opts.lockfileDir,
     depth: Infinity,
     include: opts.include,
   }
+
   const _searchPackagePaths = searchPackagePaths.bind(
     null,
     searchOpts,
     projectDirs
   )
+
   await Promise.all(
-    Object.values(advisories).map(async ({ findings, module_name }) => {
+    Object.values(advisories).map(async ({ findings, module_name }: AuditAdvisory): Promise<void> => {
       await Promise.all(
         findings.map(async (finding) => {
           finding.paths = await _searchPackagePaths(
@@ -128,7 +129,7 @@ async function searchPackagePaths(
   searchOpts: {
     lockfileDir: string
     depth: number
-    include?: { [dependenciesField in DependenciesField]: boolean }
+    include?: { [dependenciesField in DependenciesField]: boolean } | undefined
   },
   projectDirs: string[],
   pkg: string

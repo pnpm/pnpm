@@ -1,11 +1,12 @@
 import '@total-typescript/ts-reset'
-import { promises as fs, type Stats } from 'node:fs'
+
 import path from 'node:path'
+import { promises as fs, type Stats } from 'node:fs'
+
 import { logger } from '@pnpm/logger'
 import { packlist } from '@pnpm/fs.packlist'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import type { DependencyManifest } from '@pnpm/types'
-import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/resolver-base'
+import type { DependencyManifest, DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/types'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 
@@ -19,6 +20,7 @@ export function createDirectoryFetcher(opts?: CreateDirectoryFetcherOptions | un
 } {
   const readFileStat: ReadFileStat =
     opts?.resolveSymlinks === true ? realFileStat : fileStat
+
   const fetchFromDir = opts?.includeOnlyPackageFiles
     ? fetchPackageFilesFromDir
     : fetchAllFilesFromDir.bind(null, readFileStat)
@@ -30,6 +32,7 @@ export function createDirectoryFetcher(opts?: CreateDirectoryFetcherOptions | un
     manifest?: DependencyManifest | undefined;
   }> => {
     const dir = path.join(opts.lockfileDir ?? '', resolution.directory)
+
     return fetchFromDir(dir, opts)
   }
 
@@ -52,8 +55,10 @@ export async function fetchFromDir(
   if (opts.includeOnlyPackageFiles) {
     return fetchPackageFilesFromDir(dir, opts)
   }
+
   const readFileStat: ReadFileStat =
     opts?.resolveSymlinks === true ? realFileStat : fileStat
+
   return fetchAllFilesFromDir(readFileStat, dir, opts)
 }
 
@@ -68,15 +73,17 @@ async function fetchAllFilesFromDir(
     manifest?: DependencyManifest | undefined;
   }> {
   const filesIndex = await _fetchAllFilesFromDir(readFileStat, dir)
+
   let manifest: DependencyManifest | undefined
+
   if (opts.readManifest) {
+    const mf = await safeReadProjectManifestOnly(dir)
     // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
     // Safe read was added to support the Bit workspace in which the components have no package.json files.
     // Related PR in Bit: https://github.com/teambit/bit/pull/5251
-    manifest =
-      ((await safeReadProjectManifestOnly(dir)) as DependencyManifest) ??
-      undefined
+    manifest = typeof mf !== 'undefined' && typeof mf.name === 'string' && typeof mf.version === 'string' ? { ...mf, name: mf.name ?? '', version: mf.version ?? '' } : undefined;
   }
+
   return {
     local: true as const,
     filesIndex,

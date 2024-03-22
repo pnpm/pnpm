@@ -1,52 +1,24 @@
-import type { Lockfile, TarballResolution } from '@pnpm/lockfile-types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-import { packageIsInstallable } from '@pnpm/package-is-installable'
-import {
-  lockfileWalkerGroupImporterSteps,
-  type LockfileWalkerStep,
-} from '@pnpm/lockfile-walker'
-import type {
-  SupportedArchitectures,
-  DependenciesField,
-  Registries,
-} from '@pnpm/types'
-import { getPkgInfo } from './getPkgInfo'
 import mapValues from 'ramda/src/map'
 
-export interface LicenseNode {
-  name?: string | undefined
-  version?: string | undefined
-  license: string
-  licenseContents?: string | undefined
-  dir: string
-  author?: string | undefined
-  homepage?: string | undefined
-  description?: string | undefined
-  repository?: string | undefined
-  integrity?: string | undefined
-  requires?: Record<string, string> | undefined
-  dependencies?: { [name: string]: LicenseNode } | undefined
-  dev: boolean
-}
-
-export type LicenseNodeTree = Omit<
+import type {
+  Lockfile,
   LicenseNode,
-  'dir' | 'license' | 'licenseContents' | 'author' | 'homepages' | 'repository'
->
+  LicenseNodeTree,
+  DependenciesField,
+  TarballResolution,
+  LockfileWalkerStep,
+  LicenseExtractOptions,
+} from '@pnpm/types'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { packageIsInstallable } from '@pnpm/package-is-installable'
+import { lockfileWalkerGroupImporterSteps } from '@pnpm/lockfile-walker'
 
-export interface LicenseExtractOptions {
-  storeDir: string
-  virtualStoreDir: string
-  modulesDir?: string | undefined
-  dir: string
-  registries: Registries
-  supportedArchitectures?: SupportedArchitectures | undefined
-}
+import { getPkgInfo } from './getPkgInfo'
 
 export async function lockfileToLicenseNode(
   step: LockfileWalkerStep,
   options: LicenseExtractOptions
-) {
+): Promise<Record<string, LicenseNode>> {
   const dependencies: Record<string, LicenseNode> = Object.fromEntries(
     (
       await Promise.all(

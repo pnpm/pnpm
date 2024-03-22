@@ -1,31 +1,27 @@
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
+
+import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
+
+import {
+  getFilePathInCafs,
+  getFilePathByModeInCafs,
+} from '@pnpm/store.cafs'
+import { PnpmError } from '@pnpm/error'
+import loadJsonFile from 'load-json-file'
+import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { readPackageJson } from '@pnpm/read-package-json'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import pLimit from 'p-limit'
-import type { PackageManifest, Registries } from '@pnpm/types'
-import {
-  getFilePathByModeInCafs,
-  getFilePathInCafs,
-  type PackageFileInfo,
-  type PackageFilesIndex,
-} from '@pnpm/store.cafs'
-import loadJsonFile from 'load-json-file'
-import { PnpmError } from '@pnpm/error'
-import type { LicensePackage } from './licenses'
-import {
-  type DirectoryResolution,
-  type PackageSnapshot,
-  pkgSnapshotToResolution,
-  type Resolution,
-} from '@pnpm/lockfile-utils'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
+import { pkgSnapshotToResolution } from '@pnpm/lockfile-utils'
+import type { PackageManifest, Registries, PackageFileInfo, PackageFilesIndex, DirectoryResolution, PackageSnapshot, Resolution, LicensePackage } from '@pnpm/types'
 
 const limitPkgReads = pLimit(4)
 
-export async function readPkg(pkgPath: string) {
-  return limitPkgReads(async () => readPackageJson(pkgPath))
+export async function readPkg(pkgPath: string): Promise<PackageManifest> {
+  return limitPkgReads(async (): Promise<PackageManifest> => {
+    return readPackageJson(pkgPath);
+  })
 }
 
 /**

@@ -12,7 +12,7 @@ import type {
 import { renderPeerIssues } from '@pnpm/render-peer-issues'
 import { renderDedupeCheckIssues } from '@pnpm/dedupe.issues-renderer'
 
-import { EOL } from './constants'
+import { EOL } from './constants.js'
 
 StackTracey.maxColumnWidths = {
   callee: 25,
@@ -185,10 +185,12 @@ function formatPkgsStack(
   pkgsStack: Array<{ id: string; name: string; version: string }>
 ): string {
   return `This error happened while installing the dependencies of \
-${pkgsStack[0].name}@${pkgsStack[0].version}\
+${pkgsStack[0]?.name ?? ''}@${pkgsStack[0]?.version ?? ''}\
 ${pkgsStack
     .slice(1)
-    .map(({ name, version }) => `${EOL} at ${name}@${version}`)
+    .map(({ name, version }): string => {
+      return `${EOL} at ${name}@${version}`;
+    })
     .join('')}`
 }
 
@@ -254,7 +256,10 @@ function reportUnexpectedVirtualStoreDir(
     expected: string
     modulesDir: string
   }
-) {
+): {
+    title: string;
+    body: string;
+  } {
   return {
     title: err.message,
     body: `The dependencies at "${msg.modulesDir}" are currently symlinked from the virtual store directory at "${msg.expected}".

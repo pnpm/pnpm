@@ -29,7 +29,7 @@ export const OPTIONS = {
       'The directory with links to the store (default is node_modules/.pnpm). All direct and indirect dependencies of the project are linked into this directory',
     name: '--virtual-store-dir <dir>',
   },
-}
+} as const
 
 export const UNIVERSAL_OPTIONS = [
   {
@@ -71,7 +71,8 @@ export const UNIVERSAL_OPTIONS = [
     description: 'Divert all output to stderr',
     name: '--use-stderr',
   },
-]
+] as const
+
 export const FILTERING = {
   list: [
     {
@@ -147,7 +148,7 @@ export const FILTERING = {
   ],
   title:
     'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
-}
+} as const
 
 export const OUTPUT_OPTIONS = {
   title: 'Output',
@@ -173,4 +174,4 @@ export const OUTPUT_OPTIONS = {
       name: '--reporter ndjson',
     },
   ],
-}
+} as const

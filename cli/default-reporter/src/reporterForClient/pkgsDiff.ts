@@ -1,5 +1,3 @@
-import { DeprecationLog, PackageManifestLog, RootLog, SummaryLog, type PackageManifest } from '@pnpm/types'
-import * as Rx from 'rxjs'
 import {
   filter,
   map,
@@ -9,18 +7,11 @@ import {
   startWith,
   take,
 } from 'rxjs/operators'
+import * as Rx from 'rxjs'
 import mergeRight from 'ramda/src/mergeRight'
 import difference from 'ramda/src/difference'
 
-export interface PackageDiff {
-  added: boolean
-  from?: string | undefined
-  name: string
-  realName?: string | undefined
-  version?: string | undefined
-  deprecated?: boolean | undefined
-  latest?: string | undefined
-}
+import type { DeprecationLog, PackageManifestLog, RootLog, SummaryLog, PackageManifest, PackageDiff } from '@pnpm/types'
 
 export interface Map<T> {
   [index: string]: T
@@ -44,23 +35,34 @@ export function getPkgsDiff(
   opts: {
     prefix: string
   }
-) {
+): Rx.Observable<{
+  dev: Map<PackageDiff>;
+  nodeModulesOnly: Map<PackageDiff>;
+  optional: Map<PackageDiff>;
+  prod: Map<PackageDiff>;
+} | {
+  dev: Map<PackageDiff>
+  nodeModulesOnly: Map<PackageDiff>
+  optional: Map<PackageDiff>
+  prod: Map<PackageDiff>
+}> {
   const deprecationSet$ = log$.deprecation.pipe(
-    filter((log): boolean => {
+    filter((log: DeprecationLog): boolean => {
       return log.prefix === opts.prefix;
     }),
-    scan((acc, log) => {
+    scan((acc: Set<string>, log: DeprecationLog): Set<string> => {
       acc.add(log.pkgId)
       return acc
     }, new Set()),
-    startWith(new Set())
+    startWith(new Set<string>())
   )
 
   const filterPrefix = filter(
-    (log: { prefix: string }) => {
+    (log: { prefix: string }): boolean => {
       return log.prefix === opts.prefix;
     }
   )
+
   const pkgsDiff$ = Rx.combineLatest(
     log$.root.pipe(filterPrefix),
     deprecationSet$
@@ -68,10 +70,13 @@ export function getPkgsDiff(
     scan(
       (pkgsDiff, args) => {
         const rootLog = args[0]
+
         const deprecationSet = args[1] as Set<string>
+
         let action: '-' | '+' | undefined
 
         let log: any // eslint-disable-line @typescript-eslint/no-explicit-any
+
         if ('added' in rootLog) {
           action = '+'
           log = rootLog.added
@@ -91,6 +96,7 @@ export function getPkgsDiff(
 
         if (previous && previous.version === log.version) {
           delete pkgsDiff[depType][oppositeKey]
+
           return pkgsDiff
         }
 
@@ -103,6 +109,7 @@ export function getPkgsDiff(
           realName: log.realName,
           version: log.version,
         }
+
         return pkgsDiff
       },
       {

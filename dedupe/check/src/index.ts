@@ -1,2 +1,2 @@
-export { dedupeDiffCheck, countChangedSnapshots } from './dedupeDiffCheck'
-export { DedupeCheckIssuesError } from './DedupeCheckIssuesError'
+export { dedupeDiffCheck, countChangedSnapshots } from './dedupeDiffCheck.js'
+export { DedupeCheckIssuesError } from './DedupeCheckIssuesError.js'

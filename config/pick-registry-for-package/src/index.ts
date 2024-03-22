@@ -3,7 +3,7 @@ import type { Registries } from '@pnpm/types'
 export function pickRegistryForPackage(
   registries: Registries,
   packageName: string,
-  pref?: string
+  pref?: string | undefined
 ): string {
   const scope = getScope(packageName, pref)
 
@@ -14,7 +14,7 @@ function getScope(pkgName: string, pref?: string | undefined): string | null {
   if (pref?.startsWith('npm:')) {
     pref = pref.slice(4)
 
-    if (pref[0] === '@') {
+    if (pref.startsWith('@')) {
       return pref.substring(0, pref.indexOf('/'))
     }
   }

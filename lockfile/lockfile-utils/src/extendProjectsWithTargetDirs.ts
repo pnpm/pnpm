@@ -1,4 +1,5 @@
 import path from 'node:path'
+
 import type { Lockfile } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 
@@ -35,7 +36,7 @@ export function extendProjectsWithTargetDirs<T>(
     projects.map((project) => {
       return [
         project.id,
-        { ...project, targetDirs: [] as string[] },
+        { ...project, targetDirs: [] },
       ];
     })
   )
@@ -61,16 +62,21 @@ export function extendProjectsWithTargetDirs<T>(
       return
     }
 
-    projectsById[importerId].targetDirs.push(...localLocations)
+    const project = projectsById[importerId]
 
-    projectsById[importerId].stages = [
-      'preinstall',
-      'install',
-      'postinstall',
-      'prepare',
-      'prepublishOnly',
-    ]
+    if (typeof project !== 'undefined') {
+      project.targetDirs.push(...localLocations)
+
+      project.stages = [
+        'preinstall',
+        'install',
+        'postinstall',
+        'prepare',
+        'prepublishOnly',
+      ]
+    }
   })
+
   return Object.values(projectsById) as Array<
     T & { id: string; stages: string[]; targetDirs: string[] }
   >

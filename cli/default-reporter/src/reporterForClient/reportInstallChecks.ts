@@ -1,21 +1,29 @@
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
 
-import { formatWarn } from './utils/formatWarn'
-import { autozoom } from './utils/zooming'
+import { autozoom } from './utils/zooming.js'
+import { formatWarn } from './utils/formatWarn.js'
 
-import { InstallCheckLog } from '@pnpm/types'
+import type { InstallCheckLog } from '@pnpm/types'
 
 export function reportInstallChecks(
   installCheck$: Rx.Observable<InstallCheckLog>,
   opts: {
     cwd: string
   }
-) {
+): Rx.Observable<Rx.Observable<{
+    msg: string;
+  }>> {
   return installCheck$.pipe(
-    map((log) => formatInstallCheck(opts.cwd, log)),
+    map((log: InstallCheckLog): string | undefined => {
+      return formatInstallCheck(opts.cwd, log);
+    }),
     filter(Boolean),
-    map((msg) => Rx.of({ msg }))
+    map((msg: string): Rx.Observable<{
+      msg: string;
+    }> => {
+      return Rx.of({ msg });
+    })
   )
 }
 
@@ -24,8 +32,8 @@ function formatInstallCheck(
   logObj: InstallCheckLog,
   opts?: {
     zoomOutCurrent: boolean
-  }
-) {
+  } | undefined
+): string | undefined {
   const zoomOutCurrent = opts?.zoomOutCurrent ?? false
 
   const prefix =
@@ -42,11 +50,13 @@ function formatInstallCheck(
         { zoomOutCurrent }
       )
     }
+
     case 'ENOTSUP': {
       return autozoom(currentPrefix, prefix, logObj.toString(), {
         zoomOutCurrent,
       })
     }
+
     default: {
       return undefined
     }

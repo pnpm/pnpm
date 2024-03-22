@@ -10,32 +10,29 @@ import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 
 import type {
+  PackageMeta,
+  GetAuthHeader,
   ResolveResult,
   WantedDependency,
+  PackageInRegistry,
+  FetchFromRegistry,
   WorkspacePackages,
   DependencyManifest,
+  PickPackageOptions,
   DirectoryResolution,
   ResolveFromNpmOptions,
   ResolverFactoryOptions,
+  RegistryPackageSpec,
+  RetryTimeoutOptions,
 } from '@pnpm/types'
-import type {
-  GetAuthHeader,
-  FetchFromRegistry,
-} from '@pnpm/fetching-types'
 import { PnpmError } from '@pnpm/error'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 
-import {
-  pickPackage,
-  type PackageMeta,
-  type PackageMetaCache,
-  type PackageInRegistry,
-  type PickPackageOptions,
-} from './pickPackage'
-import { createPkgId } from './createNpmPkgId'
-import { workspacePrefToNpm } from './workspacePrefToNpm'
-import { fromRegistry, RegistryResponseError } from './fetch'
-import { parsePref, type RegistryPackageSpec } from './parsePref'
+import { parsePref } from './parsePref.js'
+import { pickPackage } from './pickPackage.js'
+import { createPkgId } from './createNpmPkgId.js'
+import { workspacePrefToNpm } from './workspacePrefToNpm.js'
+import { fromRegistry, RegistryResponseError } from './fetch.js'
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
@@ -54,9 +51,6 @@ export class NoMatchingVersionError extends PnpmError {
 export {
   parsePref,
   workspacePrefToNpm,
-  type PackageMeta,
-  type PackageMetaCache,
-  type RegistryPackageSpec,
   RegistryResponseError,
 }
 
@@ -71,13 +65,19 @@ export function createNpmResolver(
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-) {
+): (wantedDependency: WantedDependency, opts: ResolveFromNpmOptions) => Promise<ResolveResult | null> {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
 
-  const fetchOpts = {
-    retry: opts.retry ?? {},
+  const fetchOpts: { retry: RetryTimeoutOptions; timeout: number; } = {
+    retry: opts.retry ?? {
+      retries: 0,
+      factor: 0,
+      minTimeout: 0,
+      maxTimeout: 0,
+      randomize: false,
+    },
     timeout: opts.timeout ?? 60_000,
   }
 
@@ -157,10 +157,11 @@ async function resolveNpm(
   if (spec == null) return null
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(opts.registry)
-  let pickResult!: {
+  let pickResult: {
     meta: PackageMeta
     pickedPackage: PackageInRegistry | null
-  }
+  } | null | undefined
+
   try {
     pickResult = await ctx.pickPackage(spec, {
       pickLowestVersion: opts.pickLowestVersion,
@@ -171,7 +172,7 @@ async function resolveNpm(
       registry: opts.registry,
       updateToLatest: opts.updateToLatest,
     })
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     if (workspacePackages != null && opts.projectDir) {
       try {
         return tryResolveFromWorkspacePackages(workspacePackages, spec, {
@@ -267,15 +268,16 @@ function tryResolveFromWorkspace(
   wantedDependency: WantedDependency,
   opts: {
     defaultTag: string
-    lockfileDir?: string
-    projectDir?: string
+    lockfileDir?: string | undefined
+    projectDir?: string | undefined
     registry: string
-    workspacePackages?: WorkspacePackages
+    workspacePackages?: WorkspacePackages | undefined
   }
 ) {
   if (!wantedDependency.pref?.startsWith('workspace:')) {
     return null
   }
+
   const pref = workspacePrefToNpm(wantedDependency.pref)
 
   const spec = parsePref(
@@ -284,18 +286,22 @@ function tryResolveFromWorkspace(
     opts.defaultTag,
     opts.registry
   )
+
   if (spec == null)
     throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
+
   if (opts.workspacePackages == null) {
     throw new Error(
       'Cannot resolve package from workspace because opts.workspacePackages is not defined'
     )
   }
+
   if (!opts.projectDir) {
     throw new Error(
       'Cannot resolve package from workspace because opts.projectDir is not defined'
     )
   }
+
   return tryResolveFromWorkspacePackages(opts.workspacePackages, spec, {
     wantedDependency,
     projectDir: opts.projectDir,
@@ -309,9 +315,9 @@ function tryResolveFromWorkspacePackages(
   spec: RegistryPackageSpec,
   opts: {
     wantedDependency: WantedDependency
-    hardLinkLocalPackages?: boolean
+    hardLinkLocalPackages?: boolean | undefined
     projectDir: string
-    lockfileDir?: string
+    lockfileDir?: string | undefined
   }
 ) {
   if (!workspacePackages[spec.name]) {
@@ -343,12 +349,10 @@ function tryResolveFromWorkspacePackages(
 }
 
 function pickMatchingLocalVersionOrNull(
-  versions: {
-    [version: string]: {
-      dir: string
-      manifest: DependencyManifest
-    }
-  },
+  versions: Record<string, {
+    dir: string
+    manifest: DependencyManifest
+  }>,
   spec: RegistryPackageSpec
 ) {
   const localVersions = Object.keys(versions)

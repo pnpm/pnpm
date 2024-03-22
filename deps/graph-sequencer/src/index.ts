@@ -1,12 +1,12 @@
 export type Graph<T> = Map<T, T[]>
 export type Groups<T> = T[][]
 
-export interface Options<T> {
+export type Options<T> = {
   graph: Graph<T>
   groups: Groups<T>
 }
 
-export interface Result<T> {
+export type Result<T> = {
   safe: boolean
   chunks: Groups<T>
   cycles: Groups<T>

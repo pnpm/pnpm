@@ -6,11 +6,11 @@ import semver from 'semver'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { resolveNodeVersions } from '@pnpm/node.resolver'
-import { getNodeMirror } from './getNodeMirror'
 
-import { parseEnvSpecifier } from './parseEnvSpecifier'
-import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
-import { getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils'
+import { getNodeMirror } from './getNodeMirror.js'
+import { parseEnvSpecifier } from './parseEnvSpecifier.js'
+import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node.js'
+import { getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils.js'
 
 export async function envList(opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (opts.remote) {

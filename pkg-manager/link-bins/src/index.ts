@@ -1,4 +1,5 @@
 import '@total-typescript/ts-reset'
+
 import path from 'node:path'
 import { promises as fs, existsSync } from 'node:fs'
 
@@ -19,12 +20,11 @@ import partition from 'ramda/src/partition'
 import { PnpmError } from '@pnpm/error'
 import { logger, globalWarn } from '@pnpm/logger'
 import { readModulesDir } from '@pnpm/read-modules-dir'
-import { BundledManifest } from '@pnpm/store-controller-types'
+import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
-import { type Command, getBinsFromPackageManifest } from '@pnpm/package-bins'
+import type { BundledManifest, DependencyManifest, ProjectManifest, Command } from '@pnpm/types'
 
 const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
@@ -122,13 +122,22 @@ export async function linkBinsOfPkgsByAliases(
 }
 
 function preferDirectCmds(
-  allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>
-) {
+  allCmds: Array<CommandInfo & { isDirectDependency?: boolean | undefined }>
+): (Command & {
+    ownName: boolean;
+    pkgName?: string | undefined;
+    makePowerShellShim: boolean;
+    nodeExecPath?: string | undefined;
+  } & {
+    isDirectDependency?: boolean | undefined;
+  })[] {
   const [directCmds, hoistedCmds] = partition(
     (cmd) => cmd.isDirectDependency === true,
     allCmds
   )
+
   const usedDirectCmds = new Set(directCmds.map((directCmd) => directCmd.name))
+
   return [
     ...directCmds,
     ...hoistedCmds.filter(({ name }): boolean => {

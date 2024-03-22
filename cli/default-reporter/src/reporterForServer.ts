@@ -1,10 +1,11 @@
 import chalk from 'chalk'
 import type * as Rx from 'rxjs'
 
-import { reportError } from './reportError'
 import type { Log, Config } from '@pnpm/types'
 
-export function reporterForServer(log$: Rx.Observable<Log>, config?: Config | undefined) {
+import { reportError } from './reportError.js'
+
+export function reporterForServer(log$: Rx.Observable<Log>, config?: Config | undefined): Rx.Subscription {
   return log$.subscribe({
     complete: () => undefined,
     error: () => undefined,

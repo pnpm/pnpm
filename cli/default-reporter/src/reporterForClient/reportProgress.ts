@@ -1,10 +1,10 @@
 import * as Rx from 'rxjs'
 import { filter, map, mapTo, takeWhile, startWith, take } from 'rxjs/operators'
 
-import { ProgressLog, StageLog } from '@pnpm/types'
+import type { ProgressLog, StageLog } from '@pnpm/types'
 
-import { zoomOut } from './utils/zooming'
-import { hlValue } from './outputConstants'
+import { zoomOut } from './utils/zooming.js'
+import { hlValue } from './outputConstants.js'
 
 type ProgressStats = {
   fetched: number
@@ -27,9 +27,9 @@ export function reportProgress(
   opts: {
     cwd: string
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    throttle?: Rx.OperatorFunction<any, any>
-    hideAddedPkgsProgress?: boolean
-    hideProgressPrefix?: boolean
+    throttle?: Rx.OperatorFunction<any, any> | undefined
+    hideAddedPkgsProgress?: boolean | undefined
+    hideProgressPrefix?: boolean | undefined
   }
 ) {
   const progressOutput = throttledProgressOutput.bind(null, opts)
@@ -60,19 +60,29 @@ export function reportProgress(
 function throttledProgressOutput(
   opts: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    throttle?: Rx.OperatorFunction<any, any>
-    hideAddedPkgsProgress?: boolean
+    throttle?: Rx.OperatorFunction<any, any> | undefined
+    hideAddedPkgsProgress?: boolean | undefined
   },
   importingDone$: Rx.Observable<boolean>,
   progress$: Rx.Observable<ProgressStats>
-) {
+): Rx.Observable<{
+  done: boolean;
+  fixed: boolean;
+  msg: string;
+} | {
+  fixed: boolean;
+  msg: string;
+  done?: never;
+}> {
   if (opts.throttle != null) {
     progress$ = progress$.pipe(opts.throttle)
   }
+
   const combinedProgress = Rx.combineLatest(progress$, importingDone$)
     // Avoid logs after all resolved packages were downloaded.
     // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
     .pipe(takeWhile(([, importingDone]) => !importingDone, true))
+
   return combinedProgress.pipe(
     map(
       opts.hideAddedPkgsProgress
@@ -88,34 +98,51 @@ function getModulesInstallProgress$(
 ): Rx.Observable<ModulesInstallProgress> {
   const modulesInstallProgressPushStream =
     new Rx.Subject<ModulesInstallProgress>()
+
   const progressStatsPushStreamByRequirer =
     getProgressStatsPushStreamByRequirer(progress$)
 
   const stagePushStreamByRequirer: {
     [requirer: string]: Rx.Subject<StageLog>
   } = {}
+
   stage$
-    .forEach((log: StageLog) => {
-      if (!stagePushStreamByRequirer[log.prefix]) {
+    .forEach((log: StageLog): void => {
+      const stage = stagePushStreamByRequirer[log.prefix]
+
+      if (typeof stage === 'undefined') {
+        const subjectLog = new Rx.Subject<StageLog>()
+
         stagePushStreamByRequirer[log.prefix] = new Rx.Subject<StageLog>()
+
         if (!progressStatsPushStreamByRequirer[log.prefix]) {
-          progressStatsPushStreamByRequirer[log.prefix] = new Rx.Subject()
+          progressStatsPushStreamByRequirer[log.prefix] = new Rx.Subject<ProgressStats>()
         }
-        modulesInstallProgressPushStream.next({
-          importingDone$: stage$ToImportingDone$(
-            Rx.from(stagePushStreamByRequirer[log.prefix])
-          ),
-          progress$: Rx.from(progressStatsPushStreamByRequirer[log.prefix]),
-          requirer: log.prefix,
-        })
+
+        const progress = progressStatsPushStreamByRequirer[log.prefix]
+
+        if (typeof progress !== 'undefined') {
+          modulesInstallProgressPushStream.next({
+            importingDone$: stage$ToImportingDone$(
+              Rx.from(subjectLog)
+            ),
+            progress$: Rx.from(progress),
+            requirer: log.prefix,
+          })
+        }
       }
-      stagePushStreamByRequirer[log.prefix].next(log)
+
+      stagePushStreamByRequirer[log.prefix]?.next(log)
+
       if (log.stage === 'importing_done') {
-        progressStatsPushStreamByRequirer[log.prefix].complete()
-        stagePushStreamByRequirer[log.prefix].complete()
+        progressStatsPushStreamByRequirer[log.prefix]?.complete()
+
+        stagePushStreamByRequirer[log.prefix]?.complete()
       }
     })
-    .catch(() => {})
+    .catch((err) => {
+      console.error(err)
+    })
 
   return Rx.from(modulesInstallProgressPushStream)
 }
@@ -139,7 +166,9 @@ function getProgressStatsPushStreamByRequirer(
 
   progress$
     .forEach((log: ProgressLog): void => {
-      if (!previousProgressStatsByRequirer[log.requester]) {
+      const prev = previousProgressStatsByRequirer[log.requester]
+
+      if (typeof prev === 'undefined') {
         previousProgressStatsByRequirer[log.requester] = {
           fetched: 0,
           imported: 0,
@@ -147,32 +176,45 @@ function getProgressStatsPushStreamByRequirer(
           reused: 0,
         }
       }
+
+      const current = previousProgressStatsByRequirer[log.requester]
+
+      if (typeof current === 'undefined') {
+        return;
+      }
+
       switch (log.status) {
         case 'resolved': {
-          previousProgressStatsByRequirer[log.requester].resolved++
+          current.resolved++
+
           break
         }
+
         case 'fetched': {
-          previousProgressStatsByRequirer[log.requester].fetched++
+          current.fetched++
+
           break
         }
+
         case 'found_in_store': {
-          previousProgressStatsByRequirer[log.requester].reused++
+          current.reused++
+
           break
         }
+
         case 'imported': {
-          previousProgressStatsByRequirer[log.requester].imported++
+          current.imported++
+
           break
         }
       }
 
       if (!progressStatsPushStreamByRequirer[log.requester]) {
-        progressStatsPushStreamByRequirer[log.requester] =
-          new Rx.Subject<ProgressStats>()
+        progressStatsPushStreamByRequirer[log.requester] = new Rx.Subject<ProgressStats>()
       }
 
-      progressStatsPushStreamByRequirer[log.requester].next(
-        previousProgressStatsByRequirer[log.requester]
+      progressStatsPushStreamByRequirer[log.requester]?.next(
+        current
       )
     })
     .catch((err) => {
@@ -185,7 +227,15 @@ function getProgressStatsPushStreamByRequirer(
 function createStatusMessage([progress, importingDone]: [
   ProgressStats,
   boolean,
-]) {
+]): {
+  done: true;
+  fixed: boolean;
+  msg: string;
+} | {
+  done: false
+  fixed: boolean;
+  msg: string;
+} {
   const msg = `Progress: resolved ${hlValue(
     progress.resolved.toString()
   )}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(
@@ -203,13 +253,22 @@ function createStatusMessage([progress, importingDone]: [
   return {
     fixed: true,
     msg,
+    done: false,
   }
 }
 
 function createStatusMessageWithoutAdded([progress, importingDone]: [
   ProgressStats,
   boolean,
-]) {
+]): {
+  done: true;
+  fixed: boolean;
+  msg: string;
+} | {
+  done: false;
+  fixed: boolean;
+  msg: string;
+} {
   const msg = `Progress: resolved ${hlValue(
     progress.resolved.toString()
   )}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(
@@ -227,5 +286,6 @@ function createStatusMessageWithoutAdded([progress, importingDone]: [
   return {
     fixed: true,
     msg,
+    done: false,
   }
 }

@@ -8,6 +8,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",

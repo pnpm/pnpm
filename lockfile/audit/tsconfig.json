@@ -16,9 +16,6 @@
       "path": "../../network/fetch"
     },
     {
-      "path": "../../network/fetching-types"
-    },
-    {
       "path": "../../packages/constants"
     },
     {

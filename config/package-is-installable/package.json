@@ -4,6 +4,7 @@
   "description": "Checks if a package is installable on the current system",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "type": "module",
   "files": [
     "lib",
     "!*.map"

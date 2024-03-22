@@ -1,14 +1,16 @@
 import '@total-typescript/ts-reset'
-import { constants, type Stats, existsSync } from 'node:fs'
-import fs from '@pnpm/graceful-fs'
 import path from 'node:path'
-import { globalInfo, globalWarn } from '@pnpm/logger'
-import { packageImportMethodLogger } from '@pnpm/core-loggers'
+import { constants, type Stats, existsSync } from 'node:fs'
+
 import type {
   FilesMap,
   ImportOptions,
   ImportIndexedPackage,
-} from '@pnpm/store-controller-types'
+} from '@pnpm/types'
+import fs from '@pnpm/graceful-fs'
+import { globalInfo, globalWarn } from '@pnpm/logger'
+import { packageImportMethodLogger } from '@pnpm/core-loggers'
+
 import { importIndexedDir, type ImportFile } from './importIndexedDir'
 
 export function createIndexedPkgImporter(

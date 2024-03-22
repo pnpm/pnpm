@@ -51,11 +51,11 @@ export async function parseCliArgs(
     },
     inputArgv,
     0,
-    { escapeArgs: opts.escapeArgs }
+    { escapeArgs: opts.escapeArgs ?? [] }
   )
 
   const recursiveCommandUsed = RECURSIVE_CMDS.has(
-    noptExploratoryResults.argv.remain[0]
+    noptExploratoryResults.argv.remain[0] ?? ''
   )
 
   let commandName = getCommandName(noptExploratoryResults.argv.remain)
@@ -86,15 +86,15 @@ export async function parseCliArgs(
 
   const types = {
     ...opts.universalOptionsTypes,
-    ...opts.getTypesByCommandName(commandName),
-  } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    ...opts.getTypesByCommandName(commandName ?? ''),
+  }
 
   function getCommandName(args: string[]) {
     if (recursiveCommandUsed) {
       args = args.slice(1)
     }
 
-    if (opts.getCommandLongName(args[0]) !== 'install' || args.length === 1) {
+    if (opts.getCommandLongName(args[0] ?? '') !== 'install' || args.length === 1) {
       return args[0]
     }
 
@@ -119,7 +119,10 @@ export async function parseCliArgs(
       1 +
       (recursiveCommandUsed ? 1 : 0) +
       (commandName && !cmd && opts.fallbackCommand && opts.fallbackCommand === 'run' ? -1 : 0)
-    return [noptExploratoryResults.argv.remain[indexOfRunScriptName]]
+
+    const result = noptExploratoryResults.argv.remain[indexOfRunScriptName]
+
+    return typeof result === 'undefined' ? [] : [result]
   }
 
   const { argv, ...options } = nopt(
@@ -129,11 +132,11 @@ export async function parseCliArgs(
     },
     {
       ...opts.universalShorthands,
-      ...opts.shorthandsByCommandName[commandName],
+      ...opts.shorthandsByCommandName[commandName ?? ''],
     },
     inputArgv,
     0,
-    { escapeArgs: getEscapeArgsWithSpecialCaseForRun() }
+    { escapeArgs: getEscapeArgsWithSpecialCaseForRun() ?? [] }
   )
 
   // For the run command, it's not clear whether --help should be passed to the
@@ -144,8 +147,10 @@ export async function parseCliArgs(
 
   if (opts.renamedOptions != null) {
     for (const [cliOption, optionValue] of Object.entries(options)) {
-      if (opts.renamedOptions[cliOption]) {
-        options[opts.renamedOptions[cliOption]] = optionValue
+      const opt = opts.renamedOptions[cliOption]
+
+      if (opt) {
+        options[opt] = optionValue
         delete options[cliOption]
       }
     }
@@ -160,11 +165,13 @@ export async function parseCliArgs(
     options.recursive = true
 
     const subCmd: string | null =
-      argv.remain[1] && opts.getCommandLongName(argv.remain[1])
+      argv.remain[1] ? opts.getCommandLongName(argv.remain[1]) : null
 
     if (subCmd && recursiveCommandUsed) {
       params.shift()
+
       argv.remain.shift()
+
       cmd = subCmd
     }
   }

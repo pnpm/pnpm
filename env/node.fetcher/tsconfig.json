@@ -22,9 +22,6 @@
       "path": "../../fetching/tarball-fetcher"
     },
     {
-      "path": "../../network/fetching-types"
-    },
-    {
       "path": "../../packages/error"
     },
     {

@@ -4,7 +4,7 @@ export function getNormalizedArch(
   nodeVersion?: string | undefined
 ): string {
   if (nodeVersion) {
-    const nodeMajorVersion = +nodeVersion.split('.')[0]
+    const nodeMajorVersion = +(nodeVersion.split('.')[0] ?? '20')
 
     if (platform === 'darwin' && arch === 'arm64' && nodeMajorVersion < 16) {
       return 'x64'

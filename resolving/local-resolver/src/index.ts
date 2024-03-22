@@ -1,20 +1,23 @@
 import '@total-typescript/ts-reset'
-import { existsSync } from 'node:fs'
+
 import path from 'node:path'
-import { PnpmError } from '@pnpm/error'
-import gfs from '@pnpm/graceful-fs'
-import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
+import { existsSync } from 'node:fs'
+
+import ssri from 'ssri'
+
 import type {
-  DirectoryResolution,
   ResolveResult,
   TarballResolution,
-} from '@pnpm/resolver-base'
-import type { DependencyManifest } from '@pnpm/types'
-import ssri from 'ssri'
+  DependencyManifest,
+  DirectoryResolution,
+  WantedLocalDependency,
+} from '@pnpm/types'
+import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
-import { parsePref, type WantedLocalDependency } from './parsePref'
+import { PnpmError } from '@pnpm/error'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 
-export type { WantedLocalDependency }
+import { parsePref } from './parsePref'
 
 /**
  * Resolves a package hosted on the local filesystem
@@ -43,7 +46,11 @@ export async function resolveFromLocal(
     opts.projectDir,
     opts.lockfileDir ?? opts.projectDir
   )
-  if (spec == null) return null
+
+  if (spec == null) {
+    return null
+  }
+
   if (spec.type === 'file') {
     return {
       id: spec.id,
@@ -57,11 +64,12 @@ export async function resolveFromLocal(
   }
 
   let localDependencyManifest!: DependencyManifest
+
   try {
     localDependencyManifest = (await readProjectManifestOnly(
       spec.fetchSpec
     )) as DependencyManifest
-  } catch (internalErr: any) { // eslint-disable-line
+  } catch (internalErr: unknown) {
     if (!existsSync(spec.fetchSpec)) {
       if (spec.id.startsWith('file:')) {
         throw new PnpmError(
@@ -69,15 +77,18 @@ export async function resolveFromLocal(
           `Could not install from "${spec.fetchSpec}" as it does not exist.`
         )
       }
+
       logger.warn({
         message: `Installing a dependency from a non-existent directory: ${spec.fetchSpec}`,
         prefix: opts.projectDir,
       })
+
       localDependencyManifest = {
         name: path.basename(spec.fetchSpec),
         version: '0.0.0',
       }
     } else {
+      // @ts-ignore
       switch (internalErr.code) {
         case 'ENOTDIR': {
           throw new PnpmError(
@@ -85,20 +96,24 @@ export async function resolveFromLocal(
             `Could not install from "${spec.fetchSpec}" as it is not a directory.`
           )
         }
+
         case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
         case 'ENOENT': {
           localDependencyManifest = {
             name: path.basename(spec.fetchSpec),
             version: '0.0.0',
           }
+
           break
         }
+
         default: {
           throw internalErr
         }
       }
     }
   }
+
   return {
     id: spec.id,
     manifest: localDependencyManifest,
@@ -111,6 +126,6 @@ export async function resolveFromLocal(
   }
 }
 
-async function getFileIntegrity(filename: string) {
+async function getFileIntegrity(filename: string): Promise<string> {
   return (await ssri.fromStream(gfs.createReadStream(filename))).toString()
 }

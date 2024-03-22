@@ -1,7 +1,7 @@
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 
-import { ScopeLog } from '@pnpm/types'
+import type { ScopeLog } from '@pnpm/types'
 
 const COMMANDS_THAT_REPORT_SCOPE = new Set([
   'install',
@@ -19,18 +19,22 @@ export function reportScope(
   scope$: Rx.Observable<ScopeLog>,
   opts: {
     isRecursive: boolean
-    cmd: string
+    cmd?: string | undefined
   }
 ) {
-  if (!COMMANDS_THAT_REPORT_SCOPE.has(opts.cmd)) {
+  if (!opts.cmd || !COMMANDS_THAT_REPORT_SCOPE.has(opts.cmd)) {
     return Rx.NEVER
   }
+
   return scope$.pipe(
     take(1),
-    map((log) => {
+    map((log: ScopeLog): Rx.Observable<{
+      msg: string;
+    }> => {
       if (log.selected === 1) {
         return Rx.NEVER
       }
+
       let msg = 'Scope: '
 
       if (log.selected === log.total) {

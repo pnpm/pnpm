@@ -4,22 +4,22 @@ import repeat from 'ramda/src/repeat'
 import stringLength from 'string-length'
 import { filter, take, reduce, map } from 'rxjs/operators'
 
-import { StatsLog } from '@pnpm/types'
+import type { StatsLog } from '@pnpm/types'
 
-import { EOL } from '../constants'
-import { zoomOut } from './utils/zooming'
-import { ADDED_CHAR, REMOVED_CHAR } from './outputConstants'
+import { EOL } from '../constants.js'
+import { zoomOut } from './utils/zooming.js'
+import { ADDED_CHAR, REMOVED_CHAR } from './outputConstants.js'
 
 export function reportStats(
   log$: {
     stats: Rx.Observable<StatsLog>
   },
   opts: {
-    cmd: string
+    cmd?: string | undefined
     cwd: string
     isRecursive: boolean
     width: number
-    hideProgressPrefix?: boolean
+    hideProgressPrefix?: boolean | undefined
   }
 ): Rx.Observable<Rx.Observable<{
     msg: string;
@@ -32,9 +32,12 @@ export function reportStats(
       }),
     ]
   }
+
   const stats$ = opts.isRecursive
     ? log$.stats
-    : log$.stats.pipe(filter((log) => log.prefix !== opts.cwd))
+    : log$.stats.pipe(filter((log: StatsLog): boolean => {
+      return log.prefix !== opts.cwd;
+    }))
 
   const outputs = [
     statsForNotCurrentPackage(stats$, {
@@ -62,13 +65,15 @@ export function reportStats(
 function statsForCurrentPackage(
   stats$: Rx.Observable<StatsLog>,
   opts: {
-    cmd: string
+    cmd?: string | undefined
     width: number
   }
-) {
+): Rx.Observable<Rx.Observable<{
+    msg: string;
+  }>> {
   return stats$.pipe(
     take(
-      ['install', 'install-test', 'add', 'update', 'dlx'].includes(opts.cmd)
+      ['install', 'install-test', 'add', 'update', 'dlx'].includes(opts.cmd ?? '')
         ? 2
         : 1
     ),
@@ -86,24 +91,34 @@ function statsForCurrentPackage(
       }
       return acc
     }, { added: 0, removed: 0 }),
-    map((stats) => {
+    map((stats: {
+      added: number;
+      removed: number;
+    }): Rx.Observable<{
+      msg: string;
+    }> => {
       if (!stats.removed && !stats.added) {
         if (opts.cmd === 'link') {
           return Rx.NEVER
         }
+
         return Rx.of({ msg: 'Already up to date' })
       }
 
       let msg = 'Packages:'
+
       if (stats.added) {
-        msg += ' ' + chalk.green(`+${stats.added.toString()}`)
+        msg += ` ${chalk.green(`+${stats.added.toString()}`)}`
       }
+
       if (stats.removed) {
-        msg += ' ' + chalk.red(`-${stats.removed.toString()}`)
+        msg += ` ${chalk.red(`-${stats.removed.toString()}`)}`
       }
+
       msg +=
         EOL +
         printPlusesAndMinuses(opts.width, stats.added || 0, stats.removed || 0)
+
       return Rx.of({ msg })
     })
   )
@@ -112,42 +127,52 @@ function statsForCurrentPackage(
 function statsForNotCurrentPackage(
   stats$: Rx.Observable<StatsLog>,
   opts: {
-    cmd: string
-    currentPrefix: string
+    cmd?: string | undefined
+    currentPrefix?: string | undefined
     width: number
   }
-) {
-  const stats = {}
+): Rx.Observable<Rx.Observable<{
+    msg: string;
+  }>> {
+  const stats: Record<string, StatsLog> = {}
+
   const cookedStats$ =
     opts.cmd !== 'remove'
       ? stats$.pipe(
-        map((log) => {
+        map((log: StatsLog): { seed: Record<string, StatsLog>; value: null } | StatsLog => {
           // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice
           //  1. during linking
           //  2. during installing
           // Hence, the stats are added before reported
           if (!stats[log.prefix]) {
             stats[log.prefix] = log
+
             return { seed: stats, value: null }
           } else if (
-            typeof stats[log.prefix].added === 'number' &&
+          // @ts-ignore
+            typeof stats[log.prefix]?.added === 'number' &&
             // @ts-ignore
               typeof log.added === 'number'
           ) {
             // @ts-ignore
             stats[log.prefix].added += log.added
+
             return { seed: stats, value: null }
           } else if (
-            typeof stats[log.prefix].removed === 'number' &&
+          // @ts-ignore
+            typeof stats[log.prefix]?.removed === 'number' &&
             // @ts-ignore
               typeof log.removed === 'number'
           ) {
             // @ts-ignore
             stats[log.prefix].removed += log.removed
+
             return { seed: stats, value: null }
           } else {
             const value = { ...stats[log.prefix], ...log }
+
             delete stats[log.prefix]
+
             return value
           }
         }, {})
@@ -155,20 +180,24 @@ function statsForNotCurrentPackage(
       : stats$
 
   return cookedStats$.pipe(
+    // @ts-ignore
     filter((stats) => stats !== null && (stats.removed || stats.added)),
     map((stats): Rx.Observable<{
       msg: string;
     }> => {
       const parts = [] as string[]
-
+      // @ts-ignore
       if (stats.added) {
+        // @ts-ignore
         parts.push(padStep(chalk.green(`+${stats.added.toString()}`), 4))
       }
-
+      // @ts-ignore
       if (stats.removed) {
+        // @ts-ignore
         parts.push(padStep(chalk.red(`-${stats.removed.toString()}`), 4))
       }
 
+      // @ts-ignore
       let msg = zoomOut(opts.currentPrefix, stats.prefix, parts.join(' '))
 
       const rest = Math.max(0, opts.width - 1 - stringLength(msg))
@@ -177,8 +206,10 @@ function statsForNotCurrentPackage(
         ' ' +
         printPlusesAndMinuses(
           rest,
-          roundStats(stats.added || 0),
-          roundStats(stats.removed || 0)
+          // @ts-ignore
+          roundStats(stats.added ?? 0),
+          // @ts-ignore
+          roundStats(stats.removed ?? 0)
         )
 
       return Rx.of({ msg })

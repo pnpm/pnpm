@@ -5,8 +5,7 @@ import path from 'node:path'
 import fastGlob from 'fast-glob'
 import isSubdir from 'is-subdir'
 
-import { BundledManifest } from '@pnpm/store-controller-types'
-import type { Command, ProjectManifest, PackageBin } from '@pnpm/types'
+import type { Command, ProjectManifest, PackageBin, BundledManifest } from '@pnpm/types'
 
 export async function getBinsFromPackageManifest(
   manifest: ProjectManifest | BundledManifest,

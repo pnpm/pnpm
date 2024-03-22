@@ -1,28 +1,26 @@
 import { URL } from 'node:url'
 
-import { isRedirect } from 'node-fetch'
-
-import type { FetchWithAgentOptions } from '@pnpm/types'
 import { getAgent, type AgentOptions } from '@pnpm/network.agent'
-import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
+import { isRedirect, type FetchWithAgentOptions, type FetchFromRegistry, type RetryTimeoutOptions, type HeadersInit, type Response } from '@pnpm/types'
 
-import { fetch } from './fetch'
+import { fetch } from './fetch.js'
 
-const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
+const USER_AGENT: string = 'pnpm' as const // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
 const ABBREVIATED_DOC =
   'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
 const JSON_DOC = 'application/json'
 const MAX_FOLLOWED_REDIRECTS = 20
 
-export function fetchWithAgent(url: RequestInfo, opts: FetchWithAgentOptions) {
+export function fetchWithAgent(url: URL, opts: FetchWithAgentOptions): Promise<Response> {
   const agent = getAgent(url.toString(), {
     ...opts.agentOptions,
     strictSsl: opts.agentOptions.strictSsl ?? true,
-  } as any) // eslint-disable-line
+  })
 
   const headers = opts.headers ?? {}
 
+  // @ts-ignore
   headers.connection = agent ? 'keep-alive' : 'close'
 
   return fetch(url, {
@@ -30,8 +28,6 @@ export function fetchWithAgent(url: RequestInfo, opts: FetchWithAgentOptions) {
     agent,
   })
 }
-
-export type { AgentOptions }
 
 export function createFetchFromRegistry(
   defaultOpts: {
@@ -45,17 +41,19 @@ export function createFetchFromRegistry(
     retry?: RetryTimeoutOptions | undefined;
     timeout?: number | undefined;
   } | undefined): Promise<Response> => {
-    const headers = {
+    const headers: HeadersInit = {
       'user-agent': USER_AGENT,
       ...getHeaders({
         auth: opts?.authHeaderValue,
         fullMetadata: defaultOpts.fullMetadata,
-        userAgent: defaultOpts.userAgent,
+        userAgent: defaultOpts.userAgent ?? USER_AGENT,
       }),
     }
 
     let redirects = 0
+
     let urlObject = new URL(url)
+
     const originalHost = urlObject.host
 
     while (true) {
@@ -63,7 +61,7 @@ export function createFetchFromRegistry(
         ...defaultOpts,
         ...opts,
         strictSsl: defaultOpts.strictSsl ?? true,
-      } as any // eslint-disable-line
+      }
 
       // We should pass a URL object to node-fetch till this is not resolved:
       // https://github.com/bitinn/node-fetch/issues/245
@@ -75,7 +73,7 @@ export function createFetchFromRegistry(
         headers,
         redirect: 'manual',
         retry: opts?.retry,
-        timeout: opts?.timeout ?? 60000,
+        timeout: opts?.timeout ?? 60_000,
       })
       if (!isRedirect(response.status) || redirects >= MAX_FOLLOWED_REDIRECTS) {
         return response
@@ -84,36 +82,40 @@ export function createFetchFromRegistry(
       // This is a workaround to remove authorization headers on redirect.
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       redirects++
+
       const loc = response.headers.get('location')
+
       if (!loc) {
         continue
       }
+
       urlObject = new URL(loc)
+
       if (!headers.authorization || originalHost === urlObject.host) {
         continue
       }
+
       delete headers.authorization
     }
   }
 }
 
 function getHeaders(opts: {
-  auth?: string
-  fullMetadata?: boolean
-  userAgent?: string
-}) {
-  const headers: {
-    accept: string
-    authorization?: string
-    'user-agent'?: string
-  } = {
+  auth?: string | undefined
+  fullMetadata?: boolean | undefined
+  userAgent: string
+}): HeadersInit {
+  const headers: HeadersInit = {
     accept: opts.fullMetadata === true ? JSON_DOC : ABBREVIATED_DOC,
   }
+
   if (opts.auth) {
     headers.authorization = opts.auth
   }
+
   if (opts.userAgent) {
     headers['user-agent'] = opts.userAgent
   }
+
   return headers
 }

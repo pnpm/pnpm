@@ -8,8 +8,7 @@ import {
 } from '@pnpm/normalize-registries'
 
 import { getOptionsFromRootManifest } from '@pnpm/config'
-import { StrictRebuildOptions } from '@pnpm/types'
-import { RebuildOptions } from '.'
+import { StrictRebuildOptions, RebuildOptions } from '@pnpm/types'
 
 async function defaults(opts: RebuildOptions): Promise<StrictRebuildOptions> {
   const packageManager = opts.packageManager ??

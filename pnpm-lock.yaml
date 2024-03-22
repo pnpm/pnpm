@@ -815,6 +815,9 @@ importers:
       '@pnpm/parse-overrides':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1010,9 +1013,6 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
-      '@pnpm/fetching-types':
-        specifier: workspace:*
-        version: link:../../network/fetching-types
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher
@@ -1053,12 +1053,6 @@ importers:
 
   env/node.resolver:
     dependencies:
-      '@pnpm/fetching-types':
-        specifier: workspace:*
-        version: link:../../network/fetching-types
-      '@pnpm/node.fetcher':
-        specifier: workspace:*
-        version: link:../node.fetcher
       semver:
         specifier: ^7.6.0
         version: 7.6.0
@@ -1375,9 +1369,6 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1430,6 +1421,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1757,9 +1751,6 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
-      '@pnpm/fetching-types':
-        specifier: workspace:*
-        version: link:../../network/fetching-types
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -1939,6 +1930,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -2103,9 +2097,6 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/fetching-types':
-        specifier: workspace:*
-        version: link:../../network/fetching-types
       '@pnpm/list':
         specifier: workspace:*
         version: link:../../reviewing/list
@@ -2638,9 +2629,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/fetching-types':
-        specifier: workspace:*
-        version: link:../fetching-types
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2666,22 +2654,6 @@ importers:
       nock:
         specifier: 13.3.4
         version: 13.3.4
-
-  network/fetching-types:
-    dependencies:
-      '@zkochan/retry':
-        specifier: ^0.2.0
-        version: 0.2.0
-      node-fetch:
-        specifier: npm:@pnpm/node-fetch@1.0.0
-        version: /@pnpm/node-fetch@1.0.0
-    devDependencies:
-      '@pnpm/fetching-types':
-        specifier: workspace:*
-        version: 'link:'
-      '@total-typescript/ts-reset':
-        specifier: 0.5.1
-        version: 0.5.1
 
   packages/calc-dep-state:
     dependencies:
@@ -2870,6 +2842,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -3012,9 +2987,15 @@ importers:
 
   packages/types:
     devDependencies:
+      '@pnpm/network.agent':
+        specifier: 1.0.1
+        version: 1.0.1
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
+      '@types/semver':
+        specifier: 7.5.8
+        version: 7.5.8
       '@types/ssri':
         specifier: ^7.1.5
         version: 7.1.5
@@ -3024,6 +3005,9 @@ importers:
       node-fetch:
         specifier: 3.3.2
         version: 3.3.2
+      p-limit:
+        specifier: 3.1.0
+        version: 3.1.0
       safe-promise-defer:
         specifier: 1.0.1
         version: 1.0.1
@@ -3195,9 +3179,6 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/fetching-types':
-        specifier: workspace:*
-        version: link:../../network/fetching-types
       '@pnpm/git-fetcher':
         specifier: workspace:*
         version: link:../../fetching/git-fetcher
@@ -3220,6 +3201,9 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4205,9 +4189,6 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../../store/store-connection-manager
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/which':
         specifier: ^3.0.1
         version: 3.0.1
@@ -4299,6 +4280,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -5297,9 +5281,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fetching-types':
-        specifier: workspace:*
-        version: link:../../network/fetching-types
       '@pnpm/git-resolver':
         specifier: workspace:*
         version: link:../git-resolver
@@ -5322,6 +5303,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -5411,9 +5395,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fetching-types':
-        specifier: workspace:*
-        version: link:../../network/fetching-types
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -5426,9 +5407,6 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@zkochan/retry':
         specifier: ^0.2.0
         version: 0.2.0
@@ -5481,6 +5459,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -6113,6 +6094,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -6530,6 +6514,9 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -8741,7 +8728,6 @@ packages:
   /@pnpm/constants@6.2.0:
     resolution: {integrity: sha512-GlDVUkeTR2WK0oZAM+wtDY6RBMLw6b0Z/5qKgBbDszx4e+R7CHyfG7JofyypogRCfeWXeAXp2C2FkFTh+sNgIg==}
     engines: {node: '>=14.6'}
-    dev: false
 
   /@pnpm/constants@7.1.0:
     resolution: {integrity: sha512-PzpiPtGF+bIrmkNaHgOIfBZw669+rkUtt/5UFzHukiETwI4/+BTYz8FAr+m5Dfuns531Y+fYRFOpB0PdbAU0+w==}
@@ -8810,7 +8796,6 @@ packages:
     engines: {node: '>=14.6'}
     dependencies:
       '@pnpm/constants': 6.2.0
-    dev: false
 
   /@pnpm/error@5.0.1:
     resolution: {integrity: sha512-JQSOeSEqrV6k6+kKgrlSJ7gddJRcjxtNCxSVJRIqwckkGSdSTNpXmKEdGgLlaDuEwElPAZUmLDGSqk5InJ5pMA==}
@@ -8970,7 +8955,6 @@ packages:
       lru-cache: 7.10.1
     transitivePeerDependencies:
       - supports-color
-    dev: false
 
   /@pnpm/network.ca-file@1.0.2:
     resolution: {integrity: sha512-YcPQ8a0jwYU9bTdJDpXjMi7Brhkr1mXsXrUJvjqM2mQDgkRiz8jFaQGOdaLxgjtUfQgZhKy/O3cG/YwmgKaxLA==}
@@ -8983,7 +8967,6 @@ packages:
     engines: {node: '>=12.22.0'}
     dependencies:
       nerf-dart: 1.0.0
-    dev: false
 
   /@pnpm/network.proxy-agent@1.0.1:
     resolution: {integrity: sha512-0q9Btpw43aTPzEJJmQY1TNBrwNlPINRae8EpO7VpqbmFflBRO6u6qady6XFfbi+wwPxpcpVOYr6rCDBzALXYHA==}
@@ -8996,7 +8979,6 @@ packages:
       socks-proxy-agent: 6.1.1
     transitivePeerDependencies:
       - supports-color
-    dev: false
 
   /@pnpm/node-fetch@1.0.0:
     resolution: {integrity: sha512-eYwrzhKUBGFdq78rJStGjaHTUHA2VH+Avr//CVx/T+EJkI7hnFmOy6YghvcB2clj8HpO4V8tXRNuFNfRX08ayw==}
@@ -9408,7 +9390,6 @@ packages:
   /@tootallnate/once@2.0.0:
     resolution: {integrity: sha512-XCuKFP5PS55gnMVu3dty8KPatLqUoy/ZYzDzAGCQ8JNFCkLXzmI7vNHCR+XpbZaMWQK/vQubr7PkYq8g470J/A==}
     engines: {node: '>= 10'}
-    dev: false
 
   /@total-typescript/ts-reset@0.5.1:
     resolution: {integrity: sha512-AqlrT8YA1o7Ff5wPfMOL0pvL+1X+sw60NN6CcOCqs658emD6RfiXhF7Gu9QcfKBH7ELY2nInLhKSCWVoNL70MQ==}
@@ -10418,7 +10399,6 @@ packages:
       humanize-ms: 1.2.1
     transitivePeerDependencies:
       - supports-color
-    dev: false
 
   /agentkeepalive@4.5.0:
     resolution: {integrity: sha512-5GG/5IbQQpC9FpkRGsSvZI5QYeSCzlJHdpBQntCsuTOxhKD8lqKhrleg2Yi7yvMIf82Ycmmqln9U8V9qwEiJew==}
@@ -11949,7 +11929,6 @@ packages:
   /depd@1.1.2:
     resolution: {integrity: sha512-7emPTl6Dpo6JRXOXjLRxck+FlLRX5847cLKEn00PLAgc3g2hTZZgr+e4c2v6QpSmLeFP3n5yUo7ft6avBK/5jQ==}
     engines: {node: '>= 0.6'}
-    dev: false
 
   /depd@2.0.0:
     resolution: {integrity: sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==}
@@ -13468,7 +13447,6 @@ packages:
       debug: 4.3.4
     transitivePeerDependencies:
       - supports-color
-    dev: false
 
   /http-proxy-agent@7.0.2:
     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
@@ -13542,7 +13520,6 @@ packages:
     resolution: {integrity: sha512-Fl70vYtsAFb/C06PTS9dZBo7ihau+Tu/DNCk/OyHhea07S+aeMWpFFkUaXRa8fI+ScZbEI8dfSxwY7gxZ9SAVQ==}
     dependencies:
       ms: 2.1.3
-    dev: false
 
   /husky@8.0.3:
     resolution: {integrity: sha512-+dQSyqPh4x1hlO1swXBiNb2HzTDN1I2IGLQx1GrBuiqFJfoMrnZWwVmatvSiO+Iz8fBUnf+lekwNo4c2LlXItg==}
@@ -13706,7 +13683,6 @@ packages:
     dependencies:
       jsbn: 1.1.0
       sprintf-js: 1.1.3
-    dev: false
 
   /ipaddr.js@1.9.1:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
@@ -14443,7 +14419,6 @@ packages:
 
   /jsbn@1.1.0:
     resolution: {integrity: sha512-4bYVV3aAMtDTTu4+xsDYa6sy9GyJ69/amsu9sYF2zqjiEoZA5xJi3BrfX3uY+/IekIu7MwdObdbDWpoZdBv3/A==}
-    dev: false
 
   /jsesc@2.5.2:
     resolution: {integrity: sha512-OYu7XEzjkCQ3C5Ps3QIZsQfNpqoJyZZA99wd9aWd05NCtC5pWOkShK2mkL6HXQR6/Cy2lbNdPlZBpuQHXE63gA==}
@@ -14816,7 +14791,6 @@ packages:
   /lru-cache@7.10.1:
     resolution: {integrity: sha512-BQuhQxPuRl79J5zSXRP+uNzPOyZw2oFI9JLRQ80XswSvg21KMKNtQza9eF42rfI/3Z40RvzBdXgziEkudzjo8A==}
     engines: {node: '>=12'}
-    dev: false
 
   /lru-cache@7.18.3:
     resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
@@ -15539,7 +15513,6 @@ packages:
 
   /nerf-dart@1.0.0:
     resolution: {integrity: sha512-EZSPZB70jiVsivaBLYDCyntd5eH8NTSMOn3rB+HxwdmKThGELLdYv8qVIMWvZEFy9w8ZZpW9h9OB32l1rGtj7g==}
-    dev: false
 
   /next-path@1.0.0:
     resolution: {integrity: sha512-oWgXcUL3zi7KsPNoWLM2Z/EVaOMsZO8em4iAzJmqoo08zinMwsMvkrNbeLDztMdaPJryfYJvbx2OBoBYnPQKpg==}
@@ -17265,7 +17238,6 @@ packages:
   /smart-buffer@4.2.0:
     resolution: {integrity: sha512-94hK0Hh8rPqQl2xXc3HsaBoOXKV20MToPkcXvwbISWLEs+64sBq5kFgn2kJDHb1Pry9yrP0dxrCI9RRci7RXKg==}
     engines: {node: '>= 6.0.0', npm: '>= 3.0.0'}
-    dev: false
 
   /smartwrap@2.0.2:
     resolution: {integrity: sha512-vCsKNQxb7PnCNd2wY1WClWifAc2lwqsG8OaswpJkVJsvMGcnEntdTCDajZCkk93Ay1U3t/9puJmb525Rg5MZBA==}
@@ -17289,7 +17261,6 @@ packages:
       socks: 2.7.3
     transitivePeerDependencies:
       - supports-color
-    dev: false
 
   /socks-proxy-agent@7.0.0:
     resolution: {integrity: sha512-Fgl0YPZ902wEsAyiQ+idGd1A7rSFx/ayC1CQVMw5P+EQx2V0SgpGtf6OKFhVjPflPUl9YMmEOnmfjCdMUsygww==}
@@ -17321,7 +17292,6 @@ packages:
     dependencies:
       ip-address: 9.0.5
       smart-buffer: 4.2.0
-    dev: false
 
   /sonic-boom@2.8.0:
     resolution: {integrity: sha512-kuonw1YOYYNOve5iHdSahXPOK49GqwA+LZhI6Wz/l0rP57iKyXXIHaRagOBHAPmGwJC6od2Z9zgvZ5loSgMlVg==}
@@ -17420,7 +17390,6 @@ packages:
 
   /sprintf-js@1.1.3:
     resolution: {integrity: sha512-Oo+0REFV59/rz3gfJNKQiBlwfHaSESl1pcGyABQsnnIfWOFt6JNj5gCog2U6MLZ//IGYD+nA8nI+mTShREReaA==}
-    dev: false
 
   /sshpk@1.18.0:
     resolution: {integrity: sha512-2p2KJZTSqQ/I3+HX42EpYOa2l3f8Erv8MWKsy2I9uf4wA7yFIkXRffYdsx86y6z4vHtV8u7g+pPlr8/4ouAxsQ==}

@@ -12,6 +12,7 @@
     "!*.map"
   ],
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@types/validate-npm-package-name": "^4.0.2",
     "@total-typescript/ts-reset": "0.5.1"

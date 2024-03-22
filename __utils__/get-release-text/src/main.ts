@@ -46,7 +46,7 @@ function getChangelogEntry(changelog: string, version: string) {
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i]
 
-    if (node.type === 'heading') {
+    if (node?.type === 'heading') {
       const stringified: string = mdastToString(node)
 
       const match = stringified.toLowerCase().match(/(major|minor|patch)/)

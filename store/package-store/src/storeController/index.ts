@@ -1,40 +1,40 @@
+import type {
+  Fetchers,
+  StoreController,
+  ResolveFunction,
+  ImportIndexedPackageAsync,
+} from '@pnpm/types'
 import {
+  type CafsLocker,
   createCafsStore,
   createPackageImporterAsync,
-  type CafsLocker,
 } from '@pnpm/create-cafs-store'
-
-import { createPackageRequester } from '@pnpm/package-requester'
-import type { Fetchers, ResolveFunction } from '@pnpm/resolver-base'
-import type {
-  ImportIndexedPackageAsync,
-  StoreController,
-} from '@pnpm/store-controller-types'
 import { addFilesFromDir, importPackage } from '@pnpm/worker'
-import { prune } from './prune'
+import { createPackageRequester } from '@pnpm/package-requester'
 
-export { type CafsLocker }
+import { prune } from './prune'
 
 export async function createPackageStore(
   resolve: ResolveFunction,
   fetchers: Fetchers,
   initOpts: {
-    cafsLocker?: CafsLocker
-    engineStrict?: boolean
-    force?: boolean
-    nodeVersion?: string
-    importPackage?: ImportIndexedPackageAsync
-    pnpmVersion?: string
-    ignoreFile?: (filename: string) => boolean
-    cacheDir: string
+    cafsLocker?: CafsLocker | undefined
+    engineStrict?: boolean | undefined
+    force?: boolean | undefined
+    nodeVersion?: string | undefined
+    importPackage?: ImportIndexedPackageAsync | undefined
+    pnpmVersion?: string | undefined
+    ignoreFile?: ((filename: string) => boolean) | undefined
+    cacheDir?: string | undefined
     storeDir: string
-    networkConcurrency?: number
+    networkConcurrency?: number | undefined
     packageImportMethod?:
       | 'auto'
       | 'hardlink'
       | 'copy'
       | 'clone'
       | 'clone-or-copy'
+      | undefined
     verifyStoreIntegrity: boolean
   }
 ): Promise<StoreController> {
@@ -66,14 +66,15 @@ export async function createPackageStore(
         importIndexedPackage: initOpts.importPackage,
         cafsDir: cafs.cafsDir,
       })
-      : (targetDir, opts) =>
-        importPackage({
+      : (targetDir, opts) => {
+        return importPackage({
           ...opts,
           packageImportMethod: initOpts.packageImportMethod,
           storeDir: initOpts.storeDir,
           targetDir,
-        }),
-    prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
+        });
+      },
+    prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir ?? '' }),
     requestPackage: packageRequester.requestPackage,
     upload,
   }

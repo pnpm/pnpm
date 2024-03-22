@@ -1,19 +1,20 @@
-import { type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
-import { type Config, readLocalConfig } from '@pnpm/config'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/workspace.find-packages'
+import mem from 'mem'
+import pLimit from 'p-limit'
+
 import { logger } from '@pnpm/logger'
-import { sortPackages } from '@pnpm/sort-packages'
 import {
   createOrConnectStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import type { Project, ProjectManifest } from '@pnpm/types'
-import mem from 'mem'
-import pLimit from 'p-limit'
+import { sortPackages } from '@pnpm/sort-packages'
+import { type Config, readLocalConfig } from '@pnpm/config'
+import { type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/workspace.find-packages'
+import type { Project, ProjectManifest, RebuildOptions } from '@pnpm/types'
+
 import {
-  rebuildProjects as rebuildAll,
-  type RebuildOptions,
   rebuildSelectedPkgs,
+  rebuildProjects as rebuildAll,
 } from './implementation'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions &
@@ -54,7 +55,8 @@ export async function recursiveRebuild(
   if (pkgs.length === 0) {
     return
   }
-  const manifestsByPath: { [dir: string]: Omit<Project, 'dir'> } = {}
+  const manifestsByPath: { [dir: string]: Omit<Project, 'dir' | 'rootDir' | 'modulesDir' | 'id'> } = {}
+
   for (const { dir, manifest, writeProjectManifest } of pkgs) {
     manifestsByPath[dir] = { manifest, writeProjectManifest }
   }
@@ -84,13 +86,14 @@ export async function recursiveRebuild(
   const memReadLocalConfig = mem(readLocalConfig)
 
   async function getImporters() {
-    const importers = [] as Array<{
+    const importers: Array<{
       buildIndex: number
-      manifest: ProjectManifest
+      manifest: ProjectManifest | undefined
       rootDir: string
-    }>
+    }> = []
+
     await Promise.all(
-      chunks.map(async (prefixes: string[], buildIndex) => {
+      chunks.map(async (prefixes: string[], buildIndex: number): Promise<void[]> => {
         if (opts.ignoredPackages != null) {
           prefixes = prefixes.filter(
             (prefix: string): boolean => {
@@ -98,6 +101,7 @@ export async function recursiveRebuild(
             }
           )
         }
+
         return Promise.all(
           prefixes.map(async (prefix: string): Promise<void> => {
             importers.push({
@@ -109,6 +113,7 @@ export async function recursiveRebuild(
         )
       })
     )
+
     return importers
   }
 
@@ -117,7 +122,7 @@ export async function recursiveRebuild(
       ? rebuildAll
       : (importers: {
         buildIndex: number;
-        manifest: ProjectManifest;
+        manifest: ProjectManifest | undefined;
         rootDir: string;
       }[], opts: RebuildOptions): Promise<void> => {
         return rebuildSelectedPkgs(importers, params, opts) // eslint-disable-line;
@@ -125,6 +130,7 @@ export async function recursiveRebuild(
 
   if (opts.lockfileDir) {
     const importers = await getImporters()
+
     await rebuild(importers, {
       ...rebuildOpts,
       pending: opts.pending === true,
@@ -135,14 +141,17 @@ export async function recursiveRebuild(
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(
-      chunk.map(async (rootDir: string) =>
-        limitRebuild(async () => {
+      chunk.map(async (rootDir: string) => {
+        return limitRebuild(async () => {
           try {
             if (opts.ignoredPackages?.has(rootDir)) {
               return
             }
+
             result[rootDir] = { status: 'running' }
+
             const localConfig = await memReadLocalConfig(rootDir)
+
             await rebuild(
               [
                 {
@@ -163,7 +172,7 @@ export async function recursiveRebuild(
               }
             )
             result[rootDir].status = 'passed'
-        } catch (err: any) { // eslint-disable-line
+          } catch (err: any) { // eslint-disable-line
             logger.info(err)
 
             if (!opts.bail) {
@@ -179,7 +188,8 @@ export async function recursiveRebuild(
             err.prefix = rootDir
             throw err
           }
-        })
+        });
+      }
       )
     )
   }

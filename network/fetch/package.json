@@ -8,6 +8,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "engines": {
     "node": ">=16.14"
   },
@@ -34,7 +35,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/network/fetch#readme",
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
     "@pnpm/network.agent": "1.0.1",
     "@zkochan/retry": "^0.2.0",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0"

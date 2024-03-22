@@ -1,4 +1,4 @@
-import { Log } from '@pnpm/core-loggers'
+import type { Log } from '@pnpm/types'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { logger, createStreamParser } from '@pnpm/logger'
 
@@ -54,12 +54,12 @@ test('logger with filterLog hook', (done) => {
   const subscription = output$.subscribe({
     complete: () => done(),
     error: done,
-    next: (msg) => {
+    next: (msg: string) => {
       expect(msg).toEqual(expect.stringContaining('bbb'))
     },
   })
 
-  setTimeout(() => {
+  globalThis.setTimeout(() => {
     done()
     subscription.unsubscribe()
   }, 10)

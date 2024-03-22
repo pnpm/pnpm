@@ -16,10 +16,10 @@ import type {
   DirectDependenciesByImporterId,
 } from '@pnpm/types'
 import {
-  nameVerFromPkgSnapshot,
-  packageIdFromSnapshot,
-  pkgSnapshotToResolution,
   refIsLocalDirectory,
+  packageIdFromSnapshot,
+  nameVerFromPkgSnapshot,
+  pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
@@ -94,8 +94,8 @@ export async function lockfileToDepGraph(
         const depIsPresent =
           !refIsLocalDirectory(depPath) &&
           currentPackages[depPath] &&
-          equals(
-            currentPackages[depPath].dependencies,
+          equals.default(
+            currentPackages[depPath]?.dependencies,
             lockfile.packages?.[depPath]?.dependencies
           )
 
@@ -103,8 +103,8 @@ export async function lockfileToDepGraph(
 
         if (
           depIsPresent &&
-          isEmpty(currentPackages[depPath].optionalDependencies ?? {}) &&
-          isEmpty(lockfile.packages?.[depPath].optionalDependencies ?? {})
+          isEmpty.default(currentPackages[depPath]?.optionalDependencies ?? {}) &&
+          isEmpty.default(lockfile.packages?.[depPath]?.optionalDependencies ?? {})
         ) {
           dirExists = await pathExists(dir)
 
@@ -117,13 +117,19 @@ export async function lockfileToDepGraph(
           })
         }
 
-        let fetchResponse: { filesIndexFile: string; fetching: () => Promise<PkgRequestFetchResult>; } | Promise<{ filesIndexFile: string; fetching: () => Promise<PkgRequestFetchResult>; }> | undefined
+        let fetchResponse: {
+          filesIndexFile?: string | undefined;
+          fetching?: (() => Promise<PkgRequestFetchResult>) | undefined;
+        } | Promise<{
+          filesIndexFile: string;
+          fetching: () => Promise<PkgRequestFetchResult>;
+        }> | undefined
 
         if (
           depIsPresent &&
-          equals(
-            currentPackages[depPath].optionalDependencies,
-            lockfile.packages?.[depPath].optionalDependencies
+          equals.default(
+            currentPackages[depPath]?.optionalDependencies,
+            lockfile.packages?.[depPath]?.optionalDependencies
           )
         ) {
           if (dirExists ?? (await pathExists(dir))) {
@@ -201,6 +207,7 @@ export async function lockfileToDepGraph(
         pkgSnapshotByLocation[dir] = pkgSnapshot
       })
     )
+
     const ctx = {
       force: opts.force,
       graph,
@@ -213,29 +220,34 @@ export async function lockfileToDepGraph(
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
     }
+
     for (const [dir, node] of Object.entries(graph)) {
       const pkgSnapshot = pkgSnapshotByLocation[dir]
+
       const allDeps = {
-        ...pkgSnapshot.dependencies,
+        ...pkgSnapshot?.dependencies,
         ...(opts.include.optionalDependencies
-          ? pkgSnapshot.optionalDependencies
+          ? pkgSnapshot?.optionalDependencies
           : {}),
       }
 
-      const peerDeps = pkgSnapshot.peerDependencies
-        ? new Set(Object.keys(pkgSnapshot.peerDependencies))
+      const peerDeps = pkgSnapshot?.peerDependencies
+        ? new Set(Object.keys(pkgSnapshot?.peerDependencies))
         : null
+
       node.children = getChildrenPaths(ctx, allDeps, peerDeps, '.')
     }
+
     for (const importerId of opts.importerIds) {
       const projectSnapshot = lockfile.importers[importerId]
+
       const rootDeps = {
         ...(opts.include.devDependencies
-          ? projectSnapshot.devDependencies
+          ? projectSnapshot?.devDependencies
           : {}),
-        ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
+        ...(opts.include.dependencies ? projectSnapshot?.dependencies : {}),
         ...(opts.include.optionalDependencies
-          ? projectSnapshot.optionalDependencies
+          ? projectSnapshot?.optionalDependencies
           : {}),
       }
       directDependenciesByImporterId[importerId] = getChildrenPaths(
@@ -246,6 +258,7 @@ export async function lockfileToDepGraph(
       )
     }
   }
+
   return { graph, directDependenciesByImporterId }
 }
 
@@ -283,7 +296,7 @@ function getChildrenPaths(
     const childPkgSnapshot = ctx.pkgSnapshotsByDepPaths[childRelDepPath]
 
     if (ctx.graph[childRelDepPath]) {
-      children[alias] = ctx.graph[childRelDepPath].dir
+      children[alias] = ctx.graph[childRelDepPath]?.dir
     } else if (childPkgSnapshot) {
       if (ctx.skipped.has(childRelDepPath)) {
         continue
