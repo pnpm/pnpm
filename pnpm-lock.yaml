@@ -2007,6 +2007,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../lockfile-walker
+      '@pnpm/lockfile.detect-dep-types':
+        specifier: workspace:*
+        version: link:../detect-dep-types
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0

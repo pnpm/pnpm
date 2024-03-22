@@ -34,6 +34,9 @@
       "path": "../../reviewing/list"
     },
     {
+      "path": "../detect-dep-types"
+    },
+    {
       "path": "../lockfile-file"
     },
     {
