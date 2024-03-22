@@ -1,6 +1,6 @@
 import path from 'path'
-import { type Lockfile, type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile-file'
-import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
+import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile-file'
+import { type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type Registries } from '@pnpm/types'
 import { type SearchFunction } from './types'
 import { type PackageNode } from './PackageNode'
@@ -19,7 +19,7 @@ interface GetTreeOpts {
   skipped: Set<string>
   registries: Registries
   importers: Record<string, ProjectSnapshot>
-  lockfile: Lockfile
+  depTypes: DepTypes
   currentPackages: PackageSnapshots
   wantedPackages: PackageSnapshots
   virtualStoreDir?: string
@@ -123,12 +123,11 @@ function getTreeHelper (
   let resultHeight: number | 'unknown' = 0
   let resultCircular: boolean = false
 
-  const depTypes = detectDepTypes(opts.lockfile)
   Object.entries(deps).forEach(([alias, ref]) => {
     const packageInfo = getPkgInfo({
       alias,
       currentPackages: opts.currentPackages,
-      depTypes,
+      depTypes: opts.depTypes,
       rewriteLinkVersionDir: opts.rewriteLinkVersionDir,
       linkedPathBaseDir,
       peers,

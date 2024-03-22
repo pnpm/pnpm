@@ -83,6 +83,7 @@ describe('getTree', () => {
     const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'a') }
 
     const getTreeArgs = {
+      depTypes: {},
       maxDepth: 0,
       rewriteLinkVersionDir: '',
       virtualStoreDir: '.pnpm',
@@ -95,7 +96,6 @@ describe('getTree', () => {
       },
       currentPackages,
       wantedPackages: currentPackages,
-      lockfile: { lockfileVersion: '7.0', importers: {} },
     }
 
     test('full test case to print when max depth is large', () => {
@@ -160,12 +160,12 @@ describe('getTree', () => {
   // result in incorrect output if the cache was used when it's not supposed to.
   describe('prints at expected depth for cache regression testing cases', () => {
     const commonMockGetTreeArgs = {
+      depTypes: {},
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
       includeOptionalDependencies: false,
       lockfileDir: '',
-      lockfile: { lockfileVersion: '7.0', importers: {} },
       skipped: new Set<string>(),
       registries: {
         default: 'mock-registry-for-testing.example',
@@ -296,12 +296,12 @@ describe('getTree', () => {
   // result in incorrect output if the cache was used when it's not supposed to.
   describe('fully visited cache optimization handles requested depth correctly', () => {
     const commonMockGetTreeArgs = {
+      depTypes: {},
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
       includeOptionalDependencies: false,
       lockfileDir: '',
-      lockfile: { lockfileVersion: '7.0', importers: {} },
       skipped: new Set<string>(),
       registries: {
         default: 'mock-registry-for-testing.example',

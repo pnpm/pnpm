@@ -120,11 +120,12 @@ async function dependenciesHierarchyForPackage (
   const allDirectDeps = await readModulesDir(modulesDir) ?? []
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
 
+  const depTypes = detectDepTypes(currentLockfile)
   const getChildrenTree = getTree.bind(null, {
     currentPackages: currentLockfile.packages ?? {},
     importers: currentLockfile.importers,
     includeOptionalDependencies: opts.include.optionalDependencies,
-    lockfile: currentLockfile,
+    depTypes,
     lockfileDir: opts.lockfileDir,
     onlyProjects: opts.onlyProjects,
     rewriteLinkVersionDir: projectPath,
@@ -141,7 +142,6 @@ async function dependenciesHierarchyForPackage (
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
     result[dependenciesField] = []
-    const depTypes = detectDepTypes(currentLockfile)
     Object.entries(topDeps).forEach(([alias, ref]) => {
       const packageInfo = getPkgInfo({
         alias,
