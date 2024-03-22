@@ -289,20 +289,10 @@ export async function resolveRootDependencies (
   ctx: ResolutionContext,
   importers: ImporterToResolve[]
 ): Promise<ResolvedRootDependenciesResult> {
-  const { pkgAddressesByImportersWithoutPeers, publishedBy, time } = await resolveDependenciesOfImporters(ctx, importers)
-  if (ctx.autoInstallPeers && pkgAddressesByImportersWithoutPeers.some(({ missingPeers }) => Object.keys(missingPeers).length)) {
-    if (ctx.allPreferredVersions == null) {
-      ctx.allPreferredVersions = getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, [])
-    }
-    for (const node of ctx.dependenciesTree.values()) {
-      if (node.resolvedPackage?.version) {
-        if (!ctx.allPreferredVersions[node.resolvedPackage.name]) {
-          ctx.allPreferredVersions[node.resolvedPackage.name] = {}
-        }
-        ctx.allPreferredVersions[node.resolvedPackage.name][node.resolvedPackage.version] = 'version'
-      }
-    }
+  if (ctx.autoInstallPeers) {
+    ctx.allPreferredVersions = getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, [])
   }
+  const { pkgAddressesByImportersWithoutPeers, publishedBy, time } = await resolveDependenciesOfImporters(ctx, importers)
   const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
     const pkgAddresses = importerResolutionResult.pkgAddresses
     if (!ctx.autoInstallPeers) return pkgAddresses
@@ -1173,6 +1163,13 @@ async function resolveDependency (
   })
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
+
+  if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
+    if (!ctx.allPreferredVersions[pkgResponse.body.manifest.name]) {
+      ctx.allPreferredVersions[pkgResponse.body.manifest.name] = {}
+    }
+    ctx.allPreferredVersions[pkgResponse.body.manifest.name][pkgResponse.body.manifest.version] = 'version'
+  }
 
   if (
     !pkgResponse.body.updated &&
