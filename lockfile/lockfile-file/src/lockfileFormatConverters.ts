@@ -224,7 +224,7 @@ function convertPkgIds (lockfile: LockfileFile) {
       }
     } else {
       const { id, peersSuffix } = parseDepPath(pkgId)
-      const newId = pkgId.substring(1)
+      const newId = id.substring(1)
       oldIdToNewId[pkgId] = `${newId}${peersSuffix}`
       if (id !== pkgId) {
         oldIdToNewId[id] = newId
