@@ -141,9 +141,6 @@ function toLockfileDependency (
   if (pkg.additionalInfo.deprecated) {
     result['deprecated'] = pkg.additionalInfo.deprecated
   }
-  if (pkg.hasBin) {
-    result['hasBin'] = true
-  }
   if (pkg.patchFile) {
     result['patched'] = true
   }
