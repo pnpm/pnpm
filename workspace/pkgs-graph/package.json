@@ -33,6 +33,7 @@
     "@pnpm/npm-package-arg": "^1.0.0",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/resolve-workspace-range": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",

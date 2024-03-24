@@ -6482,6 +6482,9 @@ importers:
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: link:../resolve-workspace-range
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: '@pnpm/ramda@0.28.1'
