@@ -1,23 +1,22 @@
 import '@total-typescript/ts-reset'
+
 import path from 'node:path'
-import { calcDepState } from '@pnpm/calc-dep-state'
-import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { runPostinstallHooks } from '@pnpm/lifecycle'
-import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
+
+import runGroups from 'run-groups'
+import pickBy from 'ramda/src/pickBy'
+import pDefer, { type DeferredPromise } from 'p-defer'
+
 import { logger } from '@pnpm/logger'
 import { hardLinkDir } from '@pnpm/worker'
-import {
-  readPackageJsonFromDir,
-  safeReadPackageJsonFromDir,
-} from '@pnpm/read-package-json'
+import { calcDepState } from '@pnpm/calc-dep-state'
+import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
+import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
+import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import type { DependencyManifest, StoreController, GenericDependenciesGraph, DependenciesGraphNode, PackageManifest, DepsStateCache } from '@pnpm/types'
-import pDefer, { type DeferredPromise } from 'p-defer'
-import pickBy from 'ramda/src/pickBy'
-import runGroups from 'run-groups'
-import {
-  buildSequence,
-} from './buildSequence'
+
+import { buildSequence } from './buildSequence.js'
 
 export async function buildModules(
   depGraph: GenericDependenciesGraph<DependenciesGraphNode>,
@@ -65,7 +64,7 @@ export async function buildModules(
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
 
-      return (node.requiresBuild || node.patchFile != null) && !node.isBuilt
+      return (node?.requiresBuild || node?.patchFile != null) && !node.isBuilt
     })
 
     if (opts.depsToBuild != null) {
@@ -79,12 +78,12 @@ export async function buildModules(
         ...buildDepOpts,
         ignoreScripts:
           Boolean(buildDepOpts.ignoreScripts) ||
-          !allowBuild(depGraph[depPath].name ?? ''),
+          !allowBuild(depGraph[depPath]?.name ?? ''),
       })
     })
   })
 
-  await runGroups(opts.childConcurrency ?? 4, groups)
+  await runGroups.default(opts.childConcurrency ?? 4, groups)
 }
 
 async function buildDependency(
@@ -114,13 +113,13 @@ async function buildDependency(
 ): Promise<void> {
   const depNode = depGraph[depPath]
 
-  if (!depNode.filesIndexFile) {
+  if (!depNode?.filesIndexFile) {
     return
   }
 
   if (opts.builtHoistedDeps) {
     if (opts.builtHoistedDeps[depNode.depPath]) {
-      await opts.builtHoistedDeps[depNode.depPath].promise
+      await opts.builtHoistedDeps[depNode.depPath]?.promise
 
       return
     }
@@ -231,7 +230,7 @@ async function buildDependency(
     }
 
     if (opts.builtHoistedDeps) {
-      opts.builtHoistedDeps[depNode.depPath].resolve()
+      opts.builtHoistedDeps[depNode.depPath]?.resolve()
     }
   }
 }
@@ -248,7 +247,7 @@ export async function linkBinsOfDependencies(
 ): Promise<void> {
   const childrenToLink: Record<string, string | undefined> | undefined = opts.optional
     ? depNode.children
-    : pickBy(
+    : pickBy.default(
       (_child, childAlias): boolean => {
         return !depNode.optionalDependencies?.has(childAlias);
       },
@@ -261,19 +260,20 @@ export async function linkBinsOfDependencies(
     ...Object.entries(childrenToLink ?? {})
       .map(([alias, childDepPath]): {
         alias: string;
-        dep: DependenciesGraphNode;
+        dep: DependenciesGraphNode | undefined;
       } => {
         return { alias, dep: depGraph[childDepPath ?? ''] };
       })
       .filter(({ alias, dep }: {
         alias: string;
-        dep: DependenciesGraphNode;
+        dep: DependenciesGraphNode | undefined;
       }): boolean => {
         if (!dep) {
           // TODO: Try to reproduce this issue with a test in @pnpm/core
           logger.debug({
             message: `Failed to link bins of "${alias}" to "${binPath}". This is probably not an issue.`,
           })
+
           return false
         }
 
@@ -281,10 +281,10 @@ export async function linkBinsOfDependencies(
       })
       .map(({ dep }: {
         alias: string;
-        dep: DependenciesGraphNode;
-      }): DependenciesGraphNode => {
+        dep: DependenciesGraphNode | undefined;
+      }): DependenciesGraphNode | undefined => {
         return dep;
-      }),
+      }).filter(Boolean),
     depNode,
   ]
 

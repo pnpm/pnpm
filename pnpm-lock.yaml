@@ -229,9 +229,6 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -909,9 +906,6 @@ importers:
       '@pnpm/dedupe.check':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -955,9 +949,6 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
@@ -980,9 +971,6 @@ importers:
       '@pnpm/deps.graph-builder':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1202,12 +1190,6 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1224,6 +1206,9 @@ importers:
       '@pnpm/build-modules':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1263,12 +1248,6 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -1285,6 +1264,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -1336,9 +1318,6 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
@@ -1363,9 +1342,6 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../../store/store-connection-manager
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1640,9 +1616,6 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1662,9 +1635,6 @@ importers:
 
   fetching/fetcher-base:
     dependencies:
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1696,9 +1666,6 @@ importers:
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1730,9 +1697,6 @@ importers:
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1760,9 +1724,6 @@ importers:
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -1893,9 +1854,6 @@ importers:
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
       '@reflink/reflink':
         specifier: 0.1.16
         version: 0.1.16
@@ -2011,18 +1969,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
@@ -2036,6 +1985,9 @@ importers:
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -2100,9 +2052,6 @@ importers:
       '@pnpm/list':
         specifier: workspace:*
         version: link:../../reviewing/list
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../lockfile-types
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../lockfile-utils
@@ -2155,9 +2104,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile-file':
         specifier: workspace:*
-        version: link:../lockfile-types
+        version: link:../lockfile-file
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../lockfile-utils
@@ -2213,18 +2162,12 @@ importers:
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../lockfile-types
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
       '@pnpm/merge-lockfile-changes':
         specifier: workspace:*
         version: link:../merge-lockfile-changes
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/util.lex-comparator':
         specifier: 1.0.0
         version: 1.0.0
@@ -2259,6 +2202,9 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -2292,9 +2238,6 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../lockfile-file
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../lockfile-utils
@@ -2330,33 +2273,14 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5
 
-  lockfile/lockfile-types:
-    dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-    devDependencies:
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: 'link:'
-      '@total-typescript/ts-reset':
-        specifier: 0.5.1
-        version: 0.5.1
-
   lockfile/lockfile-utils:
     dependencies:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../lockfile-types
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2394,9 +2318,6 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../lockfile-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2419,9 +2340,6 @@ importers:
 
   lockfile/merge-lockfile-changes:
     dependencies:
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../lockfile-types
       comver-to-semver:
         specifier: ^1.0.0
         version: 1.0.0
@@ -2529,9 +2447,6 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../lockfile-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2666,9 +2581,6 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../dependency-path
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       sort-keys:
         specifier: ^4.2.0
         version: 4.2.0
@@ -3185,9 +3097,6 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
@@ -3324,18 +3233,9 @@ importers:
       '@pnpm/resolve-dependencies':
         specifier: workspace:*
         version: link:../resolve-dependencies
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
       '@pnpm/symlink-dependency':
         specifier: workspace:*
         version: link:../../fs/symlink-dependency
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/which-version-is-pinned':
         specifier: workspace:*
         version: link:../../packages/which-version-is-pinned
@@ -3403,9 +3303,6 @@ importers:
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
@@ -3427,6 +3324,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -3648,9 +3548,6 @@ importers:
       '@pnpm/real-hoist':
         specifier: workspace:*
         version: link:../real-hoist
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
       '@pnpm/symlink-dependency':
         specifier: workspace:*
         version: link:../../fs/symlink-dependency
@@ -3760,9 +3657,6 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../link-bins
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
@@ -3827,12 +3721,6 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@zkochan/cmd-shim':
         specifier: ^6.0.0
         version: 6.0.0
@@ -3867,6 +3755,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -3903,9 +3794,6 @@ importers:
       '@pnpm/filter-lockfile':
         specifier: workspace:*
         version: link:../../lockfile/filter-lockfile
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
@@ -3918,9 +3806,6 @@ importers:
       '@pnpm/remove-bins':
         specifier: workspace:*
         version: link:../remove-bins
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
@@ -3977,12 +3862,6 @@ importers:
 
   pkg-manager/package-bins:
     dependencies:
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       fast-glob:
         specifier: ^3.3.2
         version: 3.3.2
@@ -3993,6 +3872,9 @@ importers:
       '@pnpm/package-bins':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4029,18 +3911,9 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -4084,6 +3957,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -4147,9 +4023,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4177,9 +4050,6 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
       '@pnpm/semver-diff':
         specifier: ^1.1.0
         version: 1.1.0
@@ -4445,9 +4315,6 @@ importers:
       '@pnpm/exec.files-include-install-scripts':
         specifier: workspace:*
         version: link:../../exec/files-include-install-scripts
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
@@ -4472,12 +4339,6 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
       '@pnpm/which-version-is-pinned':
         specifier: workspace:*
         version: link:../../packages/which-version-is-pinned
@@ -4777,9 +4638,6 @@ importers:
       '@pnpm/find-workspace-dir':
         specifier: workspace:*
         version: link:../workspace/find-workspace-dir
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../lockfile/lockfile-types
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -5096,9 +4954,6 @@ importers:
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
@@ -5112,9 +4967,6 @@ importers:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/plugin-commands-deploy':
         specifier: workspace:*
         version: 'link:'
@@ -5124,6 +4976,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.26.0
         version: 3.26.0(typanion@3.14.0)
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -5169,9 +5024,6 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../../exec/run-npm
@@ -5290,9 +5142,6 @@ importers:
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../npm-resolver
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../resolver-base
       '@pnpm/tarball-resolver':
         specifier: workspace:*
         version: link:../tarball-resolver
@@ -5315,9 +5164,6 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../resolver-base
       graceful-git:
         specifier: ^3.1.2
         version: 3.1.2
@@ -5331,6 +5177,9 @@ importers:
       '@pnpm/git-resolver':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -5361,9 +5210,6 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5404,9 +5250,6 @@ importers:
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: link:../../workspace/resolve-workspace-range
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../resolver-base
       '@zkochan/retry':
         specifier: ^0.2.0
         version: 0.2.0
@@ -5487,27 +5330,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
 
-  resolving/resolver-base:
-    dependencies:
-      '@pnpm/cafs-types':
-        specifier: workspace:*
-        version: link:../../store/cafs-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-    devDependencies:
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: 'link:'
-      '@total-typescript/ts-reset':
-        specifier: 0.5.1
-        version: 0.5.1
-
   resolving/tarball-resolver:
-    dependencies:
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../resolver-base
     devDependencies:
       '@pnpm/tarball-resolver':
         specifier: workspace:*
@@ -5597,9 +5420,6 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
@@ -5618,9 +5438,6 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -5643,6 +5460,9 @@ importers:
       '@pnpm/license-scanner':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -6069,9 +5889,6 @@ importers:
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../store-controller-types
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
@@ -6118,18 +5935,9 @@ importers:
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../../pkg-manager/package-requester
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../store-controller-types
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -6155,6 +5963,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -6276,18 +6087,12 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../store-connection-manager
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../store-controller-types
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       archy:
         specifier: ^1.0.0
         version: 1.0.0
@@ -6322,6 +6127,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.26.0
         version: 3.26.0(typanion@3.14.0)
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -6364,9 +6172,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
@@ -6379,9 +6184,6 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
@@ -6401,6 +6203,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -6419,12 +6224,6 @@ importers:
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       p-limit:
         specifier: ^3.1.0
         version: 3.1.0
@@ -6447,6 +6246,9 @@ importers:
       '@pnpm/server':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -6517,28 +6319,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@total-typescript/ts-reset':
-        specifier: 0.5.1
-        version: 0.5.1
-
-  store/store-controller-types:
-    dependencies:
-      '@pnpm/fetcher-base':
-        specifier: workspace:*
-        version: link:../../fetching/fetcher-base
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-    devDependencies:
-      '@pnpm/cafs-types':
-        specifier: workspace:*
-        version: link:../cafs-types
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: 'link:'
       '@total-typescript/ts-reset':
         specifier: 0.5.1
         version: 0.5.1
@@ -6768,6 +6548,9 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
     devDependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: 'link:'

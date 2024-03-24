@@ -17,10 +17,6 @@
       "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../lockfile/lockfile-types"
-    },
-
-    {
       "path": "../../packages/error"
     },
     {

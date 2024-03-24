@@ -7,7 +7,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import type { InstallOptions, ProcessedInstallOptions, StrictInstallOptions } from '@pnpm/types'
 
-import { pnpmPkgJson } from '../pnpmPkgJson'
+import { pnpmPkgJson } from '../pnpmPkgJson.js'
 
 function defaults(opts: InstallOptions): StrictInstallOptions {
   const packageManager = opts.packageManager ?? {

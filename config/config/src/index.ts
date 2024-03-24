@@ -167,8 +167,8 @@ export async function getConfig(opts: {
   globalDirShouldAllowWrite?: boolean | undefined
   cliOptions: CliOptions
   packageManager: {
-    name: string
-    version: string
+    name?: string | undefined
+    version?: string | undefined
   }
   rcOptionsTypes?: Record<string, unknown> | undefined
   workspaceDir?: string | undefined

@@ -1,7 +1,14 @@
 import { URL } from 'node:url'
 
 import { getAgent, type AgentOptions } from '@pnpm/network.agent'
-import { isRedirect, type FetchWithAgentOptions, type FetchFromRegistry, type RetryTimeoutOptions, type HeadersInit, type Response } from '@pnpm/types'
+import {
+  isRedirect,
+  type Response,
+  type HeadersInit,
+  type FetchFromRegistry,
+  type RetryTimeoutOptions,
+  type FetchWithAgentOptions,
+} from '@pnpm/types'
 
 import { fetch } from './fetch.js'
 
@@ -39,7 +46,7 @@ export function createFetchFromRegistry(
     authHeaderValue?: string | undefined;
     compress?: boolean | undefined;
     retry?: RetryTimeoutOptions | undefined;
-    timeout?: number | undefined;
+    timeout: number;
   } | undefined): Promise<Response> => {
     const headers: HeadersInit = {
       'user-agent': USER_AGENT,
@@ -57,7 +64,7 @@ export function createFetchFromRegistry(
     const originalHost = urlObject.host
 
     while (true) {
-      const agentOptions = {
+      const agentOptions: AgentOptions = {
         ...defaultOpts,
         ...opts,
         strictSsl: defaultOpts.strictSsl ?? true,
@@ -75,6 +82,7 @@ export function createFetchFromRegistry(
         retry: opts?.retry,
         timeout: opts?.timeout ?? 60_000,
       })
+
       if (!isRedirect(response.status) || redirects >= MAX_FOLLOWED_REDIRECTS) {
         return response
       }

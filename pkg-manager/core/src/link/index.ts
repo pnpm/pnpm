@@ -32,7 +32,7 @@ import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 
-import { extendOptions } from './options'
+import { extendOptions } from './options.js'
 
 type LinkFunctionOptions = LinkOptions & {
   linkToBin?: string | undefined
@@ -55,7 +55,6 @@ export async function link(
   const opts = await extendOptions(maybeOpts)
 
   const ctx = await getContextForSingleImporter(
-    // @ts-ignore
     opts.manifest,
     {
       ...opts,
@@ -66,12 +65,12 @@ export async function link(
 
   const importerId = getLockfileImporterId(ctx.lockfileDir, opts.dir)
 
-  const specsToUpsert = [] as PackageSpecObject[]
+  const specsToUpsert: PackageSpecObject[] = []
 
   const linkedPkgs = await Promise.all(
     linkFromPkgs.map(async (linkFrom): Promise<{
-      alias: string;
-      manifest: DependencyManifest;
+      alias?: string | undefined;
+      manifest?: DependencyManifest | ProjectManifest | undefined;
       path: string;
     }> => {
       let linkFromPath: string
@@ -85,9 +84,7 @@ export async function link(
         linkFromAlias = linkFrom.alias
       }
 
-      const { manifest } = (await readProjectManifest(linkFromPath)) as {
-        manifest: DependencyManifest
-      }
+      const { manifest } = (await readProjectManifest(linkFromPath))
 
       if (typeof linkFrom === 'string' && manifest.name === undefined) {
         throw new PnpmError(
@@ -97,20 +94,20 @@ export async function link(
       }
 
       const targetDependencyType =
-        getDependencyTypeFromManifest(opts.manifest, manifest.name) ??
+        getDependencyTypeFromManifest(opts.manifest, manifest.name ?? '') ??
         opts.targetDependenciesField
 
       specsToUpsert.push({
-        alias: manifest.name,
-        pref: getPref(manifest.name, manifest.name, manifest.version, {
+        alias: manifest.name ?? '',
+        pref: getPref(manifest.name ?? '', manifest.name ?? '', manifest.version, {
           pinnedVersion: opts.pinnedVersion,
         }),
         saveType: (targetDependencyType ??
           (ctx.manifest &&
             guessDependencyType(
-              manifest.name,
+              manifest.name ?? '',
               ctx.manifest
-            ))) as DependenciesField,
+            ))),
       })
 
       const packagePath = normalize(path.relative(opts.dir, linkFromPath))
@@ -145,17 +142,29 @@ export async function link(
   // Linking should happen after removing orphans
   // Otherwise would've been removed
   await Promise.all(
-    linkedPkgs.map(async ({ alias, manifest, path }): Promise<void> => {
+    linkedPkgs.map(async ({ alias, manifest, path }: {
+      alias?: string | undefined;
+      manifest?: DependencyManifest | ProjectManifest | undefined;
+      path: string;
+    }): Promise<void> => {
       // TODO: cover with test that linking reports with correct dependency types
-      const stu = specsToUpsert.find((s) => s.alias === manifest.name)
+      const stu = specsToUpsert.find((s: {
+        alias: string;
+        nodeExecPath?: string | undefined;
+        peer?: boolean | undefined;
+        pref?: string | undefined;
+        saveType?: DependenciesField | undefined;
+      }) => {
+        return s.alias === manifest?.name;
+      })
 
       const targetDependencyType =
-        getDependencyTypeFromManifest(opts.manifest, manifest.name) ??
+        getDependencyTypeFromManifest(opts.manifest, manifest?.name ?? '') ??
         opts.targetDependenciesField
 
       await symlinkDirectRootDependency(path, destModules, alias, {
         fromDependenciesField:
-          stu?.saveType ?? (targetDependencyType as DependenciesField),
+          stu?.saveType ?? targetDependencyType,
         linkedPackage: manifest,
         prefix: opts.dir,
       })
@@ -166,11 +175,11 @@ export async function link(
 
   await linkBinsOfPackages(
     linkedPkgs.map((p: {
-      alias: string;
-      manifest: DependencyManifest;
+      alias?: string | undefined;
+      manifest?: ProjectManifest | DependencyManifest | undefined;
       path: string;
     }): {
-      manifest: DependencyManifest;
+      manifest: ProjectManifest | DependencyManifest | undefined;
       location: string;
     } => {
       return { manifest: p.manifest, location: p.path };
@@ -232,43 +241,48 @@ export async function link(
 }
 
 function addLinkToLockfile(
-  projectSnapshot: ProjectSnapshot,
+  projectSnapshot: ProjectSnapshot | undefined,
   opts: {
-    linkedPkgName: string
+    linkedPkgName?: string | undefined
     packagePath: string
     manifest?: ProjectManifest | undefined
   }
 ): void {
+  if (!projectSnapshot) {
+    return;
+  }
+
   const id = `link:${opts.packagePath}`
 
   let addedTo: DependenciesField | undefined
 
   for (const depType of DEPENDENCIES_FIELDS) {
-    if (!addedTo && opts.manifest?.[depType]?.[opts.linkedPkgName]) {
+    if (!addedTo && opts.manifest?.[depType]?.[opts.linkedPkgName ?? '']) {
       addedTo = depType
 
       const snapshot = projectSnapshot[depType] ?? {}
 
-      projectSnapshot[depType] = snapshot
-
-      // @ts-ignore
-      projectSnapshot[depType][opts.linkedPkgName] = id
+      projectSnapshot[depType] = { ...snapshot, [opts.linkedPkgName ?? '']: id }
     } else if (projectSnapshot[depType] != null) {
-      delete projectSnapshot[depType]?.[opts.linkedPkgName]
+      delete projectSnapshot[depType]?.[opts.linkedPkgName ?? '']
     }
   }
 
   // package.json might not be available when linking to global
-  if (opts.manifest == null) return
+  if (opts.manifest == null) {
+    return
+  }
 
   const availableSpec = getSpecFromPackageManifest(
     opts.manifest,
-    opts.linkedPkgName
+    opts.linkedPkgName ?? ''
   )
 
+  projectSnapshot.specifiers = projectSnapshot.specifiers ?? {};
+
   if (availableSpec) {
-    projectSnapshot.specifiers[opts.linkedPkgName] = availableSpec
+    projectSnapshot.specifiers[opts.linkedPkgName ?? ''] = availableSpec
   } else {
-    delete projectSnapshot.specifiers[opts.linkedPkgName]
+    delete projectSnapshot.specifiers?.[opts.linkedPkgName ?? '']
   }
 }

@@ -36,7 +36,6 @@
     "@pnpm/git-resolver": "workspace:*",
     "@pnpm/local-resolver": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
     "@pnpm/tarball-resolver": "workspace:*"
   },
   "devDependencies": {

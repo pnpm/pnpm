@@ -8,9 +8,9 @@ import type {
   FetchResult,
   FetchOptions,
   GetAuthHeader,
+  TarballFetchers,
   DownloadFunction,
   FetchFromRegistry,
-  DependencyManifest,
   RetryTimeoutOptions,
 } from '@pnpm/types'
 
@@ -20,30 +20,6 @@ import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
 
 export { TarballIntegrityError }
 export { BadTarballError } from './errorTypes/index.js'
-
-export type TarballFetchers = {
-  localTarball: (cafs: Cafs, resolution: {
-    integrity?: string | undefined
-    registry?: string | undefined
-    tarball: string
-  }, opts: FetchOptions) => Promise<{
-    filesIndex: Record<string, string>;
-    manifest: DependencyManifest;
-  }>
-  remoteTarball: (cafs: Cafs, resolution: {
-    tarball: string;
-    integrity: string | undefined;
-    registry: string | undefined;
-  }, opts: FetchOptions) => Promise<FetchResult>
-  gitHostedTarball: (cafs: Cafs, resolution: {
-    tarball: string;
-    integrity?: string | undefined;
-    registry?: string | undefined;
-  }, opts: FetchOptions) => Promise<{
-    filesIndex: Record<string, string>;
-    manifest: DependencyManifest | undefined;
-  }>
-}
 
 export function createTarballFetcher(
   fetchFromRegistry: FetchFromRegistry,

@@ -1,8 +1,8 @@
 import gfs from '@pnpm/graceful-fs'
 import type { DependencyManifest, PackageFilesIndex } from '@pnpm/types'
 
-import { parseJsonBufferSync } from './parseJson'
-import { getFilePathByModeInCafs } from './getFilePathInCafs'
+import { parseJsonBufferSync } from './parseJson.js'
+import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
 
 export function readManifestFromStore(
   cafsDir: string,

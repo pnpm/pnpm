@@ -38,6 +38,92 @@ export const DEPENDENCIES_OR_PEER_FIELDS = [
   'peerDependencies',
 ] as const satisfies DependenciesOrPeersField[]
 
+export type Manifest = {
+  name?: string | undefined
+  version?: string | undefined
+  dependencies?: Record<string, string> | undefined
+  devDependencies?: Record<string, string> | undefined
+  optionalDependencies?: Record<string, string> | undefined
+}
+
+export type PublishRecursiveOpts = Required<
+  Pick<
+    Config,
+    | 'cacheDir'
+    | 'cliOptions'
+    | 'dir'
+    | 'rawConfig'
+    | 'registries'
+    | 'workspaceDir'
+  >
+> &
+  Partial<
+    Pick<
+      Config,
+      | 'tag'
+      | 'ca'
+      | 'cert'
+      | 'fetchTimeout'
+      | 'force'
+      | 'dryRun'
+      | 'extraBinPaths'
+      | 'extraEnv'
+      | 'fetchRetries'
+      | 'fetchRetryFactor'
+      | 'fetchRetryMaxtimeout'
+      | 'fetchRetryMintimeout'
+      | 'key'
+      | 'httpProxy'
+      | 'httpsProxy'
+      | 'localAddress'
+      | 'lockfileDir'
+      | 'noProxy'
+      | 'npmPath'
+      | 'offline'
+      | 'selectedProjectsGraph'
+      | 'strictSsl'
+      | 'unsafePerm'
+      | 'userAgent'
+      | 'userConfig'
+      | 'verifyStoreIntegrity'
+    >
+  > & {
+    access?: 'public' | 'restricted'
+    argv: {
+      original: string[]
+    }
+    reportSummary?: boolean
+  }
+
+export type Package = {
+  manifest?: Manifest | undefined
+  dir: string
+}
+export type PackageNode = {
+  alias: string
+  circular?: boolean | undefined
+  dependencies?: PackageNode[] | undefined
+  dev?: boolean
+  isPeer: boolean
+  isSkipped: boolean
+  isMissing: boolean
+  name: string
+  optional?: boolean | undefined
+  path: string
+  resolved?: string | undefined
+  searched?: boolean | undefined
+  version: string
+}
+
+export type LockfileFile = Omit<Lockfile, 'importers'> &
+  Partial<ProjectSnapshot> &
+  Partial<Pick<Lockfile, 'importers'>>
+
+export type NormalizeLockfileOpts = {
+  forceSharedFormat: boolean
+  includeEmptySpecifiersField: boolean
+}
+
 export type RegistryPackageSpec = {
   type: 'tag' | 'version' | 'range'
   name: string
@@ -355,7 +441,7 @@ export type FetchFromRegistry = (
     authHeaderValue?: string | undefined
     compress?: boolean | undefined
     retry?: RetryTimeoutOptions | undefined
-    timeout?: number | undefined
+    timeout: number
   } | undefined
 ) => Promise<Response>
 
@@ -567,22 +653,6 @@ export type TreeNodeIdPackage = {
   readonly depPath: string
 }
 
-export type PackageNode = {
-  alias: string
-  circular?: boolean | undefined
-  dependencies?: PackageNode[] | undefined
-  dev?: boolean
-  isPeer: boolean
-  isSkipped: boolean
-  isMissing: boolean
-  name: string
-  optional?: boolean | undefined
-  path: string
-  resolved?: string | undefined
-  searched?: boolean | undefined
-  version: string
-}
-
 export type SearchFunction = (pkg: { name: string; version: string }) => boolean
 
 export type VerifyResult = {
@@ -636,7 +706,7 @@ export type InlineSpecifiersResolvedDependencies = {
 }
 
 export type SpecifierAndResolution = {
-  specifier: string
+  specifier?: string | undefined
   version: string
 }
 
@@ -974,7 +1044,7 @@ export type RootMessage = {
     added: {
       id?: string | undefined
       name: string
-      realName: string
+      realName?: string | undefined
       version?: string | undefined
       dependencyType?: DependencyType | undefined
       latest?: string | undefined
@@ -1166,8 +1236,8 @@ export type Config = {
   preferFrozenLockfile?: boolean | undefined
   only?: 'prod' | 'production' | 'dev' | 'development' | undefined
   packageManager: {
-    name: string
-    version: string
+    name?: string | undefined
+    version?: string | undefined
   }
   preferOffline?: boolean | undefined
   sideEffectsCache?: boolean | undefined // for backward compatibility
@@ -1439,8 +1509,8 @@ export type PnpmSingleContext = {
   hoistedModulesDir: string
   hoistPattern?: string[] | undefined
   manifest?: ProjectManifest | undefined
-  modulesDir: string
-  importerId: string
+  modulesDir?: string | undefined
+  importerId?: string | undefined
   prefix: string
   include: IncludedDependencies
   modulesFile: Modules | null
@@ -1459,12 +1529,12 @@ export type PnpmSingleContext = {
 export type ImporterToUpdate = {
   buildIndex?: number | undefined
   binsDir?: string | undefined
-  id: string
+  id?: string | undefined
   manifest?: ProjectManifest | undefined
   originalManifest?: ProjectManifest | undefined
-  modulesDir: string
+  modulesDir?: string | undefined
   rootDir: string
-  pruneDirectDependencies: boolean
+  pruneDirectDependencies?: boolean | undefined
   removePackages?: string[] | undefined
   updatePackageManifest: boolean
   wantedDependencies: Array<
@@ -1501,18 +1571,14 @@ export type InstallFunction = (
   }
 ) => Promise<InstallFunctionResult>
 
-export type DepsGraph = {
-  [depPath: string]: DepsGraphNode
-}
+export type DepsGraph = Record<string, DepsGraphNode>
 
 export type DepsGraphNode = {
   children: { [alias: string]: string }
   depPath: string
 }
 
-export type DepsStateCache = {
-  [depPath: string]: DepStateObj
-}
+export type DepsStateCache = Record<string, DepStateObj>
 
 export type DepStateObj = {
   [depPath: string]: DepStateObj
@@ -1671,6 +1737,7 @@ export type IncludedDependencies = {
 }
 
 export type Modules = {
+  dependencies?: Record<string, Dependencies> | undefined
   hoistedAliases?: ({ [depPath: string]: string[] }) | undefined // for backward compatibility
   hoistedDependencies?: HoistedDependencies | undefined
   hoistPattern?: string[] | undefined
@@ -1746,7 +1813,7 @@ export type ApplyPatchToDirOpts = {
 }
 
 export type ResolverFactoryOptions = {
-  cacheDir: string
+  cacheDir?: string | undefined
   timeout?: number | undefined
   offline?: boolean | undefined
   fullMetadata?: boolean | undefined
@@ -2244,7 +2311,7 @@ export type PackageSnapshot = {
 export type PackageSnapshots = Record<string, PackageSnapshot>
 
 export type ProjectSnapshot = {
-  specifiers: ResolvedDependencies
+  specifiers?: ResolvedDependencies | undefined
   dependencies?: ResolvedDependencies | undefined
   optionalDependencies?: ResolvedDependencies | undefined
   devDependencies?: ResolvedDependencies | undefined
@@ -2847,7 +2914,7 @@ export type StrictInstallOptions = {
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
   dedupeInjectedDeps?: boolean | undefined
-  dedupePeerDependents: boolean
+  dedupePeerDependents?: boolean | undefined
   extendNodePath: boolean
   excludeLinksFromLockfile: boolean
   confirmModulesPurge: boolean
@@ -2913,8 +2980,8 @@ export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
 
 export type PackageFilesResponse = {
   resolvedFrom: ResolvedFrom
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-  sideEffects?: Record<string, Record<string, PackageFileInfo>>
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy' | undefined
+  sideEffects?: Record<string, Record<string, PackageFileInfo>> | undefined
 } & (
   | {
     unprocessed?: false | undefined
@@ -3354,12 +3421,54 @@ export type GitFetcher = FetchFunction<
   { filesIndex: Record<string, string>; manifest?: DependencyManifest | undefined }
 >
 
+export type TarballFetchers = {
+  localTarball: (cafs: Cafs, resolution: {
+    integrity?: string | undefined
+    registry?: string | undefined
+    tarball: string
+  }, opts: FetchOptions) => Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest;
+  }>
+  remoteTarball: (cafs: Cafs, resolution: {
+    tarball: string;
+    integrity: string | undefined;
+    registry: string | undefined;
+  }, opts: FetchOptions) => Promise<FetchResult>
+  gitHostedTarball: (cafs: Cafs, resolution: {
+    tarball: string;
+    integrity?: string | undefined;
+    registry?: string | undefined;
+  }, opts: FetchOptions) => Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest | undefined;
+  }>
+}
+
 export type Fetchers = {
-  localTarball: FetchFunction
-  remoteTarball: FetchFunction
-  gitHostedTarball: FetchFunction
-  directory: DirectoryFetcher
-  git: GitFetcher
+  localTarball?: ((cafs: Cafs, resolution: {
+    integrity?: string | undefined
+    registry?: string | undefined
+    tarball: string
+  }, opts: FetchOptions) => Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest;
+  }>) | undefined
+  remoteTarball?: ((cafs: Cafs, resolution: {
+    tarball: string;
+    integrity: string | undefined;
+    registry: string | undefined;
+  }, opts: FetchOptions) => Promise<FetchResult>) | undefined
+  gitHostedTarball?: ((cafs: Cafs, resolution: {
+    tarball: string;
+    integrity?: string | undefined;
+    registry?: string | undefined;
+  }, opts: FetchOptions) => Promise<{
+    filesIndex: Record<string, string>;
+    manifest: DependencyManifest | undefined;
+  }>) | undefined
+  directory?: DirectoryFetcher | undefined
+  git?: GitFetcher | undefined
 }
 
 export type GitResolution = {
@@ -3500,7 +3609,7 @@ export type FetchPackageToStoreFunction = (
   opts: FetchPackageToStoreOptions
 ) => {
   filesIndexFile?: string | undefined
-  fetching?: () => Promise<PkgRequestFetchResult>
+  fetching?: (() => Promise<PkgRequestFetchResult>) | undefined
 }
 
 export type FetchPackageToStoreFunctionAsync = (
@@ -3691,7 +3800,7 @@ export type UpdatedProject = {
   originalManifest?: ProjectManifest | undefined
   manifest?: ProjectManifest | undefined
   peerDependencyIssues?: PeerDependencyIssues | undefined
-  rootDir: string
+  rootDir?: string | undefined
 }
 
 export type MutateModulesResult = {

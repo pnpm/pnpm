@@ -52,7 +52,7 @@ export function parseTarball(buffer: Buffer): IParseResult {
   while (buffer[blockStart] !== 0) {
     // Parse out a TAR header. header size is 512 bytes.
     // The file type is a single byte at offset 156 in the header
-    fileType = buffer[blockStart + FILE_TYPE_OFFSET]
+    fileType = buffer[blockStart + FILE_TYPE_OFFSET] ?? 0
     if (paxHeaderFileSize !== undefined) {
       fileSize = paxHeaderFileSize
       paxHeaderFileSize = undefined
@@ -174,11 +174,11 @@ export function parseTarball(buffer: Buffer): IParseResult {
     const blockEnd: number = offset + 512
 
     for (; i < checksumStart; i++) {
-      sum += buffer[i]
+      sum += (buffer[i] ?? 0)
     }
 
     for (i = checksumEnd; i < blockEnd; i++) {
-      sum += buffer[i]
+      sum += buffer[i] ?? 0
     }
 
     return sum
@@ -256,7 +256,7 @@ export function parseTarball(buffer: Buffer): IParseResult {
     let end: number = offset
     const max: number = length + offset
     for (
-      let char: number = buffer[end];
+      let char: number | undefined = buffer[end];
       char !== 0 && end !== max;
       char = buffer[++end]
     ) {

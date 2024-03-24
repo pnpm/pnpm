@@ -4,9 +4,17 @@ import '@total-typescript/ts-reset'
 import os from 'node:os'
 import path from 'node:path'
 
+import type {
+  LinkPkgMessage,
+  PackageFilesIndex,
+  DependencyManifest,
+  HardLinkDirMessage,
+  AddDirToStoreMessage,
+  TarballExtractMessage,
+  SymlinkAllModulesMessage,
+} from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
-import type { PackageFilesIndex, AddDirToStoreMessage, DependencyManifest, HardLinkDirMessage, LinkPkgMessage, SymlinkAllModulesMessage, TarballExtractMessage } from '@pnpm/types'
 
 let workerPool: WorkerPool | undefined
 

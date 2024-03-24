@@ -12,7 +12,7 @@ import {
 import { addFilesFromDir, importPackage } from '@pnpm/worker'
 import { createPackageRequester } from '@pnpm/package-requester'
 
-import { prune } from './prune'
+import { prune } from './prune.js'
 
 export async function createPackageStore(
   resolve: ResolveFunction,

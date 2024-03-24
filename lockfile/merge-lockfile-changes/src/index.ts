@@ -3,7 +3,7 @@ import '@total-typescript/ts-reset'
 import semver from 'semver'
 import comverToSemver from 'comver-to-semver'
 
-import type { Lockfile, PackageSnapshot, PackageSnapshots } from '@pnpm/types'
+import type { Lockfile, PackageSnapshot, PackageSnapshots, ProjectSnapshot } from '@pnpm/types'
 
 const depsDevDepsOptDeps = [
   'dependencies',
@@ -31,25 +31,34 @@ export function mergeLockfileChanges(ours: Lockfile, theirs: Lockfile): Lockfile
       specifiers: {},
     }
 
+    const importer: ProjectSnapshot | undefined = newLockfile.importers[importerId]
+
     for (const key of depsDevDepsOptDeps) {
-      newLockfile.importers[importerId][key] = mergeDict(
+      if (!importer) {
+        continue
+      }
+
+      importer[key] = mergeDict(
         ours.importers[importerId]?.[key] ?? {},
         theirs.importers[importerId]?.[key] ?? {},
         mergeVersions
       )
 
       if (
-        Object.keys(newLockfile.importers[importerId][key] ?? {}).length === 0
+        Object.keys(importer[key] ?? {}).length === 0
       ) {
-        delete newLockfile.importers[importerId][key]
+        delete importer[key]
       }
     }
 
-    newLockfile.importers[importerId].specifiers = mergeDict(
-      ours.importers[importerId]?.specifiers ?? {},
-      theirs.importers[importerId]?.specifiers ?? {},
-      takeChangedValue
-    )
+    newLockfile.importers[importerId] = {
+      ...newLockfile.importers[importerId],
+      specifiers: mergeDict(
+        ours.importers[importerId]?.specifiers ?? {},
+        theirs.importers[importerId]?.specifiers ?? {},
+        takeChangedValue
+      ),
+    }
   }
 
   const packages: PackageSnapshots = {}
@@ -90,33 +99,47 @@ export function mergeLockfileChanges(ours: Lockfile, theirs: Lockfile): Lockfile
 
 type ValueMerger<T> = (ourValue: T, theirValue: T) => T
 
-function mergeDict<T>(
-  ourDict: Record<string, T>,
-  theirDict: Record<string, T>,
-  valueMerger: ValueMerger<T>
-): Record<string, T> {
-  const newDict: Record<string, T> = {}
+function mergeDict(
+  ourDict: Record<string, string>,
+  theirDict: Record<string, string>,
+  valueMerger: ValueMerger<string>
+): Record<string, string> {
+  const newDict: Record<string, string> = {}
   for (const key of Object.keys(ourDict).concat(Object.keys(theirDict))) {
-    const changedValue = valueMerger(ourDict[key], theirDict[key])
+    const changedValue = valueMerger(ourDict[key] ?? '', theirDict[key] ?? '')
+
     if (changedValue) {
       newDict[key] = changedValue
     }
   }
+
   return newDict
 }
 
 function takeChangedValue<T>(ourValue: T, theirValue: T): T {
-  if (ourValue === theirValue || theirValue == null) return ourValue
+  if (ourValue === theirValue || theirValue == null) {
+    return ourValue
+  }
+
   return theirValue
 }
 
 function mergeVersions(ourValue: string, theirValue: string): string {
-  if (ourValue === theirValue || !theirValue) return ourValue
-  if (!ourValue) return theirValue
-  const [ourVersion] = ourValue.split('_')
-  const [theirVersion] = theirValue.split('_')
-  if (semver.gt(ourVersion, theirVersion)) {
+  if (ourValue === theirValue || !theirValue) {
     return ourValue
   }
+
+  if (!ourValue) {
+    return theirValue
+  }
+
+  const [ourVersion] = ourValue.split('_')
+
+  const [theirVersion] = theirValue.split('_')
+
+  if (semver.gt(ourVersion ?? '', theirVersion ?? '')) {
+    return ourValue
+  }
+
   return theirValue
 }

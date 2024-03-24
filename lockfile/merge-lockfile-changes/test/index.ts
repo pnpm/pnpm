@@ -1,4 +1,4 @@
-import type { Lockfile } from '@pnpm/lockfile-types'
+import type { Lockfile } from '@pnpm/types'
 import { mergeLockfileChanges } from '../src'
 
 const simpleLockfile = {

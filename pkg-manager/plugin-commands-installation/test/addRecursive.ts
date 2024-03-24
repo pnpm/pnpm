@@ -1,9 +1,12 @@
-import path from 'path'
-import { readProjects } from '@pnpm/filter-workspace-packages'
-import type { Lockfile } from '@pnpm/lockfile-types'
-import { add } from '@pnpm/plugin-commands-installation'
-import { preparePackages } from '@pnpm/prepare'
+import path from 'node:path'
+
 import readYamlFile from 'read-yaml-file'
+
+import type { Lockfile } from '@pnpm/types'
+import { preparePackages } from '@pnpm/prepare'
+import { add } from '@pnpm/plugin-commands-installation'
+import { readProjects } from '@pnpm/filter-workspace-packages'
+
 import { DEFAULT_OPTS } from './utils'
 
 test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles', async () => {

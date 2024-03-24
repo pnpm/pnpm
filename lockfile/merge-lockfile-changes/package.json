@@ -11,6 +11,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -31,7 +32,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/merge-lockfile-changes#readme",
   "dependencies": {
-    "@pnpm/lockfile-types": "workspace:*",
     "comver-to-semver": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "semver": "^7.6.0"

@@ -24,7 +24,7 @@ export async function readModulesManifest(
   let modules: Modules | undefined
 
   try {
-    modules = await readYamlFile<Modules>(modulesYamlPath)
+    modules = await readYamlFile.default<Modules>(modulesYamlPath)
 
     if (!modules) {
       return modules
@@ -67,10 +67,18 @@ export async function readModulesManifest(
 
       if (modules.hoistedAliases != null && !modules.hoistedDependencies) {
         modules.hoistedDependencies = {}
+
         for (const depPath of Object.keys(modules.hoistedAliases)) {
           modules.hoistedDependencies[depPath] = {}
-          for (const alias of modules.hoistedAliases[depPath]) {
-            modules.hoistedDependencies[depPath][alias] = 'private'
+
+          const aliases = modules.hoistedAliases[depPath]
+
+          const dependencies = modules.dependencies?.[depPath]
+
+          if (aliases && dependencies) {
+            for (const alias of aliases) {
+              dependencies[alias] = 'private'
+            }
           }
         }
       }

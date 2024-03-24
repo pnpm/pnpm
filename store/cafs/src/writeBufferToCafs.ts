@@ -1,11 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import renameOverwrite from 'rename-overwrite'
 import type ssri from 'ssri'
+import renameOverwrite from 'rename-overwrite'
 
-import { writeFile } from './writeFile'
-import { verifyFileIntegrity } from './checkPkgFilesIntegrity'
+import { writeFile } from './writeFile.js'
+import { verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
 
 export function writeBufferToCafs(
   locker: Map<string, number>,
@@ -16,12 +16,14 @@ export function writeBufferToCafs(
   integrity: ssri.IntegrityLike
 ): { checkedAt: number; filePath: string } {
   fileDest = path.join(cafsDir, fileDest)
+
   if (locker.has(fileDest)) {
     return {
       checkedAt: locker.get(fileDest) ?? 0,
       filePath: fileDest,
     }
   }
+
   // This part is a bit redundant.
   // When a file is already used by another package,
   // we probably have validated its content already.
@@ -43,13 +45,17 @@ export function writeBufferToCafs(
   // If we don't allow --no-verify-store-integrity then we probably can write
   // to the final file directly.
   const temp = pathTemp(fileDest)
+
   writeFile(temp, buffer, mode)
   // Unfortunately, "birth time" (time of file creation) is available not on all filesystems.
   // We log the creation time ourselves and save it in the package index file.
   // Having this information allows us to skip content checks for files that were not modified since "birth time".
   const birthtimeMs = Date.now()
+
   optimisticRenameOverwrite(temp, fileDest)
+
   locker.set(fileDest, birthtimeMs)
+
   return {
     checkedAt: birthtimeMs,
     filePath: fileDest,
@@ -59,8 +65,11 @@ export function writeBufferToCafs(
 export function optimisticRenameOverwrite(temp: string, fileDest: string) {
   try {
     renameOverwrite.sync(temp, fileDest)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT' || !fs.existsSync(fileDest)) throw err
+  } catch (err: unknown) {
+    // @ts-ignore
+    if (err.code !== 'ENOENT' || !fs.existsSync(fileDest)) {
+      throw err
+    }
     // The temporary file path is created by appending the process ID to the target file name.
     // This is done to avoid lots of random crypto number generations.
     //   PR with related performance optimization: https://github.com/pnpm/pnpm/pull/6817
@@ -82,26 +91,33 @@ export function optimisticRenameOverwrite(temp: string, fileDest: string) {
  */
 export function pathTemp(file: string): string {
   const basename = removeSuffix(path.basename(file))
+
   return path.join(path.dirname(file), `${basename}${process.pid}`)
 }
 
 function removeSuffix(filePath: string): string {
   const dashPosition = filePath.indexOf('-')
-  if (dashPosition === -1) return filePath
+
+  if (dashPosition === -1) {
+    return filePath
+  }
+
   const withoutSuffix = filePath.substring(0, dashPosition)
+
   if (filePath.substring(dashPosition) === '-exec') {
     return `${withoutSuffix}x`
   }
+
   return withoutSuffix
 }
 
-function existsSame(filename: string, integrity: ssri.IntegrityLike) {
+function existsSame(filename: string, integrity: ssri.IntegrityLike): boolean {
   const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
+
   if (!existingFile) {
     return false
   }
 
-  // @ts-ignore
   return verifyFileIntegrity(filename, {
     size: existingFile.size,
     integrity,

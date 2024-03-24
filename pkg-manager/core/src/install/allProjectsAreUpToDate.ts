@@ -53,7 +53,7 @@ export async function allProjectsAreUpToDate(
     lockfileDir: opts.lockfileDir,
   })
 
-  return pEvery(projects, (project: ProjectOptions & {
+  return pEvery.default(projects, (project: ProjectOptions & {
     id: string;
   }): false | Promise<boolean> => {
     const importer = opts.wantedLockfile.importers[project.id]
@@ -74,9 +74,13 @@ function getWorkspacePackagesByDirectory(workspacePackages: WorkspacePackages): 
   const workspacePackagesByDirectory: Record<string, DependencyManifest> = {}
 
   Object.keys(workspacePackages || {}).forEach((pkgName: string): void => {
-    Object.keys(workspacePackages[pkgName] || {}).forEach((pkgVersion) => {
-      workspacePackagesByDirectory[workspacePackages[pkgName][pkgVersion].dir] =
-        workspacePackages[pkgName][pkgVersion].manifest
+    Object.keys(workspacePackages[pkgName] || {}).forEach((pkgVersion: string): void => {
+      const v = workspacePackages[pkgName]?.[pkgVersion]
+
+      if (typeof v !== 'undefined') {
+        workspacePackagesByDirectory[v.dir] =
+        v.manifest
+      }
     })
   })
 
@@ -100,21 +104,21 @@ async function linkedPackagesAreUpToDate(
   project: {
     dir: string
     manifest?: ProjectManifest | undefined
-    snapshot: ProjectSnapshot
+    snapshot?: ProjectSnapshot | undefined
   }
 ): Promise<boolean> {
-  return pEvery(DEPENDENCIES_FIELDS, (depField: 'optionalDependencies' | 'dependencies' | 'devDependencies'): true | Promise<boolean> => {
-    const lockfileDeps = project.snapshot[depField]
+  return pEvery.default(DEPENDENCIES_FIELDS, (depField: 'optionalDependencies' | 'dependencies' | 'devDependencies'): true | Promise<boolean> => {
+    const lockfileDeps = project.snapshot?.[depField]
 
     const manifestDeps = project.manifest?.[depField]
 
-    if (lockfileDeps == null || manifestDeps == null) {
+    if (typeof lockfileDeps === 'undefined' || typeof manifestDeps === 'undefined') {
       return true
     }
 
     const depNames = Object.keys(lockfileDeps)
 
-    return pEvery(depNames, async (depName: string): Promise<boolean> => {
+    return pEvery.default(depNames, async (depName: string): Promise<boolean> => {
       const currentSpec = manifestDeps[depName]
 
       if (!currentSpec) {
@@ -123,14 +127,14 @@ async function linkedPackagesAreUpToDate(
 
       const lockfileRef = lockfileDeps[depName]
 
-      if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
+      if (lockfileRef && refIsLocalDirectory(project.snapshot?.specifiers[depName])) {
         return isLocalFileDepUpdated(
           lockfileDir,
           lockfilePackages?.[lockfileRef]
         )
       }
 
-      const isLinked = lockfileRef.startsWith('link:')
+      const isLinked = lockfileRef?.startsWith('link:')
 
       if (
         isLinked &&
@@ -148,8 +152,8 @@ async function linkedPackagesAreUpToDate(
       }
 
       const linkedDir = isLinked
-        ? path.join(project.dir, lockfileRef.slice(5))
-        : workspacePackages?.[depName]?.[lockfileRef]?.dir
+        ? path.join(project.dir, lockfileRef?.slice(5) ?? '')
+        : workspacePackages?.[depName]?.[lockfileRef ?? '']?.dir
 
       if (!linkedDir) {
         return true
@@ -173,7 +177,7 @@ async function linkedPackagesAreUpToDate(
         availableRange === '^' ||
         availableRange === '~' ||
         (linkedPkg &&
-          semver.satisfies(linkedPkg.version, availableRange, { loose: true }))
+          semver.satisfies(linkedPkg.version ?? '', availableRange, { loose: true }))
 
       if (isLinked !== localPackageSatisfiesRange) {
         return false
@@ -230,15 +234,15 @@ async function isLocalFileDepUpdated(
 
       // We do not care about the link dependencies of local dependency.
       if (
-        currentSpec.startsWith('file:') ||
-        currentSpec.startsWith('link:') ||
-        currentSpec.startsWith('workspace:')
+        currentSpec?.startsWith('file:') ||
+        currentSpec?.startsWith('link:') ||
+        currentSpec?.startsWith('workspace:')
       ) {
         continue
       }
 
       if (
-        semver.satisfies(lockfileDeps[depName], getVersionRange(currentSpec), {
+        semver.satisfies(lockfileDeps[depName] ?? '', getVersionRange(currentSpec ?? ''), {
           loose: true,
         })
       ) {
@@ -272,10 +276,10 @@ function getVersionRange(spec: string): string {
   return spec
 }
 
-function hasLocalTarballDepsInRoot(importer: ProjectSnapshot): boolean {
+function hasLocalTarballDepsInRoot(importer: ProjectSnapshot | undefined): boolean {
   return (
-    any(refIsLocalTarball, Object.values(importer.dependencies ?? {})) ||
-    any(refIsLocalTarball, Object.values(importer.devDependencies ?? {})) ||
-    any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))
+    any(refIsLocalTarball, Object.values(importer?.dependencies ?? {})) ||
+    any(refIsLocalTarball, Object.values(importer?.devDependencies ?? {})) ||
+    any(refIsLocalTarball, Object.values(importer?.optionalDependencies ?? {}))
   )
 }

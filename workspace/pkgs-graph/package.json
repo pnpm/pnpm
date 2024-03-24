@@ -8,6 +8,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -25,6 +26,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/pkgs-graph#readme",
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/workspace.pkgs-graph": "workspace:*",
     "@types/ramda": "0.28.20",
     "better-path-resolve": "1.0.0",

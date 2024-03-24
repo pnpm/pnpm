@@ -26,9 +26,6 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../lockfile-types"
-    },
-    {
       "path": "../merge-lockfile-changes"
     }
   ]

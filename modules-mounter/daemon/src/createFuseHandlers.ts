@@ -5,15 +5,13 @@ import Fuse from 'fuse-native'
 import loadJsonFile from 'load-json-file'
 import * as schemas from 'hyperdrive-schemas'
 
-import {
-  readWantedLockfile,
-} from '@pnpm/lockfile-file'
+import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { getFilePathByModeInCafs, getFilePathInCafs } from '@pnpm/store.cafs'
-import { Lockfile, PackageSnapshot, PackageFilesIndex, TarballResolution } from '@pnpm/types'
+import type { Lockfile, PackageSnapshot, PackageFilesIndex, TarballResolution } from '@pnpm/types'
 
-import * as cafsExplorer from './cafsExplorer'
-import { makeVirtualNodeModules } from './makeVirtualNodeModules'
+import * as cafsExplorer from './cafsExplorer.js'
+import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
 
 const TIME = new Date()
 
@@ -141,6 +139,7 @@ export function createFuseHandlersFromLockfile(
 
       if (dirEnt == null) {
         cb(Fuse.ENOENT)
+
         return
       }
 
@@ -176,19 +175,24 @@ export function createFuseHandlersFromLockfile(
       if (dirEnt.entryType === 'index') {
         switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
           case 'file': {
-            const { size, mode } = dirEnt.index.files[dirEnt.subPath]
+            const file = dirEnt.index.files[dirEnt.subPath]
+
+            if (file) {
             // eslint-disable-next-line n/no-callback-literal
-            cb(
-              0,
-              schemas.Stat.file({
-                ...STAT_DEFAULT,
-                mode,
-                size,
-              })
-            )
+              cb(
+                0,
+                schemas.Stat.file({
+                  ...STAT_DEFAULT,
+                  mode: file.mode,
+                  size: file.size,
+                })
+              )
+            }
+
             return
           }
-          case 'directory':
+
+          case 'directory': {
             // eslint-disable-next-line n/no-callback-literal
             cb(
               0,
@@ -197,10 +201,15 @@ export function createFuseHandlersFromLockfile(
                 size: 1,
               })
             )
+
             return
-          default:
+          }
+
+          default: {
             cb(Fuse.ENOENT)
+
             return
+          }
         }
       }
 
@@ -233,43 +242,64 @@ export function createFuseHandlersFromLockfile(
   }
   function getDirEnt(p: string) {
     let currentDirEntry = virtualNodeModules
+
     const parts = p === '/' ? [] : p.split('/')
+
     parts.shift()
+
     while (
       parts.length > 0 &&
       currentDirEntry &&
       currentDirEntry.entryType === 'directory'
     ) {
-      currentDirEntry = currentDirEntry.entries[parts.shift()!]
+      const entry = currentDirEntry.entries[parts.shift() ?? '']
+
+      if (entry) {
+        currentDirEntry = entry
+      }
     }
+
     if (currentDirEntry?.entryType === 'index') {
       const pkg = getPkgInfo(currentDirEntry.depPath, cafsDir)
+
       if (pkg == null) {
         return null
       }
+
       return {
         ...currentDirEntry,
         index: pkg.index,
         subPath: parts.join('/'),
       }
     }
+
     return currentDirEntry
   }
-  function getPkgInfo(depPath: string, cafsDir: string) {
+
+  function getPkgInfo(depPath: string, cafsDir: string): {
+    name: string;
+    version: string;
+    pkgSnapshot: PackageSnapshot;
+    index: PackageFilesIndex;
+  } | undefined {
     if (!pkgSnapshotCache.has(depPath)) {
       const pkgSnapshot = lockfile.packages?.[depPath]
+
       if (pkgSnapshot == null) return undefined
+
       const indexPath = getFilePathInCafs(
         cafsDir,
         (pkgSnapshot.resolution as TarballResolution).integrity ?? '',
         'index'
       )
+
       pkgSnapshotCache.set(depPath, {
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
         pkgSnapshot,
         index: loadJsonFile.sync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
       })
     }
+
     return pkgSnapshotCache.get(depPath)
   }
 }

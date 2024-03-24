@@ -1,9 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+
+import path from 'node:path'
+
+import tempy from 'tempy'
+
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
-import { type FetchPackageToStoreFunction } from '@pnpm/store-controller-types'
-import tempy from 'tempy'
+import type { FetchPackageToStoreFunction } from '@pnpm/types'
 
 describe('store.importPackage()', () => {
   it('selects import method automatically', async () => {

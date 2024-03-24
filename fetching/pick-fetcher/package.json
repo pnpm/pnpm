@@ -32,7 +32,6 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
     "@total-typescript/ts-reset": "0.5.1"
   },
   "exports": {

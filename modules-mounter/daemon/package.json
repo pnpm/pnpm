@@ -13,6 +13,7 @@
     "!*.map",
     "bin"
   ],
+  "type": "module",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",

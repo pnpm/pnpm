@@ -2,6 +2,13 @@ import os from 'node:os'
 import path from 'node:path'
 import { createReadStream, promises as fs } from 'node:fs'
 
+import ssri from 'ssri'
+import semver from 'semver'
+import PQueue from 'p-queue'
+import pDefer from 'p-defer'
+import pick from 'ramda/src/pick'
+import pShare from 'promise-share'
+
 import {
   getFilePathInCafs as _getFilePathInCafs,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
@@ -17,38 +24,33 @@ import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import type {
   Cafs,
   FileType,
-  PackageFilesIndex,
-  DirectoryFetcherResult,
-  DirectoryResolution,
-  FetchOptions,
-  FetchResult,
   Fetchers,
   Resolution,
-  ResolveFunction,
+  FetchResult,
+  FetchOptions,
   ResolveResult,
-  TarballResolution,
-  BundledManifest,
-  PkgRequestFetchResult,
-  FetchPackageToStoreFunction,
-  FetchPackageToStoreOptions,
-  GetFilesIndexFilePath,
-  PackageResponse,
   PkgNameVersion,
-  RequestPackageFunction,
-  RequestPackageOptions,
+  ResolveFunction,
+  BundledManifest,
+  PackageResponse,
   WantedDependency,
+  PackageFilesIndex,
+  TarballResolution,
   DependencyManifest,
+  DirectoryResolution,
+  PkgRequestFetchResult,
+  GetFilesIndexFilePath,
+  RequestPackageOptions,
+  DirectoryFetcherResult,
+  RequestPackageFunction,
+  FetchPackageToStoreOptions,
+  FetchPackageToStoreFunction,
 } from '@pnpm/types'
 
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
-import PQueue from 'p-queue'
-import pDefer from 'p-defer'
-import pShare from 'promise-share'
-import pick from 'ramda/src/pick'
-import semver from 'semver'
-import ssri from 'ssri'
-import { equalOrSemverEqual } from './equalOrSemverEqual'
+
+import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
@@ -81,15 +83,15 @@ function normalizeBundledManifest(
 }
 
 export function createPackageRequester(opts: {
-  engineStrict?: boolean
-  force?: boolean
-  nodeVersion?: string
-  pnpmVersion?: string
+  engineStrict?: boolean | undefined
+  force?: boolean | undefined
+  nodeVersion?: string | undefined
+  pnpmVersion?: string | undefined
   resolve: ResolveFunction
   fetchers: Fetchers
   cafs: Cafs
-  ignoreFile?: (filename: string) => boolean
-  networkConcurrency?: number
+  ignoreFile?: ((filename: string) => boolean) | undefined
+  networkConcurrency?: number | undefined
   storeDir: string
   verifyStoreIntegrity: boolean
 }): RequestPackageFunction & {
@@ -105,13 +107,18 @@ export function createPackageRequester(opts: {
   const networkConcurrency =
     opts.networkConcurrency ??
     Math.max(os.availableParallelism?.() ?? os.cpus().length, 16)
-  const requestsQueue = new PQueue({
+
+  // eslint-disable-next-line new-cap
+  const requestsQueue = new PQueue.default({
     concurrency: networkConcurrency,
   })
 
   const cafsDir = path.join(opts.storeDir, 'files')
+
   const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
+
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
+
   const fetchPackageToStore = fetchToStore.bind(null, {
     readPkgFromCafs: _readPkgFromCafs.bind(
       null,
@@ -128,6 +135,7 @@ export function createPackageRequester(opts: {
     }),
     storeDir: opts.storeDir,
   })
+
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
@@ -151,10 +159,10 @@ export function createPackageRequester(opts: {
 
 async function resolveAndFetch(
   ctx: {
-    engineStrict?: boolean
-    force?: boolean
-    nodeVersion?: string
-    pnpmVersion?: string
+    engineStrict?: boolean | undefined
+    force?: boolean | undefined
+    nodeVersion?: string | undefined
+    pnpmVersion?: string | undefined
     requestsQueue: {
       add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>
     }
@@ -166,14 +174,23 @@ async function resolveAndFetch(
   options: RequestPackageOptions
 ): Promise<PackageResponse> {
   let latest: string | undefined
+
   let manifest: DependencyManifest | undefined
+
   let normalizedPref: string | undefined
+
   let resolution = options.currentPkg?.resolution as Resolution
+
   let pkgId = options.currentPkg?.id
+
   const skipResolution = resolution && !options.update
+
   let forceFetch = false
+
   let updated = false
+
   let resolvedVia: string | undefined
+
   let publishedAt: string | undefined
 
   // When fetching is skipped, resolution cannot be skipped.
@@ -188,8 +205,8 @@ async function resolveAndFetch(
     wantedDependency.optional === true
   ) {
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(
-      async () =>
-        ctx.resolve(wantedDependency, {
+      async () => {
+        return ctx.resolve(wantedDependency, {
           alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
           defaultTag: options.defaultTag,
           publishedBy: options.publishedBy,
@@ -202,13 +219,17 @@ async function resolveAndFetch(
           registry: options.registry,
           workspacePackages: options.workspacePackages,
           updateToLatest: options.updateToLatest,
-        }),
+        });
+      },
       { priority: options.downloadPriority }
     )
 
     manifest = resolveResult.manifest
+
     latest = resolveResult.latest
+
     resolvedVia = resolveResult.resolvedVia
+
     publishedAt = resolveResult.publishedAt
 
     // If the integrity of a local tarball dependency has changed,
@@ -221,8 +242,11 @@ async function resolveAndFetch(
     )
 
     updated = pkgId !== resolveResult.id || !resolution || forceFetch
+
     resolution = resolveResult.resolution
+
     pkgId = resolveResult.id
+
     normalizedPref = resolveResult.normalizedPref
   }
 
@@ -234,6 +258,7 @@ async function resolveAndFetch(
         `Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`
       )
     }
+
     return {
       body: {
         id,
@@ -259,6 +284,7 @@ async function resolveAndFetch(
         pnpmVersion: ctx.pnpmVersion,
         supportedArchitectures: options.supportedArchitectures,
       }))
+
   // We can skip fetching the package only if the manifest
   // is present after resolution
   if (
@@ -286,6 +312,7 @@ async function resolveAndFetch(
     ['name', 'version'],
     manifest ?? {}
   )
+
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
     force: forceFetch,
@@ -326,7 +353,7 @@ async function resolveAndFetch(
 interface FetchLock {
   fetching: Promise<PkgRequestFetchResult>
   filesIndexFile: string
-  fetchRawManifest?: boolean
+  fetchRawManifest?: boolean | undefined
 }
 
 function getFilesIndexFilePath(
@@ -337,7 +364,9 @@ function getFilesIndexFilePath(
   opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>
 ) {
   const targetRelative = depPathToFilename(opts.pkg.id)
+
   const target = path.join(ctx.storeDir, targetRelative)
+
   const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
     ? ctx.getFilePathInCafs(
       (opts.pkg.resolution as TarballResolution).integrity ?? '',
@@ -347,6 +376,7 @@ function getFilesIndexFilePath(
       target,
       opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json'
     )
+
   return { filesIndexFile, target }
 }
 
@@ -354,11 +384,11 @@ function fetchToStore(
   ctx: {
     readPkgFromCafs: (
       filesIndexFile: string,
-      readManifest?: boolean
+      readManifest?: boolean | undefined
     ) => Promise<{
       verified: boolean
       pkgFilesIndex: PackageFilesIndex
-      manifest?: DependencyManifest
+      manifest?: DependencyManifest | undefined
     }>
     fetch: (
       packageId: string,
@@ -386,6 +416,7 @@ function fetchToStore(
 
   if (!ctx.fetchingLocker.has(opts.pkg.id)) {
     const fetching = pDefer<PkgRequestFetchResult>()
+
     const { filesIndexFile, target } = getFilesIndexFilePath(ctx, opts)
 
     doFetchToStore(filesIndexFile, fetching, target)

@@ -37,7 +37,6 @@
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {

@@ -1,18 +1,17 @@
-import type { ProjectSnapshot } from '@pnpm/lockfile-types'
-import type { DependenciesField } from '@pnpm/types'
+import type { DependenciesField, ProjectSnapshot } from '@pnpm/types'
 
 export function filterImporter(
-  importer: ProjectSnapshot,
+  importer: ProjectSnapshot | undefined,
   include: { [dependenciesField in DependenciesField]: boolean }
 ): ProjectSnapshot {
   return {
-    dependencies: include.dependencies ? importer.dependencies ?? {} : {},
+    dependencies: include.dependencies ? importer?.dependencies ?? {} : {},
     devDependencies: include.devDependencies
-      ? importer.devDependencies ?? {}
+      ? importer?.devDependencies ?? {}
       : {},
     optionalDependencies: include.optionalDependencies
-      ? importer.optionalDependencies ?? {}
+      ? importer?.optionalDependencies ?? {}
       : {},
-    specifiers: importer.specifiers,
+    specifiers: importer?.specifiers,
   }
 }

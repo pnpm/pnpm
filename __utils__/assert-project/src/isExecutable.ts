@@ -2,10 +2,10 @@ import { promises as fs } from 'node:fs'
 import { promisify } from 'node:util'
 
 import isWindows from 'is-windows'
-import isexeCB from 'isexe'
+import { isexe } from 'isexe'
 
 const IS_WINDOWS = isWindows()
-const isexe = promisify(isexeCB.isexe)
+const isexeCB = promisify(isexe)
 
 export async function isExecutable(
   ok: (value: unknown, comment: string) => void,
@@ -13,7 +13,7 @@ export async function isExecutable(
 ): Promise<void> {
   if (IS_WINDOWS) {
     ok(
-      await isexe(`${filePath}.cmd`, undefined),
+      await isexeCB(`${filePath}.cmd`, undefined),
       `${filePath}.cmd is executable`
     )
     return

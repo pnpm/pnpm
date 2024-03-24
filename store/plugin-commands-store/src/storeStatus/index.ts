@@ -1,20 +1,17 @@
 import path from 'node:path'
-import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { getContextForSingleImporter } from '@pnpm/get-context'
-import {
-  nameVerFromPkgSnapshot,
-  packageIdFromSnapshot,
-} from '@pnpm/lockfile-utils'
+
+import dint from 'dint'
+import pFilter from 'p-filter'
+import loadJsonFile from 'load-json-file'
+
 import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
-import dint from 'dint'
-import loadJsonFile from 'load-json-file'
-import pFilter from 'p-filter'
-import {
-  extendStoreStatusOptions,
-  type StoreStatusOptions,
-} from './extendStoreStatusOptions'
-import type { TarballResolution } from '@pnpm/store-controller-types'
+import { getFilePathInCafs } from '@pnpm/store.cafs'
+import { getContextForSingleImporter } from '@pnpm/get-context'
+import type { TarballResolution, PackageFilesIndex } from '@pnpm/types'
+import { nameVerFromPkgSnapshot, packageIdFromSnapshot } from '@pnpm/lockfile-utils'
+
+import { extendStoreStatusOptions, type StoreStatusOptions } from './extendStoreStatusOptions.js'
 
 export async function storeStatus(maybeOpts: StoreStatusOptions): Promise<string[]> {
   const reporter = maybeOpts?.reporter

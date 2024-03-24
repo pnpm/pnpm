@@ -1,12 +1,19 @@
 import '@total-typescript/ts-reset'
+
+export { lockfileLogger } from './logger.js'
+
 export {
-  isEmptyLockfile,
   writeLockfiles,
-  writeCurrentLockfile,
+  isEmptyLockfile,
   writeWantedLockfile,
-} from './write'
-export { existsNonEmptyWantedLockfile } from './existsWantedLockfile'
-export { getLockfileImporterId } from './getLockfileImporterId'
-export * from '@pnpm/lockfile-types'
-export * from './read'
-export { cleanGitBranchLockfiles } from './gitBranchLockfile'
+  writeCurrentLockfile,
+} from './write.js'
+export {
+  readWantedLockfile,
+  readCurrentLockfile,
+  createLockfileObject,
+  readWantedLockfileAndAutofixConflicts,
+} from './read.js'
+export { cleanGitBranchLockfiles } from './gitBranchLockfile.js'
+export { getLockfileImporterId } from './getLockfileImporterId.js'
+export { existsNonEmptyWantedLockfile } from './existsWantedLockfile.js'

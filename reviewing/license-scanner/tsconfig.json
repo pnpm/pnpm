@@ -19,9 +19,6 @@
       "path": "../../lockfile/lockfile-file"
     },
     {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
       "path": "../../lockfile/lockfile-utils"
     },
     {

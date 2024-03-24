@@ -1,12 +1,14 @@
 import '@total-typescript/ts-reset'
-import { promises as fs } from 'node:fs'
+
 import path from 'node:path'
-import type { Lockfile } from '@pnpm/lockfile-file'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-import type { Registries } from '@pnpm/types'
-import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
-import { generateInlinedScript, type PackageRegistry } from '@yarnpkg/pnp'
+import { promises as fs } from 'node:fs'
+
 import normalizePath from 'normalize-path'
+import { generateInlinedScript, type PackageRegistry } from '@yarnpkg/pnp'
+
+import type { Registries, Lockfile } from '@pnpm/types'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 
 export async function writePnpFile(
   lockfile: Lockfile,
@@ -16,15 +18,16 @@ export async function writePnpFile(
     virtualStoreDir: string
     registries: Registries
   }
-) {
+): Promise<void> {
   const packageRegistry = lockfileToPackageRegistry(lockfile, opts)
 
   const loaderFile = generateInlinedScript({
     dependencyTreeRoots: [],
-    ignorePattern: undefined,
+    ignorePattern: null,
     packageRegistry,
-    shebang: undefined,
+    shebang: null,
   })
+
   await fs.writeFile(
     path.join(opts.lockfileDir, '.pnp.cjs'),
     loaderFile,

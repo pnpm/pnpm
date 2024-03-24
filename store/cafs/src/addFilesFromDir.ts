@@ -9,7 +9,7 @@ import type {
 } from '@pnpm/types'
 import gfs from '@pnpm/graceful-fs'
 
-import { parseJsonBufferSync } from './parseJson'
+import { parseJsonBufferSync } from './parseJson.js'
 
 export function addFilesFromDir(
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,

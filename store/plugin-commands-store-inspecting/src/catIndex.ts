@@ -1,18 +1,16 @@
 import path from 'path'
 
-import { type Config } from '@pnpm/config'
-import { createResolver } from '@pnpm/client'
-import { type TarballResolution } from '@pnpm/lockfile-types'
+import sortKeys from 'sort-keys'
+import renderHelp from 'render-help'
+import loadJsonFile from 'load-json-file'
 
 import { PnpmError } from '@pnpm/error'
+import { createResolver } from '@pnpm/client'
 import { getStorePath } from '@pnpm/store-path'
-import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { getFilePathInCafs } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import sortKeys from 'sort-keys'
-
-import loadJsonFile from 'load-json-file'
-import renderHelp from 'render-help'
+import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import type { Config, TarballResolution, PackageFilesIndex } from '@pnpm/types'
 
 export const commandNames = ['cat-index']
 
@@ -22,7 +20,7 @@ export function cliOptionsTypes() {
   return {}
 }
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description: 'Prints the index file of a specific package from the store.',
     descriptionLists: [],

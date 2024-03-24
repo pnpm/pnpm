@@ -11,6 +11,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "devDependencies": {
     "@pnpm/types": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",

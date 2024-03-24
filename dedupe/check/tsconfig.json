@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
       "path": "../../packages/error"
     },
     {

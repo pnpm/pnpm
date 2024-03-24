@@ -2,7 +2,7 @@ import yaml from 'js-yaml'
 
 import type { Lockfile } from '@pnpm/types'
 import { mergeLockfileChanges } from '@pnpm/merge-lockfile-changes'
-import { revertFromInlineSpecifiersFormatIfNecessary } from './experiments/inlineSpecifiersLockfileConverters'
+import { revertFromInlineSpecifiersFormatIfNecessary } from './experiments/inlineSpecifiersLockfileConverters.js'
 
 const MERGE_CONFLICT_PARENT = '|||||||'
 const MERGE_CONFLICT_END = '>>>>>>>'

@@ -11,6 +11,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
   },

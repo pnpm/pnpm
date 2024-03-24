@@ -8,6 +8,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "keywords": [
     "pnpm8"
   ],
@@ -34,7 +35,6 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.files-include-install-scripts": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
@@ -42,8 +42,6 @@
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/prune-lockfile": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
     "@yarnpkg/core": "4.0.0-rc.45",
     "encode-registry": "^3.0.1",

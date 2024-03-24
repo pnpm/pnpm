@@ -6,7 +6,7 @@ import execa from 'execa'
 
 export async function isGitRepo(): Promise<boolean> {
   try {
-    await execa('git', ['rev-parse', '--git-dir'])
+    await execa.default('git', ['rev-parse', '--git-dir'])
   } catch (_: unknown) {
     return false
   }
@@ -16,7 +16,7 @@ export async function isGitRepo(): Promise<boolean> {
 
 export async function getCurrentBranch(): Promise<string | null> {
   try {
-    const { stdout } = await execa('git', ['symbolic-ref', '--short', 'HEAD'])
+    const { stdout } = await execa.default('git', ['symbolic-ref', '--short', 'HEAD'])
 
     return stdout
   } catch (_: unknown) {
@@ -27,7 +27,7 @@ export async function getCurrentBranch(): Promise<string | null> {
 
 export async function isWorkingTreeClean(): Promise<boolean> {
   try {
-    const { stdout: status } = await execa('git', ['status', '--porcelain'])
+    const { stdout: status } = await execa.default('git', ['status', '--porcelain'])
 
     if (status !== '') {
       return false
@@ -43,7 +43,7 @@ export async function isRemoteHistoryClean(): Promise<boolean> {
   let history
   try {
     // Gracefully handle no remote set up.
-    const { stdout } = await execa('git', [
+    const { stdout } = await execa.default('git', [
       'rev-list',
       '--count',
       '--left-only',

@@ -8,6 +8,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",

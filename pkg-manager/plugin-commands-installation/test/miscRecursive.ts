@@ -1,23 +1,24 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import { type PnpmError } from '@pnpm/error'
-import { readProjects } from '@pnpm/filter-workspace-packages'
-import { type LockfileV6 as Lockfile } from '@pnpm/lockfile-types'
+import path from 'node:path'
+import { promises as fs } from 'node:fs'
+
+import symlinkDir from 'symlink-dir'
+import { DEFAULT_OPTS } from './utils'
+import readYamlFile from 'read-yaml-file'
+import loadJsonFile from 'load-json-file'
+import writeJsonFile from 'write-json-file'
+import writeYamlFile from 'write-yaml-file'
+
 import {
   add,
   install,
   remove,
   update,
 } from '@pnpm/plugin-commands-installation'
+import type { PnpmError } from '@pnpm/error'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import type { ProjectManifest } from '@pnpm/types'
-import readYamlFile from 'read-yaml-file'
-import loadJsonFile from 'load-json-file'
-import writeJsonFile from 'write-json-file'
-import writeYamlFile from 'write-yaml-file'
-import { DEFAULT_OPTS } from './utils'
-import symlinkDir from 'symlink-dir'
+import type { ProjectManifest, LockfileV6 } from '@pnpm/types'
+import { readProjects } from '@pnpm/filter-workspace-packages'
 
 test('recursive add/remove', async () => {
   const projects = preparePackages([
@@ -41,6 +42,7 @@ test('recursive add/remove', async () => {
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
     await readProjects(process.cwd(), [])
+
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -53,6 +55,7 @@ test('recursive add/remove', async () => {
 
   expect(projects['project-1'].requireModule('is-positive')).toBeTruthy()
   expect(projects['project-2'].requireModule('is-negative')).toBeTruthy()
+
   await projects['project-2'].has('is-negative')
 
   await add.handler(
@@ -651,7 +654,7 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<Lockfile>(
+  const lockfile = await readYamlFile<LockfileV6>(
     path.join(lockfileDir, 'pnpm-lock.yaml')
   )
   expect(Object.keys(lockfile.importers)).toStrictEqual([
@@ -771,7 +774,7 @@ test('prefer-workspace-package', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<Lockfile>(path.resolve('pnpm-lock.yaml'))
+  const lockfile = await readYamlFile<LockfileV6>(path.resolve('pnpm-lock.yaml'))
   expect(
     lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/foo'].version
   ).toBe('link:../foo')

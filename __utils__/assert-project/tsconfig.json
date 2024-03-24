@@ -11,9 +11,6 @@
   "composite": true,
   "references": [
     {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
       "path": "../../packages/constants"
     },
     {

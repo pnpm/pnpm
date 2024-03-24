@@ -5,11 +5,11 @@ import type {
   IncludedDependencies,
 } from '@pnpm/types'
 
-import { getSpecFromPackageManifest } from './getSpecFromPackageManifest'
+import { getSpecFromPackageManifest } from './getSpecFromPackageManifest.js'
 
-export * from './getPref'
-export * from './updateProjectManifestObject'
-export * from './getDependencyTypeFromManifest'
+export * from './getPref.js'
+export * from './updateProjectManifestObject.js'
+export * from './getDependencyTypeFromManifest.js'
 
 export { getSpecFromPackageManifest }
 

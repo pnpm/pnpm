@@ -1,4 +1,5 @@
 import '@total-typescript/ts-reset'
+
 import fs from 'node:fs'
 
 export function isEmptyDirOrNothing(path: string): boolean {
@@ -10,7 +11,7 @@ export function isEmptyDirOrNothing(path: string): boolean {
     }
 
     return isDirEmpty(path)
-  } catch (error) {
+  } catch (error: unknown) {
     if (
       error &&
       typeof error === 'object' &&

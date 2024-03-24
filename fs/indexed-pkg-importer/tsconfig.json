@@ -16,9 +16,6 @@
       "path": "../../packages/core-loggers"
     },
     {
-      "path": "../../store/store-controller-types"
-    },
-    {
       "path": "../graceful-fs"
     }
   ],

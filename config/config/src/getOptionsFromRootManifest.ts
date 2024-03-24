@@ -26,31 +26,31 @@ export type OptionsFromRootManifest = {
 
 export function getOptionsFromRootManifest(
   manifestDir: string,
-  manifest: ProjectManifest
+  manifest: ProjectManifest | undefined
 ): OptionsFromRootManifest {
   // We read Yarn's resolutions field for compatibility
   // but we really replace the version specs to any other version spec, not only to exact versions,
   // so we cannot call it resolutions
   const overrides = mapValues(createVersionReferencesReplacer(manifest), {
-    ...manifest.resolutions,
-    ...manifest.pnpm?.overrides,
+    ...manifest?.resolutions,
+    ...manifest?.pnpm?.overrides,
   })
 
-  const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies
+  const neverBuiltDependencies = manifest?.pnpm?.neverBuiltDependencies
 
-  const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
+  const onlyBuiltDependencies = manifest?.pnpm?.onlyBuiltDependencies
 
-  const onlyBuiltDependenciesFile = manifest.pnpm?.onlyBuiltDependenciesFile
+  const onlyBuiltDependenciesFile = manifest?.pnpm?.onlyBuiltDependenciesFile
 
-  const packageExtensions = manifest.pnpm?.packageExtensions
+  const packageExtensions = manifest?.pnpm?.packageExtensions
 
-  const peerDependencyRules = manifest.pnpm?.peerDependencyRules
+  const peerDependencyRules = manifest?.pnpm?.peerDependencyRules
 
-  const allowedDeprecatedVersions = manifest.pnpm?.allowedDeprecatedVersions
+  const allowedDeprecatedVersions = manifest?.pnpm?.allowedDeprecatedVersions
 
-  const allowNonAppliedPatches = manifest.pnpm?.allowNonAppliedPatches
+  const allowNonAppliedPatches = manifest?.pnpm?.allowNonAppliedPatches
 
-  let patchedDependencies = manifest.pnpm?.patchedDependencies
+  let patchedDependencies = manifest?.pnpm?.patchedDependencies
 
   if (patchedDependencies) {
     patchedDependencies = { ...patchedDependencies }
@@ -62,9 +62,9 @@ export function getOptionsFromRootManifest(
   }
 
   const supportedArchitectures = {
-    os: manifest.pnpm?.supportedArchitectures?.os ?? ['current'],
-    cpu: manifest.pnpm?.supportedArchitectures?.cpu ?? ['current'],
-    libc: manifest.pnpm?.supportedArchitectures?.libc ?? ['current'],
+    os: manifest?.pnpm?.supportedArchitectures?.os ?? ['current'],
+    cpu: manifest?.pnpm?.supportedArchitectures?.cpu ?? ['current'],
+    libc: manifest?.pnpm?.supportedArchitectures?.libc ?? ['current'],
   }
 
   const settings: OptionsFromRootManifest = {
@@ -92,17 +92,18 @@ export function getOptionsFromRootManifest(
   return settings
 }
 
-function createVersionReferencesReplacer(manifest: ProjectManifest): (spec: string) => string {
+function createVersionReferencesReplacer(manifest: ProjectManifest | undefined): (spec: string) => string {
   const allDeps = {
-    ...manifest.devDependencies,
-    ...manifest.dependencies,
-    ...manifest.optionalDependencies,
+    ...manifest?.devDependencies,
+    ...manifest?.dependencies,
+    ...manifest?.optionalDependencies,
   }
+
   return replaceVersionReferences.bind(null, allDeps)
 }
 
 function replaceVersionReferences(dep: Record<string, string>, spec: string): string {
-  if (!(spec[0] === '$')) {
+  if (!spec.startsWith('$')) {
     return spec
   }
 

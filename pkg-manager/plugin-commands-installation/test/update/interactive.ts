@@ -1,12 +1,14 @@
-import path from 'path'
-import { readProjects } from '@pnpm/filter-workspace-packages'
-import type { Lockfile } from '@pnpm/lockfile-types'
-import { add, install, update } from '@pnpm/plugin-commands-installation'
-import { prepare, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import readYamlFile from 'read-yaml-file'
+import path from 'node:path'
+
 import chalk from 'chalk'
 import * as enquirer from 'enquirer'
+import readYamlFile from 'read-yaml-file'
+
+import type { Lockfile } from '@pnpm/types'
+import { prepare, preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { readProjects } from '@pnpm/filter-workspace-packages'
+import { add, install, update } from '@pnpm/plugin-commands-installation'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 

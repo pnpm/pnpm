@@ -1,9 +1,12 @@
 import { promises as fs } from 'node:fs'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import type { Lockfile } from '@pnpm/lockfile-types'
-import { preparePackages } from '@pnpm/prepare'
+
 import readYamlFile from 'read-yaml-file'
 import writeYamlFile from 'write-yaml-file'
+
+import type { Lockfile } from '@pnpm/types'
+import { preparePackages } from '@pnpm/prepare'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+
 import { execPnpm } from '../utils'
 
 // Covers https://github.com/pnpm/pnpm/issues/6272

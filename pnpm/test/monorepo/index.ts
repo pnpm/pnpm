@@ -1,31 +1,33 @@
 // cspell:ignore buildscript
-import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import {
-  LOCKFILE_VERSION_V6 as LOCKFILE_VERSION,
-  WANTED_LOCKFILE,
-} from '@pnpm/constants'
-import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import type { LockfileV6 as Lockfile } from '@pnpm/lockfile-types'
-import { readModulesManifest } from '@pnpm/modules-yaml'
+import { promises as fs } from 'node:fs'
+
+import tempy from 'tempy'
+import execa from 'execa'
+import exists from 'path-exists'
+import symlink from 'symlink-dir'
+import rimraf from '@zkochan/rimraf'
+import readYamlFile from 'read-yaml-file'
+import writeYamlFile from 'write-yaml-file'
+
 import {
   prepare,
   prepareEmpty,
   preparePackages,
   tempDir as makeTempDir,
 } from '@pnpm/prepare'
-import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import readYamlFile from 'read-yaml-file'
-import execa from 'execa'
-import rimraf from '@zkochan/rimraf'
-import exists from 'path-exists'
-import tempy from 'tempy'
-import symlink from 'symlink-dir'
-import writeYamlFile from 'write-yaml-file'
-import { execPnpm, execPnpmSync } from '../utils'
+import {
+  WANTED_LOCKFILE,
+  LOCKFILE_VERSION_V6 as LOCKFILE_VERSION,
+} from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
+import { readModulesManifest } from '@pnpm/modules-yaml'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import type { ProjectManifest } from '@pnpm/types'
+import type { LockfileV6, ProjectManifest } from '@pnpm/types'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+
+import { execPnpm, execPnpmSync } from '../utils'
 
 test('no projects matched the filters', async () => {
   preparePackages([
@@ -694,7 +696,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   await execPnpm(['recursive', 'install'])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+    const lockfile = await readYamlFile<LockfileV6>(WANTED_LOCKFILE)
     expect(
       lockfile.importers.project?.dependencies?.['is-positive'].version
     ).toBe('2.0.0')
@@ -716,7 +718,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   await execPnpm(['recursive', 'install'])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+    const lockfile = await readYamlFile<LockfileV6>(WANTED_LOCKFILE)
     expect(
       lockfile.importers.project?.dependencies?.['is-positive'].version
     ).toBe('link:../is-positive')
@@ -782,7 +784,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
     projects['project-1'].requireModule('is-positive/package.json').author
   ).toBeFalsy()
 
-  const sharedLockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const sharedLockfile = await readYamlFile<LockfileV6>(WANTED_LOCKFILE)
   expect(
     sharedLockfile.importers['project-1']?.devDependencies?.['is-positive']
       .version
@@ -965,7 +967,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
     'store',
   ])
 
-  const lockfile = await readYamlFile<Lockfile>(`./${WANTED_LOCKFILE}`)
+  const lockfile = await readYamlFile<LockfileV6>(`./${WANTED_LOCKFILE}`)
   expect(lockfile.packages).toHaveProperty([
     '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0',
   ])
@@ -1032,7 +1034,7 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
 
   await execPnpm(['install', '--store-dir', 'store'])
 
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<LockfileV6>(WANTED_LOCKFILE)
 
   expect(lockfile.importers).toHaveProperty(['.'])
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
@@ -1086,7 +1088,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
     '--link-workspace-packages',
   ])
 
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<LockfileV6>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -1178,7 +1180,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
     '--no-save-workspace-protocol',
   ])
 
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<LockfileV6>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -1277,7 +1279,7 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
   ])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+    const lockfile = await readYamlFile<LockfileV6>(WANTED_LOCKFILE)
     expect(Object.keys(lockfile.importers)).toStrictEqual([
       'package-1',
       'package-2',
@@ -1296,7 +1298,7 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
   ])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+    const lockfile = await readYamlFile<LockfileV6>(WANTED_LOCKFILE)
     expect(Object.keys(lockfile.importers)).toStrictEqual(['package-1'])
   }
 })
@@ -1364,7 +1366,7 @@ test('shared-workspace-lockfile: removing a package recursively', async () => {
     expect(pkg.dependencies).toStrictEqual({ 'is-negative': '1.0.0' }) // is-positive removed from project2')
   }
 
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<LockfileV6>(WANTED_LOCKFILE)
 
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
     '/is-negative@1.0.0',
@@ -1402,7 +1404,7 @@ auto-install-peers=false`,
   await execPnpm(['install', 'ajv@4.10.4', 'ajv-keywords@1.5.0'])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(
+    const lockfile = await readYamlFile<LockfileV6>(
       path.resolve('..', WANTED_LOCKFILE)
     )
     expect(lockfile.importers.foo).toStrictEqual({
@@ -1426,7 +1428,7 @@ auto-install-peers=false`,
   await execPnpm(['uninstall', 'ajv', '--no-strict-peer-dependencies'])
 
   {
-    const lockfile = await readYamlFile<Lockfile>(
+    const lockfile = await readYamlFile<LockfileV6>(
       path.resolve('..', WANTED_LOCKFILE)
     )
     expect(lockfile.importers.foo).toStrictEqual({
@@ -1589,7 +1591,7 @@ test('root package is included when not specified', async () => {
   expect(
     workspacePackages.some((project) => {
       const relativePath = path.join('.', path.relative(tempDir, project.dir))
-      return relativePath === '.' && project.manifest.name === 'project'
+      return relativePath === '.' && project.manifest?.name === 'project'
     })
   ).toBeTruthy() // root project is present even if not specified
 })
@@ -1632,7 +1634,7 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
   expect(
     workspacePackages.some((project) => {
       const relativePath = path.join('.', path.relative(tempDir, project.dir))
-      return relativePath === '.' && project.manifest.name === 'project'
+      return relativePath === '.' && project.manifest?.name === 'project'
     })
   ).toBeTruthy() // root project is present even when explicitly ignored
 })

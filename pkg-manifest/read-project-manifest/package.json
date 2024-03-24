@@ -11,6 +11,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",

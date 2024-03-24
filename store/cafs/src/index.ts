@@ -2,28 +2,28 @@ import '@total-typescript/ts-reset'
 
 import ssri from 'ssri'
 
-import { AddToStoreResult, CreateCafsOpts, FileType, FileWriteResult, WriteBufferToCafs } from '@pnpm/types'
+import type { AddToStoreResult, CreateCafsOpts, FileType, FileWriteResult, WriteBufferToCafs } from '@pnpm/types'
 
 import {
   modeIsExecutable,
   getFilePathInCafs,
   contentPathFromHex,
   getFilePathByModeInCafs,
-} from './getFilePathInCafs'
-import { addFilesFromDir } from './addFilesFromDir'
-import { writeBufferToCafs } from './writeBufferToCafs'
-import { addFilesFromTarball } from './addFilesFromTarball'
+} from './getFilePathInCafs.js'
+import { addFilesFromDir } from './addFilesFromDir.js'
+import { writeBufferToCafs } from './writeBufferToCafs.js'
+import { addFilesFromTarball } from './addFilesFromTarball.js'
 
 export type { IntegrityLike } from 'ssri'
 
 export { getFilePathInCafs, getFilePathByModeInCafs }
-export { readManifestFromStore } from './readManifestFromStore'
-export { optimisticRenameOverwrite } from './writeBufferToCafs'
-export { checkPkgFilesIntegrity } from './checkPkgFilesIntegrity'
+export { readManifestFromStore } from './readManifestFromStore.js'
+export { optimisticRenameOverwrite } from './writeBufferToCafs.js'
+export { checkPkgFilesIntegrity } from './checkPkgFilesIntegrity.js'
 
 export function createCafs(
   cafsDir: string,
-  { ignoreFile, cafsLocker }: CreateCafsOpts = {}
+  { ignoreFile, cafsLocker }: CreateCafsOpts | undefined = {}
 ): {
     addFilesFromDir: (dirname: string, readManifest?: boolean | undefined) => AddToStoreResult;
     addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean | undefined) => AddToStoreResult;

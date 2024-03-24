@@ -192,7 +192,7 @@ export function parse(dependencyPath: string): {
   }
 
   const name =
-    parts[0][0] === '@' ? `${parts.shift()}/${parts.shift()}` : parts.shift()
+    parts[0]?.[0] === '@' ? `${parts.shift()}/${parts.shift()}` : parts.shift()
 
   console.info('DEPENDENCY PATH  name', name)
 

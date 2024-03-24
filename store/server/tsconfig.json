@@ -23,9 +23,6 @@
     },
     {
       "path": "../package-store"
-    },
-    {
-      "path": "../store-controller-types"
     }
   ],
   "composite": true

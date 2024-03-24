@@ -1,9 +1,6 @@
 import getVersionSelectorType from 'version-selector-type'
 
 import {
-  DIRECT_DEP_SELECTOR_WEIGHT,
-} from '@pnpm/resolver-base'
-import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
@@ -58,7 +55,7 @@ export function getPreferredVersionsFromLockfileAndManifests(
 
       preferredVersions[name][spec] = {
         selectorType: selector.type,
-        weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        weight: 1000,
       }
     }
   }

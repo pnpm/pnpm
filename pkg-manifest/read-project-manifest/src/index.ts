@@ -14,10 +14,10 @@ import {
 } from '@pnpm/text.comments-parser'
 import { PnpmError } from '@pnpm/error'
 import detectIndent from '@gwhitney/detect-indent'
-import type { ProjectManifest, WriteProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
+import type { ProjectManifest, WriteProjectManifest } from '@pnpm/types'
 
-import { readJson5File, readJsonFile } from './readFile'
+import { readJson5File, readJsonFile } from './readFile.js'
 
 export async function safeReadProjectManifestOnly(projectDir: string): Promise<ProjectManifest | undefined> {
   try {
@@ -167,7 +167,7 @@ function detectFileFormattingAndComments(text: string): {
 
   return {
     comments,
-    indent: detectIndent(newText).indent,
+    indent: detectIndent.default(newText).indent,
     insertFinalNewline: hasFinalNewline,
   }
 }
@@ -177,7 +177,7 @@ function detectFileFormatting(text: string): {
   insertFinalNewline: boolean;
 } {
   return {
-    indent: detectIndent(text).indent,
+    indent: detectIndent.default(text).indent,
     insertFinalNewline: text.endsWith('\n'),
   }
 }
@@ -233,7 +233,7 @@ export async function readExactProjectManifest(manifestPath: string): Promise<{
 
 async function readPackageYaml(filePath: string) {
   try {
-    return await readYamlFile<ProjectManifest>(filePath)
+    return await readYamlFile.default<ProjectManifest>(filePath)
   } catch (err: unknown) {
     // @ts-ignore
     if (err.name !== 'YAMLException') {
@@ -249,7 +249,7 @@ async function readPackageYaml(filePath: string) {
 
 function createManifestWriter(opts: {
   initialManifest: ProjectManifest
-  comments?: CommentSpecifier[]
+  comments?: CommentSpecifier[] | undefined
   indent?: string | number | undefined
   insertFinalNewline?: boolean
   manifestPath: string

@@ -1,7 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { getCurrentBranch } from '@pnpm/git-utils'
 
-export interface GetWantedLockfileNameOptions {
+export type GetWantedLockfileNameOptions = {
   useGitBranchLockfile?: boolean | undefined
   mergeGitBranchLockfiles?: boolean | undefined
 }
@@ -11,7 +11,7 @@ export async function getWantedLockfileName(
     useGitBranchLockfile: false,
     mergeGitBranchLockfiles: false,
   }
-) {
+): Promise<string> {
   if (opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles) {
     const currentBranchName = await getCurrentBranch()
     if (currentBranchName) {

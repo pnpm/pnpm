@@ -46,7 +46,6 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/list": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",

@@ -10,7 +10,7 @@ export function getPref(
   name: string,
   version: string | undefined,
   opts: {
-    pinnedVersion?: PinnedVersion
+    pinnedVersion?: PinnedVersion | undefined
   }
 ): string {
   const prefix = getPrefix(alias, name)
@@ -20,7 +20,7 @@ export function getPref(
 
 export function createVersionSpec(
   version: string | undefined,
-  opts: { pinnedVersion?: PinnedVersion; rolling?: boolean }
+  opts: { pinnedVersion?: PinnedVersion | undefined; rolling?: boolean | undefined }
 ): string {
   switch (opts.pinnedVersion ?? 'major') {
     case 'none':

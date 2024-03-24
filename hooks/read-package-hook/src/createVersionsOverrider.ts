@@ -10,7 +10,8 @@ import type {
 import { PnpmError } from '@pnpm/error'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
-import { isIntersectingRange } from './isIntersectingRange'
+
+import { isIntersectingRange } from './isIntersectingRange.js'
 
 export function createVersionsOverrider(
   overrides: Record<string, string>,
@@ -19,7 +20,7 @@ export function createVersionsOverrider(
   const parsedOverrides = tryParseOverrides(overrides)
 
   const [versionOverrides, genericVersionOverrides] = partition(
-    ({ parentPkg }): boolean => {
+    ({ parentPkg }: { parentPkg: unknown }): boolean => {
       return parentPkg != null;
     },
     parsedOverrides.map((override: VersionOverride): VersionOverride => {
@@ -78,24 +79,24 @@ function tryParseOverrides(overrides: Record<string, string>): VersionOverride[]
   }
 }
 
-interface VersionOverride {
+type VersionOverride = {
   parentPkg?: {
     name: string
-    pref?: string
-  }
+    pref?: string | undefined
+  } | undefined
   targetPkg: {
     name: string
-    pref?: string
+    pref?: string | undefined
   }
   newPref: string
-  linkTarget?: string
-  linkFileTarget?: string
+  linkTarget?: string | undefined
+  linkFileTarget?: string | undefined
 }
 
 interface VersionOverrideWithParent extends VersionOverride {
   parentPkg: {
     name: string
-    pref?: string
+    pref?: string | undefined
   }
 }
 
@@ -103,35 +104,42 @@ function overrideDepsOfPkg(
   { manifest, dir }: { manifest: PackageManifest | ProjectManifest | undefined; dir: string | undefined },
   versionOverrides: VersionOverrideWithParent[] | VersionOverride[],
   genericVersionOverrides: VersionOverride[]
-) {
-  if (typeof manifest?.dependencies !== 'undefined')
+): void {
+  if (typeof manifest?.dependencies !== 'undefined') {
     overrideDeps(
       versionOverrides,
       genericVersionOverrides,
       manifest.dependencies,
       dir
     )
-  if (typeof manifest?.optionalDependencies !== 'undefined')
+  }
+
+  if (typeof manifest?.optionalDependencies !== 'undefined') {
     overrideDeps(
       versionOverrides,
       genericVersionOverrides,
       manifest.optionalDependencies,
       dir
     )
-  if (typeof manifest?.devDependencies !== 'undefined')
+  }
+
+  if (typeof manifest?.devDependencies !== 'undefined') {
     overrideDeps(
       versionOverrides,
       genericVersionOverrides,
       manifest.devDependencies,
       dir
     )
-  if (typeof manifest?.peerDependencies !== 'undefined')
+  }
+
+  if (typeof manifest?.peerDependencies !== 'undefined') {
     overrideDeps(
       versionOverrides,
       genericVersionOverrides,
       manifest.peerDependencies,
       dir
     )
+  }
 }
 
 function overrideDeps(

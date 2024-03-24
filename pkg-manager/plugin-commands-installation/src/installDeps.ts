@@ -1,51 +1,45 @@
 import path from 'node:path'
+
+import isSubdir from 'is-subdir'
+
 import {
-  readProjectManifestOnly,
   tryReadProjectManifest,
+  readProjectManifestOnly,
 } from '@pnpm/cli-utils'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
+import { getOptionsFromRootManifest } from '@pnpm/config'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
-import {
-  arrayOfWorkspacePackagesToMap,
-  findWorkspacePackages,
-} from '@pnpm/workspace.find-packages'
-import type { Lockfile } from '@pnpm/lockfile-types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
-import {
-  createOrConnectStoreController,
-  type CreateStoreControllerOptions,
-} from '@pnpm/store-connection-manager'
+import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import { findWorkspacePackages, arrayOfWorkspacePackagesToMap } from '@pnpm/workspace.find-packages'
+
 import type {
-  IncludedDependencies,
+  Config,
   Project,
+  Lockfile,
   ProjectsGraph,
+  WorkspacePackages,
+  IncludedDependencies,
+  MutateModulesOptions,
+  CreateStoreControllerOptions,
 } from '@pnpm/types'
-import {
-  install,
-  mutateModulesInSingleProject,
-  type MutateModulesOptions,
-  type WorkspacePackages,
-} from '@pnpm/core'
 import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
-import isSubdir from 'is-subdir'
-import { getPinnedVersion } from './getPinnedVersion'
-import { getSaveType } from './getSaveType'
-import { getNodeExecPath } from './nodeExecPath'
+import { install, mutateModulesInSingleProject } from '@pnpm/core'
+
 import {
   recursive,
   createMatcher,
   matchDependencies,
   makeIgnorePatterns,
   type UpdateDepsMatcher,
-} from './recursive'
-import {
-  createWorkspaceSpecs,
-  updateToWorkspacePackagesFromManifest,
-} from './updateWorkspaceDependencies'
+} from './recursive.js'
+import { getSaveType } from './getSaveType.js'
+import { getNodeExecPath } from './nodeExecPath.js'
+import { getPinnedVersion } from './getPinnedVersion.js'
+import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -108,12 +102,12 @@ export type InstallDepsOptions = Pick<
     argv: {
       original: string[]
     }
-    allowNew?: boolean
-    forceFullResolution?: boolean
-    frozenLockfileIfExists?: boolean
-    include?: IncludedDependencies
-    includeDirect?: IncludedDependencies
-    latest?: boolean
+    allowNew?: boolean | undefined
+    forceFullResolution?: boolean | undefined
+    frozenLockfileIfExists?: boolean | undefined
+    include?: IncludedDependencies | undefined
+    includeDirect?: IncludedDependencies | undefined
+    latest?: boolean | undefined
     /**
      * If specified, the installation will only be performed for comparison of the
      * wanted lockfile. The wanted lockfile will not be updated on disk and no
@@ -124,16 +118,17 @@ export type InstallDepsOptions = Pick<
      * lockfile will change on disk after installation. The lockfile arguments
      * passed to this callback should not be mutated.
      */
-    lockfileCheck?: (prev: Lockfile, next: Lockfile) => void
-    update?: boolean
-    updateToLatest?: boolean
-    updateMatching?: (pkgName: string) => boolean
-    updatePackageManifest?: boolean
-    useBetaCli?: boolean
-    recursive?: boolean
-    dedupe?: boolean
-    workspace?: boolean
-    includeOnlyPackageFiles?: boolean
+    lockfileCheck?: ((prev: Lockfile, next: Lockfile) => void) | undefined
+    update?: boolean | undefined
+    updateToLatest?: boolean | undefined
+    updateMatching?: ((pkgName: string) => boolean) | undefined
+    updatePackageManifest?: boolean | undefined
+    useBetaCli?: boolean | undefined
+    recursive?: boolean | undefined
+    dedupe?: boolean | undefined
+    workspace?: boolean | undefined
+    includeOnlyPackageFiles?: boolean | undefined
+    preserveWorkspaceProtocol?: boolean | undefined
   } & Partial<Pick<Config, 'pnpmHomeDir'>>
 
 export async function installDeps(opts: InstallDepsOptions, params: string[]) {
@@ -144,12 +139,14 @@ export async function installDeps(opts: InstallDepsOptions, params: string[]) {
         'Cannot use --latest with --workspace simultaneously'
       )
     }
+
     if (!opts.workspaceDir) {
       throw new PnpmError(
         'WORKSPACE_OPTION_OUTSIDE_WORKSPACE',
         '--workspace can only be used inside a workspace'
       )
     }
+
     if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
       if (opts.rawLocalConfig['save-workspace-protocol'] === false) {
         throw new PnpmError(
@@ -163,9 +160,10 @@ when running add/update with the --workspace option"
         opts.saveWorkspaceProtocol = true
       }
     }
-    // @ts-expect-error
+
     opts.preserveWorkspaceProtocol = !opts.linkWorkspacePackages
   }
+
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,
@@ -302,7 +300,7 @@ when running add/update with the --workspace option"
   let updateMatch: UpdateDepsMatcher | null
   if (opts.update) {
     if (params.length === 0) {
-      const ignoreDeps = manifest.pnpm?.updateConfig?.ignoreDependencies
+      const ignoreDeps = manifest?.pnpm?.updateConfig?.ignoreDependencies
       if (ignoreDeps?.length) {
         params = makeIgnorePatterns(ignoreDeps)
       }

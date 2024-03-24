@@ -16,39 +16,11 @@ import {
   readWantedLockfileAndAutofixConflicts,
 } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
-import type { Lockfile, Modules, ProjectOptions } from '@pnpm/types'
-
-export type PnpmContext = {
-  extraBinPaths: string[]
-  extraNodePaths: string[]
-  wantedLockfile: Lockfile
-  currentLockfile: Lockfile
-  existsWantedLockfile: boolean
-  existsCurrentLockfile: boolean
-  existsNonEmptyWantedLockfile: boolean
-  hoistedModulesDir: string
-  include: boolean
-  projects: Record<string, ProjectOptions & {
-    binsDir: string;
-    id: string;
-    modulesDir: string;
-  }>
-  skipped: Set<string>
-  rootModulesDir: string
-  registries: string[]
-  publicHoistPattern: string[] | undefined
-  pendingBuilds: string[]
-  modulesFile: Modules | null
-  lockfileDir: string
-  storeDir: string
-  virtualStoreDir: string
-  hoistPattern: string[] | undefined
-  hoistedDependencies: Record<string, Record<string, 'public' | 'private'>>
-}
+import type { Lockfile } from '@pnpm/types'
 
 export async function readLockfiles(opts: {
   autoInstallPeers?: boolean | undefined
-  excludeLinksFromLockfile: boolean
+  excludeLinksFromLockfile?: boolean | undefined
   force: boolean
   forceSharedLockfile: boolean
   frozenLockfile: boolean
@@ -158,7 +130,7 @@ export async function readLockfiles(opts: {
 
   const wantedLockfile =
     files[0] ??
-    (currentLockfile && clone(currentLockfile)) ??
+    (currentLockfile && clone.default(currentLockfile)) ??
     createLockfileObject(importerIds, sopts)
 
   let wantedLockfileIsModified = false
@@ -176,7 +148,7 @@ export async function readLockfiles(opts: {
 
   return {
     currentLockfile,
-    currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),
+    currentLockfileIsUpToDate: equals.default(currentLockfile, wantedLockfile),
     existsCurrentLockfile: files[1] != null,
     existsWantedLockfile,
     existsNonEmptyWantedLockfile:

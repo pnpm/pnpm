@@ -1,27 +1,27 @@
-import {
-  AuditAdvisory,
-  audit,
-  type AuditReport,
-  type AuditVulnerabilityCounts,
-} from '@pnpm/audit'
-import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
-import {
-  type Config,
-  types as allTypes,
-  type UniversalOptions,
-} from '@pnpm/config'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
-import type { Registries } from '@pnpm/types'
-import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import difference from 'ramda/src/difference'
 import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
 import renderHelp from 'render-help'
-import { fix } from './fix'
+import { table } from '@zkochan/table'
+import difference from 'ramda/src/difference'
+
+import type {
+  Config,
+  Registries,
+  AuditReport,
+  AuditAdvisory,
+  UniversalOptions,
+  AuditVulnerabilityCounts,
+} from '@pnpm/types'
+import { audit } from '@pnpm/audit'
+import { PnpmError } from '@pnpm/error'
+import { types as allTypes } from '@pnpm/config'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
+import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+
+import { fix } from './fix.js'
 
 const AUDIT_LEVEL_NUMBER = {
   low: 0,
@@ -115,7 +115,7 @@ export function help(): string {
         ],
       },
     ],
-    url: docsUrl('audit'),
+    url: docsUrl('audit') ?? '',
     usages: ['pnpm audit [options]'],
   })
 }
@@ -181,25 +181,26 @@ export async function handler(
   try {
     auditReport = await audit(lockfile, getAuthHeader, {
       agentOptions: {
-        ca: opts.ca,
-        cert: opts.cert,
-        httpProxy: opts.httpProxy,
-        httpsProxy: opts.httpsProxy,
-        key: opts.key,
-        localAddress: opts.localAddress,
-        maxSockets: opts.maxSockets,
-        noProxy: opts.noProxy,
-        strictSsl: opts.strictSsl,
-        timeout: opts.fetchTimeout,
+        ca: opts.ca ?? '',
+        cert: opts.cert ?? '',
+        httpProxy: opts.httpProxy ?? '',
+        httpsProxy: opts.httpsProxy ?? '',
+        key: opts.key ?? '',
+        localAddress: opts.localAddress ?? '',
+        maxSockets: opts.maxSockets ?? 0,
+        noProxy: opts.noProxy ?? false,
+        strictSsl: opts.strictSsl ?? false,
+        timeout: opts.fetchTimeout ?? 0,
       },
       include,
       lockfileDir,
       registry: opts.registries.default,
       retry: {
-        factor: opts.fetchRetryFactor,
-        maxTimeout: opts.fetchRetryMaxtimeout,
-        minTimeout: opts.fetchRetryMintimeout,
-        retries: opts.fetchRetries,
+        factor: opts.fetchRetryFactor ?? 0,
+        maxTimeout: opts.fetchRetryMaxtimeout ?? 0,
+        minTimeout: opts.fetchRetryMintimeout ?? 0,
+        retries: opts.fetchRetries ?? 0,
+        randomize: false,
       },
       timeout: opts.fetchTimeout,
     })
@@ -245,7 +246,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
 
   if (ignoreCves) {
     auditReport.advisories = pickBy(
-      ({ cves }): boolean => {
+      ({ cves }: AuditAdvisory): boolean => {
         return cves.length === 0 || difference(cves, ignoreCves).length > 0;
       },
       auditReport.advisories

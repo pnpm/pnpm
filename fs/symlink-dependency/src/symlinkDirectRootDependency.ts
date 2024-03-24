@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs'
 import symlinkDir from 'symlink-dir'
 
 import { rootLogger } from '@pnpm/core-loggers'
-import type { DependenciesField, DependencyType } from '@pnpm/types'
+import type { DependenciesField, DependencyManifest } from '@pnpm/types'
 
 const DEP_TYPE_BY_DEPS_FIELD_NAME = {
   dependencies: 'prod',
@@ -18,10 +18,7 @@ export async function symlinkDirectRootDependency(
   importAs: string,
   opts: {
     fromDependenciesField?: DependenciesField | undefined
-    linkedPackage: {
-      name: string
-      version: string
-    }
+    linkedPackage: DependencyManifest
     prefix: string
   }
 ): Promise<void> {

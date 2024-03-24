@@ -1,14 +1,12 @@
-import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { promises as fs } from 'node:fs'
+
 import {
-  LOCKFILE_VERSION_V6 as LOCKFILE_VERSION,
   WANTED_LOCKFILE,
+  LOCKFILE_VERSION_V6 as LOCKFILE_VERSION,
 } from '@pnpm/constants'
-import { type RootLog } from '@pnpm/core-loggers'
 import { type PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-file'
-import { type LockfileV6 } from '@pnpm/lockfile-types'
 import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
@@ -16,7 +14,7 @@ import {
   getIntegrity,
   REGISTRY_MOCK_PORT,
 } from '@pnpm/registry-mock'
-import type { ProjectManifest } from '@pnpm/types'
+import type { MutatedProject, ProjectManifest, ProjectOptions, RootLog, Lockfile, TarballResolution, LockfileV6 } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 
 import rimraf from '@zkochan/rimraf'
@@ -26,6 +24,7 @@ import exists from 'path-exists'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
 import { testDefaults } from './utils'
+import { addDependenciesToPackage, install, mutateModulesInSingleProject, mutateModules } from '../lib/install'
 
 const f = fixtures(__dirname)
 

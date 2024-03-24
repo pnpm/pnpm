@@ -53,10 +53,7 @@
     },
     {
       "path": "../store-connection-manager"
-    },
-    {
-      "path": "../store-controller-types"
-    },
+    }
     {
       "path": "../store-path"
     }

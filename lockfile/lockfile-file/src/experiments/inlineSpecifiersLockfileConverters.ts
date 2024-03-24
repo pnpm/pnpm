@@ -11,7 +11,7 @@ import * as dp from '@pnpm/dependency-path'
 
 import {
   INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX,
-} from './InlineSpecifiersLockfile'
+} from './InlineSpecifiersLockfile.js'
 
 export function isExperimentalInlineSpecifiersFormat(
   lockfile: InlineSpecifiersLockfile | Lockfile
@@ -305,12 +305,14 @@ function convertProjectSnapshotToInlineSpecifiersFormat(
 
 function convertResolvedDependenciesToInlineSpecifiersFormat(
   resolvedDependencies: ResolvedDependencies,
-  { specifiers }: { specifiers: ResolvedDependencies }
+  { specifiers }: { specifiers?: ResolvedDependencies | undefined }
 ): InlineSpecifiersResolvedDependencies {
-  return mapValues(resolvedDependencies, (version, depName) => ({
-    specifier: specifiers[depName],
-    version,
-  }))
+  return mapValues(resolvedDependencies, (version: string, depName: string) => {
+    return {
+      specifier: specifiers?.[depName],
+      version,
+    };
+  })
 }
 
 function revertProjectSnapshot(
@@ -322,9 +324,11 @@ function revertProjectSnapshot(
     from: InlineSpecifiersResolvedDependencies
   ): ResolvedDependencies {
     const resolvedDependencies: ResolvedDependencies = {}
+
     for (const [depName, { specifier, version }] of Object.entries(from)) {
       const existingValue = specifiers[depName]
-      if (existingValue != null && existingValue !== specifier) {
+
+      if (typeof existingValue === 'undefined' || existingValue !== specifier) {
         throw new Error(
           `Project snapshot lists the same dependency more than once with conflicting versions: ${depName}`
         )
@@ -333,6 +337,7 @@ function revertProjectSnapshot(
       specifiers[depName] = specifier
       resolvedDependencies[depName] = version
     }
+
     return resolvedDependencies
   }
 

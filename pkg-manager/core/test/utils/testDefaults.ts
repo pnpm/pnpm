@@ -1,11 +1,10 @@
-import * as path from 'path'
+import * as path from 'node:path'
+
 import { createClient } from '@pnpm/client'
+import { getStorePath } from '@pnpm/store-path'
 import { createPackageStore } from '@pnpm/package-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type StoreController } from '@pnpm/store-controller-types'
-import { getStorePath } from '@pnpm/store-path'
-import { type Registries } from '@pnpm/types'
-import { type InstallOptions } from '@pnpm/core'
+import type { Registries, StoreController, InstallOptions } from '@pnpm/types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -18,13 +17,13 @@ const retryOpts = {
 
 export async function testDefaults<T>(
   opts?: T & {
-    fastUnpack?: boolean
-    storeDir?: string
-    prefix?: string
+    fastUnpack?: boolean | undefined
+    storeDir?: string | undefined
+    prefix?: string | undefined
   },
-  resolveOpts?: any, // eslint-disable-line
-  fetchOpts?: any, // eslint-disable-line
-  storeOpts?: any // eslint-disable-line
+  resolveOpts?: any | undefined, // eslint-disable-line
+  fetchOpts?: any | undefined, // eslint-disable-line
+  storeOpts?: any | undefined // eslint-disable-line
 ): Promise<
   InstallOptions & {
     cacheDir: string
@@ -34,7 +33,9 @@ export async function testDefaults<T>(
   } & T
   > {
   const authConfig = { registry }
+
   const cacheDir = path.resolve('cache')
+
   const { resolve, fetchers } = createClient({
     authConfig,
     rawConfig: {},
@@ -43,12 +44,15 @@ export async function testDefaults<T>(
     ...resolveOpts,
     ...fetchOpts,
   })
+
   let storeDir = opts?.storeDir ?? path.resolve('.store')
+
   storeDir = await getStorePath({
     pkgRoot: opts?.prefix ?? process.cwd(),
     storePath: storeDir,
     pnpmHomeDir: '',
   })
+
   const storeController = await createPackageStore(resolve, fetchers, {
     ignoreFile:
       opts?.fastUnpack === false
@@ -58,6 +62,7 @@ export async function testDefaults<T>(
     verifyStoreIntegrity: true,
     ...storeOpts,
   })
+
   const result = {
     cacheDir,
     registries: {
@@ -72,5 +77,6 @@ export async function testDefaults<T>(
     storeController: StoreController
     storeDir: string
   } & T
+
   return result
 }

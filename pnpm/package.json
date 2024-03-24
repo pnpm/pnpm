@@ -35,7 +35,6 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/logger": "^5.0.0",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/nopt": "^0.2.1",

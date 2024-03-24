@@ -1,25 +1,25 @@
 import fs from 'node:fs'
 import path from 'node:path'
+
+import fg from 'fast-glob'
+import tar from 'tar-stream'
 import { createGzip } from 'zlib'
+import pick from 'ramda/src/pick'
+import renderHelp from 'render-help'
+import realpathMissing from 'realpath-missing'
+
 import { PnpmError } from '@pnpm/error'
-import {
-  types as allTypes,
-  type UniversalOptions,
-  type Config,
-} from '@pnpm/config'
+import { packlist } from '@pnpm/fs.packlist'
+import { types as allTypes } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
-import { packlist } from '@pnpm/fs.packlist'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { type ProjectManifest, type DependencyManifest } from '@pnpm/types'
-import fg from 'fast-glob'
-import pick from 'ramda/src/pick'
-import realpathMissing from 'realpath-missing'
-import renderHelp from 'render-help'
-import tar from 'tar-stream'
-import { runScriptsIfPresent } from './publish'
+import type { ProjectManifest, DependencyManifest, Config, UniversalOptions } from '@pnpm/types'
+
+import { runScriptsIfPresent } from './publish.js'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
+
 const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: {
   cwd: string
 }) => Promise<string[]>
@@ -40,7 +40,7 @@ export function cliOptionsTypes() {
 
 export const commandNames = ['pack']
 
-export function help() {
+export function help(): string {
   return renderHelp({
     description: 'Create a tarball from a package',
     usages: ['pnpm pack'],
@@ -70,13 +70,14 @@ export async function handler(
       argv: {
         original: string[]
       }
-      engineStrict?: boolean
-      packDestination?: string
-      workspaceDir?: string
+      engineStrict?: boolean | undefined
+      packDestination?: string | undefined
+      workspaceDir?: string | undefined
     }
-) {
+): Promise<string> {
   const { manifest: entryManifest, fileName: manifestFileName } =
     await readProjectManifest(opts.dir, opts)
+
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: opts.dir,
     extraBinPaths: opts.extraBinPaths,
@@ -87,33 +88,41 @@ export async function handler(
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   })
+
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['prepack', 'prepare'], entryManifest)
   }
+
   const dir = entryManifest.publishConfig?.directory
     ? path.join(opts.dir, entryManifest.publishConfig.directory)
     : opts.dir
+
   // always read the latest manifest, as "prepack" or "prepare" script may modify package manifest.
   const { manifest } = await readProjectManifest(dir, opts)
+
   if (!manifest.name) {
     throw new PnpmError(
       'PACKAGE_NAME_NOT_FOUND',
       `Package name is not defined in the ${manifestFileName}.`
     )
   }
+
   if (!manifest.version) {
     throw new PnpmError(
       'PACKAGE_VERSION_NOT_FOUND',
       `Package version is not defined in the ${manifestFileName}.`
     )
   }
+
   const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
+
   const publishManifest = await createPublishManifest({
     projectDir: dir,
     modulesDir: path.join(opts.dir, 'node_modules'),
     manifest,
     embedReadme: opts.embedReadme,
   })
+
   const files = await packlist(dir, {
     packageJsonCache: {
       [path.join(dir, 'package.json')]: publishManifest as Record<
@@ -122,6 +131,7 @@ export async function handler(
       >,
     },
   })
+
   const filesMap = Object.fromEntries(
     files.map((file) => [`package/${file}`, path.join(dir, file)])
   )
@@ -141,7 +151,9 @@ export async function handler(
       ? opts.packDestination
       : path.join(dir, opts.packDestination ?? '.')
     : dir
+
   await fs.promises.mkdir(destDir, { recursive: true })
+
   await packPkg({
     destFile: path.join(destDir, tarballName),
     filesMap,
@@ -160,12 +172,15 @@ export async function handler(
       ),
     ],
   })
+
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], entryManifest)
   }
+
   if (opts.dir !== destDir) {
     return path.join(destDir, tarballName)
   }
+
   return path.relative(opts.dir, path.join(dir, tarballName))
 }
 
@@ -183,30 +198,41 @@ async function packPkg(opts: {
   destFile: string
   filesMap: Record<string, string>
   modulesDir: string
-  packGzipLevel?: number
+  packGzipLevel?: number | undefined
   bins: string[]
   manifest: ProjectManifest
 }): Promise<void> {
   const { destFile, filesMap, bins, manifest } = opts
+
   const mtime = new Date('1985-10-26T08:15:00.000Z')
+
   const pack = tar.pack()
+
   await Promise.all(
     Object.entries(filesMap).map(async ([name, source]) => {
       const isExecutable = bins.some((bin) => path.relative(bin, source) === '')
+
       const mode = isExecutable ? 0o755 : 0o644
+
       if (/^package\/package\.(json|json5|yaml)/.test(name)) {
         pack.entry(
           { mode, mtime, name: 'package/package.json' },
           JSON.stringify(manifest, null, 2)
         )
+
         return
       }
+
       pack.entry({ mode, mtime, name }, fs.readFileSync(source))
     })
   )
+
   const tarball = fs.createWriteStream(destFile)
+
   pack.pipe(createGzip({ level: opts.packGzipLevel })).pipe(tarball)
+
   pack.finalize()
+
   return new Promise((resolve, reject) => {
     tarball
       .on('close', () => {
@@ -218,12 +244,14 @@ async function packPkg(opts: {
 
 async function createPublishManifest(opts: {
   projectDir: string
-  embedReadme?: boolean
+  embedReadme?: boolean | undefined
   modulesDir: string
   manifest: ProjectManifest
-}) {
+}): Promise<ProjectManifest> {
   const { projectDir, embedReadme, modulesDir, manifest } = opts
+
   const readmeFile = embedReadme ? await readReadmeFile(projectDir) : undefined
+
   return createExportableManifest(projectDir, manifest, {
     readmeFile,
     modulesDir,

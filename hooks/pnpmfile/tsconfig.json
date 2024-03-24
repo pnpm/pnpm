@@ -13,9 +13,6 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
       "path": "../../packages/core-loggers"
     },
     {
@@ -23,9 +20,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../store/store-controller-types"
     }
   ],
   "composite": true

@@ -11,12 +11,12 @@ import writeFileAtomicCB from 'write-file-atomic'
 
 import * as dp from '@pnpm/dependency-path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { DEPENDENCIES_FIELDS, type Lockfile, type ProjectSnapshot } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type Lockfile, type LockfileFile, type NormalizeLockfileOpts, type ProjectSnapshot } from '@pnpm/types'
 
-import { lockfileLogger as logger } from './logger'
-import { sortLockfileKeys } from './sortLockfileKeys'
-import { getWantedLockfileName } from './lockfileName'
-import { convertToInlineSpecifiersFormat } from './experiments/inlineSpecifiersLockfileConverters'
+import { lockfileLogger } from './logger.js'
+import { sortLockfileKeys } from './sortLockfileKeys.js'
+import { getWantedLockfileName } from './lockfileName.js'
+import { convertToInlineSpecifiersFormat } from './experiments/inlineSpecifiersLockfileConverters.js'
 
 async function writeFileAtomic(filename: string, data: string): Promise<void> {
   return new Promise<void>((resolve, reject): void => {
@@ -97,7 +97,9 @@ async function writeLockfile(
 
 function yamlStringify(lockfile: Lockfile, opts: NormalizeLockfileOpts): string {
   let normalizedLockfile = normalizeLockfile(lockfile, opts)
+
   normalizedLockfile = sortLockfileKeys(normalizedLockfile)
+
   return yaml.dump(normalizedLockfile, LOCKFILE_YAML_FORMAT)
 }
 
@@ -109,20 +111,12 @@ export function isEmptyLockfile(lockfile: Lockfile): boolean {
   )
 }
 
-export type LockfileFile = Omit<Lockfile, 'importers'> &
-  Partial<ProjectSnapshot> &
-  Partial<Pick<Lockfile, 'importers'>>
-
-export interface NormalizeLockfileOpts {
-  forceSharedFormat: boolean
-  includeEmptySpecifiersField: boolean
-}
-
 export function normalizeLockfile(
   lockfile: Lockfile,
   opts: NormalizeLockfileOpts
 ): LockfileFile {
   let lockfileToSave!: LockfileFile
+
   if (
     !opts.forceSharedFormat &&
     equals(Object.keys(lockfile.importers), ['.'])
@@ -251,7 +245,7 @@ function pruneTimeInLockfileV6(
     }
   }
 
-  return pickBy((_, depPath): boolean => {
+  return pickBy((_: unknown, depPath: string): boolean => {
     return rootDepPaths.has(depPath);
   }, time)
 }
@@ -306,7 +300,9 @@ function pruneTime(
       }
     }
   }
-  return pickBy((t, depPath) => rootDepPaths.has(depPath), time)
+  return pickBy((_: unknown, depPath: string) => {
+    return rootDepPaths.has(depPath);
+  }, time)
 }
 
 export async function writeLockfiles(opts: {
@@ -364,7 +360,7 @@ export async function writeLockfiles(opts: {
     return
   }
 
-  logger.debug({
+  lockfileLogger.debug({
     message: `\`${WANTED_LOCKFILE}\` differs from \`${path.relative(opts.wantedLockfileDir, currentLockfilePath)}\``,
     prefix: opts.wantedLockfileDir,
   })

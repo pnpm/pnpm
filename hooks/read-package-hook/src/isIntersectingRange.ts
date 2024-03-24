@@ -3,7 +3,7 @@ import semver from 'semver'
 export function isIntersectingRange(
   range1: string | undefined,
   range2: string
-) {
+): boolean {
   return (
     !range1 ||
     range2 === range1 ||

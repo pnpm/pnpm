@@ -8,9 +8,10 @@ import type {
   PeerDependencyRules,
 } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
-import { isSubRange } from './isSubRange'
 import { createMatcher } from '@pnpm/matcher'
 import { parseOverrides } from '@pnpm/parse-overrides'
+
+import { isSubRange } from './isSubRange.js'
 
 export function createPeerDependencyPatcher(
   peerDependencyRules: PeerDependencyRules
@@ -36,10 +37,12 @@ export function createPeerDependencyPatcher(
     if (isEmpty(pkg?.peerDependencies)) {
       return pkg
     }
+
     const allowedVersions = {
       ...allowedVersionsMatchAll,
       ..._getAllowedVersionsByParentPkg(pkg),
     }
+
     for (const [peerName, peerVersion] of Object.entries(
       pkg?.peerDependencies ?? {}
     )) {
@@ -48,7 +51,9 @@ export function createPeerDependencyPatcher(
         !pkg?.peerDependenciesMeta?.[peerName]?.optional
       ) {
         pkg = pkg ?? {}
+
         pkg.peerDependenciesMeta = pkg.peerDependenciesMeta ?? {}
+
         pkg.peerDependenciesMeta[peerName] = {
           optional: true,
         }
@@ -56,8 +61,11 @@ export function createPeerDependencyPatcher(
 
       if (allowAnyMatcher(peerName)) {
         pkg = pkg ?? {}
+
         pkg.peerDependencies = pkg.peerDependencies ?? {}
+
         pkg.peerDependencies[peerName] = '*'
+
         continue
       }
 
@@ -65,22 +73,28 @@ export function createPeerDependencyPatcher(
         continue
       }
 
-      if (allowedVersions?.[peerName].includes('*')) {
+      if (allowedVersions?.[peerName]?.includes('*')) {
         pkg = pkg ?? {}
+
         pkg.peerDependencies = pkg.peerDependencies ?? {}
+
         pkg.peerDependencies[peerName] = '*'
+
         continue
       }
+
       const currentVersions = parseVersions(pkg?.peerDependencies?.[peerName] ?? '')
 
-      allowedVersions[peerName].forEach((allowedVersion) => {
+      allowedVersions[peerName]?.forEach((allowedVersion: string): void => {
         if (!currentVersions.includes(allowedVersion)) {
           currentVersions.push(allowedVersion)
         }
       })
 
       pkg = pkg ?? {}
+
       pkg.peerDependencies = pkg.peerDependencies ?? {}
+
       pkg.peerDependencies[peerName] = currentVersions.join(' || ')
     }
 
@@ -99,23 +113,31 @@ type AllowedVersionsByParentPkgName = Record<
 
 function parseAllowedVersions(allowedVersions: Record<string, string>) {
   const overrides = tryParseAllowedVersions(allowedVersions)
+
   const allowedVersionsMatchAll: Record<string, string[]> = {}
+
   const allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName = {}
+
   for (const { parentPkg, targetPkg, newPref } of overrides) {
     const ranges = parseVersions(newPref)
+
     if (!parentPkg) {
       allowedVersionsMatchAll[targetPkg.name] = ranges
+
       continue
     }
+
     if (!allowedVersionsByParentPkgName[parentPkg.name]) {
       allowedVersionsByParentPkgName[parentPkg.name] = []
     }
-    allowedVersionsByParentPkgName[parentPkg.name].push({
+
+    allowedVersionsByParentPkgName[parentPkg.name]?.push({
       parentPkg,
       targetPkg,
       ranges,
     })
   }
+
   return {
     allowedVersionsMatchAll,
     allowedVersionsByParentPkgName,
@@ -138,27 +160,31 @@ function tryParseAllowedVersions(
 function getAllowedVersionsByParentPkg(
   allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName,
   pkg: PackageManifest | ProjectManifest | undefined
-): Record<string, string[]> {
+): Record<string, string[]> | undefined {
   if (!pkg?.name || !allowedVersionsByParentPkgName[pkg.name]) {
     return {}
   }
 
-  return allowedVersionsByParentPkgName[pkg.name].reduce(
-    (acc, { targetPkg, parentPkg, ranges }) => {
+  return allowedVersionsByParentPkgName[pkg.name]?.reduce(
+    (acc: Record<string, string[]>, { targetPkg, parentPkg, ranges }: Required<Pick<VersionOverride, 'parentPkg' | 'targetPkg'>> & {
+      ranges: string[];
+    }): Record<string, string[]> => {
       if (!pkg.peerDependencies?.[targetPkg.name]) {
         return acc
       }
+
       if (
-        !parentPkg.pref ||
+        !parentPkg?.pref ||
         (pkg.version &&
           (isSubRange(parentPkg.pref, pkg.version) ||
             semver.satisfies(pkg.version, parentPkg.pref)))
       ) {
         acc[targetPkg.name] = ranges
       }
+
       return acc
     },
-    {} as Record<string, string[]>
+    {}
   )
 }
 

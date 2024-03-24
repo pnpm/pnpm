@@ -1,9 +1,17 @@
-import { fetch } from '@pnpm/fetch'
-import type { StoreController, PackageFilesResponse, WantedDependency, RequestPackageOptions, PackageResponse, FetchPackageToStoreOptions, PkgRequestFetchResult } from '@pnpm/types'
-
 import pLimit from 'p-limit'
 import pShare from 'promise-share'
 import { v4 as uuidv4 } from 'uuid'
+
+import type {
+  StoreController,
+  PackageResponse,
+  WantedDependency,
+  PackageFilesResponse,
+  RequestPackageOptions,
+  PkgRequestFetchResult,
+  FetchPackageToStoreOptions,
+} from '@pnpm/types'
+import { fetch } from '@pnpm/fetch'
 
 export type StoreServerController = StoreController & {
   stop: () => Promise<void>
@@ -14,6 +22,7 @@ export async function connectStoreController(initOpts: {
   concurrency?: number
 }): Promise<StoreServerController> {
   const remotePrefix = initOpts.remotePrefix
+
   const limitedFetch = limitFetch.bind(
     null,
     pLimit(initOpts.concurrency ?? 100)
@@ -27,14 +36,14 @@ export async function connectStoreController(initOpts: {
       importPackage: async (
         to: string,
         opts: {
-          filesResponse: PackageFilesResponse
+          filesResponse?: PackageFilesResponse | undefined
           force: boolean
         }
       ) => {
         return limitedFetch(`${remotePrefix}/importPackage`, {
           opts,
           to,
-        }) as Promise<{ importMethod: string | undefined; isBuilt: boolean }>
+        }) as Promise<{ isBuilt: boolean; importMethod?: string | undefined; }>
       },
       prune: async () => {
         await limitedFetch(`${remotePrefix}/prune`, {})
@@ -67,7 +76,8 @@ function limitFetch<T>(
     if (url.startsWith('http://unix:')) {
       url = url.replace('http://unix:', 'unix:')
     }
-    const response = await fetch(url, {
+
+    const response = await fetch(new URL(url), {
       body: JSON.stringify(body),
       headers: { 'Content-Type': 'application/json' },
       method: 'POST',
@@ -75,13 +85,17 @@ function limitFetch<T>(
         retries: 100,
       },
     })
+
     if (!response.ok) {
       throw await response.json()
     }
-    const json = await response.json() as any // eslint-disable-line
+
+    const json = await response.json()
+
     if (json.error) {
       throw json.error
     }
+
     return json as T
   })
 }

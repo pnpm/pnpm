@@ -1,14 +1,17 @@
-import fs from 'fs'
-import path from 'path'
-import { DedupeCheckIssuesError } from '@pnpm/dedupe.check'
-import { readProjects } from '@pnpm/filter-workspace-packages'
-import type { Lockfile } from '@pnpm/lockfile-types'
-import { dedupe, install } from '@pnpm/plugin-commands-installation'
-import { prepare } from '@pnpm/prepare'
-import { fixtures } from '@pnpm/test-fixtures'
-import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { diff } from 'jest-diff'
 import readYamlFile from 'read-yaml-file'
+
+import { prepare } from '@pnpm/prepare'
+import type { Lockfile } from '@pnpm/types'
+import { fixtures } from '@pnpm/test-fixtures'
+import { DedupeCheckIssuesError } from '@pnpm/dedupe.check'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { readProjects } from '@pnpm/filter-workspace-packages'
+import { dedupe, install } from '@pnpm/plugin-commands-installation'
+
 import { DEFAULT_OPTS } from './utils'
 
 const f = fixtures(__dirname)

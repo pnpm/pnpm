@@ -41,12 +41,11 @@
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/npm-lifecycle": "^2.0.2",
     "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "path-exists": "^4.0.0",
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",

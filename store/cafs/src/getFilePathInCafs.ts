@@ -1,4 +1,5 @@
 import path from 'node:path'
+
 import ssri, { type IntegrityLike } from 'ssri'
 
 export const modeIsExecutable = (mode: number): boolean => {
@@ -34,12 +35,18 @@ function contentPathFromIntegrity(
 
 export function contentPathFromHex(fileType: FileType, hex: string): string {
   const p = path.join(hex.slice(0, 2), hex.slice(2))
+
   switch (fileType) {
-    case 'exec':
+    case 'exec': {
       return `${p}-exec`
-    case 'nonexec':
+    }
+
+    case 'nonexec': {
       return p
-    case 'index':
+    }
+
+    case 'index': {
       return `${p}-index.json`
+    }
   }
 }

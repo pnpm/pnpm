@@ -12,12 +12,12 @@ export type PackageSpecObject = {
   nodeExecPath?: string | undefined
   peer?: boolean | undefined
   pref?: string | undefined
-  saveType?: DependenciesField | undefined
+  saveType?: DependenciesField | DependenciesOrPeersField | undefined
 }
 
 export async function updateProjectManifestObject(
   prefix: string,
-  packageManifest: ProjectManifest | undefined,
+  packageManifest: ProjectManifest | undefined = {},
   packageSpecs: PackageSpecObject[]
 ): Promise<ProjectManifest | undefined> {
   packageSpecs.forEach((packageSpec: PackageSpecObject): void => {
@@ -26,8 +26,6 @@ export async function updateProjectManifestObject(
         packageSpec.pref ?? findSpec(packageSpec.alias, packageManifest)
 
       if (spec) {
-        packageManifest = packageManifest ?? {}
-
         const pm = packageManifest[packageSpec.saveType] ?? {}
 
         packageManifest[packageSpec.saveType] = pm

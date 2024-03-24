@@ -1,11 +1,14 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import { prepare, preparePackages } from '@pnpm/prepare'
-import type { Lockfile } from '@pnpm/lockfile-types'
-import readYamlFile from 'read-yaml-file'
+
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
+import readYamlFile from 'read-yaml-file'
 import writeYamlFile from 'write-yaml-file'
+
+import type { Lockfile } from '@pnpm/types'
+import { prepare, preparePackages } from '@pnpm/prepare'
+
 import { execPnpm, execPnpmSync, retryLoadJsonFile, spawnPnpm } from '../utils'
 
 const skipOnWindows = isWindows() ? test.skip : test

@@ -159,7 +159,7 @@ async function resolveNpm(
   const authHeaderValue = ctx.getAuthHeaderValueByURI(opts.registry)
   let pickResult: {
     meta: PackageMeta
-    pickedPackage: PackageInRegistry | null
+    pickedPackage: PackageInRegistry | null | undefined
   } | null | undefined
 
   try {
@@ -187,8 +187,9 @@ async function resolveNpm(
     }
     throw err
   }
-  const pickedPackage = pickResult.pickedPackage
-  const meta = pickResult.meta
+  const pickedPackage = pickResult?.pickedPackage
+  const meta = pickResult?.meta
+
   if (pickedPackage == null) {
     if (workspacePackages != null && opts.projectDir) {
       try {
@@ -205,11 +206,11 @@ async function resolveNpm(
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta })
   }
 
-  if (workspacePackages?.[pickedPackage.name] != null && opts.projectDir) {
-    if (workspacePackages[pickedPackage.name][pickedPackage.version]) {
+  if (typeof pickedPackage.name !== 'undefined' && typeof pickedPackage.version !== 'undefined' && workspacePackages?.[pickedPackage.name] != null && opts.projectDir) {
+    if (workspacePackages[pickedPackage.name]?.[pickedPackage.version]) {
       return {
         ...resolveFromLocalPackage(
-          workspacePackages[pickedPackage.name][pickedPackage.version],
+          workspacePackages[pickedPackage.name]?.[pickedPackage.version],
           spec.normalizedPref,
           {
             projectDir: opts.projectDir,
@@ -220,10 +221,12 @@ async function resolveNpm(
         latest: meta['dist-tags'].latest,
       }
     }
+
     const localVersion = pickMatchingLocalVersionOrNull(
       workspacePackages[pickedPackage.name],
       spec
     )
+
     if (
       localVersion &&
       (semver.gt(localVersion, pickedPackage.version) ||
@@ -231,7 +234,7 @@ async function resolveNpm(
     ) {
       return {
         ...resolveFromLocalPackage(
-          workspacePackages[pickedPackage.name][localVersion],
+          workspacePackages[pickedPackage.name]?.[localVersion],
           spec.normalizedPref,
           {
             projectDir: opts.projectDir,
@@ -246,13 +249,15 @@ async function resolveNpm(
 
   const id = createPkgId(
     opts.registry,
-    pickedPackage.name,
-    pickedPackage.version
+    pickedPackage.name ?? '',
+    pickedPackage.version ?? ''
   )
+
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
     tarball: pickedPackage.dist.tarball,
   }
+
   return {
     id,
     latest: meta['dist-tags'].latest,
@@ -260,7 +265,7 @@ async function resolveNpm(
     normalizedPref: spec.normalizedPref,
     resolution,
     resolvedVia: 'npm-registry',
-    publishedAt: meta.time?.[pickedPackage.version],
+    publishedAt: meta.time?.[pickedPackage.version ?? ''],
   }
 }
 
@@ -342,7 +347,7 @@ function tryResolveFromWorkspacePackages(
     )
   }
   return resolveFromLocalPackage(
-    workspacePackages[spec.name][localVersion],
+    workspacePackages[spec.name]?.[localVersion],
     spec.normalizedPref,
     opts
   )
@@ -352,36 +357,44 @@ function pickMatchingLocalVersionOrNull(
   versions: Record<string, {
     dir: string
     manifest: DependencyManifest
-  }>,
+  }> | undefined,
   spec: RegistryPackageSpec
 ) {
-  const localVersions = Object.keys(versions)
+  const localVersions = Object.keys(versions ?? {})
+
   switch (spec.type) {
-    case 'tag':
+    case 'tag': {
       return semver.maxSatisfying(localVersions, '*', {
         includePrerelease: true,
       })
-    case 'version':
-      return versions[spec.fetchSpec] ? spec.fetchSpec : null
-    case 'range':
+    }
+
+    case 'version': {
+      return versions?.[spec.fetchSpec] ? spec.fetchSpec : null
+    }
+
+    case 'range': {
       return resolveWorkspaceRange(spec.fetchSpec, localVersions)
-    default:
+    }
+
+    default: {
       return null
+    }
   }
 }
 
-interface LocalPackage {
+type LocalPackage = {
   dir: string
   manifest: DependencyManifest
 }
 
 function resolveFromLocalPackage(
-  localPackage: LocalPackage,
+  localPackage: LocalPackage | undefined,
   normalizedPref: string | undefined,
   opts: {
-    hardLinkLocalPackages?: boolean
+    hardLinkLocalPackages?: boolean | undefined
     projectDir: string
-    lockfileDir?: string
+    lockfileDir?: string | undefined
   }
 ): {
     id: string;
@@ -390,34 +403,39 @@ function resolveFromLocalPackage(
     resolution: DirectoryResolution;
     resolvedVia: string;
   } {
-  let id!: string
-  let directory!: string
+  let id: string | undefined
+
+  let directory: string | undefined
+
   const localPackageDir = resolveLocalPackageDir(localPackage)
+
   if (opts.hardLinkLocalPackages) {
-    directory = normalize(path.relative(opts.lockfileDir ?? '', localPackageDir))
+    directory = normalize(path.relative(opts.lockfileDir ?? '', localPackageDir ?? ''))
     id = `file:${directory}`
   } else {
     directory = localPackageDir
-    id = `link:${normalize(path.relative(opts.projectDir, localPackageDir))}`
+    id = `link:${normalize(path.relative(opts.projectDir, localPackageDir ?? ''))}`
   }
   return {
     id,
-    manifest: clone(localPackage.manifest),
+    manifest: clone(localPackage?.manifest),
     normalizedPref,
     resolution: {
-      directory,
+      directory: directory ?? '',
       type: 'directory',
     },
     resolvedVia: 'local-filesystem',
   }
 }
 
-function resolveLocalPackageDir(localPackage: LocalPackage) {
+function resolveLocalPackageDir(localPackage: LocalPackage | undefined) {
   if (
-    localPackage.manifest.publishConfig?.directory == null ||
+    localPackage?.manifest.publishConfig?.directory == null ||
     localPackage.manifest.publishConfig?.linkDirectory === false
-  )
-    return localPackage.dir
+  ) {
+    return localPackage?.dir
+  }
+
   return path.join(
     localPackage.dir,
     localPackage.manifest.publishConfig.directory
@@ -436,22 +454,26 @@ function defaultTagForAlias(
 }
 
 function getIntegrity(dist: {
-  integrity?: string
+  integrity?: string | undefined
   shasum: string
   tarball: string
-}) {
+}): string | undefined {
   if (dist.integrity) {
     return dist.integrity
   }
+
   if (!dist.shasum) {
     return undefined
   }
+
   const integrity = ssri.fromHex(dist.shasum, 'sha1')
+
   if (!integrity) {
     throw new PnpmError(
       'INVALID_TARBALL_INTEGRITY',
       `Tarball "${dist.tarball}" has invalid shasum specified in its metadata: ${dist.shasum}`
     )
   }
+
   return integrity.toString()
 }

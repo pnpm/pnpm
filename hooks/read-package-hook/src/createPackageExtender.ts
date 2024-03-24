@@ -1,12 +1,13 @@
+import semver from 'semver'
+
 import type {
   PackageManifest,
   PackageExtension,
   ReadPackageHook,
 } from '@pnpm/types'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import semver from 'semver'
 
-interface PackageExtensionMatch {
+type PackageExtensionMatch = {
   packageExtension: PackageExtension
   range: string | undefined
 }
@@ -39,7 +40,7 @@ function extendPkgHook(
   extensionsByPkgName: ExtensionsByPkgName,
   manifest: PackageManifest
 ) {
-  const extensions = extensionsByPkgName.get(manifest.name)
+  const extensions = extensionsByPkgName.get(manifest.name ?? '')
 
   if (extensions == null) {
     return manifest
@@ -53,9 +54,9 @@ function extendPkgHook(
 function extendPkg(
   manifest: PackageManifest,
   extensions: PackageExtensionMatch[]
-) {
+): void {
   for (const { range, packageExtension } of extensions) {
-    if (range != null && !semver.satisfies(manifest.version, range)) {
+    if (range != null && !semver.satisfies(manifest.version ?? '', range)) {
       continue
     }
 
@@ -69,10 +70,11 @@ function extendPkg(
         continue
       }
 
+      // @ts-ignore
       manifest[field] = {
         ...packageExtension[field],
         ...manifest[field],
-      } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      }
     }
   }
 }

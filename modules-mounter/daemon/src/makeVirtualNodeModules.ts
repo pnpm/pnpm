@@ -1,11 +1,10 @@
 import path from 'node:path'
 
-import * as dp from '@pnpm/dependency-path'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import type { Lockfile } from '@pnpm/lockfile-file'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-
 import normalize from 'normalize-path'
+
+import * as dp from '@pnpm/dependency-path'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { type Lockfile, DEPENDENCIES_FIELDS } from '@pnpm/types'
 
 interface DirDirEntry {
   entryType: 'directory'
@@ -33,7 +32,7 @@ export function makeVirtualNodeModules(lockfile: Lockfile): DirEntry {
   }
   for (const depType of DEPENDENCIES_FIELDS) {
     for (const [depName, ref] of Object.entries(
-      lockfile.importers['.'][depType] ?? {}
+      lockfile.importers['.']?.[depType] ?? {}
     )) {
       const relativeRef = dp.refToRelative(ref, depName)
 
@@ -126,7 +125,7 @@ function addDirEntry(
         entryType: 'directory',
         entries: {},
       } as DirEntry
-    } else if (target[p].entryType !== 'directory') {
+    } else if (target[p]?.entryType !== 'directory') {
       throw new Error()
     }
 

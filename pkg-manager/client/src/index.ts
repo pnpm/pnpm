@@ -2,18 +2,21 @@ import '@total-typescript/ts-reset'
 
 import mapValues from 'ramda/src/map'
 
-import {
-  createResolver as _createResolver,
-} from '@pnpm/default-resolver'
+import type {
+  Client,
+  Fetchers,
+  GetAuthHeader,
+  ClientOptions,
+  CustomFetchers,
+  ResolveFunction,
+  FetchFromRegistry,
+} from '@pnpm/types'
 import { createGitFetcher } from '@pnpm/git-fetcher'
 import { createFetchFromRegistry } from '@pnpm/fetch'
+import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
-import {
-  createTarballFetcher,
-  type TarballFetchers,
-} from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import type{ ClientOptions, Client, GitFetcher, DirectoryFetcher, CustomFetchers, ResolveFunction, FetchFromRegistry, GetAuthHeader } from '@pnpm/types'
+import { createResolver as _createResolver } from '@pnpm/default-resolver'
 
 export function createClient(opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
@@ -45,11 +48,6 @@ export function createResolver(opts: ClientOptions): ResolveFunction {
   return _createResolver(fetchFromRegistry, getAuthHeader, opts)
 }
 
-export type Fetchers = {
-  git: GitFetcher
-  directory: DirectoryFetcher
-} & TarballFetchers
-
 function createFetchers(
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
@@ -62,7 +60,7 @@ function createFetchers(
     | 'unsafePerm'
     | 'includeOnlyPackageFiles'
   >,
-  customFetchers?: CustomFetchers
+  customFetchers?: CustomFetchers | undefined
 ): Fetchers {
   const defaultFetchers = {
     ...createTarballFetcher(fetchFromRegistry, getAuthHeader, opts),
@@ -71,14 +69,15 @@ function createFetchers(
       resolveSymlinks: opts.resolveSymlinksInInjectedDirs,
       includeOnlyPackageFiles: opts.includeOnlyPackageFiles,
     }),
-  }
+  } satisfies Fetchers
 
   const overwrites = mapValues(
-    (factory: any) => {
-      return factory({ defaultFetchers });
+    (factory) => {
+      return factory?.({ defaultFetchers });
     },
+    // @ts-ignore
     customFetchers ?? {}
-  )
+  ) as Fetchers
 
   return {
     ...defaultFetchers,

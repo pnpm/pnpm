@@ -8,6 +8,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "engines": {
     "node": ">=16.14"
   },
@@ -44,10 +45,7 @@
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "p-defer": "^3.0.0",
     "p-limit": "^3.1.0",
     "p-queue": "^6.6.2",
@@ -57,6 +55,7 @@
     "ssri": "10.0.5"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",

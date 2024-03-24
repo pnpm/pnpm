@@ -35,12 +35,12 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "normalize-path": "^3.0.0",
     "ssri": "10.0.5"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/local-resolver": "workspace:*",
     "@types/normalize-path": "^3.0.2",
     "@types/ssri": "^7.1.5",

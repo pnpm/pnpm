@@ -44,10 +44,10 @@
     "@total-typescript/ts-reset": "0.5.1"
   },
   "dependencies": {
+    "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",

@@ -132,15 +132,32 @@ function preferDirectCmds(
     isDirectDependency?: boolean | undefined;
   })[] {
   const [directCmds, hoistedCmds] = partition(
-    (cmd) => cmd.isDirectDependency === true,
+    (cmd: {
+      name: string;
+      path: string;
+      ownName: boolean;
+      pkgName?: string | undefined;
+      makePowerShellShim: boolean;
+      nodeExecPath?: string | undefined;
+      isDirectDependency?: boolean | undefined;
+    }): boolean => {
+      return cmd.isDirectDependency === true;
+    },
     allCmds
   )
 
-  const usedDirectCmds = new Set(directCmds.map((directCmd) => directCmd.name))
+  const usedDirectCmds = new Set(directCmds.map((directCmd: Command & {
+    ownName: boolean;
+    pkgName?: string | undefined;
+    makePowerShellShim: boolean;
+    nodeExecPath?: string | undefined;
+  }): string => {
+    return directCmd.name;
+  }))
 
   return [
     ...directCmds,
-    ...hoistedCmds.filter(({ name }): boolean => {
+    ...hoistedCmds.filter(({ name }: { name: string }): boolean => {
       return !usedDirectCmds.has(name);
     }),
   ]
@@ -153,7 +170,7 @@ export async function linkBinsOfPackages(
     location: string
   }>,
   binsTarget: string | undefined,
-  opts: LinkBinOptions = {}
+  opts: LinkBinOptions | undefined = {}
 ): Promise<string[]> {
   if (pkgs.length === 0) {
     return []
@@ -198,12 +215,14 @@ async function _linkBins(
   await fs.mkdir(binsDir, { recursive: true })
 
   const [cmdsWithOwnName, cmdsWithOtherNames] = partition(
-    ({ ownName }) => ownName,
+    ({ ownName }: CommandInfo): boolean => {
+      return ownName;
+    },
     allCmds
   )
 
   const results1 = await pSettle(
-    cmdsWithOwnName.map(async (cmd): Promise<void> => {
+    cmdsWithOwnName.map(async (cmd: CommandInfo): Promise<void> => {
       return linkBin(cmd, binsDir, opts);
     })
   )
@@ -252,7 +271,7 @@ async function isFromModules(filename: string): Promise<boolean> {
 
 async function getPackageBins(
   opts: {
-    allowExoticManifests: boolean
+    allowExoticManifests?: boolean | undefined
     warn: WarnFunction
   },
   target: string,
@@ -350,7 +369,7 @@ async function linkBin(
   }
 
   try {
-    let nodePath: string[] | undefined
+    let nodePath: string[] | string | undefined
 
     if (opts?.extraNodePaths?.length) {
       nodePath = []
@@ -368,8 +387,8 @@ async function linkBin(
 
     await cmdShim(cmd.path, externalBinPath, {
       createPwshFile: cmd.makePowerShellShim,
-      nodePath,
-      nodeExecPath: cmd.nodeExecPath,
+      nodePath: nodePath ?? [],
+      nodeExecPath: cmd.nodeExecPath ?? '',
     })
   } catch (err: unknown) {
     // @ts-ignore

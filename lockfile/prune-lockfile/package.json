@@ -11,6 +11,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -39,7 +40,6 @@
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },

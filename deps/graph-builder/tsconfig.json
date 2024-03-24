@@ -32,9 +32,6 @@
     },
     {
       "path": "../../pkg-manager/modules-yaml"
-    },
-    {
-      "path": "../../store/store-controller-types"
     }
   ],
   "composite": true

@@ -33,9 +33,6 @@
     {
       "path": "../../pkg-manifest/read-package-json"
     },
-    {
-      "path": "../../store/store-controller-types"
-    }
   ],
   "composite": true
 }

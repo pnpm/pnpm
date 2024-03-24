@@ -34,9 +34,6 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../store/store-controller-types"
-    },
-    {
       "path": "../../worker"
     },
     {

@@ -94,7 +94,7 @@ async function storePathRelativeToHome(
     }
 
     return path.join(mountpoint, '.pnpm-store', STORE_VERSION)
-  } catch (err) {
+  } catch (err: unknown) {
     // this is an unlikely situation but if there is no way to find
     // a linkable place on the disk, create the store in homedir
     return storeInHomeDir
@@ -104,21 +104,17 @@ async function storePathRelativeToHome(
 }
 
 async function canLinkToSubdir(fileToLink: string, dir: string): Promise<boolean> {
-  let result = false
-
   const tmpDir = pathTemp(dir)
 
   try {
     await fs.mkdir(tmpDir, { recursive: true })
 
-    result = await canLink(fileToLink, pathTemp(tmpDir))
+    return await canLink(fileToLink, pathTemp(tmpDir));
   } catch (err) {
-    result = false
+    return false;
   } finally {
     await safeRmdir(tmpDir)
   }
-
-  return result
 }
 
 async function safeRmdir(dir: string): Promise<void> {

@@ -1,4 +1,4 @@
 import '@total-typescript/ts-reset'
-import * as store from './store'
+import * as store from './store.js'
 
 export { store }

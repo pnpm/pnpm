@@ -45,7 +45,6 @@
   "dependencies": {
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/registry-mock": "3.26.0",
     "type-fest": "^0.4.1",

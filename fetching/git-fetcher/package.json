@@ -38,7 +38,6 @@
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@zkochan/rimraf": "^2.1.3",
     "execa": "npm:safe-execa@0.1.3"

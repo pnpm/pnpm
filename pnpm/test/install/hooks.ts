@@ -1,11 +1,14 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import type { Lockfile } from '@pnpm/lockfile-types'
-import { prepare, preparePackages } from '@pnpm/prepare'
-import { createPeersFolderSuffix } from '@pnpm/dependency-path'
+import path from 'node:path'
+import { promises as fs } from 'node:fs'
+
 import readYamlFile from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
+
+import type { Lockfile } from '@pnpm/types'
+import { prepare, preparePackages } from '@pnpm/prepare'
+import { createPeersFolderSuffix } from '@pnpm/dependency-path'
+
 import { addDistTag, execPnpm, execPnpmSync } from '../utils'
 
 test('readPackage hook', async () => {

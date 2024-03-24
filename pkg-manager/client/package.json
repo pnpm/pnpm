@@ -37,7 +37,6 @@
     "@pnpm/fetch": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },

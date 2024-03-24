@@ -3,9 +3,9 @@ import path from 'node:path'
 import type { Modules } from '@pnpm/types'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 
-import { UnexpectedStoreError } from './UnexpectedStoreError'
-import { ModulesBreakingChangeError } from './ModulesBreakingChangeError'
-import { UnexpectedVirtualStoreDirError } from './UnexpectedVirtualStoreDirError'
+import { UnexpectedStoreError } from './UnexpectedStoreError.js'
+import { ModulesBreakingChangeError } from './ModulesBreakingChangeError.js'
+import { UnexpectedVirtualStoreDirError } from './UnexpectedVirtualStoreDirError.js'
 
 export function checkCompatibility(
   modules: Modules,

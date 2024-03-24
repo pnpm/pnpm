@@ -1,24 +1,21 @@
-/// <reference path="../../../__typings__/index.d.ts" />
-import { promises as fs, statSync } from 'fs'
-import path from 'path'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import path from 'node:path'
+import { promises as fs, statSync } from 'node:fs'
+
+import nock from 'nock'
+import tempy from 'tempy'
+import delay from 'delay'
+import normalize from 'normalize-path'
+import loadJsonFile from 'load-json-file'
+
 import { createClient } from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
-import {
-  createPackageRequester,
-  type PackageResponse,
-} from '@pnpm/package-requester'
-import { createCafsStore } from '@pnpm/create-cafs-store'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import delay from 'delay'
-import { depPathToFilename } from '@pnpm/dependency-path'
 import { restartWorkerPool } from '@pnpm/worker'
-import loadJsonFile from 'load-json-file'
-import nock from 'nock'
-import normalize from 'normalize-path'
-import tempy from 'tempy'
-import { type PkgRequestFetchResult } from '@pnpm/store-controller-types'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { createCafsStore } from '@pnpm/create-cafs-store'
+import { depPathToFilename } from '@pnpm/dependency-path'
+import type { PkgRequestFetchResult, PackageFilesIndex } from '@pnpm/types'
+import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(__dirname)

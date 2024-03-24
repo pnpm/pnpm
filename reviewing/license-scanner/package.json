@@ -37,13 +37,11 @@
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "load-json-file": "^6.2.0",
     "p-limit": "^3.1.0",
     "path-absolute": "^1.0.1",
@@ -51,6 +49,7 @@
     "semver": "^7.6.0"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/license-scanner": "workspace:*",
     "@types/ramda": "0.28.20",

@@ -7,8 +7,8 @@ import type {
 import isGzip from 'is-gzip'
 import { gunzipSync } from 'zlib'
 
-import { parseTarball } from './parseTarball'
-import { parseJsonBufferSync } from './parseJson'
+import { parseTarball } from './parseTarball.js'
+import { parseJsonBufferSync } from './parseJson.js'
 
 export function addFilesFromTarball(
   addBufferToCafs: (buffer: Buffer, mode: number) => FileWriteResult,

@@ -8,58 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../__utils__/test-fixtures"
-    },
-    {
-      "path": "../../config/package-is-installable"
-    },
-    {
-      "path": "../../fetching/fetcher-base"
-    },
-    {
-      "path": "../../fetching/pick-fetcher"
-    },
-    {
-      "path": "../../fs/graceful-fs"
-    },
-    {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
-    },
-    {
-      "path": "../../resolving/resolver-base"
-    },
-    {
-      "path": "../../store/cafs"
-    },
-    {
-      "path": "../../store/cafs-types"
-    },
-    {
-      "path": "../../store/create-cafs-store"
-    },
-    {
-      "path": "../../store/store-controller-types"
-    },
-    {
-      "path": "../../worker"
-    },
-    {
-      "path": "../client"
-    }
-  ],
   "composite": true
 }

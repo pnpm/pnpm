@@ -1,14 +1,16 @@
-import { Manifest } from './../../../workspace/pkgs-graph/src/index'
-import { writeFileSync } from 'fs'
-import path from 'path'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import type { Lockfile } from '@pnpm/lockfile-types'
-import { preparePackages } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
+import path from 'node:path'
+import { writeFileSync } from 'node:fs'
+
 import { sync as readYamlFile } from 'read-yaml-file'
-import { createPeersFolderSuffix } from '@pnpm/dependency-path'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
+import { createPeersFolderSuffix } from '@pnpm/dependency-path'
+
+import { preparePackages } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import type { Lockfile, Manifest } from '@pnpm/types'
+
 import { execPnpm } from '../utils'
 
 test('deduplicate packages that have peers, when adding new dependency in a workspace', async () => {

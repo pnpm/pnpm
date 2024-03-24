@@ -9,7 +9,7 @@ import { PnpmError } from '@pnpm/error'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 
-import { overridePublishConfig } from './overridePublishConfig'
+import { overridePublishConfig } from './overridePublishConfig.js'
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
@@ -71,22 +71,25 @@ export async function createExportableManifest(
 async function makePublishDependencies(
   dir: string,
   dependencies: Dependencies | undefined,
-  modulesDir?: string
+  modulesDir?: string | undefined
 ): Promise<Dependencies | undefined> {
-  if (dependencies == null) return dependencies
-  const publishDependencies = await pMapValues(
-    (depSpec, depName) =>
-      makePublishDependency(depName, depSpec, dir, modulesDir),
+  if (dependencies == null) {
+    return dependencies
+  }
+
+  return pMapValues.default<string, string, string>(
+    (depSpec: string, depName: string): Promise<string> => {
+      return makePublishDependency(depName, depSpec, dir, modulesDir);
+    },
     dependencies
   )
-  return publishDependencies
 }
 
 async function makePublishDependency(
   depName: string,
   depSpec: string,
   dir: string,
-  modulesDir?: string
+  modulesDir?: string | undefined
 ) {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec

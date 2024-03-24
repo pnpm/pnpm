@@ -8,6 +8,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "engines": {
     "node": ">=16.14"
   },
@@ -42,14 +43,13 @@
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "p-defer": "^3.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
+    "@pnpm/types": "workspace:*",
     "@pnpm/build-modules": "workspace:*",
     "@types/ramda": "0.29.11",
     "@total-typescript/ts-reset": "0.5.1"

@@ -19,7 +19,6 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
     "mem": "^8.1.1",
     "path-temp": "^2.1.0",
     "ramda": "npm:@pnpm/ramda@0.28.1"

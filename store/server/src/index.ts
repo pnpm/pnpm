@@ -1,3 +1,4 @@
 import '@total-typescript/ts-reset'
-export { connectStoreController } from './connectStoreController'
-export { createServer } from './createServer'
+
+export { createServer } from './createServer.js'
+export { connectStoreController } from './connectStoreController.js'

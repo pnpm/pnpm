@@ -61,9 +61,6 @@
       "path": "../exec/run-npm"
     },
     {
-      "path": "../lockfile/lockfile-types"
-    },
-    {
       "path": "../lockfile/plugin-commands-audit"
     },
     {

@@ -1,4 +1,4 @@
 import '@total-typescript/ts-reset'
-import * as audit from './audit'
+import * as audit from './audit.js'
 
 export { audit }

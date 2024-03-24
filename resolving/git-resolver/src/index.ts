@@ -1,8 +1,11 @@
 import '@total-typescript/ts-reset'
-import type { Resolution, ResolveResult } from '@pnpm/resolver-base'
-import git from 'graceful-git'
+
 import semver from 'semver'
-import { parsePref, type HostedPackageSpec } from './parsePref'
+import git from 'graceful-git'
+
+import type { Resolution, ResolveResult } from '@pnpm/types'
+
+import { parsePref, type HostedPackageSpec } from './parsePref.js'
 
 export type { HostedPackageSpec }
 

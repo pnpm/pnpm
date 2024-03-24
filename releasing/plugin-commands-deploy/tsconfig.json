@@ -31,9 +31,6 @@
       "path": "../../fs/is-empty-dir-or-nothing"
     },
     {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
       "path": "../../packages/error"
     },
     {

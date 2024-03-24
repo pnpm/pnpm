@@ -17,11 +17,11 @@ pnpm add @pnpm/fetcher-base
 Here's a template for a fetcher using types from `@pnpm/fetcher-base`:
 
 ```ts
-import { Resolution } from '@pnpm/resolver-base'
 import {
+  Resolution,
   FetchOptions,
-  FetchResult,
-} from '@pnpm/fetcher-base'
+  FetchResult
+} from '@pnpm/type'
 
 export async function demoFetcher (
   resolution: Resolution,

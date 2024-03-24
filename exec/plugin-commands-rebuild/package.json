@@ -8,6 +8,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "engines": {
     "node": ">=16.14"
   },
@@ -62,7 +63,6 @@
     "@pnpm/get-context": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
@@ -70,7 +70,6 @@
     "@pnpm/npm-package-arg": "^1.0.0",
     "@pnpm/sort-packages": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
-    "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",

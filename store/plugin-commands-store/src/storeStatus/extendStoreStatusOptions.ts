@@ -1,10 +1,9 @@
 import path from 'node:path'
-import {
-  normalizeRegistries,
-  DEFAULT_REGISTRIES,
-} from '@pnpm/normalize-registries'
+
 import type { Registries } from '@pnpm/types'
-import type { ReporterFunction } from '../types'
+import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+
+import type { ReporterFunction } from '../types.js'
 
 export interface StrictStoreStatusOptions {
   autoInstallPeers: boolean

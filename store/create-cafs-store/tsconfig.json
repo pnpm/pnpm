@@ -26,9 +26,6 @@
     },
     {
       "path": "../cafs-types"
-    },
-    {
-      "path": "../store-controller-types"
     }
   ],
   "composite": true

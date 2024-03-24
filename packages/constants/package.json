@@ -11,6 +11,7 @@
     "lib",
     "!*.map"
   ],
+  "type": "module",
   "scripts": {
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",

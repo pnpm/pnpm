@@ -8,10 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../lockfile-types"
-    }
-  ],
   "composite": true
 }

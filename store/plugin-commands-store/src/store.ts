@@ -1,17 +1,17 @@
-import { docsUrl } from '@pnpm/cli-utils'
-import { type Config, types as allTypes } from '@pnpm/config'
-import { PnpmError } from '@pnpm/error'
-import { logger, type LogBase } from '@pnpm/logger'
-import {
-  createOrConnectStoreController,
-  type CreateStoreControllerOptions,
-} from '@pnpm/store-connection-manager'
-import { getStorePath } from '@pnpm/store-path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { storeAdd } from './storeAdd'
-import { storePrune } from './storePrune'
-import { storeStatus } from './storeStatus'
+
+import { PnpmError } from '@pnpm/error'
+import { docsUrl } from '@pnpm/cli-utils'
+import { getStorePath } from '@pnpm/store-path'
+import { types as allTypes } from '@pnpm/config'
+import { logger, type LogBase } from '@pnpm/logger'
+import type { CreateStoreControllerOptions, Config } from '@pnpm/types'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+
+import { storeAdd } from './storeAdd.js'
+import { storePrune } from './storePrune.js'
+import { storeStatus } from './storeStatus/index.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -73,7 +73,7 @@ Alien directories are directories/files that were not created by the package man
         ],
       },
     ],
-    url: docsUrl('store'),
+    url: docsUrl('store') ?? '',
     usages: ['pnpm store <command>'],
   })
 }

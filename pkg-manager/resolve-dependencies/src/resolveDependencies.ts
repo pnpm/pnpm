@@ -20,9 +20,6 @@ import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
-import {
-  DIRECT_DEP_SELECTOR_WEIGHT,
-} from '@pnpm/resolver-base'
 import type {
   Lockfile,
   PatchFile,
@@ -39,6 +36,7 @@ import type {
   InfoFromLockfile,
   ParentPkgAliases,
   PeerDependencies,
+  LinkedDependency,
   ResolutionContext,
   PreferredVersions,
   DirectoryResolution,
@@ -60,16 +58,10 @@ import type {
   ResolveDependenciesOfDependency,
   PostponedPeersResolutionFunction,
   ResolveDependenciesOfImportersResult,
-  LinkedDependency,
 } from '@pnpm/types'
-import { Logger, logger } from '@pnpm/logger'
-import {
-  getNonDevWantedDependencies,
-} from './getNonDevWantedDependencies'
 import { PnpmError } from '@pnpm/error'
 import * as dp from '@pnpm/dependency-path'
-import { encodePkgId } from './encodePkgId'
-import { safeIntersect } from './mergePeers'
+import { type Logger, logger } from '@pnpm/logger'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 
 import {
@@ -77,8 +69,11 @@ import {
   createNodeId,
   nodeIdContains,
   nodeIdContainsSequence,
-} from './nodeIdUtils'
-import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
+} from './nodeIdUtils.js'
+import { encodePkgId } from './encodePkgId.js'
+import { safeIntersect } from './mergePeers.js'
+import { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
+import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable.js'
 
 const dependencyResolvedLogger: Logger<
   { message: string; prefix: string; } | { resolution: string; } | {
@@ -110,13 +105,26 @@ const omitDepsFields = omit([
 export function nodeIdToParents(
   nodeId: string,
   resolvedPackagesByDepPath: ResolvedPackagesByDepPath
-) {
+): {
+    id: string | undefined;
+    name: string | undefined;
+    version: string | undefined;
+  }[] {
   return splitNodeId(nodeId)
     .slice(1)
-    .map((depPath) => {
-      const { id, name, version } = resolvedPackagesByDepPath[depPath]
-      return { id, name, version }
-    })
+    .map((depPath): {
+      id: string | undefined;
+      name: string | undefined;
+      version: string | undefined;
+    } | null => {
+      const node = resolvedPackagesByDepPath[depPath]
+
+      if (node) {
+        return { id: node.id, name: node.name, version: node.version }
+      }
+
+      return null
+    }).filter(Boolean)
 }
 
 export async function resolveRootDependencies(
@@ -132,16 +140,20 @@ export async function resolveRootDependencies(
         { parentPkgAliases, preferredVersions, options }
       ) => {
         const pkgAddresses = importerResolutionResult.pkgAddresses
+
         if (!ctx.autoInstallPeers) return pkgAddresses
+
         while (true) {
           for (const pkgAddress of importerResolutionResult.pkgAddresses) {
             parentPkgAliases[pkgAddress.alias] = true
           }
+
           for (const missingPeerName of Object.keys(
             importerResolutionResult.missingPeers ?? {}
           )) {
             parentPkgAliases[missingPeerName] = true
           }
+
           // All the missing peers should get installed in the root.
           // Otherwise, pending nodes will not work.
           // even those peers should be hoisted that are not autoinstalled
@@ -152,9 +164,11 @@ export async function resolveRootDependencies(
               pkgAddresses.push(resolvedPeerAddress)
             }
           }
+
           if (!Object.keys(importerResolutionResult.missingPeers ?? {}).length) {
             break
           }
+
           const wantedDependencies = getNonDevWantedDependencies({
             dependencies: importerResolutionResult.missingPeers,
           })
@@ -179,8 +193,10 @@ export async function resolveRootDependencies(
               parentPkgAliases
             ),
           }
+
           pkgAddresses.push(...importerResolutionResult.pkgAddresses)
         }
+
         return pkgAddresses
       },
       pkgAddressesByImportersWithoutPeers,
@@ -322,7 +338,7 @@ async function resolveDependenciesOfImporters(
               resolvedPackage.version
             ] = {
               selectorType: 'version',
-              weight: DIRECT_DEP_SELECTOR_WEIGHT,
+              weight: 1000,
             }
           }
         }

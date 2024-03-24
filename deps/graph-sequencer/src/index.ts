@@ -1,4 +1,4 @@
-export type Graph<T> = Map<T, T[]>
+export type Graph<T> = Map<T, T[] | undefined>
 export type Groups<T> = T[][]
 
 export type Options<T> = {
@@ -38,10 +38,12 @@ export function graphSequencer<T>(
   for (const [from, edges] of graph.entries()) {
     outDegree.set(from, 0)
 
-    for (const to of edges) {
-      if (nodes.has(from) && nodes.has(to)) {
-        changeOutDegree(from, 1)
-        reverseGraph.get(to)?.push(from)
+    if (edges) {
+      for (const to of edges) {
+        if (nodes.has(from) && nodes.has(to)) {
+          changeOutDegree(from, 1)
+          reverseGraph.get(to)?.push(from)
+        }
       }
     }
 

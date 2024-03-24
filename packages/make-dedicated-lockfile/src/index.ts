@@ -2,18 +2,19 @@ import '@total-typescript/ts-reset'
 
 import path from 'node:path'
 
+import pickBy from 'ramda/src/pickBy'
+import renameOverwrite from 'rename-overwrite'
+
 import {
   readWantedLockfile,
   writeWantedLockfile,
   getLockfileImporterId,
 } from '@pnpm/lockfile-file'
 import pnpmExec from '@pnpm/exec'
-import pickBy from 'ramda/src/pickBy'
-import renameOverwrite from 'rename-overwrite'
-import { DEPENDENCIES_FIELDS, ProjectSnapshot } from '@pnpm/types'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
+import { DEPENDENCIES_FIELDS, type ProjectSnapshot } from '@pnpm/types'
 
 export async function makeDedicatedLockfile(
   lockfileDir: string,
@@ -81,7 +82,7 @@ export async function makeDedicatedLockfile(
   }
 
   try {
-    await pnpmExec(
+    await pnpmExec.default(
       [
         'install',
         '--frozen-lockfile',
@@ -117,7 +118,9 @@ function projectSnapshotWithoutLinkedDeps(projectSnapshot: ProjectSnapshot) {
     }
 
     newProjectSnapshot[depField] = pickBy(
-      (depVersion) => !depVersion.startsWith('link:'),
+      (depVersion: string): boolean => {
+        return !depVersion.startsWith('link:');
+      },
       projectSnapshot[depField]
     )
   }

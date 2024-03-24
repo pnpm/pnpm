@@ -1,4 +1,4 @@
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PackageFilesIndex } from '@pnpm/types'
 
 export function readdir(index: PackageFilesIndex, dir: string): string[] {
   const dirs = new Set<string>()
@@ -9,7 +9,11 @@ export function readdir(index: PackageFilesIndex, dir: string): string[] {
     if (filePath.startsWith(prefix)) {
       const parts = filePath.substring(dir.length).split('/')
 
-      dirs.add(parts[0] || parts[1])
+      const part = parts[0] ?? parts[1]
+
+      if (part) {
+        dirs.add(part)
+      }
     }
   }
 

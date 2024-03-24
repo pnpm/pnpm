@@ -1,18 +1,18 @@
 import '@total-typescript/ts-reset'
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+
+import unnest from 'ramda/src/unnest'
+import isEmpty from 'ramda/src/isEmpty'
+import difference from 'ramda/src/difference'
+
 import type {
   Lockfile,
-  PackageSnapshots,
   ProjectSnapshot,
+  PackageManifest,
+  PackageSnapshots,
   ResolvedDependencies,
-} from '@pnpm/lockfile-types'
-import type { PackageManifest } from '@pnpm/types'
+} from '@pnpm/types'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { refToRelative } from '@pnpm/dependency-path'
-import difference from 'ramda/src/difference'
-import isEmpty from 'ramda/src/isEmpty'
-import unnest from 'ramda/src/unnest'
-
-export * from '@pnpm/lockfile-types'
 
 export function pruneSharedLockfile(
   lockfile: Lockfile,
@@ -66,7 +66,7 @@ export function pruneLockfile(
 
   const importer = lockfile.importers[importerId]
 
-  const lockfileSpecs: ResolvedDependencies = importer.specifiers ?? {}
+  const lockfileSpecs: ResolvedDependencies = importer?.specifiers ?? {}
 
   const optionalDependencies = Object.keys(pkg.optionalDependencies ?? {})
 
@@ -101,18 +101,21 @@ export function pruneLockfile(
 
     specifiers[depName] = spec
 
-    if (importer.dependencies?.[depName]) {
-      lockfileDependencies[depName] = importer.dependencies[depName]
-    } else if (importer.optionalDependencies?.[depName]) {
-      lockfileOptionalDependencies[depName] =
-        importer.optionalDependencies[depName]
-    } else if (importer.devDependencies?.[depName]) {
-      lockfileDevDependencies[depName] = importer.devDependencies[depName]
+    const dep = importer?.dependencies?.[depName]
+    const optDep = importer?.optionalDependencies?.[depName]
+    const devDep = importer?.devDependencies?.[depName]
+
+    if (dep) {
+      lockfileDependencies[depName] = dep
+    } else if (optDep) {
+      lockfileOptionalDependencies[depName] = optDep
+    } else if (devDep) {
+      lockfileDevDependencies[depName] = devDep
     }
   })
 
-  if (importer.dependencies != null) {
-    for (const [alias, dep] of Object.entries(importer.dependencies)) {
+  if (importer?.dependencies != null) {
+    for (const [alias, dep] of Object.entries(importer?.dependencies)) {
       if (
         !lockfileDependencies[alias] &&
         dep.startsWith('link:') &&
@@ -244,38 +247,40 @@ function copyDependencySubGraph(
 
     const depLockfile = ctx.originalPackages[depPath]
 
-    ctx.copiedSnapshots[depPath] = depLockfile
+    if (depLockfile) {
+      ctx.copiedSnapshots[depPath] = depLockfile
 
-    if (opts.optional && !ctx.nonOptional.has(depPath)) {
-      depLockfile.optional = true
-    } else {
-      ctx.nonOptional.add(depPath)
-      delete depLockfile.optional
-    }
+      if (opts.optional && !ctx.nonOptional.has(depPath)) {
+        depLockfile.optional = true
+      } else {
+        ctx.nonOptional.add(depPath)
+        delete depLockfile.optional
+      }
 
-    if (opts.dev) {
-      ctx.notProdOnly.add(depPath)
-      depLockfile.dev = true
-    } else if (depLockfile.dev === true) {
+      if (opts.dev) {
+        ctx.notProdOnly.add(depPath)
+        depLockfile.dev = true
+      } else if (depLockfile.dev === true) {
       // keeping if dev is explicitly false
-      delete depLockfile.dev
-    } else if (depLockfile.dev === undefined && !ctx.notProdOnly.has(depPath)) {
-      depLockfile.dev = false
+        delete depLockfile.dev
+      } else if (depLockfile.dev === undefined && !ctx.notProdOnly.has(depPath)) {
+        depLockfile.dev = false
+      }
+
+      const newDependencies = resolvedDepsToDepPaths(
+        depLockfile.dependencies ?? {}
+      )
+
+      copyDependencySubGraph(ctx, newDependencies, opts)
+
+      const newOptionalDependencies = resolvedDepsToDepPaths(
+        depLockfile.optionalDependencies ?? {}
+      )
+
+      copyDependencySubGraph(ctx, newOptionalDependencies, {
+        dev: opts.dev,
+        optional: true,
+      })
     }
-
-    const newDependencies = resolvedDepsToDepPaths(
-      depLockfile.dependencies ?? {}
-    )
-
-    copyDependencySubGraph(ctx, newDependencies, opts)
-
-    const newOptionalDependencies = resolvedDepsToDepPaths(
-      depLockfile.optionalDependencies ?? {}
-    )
-
-    copyDependencySubGraph(ctx, newOptionalDependencies, {
-      dev: opts.dev,
-      optional: true,
-    })
   }
 }

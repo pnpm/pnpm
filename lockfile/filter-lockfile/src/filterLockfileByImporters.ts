@@ -1,12 +1,10 @@
-import { logger } from '@pnpm/logger'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { lockfileLogger } from '@pnpm/lockfile-file'
 import { lockfileWalker } from '@pnpm/lockfile-walker'
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import type { DependenciesField, Lockfile, LockfileWalkerStep, PackageSnapshots } from '@pnpm/types'
 
 import { filterImporter } from './filterImporter.js'
-
-const lockfileLogger = logger('lockfile')
 
 export function filterLockfileByImporters(
   lockfile: Lockfile,
@@ -58,12 +56,15 @@ function pkgAllDeps(
 ): void {
   for (const { pkgSnapshot, depPath, next } of step.dependencies) {
     pickedPackages[depPath] = pkgSnapshot
+
     pkgAllDeps(next(), pickedPackages, opts)
   }
+
   for (const depPath of step.missing) {
     if (opts.failOnMissingDependencies) {
       throw new LockfileMissingDependencyError(depPath)
     }
+
     lockfileLogger.debug(`No entry for "${depPath}" in ${WANTED_LOCKFILE}`)
   }
 }
