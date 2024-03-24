@@ -2,24 +2,11 @@ import path from 'path'
 import npa from '@pnpm/npm-package-arg'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import { parsePref, workspacePrefToNpm } from '@pnpm/npm-resolver'
+import { type BaseManifest } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 
-export interface Manifest {
-  name?: string
-  version?: string
-  dependencies?: {
-    [name: string]: string
-  }
-  devDependencies?: {
-    [name: string]: string
-  }
-  optionalDependencies?: {
-    [name: string]: string
-  }
-}
-
 export interface Package {
-  manifest: Manifest
+  manifest: BaseManifest
   dir: string
 }
 
@@ -48,6 +35,7 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
 
   function createNode (pkg: Package): string[] {
     const dependencies = {
+      ...pkg.manifest.peerDependencies,
       ...(!opts?.ignoreDevDeps && pkg.manifest.devDependencies),
       ...pkg.manifest.optionalDependencies,
       ...pkg.manifest.dependencies,
