@@ -9,15 +9,15 @@ export function formatPrefix (cwd: string, prefix: string) {
     return prefix
   }
 
-  const shortPrefix = prefix.slice(-PREFIX_MAX_LENGTH + 3)
+  const shortPrefix = prefix.slice(-PREFIX_MAX_LENGTH + 1)
 
   const separatorLocation = shortPrefix.indexOf('/')
 
   if (separatorLocation <= 0) {
-    return `...${shortPrefix}`
+    return `…${shortPrefix}`
   }
 
-  return `...${shortPrefix.slice(separatorLocation)}`
+  return `…${shortPrefix.slice(separatorLocation)}`
 }
 
 export function formatPrefixNoTrim (cwd: string, prefix: string) {
