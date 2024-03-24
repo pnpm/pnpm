@@ -6372,6 +6372,9 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
       '@pnpm/fs.find-packages':
         specifier: workspace:*
         version: link:../../fs/find-packages

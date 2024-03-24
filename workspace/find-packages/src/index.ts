@@ -1,5 +1,6 @@
 import path from 'path'
 import { packageIsInstallable } from '@pnpm/cli-utils'
+import { parse as parsePkgId } from '@pnpm/dependency-path'
 import { type ProjectManifest, type Project, type SupportedArchitectures } from '@pnpm/types'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { type PackageSnapshot, type ProjectSnapshot } from '@pnpm/lockfile-types'
@@ -86,6 +87,8 @@ function checkNonRootProjectManifest ({ manifest, dir }: Project) {
 export interface PackageItem {
   type: 'package'
   lockfileDir: string
+  name: string | undefined
+  version: string | undefined
   id: string
   snapshot: PackageSnapshot
 }
@@ -93,6 +96,8 @@ export interface PackageItem {
 export interface ProjectItem {
   type: 'project'
   lockfileDir: string
+  name: string | undefined
+  version: string | undefined
   relativeDir: string
   resolvedDir: string
   snapshot: ProjectSnapshot
@@ -105,6 +110,11 @@ export async function findAllPackages (workspaceRoot: string, opts: {
 }): Promise<Array<PackageItem | ProjectItem>> {
   const { sharedWorkspaceLockfile = true, ignoreIncompatible, patterns } = opts
 
+  const projectMapPromise: Promise<Record<string, Project>> = (async function loadProjectMap () {
+    const projects = await findWorkspacePackagesNoCheck(workspaceRoot, { patterns })
+    return Object.fromEntries(projects.map(project => [project.dir, project] as const))
+  })()
+
   if (sharedWorkspaceLockfile) {
     return fromSingleLockfile(workspaceRoot, { ignoreIncompatible })
   }
@@ -115,18 +125,34 @@ export async function findAllPackages (workspaceRoot: string, opts: {
   async function fromSingleLockfile (lockfileDir: string, opts: { ignoreIncompatible: boolean }): Promise<Array<PackageItem | ProjectItem>> {
     const lockfile = await readWantedLockfile(lockfileDir, opts)
     if (!lockfile) return []
-    const packageItems: PackageItem[] = Object.entries(lockfile.packages ?? {}).map(([id, snapshot]) => ({
-      type: 'package',
-      lockfileDir,
-      id,
-      snapshot,
-    }))
-    const projectItems: ProjectItem[] = Object.entries(lockfile.importers).map(([relativeDir, snapshot]) => ({
-      type: 'project',
-      lockfileDir,
-      relativeDir,
-      resolvedDir: path.join(lockfileDir, relativeDir),
-      snapshot,
+    const packageItems: PackageItem[] = Object.entries(lockfile.packages ?? {}).map(([id, snapshot]) => {
+      const { name, version } = parsePkgId(id)
+      return {
+        type: 'package',
+        lockfileDir,
+        name,
+        version,
+        id,
+        snapshot
+      }
+    })
+    const projectItems: ProjectItem[] = await Promise.all(Object.entries(lockfile.importers).map(async ([relativeDir, snapshot]) => {
+      const resolvedDir = path.join(workspaceRoot, relativeDir)
+      const project = (await projectMapPromise)[resolvedDir]
+      if (!project) {
+        // if this branch is reachable, it's mean that the programmer forgot to update the lockfile
+        throw new Error(`Outdated lockfile. Importers contains ${resolvedDir} but the workspace doesn't`)
+      }
+      const { name, version } = project.manifest
+      return {
+        type: 'project',
+        lockfileDir,
+        name,
+        version,
+        relativeDir,
+        resolvedDir,
+        snapshot,
+      }
     }))
     return [...packageItems, ...projectItems]
   }
