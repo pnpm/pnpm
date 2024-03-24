@@ -5,6 +5,7 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
+import isWindows from 'is-windows'
 import {
   execPnpm,
   execPnpmSync,
@@ -63,7 +64,7 @@ test('pnpm fails when an unsupported command is used', async () => {
 
   const { status } = execPnpmSync(['unsupported-command'])
 
-  expect(status).toBe(1)
+  expect(status).toBe(isWindows() ? 1 : 254)
 })
 
 test('pnpm fails when no command is specified', async () => {

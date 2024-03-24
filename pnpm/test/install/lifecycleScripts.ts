@@ -106,7 +106,8 @@ test('dependency should not be added to package.json and lockfile if it was not 
 
   const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 
-  expect(result.status).toBe(1)
+  expect(typeof result.status).toBe('number')
+  expect(result.status).not.toBe(0)
 
   expect(project.readCurrentLockfile()).toBeFalsy()
   expect(project.readLockfile()).toBeFalsy()

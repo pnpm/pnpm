@@ -77,6 +77,16 @@ test('run: pass all arguments after script name to the build script, even --', a
   ])
 })
 
+test('exit code of child process is preserved', async () => {
+  prepare({
+    scripts: {
+      foo: 'exit 87',
+    },
+  })
+  const result = execPnpmSync(['run', 'foo'])
+  expect(result.status).toBe(87)
+})
+
 test('test -r: pass the args to the command that is specified in the build script of a package.json manifest', async () => {
   preparePackages([{
     name: 'project',
