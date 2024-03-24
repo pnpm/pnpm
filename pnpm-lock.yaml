@@ -109,8 +109,8 @@ importers:
         specifier: 1.0.0
         version: 1.0.0
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:__utils__/tsconfig
@@ -227,8 +227,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -264,8 +264,8 @@ importers:
   __utils__/assert-store:
     dependencies:
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1323,8 +1323,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -1444,8 +1444,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -2363,6 +2363,28 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
 
+  lockfile/preferred-versions:
+    dependencies:
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../lockfile-utils
+      '@pnpm/manifest-utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/manifest-utils
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      version-selector-type:
+        specifier: ^3.0.0
+        version: 3.0.0
+    devDependencies:
+      '@pnpm/lockfile.preferred-versions':
+        specifier: workspace:*
+        version: 'link:'
+
   lockfile/prune-lockfile:
     dependencies:
       '@pnpm/constants':
@@ -2909,8 +2931,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3032,6 +3054,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-walker
+      '@pnpm/lockfile.preferred-versions':
+        specifier: workspace:*
+        version: link:../../lockfile/preferred-versions
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -3169,8 +3194,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -3451,8 +3476,8 @@ importers:
         specifier: workspace:*
         version: link:../read-projects-context
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -3808,8 +3833,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -4001,8 +4026,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -4165,6 +4190,9 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile.preferred-versions':
+        specifier: workspace:*
+        version: link:../../lockfile/preferred-versions
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4558,8 +4586,8 @@ importers:
         specifier: workspace:*
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -4818,8 +4846,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
 
   releasing/plugin-commands-publishing:
     dependencies:
@@ -4918,8 +4946,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -5478,8 +5506,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5542,8 +5570,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -5636,8 +5664,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5971,8 +5999,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.20.0
-        version: 3.20.0(typanion@3.14.0)
+        specifier: 3.27.0
+        version: 3.27.0(typanion@3.14.0)
       '@types/archy':
         specifier: 0.0.33
         version: 0.0.33
@@ -6706,6 +6734,10 @@ packages:
 
   '@babel/runtime@7.23.9':
     resolution: {integrity: sha512-0CX6F+BI2s9dkUqr08KFrAIZgNFj75rdBU/DjCyYLIaV/quFjkk6T+EJ2LkZHyZTbEV4L5p97mNkUsHl2wLFAw==}
+    engines: {node: '>=6.9.0'}
+
+  '@babel/runtime@7.24.1':
+    resolution: {integrity: sha512-+BIznRzyqBf+2wCTxcKE3wDjfGeCoVE61KSHGpkzqrLi8qxqFwBeUFyId2cxkTmm55fzDGnm0+yCxaxygrLUnQ==}
     engines: {node: '>=6.9.0'}
 
   '@babel/template@7.23.9':
@@ -7558,8 +7590,8 @@ packages:
     resolution: {integrity: sha512-MDXuQpYFbabSXzAnqP7VIQqBx5Z1fzOhzB/3YmIXJ+tE7Wue//IR3itMSYlWeaFLo1G5PCJklM2zBdvggRw1nw==}
     engines: {node: '>=16.14'}
 
-  '@pnpm/registry-mock@3.20.0':
-    resolution: {integrity: sha512-JKSBYTZn/Nk+2HytdYdz9avy53WWqh4QhP6uE9ImIFw4aw5vRUWq6aQQn6xkm8I/wzPogOpDaEuAfFXhhsj3uA==}
+  '@pnpm/registry-mock@3.27.0':
+    resolution: {integrity: sha512-z6ETaTye2uVGhMHYWVhy3SOxW7oMyAkcOZn5KauSitm3tdv/kt51tMWSFKa3zmHeYDVDlUzhmxLyq1u7lDFVzg==}
     engines: {node: '>=10.13'}
     hasBin: true
 
@@ -7795,6 +7827,9 @@ packages:
 
   '@types/lodash@4.14.202':
     resolution: {integrity: sha512-OvlIYQK9tNneDlS0VN54LLd5uiPCBOp7gS5Z0f1mjoJYBrtStzgmJBxONW3U6OZqdtNzZPmn9BS/7WI7BFFcFQ==}
+
+  '@types/lodash@4.17.0':
+    resolution: {integrity: sha512-t7dhREVv6dbNj0q17X12j7yDG4bD/DHYX7o5/DbDxobP0HnGPgpRz2Ej77aL7TZT3DSw13fqUTj8J4mMnqa7WA==}
 
   '@types/mdast@3.0.15':
     resolution: {integrity: sha512-LnwD+mUEfxWMa1QpDraczIn6k0Ee3SMicuYSSzS6ZYl2gKS09EClnJYGd8Du6rfc5r/GZEk5o1mRb8TaTj03sQ==}
@@ -9413,8 +9448,8 @@ packages:
   fast-levenshtein@2.0.6:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
 
-  fast-redact@3.3.0:
-    resolution: {integrity: sha512-6T5V1QK1u4oF+ATxs1lWUmlEk6P2T9HqJG3e2DnHOdVgZy2rFJBoEnrIedcTXlkAHU/zKC+7KETJ+KGGKwxgMQ==}
+  fast-redact@3.5.0:
+    resolution: {integrity: sha512-dwsoQlS7h9hMeYUq1W++23NDcBLV4KqONnITDV9DjfS3q1SgDGVrBdvvTLUotWtPSD7asWDV9/CmsZPy8Hf70A==}
     engines: {node: '>=6'}
 
   fast-safe-stringify@2.1.1:
@@ -11861,6 +11896,10 @@ packages:
     resolution: {integrity: sha512-QcgiIWV4WV7qWExbN5llt6frQB/lBven9pqliLXfGPB+K9ZYXxDozp0wLkHS24kWCm+6YXH/f0HhnObZnZOBnQ==}
     engines: {node: '>= 0.4'}
 
+  side-channel@1.0.6:
+    resolution: {integrity: sha512-fDW/EZ6Q9RiO8eFG8Hj+7u/oW+XrPTIChwCOM2+th2A6OblDtYYIpve9m+KvI9Z4C9qSEXlaGR6bTEYHReuglA==}
+    engines: {node: '>= 0.4'}
+
   signal-exit@3.0.7:
     resolution: {integrity: sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ==}
 
@@ -12750,6 +12789,11 @@ packages:
     resolution: {integrity: sha512-8aAvwVUSHpfEqTQ4w/KMlf3HcRdt50E5ODIQJBw1fQ5RL34xabzxtUlzTXVqc4rkZsPbvrXKWnABCD7kWSmocA==}
     engines: {node: '>= 14'}
 
+  yaml@2.4.1:
+    resolution: {integrity: sha512-pIXzoImaqmfOrL7teGUBt/T7ZDnyeGBWyXQBvOVhLkWLN37GXv8NMLK406UY6dS51JfcQHsmcW5cJ441bHg6Lg==}
+    engines: {node: '>= 14'}
+    hasBin: true
+
   yargs-parser@18.1.3:
     resolution: {integrity: sha512-o50j0JeToy/4K6OZcaQmW6lyXXKhq7csREXcDwk2omFPJEwUNOVtJKvmDr9EI1fAJZUyZcRF7kxGBWmRXudrCQ==}
     engines: {node: '>=6'}
@@ -13122,6 +13166,10 @@ snapshots:
       '@babel/plugin-transform-typescript': 7.23.6(@babel/core@7.23.3)
 
   '@babel/runtime@7.23.9':
+    dependencies:
+      regenerator-runtime: 0.14.1
+
+  '@babel/runtime@7.24.1':
     dependencies:
       regenerator-runtime: 0.14.1
 
@@ -14338,7 +14386,7 @@ snapshots:
       sort-keys: 4.2.0
       strip-bom: 4.0.0
 
-  '@pnpm/registry-mock@3.20.0(typanion@3.14.0)':
+  '@pnpm/registry-mock@3.27.0(typanion@3.14.0)':
     dependencies:
       anonymous-npm-registry-client: 0.2.0
       execa: 5.1.1
@@ -14588,6 +14636,8 @@ snapshots:
 
   '@types/lodash@4.14.202': {}
 
+  '@types/lodash@4.17.0': {}
+
   '@types/mdast@3.0.15':
     dependencies:
       '@types/unist': 2.0.10
@@ -14799,7 +14849,7 @@ snapshots:
       debug: 4.3.4
       lodash: 4.17.21
       minimatch: 3.1.2
-      yaml: 2.3.4
+      yaml: 2.4.1
       yup: 0.32.11
     transitivePeerDependencies:
       - supports-color
@@ -16548,7 +16598,7 @@ snapshots:
 
   fast-levenshtein@2.0.6: {}
 
-  fast-redact@3.3.0: {}
+  fast-redact@3.5.0: {}
 
   fast-safe-stringify@2.1.1: {}
 
@@ -18672,7 +18722,7 @@ snapshots:
 
   pino@6.14.0:
     dependencies:
-      fast-redact: 3.3.0
+      fast-redact: 3.5.0
       fast-safe-stringify: 2.1.1
       flatstr: 1.0.12
       pino-std-serializers: 3.2.0
@@ -18874,7 +18924,7 @@ snapshots:
 
   qs@6.11.0:
     dependencies:
-      side-channel: 1.0.5
+      side-channel: 1.0.6
 
   qs@6.5.3: {}
 
@@ -19313,6 +19363,13 @@ snapshots:
       shelljs: 0.8.5
 
   side-channel@1.0.5:
+    dependencies:
+      call-bind: 1.0.7
+      es-errors: 1.3.0
+      get-intrinsic: 1.2.4
+      object-inspect: 1.13.1
+
+  side-channel@1.0.6:
     dependencies:
       call-bind: 1.0.7
       es-errors: 1.3.0
@@ -20380,6 +20437,8 @@ snapshots:
 
   yaml@2.3.4: {}
 
+  yaml@2.4.1: {}
+
   yargs-parser@18.1.3:
     dependencies:
       camelcase: 5.3.1
@@ -20431,8 +20490,8 @@ snapshots:
 
   yup@0.32.11:
     dependencies:
-      '@babel/runtime': 7.23.9
-      '@types/lodash': 4.14.202
+      '@babel/runtime': 7.24.1
+      '@types/lodash': 4.17.0
       lodash: 4.17.21
       lodash-es: 4.17.21
       nanoclone: 0.2.1
