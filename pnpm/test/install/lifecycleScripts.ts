@@ -5,6 +5,7 @@ import { type PackageManifest } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import loadJsonFile from 'load-json-file'
+import isWindows from 'is-windows'
 import { execPnpmSync } from '../utils'
 
 const pkgRoot = path.join(__dirname, '..', '..')
@@ -106,7 +107,7 @@ test('dependency should not be added to package.json and lockfile if it was not 
 
   const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 
-  expect(result.status).toBe(255)
+  expect(result.status).toBe(isWindows() ? 1 : 255)
 
   expect(project.readCurrentLockfile()).toBeFalsy()
   expect(project.readLockfile()).toBeFalsy()
