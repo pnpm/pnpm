@@ -63,7 +63,7 @@ test('pnpm fails when an unsupported command is used', async () => {
 
   const { status } = execPnpmSync(['unsupported-command'])
 
-  expect(status).toBe(1)
+  expect(status).toBe(254)
 })
 
 test('pnpm fails when no command is specified', async () => {
