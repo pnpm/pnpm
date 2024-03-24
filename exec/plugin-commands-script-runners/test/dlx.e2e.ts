@@ -4,6 +4,8 @@ import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 
+const testOnWindowsOnly = process.platform === 'win32' ? test : test.skip
+
 test('dlx', async () => {
   prepareEmpty()
 
@@ -120,4 +122,14 @@ test('dlx should return a non-zero exit code when the underlying script fails', 
   }, ['nodetouch', '--bad-option'])
 
   expect(exitCode).toBe(1)
+})
+
+testOnWindowsOnly('dlx should work when running in the root of a Windows Drive', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: 'C:\\',
+    storeDir: path.resolve('store'),
+  }, ['cowsay', 'hello'])
 })

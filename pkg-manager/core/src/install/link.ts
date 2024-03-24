@@ -11,7 +11,7 @@ import {
 } from '@pnpm/filter-lockfile'
 import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
 import { type InstallationResultStats } from '@pnpm/headless'
-import { hoist } from '@pnpm/hoist'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
@@ -38,7 +38,6 @@ import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
 import props from 'ramda/src/props'
 import { type ImporterToUpdate } from './index'
-import { refIsLocalDirectory } from '@pnpm/lockfile-utils'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -74,6 +73,7 @@ export async function linkPackages (
     virtualStoreDir: string
     wantedLockfile: Lockfile
     wantedToBeSkippedPackageIds: Set<string>
+    hoistWorkspacePackages?: boolean
   }
 ): Promise<{
     currentLockfile: Lockfile
@@ -106,6 +106,7 @@ export async function linkPackages (
   depGraph = Object.fromEntries(depNodes.map((depNode) => [depNode.depPath, depNode]))
   const removedDepPaths = await prune(projects, {
     currentLockfile: opts.currentLockfile,
+    dedupeDirectDeps: opts.dedupeDirectDeps,
     hoistedDependencies: opts.hoistedDependencies,
     hoistedModulesDir: (opts.hoistPattern != null) ? opts.hoistedModulesDir : undefined,
     include: opts.include,
@@ -113,7 +114,6 @@ export async function linkPackages (
     pruneStore: opts.pruneStore,
     pruneVirtualStore: opts.pruneVirtualStore,
     publicHoistedModulesDir: (opts.publicHoistPattern != null) ? opts.rootModulesDir : undefined,
-    registries: opts.registries,
     skipped: opts.skipped,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
@@ -224,6 +224,17 @@ export async function linkPackages (
       publicHoistedModulesDir: opts.rootModulesDir,
       publicHoistPattern: opts.publicHoistPattern ?? [],
       virtualStoreDir: opts.virtualStoreDir,
+      hoistedWorkspacePackages: opts.hoistWorkspacePackages
+        ? projects.reduce((hoistedWorkspacePackages, project) => {
+          if (project.manifest.name && project.id !== '.') {
+            hoistedWorkspacePackages[project.id] = {
+              dir: project.rootDir,
+              name: project.manifest.name,
+            }
+          }
+          return hoistedWorkspacePackages
+        }, {} as Record<string, HoistedWorkspaceProject>)
+        : undefined,
     })
   } else {
     newHoistedDependencies = opts.hoistedDependencies
@@ -342,8 +353,8 @@ async function linkNewPackages (
     for (const depPath of wantedRelDepPaths) {
       if (currentLockfile.packages[depPath] &&
         (!equals(currentLockfile.packages[depPath].dependencies, wantedLockfile.packages[depPath].dependencies) ||
-        !isEmpty(currentLockfile.packages[depPath].optionalDependencies) ||
-        !isEmpty(wantedLockfile.packages[depPath].optionalDependencies))
+        !isEmpty(currentLockfile.packages[depPath].optionalDependencies ?? {}) ||
+        !isEmpty(wantedLockfile.packages[depPath].optionalDependencies ?? {}))
       ) {
         // TODO: come up with a test that triggers the usecase of depGraph[depPath] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
@@ -399,7 +410,7 @@ async function selectNewFromWantedDeps (
           prevDep &&
           // Local file should always be treated as a new dependency
           // https://github.com/pnpm/pnpm/issues/5381
-          !refIsLocalDirectory(depNode.depPath) &&
+          depNode.resolution.type !== 'directory' &&
           (depNode.resolution as TarballResolution).integrity === (prevDep.resolution as TarballResolution).integrity
         ) {
           if (await pathExists(depNode.dir)) {
@@ -435,9 +446,7 @@ async function linkAllPkgs (
     depNodes.map(async (depNode) => {
       const { files } = await depNode.fetching()
 
-      if (typeof depNode.requiresBuild === 'function') {
-        depNode.requiresBuild = await depNode.requiresBuild()
-      }
+      depNode.requiresBuild = files.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && files.sideEffects && !isEmpty(files.sideEffects)) {
         sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
@@ -450,7 +459,7 @@ async function linkAllPkgs (
         filesResponse: files,
         force: opts.force,
         sideEffectsCacheKey,
-        requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
+        requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
       })
       if (importMethod) {
         progressLogger.debug({

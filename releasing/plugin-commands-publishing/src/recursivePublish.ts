@@ -42,6 +42,7 @@ Partial<Pick<Config,
 | 'offline'
 | 'selectedProjectsGraph'
 | 'strictSsl'
+| 'sslConfigs'
 | 'unsafePerm'
 | 'userAgent'
 | 'userConfig'

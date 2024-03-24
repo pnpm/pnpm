@@ -137,7 +137,7 @@ export async function link (
   } else {
     newPkg = opts.manifest
   }
-  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile, useGitBranchLockfile: opts.useGitBranchLockfile, mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles }
+  const lockfileOpts = { useGitBranchLockfile: opts.useGitBranchLockfile, mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles }
   if (opts.useLockfile) {
     await writeLockfiles({
       currentLockfile: updatedCurrentLockfile,
@@ -147,7 +147,7 @@ export async function link (
       ...lockfileOpts,
     })
   } else {
-    await writeCurrentLockfile(ctx.virtualStoreDir, updatedCurrentLockfile, lockfileOpts)
+    await writeCurrentLockfile(ctx.virtualStoreDir, updatedCurrentLockfile)
   }
 
   summaryLogger.debug({ prefix: opts.dir })

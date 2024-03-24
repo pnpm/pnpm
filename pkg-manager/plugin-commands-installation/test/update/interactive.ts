@@ -4,7 +4,7 @@ import { type Lockfile } from '@pnpm/lockfile-types'
 import { add, install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import chalk from 'chalk'
 import * as enquirer from 'enquirer'
 
@@ -128,11 +128,11 @@ test('interactively update', async () => {
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
 
-    expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy()
-    expect(lockfile.packages['/is-negative@1.0.1']).toBeTruthy()
-    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
+    expect(lockfile.packages['micromatch@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['is-negative@1.0.1']).toBeTruthy()
+    expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
   }
 
   // t.comment('update to latest versions')
@@ -185,11 +185,11 @@ test('interactively update', async () => {
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
 
-    expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy()
-    expect(lockfile.packages['/is-negative@2.1.0']).toBeTruthy()
-    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
+    expect(lockfile.packages['micromatch@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['is-negative@2.1.0']).toBeTruthy()
+    expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
   }
 })
 
@@ -257,11 +257,11 @@ test('interactive update of dev dependencies only', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
 
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
-    '/is-negative@1.0.1',
-    '/is-negative@2.1.0',
+    'is-negative@1.0.1',
+    'is-negative@2.1.0',
   ])
 })
 
@@ -344,11 +344,11 @@ test('interactively update should ignore dependencies from the ignoreDependencie
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
 
-    expect(lockfile.packages['/micromatch@3.1.10']).toBeTruthy()
-    expect(lockfile.packages['/is-negative@1.0.0']).toBeTruthy()
-    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
+    expect(lockfile.packages['micromatch@3.1.10']).toBeTruthy()
+    expect(lockfile.packages['is-negative@1.0.0']).toBeTruthy()
+    expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
   }
 })
 

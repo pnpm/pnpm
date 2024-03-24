@@ -78,7 +78,6 @@ export interface GetContextOptions {
   confirmModulesPurge?: boolean
   force: boolean
   forceNewModules?: boolean
-  forceSharedLockfile: boolean
   frozenLockfile?: boolean
   extraBinPaths: string[]
   extendNodePath?: boolean
@@ -100,6 +99,10 @@ export interface GetContextOptions {
   publicHoistPattern?: string[] | undefined
   forcePublicHoistPattern?: boolean
   global?: boolean
+}
+interface ImporterToPurge {
+  modulesDir: string
+  rootDir: string
 }
 
 export async function getContext (
@@ -172,10 +175,7 @@ export async function getContext (
     pendingBuilds: importersContext.pendingBuilds,
     projects: Object.fromEntries(importersContext.projects.map((project) => [project.rootDir, project])),
     publicHoistPattern: importersContext.currentPublicHoistPattern ?? opts.publicHoistPattern,
-    registries: {
-      ...opts.registries,
-      ...importersContext.registries,
-    },
+    registries: opts.registries,
     rootModulesDir: importersContext.rootModulesDir,
     skipped: importersContext.skipped,
     storeDir: opts.storeDir,
@@ -184,7 +184,6 @@ export async function getContext (
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
-      forceSharedLockfile: opts.forceSharedLockfile,
       frozenLockfile: opts.frozenLockfile === true,
       lockfileDir: opts.lockfileDir,
       projects: importersContext.projects,
@@ -246,7 +245,9 @@ async function validateModules (
       ' Run "pnpm install" to recreate the modules directory.'
     )
   }
-  let purged = false
+
+  const importersToPurge: ImporterToPurge[] = []
+
   if (opts.forceHoistPattern && (rootProject != null)) {
     try {
       // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
@@ -259,11 +260,10 @@ async function validateModules (
       }
     } catch (err: any) { // eslint-disable-line
       if (!opts.forceNewModules) throw err
-      await purgeModulesDirsOfImporter(opts, rootProject)
-      purged = true
+      importersToPurge.push(rootProject)
     }
   }
-  await Promise.all(projects.map(async (project) => {
+  for (const project of projects) {
     try {
       checkCompatibility(modules, {
         modulesDir: project.modulesDir,
@@ -282,23 +282,21 @@ async function validateModules (
       }
     } catch (err: any) { // eslint-disable-line
       if (!opts.forceNewModules) throw err
-      await purgeModulesDirsOfImporter(opts, project)
-      purged = true
+      importersToPurge.push(project)
     }
-  }))
-  if ((modules.registries != null) && !equals(opts.registries, modules.registries)) {
-    if (opts.forceNewModules) {
-      await purgeModulesDirsOfImporters(opts, projects)
-      return { purged: true }
-    }
-    throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate the modules directory using the new settings, run "pnpm install${opts.global ? ' -g' : ''}".`)
   }
-  if (purged && (rootProject == null)) {
-    await purgeModulesDirsOfImporter(opts, {
+  if (importersToPurge.length > 0 && (rootProject == null)) {
+    importersToPurge.push({
       modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
       rootDir: opts.lockfileDir,
     })
   }
+
+  const purged = importersToPurge.length > 0
+  if (purged) {
+    await purgeModulesDirsOfImporters(opts, importersToPurge)
+  }
+
   return { purged }
 }
 
@@ -307,10 +305,7 @@ async function purgeModulesDirsOfImporter (
     confirmModulesPurge?: boolean
     virtualStoreDir: string
   },
-  importer: {
-    modulesDir: string
-    rootDir: string
-  }
+  importer: ImporterToPurge
 ) {
   return purgeModulesDirsOfImporters(opts, [importer])
 }
@@ -320,10 +315,7 @@ async function purgeModulesDirsOfImporters (
     confirmModulesPurge?: boolean
     virtualStoreDir: string
   },
-  importers: Array<{
-    modulesDir: string
-    rootDir: string
-  }>
+  importers: ImporterToPurge[]
 ) {
   if (opts.confirmModulesPurge ?? true) {
     const confirmed = await enquirer.prompt({
@@ -415,7 +407,6 @@ export async function getContextForSingleImporter (
     excludeLinksFromLockfile: boolean
     force: boolean
     forceNewModules?: boolean
-    forceSharedLockfile: boolean
     confirmModulesPurge?: boolean
     extraBinPaths: string[]
     extendNodePath?: boolean
@@ -530,7 +521,6 @@ export async function getContextForSingleImporter (
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
-      forceSharedLockfile: opts.forceSharedLockfile,
       frozenLockfile: false,
       lockfileDir: opts.lockfileDir,
       projects: [{ id: importerId, rootDir: opts.dir }],

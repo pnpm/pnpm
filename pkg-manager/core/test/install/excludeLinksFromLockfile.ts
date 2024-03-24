@@ -8,13 +8,13 @@ import {
   type MutatedProject,
   type ProjectOptions,
 } from '@pnpm/core'
-import { type Lockfile, type LockfileV6 } from '@pnpm/lockfile-types'
+import { type Lockfile, type LockfileFile } from '@pnpm/lockfile-types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeJsonFile } from 'write-json-file'
 import { testDefaults } from '../utils'
 
@@ -77,42 +77,42 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
       rootDir: project2Dir,
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, excludeLinksFromLockfile: true }))
-  const lockfile: LockfileV6 = await readYamlFile(WANTED_LOCKFILE)
-  expect(lockfile.importers['project-1'].dependencies?.['external-1']).toBeUndefined()
-  expect(lockfile.importers['project-2'].dependencies?.['external-2']).toBeUndefined()
+  await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true }))
+  const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
+  expect(lockfile.importers?.['project-1'].dependencies?.['external-1']).toBeUndefined()
+  expect(lockfile.importers?.['project-2'].dependencies?.['external-2']).toBeUndefined()
 
   expect(fs.existsSync(path.resolve('project-1/node_modules/external-1/index.js'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('project-2/node_modules/external-2/index.js'))).toBeTruthy()
 
-  await rimraf('node_modules')
-  await rimraf('project-1/node_modules')
-  await rimraf('project-2/node_modules')
+  rimraf('node_modules')
+  rimraf('project-1/node_modules')
+  rimraf('project-2/node_modules')
 
-  await mutateModules(importers, await testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: true }))
-  expect(lockfile.importers['project-1'].dependencies?.['external-1']).toBeUndefined()
-  expect(lockfile.importers['project-2'].dependencies?.['external-2']).toBeUndefined()
+  await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: true }))
+  expect(lockfile.importers?.['project-1'].dependencies?.['external-1']).toBeUndefined()
+  expect(lockfile.importers?.['project-2'].dependencies?.['external-2']).toBeUndefined()
 
   expect(fs.existsSync(path.resolve('project-1/node_modules/external-1/index.js'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('project-2/node_modules/external-2/index.js'))).toBeTruthy()
 
-  await rimraf('node_modules')
-  await rimraf('project-1/node_modules')
-  await rimraf('project-2/node_modules')
+  rimraf('node_modules')
+  rimraf('project-1/node_modules')
+  rimraf('project-2/node_modules')
 
-  await mutateModules(importers, await testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: false, preferFrozenLockfile: false }))
-  expect(lockfile.importers['project-1'].dependencies?.['external-1']).toBeUndefined()
-  expect(lockfile.importers['project-2'].dependencies?.['external-2']).toBeUndefined()
+  await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: false, preferFrozenLockfile: false }))
+  expect(lockfile.importers?.['project-1'].dependencies?.['external-1']).toBeUndefined()
+  expect(lockfile.importers?.['project-2'].dependencies?.['external-2']).toBeUndefined()
 
   expect(fs.existsSync(path.resolve('project-1/node_modules/external-1/index.js'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('project-2/node_modules/external-2/index.js'))).toBeTruthy()
 
   delete allProjects[1].manifest.dependencies!['external-2']
   allProjects[1].manifest.dependencies!['external-3'] = `link:${path.relative(project2Dir, externalPkg3)}`
-  await mutateModules(importers, await testDefaults({ allProjects, excludeLinksFromLockfile: true }))
-  expect(lockfile.importers['project-1'].dependencies?.['external-1']).toBeUndefined()
-  expect(lockfile.importers['project-2'].dependencies?.['external-2']).toBeUndefined()
-  expect(lockfile.importers['project-2'].dependencies?.['external-3']).toBeUndefined()
+  await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true }))
+  expect(lockfile.importers?.['project-1'].dependencies?.['external-1']).toBeUndefined()
+  expect(lockfile.importers?.['project-2'].dependencies?.['external-2']).toBeUndefined()
+  expect(lockfile.importers?.['project-2'].dependencies?.['external-3']).toBeUndefined()
 
   expect(fs.existsSync(path.resolve('project-1/node_modules/external-1/index.js'))).toBeTruthy()
   // expect(fs.existsSync(path.resolve('project-2/node_modules/external-2'))).toBeFalsy() // Should we remove external links that are not in deps anymore?
@@ -127,7 +127,7 @@ test('local file using absolute path is correctly installed on repeat install', 
   // is-odd is only added because otherwise no lockfile is created
   const manifest = await addDependenciesToPackage({},
     [`link:${absolutePath}`, 'is-odd@1.0.0'],
-    await testDefaults({ excludeLinksFromLockfile: true })
+    testDefaults({ excludeLinksFromLockfile: true })
   )
 
   const expectedSpecs = {
@@ -136,8 +136,8 @@ test('local file using absolute path is correctly installed on repeat install', 
   }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
 
-  await rimraf('node_modules')
-  await install(manifest, await testDefaults({ frozenLockfile: true, excludeLinksFromLockfile: true }))
+  rimraf('node_modules')
+  await install(manifest, testDefaults({ frozenLockfile: true, excludeLinksFromLockfile: true }))
   {
     const m = project.requireModule('local-pkg')
     expect(m).toBeTruthy()
@@ -152,7 +152,7 @@ test('hoisted install should not fail with excludeLinksFromLockfile true', async
   // is-odd is only added because otherwise no lockfile is created
   const manifest = await addDependenciesToPackage({},
     [`link:${absolutePath}`, 'is-odd@1.0.0'],
-    await testDefaults({ excludeLinksFromLockfile: true, nodeLinker: 'hoisted' })
+    testDefaults({ excludeLinksFromLockfile: true, nodeLinker: 'hoisted' })
   )
 
   const expectedSpecs = {
@@ -196,7 +196,7 @@ test('update the lockfile when a new project is added to the workspace but do no
       rootDir: path.resolve('project-1'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, excludeLinksFromLockfile: true }))
+  await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true }))
 
   importers.push({
     mutation: 'install',
@@ -210,9 +210,9 @@ test('update the lockfile when a new project is added to the workspace but do no
     },
     rootDir: path.resolve('project-2'),
   })
-  await mutateModules(importers, await testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: true }))
+  await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: true }))
 
-  const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
+  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
   expect(Object.keys(lockfile.importers['project-1'].dependencies ?? {})).toStrictEqual(['is-positive'])
 })
@@ -229,13 +229,13 @@ test('path to external link is not added to the lockfile, when it resolves a pee
 
   await addDependenciesToPackage({},
     ['@pnpm.e2e/abc@1.0.0', `link:${externalPkg}`],
-    await testDefaults({ excludeLinksFromLockfile: true })
+    testDefaults({ excludeLinksFromLockfile: true })
   )
 
-  const lockfile = await project.readLockfile()
-  const key = '/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@node_modules+@pnpm.e2e+peer-a)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)'
-  expect(lockfile.packages[key]).toBeTruthy()
-  expect(lockfile.packages[key].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:node_modules/@pnpm.e2e/peer-a')
+  const lockfile = project.readLockfile()
+  const key = '@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@node_modules+@pnpm.e2e+peer-a)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)'
+  expect(lockfile.snapshots[key]).toBeTruthy()
+  expect(lockfile.snapshots[key].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:node_modules/@pnpm.e2e/peer-a')
 })
 
 test('links resolved from workspace protocol dependencies are not removed', async () => {
@@ -294,15 +294,15 @@ test('links resolved from workspace protocol dependencies are not removed', asyn
       },
     },
   }
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     excludeLinksFromLockfile: true,
     lockfileOnly: true,
     workspacePackages,
   }))
 
-  const lockfile: LockfileV6 = await readYamlFile(WANTED_LOCKFILE)
-  expect(lockfile.importers['project-1'].dependencies?.['project-2']).toStrictEqual({
+  const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
+  expect(lockfile.importers?.['project-1'].dependencies?.['project-2']).toStrictEqual({
     specifier: 'workspace:*',
     version: 'link:../project-2',
   })

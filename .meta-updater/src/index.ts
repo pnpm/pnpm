@@ -9,7 +9,7 @@ import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 
-const NEXT_TAG = 'next-8'
+const NEXT_TAG = 'next-9'
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => {
@@ -99,7 +99,8 @@ async function updateTSConfig (
         manifest.name === '@pnpm/git-fetcher' ||
         manifest.name === '@pnpm/tarball-fetcher' ||
         manifest.name === '@pnpm/package-requester'
-      )
+      ) ||
+      depName === 'pnpm' && manifest.name === '@pnpm/make-dedicated-lockfile'
     ) {
       // This is to avoid a circular graph (which TypeScript references do not support.
       continue
@@ -201,7 +202,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     scripts.compile += ' && rimraf dist bin/nodes && pnpm run bundle \
 && shx cp -r node-gyp-bin dist/node-gyp-bin \
-&& shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts \
+&& shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates \
 && shx cp -r node_modules/ps-list/vendor dist/vendor \
 && shx cp pnpmrc dist/pnpmrc'
   } else {
@@ -242,7 +243,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       url: 'https://github.com/pnpm/pnpm/issues',
     },
     engines: {
-      node: '>=16.14',
+      node: '>=18.12',
     },
     files,
     funding: 'https://opencollective.com/pnpm',

@@ -1,6 +1,7 @@
 import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
+import { generateCompletion, createCompletionServer } from '@pnpm/plugin-commands-completion'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
 import { doctor } from '@pnpm/plugin-commands-doctor'
 import { env } from '@pnpm/plugin-commands-env'
@@ -23,11 +24,13 @@ import {
 import { server } from '@pnpm/plugin-commands-server'
 import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
+import { catFile, catIndex, findHash } from '@pnpm/plugin-commands-store-inspecting'
 import { init } from '@pnpm/plugin-commands-init'
 import pick from 'ramda/src/pick'
 import { type PnpmOptions } from '../types'
+import { shorthands as universalShorthands } from '../shorthands'
+import { parseCliArgs } from '../parseCliArgs'
 import * as bin from './bin'
-import { createCompletion } from './completion'
 import { createHelp } from './help'
 import * as installTest from './installTest'
 import * as recursive from './recursive'
@@ -52,6 +55,7 @@ export const GLOBAL_OPTIONS = pick([
   'workspace-packages',
   'workspace-root',
   'include-workspace-root',
+  'fail-if-no-match',
 ], allTypes)
 
 export type CommandResponse = string | { output?: string, exitCode: number }
@@ -115,6 +119,7 @@ const commands: CommandDefinition[] = [
   env,
   exec,
   fetch,
+  generateCompletion,
   importCommand,
   init,
   install,
@@ -139,6 +144,9 @@ const commands: CommandDefinition[] = [
   server,
   setup,
   store,
+  catFile,
+  catIndex,
+  findHash,
   test,
   unlink,
   update,
@@ -185,12 +193,14 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 handlerByCommandName.help = createHelp(helpByCommandName)
-handlerByCommandName.completion = createCompletion({
+handlerByCommandName['completion-server'] = createCompletionServer({
   cliOptionsTypesByCommandName,
   completionByCommandName,
   initialCompletion,
   shorthandsByCommandName,
   universalOptionsTypes: GLOBAL_OPTIONS,
+  universalShorthands,
+  parseCliArgs,
 })
 
 function initialCompletion () {

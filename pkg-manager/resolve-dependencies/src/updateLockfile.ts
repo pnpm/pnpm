@@ -4,16 +4,13 @@ import {
   type LockfileResolution,
   type PackageSnapshot,
   pruneSharedLockfile,
-  type ResolvedDependencies,
 } from '@pnpm/prune-lockfile'
 import { type DirectoryResolution, type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { type KeyValuePair } from 'ramda'
-import mergeRight from 'ramda/src/mergeRight'
 import partition from 'ramda/src/partition'
-import { type SafePromiseDefer } from 'safe-promise-defer'
 import { depPathToRef } from './depPathToRef'
 import { type ResolvedPackage } from './resolveDependencies'
 import { type DependenciesGraph } from '.'
@@ -26,18 +23,14 @@ export function updateLockfile (
     registries: Registries
     lockfileIncludeTarballUrl?: boolean
   }
-): {
-    newLockfile: Lockfile
-    pendingRequiresBuilds: string[]
-  } {
+): Lockfile {
   lockfile.packages = lockfile.packages ?? {}
-  const pendingRequiresBuilds = [] as string[]
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias),
       Object.entries(depNode.children).map(([alias, depPath]) => ({ alias, depPath }))
     )
-    lockfile.packages[depPath] = toLockfileDependency(pendingRequiresBuilds, depNode, {
+    lockfile.packages[depPath] = toLockfileDependency(depNode, {
       depGraph: dependenciesGraph,
       depPath,
       prevSnapshot: lockfile.packages[depPath],
@@ -51,14 +44,10 @@ export function updateLockfile (
   const warn = (message: string) => {
     logger.warn({ message, prefix })
   }
-  return {
-    newLockfile: pruneSharedLockfile(lockfile, { warn }),
-    pendingRequiresBuilds,
-  }
+  return pruneSharedLockfile(lockfile, { warn })
 }
 
 function toLockfileDependency (
-  pendingRequiresBuilds: string[],
   pkg: ResolvedPackage & { transitivePeerDependencies: Set<string> },
   opts: {
     depPath: string
@@ -79,23 +68,17 @@ function toLockfileDependency (
     opts.lockfileIncludeTarballUrl
   )
   const newResolvedDeps = updateResolvedDeps(
-    opts.prevSnapshot?.dependencies ?? {},
     opts.updatedDeps,
-    opts.registries,
     opts.depGraph
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
-    opts.prevSnapshot?.optionalDependencies ?? {},
     opts.updatedOptionalDeps,
-    opts.registries,
     opts.depGraph
   )
   const result = {
     resolution: lockfileResolution,
   } as PackageSnapshot
-  if (dp.isAbsolute(opts.depPath)) {
-    result['name'] = pkg.name
-
+  if (opts.depPath.includes(':')) {
     // There is no guarantee that a non-npmjs.org-hosted package is going to have a version field.
     // Also, for local directory dependencies, the version is not needed.
     if (pkg.version && (lockfileResolution as DirectoryResolution).type !== 'directory') {
@@ -108,30 +91,22 @@ function toLockfileDependency (
   if (Object.keys(newResolvedOptionalDeps).length > 0) {
     result['optionalDependencies'] = newResolvedOptionalDeps
   }
-  if (pkg.dev && !pkg.prod) {
-    result['dev'] = true
-  } else if (pkg.prod && !pkg.dev) {
-    result['dev'] = false
-  }
   if (pkg.optional) {
     result['optional'] = true
-  }
-  if (opts.depPath[0] !== '/' && !pkg.id.endsWith(opts.depPath)) {
-    result['id'] = pkg.id
-  }
-  if (Object.keys(pkg.peerDependencies ?? {}).length > 0) {
-    result['peerDependencies'] = pkg.peerDependencies
   }
   if (pkg.transitivePeerDependencies.size) {
     result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies).sort()
   }
-  if (pkg.peerDependenciesMeta != null) {
+  if (Object.keys(pkg.peerDependencies ?? {}).length > 0) {
+    const peerPkgs: Record<string, string> = {}
     const normalizedPeerDependenciesMeta: Record<string, { optional: true }> = {}
-    for (const [peer, { optional }] of Object.entries(pkg.peerDependenciesMeta)) {
+    for (const [peer, { version, optional }] of Object.entries(pkg.peerDependencies)) {
+      peerPkgs[peer] = version
       if (optional) {
         normalizedPeerDependenciesMeta[peer] = { optional: true }
       }
     }
+    result['peerDependencies'] = peerPkgs
     if (Object.keys(normalizedPeerDependenciesMeta).length > 0) {
       result['peerDependenciesMeta'] = normalizedPeerDependenciesMeta
     }
@@ -152,8 +127,16 @@ function toLockfileDependency (
   if (pkg.additionalInfo.libc != null) {
     result['libc'] = pkg.additionalInfo.libc
   }
-  if (Array.isArray(pkg.additionalInfo.bundledDependencies) || Array.isArray(pkg.additionalInfo.bundleDependencies)) {
-    result['bundledDependencies'] = pkg.additionalInfo.bundledDependencies ?? pkg.additionalInfo.bundleDependencies
+  if (
+    Array.isArray(pkg.additionalInfo.bundledDependencies) ||
+    pkg.additionalInfo.bundledDependencies === true
+  ) {
+    result['bundledDependencies'] = pkg.additionalInfo.bundledDependencies
+  } else if (
+    Array.isArray(pkg.additionalInfo.bundleDependencies) ||
+    pkg.additionalInfo.bundleDependencies === true
+  ) {
+    result['bundledDependencies'] = pkg.additionalInfo.bundleDependencies
   }
   if (pkg.additionalInfo.deprecated) {
     result['deprecated'] = pkg.additionalInfo.deprecated
@@ -164,42 +147,14 @@ function toLockfileDependency (
   if (pkg.patchFile) {
     result['patched'] = true
   }
-  const requiresBuildIsKnown = typeof pkg.requiresBuild === 'boolean'
-  let pending = false
-  if (requiresBuildIsKnown) {
-    if (pkg.requiresBuild) {
-      result['requiresBuild'] = true
-    }
-  } else if (opts.prevSnapshot != null) {
-    if (opts.prevSnapshot.requiresBuild) {
-      result['requiresBuild'] = opts.prevSnapshot.requiresBuild
-    }
-    if (opts.prevSnapshot.prepare) {
-      result['prepare'] = opts.prevSnapshot.prepare
-    }
-  } else if (pkg.prepare) {
-    result['prepare'] = true
-    result['requiresBuild'] = true
-  } else {
-    pendingRequiresBuilds.push(opts.depPath)
-    pending = true
-  }
-  if (!requiresBuildIsKnown && !pending) {
-    (pkg.requiresBuild as SafePromiseDefer<boolean>).resolve(result.requiresBuild ?? false)
-  }
   return result
 }
 
-// previous resolutions should not be removed from lockfile
-// as installation might not reanalyze the whole dependency graph
-// the `depth` property defines how deep should dependencies be checked
 function updateResolvedDeps (
-  prevResolvedDeps: ResolvedDependencies,
   updatedDeps: Array<{ alias: string, depPath: string }>,
-  registries: Registries,
   depGraph: DependenciesGraph
 ) {
-  const newResolvedDeps = Object.fromEntries(
+  return Object.fromEntries(
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {
@@ -211,15 +166,10 @@ function updateResolvedDeps (
           depPathToRef(depNode.depPath, {
             alias,
             realName: depNode.name,
-            registries,
             resolution: depNode.resolution,
           }),
         ]
       })
-  )
-  return mergeRight(
-    prevResolvedDeps,
-    newResolvedDeps
   )
 }
 
@@ -234,7 +184,7 @@ function toLockfileResolution (
   registry: string,
   lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
-  if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {
+  if (resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }
   if (lockfileIncludeTarballUrl) {

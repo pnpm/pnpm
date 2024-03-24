@@ -1,5 +1,75 @@
 # @pnpm/git-fetcher
 
+## 12.0.19
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.7
+- @pnpm/prepare-package@5.0.24
+- @pnpm/worker@0.3.14
+
+## 12.0.18
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.23
+
+## 12.0.17
+
+### Patch Changes
+
+- @pnpm/worker@0.3.13
+
+## 12.0.16
+
+### Patch Changes
+
+- @pnpm/worker@0.3.12
+- @pnpm/prepare-package@5.0.22
+- @pnpm/fetcher-base@15.0.6
+
+## 12.0.15
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.21
+- @pnpm/fetcher-base@15.0.5
+- @pnpm/worker@0.3.11
+
+## 12.0.14
+
+### Patch Changes
+
+- @pnpm/worker@0.3.10
+
+## 12.0.13
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/worker@0.3.9
+
+## 12.0.12
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.20
+- @pnpm/worker@0.3.8
+
+## 12.0.11
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.19
+
+## 12.0.10
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.4
+- @pnpm/worker@0.3.7
+- @pnpm/prepare-package@5.0.18
+
 ## 12.0.9
 
 ### Patch Changes

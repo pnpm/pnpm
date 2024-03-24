@@ -149,7 +149,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv'>
+  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv' | 'nodeOptions'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
@@ -191,11 +191,23 @@ export async function handler (
     if (opts.ifPresent) return
     if (opts.fallbackCommandUsed) {
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
+      const params = opts.argv.original.slice(1)
+      while (params.length > 0 && params[0].startsWith('-') && params[0] !== '--') {
+        params.shift()
+      }
+      if (params.length > 0 && params[0] === '--') {
+        params.shift()
+      }
+      if (params.length === 0) {
+        throw new PnpmError('UNEXPECTED_BEHAVIOR', 'Params should not be an empty array', {
+          hint: 'This was a bug caused by programmer error. Please report it',
+        })
+      }
       return exec({
         selectedProjectsGraph: {},
         implicitlyFellbackFromRun: true,
         ...opts,
-      }, opts.argv.original.slice(1))
+      }, params)
     }
     if (opts.workspaceDir) {
       const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
@@ -212,10 +224,16 @@ so you may run "pnpm -w run ${scriptName}"`,
     })
   }
   const concurrency = opts.workspaceConcurrency ?? 4
+
+  const extraEnv = {
+    ...opts.extraEnv,
+    ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
+  }
+
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
-    extraEnv: opts.extraEnv,
+    extraEnv,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
@@ -241,7 +259,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
 
     await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     if (opts.bail !== false) {
       throw err
     }

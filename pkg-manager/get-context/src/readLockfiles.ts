@@ -30,7 +30,6 @@ export async function readLockfiles (
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
     force: boolean
-    forceSharedLockfile: boolean
     frozenLockfile: boolean
     projects: Array<{
       id: string
@@ -53,12 +52,12 @@ export async function readLockfiles (
     wantedLockfileIsModified: boolean
     lockfileHadConflicts: boolean
   }> {
-  const wantedLockfileVersion = LOCKFILE_VERSION_V6
+  const wantedLockfileVersion = LOCKFILE_VERSION
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
     ignoreIncompatible: opts.force || isCI,
-    wantedVersions: [LOCKFILE_VERSION.toString(), LOCKFILE_VERSION_V6],
+    wantedVersions: [LOCKFILE_VERSION, LOCKFILE_VERSION_V6],
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }

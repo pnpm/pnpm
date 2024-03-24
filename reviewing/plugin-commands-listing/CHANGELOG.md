@@ -1,5 +1,94 @@
 # @pnpm/plugin-commands-listing
 
+## 8.0.11
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.9
+- @pnpm/config@20.4.2
+- @pnpm/list@9.1.10
+
+## 8.0.10
+
+### Patch Changes
+
+- Updated dependencies [d9564e354]
+  - @pnpm/config@20.4.1
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/list@9.1.9
+
+## 8.0.9
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 8.0.8
+
+### Patch Changes
+
+- Updated dependencies [09f610349]
+- Updated dependencies [4e71066dd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/list@9.1.8
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+
+## 8.0.7
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/list@9.1.7
+
+## 8.0.6
+
+### Patch Changes
+
+- @pnpm/list@9.1.6
+
+## 8.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.4
+
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+
+## 8.0.3
+
+### Patch Changes
+
+- @pnpm/list@9.1.5
+
+## 8.0.2
+
+### Patch Changes
+
+- @pnpm/config@20.1.2
+- @pnpm/cli-utils@2.1.2
+- @pnpm/list@9.1.4
+
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/list@9.1.4
+- @pnpm/config@20.1.1
+- @pnpm/cli-utils@2.1.1
+
 ## 8.0.0
 
 ### Major Changes

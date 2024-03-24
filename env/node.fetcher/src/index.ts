@@ -50,6 +50,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     filesResponse: {
       filesIndex: filesIndex as Record<string, string>,
       resolvedFrom: 'remote',
+      requiresBuild: false,
     },
     force: true,
   })

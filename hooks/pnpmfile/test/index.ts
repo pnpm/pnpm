@@ -43,3 +43,20 @@ test('filterLog hook combines with the global hook', () => {
     prefix: 'test',
   })).toBeFalsy()
 })
+
+test('calculatePnpmfileChecksum is undefined when pnpmfile does not exist', async () => {
+  const hooks = requireHooks(__dirname, { pnpmfile: 'file-that-does-not-exist.js' })
+  expect(hooks.calculatePnpmfileChecksum).toBeUndefined()
+})
+
+test('calculatePnpmfileChecksum resolves to hash string for existing pnpmfile', async () => {
+  const pnpmfile = path.join(__dirname, 'pnpmfiles/readPackageNoObject.js')
+  const hooks = requireHooks(__dirname, { pnpmfile })
+  expect(typeof await hooks.calculatePnpmfileChecksum?.()).toBe('string')
+})
+
+test('calculatePnpmfileChecksum is undefined if pnpmfile even when it exports undefined', async () => {
+  const pnpmfile = path.join(__dirname, 'pnpmfiles/undefined.js')
+  const hooks = requireHooks(__dirname, { pnpmfile })
+  expect(hooks.calculatePnpmfileChecksum).toBeUndefined()
+})

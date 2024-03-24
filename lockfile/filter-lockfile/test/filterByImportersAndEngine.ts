@@ -24,7 +24,7 @@ afterEach(() => {
 })
 
 test('filterByImportersAndEngine(): skip packages that are not installable', () => {
-  const skippedPackages = new Set<string>(['/preserve-existing-skipped/1.0.0'])
+  const skippedPackages = new Set<string>(['preserve-existing-skipped@1.0.0'])
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
@@ -57,22 +57,21 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        '/bar/1.0.0': {
+        'bar@1.0.0': {
           resolution: { integrity: '' },
         },
-        '/dev-dep/1.0.0': {
-          dev: true,
+        'dev-dep@1.0.0': {
           resolution: { integrity: '' },
         },
-        '/foo/1.0.0': {
+        'foo@1.0.0': {
           optional: true,
           resolution: { integrity: '' },
         },
-        '/not-skipped-optional/1.0.0': {
+        'not-skipped-optional@1.0.0': {
           optional: true,
           resolution: { integrity: '' },
         },
-        '/optional-dep/1.0.0': {
+        'optional-dep@1.0.0': {
           dependencies: {
             bar: '1.0.0',
             foo: '1.0.0',
@@ -83,10 +82,10 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
           optional: true,
           resolution: { integrity: '' },
         },
-        '/prod-dep-dep/1.0.0': {
+        'prod-dep-dep@1.0.0': {
           resolution: { integrity: '' },
         },
-        '/prod-dep/1.0.0': {
+        'prod-dep@1.0.0': {
           dependencies: {
             bar: '1.0.0',
             'prod-dep-dep': '1.0.0',
@@ -96,7 +95,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
           },
           resolution: { integrity: '' },
         },
-        '/project-2-prod-dep/1.0.0': {
+        'project-2-prod-dep@1.0.0': {
           resolution: { integrity: '' },
         },
       },
@@ -157,22 +156,21 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/bar/1.0.0': {
+      'bar@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/dev-dep/1.0.0': {
-        dev: true,
+      'dev-dep@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/foo/1.0.0': {
+      'foo@1.0.0': {
         optional: true,
         resolution: { integrity: '' },
       },
-      '/not-skipped-optional/1.0.0': {
+      'not-skipped-optional@1.0.0': {
         optional: true,
         resolution: { integrity: '' },
       },
-      '/optional-dep/1.0.0': {
+      'optional-dep@1.0.0': {
         dependencies: {
           bar: '1.0.0',
           foo: '1.0.0',
@@ -183,10 +181,10 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
         optional: true,
         resolution: { integrity: '' },
       },
-      '/prod-dep-dep/1.0.0': {
+      'prod-dep-dep@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/prod-dep/1.0.0': {
+      'prod-dep@1.0.0': {
         dependencies: {
           bar: '1.0.0',
           'prod-dep-dep': '1.0.0',
@@ -198,7 +196,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
       },
     },
   })
-  expect(Array.from(skippedPackages)).toStrictEqual(['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0'])
+  expect(Array.from(skippedPackages)).toStrictEqual(['preserve-existing-skipped@1.0.0', 'optional-dep@1.0.0', 'foo@1.0.0'])
 })
 
 test('filterByImportersAndEngine(): filter the packages that set os and cpu', () => {
@@ -211,7 +209,7 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
     },
   })
 
-  const skippedPackages = new Set<string>(['/preserve-existing-skipped/1.0.0'])
+  const skippedPackages = new Set<string>(['preserve-existing-skipped@1.0.0'])
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
@@ -244,22 +242,21 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        '/bar/1.0.0': {
+        'bar@1.0.0': {
           resolution: { integrity: '' },
         },
-        '/dev-dep/1.0.0': {
-          dev: true,
+        'dev-dep@1.0.0': {
           resolution: { integrity: '' },
         },
-        '/foo/1.0.0': {
+        'foo@1.0.0': {
           optional: true,
           resolution: { integrity: '' },
         },
-        '/not-skipped-optional/1.0.0': {
+        'not-skipped-optional@1.0.0': {
           optional: true,
           resolution: { integrity: '' },
         },
-        '/optional-dep/1.0.0': {
+        'optional-dep@1.0.0': {
           dependencies: {
             bar: '1.0.0',
             foo: '1.0.0',
@@ -269,10 +266,10 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
           optional: true,
           resolution: { integrity: '' },
         },
-        '/prod-dep-dep/1.0.0': {
+        'prod-dep-dep@1.0.0': {
           resolution: { integrity: '' },
         },
-        '/prod-dep/1.0.0': {
+        'prod-dep@1.0.0': {
           dependencies: {
             bar: '1.0.0',
             'prod-dep-dep': '1.0.0',
@@ -282,7 +279,7 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
           },
           resolution: { integrity: '' },
         },
-        '/project-2-prod-dep/1.0.0': {
+        'project-2-prod-dep@1.0.0': {
           resolution: { integrity: '' },
         },
       },
@@ -343,22 +340,21 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/bar/1.0.0': {
+      'bar@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/dev-dep/1.0.0': {
-        dev: true,
+      'dev-dep@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/foo/1.0.0': {
+      'foo@1.0.0': {
         optional: true,
         resolution: { integrity: '' },
       },
-      '/not-skipped-optional/1.0.0': {
+      'not-skipped-optional@1.0.0': {
         optional: true,
         resolution: { integrity: '' },
       },
-      '/optional-dep/1.0.0': {
+      'optional-dep@1.0.0': {
         dependencies: {
           bar: '1.0.0',
           foo: '1.0.0',
@@ -368,10 +364,10 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
         optional: true,
         resolution: { integrity: '' },
       },
-      '/prod-dep-dep/1.0.0': {
+      'prod-dep-dep@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/prod-dep/1.0.0': {
+      'prod-dep@1.0.0': {
         dependencies: {
           bar: '1.0.0',
           'prod-dep-dep': '1.0.0',
@@ -383,11 +379,11 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
       },
     },
   })
-  expect(Array.from(skippedPackages)).toStrictEqual(['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0'])
+  expect(Array.from(skippedPackages)).toStrictEqual(['preserve-existing-skipped@1.0.0', 'optional-dep@1.0.0', 'foo@1.0.0'])
 })
 
 test('filterByImportersAndEngine(): filter the packages that set libc', () => {
-  const skippedPackages = new Set<string>(['/preserve-existing-skipped/1.0.0'])
+  const skippedPackages = new Set<string>(['preserve-existing-skipped@1.0.0'])
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
@@ -420,22 +416,21 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        '/bar/1.0.0': {
+        'bar@1.0.0': {
           resolution: { integrity: '' },
         },
-        '/dev-dep/1.0.0': {
-          dev: true,
+        'dev-dep@1.0.0': {
           resolution: { integrity: '' },
         },
-        '/foo/1.0.0': {
+        'foo@1.0.0': {
           optional: true,
           resolution: { integrity: '' },
         },
-        '/not-skipped-optional/1.0.0': {
+        'not-skipped-optional@1.0.0': {
           optional: true,
           resolution: { integrity: '' },
         },
-        '/optional-dep/1.0.0': {
+        'optional-dep@1.0.0': {
           dependencies: {
             bar: '1.0.0',
             foo: '1.0.0',
@@ -444,10 +439,10 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
           optional: true,
           resolution: { integrity: '' },
         },
-        '/prod-dep-dep/1.0.0': {
+        'prod-dep-dep@1.0.0': {
           resolution: { integrity: '' },
         },
-        '/prod-dep/1.0.0': {
+        'prod-dep@1.0.0': {
           dependencies: {
             bar: '1.0.0',
             'prod-dep-dep': '1.0.0',
@@ -457,7 +452,7 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
           },
           resolution: { integrity: '' },
         },
-        '/project-2-prod-dep/1.0.0': {
+        'project-2-prod-dep@1.0.0': {
           resolution: { integrity: '' },
         },
       },
@@ -518,22 +513,21 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/bar/1.0.0': {
+      'bar@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/dev-dep/1.0.0': {
-        dev: true,
+      'dev-dep@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/foo/1.0.0': {
+      'foo@1.0.0': {
         optional: true,
         resolution: { integrity: '' },
       },
-      '/not-skipped-optional/1.0.0': {
+      'not-skipped-optional@1.0.0': {
         optional: true,
         resolution: { integrity: '' },
       },
-      '/optional-dep/1.0.0': {
+      'optional-dep@1.0.0': {
         dependencies: {
           bar: '1.0.0',
           foo: '1.0.0',
@@ -542,10 +536,10 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
         optional: true,
         resolution: { integrity: '' },
       },
-      '/prod-dep-dep/1.0.0': {
+      'prod-dep-dep@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/prod-dep/1.0.0': {
+      'prod-dep@1.0.0': {
         dependencies: {
           bar: '1.0.0',
           'prod-dep-dep': '1.0.0',
@@ -557,7 +551,7 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
       },
     },
   })
-  expect(Array.from(skippedPackages)).toStrictEqual(['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0'])
+  expect(Array.from(skippedPackages)).toStrictEqual(['preserve-existing-skipped@1.0.0', 'optional-dep@1.0.0', 'foo@1.0.0'])
 })
 
 test('filterByImportersAndEngine(): includes linked packages', () => {
@@ -594,10 +588,10 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        '/bar/1.0.0': {
+        'bar@1.0.0': {
           resolution: { integrity: '' },
         },
-        '/foo/1.0.0': {
+        'foo@1.0.0': {
           resolution: { integrity: '' },
         },
       },
@@ -661,10 +655,10 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/bar/1.0.0': {
+      'bar@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/foo/1.0.0': {
+      'foo@1.0.0': {
         resolution: { integrity: '' },
       },
     },

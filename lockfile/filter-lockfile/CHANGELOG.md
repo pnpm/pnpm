@@ -1,5 +1,56 @@
 # @pnpm/filter-lockfile
 
+## 8.1.6
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@9.0.5
+
+## 8.1.5
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/lockfile-walker@7.0.8
+  - @pnpm/package-is-installable@8.1.2
+  - @pnpm/dependency-path@2.1.7
+
+## 8.1.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/lockfile-walker@7.0.7
+  - @pnpm/package-is-installable@8.1.1
+  - @pnpm/dependency-path@2.1.6
+
+## 8.1.3
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+
+## 8.1.2
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+
+## 8.1.1
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/lockfile-utils@9.0.0
+
 ## 8.1.0
 
 ### Minor Changes

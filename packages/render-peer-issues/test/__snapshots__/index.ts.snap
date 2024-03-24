@@ -23,6 +23,13 @@ Peer dependencies that should be installed:
 "
 `;
 
+exports[`renderPeerIssues() allowed versions 1`] = `
+".
+└─┬ aaa 1.0.0
+  └── ✕ unmet peer @foo/bar@^1.0.0: found 2.0.0
+"
+`;
+
 exports[`renderPeerIssues() format correctly the version ranges with spaces and "*" 1`] = `
 ".
 └─┬ z 1.0.0

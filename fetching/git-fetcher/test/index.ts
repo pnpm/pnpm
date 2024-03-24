@@ -47,13 +47,73 @@ test('fetch', async () => {
   expect(manifest?.name).toEqual('is-positive')
 })
 
+test('fetch a package from Git sub folder', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const { filesIndex } = await fetch(
+    createCafsStore(cafsDir),
+    {
+      commit: '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+      repo: 'https://github.com/RexSkz/test-git-subfolder-fetch.git',
+      path: '/packages/simple-react-app',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(cafsDir, 'index.json'),
+    }
+  )
+  expect(filesIndex['public/index.html']).toBeTruthy()
+})
+
+test('prevent directory traversal attack when using Git sub folder', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const repo = 'https://github.com/RexSkz/test-git-subfolder-fetch.git'
+  const pkgDir = '../../etc'
+  await expect(
+    fetch(
+      createCafsStore(cafsDir),
+      {
+        commit: '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+        repo,
+        path: pkgDir,
+        type: 'git',
+      },
+      {
+        filesIndexFile: path.join(cafsDir, 'index.json'),
+      }
+    )
+  ).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${repo}": Path "${pkgDir}" should be a sub directory`)
+})
+
+test('prevent directory traversal attack when using Git sub folder', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const repo = 'https://github.com/RexSkz/test-git-subfolder-fetch.git'
+  const pkgDir = 'not/exists'
+  await expect(
+    fetch(
+      createCafsStore(cafsDir),
+      {
+        commit: '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+        repo,
+        path: pkgDir,
+        type: 'git',
+      },
+      {
+        filesIndexFile: path.join(cafsDir, 'index.json'),
+      }
+    )
+  ).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${repo}": Path "${pkgDir}" is not a directory`)
+})
+
 test('fetch a package from Git that has a prepare script', async () => {
   const cafsDir = tempy.directory()
   const fetch = createGitFetcher({ rawConfig: {} }).git
   const { filesIndex } = await fetch(
     createCafsStore(cafsDir),
     {
-      commit: 'd222f6bfbdea55c032fdb5f0538d52b2a484bbbf',
+      commit: '8b333f12d5357f4f25a654c305c826294cb073bf',
       repo: 'https://github.com/pnpm/test-git-fetch.git',
       type: 'git',
     },
@@ -61,7 +121,7 @@ test('fetch a package from Git that has a prepare script', async () => {
       filesIndexFile: path.join(cafsDir, 'index.json'),
     }
   )
-  expect(filesIndex[`dist${path.sep}index.js`]).toBeTruthy()
+  expect(filesIndex['dist/index.js']).toBeTruthy()
 })
 
 // Test case for https://github.com/pnpm/pnpm/issues/1866
@@ -161,3 +221,24 @@ test('do not build the package when scripts are ignored', async () => {
 function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
+
+test('fetch only the included files', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const { filesIndex } = await fetch(
+    createCafsStore(cafsDir),
+    {
+      commit: '958d6d487217512bb154d02836e9b5b922a600d8',
+      repo: 'https://github.com/pnpm-e2e/pkg-with-ignored-files',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(cafsDir, 'index.json'),
+    }
+  )
+  expect(Object.keys(filesIndex).sort()).toStrictEqual([
+    'README.md',
+    'dist/index.js',
+    'package.json',
+  ])
+})

@@ -1,5 +1,196 @@
 # @pnpm/plugin-commands-patching
 
+## 5.1.1
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+- Updated dependencies [f43bdcf45]
+  - @pnpm/plugin-commands-installation@14.2.0
+  - @pnpm/pick-fetcher@2.0.1
+  - @pnpm/lockfile-utils@9.0.5
+  - @pnpm/cli-utils@2.1.9
+  - @pnpm/store-connection-manager@7.0.26
+  - @pnpm/config@20.4.2
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 5.1.0
+
+### Minor Changes
+
+- 6964eade5: `pnpm patch-remove` removes the directory containing the patch file if it is empty.
+
+### Patch Changes
+
+- Updated dependencies [9fb45d0fc]
+  - @pnpm/fs.packlist@1.0.3
+  - @pnpm/plugin-commands-installation@14.1.3
+  - @pnpm/store-connection-manager@7.0.25
+
+## 5.0.18
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+- Updated dependencies [d9564e354]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/config@20.4.1
+  - @pnpm/plugin-commands-installation@14.1.2
+  - @pnpm/store-connection-manager@7.0.24
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 5.0.17
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.1.1
+- @pnpm/store-connection-manager@7.0.23
+
+## 5.0.16
+
+### Patch Changes
+
+- Updated dependencies [064aeb681]
+- Updated dependencies [c597f72ec]
+  - @pnpm/plugin-commands-installation@14.1.0
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+  - @pnpm/store-connection-manager@7.0.22
+
+## 5.0.15
+
+### Patch Changes
+
+- Updated dependencies [619e9ed6f]
+- Updated dependencies [4e71066dd]
+  - @pnpm/plugin-commands-installation@14.0.15
+  - @pnpm/config@20.3.0
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/store-connection-manager@7.0.21
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/read-project-manifest@5.0.10
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/pick-fetcher@2.0.1
+
+## 5.0.14
+
+### Patch Changes
+
+- Updated dependencies [672c559e4]
+  - @pnpm/config@20.2.0
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/plugin-commands-installation@14.0.14
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/read-project-manifest@5.0.9
+  - @pnpm/store-connection-manager@7.0.20
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/pick-fetcher@2.0.1
+
+## 5.0.13
+
+### Patch Changes
+
+- 9a53179e3: Do not create empty patch directory.
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/plugin-commands-installation@14.0.13
+  - @pnpm/store-connection-manager@7.0.19
+
+## 5.0.12
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.12
+
+## 5.0.11
+
+### Patch Changes
+
+- Updated dependencies [6558d1865]
+  - @pnpm/plugin-commands-installation@14.0.11
+  - @pnpm/cli-utils@2.1.4
+  - @pnpm/store-connection-manager@7.0.18
+
+## 5.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+- @pnpm/plugin-commands-installation@14.0.10
+- @pnpm/store-connection-manager@7.0.17
+
+## 5.0.9
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.9
+- @pnpm/store-connection-manager@7.0.16
+
+## 5.0.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.8
+- @pnpm/store-connection-manager@7.0.15
+
+## 5.0.7
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+  - @pnpm/plugin-commands-installation@14.0.7
+
+## 5.0.6
+
+### Patch Changes
+
+- 2dfc8c80a: `pnpm patch` should reuse existing patch when `shared-workspace-file=false` [#7252](https://github.com/pnpm/pnpm/pull/7252).
+- Updated dependencies [74432d605]
+  - @pnpm/fs.packlist@1.0.2
+  - @pnpm/plugin-commands-installation@14.0.6
+  - @pnpm/store-connection-manager@7.0.14
+  - @pnpm/config@20.1.2
+  - @pnpm/cli-utils@2.1.2
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 5.0.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.5
+
+## 5.0.4
+
+### Patch Changes
+
+- Updated dependencies [c7f1359b6]
+  - @pnpm/fs.packlist@1.0.1
+  - @pnpm/store-connection-manager@7.0.13
+  - @pnpm/plugin-commands-installation@14.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/pick-fetcher@2.0.1
+  - @pnpm/plugin-commands-installation@14.0.3
+  - @pnpm/store-connection-manager@7.0.12
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+  - @pnpm/patching.apply-patch@2.0.5
+
 ## 5.0.2
 
 ### Patch Changes

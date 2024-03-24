@@ -1,5 +1,112 @@
 # @pnpm/build-modules
 
+## 11.2.12
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+- Updated dependencies [0c383327e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/calc-dep-state@5.0.0
+  - @pnpm/lifecycle@16.0.12
+  - @pnpm/worker@0.3.14
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/link-bins@9.0.12
+
+## 11.2.11
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.11
+
+## 11.2.10
+
+### Patch Changes
+
+- @pnpm/worker@0.3.13
+
+## 11.2.9
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/worker@0.3.12
+  - @pnpm/calc-dep-state@4.1.5
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/link-bins@9.0.12
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/store-controller-types@17.1.4
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 11.2.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/calc-dep-state@4.1.4
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/link-bins@9.0.11
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/worker@0.3.11
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 11.2.7
+
+### Patch Changes
+
+- @pnpm/worker@0.3.10
+
+## 11.2.6
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/worker@0.3.9
+
+## 11.2.5
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/lifecycle@16.0.8
+  - @pnpm/worker@0.3.8
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/link-bins@9.0.10
+
+## 11.2.4
+
+### Patch Changes
+
+- b06f50183: Fixed a regression that was shipped with pnpm v8.10.0. Dependencies that were already built should not be rebuilt on repeat install. This issue was introduced via the changes related to [supportedArchitectures](https://github.com/pnpm/pnpm/pull/7214). Related issue [#7268](https://github.com/pnpm/pnpm/issues/7268).
+
+## 11.2.3
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.7
+
+## 11.2.2
+
+### Patch Changes
+
+- Updated dependencies [7ea45afbe]
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/worker@0.3.7
+  - @pnpm/lifecycle@16.0.6
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/link-bins@9.0.10
+
 ## 11.2.1
 
 ### Patch Changes

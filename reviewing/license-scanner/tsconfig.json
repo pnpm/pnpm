@@ -16,6 +16,9 @@
       "path": "../../fetching/directory-fetcher"
     },
     {
+      "path": "../../lockfile/detect-dep-types"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {

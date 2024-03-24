@@ -23,7 +23,6 @@ export async function storeStatus (maybeOpts: StoreStatusOptions) {
   }
   const opts = await extendStoreStatusOptions(maybeOpts)
   const {
-    registries,
     storeDir,
     skipped,
     virtualStoreDir,
@@ -37,12 +36,12 @@ export async function storeStatus (maybeOpts: StoreStatusOptions) {
   const pkgs = Object.entries(wantedLockfile.packages ?? {})
     .filter(([depPath]) => !skipped.has(depPath))
     .map(([depPath, pkgSnapshot]) => {
-      const id = packageIdFromSnapshot(depPath, pkgSnapshot, registries)
+      const id = packageIdFromSnapshot(depPath, pkgSnapshot)
       return {
         depPath,
         id,
         integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
-        pkgPath: dp.resolve(registries, depPath),
+        pkgPath: depPath,
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
       }
     })

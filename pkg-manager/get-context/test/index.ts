@@ -9,7 +9,6 @@ const DEFAULT_OPTIONS: GetContextOptions = {
   excludeLinksFromLockfile: false,
   extraBinPaths: [],
   force: false,
-  forceSharedLockfile: false,
   lockfileDir: path.join(__dirname, 'lockfile'),
   nodeLinker: 'isolated',
   hoistPattern: ['*'],

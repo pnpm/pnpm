@@ -28,6 +28,9 @@
       "path": "../lockfile-types"
     },
     {
+      "path": "../lockfile-utils"
+    },
+    {
       "path": "../merge-lockfile-changes"
     }
   ],

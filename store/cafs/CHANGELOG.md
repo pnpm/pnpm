@@ -1,5 +1,43 @@
 # @pnpm/store.cafs
 
+## 2.0.12
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/fetcher-base@15.0.7
+
+## 2.0.11
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+  - @pnpm/fetcher-base@15.0.6
+  - @pnpm/store-controller-types@17.1.4
+
+## 2.0.10
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.5
+- @pnpm/store-controller-types@17.1.3
+
+## 2.0.9
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+
+## 2.0.8
+
+### Patch Changes
+
+- Updated dependencies [7ea45afbe]
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/fetcher-base@15.0.4
+
 ## 2.0.7
 
 ### Patch Changes

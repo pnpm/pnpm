@@ -15,7 +15,7 @@ pnpm add @pnpm/fs.packlist
 ## Usage
 
 ```js
-const { packlist } = require('path')
+const { packlist } = require('@pnpm/fs.packlist')
 
 const files = packlist('/package-dir')
 ```

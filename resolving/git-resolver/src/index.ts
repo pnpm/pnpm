@@ -1,4 +1,4 @@
-import { type ResolveResult } from '@pnpm/resolver-base'
+import { type TarballResolution, type GitResolution, type ResolveResult } from '@pnpm/resolver-base'
 import git from 'graceful-git'
 import semver from 'semver'
 import { parsePref, type HostedPackageSpec } from './parsePref'
@@ -29,7 +29,7 @@ export function createGitResolver (
       const tarball = hosted.tarball?.()
 
       if (tarball) {
-        resolution = { tarball }
+        resolution = { tarball } as TarballResolution
       }
     }
 
@@ -38,14 +38,28 @@ export function createGitResolver (
         commit,
         repo: parsedSpec.fetchSpec,
         type: 'git',
-      } as ({ type: string } & object)
+      } as GitResolution
+    }
+
+    if (parsedSpec.path) {
+      resolution.path = parsedSpec.path
+    }
+
+    let id: string
+    if ('tarball' in resolution) {
+      id = resolution.tarball
+      if (resolution.path) {
+        id += `#path:${resolution.path}`
+      }
+    } else {
+      id = `${resolution.repo.startsWith('git+') ? '' : 'git+'}${resolution.repo}#${resolution.commit}`
+      if (resolution.path) {
+        id += `&path:${resolution.path}`
+      }
     }
 
     return {
-      id: parsedSpec.fetchSpec
-        .replace(/^.*:\/\/(git@)?/, '')
-        .replace(/:/g, '+')
-        .replace(/\.git$/, '') + '/' + commit,
+      id,
       normalizedPref: parsedSpec.normalizedPref,
       resolution,
       resolvedVia: 'git-repository',

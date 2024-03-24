@@ -12,7 +12,6 @@ import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageExtension,
-  type PeerDependencyRules,
   type ReadPackageHook,
   type Registries,
 } from '@pnpm/types'
@@ -22,7 +21,7 @@ import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
-  forceSharedLockfile: boolean
+  autoInstallPeersFromHighestMatch: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enablePnp: boolean
@@ -67,8 +66,11 @@ export interface StrictInstallOptions {
   onlyBuiltDependenciesFile?: string
   nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-  nodeVersion: string
+  nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
+  ignoredOptionalDependencies: string[]
+  pnpmfile: string
+  ignorePnpmfile: boolean
   packageManager: {
     name: string
     version: string
@@ -78,6 +80,7 @@ export interface StrictInstallOptions {
     readPackage?: ReadPackageHook[]
     preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
     afterAllResolved?: Array<(lockfile: Lockfile) => Lockfile | Promise<Lockfile>>
+    calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
@@ -91,6 +94,7 @@ export interface StrictInstallOptions {
   unsafePerm: boolean
   registries: Registries
   tag: string
+  updateToLatest?: boolean
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
   workspacePackages: WorkspacePackages
@@ -100,7 +104,6 @@ export interface StrictInstallOptions {
   symlink: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
-  peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allowNonAppliedPatches: boolean
   preferSymlinkedExecutables: boolean
@@ -123,6 +126,7 @@ export interface StrictInstallOptions {
   allProjects: ProjectOptions[]
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
+  dedupeInjectedDeps: boolean
   dedupePeerDependents: boolean
   extendNodePath: boolean
   excludeLinksFromLockfile: boolean
@@ -139,6 +143,7 @@ export interface StrictInstallOptions {
   disableRelinkLocalDirDeps: boolean
 
   supportedArchitectures?: SupportedArchitectures
+  hoistWorkspacePackages?: boolean
 }
 
 export type InstallOptions =
@@ -154,14 +159,15 @@ const defaults = (opts: InstallOptions) => {
     allowedDeprecatedVersions: {},
     allowNonAppliedPatches: false,
     autoInstallPeers: true,
+    autoInstallPeersFromHighestMatch: false,
     childConcurrency: 5,
     confirmModulesPurge: !opts.force,
     depth: 0,
+    dedupeInjectedDeps: true,
     enablePnp: false,
     engineStrict: false,
     force: false,
     forceFullResolution: false,
-    forceSharedLockfile: false,
     frozenLockfile: false,
     hoistPattern: undefined,
     publicHoistPattern: undefined,
@@ -181,13 +187,14 @@ const defaults = (opts: InstallOptions) => {
     },
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
-    nodeVersion: process.version,
+    nodeVersion: opts.nodeVersion,
     nodeLinker: 'isolated',
     overrides: {},
     ownLifecycleHooksStdio: 'inherit',
     ignoreCompatibilityDb: false,
     ignorePackageManifest: false,
     packageExtensions: {},
+    ignoredOptionalDependencies: [] as string[],
     packageManager,
     preferFrozenLockfile: true,
     preferWorkspacePackages: false,
@@ -212,7 +219,7 @@ const defaults = (opts: InstallOptions) => {
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
       !process.setgid ||
-      process.getuid() !== 0,
+      process.getuid?.() !== 0,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,
@@ -262,7 +269,7 @@ export function extendOptions (
     overrides: extendedOpts.overrides,
     lockfileDir: extendedOpts.lockfileDir,
     packageExtensions: extendedOpts.packageExtensions,
-    peerDependencyRules: extendedOpts.peerDependencyRules,
+    ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,
   })
   if (extendedOpts.lockfileOnly) {
     extendedOpts.ignoreScripts = true

@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
@@ -95,6 +96,10 @@ export async function handler (
     dir: prefix,
     lockfileDir: prefix,
     rootProjectManifestDir: prefix, // This property won't be used as rootProjectManifest will be undefined
+    saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+    saveDev: false,
+    saveOptional: false,
+    savePeer: false,
   }, pkgs)
   const binName = opts.package
     ? command
@@ -106,8 +111,8 @@ export async function handler (
       stdio: 'inherit',
       shell: opts.shellMode ?? false,
     })
-  } catch (err: any) { // eslint-disable-line
-    if (err.exitCode != null) {
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'exitCode' in err && err.exitCode != null) {
       return {
         exitCode: err.exitCode,
       }
@@ -119,7 +124,11 @@ export async function handler (
 
 async function getPkgName (pkgDir: string) {
   const manifest = await readPackageJsonFromDir(pkgDir)
-  return Object.keys(manifest.dependencies ?? {})[0]
+  const dependencyNames = Object.keys(manifest.dependencies ?? {})
+  if (dependencyNames.length === 0) {
+    throw new PnpmError('DLX_NO_DEP', 'dlx was unable to find the installed dependency in "dependencies"')
+  }
+  return dependencyNames[0]
 }
 
 async function getBinName (modulesDir: string, pkgName: string): Promise<string> {

@@ -123,6 +123,7 @@ function getHelpText () {
 
         list: [
           {
+            description: 'Create a tarball from a package',
             name: 'pack',
           },
           {
@@ -130,7 +131,20 @@ function getHelpText () {
             name: 'publish',
           },
           {
+            description: 'Prints the effective modules directory',
             name: 'root',
+          },
+          {
+            description: 'Prints the index file of a specific package from the store',
+            name: 'cat-index',
+          },
+          {
+            description: 'Prints the contents of a file based on the hash value stored in the index file',
+            name: 'cat-file',
+          },
+          {
+            description: 'Experimental! Lists the packages that include the file with the specified hash.',
+            name: 'find-hash',
           },
         ],
       },

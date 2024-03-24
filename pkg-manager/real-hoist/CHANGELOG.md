@@ -1,5 +1,47 @@
 # @pnpm/real-hoist
 
+## 2.0.19
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@9.0.5
+
+## 2.0.18
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@9.0.4
+- @pnpm/dependency-path@2.1.7
+
+## 2.0.17
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@9.0.3
+- @pnpm/dependency-path@2.1.6
+
+## 2.0.16
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+
+## 2.0.15
+
+### Patch Changes
+
+- b4194fe52: Fixed out-of-memory exception that was happening on dependencies with many peer dependencies, when `node-linker` was set to `hoisted` [#6227](https://github.com/pnpm/pnpm/issues/6227).
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+
+## 2.0.14
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/lockfile-utils@9.0.0
+
 ## 2.0.13
 
 ### Patch Changes

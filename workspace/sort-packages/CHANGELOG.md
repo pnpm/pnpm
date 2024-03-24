@@ -1,5 +1,19 @@
 # @pnpm/sort-packages
 
+## 5.0.9
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+
 ## 5.0.7
 
 ### Patch Changes

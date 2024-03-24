@@ -1,5 +1,65 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 2.1.9
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@9.0.5
+
+## 2.1.8
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+
+## 2.1.7
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/normalize-registries@5.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/read-package-json@8.0.7
+
+## 2.1.6
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/normalize-registries@5.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/read-package-json@8.0.6
+
+## 2.1.5
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+
+## 2.1.4
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+
+## 2.1.3
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/lockfile-utils@9.0.0
+
 ## 2.1.2
 
 ### Patch Changes

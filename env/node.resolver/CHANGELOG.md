@@ -1,5 +1,66 @@
 # @pnpm/node.resolver
 
+## 2.0.40
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.39
+
+## 2.0.39
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.38
+
+## 2.0.38
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.37
+
+## 2.0.37
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+  - @pnpm/node.fetcher@3.0.36
+
+## 2.0.36
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.35
+
+## 2.0.35
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.34
+
+## 2.0.34
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.33
+
+## 2.0.33
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.32
+
+## 2.0.32
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.31
+
+## 2.0.31
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.30
+
 ## 2.0.30
 
 ### Patch Changes

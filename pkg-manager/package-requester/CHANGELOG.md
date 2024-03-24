@@ -1,5 +1,96 @@
 # @pnpm/package-requester
 
+## 24.1.8
+
+### Patch Changes
+
+- 31054a63e: Running `pnpm update -r --latest` will no longer downgrade prerelease dependencies [#7436](https://github.com/pnpm/pnpm/issues/7436).
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/store.cafs@2.0.12
+  - @pnpm/fetcher-base@15.0.7
+  - @pnpm/pick-fetcher@2.0.1
+  - @pnpm/worker@0.3.14
+
+## 24.1.7
+
+### Patch Changes
+
+- @pnpm/worker@0.3.13
+
+## 24.1.6
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/store.cafs@2.0.11
+  - @pnpm/types@9.4.2
+  - @pnpm/worker@0.3.12
+  - @pnpm/package-is-installable@8.1.2
+  - @pnpm/fetcher-base@15.0.6
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/store-controller-types@17.1.4
+  - @pnpm/pick-fetcher@2.0.1
+
+## 24.1.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/package-is-installable@8.1.1
+  - @pnpm/fetcher-base@15.0.5
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/store.cafs@2.0.10
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/worker@0.3.11
+  - @pnpm/pick-fetcher@2.0.1
+
+## 24.1.4
+
+### Patch Changes
+
+- @pnpm/worker@0.3.10
+
+## 24.1.3
+
+### Patch Changes
+
+- 1e7bd4af3: Use availableParallelism, when available.
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/worker@0.3.9
+
+## 24.1.2
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/store.cafs@2.0.9
+  - @pnpm/worker@0.3.8
+
+## 24.1.1
+
+### Patch Changes
+
+- 7ea45afbe: If a package's tarball cannot be fetched, print the dependency chain that leads to the failed package [#7265](https://github.com/pnpm/pnpm/pull/7265).
+- Updated dependencies [4c2450208]
+- Updated dependencies [7ea45afbe]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/fetcher-base@15.0.4
+  - @pnpm/pick-fetcher@2.0.1
+  - @pnpm/worker@0.3.7
+  - @pnpm/store.cafs@2.0.8
+
 ## 24.1.0
 
 ### Minor Changes

@@ -1,5 +1,69 @@
 # @pnpm/audit
 
+## 7.0.25
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@9.0.5
+- @pnpm/list@9.1.10
+
+## 7.0.24
+
+### Patch Changes
+
+- @pnpm/list@9.1.9
+
+## 7.0.23
+
+### Patch Changes
+
+- Updated dependencies [09f610349]
+- Updated dependencies [4d34684f1]
+  - @pnpm/list@9.1.8
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/lockfile-walker@7.0.8
+  - @pnpm/read-project-manifest@5.0.10
+  - @pnpm/fetch@7.0.7
+
+## 7.0.22
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/lockfile-walker@7.0.7
+  - @pnpm/read-project-manifest@5.0.9
+  - @pnpm/list@9.1.7
+  - @pnpm/fetch@7.0.6
+
+## 7.0.21
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/list@9.1.6
+
+## 7.0.20
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+  - @pnpm/list@9.1.5
+
+## 7.0.19
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/list@9.1.4
+
 ## 7.0.18
 
 ### Patch Changes

@@ -1,5 +1,125 @@
 # @pnpm/client
 
+## 10.0.46
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/directory-fetcher@7.0.11
+  - @pnpm/default-resolver@18.0.22
+  - @pnpm/git-fetcher@12.0.19
+  - @pnpm/tarball-fetcher@18.0.19
+
+## 10.0.45
+
+### Patch Changes
+
+- Updated dependencies [342222d20]
+  - @pnpm/tarball-fetcher@18.0.18
+  - @pnpm/directory-fetcher@7.0.10
+  - @pnpm/git-fetcher@12.0.18
+
+## 10.0.44
+
+### Patch Changes
+
+- Updated dependencies [5a5e42551]
+  - @pnpm/network.auth-header@2.2.0
+  - @pnpm/directory-fetcher@7.0.9
+  - @pnpm/tarball-fetcher@18.0.17
+
+## 10.0.43
+
+### Patch Changes
+
+- @pnpm/git-fetcher@12.0.17
+- @pnpm/tarball-fetcher@18.0.17
+
+## 10.0.42
+
+### Patch Changes
+
+- @pnpm/default-resolver@18.0.21
+- @pnpm/git-fetcher@12.0.16
+- @pnpm/directory-fetcher@7.0.9
+- @pnpm/tarball-fetcher@18.0.16
+- @pnpm/resolver-base@11.0.2
+- @pnpm/fetch@7.0.7
+
+## 10.0.41
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.8
+- @pnpm/git-fetcher@12.0.15
+- @pnpm/tarball-fetcher@18.0.15
+- @pnpm/resolver-base@11.0.1
+- @pnpm/fetch@7.0.6
+- @pnpm/default-resolver@18.0.20
+
+## 10.0.40
+
+### Patch Changes
+
+- @pnpm/git-fetcher@12.0.14
+- @pnpm/tarball-fetcher@18.0.14
+
+## 10.0.39
+
+### Patch Changes
+
+- Updated dependencies [3ac0487b3]
+  - @pnpm/network.auth-header@2.1.0
+
+## 10.0.38
+
+### Patch Changes
+
+- Updated dependencies [23039a6d6]
+  - @pnpm/network.auth-header@2.0.6
+
+## 10.0.37
+
+### Patch Changes
+
+- @pnpm/default-resolver@18.0.19
+
+## 10.0.36
+
+### Patch Changes
+
+- @pnpm/git-fetcher@12.0.13
+- @pnpm/tarball-fetcher@18.0.13
+
+## 10.0.35
+
+### Patch Changes
+
+- Updated dependencies [abdf1f2b6]
+  - @pnpm/tarball-fetcher@18.0.12
+  - @pnpm/directory-fetcher@7.0.7
+  - @pnpm/git-fetcher@12.0.12
+
+## 10.0.34
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.6
+- @pnpm/git-fetcher@12.0.11
+- @pnpm/tarball-fetcher@18.0.11
+
+## 10.0.33
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/directory-fetcher@7.0.5
+  - @pnpm/default-resolver@18.0.18
+  - @pnpm/git-fetcher@12.0.10
+  - @pnpm/tarball-fetcher@18.0.10
+
 ## 10.0.32
 
 ### Patch Changes

@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { sync as canWriteToDir } from 'can-write-to-dir'
 import PATH from 'path-name'
@@ -33,8 +34,8 @@ const areDirsEqual = (dir1: string, dir2: string) =>
 function canWriteToDirAndExists (dir: string) {
   try {
     return canWriteToDir(dir)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') throw err
-    return false
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
   }
 }

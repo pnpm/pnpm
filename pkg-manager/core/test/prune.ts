@@ -17,14 +17,14 @@ test('prune removes extraneous packages', async () => {
   const linkedPkg = f.prepare('hello-world-js-bin')
   const project = prepareEmpty()
 
-  const opts = await testDefaults()
+  const opts = testDefaults()
   let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
   manifest = await addDependenciesToPackage(manifest, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
   manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
   manifest = await addDependenciesToPackage(manifest, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
   manifest = await link([linkedPkg], path.resolve('node_modules'), { ...opts, manifest, dir: process.cwd() })
 
-  await project.has('@pnpm.e2e/hello-world-js-bin') // external link added
+  project.has('@pnpm.e2e/hello-world-js-bin') // external link added
 
   delete manifest.dependencies!['is-positive']
   delete manifest.dependencies!['@zkochan/logger']
@@ -52,31 +52,31 @@ test('prune removes extraneous packages', async () => {
     },
   } as RootLog)).toBeTruthy()
 
-  await project.hasNot('@pnpm.e2e/hello-world-js-bin') // external link pruned
+  project.hasNot('@pnpm.e2e/hello-world-js-bin') // external link pruned
 
-  await project.storeHasNot('is-positive', '2.0.0')
-  await project.hasNot('is-positive')
+  project.storeHasNot('is-positive', '2.0.0')
+  project.hasNot('is-positive')
 
-  await project.storeHasNot('@zkochan/logger', '0.1.0')
-  await project.hasNot('@zkochan/logger')
+  project.storeHasNot('@zkochan/logger', '0.1.0')
+  project.hasNot('@zkochan/logger')
 
-  await project.storeHas('is-negative', '2.1.0')
-  await project.has('is-negative')
+  project.storeHas('is-negative', '2.1.0')
+  project.has('is-negative')
 
-  await project.storeHas('applyq', '0.2.1')
-  await project.has('applyq')
+  project.storeHas('applyq', '0.2.1')
+  project.has('applyq')
 
-  await project.storeHas('fnumber', '0.1.0')
-  await project.has('fnumber')
+  project.storeHas('fnumber', '0.1.0')
+  project.has('fnumber')
 })
 
 test('prune removes dev dependencies in production', async () => {
   const project = prepareEmpty()
 
-  let manifest = await addDependenciesToPackage({}, ['is-positive@2.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
-  manifest = await addDependenciesToPackage(manifest, ['is-negative@2.1.0'], await testDefaults({ targetDependenciesField: 'dependencies' }))
-  manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
-  await install(manifest, await testDefaults({
+  let manifest = await addDependenciesToPackage({}, ['is-positive@2.0.0'], testDefaults({ targetDependenciesField: 'devDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['is-negative@2.1.0'], testDefaults({ targetDependenciesField: 'dependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  await install(manifest, testDefaults({
     include: {
       dependencies: true,
       devDependencies: false,
@@ -85,12 +85,12 @@ test('prune removes dev dependencies in production', async () => {
     pruneStore: true,
   }))
 
-  await project.storeHasNot('is-positive', '2.0.0')
-  await project.hasNot('is-positive')
+  project.storeHasNot('is-positive', '2.0.0')
+  project.hasNot('is-positive')
 
-  await project.storeHas('is-negative', '2.1.0')
-  await project.has('is-negative')
+  project.storeHas('is-negative', '2.1.0')
+  project.has('is-negative')
 
-  await project.storeHas('fnumber', '0.1.0')
-  await project.has('fnumber')
+  project.storeHas('fnumber', '0.1.0')
+  project.has('fnumber')
 })

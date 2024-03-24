@@ -17,6 +17,7 @@ export interface WantedDependency {
   raw: string
   pinnedVersion?: PinnedVersion
   nodeExecPath?: string
+  updateSpec?: boolean
 }
 
 export function getWantedDependencies (

@@ -1,4 +1,5 @@
 import fs from 'fs'
+import util from 'util'
 import { copySync } from 'fs-extra'
 import path from 'path'
 import { globalWarn, logger } from '@pnpm/logger'
@@ -28,11 +29,11 @@ export function importIndexedDir (
       moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
     }
     renameOverwrite.sync(stage, newDir)
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     try {
       rimraf(stage)
-    } catch (err) {} // eslint-disable-line:no-empty
-    if (err['code'] === 'EEXIST') {
+    } catch {} // eslint-disable-line:no-empty
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
       const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
       if (Object.keys(conflictingFileNames).length === 0) throw err
       filenameConflictsLogger.debug({
@@ -48,7 +49,7 @@ export function importIndexedDir (
       importIndexedDir(importFile, newDir, uniqueFileMap, opts)
       return
     }
-    if (err['code'] === 'ENOENT') {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
       if (invalidFilenames.length === 0) throw err
       globalWarn(`\
@@ -115,8 +116,8 @@ function getUniqueFileMap (fileMap: Record<string, string>) {
 function moveOrMergeModulesDirs (src: string, dest: string) {
   try {
     renameEvenAcrossDevices(src, dest)
-  } catch (err: any) { // eslint-disable-line
-    switch (err.code) {
+  } catch (err: unknown) {
+    switch (util.types.isNativeError(err) && 'code' in err && err.code) {
     case 'ENOENT':
       // If src directory doesn't exist, there is nothing to do
       return
@@ -134,8 +135,8 @@ function moveOrMergeModulesDirs (src: string, dest: string) {
 function renameEvenAcrossDevices (src: string, dest: string) {
   try {
     fs.renameSync(src, dest)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'EXDEV') throw err
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
     copySync(src, dest)
   }
 }

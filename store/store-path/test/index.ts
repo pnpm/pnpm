@@ -26,3 +26,11 @@ skipOnWindows('a link can be created to the a subdir in the root of the drive', 
     pnpmHomeDir: '/local/share/pnpm',
   })).toBe('/mnt/.pnpm-store/v3')
 })
+
+test('fail when pnpm home directory is not defined', async () => {
+  expect(() => getStorePath({
+    pkgRoot: 'pkgRoot',
+    // @ts-expect-error
+    pnpmHomeDir: undefined,
+  })).toThrow('The pnpm home directory is unknown. Cannot calculate the store directory location.')
+})

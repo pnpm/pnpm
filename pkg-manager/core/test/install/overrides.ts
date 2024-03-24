@@ -19,21 +19,21 @@ test('versions are replaced with versions specified through overrides option', a
   }
   const manifest = await addDependenciesToPackage({},
     ['@pnpm.e2e/pkg-with-1-dep@100.0.0', '@pnpm.e2e/foobar@100.0.0', '@pnpm.e2e/foobarqar@1.0.0'],
-    await testDefaults({ overrides })
+    testDefaults({ overrides })
   )
 
   {
-    const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('/@pnpm.e2e/qar@100.0.0')
-    expect(lockfile.packages['/@pnpm.e2e/foobar@100.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/bar@100.1.0'])
+    const lockfile = project.readLockfile()
+    expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('@pnpm.e2e/qar@100.0.0')
+    expect(lockfile.snapshots['@pnpm.e2e/foobar@100.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/bar@100.1.0'])
     expect(lockfile.overrides).toStrictEqual({
       '@pnpm.e2e/foobarqar>@pnpm.e2e/foo': 'npm:@pnpm.e2e/qar@100.0.0',
       '@pnpm.e2e/bar@^100.0.0': '100.1.0',
       '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
     })
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(lockfile.overrides).toStrictEqual(currentLockfile.overrides)
   }
   // shall be able to install when package manifest is ignored
@@ -41,7 +41,7 @@ test('versions are replaced with versions specified through overrides option', a
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, { ...await testDefaults(), ignorePackageManifest: true, overrides })
+  }, { ...testDefaults(), ignorePackageManifest: true, overrides })
 
   // The lockfile is updated if the overrides are changed
   overrides['@pnpm.e2e/bar@^100.0.0'] = '100.0.0'
@@ -51,20 +51,20 @@ test('versions are replaced with versions specified through overrides option', a
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults({ overrides }))
+  }, testDefaults({ overrides }))
 
   {
-    const lockfile = await project.readLockfile()
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/bar@100.0.0'])
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foobarqar@1.0.1'])
+    const lockfile = project.readLockfile()
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/bar@100.0.0'])
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foobarqar@1.0.1'])
     expect(lockfile.overrides).toStrictEqual({
       '@pnpm.e2e/foobarqar': '1.0.1',
       '@pnpm.e2e/foobarqar>@pnpm.e2e/foo': 'npm:@pnpm.e2e/qar@100.0.0',
       '@pnpm.e2e/bar@^100.0.0': '100.0.0',
       '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
     })
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(lockfile.overrides).toStrictEqual(currentLockfile.overrides)
   }
 
@@ -72,17 +72,17 @@ test('versions are replaced with versions specified through overrides option', a
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults({ frozenLockfile: true, overrides }))
+  }, testDefaults({ frozenLockfile: true, overrides }))
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
     expect(lockfile.overrides).toStrictEqual({
       '@pnpm.e2e/foobarqar': '1.0.1',
       '@pnpm.e2e/foobarqar>@pnpm.e2e/foo': 'npm:@pnpm.e2e/qar@100.0.0',
       '@pnpm.e2e/bar@^100.0.0': '100.0.0',
       '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
     })
-    const currentLockfile = await project.readCurrentLockfile()
+    const currentLockfile = project.readCurrentLockfile()
     expect(lockfile.overrides).toStrictEqual(currentLockfile.overrides)
   }
 
@@ -92,7 +92,7 @@ test('versions are replaced with versions specified through overrides option', a
       manifest,
       mutation: 'install',
       rootDir: process.cwd(),
-    }, await testDefaults({ frozenLockfile: true, overrides }))
+    }, testDefaults({ frozenLockfile: true, overrides }))
   ).rejects.toThrow(
     new PnpmError('LOCKFILE_CONFIG_MISMATCH',
       'Cannot proceed with the frozen installation. The current "overrides" configuration doesn\'t match the value found in the lockfile'
@@ -110,7 +110,7 @@ test('when adding a new dependency that is present in the overrides, use the spe
   }
   const manifest = await addDependenciesToPackage({},
     ['@pnpm.e2e/bar'],
-    await testDefaults({ overrides })
+    testDefaults({ overrides })
   )
 
   expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe(overrides['@pnpm.e2e/bar'])
@@ -127,7 +127,7 @@ test('explicitly specifying a version at install will ignore overrides', async (
   const EXACT_VERSION = '100.0.0'
   const manifest = await addDependenciesToPackage({},
     [`@pnpm.e2e/bar@${EXACT_VERSION}`],
-    await testDefaults({ overrides })
+    testDefaults({ overrides })
   )
 
   expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe(EXACT_VERSION)

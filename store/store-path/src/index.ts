@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import canLink from 'can-link'
 import os from 'os'
@@ -22,6 +23,9 @@ export function getStorePath (
   }
 ) {
   if (!storePath) {
+    if (!pnpmHomeDir) {
+      throw new PnpmError('NO_PNPM_HOME_DIR', 'The pnpm home directory is unknown. Cannot calculate the store directory location.')
+    }
     return storePathRelativeToHome(pkgRoot, 'store', pnpmHomeDir)
   }
 
@@ -40,7 +44,7 @@ export function getStorePath (
 
 async function storePathRelativeToHome (pkgRoot: string, relStore: string, homedir: string) {
   const tempFile = pathTemp(pkgRoot)
-  await fs.mkdir(path.dirname(tempFile), { recursive: true })
+  if (path.parse(pkgRoot).root !== pkgRoot) await fs.mkdir(path.dirname(tempFile), { recursive: true })
   await touch(tempFile)
   const storeInHomeDir = path.join(homedir, relStore, STORE_VERSION)
   if (await canLinkToSubdir(tempFile, homedir)) {

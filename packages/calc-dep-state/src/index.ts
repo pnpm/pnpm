@@ -1,6 +1,7 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { refToRelative } from '@pnpm/dependency-path'
 import { type Lockfile } from '@pnpm/lockfile-types'
+import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import sortKeys from 'sort-keys'
 
 export interface DepsGraph {
@@ -32,7 +33,7 @@ export function calcDepState (
   let result = ENGINE_NAME
   if (opts.isBuilt) {
     const depStateObj = calcDepStateObj(depPath, depsGraph, cache, new Set())
-    result += `-${JSON.stringify(depStateObj)}`
+    result += `-${hashObjectWithoutSorting(depStateObj)}`
   }
   if (opts.patchFileHash) {
     result += `-${opts.patchFileHash}`
@@ -67,7 +68,7 @@ function calcDepStateObj (
 export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph {
   const graph: DepsGraph = {}
   if (lockfile.packages != null) {
-    Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
+    for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
       const children = lockfileDepsToGraphChildren({
         ...pkgSnapshot.dependencies,
         ...pkgSnapshot.optionalDependencies,
@@ -76,7 +77,7 @@ export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph {
         children,
         depPath,
       }
-    })
+    }
   }
   return graph
 }

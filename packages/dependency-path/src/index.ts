@@ -1,40 +1,19 @@
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { type Registries } from '@pnpm/types'
-import encodeRegistry from 'encode-registry'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string) {
   return dependencyPath[0] !== '/'
 }
 
-export function resolve (
-  registries: Registries,
-  resolutionLocation: string
-) {
-  if (!isAbsolute(resolutionLocation)) {
-    let registryUrl!: string
-    if (resolutionLocation[1] === '@') {
-      const slashIndex = resolutionLocation.indexOf('/', 1)
-      const scope = resolutionLocation.slice(1, slashIndex !== -1 ? slashIndex : 0)
-      registryUrl = registries[scope] || registries.default
-    } else {
-      registryUrl = registries.default
-    }
-    const registryDirectory = encodeRegistry(registryUrl)
-    return `${registryDirectory}${resolutionLocation}`
-  }
-  return resolutionLocation
-}
-
 export function indexOfPeersSuffix (depPath: string) {
   if (!depPath.endsWith(')')) return -1
-  let open = true
+  let open = 1
   for (let i = depPath.length - 2; i >= 0; i--) {
     if (depPath[i] === '(') {
-      open = false
+      open--
     } else if (depPath[i] === ')') {
-      if (open) return -1
-      open = true
+      open++
     } else if (!open) {
       return i + 1
     }
@@ -42,55 +21,43 @@ export function indexOfPeersSuffix (depPath: string) {
   return -1
 }
 
-export function tryGetPackageId (registries: Registries, relDepPath: string) {
-  if (relDepPath[0] !== '/') {
-    return null
-  }
+export function parseDepPath (relDepPath: string) {
   const sepIndex = indexOfPeersSuffix(relDepPath)
   if (sepIndex !== -1) {
-    return resolve(registries, relDepPath.substring(0, sepIndex))
+    return {
+      id: relDepPath.substring(0, sepIndex),
+      peersSuffix: relDepPath.substring(sepIndex),
+    }
   }
-  const underscoreIndex = relDepPath.indexOf('_', relDepPath.lastIndexOf('/'))
-  if (underscoreIndex !== -1) {
-    return resolve(registries, relDepPath.slice(0, underscoreIndex))
+  return {
+    id: relDepPath,
+    peersSuffix: '',
   }
-  return resolve(registries, relDepPath)
 }
 
-export function refToAbsolute (
-  reference: string,
-  pkgName: string,
-  registries: Registries
-) {
-  if (reference.startsWith('link:')) {
-    return null
+export function removePeersSuffix (relDepPath: string) {
+  const sepIndex = indexOfPeersSuffix(relDepPath)
+  if (sepIndex !== -1) {
+    return relDepPath.substring(0, sepIndex)
   }
-  if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
-    const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
-    return `${registryName}/${pkgName}/${reference}`
+  return relDepPath
+}
+
+export function tryGetPackageId (relDepPath: string) {
+  const sepIndex = indexOfPeersSuffix(relDepPath)
+  if (sepIndex !== -1) {
+    relDepPath = relDepPath.substring(0, sepIndex)
   }
-  if (reference[0] !== '/') return reference
-  const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
-  return `${registryName}${reference}`
+  if (relDepPath.includes(':')) {
+    relDepPath = relDepPath.substring(relDepPath.indexOf('@', 1) + 1)
+  }
+  return relDepPath
 }
 
 export function getRegistryByPackageName (registries: Registries, packageName: string) {
   if (packageName[0] !== '@') return registries.default
   const scope = packageName.substring(0, packageName.indexOf('/'))
   return registries[scope] || registries.default
-}
-
-export function relative (
-  registries: Registries,
-  packageName: string,
-  absoluteResolutionLoc: string
-) {
-  const registryName = encodeRegistry(getRegistryByPackageName(registries, packageName))
-
-  if (absoluteResolutionLoc.startsWith(`${registryName}/`)) {
-    return absoluteResolutionLoc.slice(absoluteResolutionLoc.indexOf('/'))
-  }
-  return absoluteResolutionLoc
 }
 
 export function refToRelative (
@@ -100,13 +67,13 @@ export function refToRelative (
   if (reference.startsWith('link:')) {
     return null
   }
-  if (reference.startsWith('file:')) {
-    return reference
-  }
-  if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
-    return `/${pkgName}/${reference}`
-  }
-  return reference
+  if (reference.startsWith('@')) return reference
+  const atIndex = reference.indexOf('@')
+  if (atIndex === -1) return `${pkgName}@${reference}`
+  const colonIndex = reference.indexOf(':')
+  const bracketIndex = reference.indexOf('(')
+  if ((colonIndex === -1 || atIndex < colonIndex) && (bracketIndex === -1 || atIndex < bracketIndex)) return reference
+  return `${pkgName}@${reference}`
 }
 
 export function parse (dependencyPath: string) {
@@ -117,18 +84,12 @@ export function parse (dependencyPath: string) {
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }
-  const _isAbsolute = isAbsolute(dependencyPath)
-  const parts = dependencyPath.split('/')
-  if (!_isAbsolute) parts.shift()
-  const host = _isAbsolute ? parts.shift() : undefined
-  if (parts.length === 0) return {
-    host,
-    isAbsolute: _isAbsolute,
+  const sepIndex = dependencyPath.indexOf('@', 1)
+  if (sepIndex === -1) {
+    return {}
   }
-  const name = parts[0][0] === '@'
-    ? `${parts.shift()}/${parts.shift()}`
-    : parts.shift()
-  let version = parts.join('/')
+  const name = dependencyPath.substring(0, sepIndex)
+  let version = dependencyPath.substring(sepIndex + 1)
   if (version) {
     let peerSepIndex!: number
     let peersSuffix: string | undefined
@@ -138,27 +99,21 @@ export function parse (dependencyPath: string) {
         peersSuffix = version.substring(peerSepIndex)
         version = version.substring(0, peerSepIndex)
       }
-    } else {
-      peerSepIndex = version.indexOf('_')
-      if (peerSepIndex !== -1) {
-        peersSuffix = version.substring(peerSepIndex + 1)
-        version = version.substring(0, peerSepIndex)
-      }
     }
     if (semver.valid(version)) {
       return {
-        host,
-        isAbsolute: _isAbsolute,
         name,
         peersSuffix,
         version,
       }
     }
+    return {
+      name,
+      nonSemverVersion: version,
+      peersSuffix,
+    }
   }
-  if (!_isAbsolute) throw new Error(`${dependencyPath} is an invalid relative dependency path`)
   return {
-    host,
-    isAbsolute: _isAbsolute,
   }
 }
 
@@ -168,8 +123,8 @@ export function depPathToFilename (depPath: string) {
   let filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|]/g, '+')
   if (filename.includes('(')) {
     filename = filename
-      .replace(/(\)\()|\(/g, '_')
       .replace(/\)$/, '')
+      .replace(/(\)\()|\(|\)/g, '_')
   }
   if (filename.length > 120 || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
     return `${filename.substring(0, MAX_LENGTH_WITHOUT_HASH)}_${createBase32Hash(filename)}`
@@ -182,13 +137,26 @@ function depPathToFilenameUnescaped (depPath: string) {
     if (depPath[0] === '/') {
       depPath = depPath.substring(1)
     }
-    const index = depPath.lastIndexOf('/', depPath.includes('(') ? depPath.indexOf('(') - 1 : depPath.length)
+    const index = depPath.indexOf('@', 1)
+    if (index === -1) return depPath
     return `${depPath.substring(0, index)}@${depPath.slice(index + 1)}`
   }
   return depPath.replace(':', '+')
 }
 
-export function createPeersFolderSuffix (peers: Array<{ name: string, version: string }>): string {
-  const folderName = peers.map(({ name, version }) => `${name}@${version}`).sort().join(')(')
-  return `(${folderName})`
+export type PeerId = { name: string, version: string } | string
+
+export function createPeersDirSuffix (peerIds: PeerId[]): string {
+  const dirName = peerIds.map(
+    (peerId) => {
+      if (typeof peerId !== 'string') {
+        return `${peerId.name}@${peerId.version}`
+      }
+      if (peerId.startsWith('/')) {
+        return peerId.substring(1)
+      }
+      return peerId
+    }
+  ).sort().join(')(')
+  return `(${dirName})`
 }

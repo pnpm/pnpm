@@ -34,7 +34,8 @@ export function createPackageImporterAsync (
   const gfm = getFlatMap.bind(null, opts.cafsDir)
   return async (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    const pkgImportMethod = (opts.requiresBuild && !isBuilt)
+    const willBeBuilt = !isBuilt && opts.requiresBuild
+    const pkgImportMethod = willBeBuilt
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
@@ -63,7 +64,8 @@ function createPackageImporter (
   const gfm = getFlatMap.bind(null, opts.cafsDir)
   return (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    const pkgImportMethod = (opts.requiresBuild && !isBuilt)
+    const willBeBuilt = !isBuilt && opts.requiresBuild
+    const pkgImportMethod = willBeBuilt
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)

@@ -36,7 +36,6 @@ import mem from 'mem'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { getSaveType } from './getSaveType'
 import { getPinnedVersion } from './getPinnedVersion'
 import { type PreferredVersions } from '@pnpm/resolver-base'
@@ -197,16 +196,8 @@ export async function recursive (
           return
         }
       }
-      if (updateToLatest) {
-        if (!params || (params.length === 0)) {
-          currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
-        } else {
-          currentInput = createLatestSpecs(currentInput, manifest)
-          if (currentInput.length === 0) {
-            installOpts.pruneLockfileImporters = false
-            return
-          }
-        }
+      if (updateToLatest && (!params || (params.length === 0))) {
+        currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
       }
       if (opts.workspace) {
         if (!currentInput || (currentInput.length === 0)) {
@@ -319,13 +310,8 @@ export async function recursive (
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
           if (currentInput.length === 0) return
         }
-        if (updateToLatest) {
-          if (!params || (params.length === 0)) {
-            currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
-          } else {
-            currentInput = createLatestSpecs(currentInput, manifest)
-            if (currentInput.length === 0) return
-          }
+        if (updateToLatest && (!params || (params.length === 0))) {
+          currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
         }
         if (opts.workspace) {
           if (!currentInput || (currentInput.length === 0)) {
@@ -494,20 +480,29 @@ export function createMatcher (params: string[]): UpdateDepsMatcher {
   const patterns: string[] = []
   const specs: string[] = []
   for (const param of params) {
-    const atIndex = param.indexOf('@', param[0] === '!' ? 2 : 1)
-    if (atIndex === -1) {
-      patterns.push(param)
-      specs.push('')
-    } else {
-      patterns.push(param.slice(0, atIndex))
-      specs.push(param.slice(atIndex + 1))
-    }
+    const { pattern, versionSpec } = parseUpdateParam(param)
+    patterns.push(pattern)
+    specs.push(versionSpec ?? '')
   }
   const matcher = createMatcherWithIndex(patterns)
   return (depName: string) => {
     const index = matcher(depName)
     if (index === -1) return null
     return specs[index]
+  }
+}
+
+export function parseUpdateParam (param: string): { pattern: string, versionSpec: string | undefined } {
+  const atIndex = param.indexOf('@', param[0] === '!' ? 2 : 1)
+  if (atIndex === -1) {
+    return {
+      pattern: param,
+      versionSpec: undefined,
+    }
+  }
+  return {
+    pattern: param.slice(0, atIndex),
+    versionSpec: param.slice(atIndex + 1),
   }
 }
 

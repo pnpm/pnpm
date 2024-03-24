@@ -3,10 +3,10 @@ import { removePort } from '../src/helpers/removePort'
 describe('removePort()', () => {
   it('does not mutate the url if no port is found', () => {
     const urlString = 'https://custom.domain.com/npm/-/foo-1.0.0.tgz'
-    expect(removePort(urlString)).toEqual(urlString)
+    expect(removePort(new URL(urlString))).toEqual(urlString)
 
     const urlStringWithTrailingSlash = 'https://custom.domain.com/npm/'
-    expect(removePort(urlStringWithTrailingSlash)).toEqual(
+    expect(removePort(new URL(urlStringWithTrailingSlash))).toEqual(
       urlStringWithTrailingSlash
     )
   })
@@ -16,7 +16,7 @@ describe('removePort()', () => {
     const protocols = ['http', 'https', 'ws', 'wss']
 
     const getUrl = (port: number, protocol: string) =>
-      `${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
+      new URL(`${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`)
 
     const expectedOutput = (protocol: string) =>
       `${protocol}://custom.domain.com/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
@@ -39,7 +39,7 @@ describe('removePort()', () => {
     ])
 
     const getUrl = (port: number, protocol: string) =>
-      `${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
+      new URL(`${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`)
 
     const expectedOutput = (protocol: string) =>
       `${protocol}://custom.domain.com/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
@@ -67,7 +67,7 @@ describe('removePort()', () => {
     ])
 
     const getUrl = (port: number, protocol: string) =>
-      `${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
+      new URL(`${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`)
     const expectedOutput = (protocol: string) =>
       `${protocol}://custom.domain.com/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
     mismatchProtocolPorts.forEach((value: number, protocol) => {

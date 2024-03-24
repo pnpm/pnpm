@@ -4,7 +4,7 @@ import path from 'path'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readProjects } from '@pnpm/filter-workspace-packages'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import tempy from 'tempy'
 import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
@@ -317,7 +317,7 @@ describe('patch and commit', () => {
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('1.0.0')
   })
 
-  test('should skip empty patch content', async () => {
+  test('should skip empty patch content and not create patches dir', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
     const result = await patchCommit.handler({
@@ -331,6 +331,7 @@ describe('patch and commit', () => {
     }, [patchDir])
     expect(result).toBe(`No changes were found to the following directory: ${patchDir}`)
     expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(false)
+    expect(fs.existsSync('patches')).toBe(false)
   })
 })
 
@@ -539,7 +540,7 @@ describe('patch and commit in workspaces', () => {
       dir: process.cwd(),
       storeDir,
     }
-    await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
+    writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
   })
 
   test('patch commit should work in workspaces', async () => {
@@ -656,6 +657,69 @@ describe('patch and commit in workspaces', () => {
     expect(fs.existsSync('./node_modules/is-positive/license')).toBe(false)
     expect(fs.readFileSync('../project-2/node_modules/is-positive/index.js', 'utf8')).not.toContain('// test patching')
     expect(fs.existsSync('../project-2/node_modules/is-positive/license')).toBe(true)
+  })
+
+  test('reusing existing patch file should work with shared-workspace-lockfile=false', async () => {
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      lockfileDir: undefined,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+      sharedWorkspaceLockfile: false,
+    })
+
+    // patch project-1
+    process.chdir('./project-1')
+    let output = await patch.handler({
+      ...defaultPatchOption,
+      dir: process.cwd(),
+    }, ['is-positive@1.0.0'])
+    let patchDir = getPatchDirFromPatchOutput(output)
+
+    // modify index.js and remove license
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
+
+    // patch-commit
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      cacheDir,
+      storeDir,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+      frozenLockfile: false,
+      fixLockfile: true,
+      sharedWorkspaceLockfile: false,
+    }, [patchDir])
+
+    // verify committed patch
+    expect(fs.readFileSync('./node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+    expect(fs.existsSync('./node_modules/is-positive/license')).toBe(false)
+
+    // re-patch project-1
+    output = await patch.handler({
+      ...defaultPatchOption,
+      dir: process.cwd(),
+    }, ['is-positive@1.0.0'])
+    patchDir = getPatchDirFromPatchOutput(output)
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    // verify temporary patch is reusing last committed patch
+    expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('// test patching')
+    expect(fs.existsSync(path.join(patchDir, 'license'))).toBe(false)
   })
 
   test('patch and patch-commit for git hosted dependency', async () => {
@@ -834,6 +898,7 @@ describe('patch-remove', () => {
     const { manifest: newManifest } = await readProjectManifest(process.cwd())
     expect(newManifest!.pnpm!).toBeUndefined()
     expect(fs.existsSync(path.join(process.cwd(), 'patches/is-positive@1.0.0.patch'))).toBe(false)
+    expect(fs.existsSync(path.join(process.cwd(), 'patches'))).toBe(false)
   })
 
   test('prompt to select patches that to be removed', async () => {

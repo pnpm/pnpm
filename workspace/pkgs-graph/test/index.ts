@@ -112,6 +112,58 @@ test('create package graph', () => {
   })
 })
 
+test('create package graph using peer dependencies', () => {
+  const result = createPkgGraph([
+    {
+      dir: BAR1_PATH,
+      manifest: {
+        name: 'bar',
+        version: '1.0.0',
+
+        peerDependencies: {
+          foo: '^1.0.0',
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      dir: FOO1_PATH,
+      manifest: {
+        name: 'foo',
+        version: '1.0.0',
+      },
+    },
+  ])
+  expect(result.unmatched).toStrictEqual([])
+  expect(result.graph).toStrictEqual({
+    [BAR1_PATH]: {
+      dependencies: [FOO1_PATH],
+      package: {
+        dir: BAR1_PATH,
+        manifest: {
+          name: 'bar',
+          version: '1.0.0',
+
+          peerDependencies: {
+            foo: '^1.0.0',
+            'is-positive': '1.0.0',
+          },
+        },
+      },
+    },
+    [FOO1_PATH]: {
+      dependencies: [],
+      package: {
+        dir: FOO1_PATH,
+        manifest: {
+          name: 'foo',
+          version: '1.0.0',
+        },
+      },
+    },
+  })
+})
+
 test('create package graph for local directory dependencies', () => {
   const result = createPkgGraph([
     {

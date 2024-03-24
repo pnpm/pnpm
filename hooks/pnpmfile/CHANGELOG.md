@@ -1,5 +1,48 @@
 # @pnpm/pnpmfile
 
+## 5.0.20
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+
+## 5.0.19
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/hooks.types@1.0.6
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/store-controller-types@17.1.4
+
+## 5.0.18
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/hooks.types@1.0.5
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/store-controller-types@17.1.3
+
+## 5.0.17
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+
+## 5.0.16
+
+### Patch Changes
+
+- Updated dependencies [7ea45afbe]
+  - @pnpm/store-controller-types@17.1.1
+
 ## 5.0.15
 
 ### Patch Changes

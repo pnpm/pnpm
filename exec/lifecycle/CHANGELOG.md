@@ -1,5 +1,68 @@
 # @pnpm/lifecycle
 
+## 16.0.12
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/directory-fetcher@7.0.11
+  - @pnpm/link-bins@9.0.12
+
+## 16.0.11
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.10
+
+## 16.0.10
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/directory-fetcher@7.0.9
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/link-bins@9.0.12
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/store-controller-types@17.1.4
+
+## 16.0.9
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/directory-fetcher@7.0.8
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/link-bins@9.0.11
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/store-controller-types@17.1.3
+
+## 16.0.8
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/directory-fetcher@7.0.7
+  - @pnpm/link-bins@9.0.10
+
+## 16.0.7
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.6
+
+## 16.0.6
+
+### Patch Changes
+
+- Updated dependencies [7ea45afbe]
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/directory-fetcher@7.0.5
+  - @pnpm/link-bins@9.0.10
+
 ## 16.0.5
 
 ### Patch Changes

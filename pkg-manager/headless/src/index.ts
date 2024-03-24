@@ -18,7 +18,7 @@ import {
   filterLockfileByEngine,
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
-import { hoist } from '@pnpm/hoist'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import {
   runLifecycleHooksConcurrently,
   makeNodeRequireOption,
@@ -102,7 +102,7 @@ export interface HeadlessOptions {
   childConcurrency?: number
   currentLockfile?: Lockfile
   currentEngine: {
-    nodeVersion: string
+    nodeVersion?: string
     pnpmVersion: string
   }
   dedupeDirectDeps?: boolean
@@ -161,6 +161,7 @@ export interface HeadlessOptions {
   useGitBranchLockfile?: boolean
   useLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
+  hoistWorkspacePackages?: boolean
 }
 
 export interface InstallationResultStats {
@@ -235,6 +236,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         selectedProjects,
         {
           currentLockfile,
+          dedupeDirectDeps: opts.dedupeDirectDeps,
           dryRun: false,
           hoistedDependencies: opts.hoistedDependencies,
           hoistedModulesDir: (opts.hoistPattern == null) ? undefined : hoistedModulesDir,
@@ -243,7 +245,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           pruneStore: opts.pruneStore,
           pruneVirtualStore: opts.pruneVirtualStore,
           publicHoistedModulesDir: (opts.publicHoistPattern == null) ? undefined : publicHoistedModulesDir,
-          registries: opts.registries,
           skipped,
           storeController: opts.storeController,
           virtualStoreDir,
@@ -342,7 +343,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
   const depNodes = Object.values(graph)
 
-  const added = depNodes.length
+  const added = depNodes.filter(({ fetching }) => fetching).length
   statsLogger.debug({
     added,
     prefix: lockfileDir,
@@ -423,6 +424,17 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistedModulesDir,
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
+        hoistedWorkspacePackages: opts.hoistWorkspacePackages
+          ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
+            if (project.manifest.name && project.id !== '.') {
+              hoistedWorkspacePackages[project.id] = {
+                dir: project.rootDir,
+                name: project.manifest.name,
+              }
+            }
+            return hoistedWorkspacePackages
+          }, {} as Record<string, HoistedWorkspaceProject>)
+          : undefined,
       })
     } else {
       newHoistedDependencies = {}
@@ -522,6 +534,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   })
 
   if (opts.enableModulesDir !== false) {
+    const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
     /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
       await Promise.all(selectedProjects.map(async (project) => {
@@ -531,7 +544,17 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           })
         } else {
-          const directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
+          let directPkgDirs: string[]
+          if (project.id === '.') {
+            directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
+          } else {
+            directPkgDirs = []
+            for (const [alias, dir] of Object.entries(directDependenciesByImporterId[project.id])) {
+              if (rootProjectDeps[alias] !== dir) {
+                directPkgDirs.push(dir)
+              }
+            }
+          }
           await linkBinsOfPackages(
             (
               await Promise.all(
@@ -670,6 +693,13 @@ async function symlinkDirectDependencies (
       }),
     }]))
   ))
+  const rootProject = projectsToLink['.']
+  if (rootProject && dedupe) {
+    const rootDeps = Object.fromEntries(rootProject.dependencies.map((dep: LinkedDirectDep) => [dep.alias, dep.dir]))
+    for (const project of Object.values(omit(['.'], projectsToLink))) {
+      project.dependencies = project.dependencies.filter((dep: LinkedDirectDep) => dep.dir !== rootDeps[dep.alias])
+    }
+  }
   return linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe) })
 }
 
@@ -756,7 +786,7 @@ async function getRootPackagesToLink (
         if (depPath === null) return
         const pkgSnapshot = lockfile.packages?.[depPath]
         if (pkgSnapshot == null) return // this won't ever happen. Just making typescript happy
-        const pkgId = pkgSnapshot.id ?? dp.refToAbsolute(ref, alias, opts.registries) ?? undefined
+        const pkgId = pkgSnapshot.id ?? dp.refToRelative(ref, alias) ?? undefined
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         return {
           alias,
@@ -798,6 +828,7 @@ async function linkAllPkgs (
         throw err
       }
 
+      depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
         sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
@@ -809,7 +840,7 @@ async function linkAllPkgs (
         filesResponse,
         force: opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-        requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
+        requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
         sideEffectsCacheKey,
       })
       if (importMethod) {

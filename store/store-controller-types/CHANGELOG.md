@@ -1,5 +1,50 @@
 # @pnpm/store-controller-types
 
+## 17.2.0
+
+### Minor Changes
+
+- 31054a63e: Running `pnpm update -r --latest` will no longer downgrade prerelease dependencies [#7436](https://github.com/pnpm/pnpm/issues/7436).
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/fetcher-base@15.0.7
+
+## 17.1.4
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/fetcher-base@15.0.6
+  - @pnpm/resolver-base@11.0.2
+
+## 17.1.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/fetcher-base@15.0.5
+  - @pnpm/resolver-base@11.0.1
+
+## 17.1.2
+
+### Patch Changes
+
+- 291607c5a: When using `pnpm store prune --force` alien directories are removed from the store [#7272](https://github.com/pnpm/pnpm/pull/7272).
+
+## 17.1.1
+
+### Patch Changes
+
+- 7ea45afbe: If a package's tarball cannot be fetched, print the dependency chain that leads to the failed package [#7265](https://github.com/pnpm/pnpm/pull/7265).
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/fetcher-base@15.0.4
+
 ## 17.1.0
 
 ### Minor Changes

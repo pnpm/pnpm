@@ -1,13 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
-import { type LockfileV6 as Lockfile } from '@pnpm/lockfile-file'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
-import isEmpty from 'ramda/src/isEmpty'
 import ssri from 'ssri'
 
 const STORE_VERSION = 'v3'
@@ -35,7 +33,7 @@ test('remove unreferenced packages', async () => {
     '--config.modules-cache-max-age=0',
   ], { env: { npm_config_registry: REGISTRY } })
 
-  await project.storeHas('is-negative', '2.1.0')
+  project.storeHas('is-negative', '2.1.0')
 
   const reporter = jest.fn()
   await store.handler({
@@ -58,7 +56,7 @@ test('remove unreferenced packages', async () => {
     })
   )
 
-  await project.storeHasNot('is-negative', '2.1.0')
+  project.storeHasNot('is-negative', '2.1.0')
 
   reporter.mockClear()
   await store.handler({
@@ -91,9 +89,9 @@ test.skip('remove packages that are used by project that no longer exist', async
 
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
 
-  await cafsHas(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
+  cafsHas(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
 
   const reporter = jest.fn()
   await store.handler({
@@ -116,7 +114,7 @@ test.skip('remove packages that are used by project that no longer exist', async
     })
   )
 
-  await cafsHasNot(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
+  cafsHasNot(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
 })
 
 test('keep dependencies used by others', async () => {
@@ -127,21 +125,13 @@ test('keep dependencies used by others', async () => {
   await execa('node', [pnpmBin, 'add', 'hastscript@3.0.0', '--save-dev', '--store-dir', storeDir, '--registry', REGISTRY])
   await execa('node', [pnpmBin, 'remove', 'camelcase-keys', '--store-dir', storeDir], { env: { npm_config_registry: REGISTRY } })
 
-  await project.storeHas('camelcase-keys', '3.0.0')
-  await project.hasNot('camelcase-keys')
+  project.storeHas('camelcase-keys', '3.0.0')
+  project.hasNot('camelcase-keys')
 
-  await project.storeHas('camelcase', '3.0.0')
+  project.storeHas('camelcase', '3.0.0')
 
-  await project.storeHas('map-obj', '1.0.1')
-  await project.hasNot('map-obj')
-
-  // all dependencies are marked as dev
-  const lockfile = await project.readLockfile() as Lockfile
-  expect(isEmpty(lockfile.packages)).toBeFalsy()
-
-  Object.entries(lockfile.packages ?? {}).forEach(([_, dep]) => {
-    expect(dep.dev).toBeTruthy()
-  })
+  project.storeHas('map-obj', '1.0.1')
+  project.hasNot('map-obj')
 
   await store.handler({
     cacheDir,
@@ -155,9 +145,9 @@ test('keep dependencies used by others', async () => {
     userConfig: {},
   }, ['prune'])
 
-  await project.storeHasNot('camelcase-keys', '3.0.0')
-  await project.storeHasNot('map-obj', '1.0.1')
-  await project.storeHas('camelcase', '3.0.0')
+  project.storeHasNot('camelcase-keys', '3.0.0')
+  project.storeHasNot('map-obj', '1.0.1')
+  project.storeHas('camelcase', '3.0.0')
 })
 
 test('keep dependency used by package', async () => {
@@ -179,7 +169,7 @@ test('keep dependency used by package', async () => {
     userConfig: {},
   }, ['prune'])
 
-  await project.storeHas('is-positive', '3.1.0')
+  project.storeHas('is-positive', '3.1.0')
 })
 
 test('prune will skip scanning non-directory in storeDir', async () => {
@@ -209,7 +199,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
 
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
 
-  await project.storeHas('is-negative', '2.1.0')
+  project.storeHas('is-negative', '2.1.0')
   const alienDir = path.join(storeDir, 'v3/files/44/directory')
   fs.mkdirSync(alienDir)
 
@@ -233,4 +223,41 @@ test('prune does not fail if the store contains an unexpected directory', async 
       message: `An alien directory is present in the store: ${alienDir}`,
     })
   )
+
+  // as force is not used, the alien directory is not removed
+  expect(fs.existsSync(alienDir)).toBeTruthy()
+})
+
+test('prune removes alien files from the store if the --force flag is used', async () => {
+  const project = prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
+
+  project.storeHas('is-negative', '2.1.0')
+  const alienDir = path.join(storeDir, 'v3/files/44/directory')
+  fs.mkdirSync(alienDir)
+
+  const reporter = jest.fn()
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    rawConfig: {
+      registry: REGISTRY,
+    },
+    registries: { default: REGISTRY },
+    reporter,
+    storeDir,
+    userConfig: {},
+    force: true,
+  }, ['prune'])
+  expect(reporter).toBeCalledWith(
+    expect.objectContaining({
+      level: 'warn',
+      message: `An alien directory has been removed from the store: ${alienDir}`,
+    })
+  )
+  expect(fs.existsSync(alienDir)).toBeFalsy()
 })

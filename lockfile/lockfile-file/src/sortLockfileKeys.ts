@@ -1,6 +1,6 @@
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import sortKeys from 'sort-keys'
-import { type LockfileFile } from './write'
+import { type LockfileFileV7, type LockfileFile } from '@pnpm/lockfile-types'
 
 const ORDERED_KEYS = {
   resolution: 1,
@@ -31,34 +31,33 @@ const ORDERED_KEYS = {
   optional: 20,
 }
 
-const ROOT_KEYS_ORDER = {
-  lockfileVersion: 1,
-  settings: 2,
-  // only and never are conflict options.
-  neverBuiltDependencies: 3,
-  onlyBuiltDependencies: 3,
-  overrides: 4,
-  packageExtensionsChecksum: 5,
-  patchedDependencies: 6,
-  specifiers: 10,
-  dependencies: 11,
-  optionalDependencies: 12,
-  devDependencies: 13,
-  dependenciesMeta: 14,
-  importers: 15,
-  packages: 16,
-}
+type RootKey = keyof LockfileFile
+const ROOT_KEYS: readonly RootKey[] = [
+  'lockfileVersion',
+  'settings',
+  'overrides',
+  'packageExtensionsChecksum',
+  'pnpmfileChecksum',
+  'patchedDependencies',
+  'dependencies',
+  'optionalDependencies',
+  'devDependencies',
+  'dependenciesMeta',
+  'importers',
+  'packages',
+]
+const ROOT_KEYS_ORDER = Object.fromEntries(ROOT_KEYS.map((key, index) => [key, index]))
 
 function compareWithPriority (priority: Record<string, number>, left: string, right: string) {
   const leftPriority = priority[left]
   const rightPriority = priority[right]
-  if (leftPriority && rightPriority) return leftPriority - rightPriority
-  if (leftPriority) return -1
-  if (rightPriority) return 1
+  if (leftPriority != null && rightPriority != null) return leftPriority - rightPriority
+  if (leftPriority != null) return -1
+  if (rightPriority != null) return 1
   return lexCompare(left, right)
 }
 
-export function sortLockfileKeys (lockfile: LockfileFile) {
+export function sortLockfileKeys (lockfile: LockfileFileV7) {
   const compareRootKeys = compareWithPriority.bind(null, ROOT_KEYS_ORDER)
   if (lockfile.importers != null) {
     lockfile.importers = sortKeys(lockfile.importers)
@@ -78,7 +77,16 @@ export function sortLockfileKeys (lockfile: LockfileFile) {
       })
     }
   }
-  for (const key of ['specifiers', 'dependencies', 'devDependencies', 'optionalDependencies', 'time', 'patchedDependencies'] as const) {
+  if (lockfile.snapshots != null) {
+    lockfile.snapshots = sortKeys(lockfile.snapshots)
+    for (const [pkgId, pkg] of Object.entries(lockfile.snapshots)) {
+      lockfile.snapshots[pkgId] = sortKeys(pkg, {
+        compare: compareWithPriority.bind(null, ORDERED_KEYS),
+        deep: true,
+      })
+    }
+  }
+  for (const key of ['dependencies', 'devDependencies', 'optionalDependencies', 'time', 'patchedDependencies'] as const) {
     if (!lockfile[key]) continue
     lockfile[key] = sortKeys<any>(lockfile[key]) // eslint-disable-line @typescript-eslint/no-explicit-any
   }

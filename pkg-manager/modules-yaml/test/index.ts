@@ -2,7 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import isWindows from 'is-windows'
 import tempy from 'tempy'
 
@@ -31,7 +31,7 @@ test('writeModulesManifest() and readModulesManifest()', async () => {
   await writeModulesManifest(modulesDir, modulesYaml)
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
 
-  const raw = await readYamlFile<any>(path.join(modulesDir, '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const raw = readYamlFile<any>(path.join(modulesDir, '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(raw.virtualStoreDir).toBeDefined()
   expect(path.isAbsolute(raw.virtualStoreDir)).toEqual(isWindows())
 })
@@ -112,4 +112,9 @@ test('readModulesManifest() should create a node_modules directory if makeModule
   }
   await writeModulesManifest(modulesDir, modulesYaml, { makeModulesDir: true })
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
+})
+
+test('readModulesManifest does not fail on empty file', async () => {
+  const modulesYaml = await readModulesManifest(path.join(__dirname, 'fixtures/empty-modules-yaml'))
+  expect(modulesYaml).toBeUndefined()
 })

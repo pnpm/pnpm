@@ -7,10 +7,7 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
-  // needed in some cases to get the auth token
-  // sometimes the tarball URL is under a different path
-  // and the auth token is specified for the registry only
-  registry?: string
+  path?: string
 }
 
 /**
@@ -24,6 +21,7 @@ export interface DirectoryResolution {
 export interface GitResolution {
   commit: string
   repo: string
+  path?: string
   type: 'git'
 }
 
@@ -82,6 +80,7 @@ export interface ResolveOptions {
   preferWorkspacePackages?: boolean
   registry: string
   workspacePackages?: WorkspacePackages
+  updateToLatest?: boolean
 }
 
 export type WantedDependency = {
