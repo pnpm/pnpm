@@ -91,7 +91,16 @@ export function pickLowestVersionByVersionRange (
   preferredVerSels?: VersionSelectors
 ) {
   if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
-    const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVerSels)
+    // ignore the subdependencies
+    // {'^1.0.0': { selectorType: 'range', weight: 1000 }, '1.0.1': 'version'} would be [1.0.1, 1.0.0] if sorted by weight
+    let lowestPreferredVerSels: VersionSelectors | null = null
+    Object.entries(preferredVerSels).forEach(([key, value]) => {
+      if (value !== null && typeof value === 'object') {
+        if (!lowestPreferredVerSels) lowestPreferredVerSels = {}
+        lowestPreferredVerSels[key] = value
+      }
+    })
+    const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, lowestPreferredVerSels ?? preferredVerSels)
     for (const preferredVersions of prioritizedPreferredVersions) {
       const preferredVersion = semver.minSatisfying(preferredVersions, versionRange, true)
       if (preferredVersion) {
