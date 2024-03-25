@@ -6416,6 +6416,9 @@ importers:
 
   workspace/pkgs-graph:
     dependencies:
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
       '@pnpm/npm-package-arg':
         specifier: ^1.0.0
         version: 1.0.0

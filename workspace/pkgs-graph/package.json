@@ -30,6 +30,7 @@
     "better-path-resolve": "1.0.0"
   },
   "dependencies": {
+    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/npm-package-arg": "^1.0.0",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/resolve-workspace-range": "workspace:*",
