@@ -224,6 +224,11 @@ function getChangelogEntry (changelog: string, version: string) {
           </picture>
         </a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://vpsserver.com/en-us/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <img src="https://pnpm.io/img/users/vpsserver.svg" width="180" />
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
