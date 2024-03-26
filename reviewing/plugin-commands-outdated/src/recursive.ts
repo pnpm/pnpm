@@ -52,7 +52,7 @@ export async function outdatedRecursive (
   opts: OutdatedCommandOptions & { include: IncludedDependencies }
 ) {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
-  const rootManifest = pkgs.find(({ dir }) => dir === opts.lockfileDir ?? opts.dir)
+  const rootManifest = pkgs.find(({ dir }) => dir === opts.lockfileDir)
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, {
     ...opts,
     fullMetadata: opts.long,
