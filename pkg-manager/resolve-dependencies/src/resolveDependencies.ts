@@ -317,7 +317,7 @@ export async function resolveRootDependencies (
       const dependencies = Object.fromEntries(
         missingRequiredPeers
           .map(([peerName, { range }]) => {
-            if (!ctx.allPreferredVersions![peerName]) return [peerName, { range }]
+            if (!ctx.allPreferredVersions![peerName]) return [peerName, range]
             return [peerName, Object.keys(ctx.allPreferredVersions![peerName]).join(' || ')]
           })
       )
