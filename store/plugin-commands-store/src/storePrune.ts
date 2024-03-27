@@ -55,7 +55,7 @@ export async function cleanExpiredCache (opts: {
       shouldClean = true
     } else {
       const cacheStats = await fs.stat(cachePath)
-      shouldClean = cacheStats.ctime.getTime() + dlxCacheMaxAge * 60_000 <= now.getTime()
+      shouldClean = cacheStats.mtime.getTime() + dlxCacheMaxAge * 60_000 <= now.getTime()
     }
     if (shouldClean) {
       try {
