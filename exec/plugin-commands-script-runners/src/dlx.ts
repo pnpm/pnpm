@@ -70,18 +70,18 @@ export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
 ) {
+  const pkgs = opts.package ?? [command]
   const { storeDir, tempDir, cacheStats, cachePath } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
     cacheDir: opts.cacheDir,
-    command,
+    pkgs,
   })
   const tempPath = path.join(tempDir, `dlx-${process.pid.toString()}`)
   const prefix = cacheStats === 'ENOENT' ? tempPath : cachePath
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
-  const pkgs = opts.package ?? [command]
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
   if (cacheStats === 'ENOENT') {
     fs.mkdirSync(tempPath, { recursive: true })
@@ -168,7 +168,7 @@ async function getInfo (opts: {
   storeDir?: string
   cacheDir: string
   pnpmHomeDir: string
-  command: string
+  pkgs: string[]
 }) {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
@@ -177,7 +177,7 @@ async function getInfo (opts: {
   })
   const tempDir = path.join(storeDir, 'tmp')
   const cacheDir = path.resolve(opts.cacheDir, 'dlx')
-  const cacheInfo = getCacheInfo(cacheDir, opts.command)
+  const cacheInfo = getCacheInfo(cacheDir, opts.pkgs)
   return {
     storeDir,
     tempDir,
@@ -186,8 +186,9 @@ async function getInfo (opts: {
   }
 }
 
-function getCacheInfo (cacheDir: string, command: string) {
-  const cacheName = createBase32Hash(command)
+function getCacheInfo (cacheDir: string, pkgs: string[]) {
+  const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
+  const cacheName = createBase32Hash(hashStr)
   const cachePath = path.join(cacheDir, cacheName)
   let cacheStats: fs.Stats | 'ENOENT'
   try {
