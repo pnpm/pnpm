@@ -1,5 +1,5 @@
 import { docsUrl } from '@pnpm/cli-utils'
-import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
+import { UNIVERSAL_OPTIONS, OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
@@ -12,6 +12,7 @@ export function cliOptionsTypes () {
     'dev',
     'optional',
     'production',
+    'ignore-scripts',
   ], allTypes)
 }
 
@@ -33,6 +34,7 @@ export function help () {
             description: 'Remove the packages specified in `optionalDependencies`',
             name: '--no-optional',
           },
+          OPTIONS.ignoreScripts,
           ...UNIVERSAL_OPTIONS,
         ],
       },
