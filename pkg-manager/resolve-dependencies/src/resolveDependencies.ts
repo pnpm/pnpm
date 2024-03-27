@@ -297,6 +297,7 @@ export async function resolveRootDependencies (
   const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
     const pkgAddresses = importerResolutionResult.pkgAddresses
     if (!ctx.autoInstallPeers) return pkgAddresses
+    let prevMissingOptionalPeers: string[] = []
     while (true) {
       for (const pkgAddress of importerResolutionResult.pkgAddresses) {
         parentPkgAliases[pkgAddress.alias] = true
@@ -313,7 +314,15 @@ export async function resolveRootDependencies (
           pkgAddresses.push(resolvedPeerAddress)
         }
       }
-      if (!missingRequiredPeers.length && !missingOptionalPeers) break
+      const missingOptionalPeerNames = Array.from(
+        new Set(
+          [
+            ...missingOptionalPeers.map(([peerName]) => peerName),
+            ...prevMissingOptionalPeers,
+          ]
+        )
+      )
+      if (!missingRequiredPeers.length && !missingOptionalPeerNames.length) break
       const dependencies = Object.fromEntries(
         missingRequiredPeers
           .map(([peerName, { range }]) => {
@@ -321,11 +330,15 @@ export async function resolveRootDependencies (
             return [peerName, Object.keys(ctx.allPreferredVersions![peerName]).join(' || ')]
           })
       )
-      for (const [missingOptionalPeerName] of missingOptionalPeers) {
+      const nextMissingOptionalPeers: string[] = []
+      for (const missingOptionalPeerName of missingOptionalPeerNames) {
         if (ctx.allPreferredVersions![missingOptionalPeerName]) {
           dependencies[missingOptionalPeerName] = Object.keys(ctx.allPreferredVersions![missingOptionalPeerName]).join(' || ')
+        } else {
+          nextMissingOptionalPeers.push(missingOptionalPeerName)
         }
       }
+      prevMissingOptionalPeers = nextMissingOptionalPeers
       if (!Object.keys(dependencies).length) break
       const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
