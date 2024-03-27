@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
@@ -13,32 +14,45 @@ test('dlx', async () => {
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
   }, ['shx', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash('shx')])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 })
 
 test('dlx install from git', async () => {
   prepareEmpty()
 
+  const pkg = 'shelljs/shx#61aca968cd7afc712ca61a4fc4ec3201e3770dc7'
+
   await dlx.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-  }, ['shelljs/shx#61aca968cd7afc712ca61a4fc4ec3201e3770dc7', 'touch', 'foo'])
+    cacheDir: path.resolve('cache'),
+  }, [pkg, 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash(pkg)])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(pkg))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 })
 
 test('dlx should work when the package name differs from the bin name', async () => {
   prepareEmpty()
 
+  const pkg = '@pnpm.e2e/touch-file-one-bin'
+
   await dlx.handler({
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
-  }, ['@pnpm.e2e/touch-file-one-bin'])
+    cacheDir: path.resolve('cache'),
+  }, [pkg])
 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash(pkg)])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(pkg))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 })
 
 test('dlx should fail when the installed package has many commands and none equals the package name', async () => {
@@ -65,18 +79,25 @@ test('dlx should not fail when the installed package has many commands and one e
   expect(fs.existsSync('touch.txt')).toBeTruthy()
 })
 
-test('dlx --package <pkg1> [--package <pkg2>]', async () => {
+test.only('dlx --package <pkg1> [--package <pkg2>]', async () => {
   prepareEmpty()
+
+  const pkgs = [
+    'zkochan/for-testing-pnpm-dlx',
+    'is-positive',
+  ]
 
   await dlx.handler({
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
-    package: [
-      'zkochan/for-testing-pnpm-dlx',
-      'is-positive',
-    ],
+    cacheDir: path.resolve('cache'),
+    package: pkgs,
   }, ['foo'])
+
+  const cacheName = createBase32Hash(pkgs.join('\n'))
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([cacheName])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', cacheName)).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
 })
