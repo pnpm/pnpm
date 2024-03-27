@@ -64,7 +64,7 @@ export function help () {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-} & Pick<Config, 'reporter' | 'userAgent'> & add.AddCommandOptions
+} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir'> & add.AddCommandOptions
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -74,6 +74,7 @@ export async function handler (
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
+    cacheDir: opts.cacheDir,
     command,
   })
   const cleanExpiredCachePromise: Promise<void> = cleanExpiredCache({
@@ -173,6 +174,7 @@ function scopeless (pkgName: string) {
 async function getInfo (opts: {
   dir: string
   storeDir?: string
+  cacheDir: string
   pnpmHomeDir: string
   command: string
 }) {
@@ -182,7 +184,7 @@ async function getInfo (opts: {
     pnpmHomeDir: opts.pnpmHomeDir,
   })
   const tempDir = path.join(storeDir, 'tmp')
-  const cacheDir = path.join(storeDir, 'dlx')
+  const cacheDir = path.resolve(opts.cacheDir, 'dlx')
   const cacheInfo = getCacheInfo(cacheDir, opts.command)
   return {
     storeDir,
