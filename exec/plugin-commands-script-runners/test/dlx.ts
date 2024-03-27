@@ -17,7 +17,6 @@ test('dlx should work with scoped packages', async () => {
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     userAgent,
-    dlxCacheMaxAge: 0,
   }, ['@foo/touch-file-one-bin'])
 
   expect(execa).toBeCalledWith('touch-file-one-bin', [], expect.objectContaining({
@@ -34,7 +33,6 @@ test('dlx should work with versioned packages', async () => {
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
-    dlxCacheMaxAge: 0,
   }, ['@foo/touch-file-one-bin@latest'])
 
   expect(execa).toBeCalledWith('touch-file-one-bin', [], expect.anything())
