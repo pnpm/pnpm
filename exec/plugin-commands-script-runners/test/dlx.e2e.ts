@@ -189,3 +189,20 @@ test('dlx with cache', async () => {
 
   spy.mockRestore()
 })
+
+test('dlx still saves cache even if execution fails', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync(path.resolve('not-a-dir'), 'to make `shx mkdir` fails')
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+  }, ['shx', 'mkdir', path.resolve('not-a-dir')])
+
+  expect(fs.readFileSync(path.resolve('not-a-dir'), 'utf-8')).toEqual(expect.anything())
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash('shx')])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+})
