@@ -214,7 +214,7 @@ const defaults = (opts: InstallOptions) => {
     symlink: true,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
-    strictPeerDependencies: true,
+    strictPeerDependencies: false,
     tag: 'latest',
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||

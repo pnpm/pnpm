@@ -421,6 +421,7 @@ test('installation on a workspace with many complex circular dependencies does n
     autoInstallPeers: true,
     ignoreScripts: true,
     lockfileOnly: true,
+    strictPeerDependencies: false,
     allProjects: [
       {
         buildIndex: 0,
