@@ -71,7 +71,7 @@ export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
 ) {
-  const { storeDir, tempDir, cacheDir, cacheStats, cacheName, cachePath } = await getInfo({
+  const { storeDir, tempDir, cacheStats, cachePath } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
