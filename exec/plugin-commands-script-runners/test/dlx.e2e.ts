@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
+import { add } from '@pnpm/plugin-commands-installation'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
@@ -153,4 +154,38 @@ testOnWindowsOnly('dlx should work when running in the root of a Windows Drive',
     dir: 'C:\\',
     storeDir: path.resolve('store'),
   }, ['cowsay', 'hello'])
+})
+
+test('dlx with cache', async () => {
+  prepareEmpty()
+
+  const spy = jest.spyOn(add, 'handler')
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+  }, ['shx', 'touch', 'foo'])
+
+  expect(fs.existsSync('foo')).toBe(true)
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash('shx')])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+  expect(spy).toHaveBeenCalled()
+
+  spy.mockReset()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+  }, ['shx', 'touch', 'bar'])
+
+  expect(fs.existsSync('bar')).toBe(true)
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash('shx')])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+  expect(spy).not.toHaveBeenCalled()
+
+  spy.mockRestore()
 })
