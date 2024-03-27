@@ -213,12 +213,12 @@ function getCacheInfo (cacheDir: string, command: string) {
 async function cleanExpiredCache (opts: {
   excludedCacheNames: string[],
   cacheDir: string,
-  cacheLifespanMillis: 'never' | 'forever' | number,
+  cacheLifespanMillis: number,
   now: Date
 }): Promise<void> {
   const { excludedCacheNames, cacheDir, cacheLifespanMillis, now } = opts
 
-  if (cacheLifespanMillis === 'forever') return
+  if (cacheLifespanMillis === Infinity) return
 
   let cacheItems: fs.Dirent[]
   try {
@@ -232,7 +232,7 @@ async function cleanExpiredCache (opts: {
     if (excludedCacheNames.includes(item.name)) return
     const cachePath = path.join(cacheDir, item.name)
     let shouldClean: boolean
-    if (cacheLifespanMillis === 'never') {
+    if (cacheLifespanMillis <= 0) {
       shouldClean = true
     } else {
       const cacheStats = await fs.promises.stat(cachePath)
