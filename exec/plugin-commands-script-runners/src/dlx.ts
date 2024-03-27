@@ -86,7 +86,6 @@ export async function handler (
   const prefix = cacheStats === 'ENOENT' ? tempPath : cachePath
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
-  fs.mkdirSync(prefix, { recursive: true })
   process.on('exit', () => {
     if (cacheStats === 'ENOENT') {
       fs.mkdirSync(path.dirname(cachePath), { recursive: true })
@@ -96,6 +95,7 @@ export async function handler (
   const pkgs = opts.package ?? [command]
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
   if (cacheStats === 'ENOENT') {
+    fs.mkdirSync(tempPath, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
