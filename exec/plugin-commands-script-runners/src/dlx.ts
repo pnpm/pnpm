@@ -26,7 +26,6 @@ export function rcOptionsTypes () {
   return {
     ...pick([
       'use-node-version',
-      'dlx-cache-max-age',
     ], types),
     'shell-mode': Boolean,
   }
@@ -65,7 +64,7 @@ export function help () {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' > & add.AddCommandOptions
+} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' > & add.AddCommandOptions
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -83,14 +82,7 @@ export async function handler (
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   process.on('exit', () => {
-    if (opts.dlxCacheMaxAge <= 0) {
-      try {
-        fs.rmSync(tempPath, {
-          recursive: true,
-          maxRetries: 3,
-        })
-      } catch {}
-    } else if (cacheStats === 'ENOENT') {
+    if (cacheStats === 'ENOENT') {
       fs.mkdirSync(path.dirname(cachePath), { recursive: true })
       fs.renameSync(tempPath, cachePath)
     }
