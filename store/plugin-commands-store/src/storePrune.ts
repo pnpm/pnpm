@@ -41,16 +41,15 @@ export async function cleanExpiredCache (opts: {
 
   if (dlxCacheMaxAge === Infinity) return
 
-  let cacheItems: import('fs').Dirent[]
+  let cacheNames: string[]
   try {
-    cacheItems = await fs.readdir(cacheDir, { encoding: 'utf-8', withFileTypes: true })
+    cacheNames = await fs.readdir(cacheDir, { encoding: 'utf-8' })
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
     throw err
   }
-  await Promise.all(cacheItems.map(async item => {
-    if (!item.isDirectory()) return
-    const cachePath = path.join(cacheDir, item.name)
+  await Promise.all(cacheNames.map(async name => {
+    const cachePath = path.join(cacheDir, name)
     let shouldClean: boolean
     if (dlxCacheMaxAge <= 0) {
       shouldClean = true
