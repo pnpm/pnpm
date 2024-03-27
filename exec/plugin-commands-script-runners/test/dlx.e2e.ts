@@ -79,7 +79,7 @@ test('dlx should not fail when the installed package has many commands and one e
   expect(fs.existsSync('touch.txt')).toBeTruthy()
 })
 
-test.only('dlx --package <pkg1> [--package <pkg2>]', async () => {
+test('dlx --package <pkg1> [--package <pkg2>]', async () => {
   prepareEmpty()
 
   const pkgs = [
