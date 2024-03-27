@@ -43,6 +43,7 @@ import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
+import partition from 'ramda/src/partition'
 import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
 import zipWith from 'ramda/src/zipWith'
@@ -165,7 +166,7 @@ export interface ResolutionContext {
   missingPeersOfChildrenByPkgId: Record<string, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
 }
 
-export type MissingPeers = Record<string, string>
+export type MissingPeers = Record<string, { range: string, optional: boolean }>
 
 export type ResolvedPeers = Record<string, PkgAddress>
 
@@ -300,7 +301,8 @@ export async function resolveRootDependencies (
       for (const pkgAddress of importerResolutionResult.pkgAddresses) {
         parentPkgAliases[pkgAddress.alias] = true
       }
-      for (const missingPeerName of Object.keys(importerResolutionResult.missingPeers ?? {})) {
+      const [missingOptionalPeers, missingRequiredPeers] = partition(([, { optional }]) => optional, Object.entries(importerResolutionResult.missingPeers ?? {}))
+      for (const missingPeerName of Object.keys(missingRequiredPeers)) {
         parentPkgAliases[missingPeerName] = true
       }
       // All the missing peers should get installed in the root.
@@ -311,14 +313,20 @@ export async function resolveRootDependencies (
           pkgAddresses.push(resolvedPeerAddress)
         }
       }
-      if (!Object.keys(importerResolutionResult.missingPeers).length) break
+      if (!missingRequiredPeers.length && !missingOptionalPeers) break
       const dependencies = Object.fromEntries(
-        Object.entries(importerResolutionResult.missingPeers)
-          .map(([peerName, peerRange]) => {
-            if (!ctx.allPreferredVersions![peerName]) return [peerName, peerRange]
+        missingRequiredPeers
+          .map(([peerName, { range }]) => {
+            if (!ctx.allPreferredVersions![peerName]) return [peerName, range]
             return [peerName, Object.keys(ctx.allPreferredVersions![peerName]).join(' || ')]
           })
       )
+      for (const [missingOptionalPeerName] of missingOptionalPeers) {
+        if (ctx.allPreferredVersions![missingOptionalPeerName]) {
+          dependencies[missingOptionalPeerName] = Object.keys(ctx.allPreferredVersions![missingOptionalPeerName]).join(' || ')
+        }
+      }
+      if (!Object.keys(dependencies).length) break
       const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
       // eslint-disable-next-line no-await-in-loop
@@ -631,23 +639,25 @@ async function startResolvingPeers (
   }
 }
 
-function mergePkgsDeps (pkgsDeps: Array<Record<string, string>>, opts: { autoInstallPeersFromHighestMatch: boolean }): Record<string, string> {
-  const groupedRanges: Record<string, string[]> = {}
+function mergePkgsDeps (pkgsDeps: MissingPeers[], opts: { autoInstallPeersFromHighestMatch: boolean }): MissingPeers {
+  const groupedRanges: Record<string, { ranges: string[], optional: boolean }> = {}
   for (const deps of pkgsDeps) {
-    for (const [name, range] of Object.entries(deps)) {
+    for (const [name, { range, optional }] of Object.entries(deps)) {
       if (!groupedRanges[name]) {
-        groupedRanges[name] = []
+        groupedRanges[name] = { ranges: [], optional }
+      } else {
+        groupedRanges[name].optional &&= optional
       }
-      groupedRanges[name].push(range)
+      groupedRanges[name].ranges.push(range)
     }
   }
-  const mergedPkgDeps = {} as Record<string, string>
-  for (const [name, ranges] of Object.entries(groupedRanges)) {
+  const mergedPkgDeps = {} as MissingPeers
+  for (const [name, { ranges, optional }] of Object.entries(groupedRanges)) {
     const intersection = safeIntersect(ranges)
     if (intersection) {
-      mergedPkgDeps[name] = intersection
+      mergedPkgDeps[name] = { range: intersection, optional }
     } else if (opts.autoInstallPeersFromHighestMatch) {
-      mergedPkgDeps[name] = ranges.join(' || ')
+      mergedPkgDeps[name] = { range: ranges.join(' || '), optional }
     }
   }
   return mergedPkgDeps
@@ -1427,11 +1437,12 @@ function getManifestFromResponse (
   }
 }
 
-function getMissingPeers (pkg: PackageManifest) {
+function getMissingPeers (pkg: PackageManifest): MissingPeers {
   const missingPeers = {} as MissingPeers
   for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
-    if (!pkg.peerDependenciesMeta?.[peerName]?.optional) {
-      missingPeers[peerName] = peerVersion
+    missingPeers[peerName] = {
+      range: peerVersion,
+      optional: pkg.peerDependenciesMeta?.[peerName]?.optional === true,
     }
   }
   return missingPeers
