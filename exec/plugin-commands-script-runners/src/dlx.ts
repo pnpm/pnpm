@@ -4,6 +4,7 @@ import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
+import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -69,38 +70,47 @@ export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
 ) {
-  const dlxDir = await getDlxDir({
+  const { storeDir, tempDir, cacheDir, cacheStats, cacheName, cachePath } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
+    command,
   })
-  const prefix = path.join(dlxDir, `dlx-${process.pid.toString()}`)
+  const cleanExpiredCachePromise: Promise<void> = cleanExpiredCache({
+    excludedCacheNames: [cacheName],
+    cacheDir,
+    cacheLifespanMillis: 5 * 60_000, // TODO: make this configurable
+    now: new Date(),
+  })
+  const tempPath = path.join(tempDir, `dlx-${process.pid.toString()}`)
+  const prefix = cacheStats === 'ENOENT' ? tempPath : cachePath
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   fs.mkdirSync(prefix, { recursive: true })
   process.on('exit', () => {
-    try {
-      fs.rmdirSync(prefix, {
-        recursive: true,
-        maxRetries: 3,
-      })
-    } catch (err) {}
+    if (cacheStats === 'ENOENT') {
+      fs.mkdirSync(path.dirname(cachePath), { recursive: true })
+      fs.renameSync(tempPath, cachePath)
+    }
   })
   const pkgs = opts.package ?? [command]
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
-  await add.handler({
-    // Ideally the config reader should ignore these settings when the dlx command is executed.
-    // This is a temporary solution until "@pnpm/config" is refactored.
-    ...omit(['workspaceDir', 'rootProjectManifest'], opts),
-    bin: binsDir,
-    dir: prefix,
-    lockfileDir: prefix,
-    rootProjectManifestDir: prefix, // This property won't be used as rootProjectManifest will be undefined
-    saveProd: true, // dlx will be looking for the package in the "dependencies" field!
-    saveDev: false,
-    saveOptional: false,
-    savePeer: false,
-  }, pkgs)
+  if (cacheStats === 'ENOENT') {
+    await add.handler({
+      // Ideally the config reader should ignore these settings when the dlx command is executed.
+      // This is a temporary solution until "@pnpm/config" is refactored.
+      ...omit(['workspaceDir', 'rootProjectManifest'], opts),
+      bin: binsDir,
+      dir: tempPath,
+      lockfileDir: tempPath,
+      rootProjectManifestDir: tempPath, // This property won't be used as rootProjectManifest will be undefined
+      storeDir,
+      saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+      saveDev: false,
+      saveOptional: false,
+      savePeer: false,
+    }, pkgs)
+  }
   const binName = opts.package
     ? command
     : await getBinName(modulesDir, await getPkgName(prefix))
@@ -119,6 +129,7 @@ export async function handler (
     }
     throw err
   }
+  await cleanExpiredCachePromise
   return { exitCode: 0 }
 }
 
@@ -159,17 +170,76 @@ function scopeless (pkgName: string) {
   return pkgName
 }
 
-async function getDlxDir (
-  opts: {
-    dir: string
-    storeDir?: string
-    pnpmHomeDir: string
-  }
-): Promise<string> {
+async function getInfo (opts: {
+  dir: string
+  storeDir?: string
+  pnpmHomeDir: string
+  command: string
+}) {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  return path.join(storeDir, 'tmp')
+  const tempDir = path.join(storeDir, 'tmp')
+  const cacheDir = path.join(storeDir, 'dlx')
+  const cacheInfo = getCacheInfo(cacheDir, opts.command)
+  return {
+    storeDir,
+    tempDir,
+    cacheDir,
+    ...cacheInfo,
+  }
+}
+
+function getCacheInfo (cacheDir: string, command: string) {
+  const cacheName = createBase32Hash(command)
+  const cachePath = path.join(cacheDir, cacheName)
+  let cacheStats: fs.Stats | 'ENOENT'
+  try {
+    cacheStats = fs.statSync(cachePath)
+  } catch (err) {
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
+      cacheStats = 'ENOENT'
+    } else {
+      throw err
+    }
+  }
+  return { cacheName, cachePath, cacheStats }
+}
+
+async function cleanExpiredCache (opts: {
+  excludedCacheNames: string[],
+  cacheDir: string,
+  cacheLifespanMillis: 'never' | 'forever' | number,
+  now: Date
+}): Promise<void> {
+  const { excludedCacheNames, cacheDir, cacheLifespanMillis, now } = opts
+
+  if (cacheLifespanMillis === 'forever') return
+
+  let cacheItems: fs.Dirent[]
+  try {
+    cacheItems = await fs.promises.readdir(cacheDir, { encoding: 'utf-8', withFileTypes: true })
+  } catch (err) {
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') return
+    throw err
+  }
+  await Promise.all(cacheItems.map(async item => {
+    if (!item.isDirectory()) return
+    if (excludedCacheNames.includes(item.name)) return
+    const cachePath = path.join(cacheDir, item.name)
+    let shouldClean: boolean
+    if (cacheLifespanMillis === 'never') {
+      shouldClean = true
+    } else {
+      const cacheStats = await fs.promises.stat(cachePath)
+      shouldClean = cacheStats.ctime.getTime() + cacheLifespanMillis <= now.getTime()
+    }
+    if (shouldClean) {
+      try {
+        await fs.promises.rm(cachePath, { recursive: true })
+      } catch {}
+    }
+  }))
 }
