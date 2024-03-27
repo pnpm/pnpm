@@ -199,7 +199,7 @@ function getCacheInfo (cacheDir: string, command: string) {
   try {
     cacheStats = fs.statSync(cachePath)
   } catch (err) {
-    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       cacheStats = 'ENOENT'
     } else {
       throw err
@@ -222,7 +222,7 @@ async function cleanExpiredCache (opts: {
   try {
     cacheItems = await fs.promises.readdir(cacheDir, { encoding: 'utf-8', withFileTypes: true })
   } catch (err) {
-    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') return
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
     throw err
   }
   await Promise.all(cacheItems.map(async item => {
