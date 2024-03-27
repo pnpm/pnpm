@@ -13,6 +13,7 @@ test('dlx', async () => {
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
+    dlxCacheMaxAge: 0,
   }, ['shx', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
@@ -24,6 +25,7 @@ test('dlx install from git', async () => {
   await dlx.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
+    dlxCacheMaxAge: 0,
   }, ['shelljs/shx#61aca968cd7afc712ca61a4fc4ec3201e3770dc7', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
@@ -36,6 +38,7 @@ test('dlx should work when the package name differs from the bin name', async ()
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
+    dlxCacheMaxAge: 0,
   }, ['@pnpm.e2e/touch-file-one-bin'])
 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
@@ -49,6 +52,7 @@ test('dlx should fail when the installed package has many commands and none equa
       ...DEFAULT_OPTS,
       dir: path.resolve('project'),
       storeDir: path.resolve('store'),
+      dlxCacheMaxAge: 0,
     }, ['@pnpm.e2e/touch-file-many-bins'])
   ).rejects.toThrow('Could not determine executable to run. @pnpm.e2e/touch-file-many-bins has multiple binaries: t, tt')
 })
@@ -60,6 +64,7 @@ test('dlx should not fail when the installed package has many commands and one e
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
+    dlxCacheMaxAge: 0,
   }, ['@pnpm.e2e/touch-file-good-bin-name'])
 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
@@ -76,6 +81,7 @@ test('dlx --package <pkg1> [--package <pkg2>]', async () => {
       'zkochan/for-testing-pnpm-dlx',
       'is-positive',
     ],
+    dlxCacheMaxAge: 0,
   }, ['foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
@@ -89,6 +95,7 @@ test('dlx should fail when the package has no bins', async () => {
       ...DEFAULT_OPTS,
       dir: path.resolve('project'),
       storeDir: path.resolve('store'),
+      dlxCacheMaxAge: 0,
     }, ['is-positive'])
   ).rejects.toThrow(/No binaries found in is-positive/)
 })
@@ -104,6 +111,7 @@ test('dlx should work in shell mode', async () => {
       'is-positive',
     ],
     shellMode: true,
+    dlxCacheMaxAge: 0,
   }, ['echo "some text" > foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
@@ -119,6 +127,7 @@ test('dlx should return a non-zero exit code when the underlying script fails', 
     package: [
       'touch@3.1.0',
     ],
+    dlxCacheMaxAge: 0,
   }, ['nodetouch', '--bad-option'])
 
   expect(exitCode).toBe(1)
@@ -131,5 +140,6 @@ testOnWindowsOnly('dlx should work when running in the root of a Windows Drive',
     ...DEFAULT_OPTS,
     dir: 'C:\\',
     storeDir: path.resolve('store'),
+    dlxCacheMaxAge: 0,
   }, ['cowsay', 'hello'])
 })
