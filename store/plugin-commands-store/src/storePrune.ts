@@ -1,3 +1,6 @@
+import fs from 'fs/promises'
+import path from 'path'
+import util from 'util'
 import { streamParser } from '@pnpm/logger'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type ReporterFunction } from './types'
@@ -7,6 +10,8 @@ export async function storePrune (
     reporter?: ReporterFunction
     storeController: StoreController
     removeAlienFiles?: boolean
+    cacheDir: string
+    dlxCacheMaxAge: number
   }
 ) {
   const reporter = opts?.reporter
@@ -16,7 +21,47 @@ export async function storePrune (
   await opts.storeController.prune(opts.removeAlienFiles)
   await opts.storeController.close()
 
+  await cleanExpiredCache({
+    cacheDir: opts.cacheDir,
+    dlxCacheMaxAge: opts.dlxCacheMaxAge,
+    now: new Date(),
+  })
+
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
+}
+
+export async function cleanExpiredCache (opts: {
+  cacheDir: string
+  dlxCacheMaxAge: number
+  now: Date
+}): Promise<void> {
+  const { cacheDir, dlxCacheMaxAge, now } = opts
+
+  if (dlxCacheMaxAge === Infinity) return
+
+  let cacheItems: import('fs').Dirent[]
+  try {
+    cacheItems = await fs.readdir(cacheDir, { encoding: 'utf-8', withFileTypes: true })
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    throw err
+  }
+  await Promise.all(cacheItems.map(async item => {
+    if (!item.isDirectory()) return
+    const cachePath = path.join(cacheDir, item.name)
+    let shouldClean: boolean
+    if (dlxCacheMaxAge <= 0) {
+      shouldClean = true
+    } else {
+      const cacheStats = await fs.stat(cachePath)
+      shouldClean = cacheStats.ctime.getTime() + dlxCacheMaxAge * 60_000 <= now.getTime()
+    }
+    if (shouldClean) {
+      try {
+        await fs.rm(cachePath, { recursive: true })
+      } catch {}
+    }
+  }))
 }

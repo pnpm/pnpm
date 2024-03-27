@@ -78,12 +78,6 @@ export async function handler (
     cacheDir: opts.cacheDir,
     command,
   })
-  const cleanExpiredCachePromise: Promise<void> = cleanExpiredCache({
-    excludedCacheNames: [cacheName],
-    cacheDir,
-    cacheLifespanMillis: opts.dlxCacheMaxAge * 60_000,
-    now: new Date(),
-  })
   const tempPath = path.join(tempDir, `dlx-${process.pid.toString()}`)
   const prefix = cacheStats === 'ENOENT' ? tempPath : cachePath
   const modulesDir = path.join(prefix, 'node_modules')
@@ -138,7 +132,6 @@ export async function handler (
     }
     throw err
   }
-  await cleanExpiredCachePromise
   return { exitCode: 0 }
 }
 
@@ -216,40 +209,4 @@ function getCacheInfo (cacheDir: string, command: string) {
     }
   }
   return { cacheName, cachePath, cacheStats }
-}
-
-async function cleanExpiredCache (opts: {
-  excludedCacheNames: string[],
-  cacheDir: string,
-  cacheLifespanMillis: number,
-  now: Date
-}): Promise<void> {
-  const { excludedCacheNames, cacheDir, cacheLifespanMillis, now } = opts
-
-  if (cacheLifespanMillis === Infinity) return
-
-  let cacheItems: fs.Dirent[]
-  try {
-    cacheItems = await fs.promises.readdir(cacheDir, { encoding: 'utf-8', withFileTypes: true })
-  } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
-    throw err
-  }
-  await Promise.all(cacheItems.map(async item => {
-    if (!item.isDirectory()) return
-    if (excludedCacheNames.includes(item.name)) return
-    const cachePath = path.join(cacheDir, item.name)
-    let shouldClean: boolean
-    if (cacheLifespanMillis <= 0) {
-      shouldClean = true
-    } else {
-      const cacheStats = await fs.promises.stat(cachePath)
-      shouldClean = cacheStats.ctime.getTime() + cacheLifespanMillis <= now.getTime()
-    }
-    if (shouldClean) {
-      try {
-        await fs.promises.rm(cachePath, { recursive: true })
-      } catch {}
-    }
-  }))
 }
