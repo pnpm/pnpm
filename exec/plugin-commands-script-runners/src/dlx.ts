@@ -89,7 +89,14 @@ export async function handler (
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   process.on('exit', () => {
-    if (cacheStats === 'ENOENT') {
+    if (opts.dlxCacheMaxAge <= 0) {
+      try {
+        fs.rmSync(tempPath, {
+          recursive: true,
+          maxRetries: 3,
+        })
+      } catch {}
+    } else if (cacheStats === 'ENOENT') {
       fs.mkdirSync(path.dirname(cachePath), { recursive: true })
       fs.renameSync(tempPath, cachePath)
     }
