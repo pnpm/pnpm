@@ -26,6 +26,7 @@ export function rcOptionsTypes () {
   return {
     ...pick([
       'use-node-version',
+      'dlx-cache-max-age',
     ], types),
     'shell-mode': Boolean,
   }
@@ -64,7 +65,7 @@ export function help () {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir'> & add.AddCommandOptions
+} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' > & add.AddCommandOptions
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -80,7 +81,7 @@ export async function handler (
   const cleanExpiredCachePromise: Promise<void> = cleanExpiredCache({
     excludedCacheNames: [cacheName],
     cacheDir,
-    cacheLifespanMillis: 5 * 60_000, // TODO: make this configurable
+    cacheLifespanMillis: opts.dlxCacheMaxAge * 60_000,
     now: new Date(),
   })
   const tempPath = path.join(tempDir, `dlx-${process.pid.toString()}`)
