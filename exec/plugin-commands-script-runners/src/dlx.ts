@@ -81,12 +81,6 @@ export async function handler (
   const prefix = cacheStats === 'ENOENT' ? tempPath : cachePath
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
-  process.on('exit', () => {
-    if (cacheStats === 'ENOENT') {
-      fs.mkdirSync(path.dirname(cachePath), { recursive: true })
-      fs.renameSync(tempPath, cachePath)
-    }
-  })
   const pkgs = opts.package ?? [command]
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
   if (cacheStats === 'ENOENT') {
@@ -123,6 +117,11 @@ export async function handler (
       }
     }
     throw err
+  } finally {
+    if (cacheStats === 'ENOENT') {
+      fs.mkdirSync(path.dirname(cachePath), { recursive: true })
+      fs.renameSync(tempPath, cachePath)
+    }
   }
   return { exitCode: 0 }
 }
