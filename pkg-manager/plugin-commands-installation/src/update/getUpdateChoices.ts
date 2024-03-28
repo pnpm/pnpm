@@ -8,6 +8,7 @@ import isEmpty from 'ramda/src/isEmpty'
 export interface ChoiceRow {
   name: string
   value: string
+  path?: string
   disabled?: boolean
 }
 
@@ -75,8 +76,8 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
       }
     })
 
-    // To filter out selected "dependencies" or "devDependencies" in the final output,
-    // we rename it here to "[dependencies]" or "[devDependencies]",
+    // To filter out selected "dependencies", "devDependencies" and "packageManager" in the final output,
+    // we rename it here to "[dependencies]", "[devDependencies]" and "[packageManager]"
     // which will be filtered out in the format function of the prompt.
     finalChoices.push({ name: `[${depGroup}]`, choices, message: depGroup })
 

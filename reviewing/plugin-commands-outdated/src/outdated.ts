@@ -283,7 +283,7 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
         latest: outdatedPkg.latestManifest?.version,
         wanted: outdatedPkg.wanted,
         isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
-        dependencyType: outdatedPkg.belongsTo,
+        dependencyType: outdatedPkg.belongsTo as DependenciesField,
       }
       if (opts.long) {
         acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
