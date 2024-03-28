@@ -115,7 +115,7 @@ test('interactively update', async () => {
       message: 'dependencies',
     },
   ])
-  expect(prompt).toBeCalledWith(
+  expect(prompt).toHaveBeenCalledWith(
     expect.objectContaining({
       footer: '\nEnter to start updating. Ctrl-c to cancel.',
       message:
@@ -172,7 +172,7 @@ test('interactively update', async () => {
       message: 'dependencies',
     },
   ])
-  expect(prompt).toBeCalledWith(
+  expect(prompt).toHaveBeenCalledWith(
     expect.objectContaining({
       footer: '\nEnter to start updating. Ctrl-c to cancel.',
       message:
@@ -333,7 +333,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     ]
   )
 
-  expect(prompt).toBeCalledWith(
+  expect(prompt).toHaveBeenCalledWith(
     expect.objectContaining({
       footer: '\nEnter to start updating. Ctrl-c to cancel.',
       message:

@@ -708,7 +708,7 @@ test('run pre/postinstall scripts in a project that uses node-linker=hoisted. Sh
     })
   )
 
-  expect(reporter).not.toBeCalledWith(expect.objectContaining({
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
     message: `An error occurred while uploading ${path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')}`,
   }))

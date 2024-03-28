@@ -118,7 +118,7 @@ test('patch package reports warning if not all patches are applied and allowNonA
       'is-positive': '1.0.0',
     },
   }, opts)
-  expect(reporter).toBeCalledWith(
+  expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
       level: 'warn',
       message: 'The following patches were not applied: is-negative@1.0.0',

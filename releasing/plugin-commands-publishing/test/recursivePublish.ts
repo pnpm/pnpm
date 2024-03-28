@@ -168,7 +168,7 @@ test('print info when no packages are published', async () => {
   }, [])
 
   streamParser.removeListener('data', reporter)
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'info',
     message: 'There are no new packages that should be published',
     name: 'pnpm',

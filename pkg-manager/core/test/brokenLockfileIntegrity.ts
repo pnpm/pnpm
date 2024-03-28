@@ -105,7 +105,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
     rootDir: process.cwd(),
   }, testDefaults({ preferFrozenLockfile: false, reporter }, { retry: { retries: 0 } }))
 
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
     name: 'pnpm',
     prefix: process.cwd(),
