@@ -2,13 +2,16 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { insertComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { type ProjectManifest } from '@pnpm/types'
+import YAML from 'yaml'
 import JSON5 from 'json5'
 import writeFileAtomic from 'write-file-atomic'
-import writeYamlFile from 'write-yaml-file'
 
 const YAML_FORMAT = {
-  noCompatMode: true,
-  noRefs: true,
+  //noCompatMode: true, // TODO don't try to be compatible with older yaml versions
+  //noRefs: true, // TODO don't convert duplicate objects into references
+  //indent: 2,
+  //indentSeq: false,
+  //singleQuote: false,
 }
 
 export async function writeProjectManifest (
@@ -20,12 +23,13 @@ export async function writeProjectManifest (
     insertFinalNewline?: boolean
   }
 ): Promise<void> {
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
   const fileType = filePath.slice(filePath.lastIndexOf('.') + 1).toLowerCase()
   if (fileType === 'yaml') {
-    return writeYamlFile(filePath, manifest, YAML_FORMAT)
+    const yaml = YAML.stringify(manifest, YAML_FORMAT)
+    return writeFileAtomic(filePath, yaml)
   }
 
-  await fs.mkdir(path.dirname(filePath), { recursive: true })
   const trailingNewline = opts?.insertFinalNewline === false ? '' : '\n'
   const indent = opts?.indent ?? '\t'
 
