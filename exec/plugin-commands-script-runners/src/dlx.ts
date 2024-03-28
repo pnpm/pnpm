@@ -71,7 +71,7 @@ export async function handler (
   [command, ...args]: string[]
 ) {
   const pkgs = opts.package ?? [command]
-  const { storeDir, tempDir, cacheStats, cachePath, cacheFullyInstalled } = await getInfo({
+  const { storeDir, tempDir, cachePathExists, cachePath, cacheFullyInstalled } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
@@ -84,18 +84,18 @@ export async function handler (
   if (cacheFullyInstalled) {
     prefix = cachePath
     shouldInstall = false
-  } else if (cacheStats === 'ENOENT') {
-    prefix = cachePath
-    shouldInstall = true
-  } else {
+  } else if (cachePathExists) {
     prefix = tempPath
+    shouldInstall = true
+    fs.mkdirSync(tempPath, { recursive: true })
+  } else {
+    prefix = cachePath
     shouldInstall = true
   }
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
   if (shouldInstall) {
-    fs.mkdirSync(prefix, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
@@ -196,16 +196,18 @@ function getCacheInfo (cacheDir: string, pkgs: string[]) {
   const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
   const cacheName = createBase32Hash(hashStr)
   const cachePath = path.join(cacheDir, cacheName)
-  let cacheStats: fs.Stats | 'ENOENT'
+  fs.mkdirSync(cacheDir, { recursive: true })
+  let cachePathExists: boolean
   try {
-    cacheStats = fs.statSync(cachePath)
+    fs.mkdirSync(cachePath)
+    cachePathExists = false
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      cacheStats = 'ENOENT'
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
+      cachePathExists = true
     } else {
       throw err
     }
   }
-  const cacheFullyInstalled = cacheStats !== 'ENOENT' && fs.existsSync(path.join(cachePath, 'node_modules', '.modules.yaml'))
-  return { cacheName, cachePath, cacheStats, cacheFullyInstalled }
+  const cacheFullyInstalled = cachePathExists && fs.existsSync(path.join(cachePath, 'node_modules', '.modules.yaml'))
+  return { cacheName, cachePath, cachePathExists, cacheFullyInstalled }
 }
