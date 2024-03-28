@@ -71,7 +71,7 @@ export async function handler (
   [command, ...args]: string[]
 ) {
   const pkgs = opts.package ?? [command]
-  const { storeDir, tempDir, cacheOccupied, cachePath, cacheFullyInstalled } = await getInfo({
+  const { storeDir, tempDir, cachePath } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
@@ -81,6 +81,7 @@ export async function handler (
   const tempPath = path.join(tempDir, `dlx-${process.pid.toString()}`)
   let prefix: string
   let shouldInstall: boolean
+  const { cacheOccupied, cacheFullyInstalled } = acquireCacheLock(cachePath)
   if (cacheFullyInstalled) {
     prefix = cachePath
     shouldInstall = false
@@ -196,7 +197,11 @@ function getCacheInfo (cacheDir: string, pkgs: string[]) {
   const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
   const cacheName = createBase32Hash(hashStr)
   const cachePath = path.join(cacheDir, cacheName)
-  fs.mkdirSync(cacheDir, { recursive: true })
+  return { cacheName, cachePath }
+}
+
+function acquireCacheLock (cachePath: string) {
+  fs.mkdirSync(path.dirname(cachePath), { recursive: true })
   let cacheOccupied: boolean
   try {
     fs.mkdirSync(cachePath)
@@ -209,5 +214,5 @@ function getCacheInfo (cacheDir: string, pkgs: string[]) {
     }
   }
   const cacheFullyInstalled = cacheOccupied && fs.existsSync(path.join(cachePath, 'node_modules', '.modules.yaml'))
-  return { cacheName, cachePath, cacheOccupied, cacheFullyInstalled }
+  return { cacheOccupied, cacheFullyInstalled }
 }
