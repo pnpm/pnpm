@@ -71,7 +71,7 @@ export async function handler (
   [command, ...args]: string[]
 ) {
   const pkgs = opts.package ?? [command]
-  const { storeDir, tempDir, cachePathExists, cachePath, cacheFullyInstalled } = await getInfo({
+  const { storeDir, tempDir, cacheOccupied, cachePath, cacheFullyInstalled } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
@@ -84,7 +84,7 @@ export async function handler (
   if (cacheFullyInstalled) {
     prefix = cachePath
     shouldInstall = false
-  } else if (cachePathExists) {
+  } else if (cacheOccupied) {
     prefix = tempPath
     shouldInstall = true
     fs.mkdirSync(tempPath, { recursive: true })
@@ -197,17 +197,17 @@ function getCacheInfo (cacheDir: string, pkgs: string[]) {
   const cacheName = createBase32Hash(hashStr)
   const cachePath = path.join(cacheDir, cacheName)
   fs.mkdirSync(cacheDir, { recursive: true })
-  let cachePathExists: boolean
+  let cacheOccupied: boolean
   try {
     fs.mkdirSync(cachePath)
-    cachePathExists = false
+    cacheOccupied = false
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
-      cachePathExists = true
+      cacheOccupied = true
     } else {
       throw err
     }
   }
-  const cacheFullyInstalled = cachePathExists && fs.existsSync(path.join(cachePath, 'node_modules', '.modules.yaml'))
-  return { cacheName, cachePath, cachePathExists, cacheFullyInstalled }
+  const cacheFullyInstalled = cacheOccupied && fs.existsSync(path.join(cachePath, 'node_modules', '.modules.yaml'))
+  return { cacheName, cachePath, cacheOccupied, cacheFullyInstalled }
 }
