@@ -206,3 +206,20 @@ test('dlx still saves cache even if execution fails', async () => {
   expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash('shx')])
   expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 })
+
+test('dlx installs and runs multiple instances of the same package in parallel', async () => {
+  prepareEmpty()
+
+  await Promise.all(['foo', 'bar', 'baz'].map(
+    name => dlx.handler({
+      ...DEFAULT_OPTS,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+    }, ['shx', 'touch', name])
+  ))
+
+  expect(['foo', 'bar', 'baz'].filter(name => fs.existsSync(name))).toStrictEqual(['foo', 'bar', 'baz'])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash('shx')])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+})
