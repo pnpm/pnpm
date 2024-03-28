@@ -71,28 +71,27 @@ export async function handler (
   [command, ...args]: string[]
 ) {
   const pkgs = opts.package ?? [command]
-  const { storeDir, tempDir, cacheStats, cachePath } = await getInfo({
+  const { storeDir, cacheStats, cachePath } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
     cacheDir: opts.cacheDir,
     pkgs,
   })
-  const tempPath = path.join(tempDir, `dlx-${process.pid.toString()}`)
-  const prefix = cacheStats === 'ENOENT' ? tempPath : cachePath
+  const prefix = cachePath
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
   if (cacheStats === 'ENOENT') {
-    fs.mkdirSync(tempPath, { recursive: true })
+    fs.mkdirSync(cachePath, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
       ...omit(['workspaceDir', 'rootProjectManifest'], opts),
       bin: binsDir,
-      dir: tempPath,
-      lockfileDir: tempPath,
-      rootProjectManifestDir: tempPath, // This property won't be used as rootProjectManifest will be undefined
+      dir: cachePath,
+      lockfileDir: cachePath,
+      rootProjectManifestDir: cachePath, // This property won't be used as rootProjectManifest will be undefined
       storeDir,
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
@@ -117,11 +116,6 @@ export async function handler (
       }
     }
     throw err
-  } finally {
-    if (cacheStats === 'ENOENT') {
-      fs.mkdirSync(path.dirname(cachePath), { recursive: true })
-      fs.renameSync(tempPath, cachePath)
-    }
   }
   return { exitCode: 0 }
 }
@@ -175,12 +169,10 @@ async function getInfo (opts: {
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  const tempDir = path.join(storeDir, 'tmp')
   const cacheDir = path.resolve(opts.cacheDir, 'dlx')
   const cacheInfo = getCacheInfo(cacheDir, opts.pkgs)
   return {
     storeDir,
-    tempDir,
     cacheDir,
     ...cacheInfo,
   }
