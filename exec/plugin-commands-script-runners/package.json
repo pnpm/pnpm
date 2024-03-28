@@ -46,6 +46,7 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/command": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
+    "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",

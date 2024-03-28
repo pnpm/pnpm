@@ -4,6 +4,7 @@ import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
+import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -63,44 +64,54 @@ export function help () {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-} & Pick<Config, 'reporter' | 'userAgent'> & add.AddCommandOptions
+} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' > & add.AddCommandOptions
 
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
 ) {
-  const dlxDir = await getDlxDir({
+  const pkgs = opts.package ?? [command]
+  const { storeDir, tempDir, cachePath } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
+    cacheDir: opts.cacheDir,
+    pkgs,
   })
-  const prefix = path.join(dlxDir, `dlx-${process.pid.toString()}`)
+  const tempPath = path.join(tempDir, `dlx-${process.pid.toString()}`)
+  let prefix: string
+  let shouldInstall: boolean
+  const { cacheOccupied, cacheFullyInstalled } = acquireCacheLock(cachePath)
+  if (cacheFullyInstalled) {
+    prefix = cachePath
+    shouldInstall = false
+  } else if (cacheOccupied) {
+    prefix = tempPath
+    shouldInstall = true
+    fs.mkdirSync(tempPath, { recursive: true })
+  } else {
+    prefix = cachePath
+    shouldInstall = true
+  }
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
-  fs.mkdirSync(prefix, { recursive: true })
-  process.on('exit', () => {
-    try {
-      fs.rmdirSync(prefix, {
-        recursive: true,
-        maxRetries: 3,
-      })
-    } catch (err) {}
-  })
-  const pkgs = opts.package ?? [command]
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
-  await add.handler({
-    // Ideally the config reader should ignore these settings when the dlx command is executed.
-    // This is a temporary solution until "@pnpm/config" is refactored.
-    ...omit(['workspaceDir', 'rootProjectManifest'], opts),
-    bin: binsDir,
-    dir: prefix,
-    lockfileDir: prefix,
-    rootProjectManifestDir: prefix, // This property won't be used as rootProjectManifest will be undefined
-    saveProd: true, // dlx will be looking for the package in the "dependencies" field!
-    saveDev: false,
-    saveOptional: false,
-    savePeer: false,
-  }, pkgs)
+  if (shouldInstall) {
+    await add.handler({
+      // Ideally the config reader should ignore these settings when the dlx command is executed.
+      // This is a temporary solution until "@pnpm/config" is refactored.
+      ...omit(['workspaceDir', 'rootProjectManifest'], opts),
+      bin: binsDir,
+      dir: prefix,
+      lockfileDir: prefix,
+      rootProjectManifestDir: prefix, // This property won't be used as rootProjectManifest will be undefined
+      storeDir,
+      saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+      saveDev: false,
+      saveOptional: false,
+      savePeer: false,
+    }, pkgs)
+  }
   const binName = opts.package
     ? command
     : await getBinName(modulesDir, await getPkgName(prefix))
@@ -159,17 +170,49 @@ function scopeless (pkgName: string) {
   return pkgName
 }
 
-async function getDlxDir (
-  opts: {
-    dir: string
-    storeDir?: string
-    pnpmHomeDir: string
-  }
-): Promise<string> {
+async function getInfo (opts: {
+  dir: string
+  storeDir?: string
+  cacheDir: string
+  pnpmHomeDir: string
+  pkgs: string[]
+}) {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  return path.join(storeDir, 'tmp')
+  const tempDir = path.join(storeDir, 'tmp')
+  const cacheDir = path.resolve(opts.cacheDir, 'dlx')
+  const cacheInfo = getCacheInfo(cacheDir, opts.pkgs)
+  return {
+    storeDir,
+    tempDir,
+    cacheDir,
+    ...cacheInfo,
+  }
+}
+
+function getCacheInfo (cacheDir: string, pkgs: string[]) {
+  const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
+  const cacheName = createBase32Hash(hashStr)
+  const cachePath = path.join(cacheDir, cacheName)
+  return { cacheName, cachePath }
+}
+
+function acquireCacheLock (cachePath: string) {
+  fs.mkdirSync(path.dirname(cachePath), { recursive: true })
+  let cacheOccupied: boolean
+  try {
+    fs.mkdirSync(cachePath)
+    cacheOccupied = false
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
+      cacheOccupied = true
+    } else {
+      throw err
+    }
+  }
+  const cacheFullyInstalled = cacheOccupied && fs.existsSync(path.join(cachePath, 'node_modules', '.modules.yaml'))
+  return { cacheOccupied, cacheFullyInstalled }
 }

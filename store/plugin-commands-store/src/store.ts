@@ -73,7 +73,7 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'force'> & CreateStoreControllerOptions & {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & CreateStoreControllerOptions & {
   reporter?: (logObj: LogBase) => void
 }
 
@@ -94,6 +94,8 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
       storeController: store.ctrl,
       storeDir: store.dir,
       removeAlienFiles: opts.force,
+      cacheDir: opts.cacheDir,
+      dlxCacheMaxAge: opts.dlxCacheMaxAge,
     })
     return storePrune(storePruneOptions)
   }

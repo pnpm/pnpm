@@ -47,6 +47,7 @@ test('remove unreferenced packages', async () => {
     reporter,
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   expect(reporter).toBeCalledWith(
@@ -70,6 +71,7 @@ test('remove unreferenced packages', async () => {
     reporter,
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   expect(reporter).not.toBeCalledWith(
@@ -105,6 +107,7 @@ test.skip('remove packages that are used by project that no longer exist', async
     reporter,
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   expect(reporter).toBeCalledWith(
@@ -143,6 +146,7 @@ test('keep dependencies used by others', async () => {
     registries: { default: REGISTRY },
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   project.storeHasNot('camelcase-keys', '3.0.0')
@@ -167,6 +171,7 @@ test('keep dependency used by package', async () => {
     registries: { default: REGISTRY },
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   project.storeHas('is-positive', '3.1.0')
@@ -189,6 +194,7 @@ test('prune will skip scanning non-directory in storeDir', async () => {
     registries: { default: REGISTRY },
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 })
 
@@ -215,6 +221,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
     reporter,
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   expect(reporter).toBeCalledWith(
@@ -252,6 +259,7 @@ test('prune removes alien files from the store if the --force flag is used', asy
     storeDir,
     userConfig: {},
     force: true,
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
   expect(reporter).toBeCalledWith(
     expect.objectContaining({

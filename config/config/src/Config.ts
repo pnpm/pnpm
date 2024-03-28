@@ -156,6 +156,7 @@ export interface Config {
   enablePnp?: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
+  dlxCacheMaxAge: number
   embedReadme?: boolean
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean

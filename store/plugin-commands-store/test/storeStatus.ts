@@ -40,6 +40,7 @@ test('CLI fails when store status finds modified packages', async () => {
       registries: modulesState!.registries!,
       storeDir,
       userConfig: {},
+      dlxCacheMaxAge: 0,
     }, ['status'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -91,5 +92,6 @@ test('CLI does not fail when store status does not find modified packages', asyn
     registries: modulesState!.registries!,
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: 0,
   }, ['status'])
 })
