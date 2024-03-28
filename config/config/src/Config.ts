@@ -151,6 +151,7 @@ export interface Config {
   npmPath?: string
   gitChecks?: boolean
   publishBranch?: string
+  publishTag?: string
   recursiveInstall?: boolean
   symlink: boolean
   enablePnp?: boolean

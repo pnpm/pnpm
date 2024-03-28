@@ -72,6 +72,7 @@ test('publish: fails git check if branch is not on specified branch', async () =
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
       publishBranch: 'latest',
+      publishTag: undefined,
     }, [])
   ).rejects.toThrow(
     new PnpmError('GIT_NOT_CORRECT_BRANCH', "Branch is not on 'latest'.")
