@@ -184,6 +184,9 @@ export async function handler (
     './node_modules/.bin',
     ...opts.extraBinPaths,
   ]
+  if (require.main?.filename) {
+    prependPaths.unshift(path.dirname(require.main.filename))
+  }
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(chunk.map(async (prefix: string) =>
