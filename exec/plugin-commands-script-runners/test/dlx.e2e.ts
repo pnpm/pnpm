@@ -8,6 +8,10 @@ import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 
 const testOnWindowsOnly = process.platform === 'win32' ? test : test.skip
 
+afterEach(() => {
+  jest.restoreAllMocks()
+})
+
 test('dlx', async () => {
   prepareEmpty()
 
