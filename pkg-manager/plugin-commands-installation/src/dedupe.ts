@@ -34,6 +34,7 @@ export function help () {
             name: '--check',
           },
           OPTIONS.ignoreScripts,
+          OPTIONS.ignoreWorkspace,
           OPTIONS.offline,
           OPTIONS.preferOffline,
           OPTIONS.storeDir,

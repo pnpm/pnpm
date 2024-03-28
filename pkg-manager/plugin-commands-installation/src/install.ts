@@ -183,10 +183,7 @@ by any dependencies, so it is an emulation of a flat node_modules',
             description: 'Disable pnpm hooks defined in .pnpmfile.cjs',
             name: '--ignore-pnpmfile',
           },
-          {
-            description: 'Ignore pnpm-workspace.yaml if exists in the parent directory, and treat the installation as normal non-workspace installation.',
-            name: '--ignore-workspace',
-          },
+          OPTIONS.ignoreWorkspace,
           {
             description: "If false, doesn't check whether packages in the store were mutated",
             name: '--[no-]verify-store-integrity',
