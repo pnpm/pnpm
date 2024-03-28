@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
+import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { store } from '@pnpm/plugin-commands-store'
-import { prepare } from '@pnpm/prepare'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
@@ -268,4 +269,55 @@ test('prune removes alien files from the store if the --force flag is used', asy
     })
   )
   expect(fs.existsSync(alienDir)).toBeFalsy()
+})
+
+test('prune removes cache directories that outlives dlx-cache-max-age', async () => {
+  prepareEmpty()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  fs.mkdirSync(path.join(storeDir, 'v3', 'files'), { recursive: true })
+  fs.mkdirSync(path.join(storeDir, 'v3', 'tmp'), { recursive: true })
+
+  const now = new Date()
+
+  const timeTable = {
+    foo: 12,
+    bar: 1,
+    baz: -20,
+  }
+
+  for (const [key, minuteDelta] of Object.entries(timeTable)) {
+    const dirName = createBase32Hash(key)
+    fs.mkdirSync(path.join(cacheDir, 'dlx', dirName, 'node_modules', '.pnpm'), { recursive: true })
+    fs.mkdirSync(path.join(cacheDir, 'dlx', dirName, 'node_modules', '.bin'), { recursive: true })
+    fs.writeFileSync(path.join(cacheDir, 'dlx', dirName, 'node_modules', '.modules.yaml'), '')
+    fs.writeFileSync(path.join(cacheDir, 'dlx', dirName, 'package.json'), '')
+    fs.writeFileSync(path.join(cacheDir, 'dlx', dirName, 'pnpm-lock.yaml'), '')
+    const newDate = new Date(now.getTime() + minuteDelta * 60_000)
+    fs.utimesSync(path.join(cacheDir, 'dlx', dirName), newDate, newDate)
+  }
+
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    rawConfig: {
+      registry: REGISTRY,
+    },
+    registries: { default: REGISTRY },
+    reporter () {},
+    storeDir,
+    userConfig: {},
+    dlxCacheMaxAge: 7,
+  }, ['prune'])
+
+  expect(
+    fs.readdirSync(path.join(cacheDir, 'dlx'))
+      .sort()
+  ).toStrictEqual(
+    ['foo', 'bar']
+      .map(createBase32Hash)
+      .sort()
+  )
 })
