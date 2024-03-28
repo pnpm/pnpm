@@ -71,27 +71,39 @@ export async function handler (
   [command, ...args]: string[]
 ) {
   const pkgs = opts.package ?? [command]
-  const { storeDir, cacheStats, cachePath } = await getInfo({
+  const { storeDir, tempDir, cacheStats, cachePath, cacheFullyInstalled } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
     cacheDir: opts.cacheDir,
     pkgs,
   })
-  const prefix = cachePath
+  const tempPath = path.join(tempDir, `dlx-${process.pid.toString()}`)
+  let prefix: string
+  let shouldInstall: boolean
+  if (cacheFullyInstalled) {
+    prefix = cachePath
+    shouldInstall = false
+  } else if (cacheStats === 'ENOENT') {
+    prefix = cachePath
+    shouldInstall = true
+  } else {
+    prefix = tempPath
+    shouldInstall = true
+  }
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
-  if (cacheStats === 'ENOENT') {
-    fs.mkdirSync(cachePath, { recursive: true })
+  if (shouldInstall) {
+    fs.mkdirSync(prefix, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
       ...omit(['workspaceDir', 'rootProjectManifest'], opts),
       bin: binsDir,
-      dir: cachePath,
-      lockfileDir: cachePath,
-      rootProjectManifestDir: cachePath, // This property won't be used as rootProjectManifest will be undefined
+      dir: prefix,
+      lockfileDir: prefix,
+      rootProjectManifestDir: prefix, // This property won't be used as rootProjectManifest will be undefined
       storeDir,
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
@@ -169,10 +181,12 @@ async function getInfo (opts: {
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
+  const tempDir = path.join(storeDir, 'tmp')
   const cacheDir = path.resolve(opts.cacheDir, 'dlx')
   const cacheInfo = getCacheInfo(cacheDir, opts.pkgs)
   return {
     storeDir,
+    tempDir,
     cacheDir,
     ...cacheInfo,
   }
@@ -192,5 +206,6 @@ function getCacheInfo (cacheDir: string, pkgs: string[]) {
       throw err
     }
   }
-  return { cacheName, cachePath, cacheStats }
+  const cacheFullyInstalled = cacheStats !== 'ENOENT' && fs.existsSync(path.join(cachePath, 'node_modules', '.modules.yaml'))
+  return { cacheName, cachePath, cacheStats, cacheFullyInstalled }
 }
