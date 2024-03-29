@@ -64,34 +64,55 @@ export function help () {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' > & add.AddCommandOptions
+} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' > & add.AddCommandOptions
 
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
 ) {
   const pkgs = opts.package ?? [command]
-  const { storeDir, tempDir, cachePath } = await getInfo({
+  const now = new Date()
+  const { storeDir, contentDir, linkName } = await getInfo({
+    pid: process.pid,
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
     cacheDir: opts.cacheDir,
     pkgs,
+    now,
   })
-  const tempPath = path.join(tempDir, `dlx-${process.pid.toString()}`)
   let prefix: string
   let shouldInstall: boolean
-  const { cacheOccupied, cacheFullyInstalled } = acquireCacheLock(cachePath)
-  if (cacheFullyInstalled) {
-    prefix = cachePath
+  let shouldRenewLink: boolean
+  let shouldDeleteContent: boolean
+  const { linkAlreadyExists, cacheFullyInstalled, cacheUpToDate } = acquireCacheLock({
+    dlxCacheMaxAge: opts.dlxCacheMaxAge,
+    contentDir,
+    linkName,
+    now,
+  })
+  if (cacheUpToDate) {
+    prefix = linkName
     shouldInstall = false
-  } else if (cacheOccupied) {
-    prefix = tempPath
+    shouldRenewLink = false
+    shouldDeleteContent = false
+  } else if (cacheFullyInstalled) {
+    prefix = contentDir
     shouldInstall = true
-    fs.mkdirSync(tempPath, { recursive: true })
+    fs.mkdirSync(contentDir, { recursive: true })
+    shouldRenewLink = true
+    shouldDeleteContent = false
+  } else if (linkAlreadyExists) {
+    prefix = contentDir
+    shouldInstall = true
+    fs.mkdirSync(contentDir, { recursive: true })
+    shouldRenewLink = false
+    shouldDeleteContent = true
   } else {
-    prefix = cachePath
+    prefix = linkName
     shouldInstall = true
+    shouldRenewLink = true
+    shouldDeleteContent = false
   }
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
@@ -129,6 +150,26 @@ export async function handler (
       }
     }
     throw err
+  } finally {
+    if (shouldRenewLink) {
+      try {
+        fs.unlinkSync(linkName)
+      } catch (err) {
+        if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) throw err
+      }
+
+      try {
+        fs.symlinkSync(contentDir, linkName, 'junction')
+      } catch (err) {
+        if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+      }
+    }
+
+    if (shouldDeleteContent) {
+      try {
+        fs.rmSync(contentDir, { recursive: true })
+      } catch { }
+    }
   }
   return { exitCode: 0 }
 }
@@ -176,43 +217,73 @@ async function getInfo (opts: {
   cacheDir: string
   pnpmHomeDir: string
   pkgs: string[]
+  now: Date
+  pid: number
 }) {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  const tempDir = path.join(storeDir, 'tmp')
   const cacheDir = path.resolve(opts.cacheDir, 'dlx')
-  const cacheInfo = getCacheInfo(cacheDir, opts.pkgs)
+  const cacheInfo = getCacheInfo({
+    cacheDir,
+    now: opts.now,
+    pkgs: opts.pkgs,
+    pid: opts.pid,
+  })
   return {
     storeDir,
-    tempDir,
     cacheDir,
     ...cacheInfo,
   }
 }
 
-function getCacheInfo (cacheDir: string, pkgs: string[]) {
+function getCacheInfo (opts: {
+  cacheDir: string
+  pkgs: string[]
+  now: Date
+  pid: number
+}) {
+  const { cacheDir, pkgs, now, pid } = opts
   const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
   const cacheName = createBase32Hash(hashStr)
-  const cachePath = path.join(cacheDir, cacheName)
-  return { cacheName, cachePath }
+  const linkName = path.join(cacheDir, cacheName)
+  const contentDir = getContentDir({ cacheDir, cacheName, now, pid })
+  return { cacheName, linkName, contentDir }
 }
 
-function acquireCacheLock (cachePath: string) {
-  fs.mkdirSync(path.dirname(cachePath), { recursive: true })
-  let cacheOccupied: boolean
+function getContentDir (opts: {
+  cacheDir: string
+  cacheName: string
+  now: Date
+  pid: number
+}) {
+  const { cacheDir, cacheName, now, pid } = opts
+  const name = `${cacheName}-${now.getTime().toString(16)}-${pid.toString(16)}`
+  return path.join(cacheDir, name)
+}
+
+function acquireCacheLock (opts: {
+  linkName: string
+  contentDir: string
+  now: Date
+  dlxCacheMaxAge: number
+}) {
+  const { linkName, contentDir, now, dlxCacheMaxAge } = opts
+  fs.mkdirSync(path.dirname(linkName), { recursive: true })
+  let linkAlreadyExists: boolean
   try {
-    fs.mkdirSync(cachePath)
-    cacheOccupied = false
+    fs.symlinkSync(contentDir, linkName, 'junction')
+    linkAlreadyExists = false
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
-      cacheOccupied = true
+      linkAlreadyExists = true
     } else {
       throw err
     }
   }
-  const cacheFullyInstalled = cacheOccupied && fs.existsSync(path.join(cachePath, 'node_modules', '.modules.yaml'))
-  return { cacheOccupied, cacheFullyInstalled }
+  const cacheFullyInstalled = linkAlreadyExists && fs.existsSync(path.join(linkName, 'node_modules', '.modules.yaml'))
+  const cacheUpToDate = cacheFullyInstalled && fs.statSync(linkName).mtime.getTime() + dlxCacheMaxAge * 60_000 <= now.getTime()
+  return { linkAlreadyExists, cacheFullyInstalled, cacheUpToDate }
 }
