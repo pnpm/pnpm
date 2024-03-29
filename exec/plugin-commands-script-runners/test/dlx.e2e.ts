@@ -8,6 +8,23 @@ import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 
 const testOnWindowsOnly = process.platform === 'win32' ? test : test.skip
 
+function sanitizeDlxCacheName (cacheName: string): string {
+  const segments = cacheName.split('-')
+  if (segments.length === 1) return cacheName
+  if (segments.length !== 3) {
+    throw new Error(`Unexpected name: ${cacheName}`)
+  }
+  const [linkName, date, pid] = segments
+  if (!/[0-9a-f]+/.test(date) && !/[0-9a-f]+/.test(pid)) {
+    throw new Error(`Name ${cacheName} doesn't end with 2 hex numbers`)
+  }
+  return createSanitizedDlxCacheName(linkName)
+}
+
+function createSanitizedDlxCacheName (linkName: string): string {
+  return [linkName, '*'.repeat(11), '*'.repeat(5)].join('-')
+}
+
 afterEach(() => {
   jest.restoreAllMocks()
 })
@@ -24,7 +41,14 @@ test('dlx', async () => {
   }, ['shx', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
-  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash('shx')])
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .map(sanitizeDlxCacheName)
+      .sort()
+  ).toStrictEqual([
+    createBase32Hash('shx'),
+    createSanitizedDlxCacheName(createBase32Hash('shx')),
+  ].sort())
   expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 })
 
@@ -41,7 +65,14 @@ test('dlx install from git', async () => {
   }, [pkg, 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
-  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash(pkg)])
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .map(sanitizeDlxCacheName)
+      .sort()
+  ).toStrictEqual([
+    createBase32Hash(pkg),
+    createSanitizedDlxCacheName(createBase32Hash(pkg)),
+  ].sort())
   expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(pkg))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 })
 
@@ -59,7 +90,14 @@ test('dlx should work when the package name differs from the bin name', async ()
   }, [pkg])
 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
-  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash(pkg)])
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .map(sanitizeDlxCacheName)
+      .sort()
+  ).toStrictEqual([
+    createBase32Hash(pkg),
+    createSanitizedDlxCacheName(createBase32Hash(pkg)),
+  ].sort())
   expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(pkg))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 })
 
@@ -106,9 +144,16 @@ test('dlx --package <pkg1> [--package <pkg2>]', async () => {
     dlxCacheMaxAge: Infinity,
   }, ['foo'])
 
-  const cacheName = createBase32Hash(pkgs.join('\n'))
-  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([cacheName])
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', cacheName)).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+  const linkName = createBase32Hash(pkgs.join('\n'))
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .map(sanitizeDlxCacheName)
+      .sort()
+  ).toStrictEqual([
+    linkName,
+    createSanitizedDlxCacheName(linkName),
+  ].sort())
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', linkName)).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
 })
@@ -184,7 +229,14 @@ test('dlx with cache', async () => {
   }, ['shx', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBe(true)
-  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash('shx')])
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .map(sanitizeDlxCacheName)
+      .sort()
+  ).toStrictEqual([
+    createBase32Hash('shx'),
+    createSanitizedDlxCacheName(createBase32Hash('shx')),
+  ].sort())
   expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
   expect(spy).toHaveBeenCalled()
 
@@ -199,7 +251,14 @@ test('dlx with cache', async () => {
   }, ['shx', 'touch', 'bar'])
 
   expect(fs.existsSync('bar')).toBe(true)
-  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash('shx')])
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .map(sanitizeDlxCacheName)
+      .sort()
+  ).toStrictEqual([
+    createBase32Hash('shx'),
+    createSanitizedDlxCacheName(createBase32Hash('shx')),
+  ].sort())
   expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
   expect(spy).not.toHaveBeenCalled()
 
@@ -220,7 +279,14 @@ test('dlx still saves cache even if execution fails', async () => {
   }, ['shx', 'mkdir', path.resolve('not-a-dir')])
 
   expect(fs.readFileSync(path.resolve('not-a-dir'), 'utf-8')).toEqual(expect.anything())
-  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash('shx')])
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .map(sanitizeDlxCacheName)
+      .sort()
+  ).toStrictEqual([
+    createBase32Hash('shx'),
+    createSanitizedDlxCacheName(createBase32Hash('shx')),
+  ].sort())
   expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 })
 
@@ -238,6 +304,13 @@ test('dlx installs and runs multiple instances of the same package in parallel',
   ))
 
   expect(['foo', 'bar', 'baz'].filter(name => fs.existsSync(name))).toStrictEqual(['foo', 'bar', 'baz'])
-  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toStrictEqual([createBase32Hash('shx')])
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .map(sanitizeDlxCacheName)
+      .sort()
+  ).toStrictEqual([
+    createBase32Hash('shx'),
+    createSanitizedDlxCacheName(createBase32Hash('shx')),
+  ])
   expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 })
