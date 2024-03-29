@@ -109,8 +109,9 @@ export async function handler (
     shouldRenewLink = false
     shouldDeleteContent = true
   } else {
-    prefix = linkName
+    prefix = contentDir
     shouldInstall = true
+    fs.mkdirSync(contentDir, { recursive: true })
     shouldRenewLink = true
     shouldDeleteContent = false
   }
