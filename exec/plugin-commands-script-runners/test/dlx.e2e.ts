@@ -20,6 +20,7 @@ test('dlx', async () => {
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
   }, ['shx', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
@@ -36,6 +37,7 @@ test('dlx install from git', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
   }, [pkg, 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
@@ -53,6 +55,7 @@ test('dlx should work when the package name differs from the bin name', async ()
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
   }, [pkg])
 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
@@ -68,6 +71,7 @@ test('dlx should fail when the installed package has many commands and none equa
       ...DEFAULT_OPTS,
       dir: path.resolve('project'),
       storeDir: path.resolve('store'),
+      dlxCacheMaxAge: Infinity,
     }, ['@pnpm.e2e/touch-file-many-bins'])
   ).rejects.toThrow('Could not determine executable to run. @pnpm.e2e/touch-file-many-bins has multiple binaries: t, tt')
 })
@@ -79,6 +83,7 @@ test('dlx should not fail when the installed package has many commands and one e
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
+    dlxCacheMaxAge: Infinity,
   }, ['@pnpm.e2e/touch-file-good-bin-name'])
 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
@@ -98,6 +103,7 @@ test('dlx --package <pkg1> [--package <pkg2>]', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     package: pkgs,
+    dlxCacheMaxAge: Infinity,
   }, ['foo'])
 
   const cacheName = createBase32Hash(pkgs.join('\n'))
@@ -115,6 +121,7 @@ test('dlx should fail when the package has no bins', async () => {
       ...DEFAULT_OPTS,
       dir: path.resolve('project'),
       storeDir: path.resolve('store'),
+      dlxCacheMaxAge: Infinity,
     }, ['is-positive'])
   ).rejects.toThrow(/No binaries found in is-positive/)
 })
@@ -130,6 +137,7 @@ test('dlx should work in shell mode', async () => {
       'is-positive',
     ],
     shellMode: true,
+    dlxCacheMaxAge: Infinity,
   }, ['echo "some text" > foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
@@ -145,6 +153,7 @@ test('dlx should return a non-zero exit code when the underlying script fails', 
     package: [
       'touch@3.1.0',
     ],
+    dlxCacheMaxAge: Infinity,
   }, ['nodetouch', '--bad-option'])
 
   expect(exitCode).toBe(1)
@@ -157,6 +166,7 @@ testOnWindowsOnly('dlx should work when running in the root of a Windows Drive',
     ...DEFAULT_OPTS,
     dir: 'C:\\',
     storeDir: path.resolve('store'),
+    dlxCacheMaxAge: Infinity,
   }, ['cowsay', 'hello'])
 })
 
@@ -170,6 +180,7 @@ test('dlx with cache', async () => {
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
   }, ['shx', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBe(true)
@@ -184,6 +195,7 @@ test('dlx with cache', async () => {
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
   }, ['shx', 'touch', 'bar'])
 
   expect(fs.existsSync('bar')).toBe(true)
@@ -204,6 +216,7 @@ test('dlx still saves cache even if execution fails', async () => {
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
   }, ['shx', 'mkdir', path.resolve('not-a-dir')])
 
   expect(fs.readFileSync(path.resolve('not-a-dir'), 'utf-8')).toEqual(expect.anything())
@@ -220,6 +233,7 @@ test('dlx installs and runs multiple instances of the same package in parallel',
       dir: path.resolve('project'),
       storeDir: path.resolve('store'),
       cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
     }, ['shx', 'touch', name])
   ))
 
