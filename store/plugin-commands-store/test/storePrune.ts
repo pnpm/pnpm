@@ -51,7 +51,7 @@ test('remove unreferenced packages', async () => {
     dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
-  expect(reporter).toBeCalledWith(
+  expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
       level: 'info',
       message: 'Removed 1 package',
@@ -75,7 +75,7 @@ test('remove unreferenced packages', async () => {
     dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
-  expect(reporter).not.toBeCalledWith(
+  expect(reporter).not.toHaveBeenCalledWith(
     expect.objectContaining({
       level: 'info',
       message: 'Removed 1 package',
@@ -111,7 +111,7 @@ test.skip('remove packages that are used by project that no longer exist', async
     dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
-  expect(reporter).toBeCalledWith(
+  expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
       level: 'info',
       message: `- localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
@@ -225,7 +225,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
     dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
-  expect(reporter).toBeCalledWith(
+  expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
       level: 'warn',
       message: `An alien directory is present in the store: ${alienDir}`,
@@ -262,7 +262,7 @@ test('prune removes alien files from the store if the --force flag is used', asy
     force: true,
     dlxCacheMaxAge: Infinity,
   }, ['prune'])
-  expect(reporter).toBeCalledWith(
+  expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
       level: 'warn',
       message: `An alien directory has been removed from the store: ${alienDir}`,

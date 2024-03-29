@@ -1,6 +1,6 @@
 # pnpm
 
-## 9.0.0-beta.0
+## 9.0.0-beta.1
 
 ### Major Changes
 
@@ -16,7 +16,6 @@
 - pnpm will now check the `package.json` file for a `packageManager` field. If this field is present and specifies a different package manager or a different version of pnpm than the one you're currently using, pnpm will not proceed. This ensures that you're always using the correct package manager and version that the project requires.
 - `enable-pre-post-scripts` is set to `true` by default. This means that when you run a script like `start`, `prestart` and `poststart` will also run.
 - When installing git-hosted dependencies, only pick the files that would be packed with the package [#7638](https://github.com/pnpm/pnpm/pull/7638).
-- Use the same directories on macOS as on Linux. Don't use directories inside `~/Library` on macOS [#7321](https://github.com/pnpm/pnpm/issues/7321).
 
 - Peer dependencies of peer dependencies are now resolved correctly. When peer dependencies have peer dependencies of their own, the peer dependencies are grouped with their own peer dependencies before being linked to their dependents.
 
@@ -70,6 +69,8 @@
   Related issue: [#7444](https://github.com/pnpm/pnpm/issues/7444).
 
   Related PR: [#7606](https://github.com/pnpm/pnpm/pull/7606).
+
+- Optional peer dependencies may be resolved from any packages in the dependency graph [#7830](https://github.com/pnpm/pnpm/pull/7830).
 
 ### Minor Changes
 

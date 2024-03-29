@@ -12,7 +12,7 @@ test('reports warning when installing deprecated packages', async () => {
 
   const manifest = await addDependenciesToPackage({}, ['express@0.14.1'], testDefaults({ fastUnpack: false, reporter }))
 
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     deprecated: 'express 0.x series is deprecated',
     level: 'debug',
     name: 'pnpm:deprecation',
@@ -26,7 +26,7 @@ test('reports warning when installing deprecated packages', async () => {
 
   await addDependenciesToPackage(manifest, ['express@4.16.3'], testDefaults({ fastUnpack: false, reporter }))
 
-  expect(reporter).not.toBeCalledWith(expect.objectContaining({
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:deprecation',
   } as DeprecationLog))
@@ -43,7 +43,7 @@ test('doesn\'t report a warning when the deprecated package is allowed', async (
     reporter,
   }))
 
-  expect(reporter).not.toBeCalledWith(expect.objectContaining({
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:deprecation',
   } as DeprecationLog))

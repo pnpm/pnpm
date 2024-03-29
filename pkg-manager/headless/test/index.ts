@@ -552,7 +552,7 @@ test('installing with hoistPattern=*', async () => {
   expect(project.readCurrentLockfile()).toBeTruthy()
   expect(project.readModulesManifest()).toBeTruthy()
 
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: expect.objectContaining({
@@ -560,25 +560,25 @@ test('installing with hoistPattern=*', async () => {
       version: '1.0.0',
     }),
   } as PackageManifestLog))
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     added: 17,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
   } as StatsLog))
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stats',
     prefix,
     removed: 0,
   } as StatsLog))
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     name: 'pnpm:stage',
     prefix,
     stage: 'importing_done',
   } as StageLog))
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'debug',
     packageId: 'is-negative@2.1.0',
     requester: prefix,

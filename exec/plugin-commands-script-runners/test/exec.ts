@@ -18,7 +18,7 @@ test('exec should set npm_config_user_agent', async () => {
     userAgent,
   }, ['eslint'])
 
-  expect(execa).toBeCalledWith('eslint', [], expect.objectContaining({
+  expect(execa).toHaveBeenCalledWith('eslint', [], expect.objectContaining({
     env: expect.objectContaining({
       npm_config_user_agent: userAgent,
     }),
@@ -35,7 +35,7 @@ test('exec should set the NODE_OPTIONS env var', async () => {
     nodeOptions: '--max-old-space-size=4096',
   }, ['eslint'])
 
-  expect(execa).toBeCalledWith('eslint', [], expect.objectContaining({
+  expect(execa).toHaveBeenCalledWith('eslint', [], expect.objectContaining({
     env: expect.objectContaining({
       NODE_OPTIONS: '--max-old-space-size=4096',
     }),

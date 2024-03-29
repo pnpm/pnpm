@@ -730,7 +730,7 @@ test('refetch package to store if it has been modified', async () => {
 
   expect(fs.readFileSync(indexJsFile, 'utf8')).not.toContain('// foobar')
 
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
     message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId))} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',

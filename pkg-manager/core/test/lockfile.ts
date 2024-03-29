@@ -1275,7 +1275,7 @@ packages:
   const lockfile = project.readLockfile()
   expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
 
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
     name: 'pnpm',
     prefix: process.cwd(),
@@ -1342,7 +1342,7 @@ packages:
     rootDir: process.cwd(),
   }, testDefaults({ reporter }))
 
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
     name: 'pnpm',
     prefix: process.cwd(),

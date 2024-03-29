@@ -28,7 +28,7 @@ test('check for updates when no pnpm state file is present', async () => {
     stateDir: process.cwd(),
   })
 
-  expect(updateCheckLogger.debug).toBeCalledWith({
+  expect(updateCheckLogger.debug).toHaveBeenCalledWith({
     currentVersion: expect.any(String),
     latestVersion: expect.any(String),
   })
@@ -57,7 +57,7 @@ test('do not check for updates when last update check happened recently', async 
     stateDir: process.cwd(),
   })
 
-  expect(updateCheckLogger.debug).not.toBeCalled()
+  expect(updateCheckLogger.debug).not.toHaveBeenCalled()
 
   const state = loadJsonFile.sync('pnpm-state.json')
   expect(state).toStrictEqual({ lastUpdateCheck })
@@ -85,7 +85,7 @@ test('check for updates when last update check happened two days ago', async () 
     stateDir: process.cwd(),
   })
 
-  expect(updateCheckLogger.debug).toBeCalledWith({
+  expect(updateCheckLogger.debug).toHaveBeenCalledWith({
     currentVersion: expect.any(String),
     latestVersion: expect.any(String),
   })
