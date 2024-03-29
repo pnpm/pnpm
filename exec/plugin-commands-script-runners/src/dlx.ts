@@ -278,6 +278,6 @@ function acquireCacheLock (opts: {
     }
   }
   const cacheFullyInstalled = linkAlreadyExists && fs.existsSync(path.join(linkName, 'node_modules', '.modules.yaml'))
-  const cacheUpToDate = cacheFullyInstalled && fs.statSync(linkName).mtime.getTime() + dlxCacheMaxAge * 60_000 <= now.getTime()
+  const cacheUpToDate = cacheFullyInstalled && fs.statSync(linkName).mtime.getTime() + dlxCacheMaxAge * 60_000 > now.getTime()
   return { linkAlreadyExists, cacheFullyInstalled, cacheUpToDate }
 }
