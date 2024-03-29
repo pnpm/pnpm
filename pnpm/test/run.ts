@@ -1,12 +1,30 @@
 import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
+import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { execPnpm, execPnpmSync } from './utils'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 const testOnPosix = isWindows() ? test.skip : test
+
+function sanitizeDlxCacheName (cacheName: string): string {
+  const segments = cacheName.split('-')
+  if (segments.length === 1) return cacheName
+  if (segments.length !== 3) {
+    throw new Error(`Unexpected name: ${cacheName}`)
+  }
+  const [linkName, date, pid] = segments
+  if (!/[0-9a-f]+/.test(date) && !/[0-9a-f]+/.test(pid)) {
+    throw new Error(`Name ${cacheName} doesn't end with 2 hex numbers`)
+  }
+  return createSanitizedDlxCacheName(linkName)
+}
+
+function createSanitizedDlxCacheName (linkName: string): string {
+  return [linkName, '*'.repeat(11), '*'.repeat(5)].join('-')
+}
 
 test('run -r: pass the args to the command that is specified in the build script', async () => {
   preparePackages([{
@@ -283,4 +301,28 @@ test('dlx should work with npm_config_save_dev env variable', async () => {
     stdio: 'inherit',
   })
   expect(result.status).toBe(0)
+})
+
+test('parallel dlx calls of the same package', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', [
+    `store-dir=${path.resolve('store')}`,
+    `cache-dir=${path.resolve('cache')}`,
+    'dlx-cache-max-age=Infinity',
+  ].join('\n'))
+  await Promise.all(['foo', 'bar', 'baz'].map(
+    name => execPnpm(['dlx', 'shx', 'touch', name])
+  ))
+
+  expect(['foo', 'bar', 'baz'].filter(name => fs.existsSync(name))).toStrictEqual(['foo', 'bar', 'baz'])
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .map(sanitizeDlxCacheName)
+      .sort()
+  ).toStrictEqual([
+    createBase32Hash('shx'),
+    createSanitizedDlxCacheName(createBase32Hash('shx')),
+  ])
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 })
