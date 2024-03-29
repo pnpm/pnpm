@@ -154,15 +154,8 @@ export async function handler (
     if (shouldRenewLink) {
       try {
         fs.unlinkSync(linkName)
-      } catch (err) {
-        if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) throw err
-      }
-
-      try {
         fs.symlinkSync(contentDir, linkName, 'junction')
-      } catch (err) {
-        if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
-      }
+      } catch { }
     }
 
     if (shouldDeleteContent) {
