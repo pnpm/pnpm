@@ -1797,6 +1797,20 @@ test('optional peer dependency is resolved if it is installed anywhere in the de
   expect(lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeDefined()
 })
 
+test('optional peer dependency is resolved if it is installed anywhere in the dependency graph and auto install peers is false', async () => {
+  await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/abc-regular-deps@1.0.0', '@pnpm.e2e/abc-optional-peers@1.0.0'],
+    testDefaults({ autoInstallPeers: false })
+  )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeDefined()
+})
+
 // It is resolved on the second iteration only
 test('optional peer dependency is resolved if it is installed anywhere in the dependency graph and auto install peers is true #2', async () => {
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
