@@ -25,6 +25,15 @@ function createSanitizedDlxCacheName (linkName: string): string {
   return [linkName, '*'.repeat(11), '*'.repeat(5)].join('-')
 }
 
+function readSubdirsStartWith (parentPath: string, subdirNamePrefix: string): string[][] {
+  return fs.readdirSync(parentPath, 'utf-8')
+    .filter(subdirName => subdirName.startsWith(subdirNamePrefix))
+    .sort()
+    .map(subdirName => path.join(parentPath, subdirName))
+    .map(subdirPath => fs.readdirSync(subdirPath, 'utf-8'))
+    .map(subdirChildren => subdirChildren.sort())
+}
+
 afterEach(() => {
   jest.restoreAllMocks()
 })
@@ -46,10 +55,9 @@ test('dlx', async () => {
       .map(sanitizeDlxCacheName)
       .sort()
   ).toStrictEqual([
-    createBase32Hash('shx'),
     createSanitizedDlxCacheName(createBase32Hash('shx')),
   ].sort())
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+  expect(readSubdirsStartWith(path.resolve('cache', 'dlx'), createBase32Hash('shx'))).toStrictEqual([['node_modules', 'package.json', 'pnpm-lock.yaml']])
 })
 
 test('dlx install from git', async () => {
@@ -70,10 +78,9 @@ test('dlx install from git', async () => {
       .map(sanitizeDlxCacheName)
       .sort()
   ).toStrictEqual([
-    createBase32Hash(pkg),
     createSanitizedDlxCacheName(createBase32Hash(pkg)),
   ].sort())
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(pkg))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+  expect(readSubdirsStartWith(path.resolve('cache', 'dlx'), createBase32Hash(pkg))).toStrictEqual([['node_modules', 'package.json', 'pnpm-lock.yaml']])
 })
 
 test('dlx should work when the package name differs from the bin name', async () => {
@@ -95,10 +102,9 @@ test('dlx should work when the package name differs from the bin name', async ()
       .map(sanitizeDlxCacheName)
       .sort()
   ).toStrictEqual([
-    createBase32Hash(pkg),
     createSanitizedDlxCacheName(createBase32Hash(pkg)),
   ].sort())
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(pkg))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+  expect(readSubdirsStartWith(path.resolve('cache', 'dlx'), createBase32Hash(pkg))).toStrictEqual([['node_modules', 'package.json', 'pnpm-lock.yaml']])
 })
 
 test('dlx should fail when the installed package has many commands and none equals the package name', async () => {
@@ -144,16 +150,15 @@ test('dlx --package <pkg1> [--package <pkg2>]', async () => {
     dlxCacheMaxAge: Infinity,
   }, ['foo'])
 
-  const linkName = createBase32Hash(pkgs.join('\n'))
+  const hash = createBase32Hash(pkgs.join('\n'))
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx'))
       .map(sanitizeDlxCacheName)
       .sort()
   ).toStrictEqual([
-    linkName,
-    createSanitizedDlxCacheName(linkName),
+    createSanitizedDlxCacheName(hash),
   ].sort())
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', linkName)).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+  expect(readSubdirsStartWith(path.resolve('cache', 'dlx'), hash)).toStrictEqual([['node_modules', 'package.json', 'pnpm-lock.yaml']])
 
   expect(fs.existsSync('foo')).toBeTruthy()
 })
@@ -234,10 +239,9 @@ test('dlx with cache', async () => {
       .map(sanitizeDlxCacheName)
       .sort()
   ).toStrictEqual([
-    createBase32Hash('shx'),
     createSanitizedDlxCacheName(createBase32Hash('shx')),
   ].sort())
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+  expect(readSubdirsStartWith(path.resolve('cache', 'dlx'), createBase32Hash('shx'))).toStrictEqual([['node_modules', 'package.json', 'pnpm-lock.yaml']])
   expect(spy).toHaveBeenCalled()
 
   spy.mockReset()
@@ -256,10 +260,9 @@ test('dlx with cache', async () => {
       .map(sanitizeDlxCacheName)
       .sort()
   ).toStrictEqual([
-    createBase32Hash('shx'),
     createSanitizedDlxCacheName(createBase32Hash('shx')),
   ].sort())
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+  expect(readSubdirsStartWith(path.resolve('cache', 'dlx'), createBase32Hash('shx'))).toStrictEqual([['node_modules', 'package.json', 'pnpm-lock.yaml']])
   expect(spy).not.toHaveBeenCalled()
 
   spy.mockRestore()
@@ -284,8 +287,7 @@ test('dlx still saves cache even if execution fails', async () => {
       .map(sanitizeDlxCacheName)
       .sort()
   ).toStrictEqual([
-    createBase32Hash('shx'),
     createSanitizedDlxCacheName(createBase32Hash('shx')),
   ].sort())
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
+  expect(readSubdirsStartWith(path.resolve('cache', 'dlx'), createBase32Hash('shx')).sort()).toStrictEqual([['node_modules', 'package.json', 'pnpm-lock.yaml']])
 })
