@@ -1247,7 +1247,7 @@ async function resolveDependency (
     pkg = await ctx.readPackageHook(pkg)
   }
   if (pkg.peerDependencies && pkg.dependencies) {
-    if (ctx.hoistPeers) {
+    if (ctx.autoInstallPeers) {
       pkg = {
         ...pkg,
         dependencies: omit(Object.keys(pkg.peerDependencies), pkg.dependencies),
