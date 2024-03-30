@@ -11,7 +11,6 @@ const testOnPosix = isWindows() ? test.skip : test
 
 function sanitizeDlxCacheName (cacheName: string): string {
   const segments = cacheName.split('-')
-  if (segments.length === 1) return cacheName
   if (segments.length !== 3) {
     throw new Error(`Unexpected name: ${cacheName}`)
   }
