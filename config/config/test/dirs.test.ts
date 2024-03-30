@@ -16,7 +16,7 @@ test('getCacheDir()', () => {
   expect(getCacheDir({
     env: {},
     platform: 'darwin',
-  })).toBe(path.join(os.homedir(), '.cache/pnpm'))
+  })).toBe(path.join(os.homedir(), 'Library/Caches/pnpm'))
   expect(getCacheDir({
     env: {
       LOCALAPPDATA: '/localappdata',
@@ -43,7 +43,7 @@ test('getStateDir()', () => {
   expect(getStateDir({
     env: {},
     platform: 'darwin',
-  })).toBe(path.join(os.homedir(), '.local/state/pnpm'))
+  })).toBe(path.join(os.homedir(), '.pnpm-state'))
   expect(getStateDir({
     env: {
       LOCALAPPDATA: '/localappdata',
@@ -76,7 +76,7 @@ test('getDataDir()', () => {
   expect(getDataDir({
     env: {},
     platform: 'darwin',
-  })).toBe(path.join(os.homedir(), '.local/share/pnpm'))
+  })).toBe(path.join(os.homedir(), 'Library/pnpm'))
   expect(getDataDir({
     env: {
       LOCALAPPDATA: '/localappdata',
@@ -103,7 +103,7 @@ test('getConfigDir()', () => {
   expect(getConfigDir({
     env: {},
     platform: 'darwin',
-  })).toBe(path.join(os.homedir(), '.config/pnpm'))
+  })).toBe(path.join(os.homedir(), 'Library/Preferences/pnpm'))
   expect(getConfigDir({
     env: {
       LOCALAPPDATA: '/localappdata',
