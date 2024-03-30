@@ -26,6 +26,15 @@ function createSanitizedDlxCacheName (linkName: string): string {
   return [linkName, '*'.repeat(11), '*'.repeat(5)].join('-')
 }
 
+function readSubdirsStartWith (parentPath: string, subdirNamePrefix: string): string[][] {
+  return fs.readdirSync(parentPath, 'utf-8')
+    .filter(subdirName => subdirName.startsWith(subdirNamePrefix))
+    .sort()
+    .map(subdirName => path.join(parentPath, subdirName))
+    .map(subdirPath => fs.readdirSync(subdirPath, 'utf-8'))
+    .map(subdirChildren => subdirChildren.sort())
+}
+
 test('run -r: pass the args to the command that is specified in the build script', async () => {
   preparePackages([{
     name: 'project',
@@ -321,8 +330,13 @@ test('parallel dlx calls of the same package', async () => {
       .map(sanitizeDlxCacheName)
       .sort()
   ).toStrictEqual([
-    createBase32Hash('shx'),
     createSanitizedDlxCacheName(createBase32Hash('shx')),
+    createSanitizedDlxCacheName(createBase32Hash('shx')),
+    createSanitizedDlxCacheName(createBase32Hash('shx')),
+  ].sort())
+  expect(readSubdirsStartWith(path.resolve('cache', 'dlx'), createBase32Hash('shx'))).toStrictEqual([
+    ['node_modules', 'package.json', 'pnpm-lock.yaml'],
+    ['node_modules', 'package.json', 'pnpm-lock.yaml'],
+    ['node_modules', 'package.json', 'pnpm-lock.yaml'],
   ])
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(['node_modules', 'package.json', 'pnpm-lock.yaml'])
 })
