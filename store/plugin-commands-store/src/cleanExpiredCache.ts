@@ -73,7 +73,7 @@ async function cleanOrphans (opts: {
       }
       throw err
     }
-    if (currentRealPath.startsWith(dlxCacheDir)) {
+    if (path.dirname(currentRealPath) === dlxCacheDir) {
       realPaths.push(currentRealPath)
     }
   }))
