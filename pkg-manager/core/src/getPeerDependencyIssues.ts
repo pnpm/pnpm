@@ -8,6 +8,7 @@ import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 
 export type ListMissingPeersOptions = Partial<GetContextOptions>
 & Pick<InstallOptions, 'hooks'
+| 'dedupePeerDependents'
 | 'ignoreCompatibilityDb'
 | 'linkWorkspacePackagesDepth'
 | 'nodeVersion'
@@ -58,6 +59,7 @@ export async function getPeerDependencyIssues (
       allowedDeprecatedVersions: {},
       allowNonAppliedPatches: false,
       defaultUpdateDepth: -1,
+      dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: true,
       engineStrict: false,
       force: false,
