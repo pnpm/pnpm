@@ -26,6 +26,7 @@ import {
   resolveRootDependencies,
   type ResolvedPackage,
   type ResolvedPackagesByDepPath,
+  type ResolutionContext,
 } from './resolveDependencies'
 
 export * from './nodeIdUtils'
@@ -76,6 +77,7 @@ export interface ResolveDependenciesOptions {
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allowNonAppliedPatches: boolean
   currentLockfile: Lockfile
+  dedupePeerDependents?: boolean
   dryRun: boolean
   engineStrict: boolean
   force: boolean
@@ -108,8 +110,9 @@ export async function resolveDependencyTree<T> (
   opts: ResolveDependenciesOptions
 ) {
   const wantedToBeSkippedPackageIds = new Set<string>()
-  const ctx = {
-    autoInstallPeers: opts.autoInstallPeers === true,
+  const autoInstallPeers = opts.autoInstallPeers === true
+  const ctx: ResolutionContext = {
+    autoInstallPeers,
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
     allowBuild: opts.allowBuild,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
@@ -142,6 +145,7 @@ export async function resolveDependencyTree<T> (
     updatedSet: new Set<string>(),
     workspacePackages: opts.workspacePackages,
     missingPeersOfChildrenByPkgId: {},
+    hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
