@@ -10,6 +10,9 @@ export function getCacheDir (
   if (opts.env.XDG_CACHE_HOME) {
     return path.join(opts.env.XDG_CACHE_HOME, 'pnpm')
   }
+  if (opts.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library/Caches/pnpm')
+  }
   if (opts.platform !== 'win32') {
     return path.join(os.homedir(), '.cache/pnpm')
   }
@@ -49,6 +52,9 @@ export function getDataDir (
   if (opts.env.XDG_DATA_HOME) {
     return path.join(opts.env.XDG_DATA_HOME, 'pnpm')
   }
+  if (opts.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library/pnpm')
+  }
   if (opts.platform !== 'win32') {
     return path.join(os.homedir(), '.local/share/pnpm')
   }
@@ -66,6 +72,9 @@ export function getConfigDir (
 ) {
   if (opts.env.XDG_CONFIG_HOME) {
     return path.join(opts.env.XDG_CONFIG_HOME, 'pnpm')
+  }
+  if (opts.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library/Preferences/pnpm')
   }
   if (opts.platform !== 'win32') {
     return path.join(os.homedir(), '.config/pnpm')
