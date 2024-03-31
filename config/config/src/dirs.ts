@@ -31,7 +31,7 @@ export function getStateDir (
   if (opts.env.XDG_STATE_HOME) {
     return path.join(opts.env.XDG_STATE_HOME, 'pnpm')
   }
-  if (opts.platform !== 'win32' && opts.platform !== 'darwin') {
+  if (opts.platform !== 'win32') {
     return path.join(os.homedir(), '.local/state/pnpm')
   }
   if (opts.env.LOCALAPPDATA) {
