@@ -72,40 +72,53 @@ export async function handler (
 ) {
   const pkgs = opts.package ?? [command]
   const now = new Date()
-  const { storeDir, dlxCacheDir, cacheName } = await getInfo({
+  const { storeDir, dlxCacheDir, cacheName, cachePath } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
     cacheDir: opts.cacheDir,
     pkgs,
   })
-  fs.mkdirSync(dlxCacheDir, { recursive: true })
-  const { shouldInstall, prefix } = getPrefixInfo({
+  fs.mkdirSync(cachePath, { recursive: true })
+  const { cacheLink, newPrefix, prefix } = getPrefixInfo({
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     pid: process.pid,
-    cacheName,
-    dlxCacheDir,
+    cachePath,
     now,
   })
   const modulesDir = path.join(prefix, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
-  if (shouldInstall) {
-    fs.mkdirSync(prefix, { recursive: true })
+  if (newPrefix) {
+    fs.mkdirSync(newPrefix, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
       ...omit(['workspaceDir', 'rootProjectManifest'], opts),
       bin: binsDir,
-      dir: prefix,
-      lockfileDir: prefix,
-      rootProjectManifestDir: prefix, // This property won't be used as rootProjectManifest will be undefined
+      dir: newPrefix,
+      lockfileDir: newPrefix,
+      rootProjectManifestDir: newPrefix, // This property won't be used as rootProjectManifest will be undefined
       storeDir,
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
       saveOptional: false,
       savePeer: false,
     }, pkgs)
+    try {
+      fs.unlinkSync(cacheLink)
+    } catch (err) {
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+        throw err
+      }
+    }
+    try {
+      fs.symlinkSync(newPrefix, cacheLink, 'junction')
+    } catch (err) {
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) {
+        throw err
+      }
+    }
   }
   const binName = opts.package
     ? command
@@ -180,54 +193,42 @@ async function getInfo (opts: {
   const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
   const hashStr = opts.pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
   const cacheName = createBase32Hash(hashStr)
-  return { storeDir, dlxCacheDir, cacheName }
+  const cachePath = path.join(dlxCacheDir, cacheName)
+  return { storeDir, dlxCacheDir, cacheName, cachePath }
 }
 
 function getPrefixInfo (opts: {
-  dlxCacheDir: string
-  cacheName: string
+  cachePath: string
   dlxCacheMaxAge: number
   now: Date
   pid: number
 }) {
-  const { dlxCacheDir, cacheName, dlxCacheMaxAge, now, pid } = opts
-  const cachedPrefix = getCachedPrefix({ dlxCacheDir, cacheName, dlxCacheMaxAge, now })
-  const shouldInstall = !cachedPrefix
-  const prefix = cachedPrefix ?? getNewPrefix({ dlxCacheDir, cacheName, now, pid })
-  return { prefix, shouldInstall }
+  const { cachePath, dlxCacheMaxAge, now, pid } = opts
+  const cacheLink = path.join(cachePath, 'link')
+  const cacheStatus = checkCacheLink(cacheLink, dlxCacheMaxAge, now)
+  const shouldInstall = cacheStatus === 'not-exist' || cacheStatus === 'out-of-date'
+  const newPrefix = shouldInstall ? getNewPrefix(cachePath, now, pid) : null
+  const prefix = newPrefix ?? cacheLink
+  return { cacheLink, cacheStatus, shouldInstall, newPrefix, prefix }
 }
 
-function getCachedPrefix (opts: {
-  dlxCacheDir: string
-  cacheName: string
-  dlxCacheMaxAge: number
-  now: Date
-}): string | undefined {
-  const { dlxCacheDir, cacheName, dlxCacheMaxAge, now } = opts
-  return fs.readdirSync(dlxCacheDir, 'utf-8')
-    .filter(name => name.startsWith(`${cacheName}-`))
-    .map(name => path.join(dlxCacheDir, name))
-    .filter(dirPath => isUpToDate(fs.lstatSync(dirPath), dlxCacheMaxAge, now))
-    .filter(isFullyInstalled)
-    .sort() // directory created at a later date should have greater "date" segment, so it would naturally comes last
-    .at(-1) // get the most up-to-date path
+function checkCacheLink (cacheLink: string, dlxCacheMaxAge: number, now: Date): 'not-exist' | 'out-of-date' | 'up-to-date' {
+  let stats: fs.Stats
+  try {
+    stats = fs.lstatSync(cacheLink)
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return 'not-exist'
+    }
+    throw err
+  }
+  if (stats.mtime.getTime() + dlxCacheMaxAge * 60_000 < now.getTime()) {
+    return 'out-of-date'
+  }
+  return 'up-to-date'
 }
 
-function isUpToDate (stats: fs.Stats, dlxCacheMaxAge: number, now: Date): boolean {
-  return stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= now.getTime()
-}
-
-function isFullyInstalled (dirPath: string): boolean {
-  return fs.existsSync(path.join(dirPath, 'node_modules', '.modules.yaml'))
-}
-
-function getNewPrefix (opts: {
-  dlxCacheDir: string
-  cacheName: string
-  now: Date
-  pid: number
-}): string {
-  const { dlxCacheDir, cacheName, now, pid } = opts
-  const name = `${cacheName}-${now.getTime().toString(16)}-${pid.toString(16)}`
-  return path.join(dlxCacheDir, name)
+function getNewPrefix (cachePath: string, now: Date, pid: number): string {
+  const name = `${now.getTime().toString(16)}-${pid.toString(16)}`
+  return path.join(cachePath, name)
 }
