@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-installation
 
+## 14.3.0
+
+### Minor Changes
+
+- a03e3316d: Add `--ignore-scripts` argument to `prune` command [#7836](https://github.com/pnpm/pnpm/pull/7836).
+
+### Patch Changes
+
+- Updated dependencies [61565f8a0]
+  - @pnpm/workspace.pkgs-graph@2.0.16
+  - @pnpm/filter-workspace-packages@7.2.14
+  - @pnpm/plugin-commands-rebuild@10.0.21
+
 ## 14.2.7
 
 ### Patch Changes

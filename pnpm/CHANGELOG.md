@@ -1,5 +1,13 @@
 # pnpm
 
+## 8.15.6
+
+### Patch Changes
+
+- The exit code of the child process should be preserved on `pnpm run` [#7817](https://github.com/pnpm/pnpm/issues/7817).
+- When sorting packages in a workspace, take into account workspace dependencies specified as `peerDependencies` [#7813](https://github.com/pnpm/pnpm/issues/7813).
+- Add `--ignore-scripts` argument to `prune` command [#7836](https://github.com/pnpm/pnpm/pull/7836).
+
 ## 8.15.5
 
 ### Patch Changes

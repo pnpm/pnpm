@@ -1,5 +1,11 @@
 # @pnpm/workspace.pkgs-graph
 
+## 2.0.16
+
+### Patch Changes
+
+- 61565f8a0: When sorting packages in a workspace, take into account workspace dependencies specified as `peerDependencies` [#7813](https://github.com/pnpm/pnpm/issues/7813).
+
 ## 2.0.15
 
 ### Patch Changes

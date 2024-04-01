@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-patching
 
+## 5.1.9
+
+### Patch Changes
+
+- Updated dependencies [a03e3316d]
+  - @pnpm/plugin-commands-installation@14.3.0
+
 ## 5.1.8
 
 ### Patch Changes
