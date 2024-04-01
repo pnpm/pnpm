@@ -72,7 +72,7 @@ export async function handler (
 ) {
   const pkgs = opts.package ?? [command]
   const now = new Date()
-  const { storeDir, dlxCacheDir, cacheName, cachePath } = await getInfo({
+  const { storeDir, cachePath } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     storeDir: opts.storeDir,
