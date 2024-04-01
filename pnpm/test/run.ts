@@ -9,29 +9,17 @@ import { execPnpm, execPnpmSync } from './utils'
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 const testOnPosix = isWindows() ? test.skip : test
 
-function sanitizeDlxCacheName (cacheName: string): string {
+function sanitizeDlxCacheComponent (cacheName: string): string {
+  if (cacheName === 'link') return cacheName
   const segments = cacheName.split('-')
-  if (segments.length !== 3) {
+  if (segments.length !== 2) {
     throw new Error(`Unexpected name: ${cacheName}`)
   }
-  const [linkName, date, pid] = segments
+  const [date, pid] = segments
   if (!/[0-9a-f]+/.test(date) && !/[0-9a-f]+/.test(pid)) {
     throw new Error(`Name ${cacheName} doesn't end with 2 hex numbers`)
   }
-  return createSanitizedDlxCacheName(linkName)
-}
-
-function createSanitizedDlxCacheName (linkName: string): string {
-  return [linkName, '*'.repeat(11), '*'.repeat(5)].join('-')
-}
-
-function readSubdirsStartWith (parentPath: string, subdirNamePrefix: string): string[][] {
-  return fs.readdirSync(parentPath, 'utf-8')
-    .filter(subdirName => subdirName.startsWith(subdirNamePrefix))
-    .sort()
-    .map(subdirName => path.join(parentPath, subdirName))
-    .map(subdirPath => fs.readdirSync(subdirPath, 'utf-8'))
-    .map(subdirChildren => subdirChildren.sort())
+  return '***********-*****'
 }
 
 test('run -r: pass the args to the command that is specified in the build script', async () => {
@@ -325,17 +313,23 @@ test('parallel dlx calls of the same package', async () => {
 
   expect(['foo', 'bar', 'baz'].filter(name => fs.existsSync(name))).toStrictEqual(['foo', 'bar', 'baz'])
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx'))
-      .map(sanitizeDlxCacheName)
+    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+      .map(sanitizeDlxCacheComponent)
       .sort()
   ).toStrictEqual([
-    createSanitizedDlxCacheName(createBase32Hash('shx')),
-    createSanitizedDlxCacheName(createBase32Hash('shx')),
-    createSanitizedDlxCacheName(createBase32Hash('shx')),
+    'link',
+    '***********-*****',
+    '***********-*****',
+    '***********-*****',
   ].sort())
-  expect(readSubdirsStartWith(path.resolve('cache', 'dlx'), createBase32Hash('shx'))).toStrictEqual([
-    ['node_modules', 'package.json', 'pnpm-lock.yaml'],
-    ['node_modules', 'package.json', 'pnpm-lock.yaml'],
-    ['node_modules', 'package.json', 'pnpm-lock.yaml'],
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))
+  ).toStrictEqual([
+    'node_modules',
+    'package.json',
+    'pnpm-lock.yaml',
   ])
+  expect(
+    path.resolve(path.dirname(fs.readlinkSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))))
+  ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
 })
