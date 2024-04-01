@@ -20,6 +20,42 @@ exports[`pnpm licenses: filter outputs: show-packages 1`] = `
 "
 `;
 
+exports[`pnpm licenses: list all dependencies of workspace: show-packages 1`] = `
+"┌─────────────────────────┬─────────┐
+│ Package                 │ License │
+├─────────────────────────┼─────────┤
+│ @types/ini (dev)        │ MIT     │
+├─────────────────────────┼─────────┤
+│ @types/is-windows (dev) │ MIT     │
+├─────────────────────────┼─────────┤
+│ @types/uuid (dev)       │ MIT     │
+├─────────────────────────┼─────────┤
+│ @types/which (dev)      │ MIT     │
+├─────────────────────────┼─────────┤
+│ ansi-regex              │ MIT     │
+├─────────────────────────┼─────────┤
+│ is-positive             │ MIT     │
+├─────────────────────────┼─────────┤
+│ wordwrap                │ MIT     │
+└─────────────────────────┴─────────┘
+"
+`;
+
+exports[`pnpm licenses: list only dependencies of selected workspace member: show-packages 1`] = `
+"┌────────────────────┬─────────┐
+│ Package            │ License │
+├────────────────────┼─────────┤
+│ @types/which (dev) │ MIT     │
+├────────────────────┼─────────┤
+│ ansi-regex         │ MIT     │
+├────────────────────┼─────────┤
+│ is-positive        │ MIT     │
+├────────────────────┼─────────┤
+│ wordwrap           │ MIT     │
+└────────────────────┴─────────┘
+"
+`;
+
 exports[`pnpm licenses: should correctly read LICENSE file with executable file mode: show-packages-details 1`] = `
 "┌──────────────────────────────┬─────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Package                      │ License │ Details                                                                                                │
@@ -114,5 +150,16 @@ exports[`pnpm licenses: show-packages 1`] = `
 ├──────────────────┼────────────┤
 │ scheduler        │ MIT        │
 └──────────────────┴────────────┘
+"
+`;
+
+exports[`pnpm licenses: workspace production dependency: show-packages 1`] = `
+"┌─────────────┬─────────┐
+│ Package     │ License │
+├─────────────┼─────────┤
+│ is-positive │ MIT     │
+├─────────────┼─────────┤
+│ wordwrap    │ MIT     │
+└─────────────┴─────────┘
 "
 `;

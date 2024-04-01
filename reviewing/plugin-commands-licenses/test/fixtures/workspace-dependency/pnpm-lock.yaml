@@ -1,0 +1,102 @@
+lockfileVersion: '7.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  alpha:
+    dependencies:
+      beta-alias:
+        specifier: workspace:beta@*
+        version: link:../beta
+      is-positive:
+        specifier: ^3.1.0
+        version: 3.1.0
+    devDependencies:
+      '@types/uuid':
+        specifier: ^9.0.8
+        version: 9.0.8
+      gamma:
+        specifier: workspace:*
+        version: link:../gamma
+
+  beta:
+    dependencies:
+      delta:
+        specifier: workspace:delta
+        version: link:../delta
+      is-positive:
+        specifier: ^3.1.0
+        version: 3.1.0
+    devDependencies:
+      '@types/which':
+        specifier: ^3.0.3
+        version: 3.0.3
+      gamma:
+        specifier: workspace:*
+        version: link:../gamma
+
+  delta:
+    dependencies:
+      wordwrap:
+        specifier: ^1.0.0
+        version: 1.0.0
+    devDependencies:
+      '@types/is-windows':
+        specifier: ^1.0.2
+        version: 1.0.2
+
+  gamma:
+    dependencies:
+      ansi-regex:
+        specifier: ^6.0.1
+        version: 6.0.1
+    devDependencies:
+      '@types/ini':
+        specifier: ^1.3.31
+        version: 1.3.34
+
+packages:
+
+  '@types/ini@1.3.34':
+    resolution: {integrity: sha512-FafeLhwmWucTi31ZYg/6aHBZNyrogQ35aDvSW7zMAz3HMhUqQ4G/NBya8c5pe2jwoYsDFwra8O9/yZotong76g==}
+
+  '@types/is-windows@1.0.2':
+    resolution: {integrity: sha512-Qt86FJkakTwcZR+r08JSrOtw1g05EhZwSKRu9S5tu8pXulFRl06KS2fYAoxE32fc3gVXkpwlYIxUkjFIusvyFQ==}
+
+  '@types/uuid@9.0.8':
+    resolution: {integrity: sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA==}
+
+  '@types/which@3.0.3':
+    resolution: {integrity: sha512-2C1+XoY0huExTbs8MQv1DuS5FS86+SEjdM9F/+GS61gg5Hqbtj8ZiDSx8MfWcyei907fIPbfPGCOrNUTnVHY1g==}
+
+  ansi-regex@6.0.1:
+    resolution: {integrity: sha512-n5M855fKb2SsfMIiFFoVrABHJC8QtHwVx+mHWP3QcEqBHYienj5dHSgjbxtC0WEZXYt4wcD6zrQElDPhFuZgfA==}
+    engines: {node: '>=12'}
+
+  is-positive@3.1.0:
+    resolution: {integrity: sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==}
+    engines: {node: '>=0.10.0'}
+
+  wordwrap@1.0.0:
+    resolution: {integrity: sha512-gvVzJFlPycKc5dZN4yPkP8w7Dc37BtP1yczEneOb4uq34pXZcvrtRTmWV8W+Ume+XCxKgbjM+nevkyFPMybd4Q==}
+
+snapshots:
+
+  '@types/ini@1.3.34': {}
+
+  '@types/is-windows@1.0.2': {}
+
+  '@types/uuid@9.0.8': {}
+
+  '@types/which@3.0.3': {}
+
+  ansi-regex@6.0.1: {}
+
+  is-positive@3.1.0: {}
+
+  wordwrap@1.0.0: {}

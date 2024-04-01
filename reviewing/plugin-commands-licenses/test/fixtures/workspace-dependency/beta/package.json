@@ -1,0 +1,12 @@
+{
+  "name": "beta",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-positive": "^3.1.0",
+    "delta": "workspace:delta"
+  },
+  "devDependencies": {
+    "@types/which": "^3.0.3",
+    "gamma": "workspace:*"
+  }
+}
