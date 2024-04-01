@@ -131,7 +131,7 @@ export async function lockfileToLicenseNodeTree (
   const importerWalkers = lockfileWalkerGroupImporterSteps(
     lockfile,
     opts.includedImporterIds ?? Object.keys(lockfile.importers),
-    { include: opts?.include }
+    { include: opts?.include, recursive: true }
   )
   const depTypes = detectDepTypes(lockfile)
   const dependencies = Object.fromEntries(

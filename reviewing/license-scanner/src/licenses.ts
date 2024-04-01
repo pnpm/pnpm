@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile, getLockfileImporterId } from '@pnpm/lockfile-file'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import {
   type SupportedArchitectures,
@@ -69,6 +69,7 @@ function getDependenciesFromLicenseNode (
 export async function findDependencyLicenses (opts: {
   ignoreDependencies?: Set<string>
   include?: IncludedDependencies
+  projectDir?: string
   lockfileDir: string
   manifest: ProjectManifest
   storeDir: string
@@ -86,6 +87,12 @@ export async function findDependencyLicenses (opts: {
     )
   }
 
+  let includedImporterIds = opts.includedImporterIds
+  if (includedImporterIds === undefined && opts.projectDir !== undefined && opts.projectDir !== opts.lockfileDir) {
+    const importerId = getLockfileImporterId(opts.lockfileDir, opts.projectDir)
+    includedImporterIds = [importerId]
+  }
+
   const depTypes = detectDepTypes(opts.wantedLockfile)
   const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
     dir: opts.lockfileDir,
@@ -94,7 +101,7 @@ export async function findDependencyLicenses (opts: {
     virtualStoreDir: opts.virtualStoreDir,
     include: opts.include,
     registries: opts.registries,
-    includedImporterIds: opts.includedImporterIds,
+    includedImporterIds,
     supportedArchitectures: opts.supportedArchitectures,
     depTypes,
   })

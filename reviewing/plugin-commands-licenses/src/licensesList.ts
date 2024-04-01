@@ -63,6 +63,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
 
   const licensePackages = await findDependencyLicenses({
     include,
+    projectDir: opts.dir,
     lockfileDir: opts.lockfileDir ?? opts.dir,
     storeDir,
     virtualStoreDir: opts.virtualStoreDir ?? '.',

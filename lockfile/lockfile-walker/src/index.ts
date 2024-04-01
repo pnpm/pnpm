@@ -1,6 +1,8 @@
 import { type Lockfile, type PackageSnapshot } from '@pnpm/lockfile-types'
 import { type DependenciesField } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
+import path from 'node:path'
+import normalizePath from 'normalize-path'
 
 export interface LockedDependency {
   depPath: string
@@ -20,19 +22,13 @@ export function lockfileWalkerGroupImporterSteps (
   opts?: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     skipped?: Set<string>
+    recursive?: boolean
   }
 ): Array<{ importerId: string, step: LockfileWalkerStep }> {
   const walked = new Set<string>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
 
   return importerIds.map((importerId) => {
-    const projectSnapshot = lockfile.importers[importerId]
-    const entryNodes = Object.entries({
-      ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
-      ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
-      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
-    })
-      .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
-      .filter((nodeId) => nodeId !== null) as string[]
+    const entryNodes = lockfileDeps(lockfile, [importerId], opts).map(({ depPath }) => depPath)
     return {
       importerId,
       step: step({
@@ -65,18 +61,13 @@ export function lockfileWalker (
   const directDeps = [] as Array<{ alias: string, depPath: string }>
 
   importerIds.forEach((importerId) => {
-    const projectSnapshot = lockfile.importers[importerId]
-    Object.entries({
-      ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
-      ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
-      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
+    const deps = lockfileDeps(lockfile, [importerId], {
+      ...opts,
+      recursive: false,
     })
-      .forEach(([pkgName, reference]) => {
-        const depPath = dp.refToRelative(reference, pkgName)
-        if (depPath === null) return
-        entryNodes.push(depPath)
-        directDeps.push({ alias: pkgName, depPath })
-      })
+    const nodes = deps.map(({ depPath }) => depPath)
+    directDeps.push(...deps)
+    entryNodes.push(...nodes)
   })
   return {
     directDeps,
@@ -86,6 +77,44 @@ export function lockfileWalker (
       walked,
     }, entryNodes),
   }
+}
+
+// may return duplicate dependencies if recursive == true
+function lockfileDeps (
+  lockfile: Lockfile,
+  visitedImporterIds: string[],
+  opts?: {
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    skipped?: Set<string>
+    recursive?: boolean
+  }
+): Array<{ alias: string, depPath: string }> {
+  const importerId = visitedImporterIds[visitedImporterIds.length - 1]
+  const projectSnapshot = lockfile.importers[importerId]
+  const deps = [] as Array<{ alias: string, depPath: string }>
+  const isBaseCall = visitedImporterIds.length === 1
+
+  Object.entries({
+    ...(!isBaseCall || opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
+    ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
+    ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
+  })
+    .forEach(([pkgName, reference]) => {
+      const depPath = dp.refToRelative(reference, pkgName)
+      if (depPath !== null) {
+        deps.push({ alias: pkgName, depPath })
+      } else if (opts?.recursive) {
+        const relativePath = reference.slice('link:'.length)
+        const childImporterId = normalizePath(path.normalize(path.join(importerId, relativePath)))
+        if (visitedImporterIds.includes(childImporterId)) {
+          return
+        }
+        const visitedIds = [...visitedImporterIds, childImporterId]
+        const childDeps = lockfileDeps(lockfile, visitedIds, opts)
+        deps.push(...childDeps)
+      }
+    })
+  return deps
 }
 
 function step (
