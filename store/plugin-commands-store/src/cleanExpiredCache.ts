@@ -13,15 +13,8 @@ export async function cleanExpiredCache (opts: {
 
   if (dlxCacheMaxAge === Infinity) return
 
-  let dlxCacheNames: string[]
-  try {
-    dlxCacheNames = await fs.readdir(dlxCacheDir, {
-      encoding: 'utf-8',
-    })
-  } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
-    throw err
-  }
+  const dlxCacheNames = await readOptDir(dlxCacheDir)
+  if (!dlxCacheNames) return
 
   await Promise.all(dlxCacheNames.map(async (dlxCacheName) => {
     const dlxCachePath = path.join(dlxCacheDir, dlxCacheName)
@@ -33,17 +26,12 @@ export async function cleanExpiredCache (opts: {
     }
   }))
 
-  await cleanOrphans({
-    dlxCacheDir,
-    dlxCacheNames,
-  })
+  await cleanOrphans(dlxCacheDir)
 }
 
-async function cleanOrphans (opts: {
-  dlxCacheDir: string
-  dlxCacheNames: string[]
-}): Promise<void> {
-  const { dlxCacheDir, dlxCacheNames } = opts
+async function cleanOrphans (dlxCacheDir: string): Promise<void> {
+  const dlxCacheNames = await readOptDir(dlxCacheDir)
+  if (!dlxCacheNames) return
   await Promise.all(dlxCacheNames.map(async dlxCacheName => {
     const dlxCachePath = path.join(dlxCacheDir, dlxCacheName)
     const dlxCacheLink = path.join(dlxCachePath, 'link')
@@ -72,6 +60,17 @@ async function getStats (path: string): Promise<Stats | 'ENOENT'> {
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return 'ENOENT'
+    }
+    throw err
+  }
+}
+
+async function readOptDir (dirPath: string): Promise<string[] | null> {
+  try {
+    return await fs.readdir(dirPath, 'utf-8')
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return null
     }
     throw err
   }
