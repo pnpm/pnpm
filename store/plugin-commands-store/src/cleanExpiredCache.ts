@@ -1,4 +1,4 @@
-import { type Dirent } from 'fs'
+import { type Stats } from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
 import util from 'util'
@@ -13,10 +13,9 @@ export async function cleanExpiredCache (opts: {
 
   if (dlxCacheMaxAge === Infinity) return
 
-  let children: Dirent[]
+  let dlxCacheNames: string[]
   try {
-    children = await fs.readdir(dlxCacheDir, {
-      withFileTypes: true,
+    dlxCacheNames = await fs.readdir(dlxCacheDir, {
       encoding: 'utf-8',
     })
   } catch (err) {
@@ -24,65 +23,72 @@ export async function cleanExpiredCache (opts: {
     throw err
   }
 
-  const symlinks = children.filter(item => item.isSymbolicLink())
-  const directories = children.filter(item => item.isDirectory())
-
-  await Promise.all(children.map(async (item) => {
-    const dlxCachePath = path.join(dlxCacheDir, item.name)
-    let shouldClean: boolean
-    if (dlxCacheMaxAge <= 0) {
-      shouldClean = true
-    } else {
-      const cacheStats = await fs.stat(dlxCachePath)
-      shouldClean = cacheStats.mtime.getTime() + dlxCacheMaxAge * 60000 <= now.getTime()
-    }
-
-    if (shouldClean) {
-      try {
-        await Promise.all([
-          fs.unlink(dlxCachePath),
-          fs.realpath(dlxCachePath, { encoding: 'utf-8' })
-            .then(realCachePath => fs.rm(realCachePath, { recursive: true })),
-        ])
-      } catch { }
+  await Promise.all(dlxCacheNames.map(async (dlxCacheName) => {
+    const dlxCachePath = path.join(dlxCacheDir, dlxCacheName)
+    const dlxCacheLink = path.join(dlxCachePath, 'link')
+    const dlxCacheLinkStats = await getStats(dlxCacheLink)
+    if (dlxCacheLinkStats !== 'ENOENT' && isOutdated(dlxCacheLinkStats, dlxCacheMaxAge, now)) {
+      const dlxCacheLinkTarget = await getRealPath(dlxCacheLink)
+      await Promise.all([
+        fs.unlink(dlxCacheLink),
+        dlxCacheLinkTarget && path.dirname(dlxCacheLinkTarget) === dlxCachePath
+          ? fs.rm(dlxCacheLinkTarget, { recursive: true })
+          : Promise.resolve(),
+      ])
     }
   }))
 
   await cleanOrphans({
     dlxCacheDir,
-    symlinks,
-    directories,
+    dlxCacheNames,
   })
 }
 
 async function cleanOrphans (opts: {
   dlxCacheDir: string
-  symlinks: Dirent[]
-  directories: Dirent[]
+  dlxCacheNames: string[]
 }): Promise<void> {
-  const { dlxCacheDir, symlinks, directories } = opts
-  const realPaths: string[] = []
-  await Promise.all(symlinks.map(async linkDirent => {
-    const linkPath = path.join(dlxCacheDir, linkDirent.name)
-    let currentRealPath: string
-    try {
-      currentRealPath = await fs.realpath(linkPath)
-    } catch (err) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-        return
-      }
-      throw err
+  const { dlxCacheDir, dlxCacheNames } = opts
+  await Promise.all(dlxCacheNames.map(async dlxCacheName => {
+    const dlxCachePath = path.join(dlxCacheDir, dlxCacheName)
+    const dlxCacheLink = path.join(dlxCachePath, 'link')
+    const dlxCacheLinkStats = await getStats(dlxCacheLink)
+    if (dlxCacheLinkStats === 'ENOENT') {
+      return fs.rm(dlxCachePath, { recursive: true })
     }
-    if (path.dirname(currentRealPath) === dlxCacheDir) {
-      realPaths.push(currentRealPath)
+    const dlxCacheLinkTarget = await getRealPath(dlxCacheLink)
+    const children = await fs.readdir(dlxCachePath)
+    await Promise.all(children.map(async name => {
+      if (name === 'link') return
+      const fullPath = path.join(dlxCachePath, name)
+      if (fullPath === dlxCacheLinkTarget) return
+      await fs.rm(fullPath, { recursive: true })
+    }))
+  }))
+}
+
+function isOutdated (stats: Stats, dlxCacheMaxAge: number, now: Date): boolean {
+  return stats.mtime.getTime() + dlxCacheMaxAge * 60_000 < now.getTime()
+}
+
+async function getStats (path: string): Promise<Stats | 'ENOENT'> {
+  try {
+    return await fs.lstat(path)
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return 'ENOENT'
     }
-  }))
-  const orphans = directories
-    .map(dirDirent => path.resolve(dlxCacheDir, dirDirent.name))
-    .filter(dirPath => !realPaths.includes(dirPath))
-  await Promise.all(orphans.map(async orphanPath => {
-    try {
-      await fs.rm(orphanPath, { recursive: true })
-    } catch { }
-  }))
+    throw err
+  }
+}
+
+async function getRealPath (linkPath: string): Promise<string | null> {
+  try {
+    return await fs.realpath(linkPath)
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return null
+    }
+    throw err
+  }
 }
