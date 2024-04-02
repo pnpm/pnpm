@@ -9,10 +9,10 @@ export async function cleanExpiredCache (opts: {
   now: Date
 }): Promise<void> {
   const { cacheDir, dlxCacheMaxAge, now } = opts
-  const dlxCacheDir = path.join(cacheDir, 'dlx')
 
   if (dlxCacheMaxAge === Infinity) return
 
+  const dlxCacheDir = path.join(cacheDir, 'dlx')
   const dlxCacheNames = await readOptDir(dlxCacheDir)
   if (!dlxCacheNames) return
 
