@@ -46,8 +46,15 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
     await runLifecycleHook(installScriptName, manifest, execOpts)
     for (const scriptName of PREPUBLISH_SCRIPTS) {
       if (manifest.scripts[scriptName] == null || manifest.scripts[scriptName] === '') continue
+      let newScriptName
+      if (pm !== 'pnpm') {
+        newScriptName = `${pm}-run-${scriptName}`
+        manifest.scripts[newScriptName] = `${pm} run ${scriptName}`
+      } else {
+        newScriptName = scriptName
+      }
       // eslint-disable-next-line no-await-in-loop
-      await runLifecycleHook(scriptName, manifest, execOpts)
+      await runLifecycleHook(newScriptName, manifest, execOpts)
     }
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
