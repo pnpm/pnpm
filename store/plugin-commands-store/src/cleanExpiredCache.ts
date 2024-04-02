@@ -28,13 +28,8 @@ export async function cleanExpiredCache (opts: {
     const dlxCacheLink = path.join(dlxCachePath, 'link')
     const dlxCacheLinkStats = await getStats(dlxCacheLink)
     if (dlxCacheLinkStats !== 'ENOENT' && isOutdated(dlxCacheLinkStats, dlxCacheMaxAge, now)) {
-      const dlxCacheLinkTarget = await getRealPath(dlxCacheLink)
-      await Promise.all([
-        fs.unlink(dlxCacheLink),
-        dlxCacheLinkTarget && path.dirname(dlxCacheLinkTarget) === dlxCachePath
-          ? fs.rm(dlxCacheLinkTarget, { recursive: true })
-          : Promise.resolve(),
-      ])
+      // delete the symlink, the symlink's target, and orphans (if any)
+      await fs.rm(dlxCachePath, { recursive: true })
     }
   }))
 
