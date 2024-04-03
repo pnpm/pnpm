@@ -271,6 +271,29 @@ test('prune removes alien files from the store if the --force flag is used', asy
   expect(fs.existsSync(alienDir)).toBeFalsy()
 })
 
+function createSampleDlxCacheLinkTarget (dirPath: string): void {
+  fs.mkdirSync(path.join(dirPath, 'node_modules', '.pnpm'), { recursive: true })
+  fs.mkdirSync(path.join(dirPath, 'node_modules', '.bin'), { recursive: true })
+  fs.writeFileSync(path.join(dirPath, 'node_modules', '.modules.yaml'), '')
+  fs.writeFileSync(path.join(dirPath, 'package.json'), '')
+  fs.writeFileSync(path.join(dirPath, 'pnpm-lock.yaml'), '')
+}
+
+function createSampleDlxCacheFsTree (cacheDir: string, now: Date, ageTable: Record<string, number>): void {
+  for (const [key, age] of Object.entries(ageTable)) {
+    const hash = createBase32Hash(key)
+    const newDate = new Date(now.getTime() - age * 60_000)
+    const timeError = 432 // just an arbitrary amount, nothing is special about this number
+    const pid = 71014 // just an arbitrary number to represent pid
+    const targetName = `${(newDate.getTime() - timeError).toString(16)}-${pid.toString(16)}`
+    const linkTarget = path.join(cacheDir, 'dlx', hash, targetName)
+    const linkPath = path.join(cacheDir, 'dlx', hash, 'link')
+    createSampleDlxCacheLinkTarget(linkTarget)
+    fs.symlinkSync(linkTarget, linkPath, 'junction')
+    fs.lutimesSync(linkPath, newDate, newDate)
+  }
+}
+
 test('prune removes cache directories that outlives dlx-cache-max-age', async () => {
   prepareEmpty()
   const cacheDir = path.resolve('cache')
@@ -281,22 +304,11 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
 
   const now = new Date()
 
-  const timeTable = {
-    foo: 12,
-    bar: 1,
-    baz: -20,
-  }
-
-  for (const [key, minuteDelta] of Object.entries(timeTable)) {
-    const dirName = createBase32Hash(key)
-    fs.mkdirSync(path.join(cacheDir, 'dlx', dirName, 'node_modules', '.pnpm'), { recursive: true })
-    fs.mkdirSync(path.join(cacheDir, 'dlx', dirName, 'node_modules', '.bin'), { recursive: true })
-    fs.writeFileSync(path.join(cacheDir, 'dlx', dirName, 'node_modules', '.modules.yaml'), '')
-    fs.writeFileSync(path.join(cacheDir, 'dlx', dirName, 'package.json'), '')
-    fs.writeFileSync(path.join(cacheDir, 'dlx', dirName, 'pnpm-lock.yaml'), '')
-    const newDate = new Date(now.getTime() + minuteDelta * 60_000)
-    fs.utimesSync(path.join(cacheDir, 'dlx', dirName), newDate, newDate)
-  }
+  createSampleDlxCacheFsTree(cacheDir, now, {
+    foo: 1,
+    bar: 5,
+    baz: 20,
+  })
 
   await store.handler({
     cacheDir,
