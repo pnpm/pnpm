@@ -333,3 +333,107 @@ test('parallel dlx calls of the same package', async () => {
     path.resolve(path.dirname(fs.readlinkSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))))
   ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
 })
+
+test('dlx creates cache and store prune clean cache', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', [
+    `store-dir=${path.resolve('store')}`,
+    `cache-dir=${path.resolve('cache')}`,
+    'dlx-cache-max-age=50', // big number to avoid false negative should test unexpectedly takes too long to run
+  ].join('\n'))
+
+  const commands = {
+    shx: ['echo', 'hello from shx'],
+    'shelljs/shx#61aca968cd7afc712ca61a4fc4ec3201e3770dc7': ['echo', 'hello from shx.git'],
+    '@pnpm.e2e/touch-file-good-bin-name': [],
+    '@pnpm.e2e/touch-file-one-bin': [],
+  } satisfies Record<string, string[]>
+
+  await Promise.all(Object.entries(commands).map(([cmd, args]) => execPnpm(['dlx', cmd, ...args])))
+
+  // ensure that the dlx cache has certain structure
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .sort()
+  ).toStrictEqual(
+    Object.keys(commands)
+      .map(createBase32Hash)
+      .sort()
+  )
+  expect(
+    Object.fromEntries(
+      Object.keys(commands).map(cmd => [
+        cmd,
+        fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(cmd)))
+          .map(sanitizeDlxCacheComponent)
+          .sort(),
+      ])
+    )
+  ).toStrictEqual(
+    Object.fromEntries(
+      Object.keys(commands).map(cmd => [
+        cmd,
+        ['link', '***********-*****'].sort(),
+      ])
+    )
+  )
+
+  // modify the dates of the cache items
+  const ageTable = {
+    shx: 20,
+    'shelljs/shx#61aca968cd7afc712ca61a4fc4ec3201e3770dc7': 75,
+    '@pnpm.e2e/touch-file-good-bin-name': 33,
+    '@pnpm.e2e/touch-file-one-bin': 123,
+  } satisfies Record<keyof typeof commands, number>
+  const now = new Date()
+  await Promise.all(Object.entries(ageTable).map(async ([cmd, age]) => {
+    const newDate = new Date(now.getTime() - age * 60_000)
+    const dlxCacheLink = path.resolve('cache', 'dlx', createBase32Hash(cmd), 'link')
+    await fs.promises.lutimes(dlxCacheLink, newDate, newDate)
+  }))
+
+  await execPnpm(['store', 'prune'])
+
+  // test to see if dlx cache items are deleted or kept as expected
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .sort()
+  ).toStrictEqual(
+    ['shx', '@pnpm.e2e/touch-file-good-bin-name']
+      .map(createBase32Hash)
+      .sort()
+  )
+  expect(
+    Object.fromEntries(
+      ['shx', '@pnpm.e2e/touch-file-good-bin-name'].map(cmd => [
+        cmd,
+        fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(cmd)))
+          .map(sanitizeDlxCacheComponent)
+          .sort(),
+      ])
+    )
+  ).toStrictEqual(
+    Object.fromEntries(
+      ['shx', '@pnpm.e2e/touch-file-good-bin-name'].map(cmd => [
+        cmd,
+        ['link', '***********-*****'].sort(),
+      ])
+    )
+  )
+
+  // set dlx-cache-max-age to 0
+  fs.writeFileSync('.npmrc', [
+    `store-dir=${path.resolve('store')}`,
+    `cache-dir=${path.resolve('cache')}`,
+    'dlx-cache-max-age=0',
+  ].join('\n'))
+
+  await execPnpm(['store', 'prune'])
+
+  // test to see if all dlx cache items are deleted
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx'))
+      .sort()
+  ).toStrictEqual([])
+})
