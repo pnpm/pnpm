@@ -35,7 +35,7 @@ export async function cleanExpiredDlxCache (opts: {
   await cleanOrphans(dlxCacheDir)
 }
 
-async function cleanOrphans (dlxCacheDir: string): Promise<void> {
+export async function cleanOrphans (dlxCacheDir: string): Promise<void> {
   const dlxCacheNames = await readOptDir(dlxCacheDir)
   if (!dlxCacheNames) return
   await Promise.all(dlxCacheNames.map(async dlxCacheName => {

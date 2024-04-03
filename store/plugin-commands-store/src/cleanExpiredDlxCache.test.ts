@@ -3,7 +3,7 @@ import path from 'path'
 import util from 'util'
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { prepareEmpty } from '@pnpm/prepare'
-import { cleanExpiredDlxCache } from './cleanExpiredDlxCache'
+import { cleanExpiredDlxCache, cleanOrphans } from './cleanExpiredDlxCache'
 
 function readDlxCachePath (cachePath: string): string[] | 'ENOENT' {
   let names: string[]
@@ -214,4 +214,57 @@ test('cleanExpiredCache does nothing if dlxCacheMaxAge is Infinity', async () =>
   readdirSpy.mockRestore()
   lstatSpy.mockRestore()
   rmSpy.mockRestore()
+})
+
+test("cleanOrphans deletes dirs that don't contain `link` and subdirs that aren't pointed to by `link` from the same parent", async () => {
+  prepareEmpty()
+
+  const cacheDir = path.resolve('cache')
+  const now = new Date()
+
+  // has link and orphans
+  createSampleDlxCacheItem(cacheDir, 'foo', now, 0)
+  createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createBase32Hash('foo'), `${now.getTime().toString(16)}-${(7000).toString(16)}`))
+  createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createBase32Hash('foo'), `${now.getTime().toString(16)}-${(7005).toString(16)}`))
+  createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createBase32Hash('foo'), `${now.getTime().toString(16)}-${(7102).toString(16)}`))
+  expect(
+    fs.readdirSync(path.join(cacheDir, 'dlx', createBase32Hash('foo')))
+      .map(sanitizeDlxCacheComponent)
+      .sort()
+  ).toStrictEqual([
+    'link',
+    '***********-*****',
+    '***********-*****',
+    '***********-*****',
+    '***********-*****',
+  ].sort())
+
+  // has no link, only orphans
+  createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createBase32Hash('bar'), `${now.getTime().toString(16)}-${(7000).toString(16)}`))
+  createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createBase32Hash('bar'), `${now.getTime().toString(16)}-${(7005).toString(16)}`))
+  createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createBase32Hash('bar'), `${now.getTime().toString(16)}-${(7102).toString(16)}`))
+  expect(
+    fs.readdirSync(path.join(cacheDir, 'dlx', createBase32Hash('bar')))
+      .map(sanitizeDlxCacheComponent)
+      .sort()
+  ).toStrictEqual([
+    '***********-*****',
+    '***********-*****',
+    '***********-*****',
+  ].sort())
+
+  await cleanOrphans(path.join(cacheDir, 'dlx'))
+
+  // expecting all subdirectories that aren't pointed to by `link` to be deleted.
+  expect(
+    fs.readdirSync(path.join(cacheDir, 'dlx', createBase32Hash('foo')))
+      .map(sanitizeDlxCacheComponent)
+      .sort()
+  ).toStrictEqual([
+    'link',
+    '***********-*****',
+  ].sort())
+
+  // expecting directory that doesn't contain `link` to be deleted.
+  expect(fs.existsSync(path.join(cacheDir, 'dlx', createBase32Hash('bar')))).toBe(false)
 })
