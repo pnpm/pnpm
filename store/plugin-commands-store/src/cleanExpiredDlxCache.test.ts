@@ -41,18 +41,22 @@ function createSampleDlxCacheLinkTarget (dirPath: string): void {
   fs.writeFileSync(path.join(dirPath, 'pnpm-lock.yaml'), '')
 }
 
+function createSampleDlxCacheItem (cacheDir: string, cmd: string, now: Date, age: number): void {
+  const hash = createBase32Hash(cmd)
+  const newDate = new Date(now.getTime() - age * 60_000)
+  const timeError = 432 // just an arbitrary amount, nothing is special about this number
+  const pid = 71014 // just an arbitrary number to represent pid
+  const targetName = `${(newDate.getTime() - timeError).toString(16)}-${pid.toString(16)}`
+  const linkTarget = path.join(cacheDir, 'dlx', hash, targetName)
+  const linkPath = path.join(cacheDir, 'dlx', hash, 'link')
+  createSampleDlxCacheLinkTarget(linkTarget)
+  fs.symlinkSync(linkTarget, linkPath, 'junction')
+  fs.lutimesSync(linkPath, newDate, newDate)
+}
+
 function createSampleDlxCacheFsTree (cacheDir: string, now: Date, ageTable: Record<string, number>): void {
-  for (const [key, age] of Object.entries(ageTable)) {
-    const hash = createBase32Hash(key)
-    const newDate = new Date(now.getTime() - age * 60_000)
-    const timeError = 432 // just an arbitrary amount, nothing is special about this number
-    const pid = 71014 // just an arbitrary number to represent pid
-    const targetName = `${(newDate.getTime() - timeError).toString(16)}-${pid.toString(16)}`
-    const linkTarget = path.join(cacheDir, 'dlx', hash, targetName)
-    const linkPath = path.join(cacheDir, 'dlx', hash, 'link')
-    createSampleDlxCacheLinkTarget(linkTarget)
-    fs.symlinkSync(linkTarget, linkPath, 'junction')
-    fs.lutimesSync(linkPath, newDate, newDate)
+  for (const [cmd, age] of Object.entries(ageTable)) {
+    createSampleDlxCacheItem(cacheDir, cmd, now, age)
   }
 }
 
