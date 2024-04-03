@@ -3,7 +3,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import util from 'util'
 
-export async function cleanExpiredCache (opts: {
+export async function cleanExpiredDlxCache (opts: {
   cacheDir: string
   dlxCacheMaxAge: number
   now: Date

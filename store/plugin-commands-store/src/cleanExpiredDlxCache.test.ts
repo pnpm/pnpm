@@ -3,7 +3,7 @@ import path from 'path'
 import util from 'util'
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { prepareEmpty } from '@pnpm/prepare'
-import { cleanExpiredCache } from './cleanExpiredCache'
+import { cleanExpiredDlxCache } from './cleanExpiredDlxCache'
 
 function readDlxCachePath (cachePath: string): string[] | 'ENOENT' {
   let names: string[]
@@ -77,7 +77,7 @@ test('cleanExpiredCache removes items that outlive dlxCacheMaxAge', async () => 
   const lstatSpy = jest.spyOn(fs.promises, 'lstat')
   const rmSpy = jest.spyOn(fs.promises, 'rm')
 
-  await cleanExpiredCache({
+  await cleanExpiredDlxCache({
     cacheDir,
     dlxCacheMaxAge,
     now,
@@ -132,7 +132,7 @@ test('cleanExpiredCache removes all directories without checking stat if dlxCach
   const lstatSpy = jest.spyOn(fs.promises, 'lstat')
   const rmSpy = jest.spyOn(fs.promises, 'rm')
 
-  await cleanExpiredCache({
+  await cleanExpiredDlxCache({
     cacheDir,
     dlxCacheMaxAge,
     now,
@@ -171,7 +171,7 @@ test('cleanExpiredCache does nothing if dlxCacheMaxAge is Infinity', async () =>
   const lstatSpy = jest.spyOn(fs.promises, 'lstat')
   const rmSpy = jest.spyOn(fs.promises, 'rm')
 
-  await cleanExpiredCache({
+  await cleanExpiredDlxCache({
     cacheDir,
     dlxCacheMaxAge,
     now,

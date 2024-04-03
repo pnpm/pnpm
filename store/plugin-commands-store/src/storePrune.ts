@@ -1,7 +1,7 @@
 import { streamParser } from '@pnpm/logger'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type ReporterFunction } from './types'
-import { cleanExpiredCache } from './cleanExpiredCache'
+import { cleanExpiredDlxCache } from './cleanExpiredDlxCache'
 
 export async function storePrune (
   opts: {
@@ -19,7 +19,7 @@ export async function storePrune (
   await opts.storeController.prune(opts.removeAlienFiles)
   await opts.storeController.close()
 
-  await cleanExpiredCache({
+  await cleanExpiredDlxCache({
     cacheDir: opts.cacheDir,
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     now: new Date(),
