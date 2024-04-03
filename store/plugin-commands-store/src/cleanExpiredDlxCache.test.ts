@@ -99,15 +99,15 @@ test('cleanExpiredCache removes items that outlive dlxCacheMaxAge', async () => 
   }
   expect(rmSpy).not.toHaveBeenCalledWith(
     expect.stringContaining(path.join(cacheDir, 'dlx', createBase32Hash('foo'))),
-    expect.anything(),
+    expect.anything()
   )
   expect(rmSpy).not.toHaveBeenCalledWith(
     expect.stringContaining(path.join(cacheDir, 'dlx', createBase32Hash('bar'))),
-    expect.anything(),
+    expect.anything()
   )
   expect(rmSpy).toHaveBeenCalledWith(
     expect.stringContaining(path.join(cacheDir, 'dlx', createBase32Hash('baz'))),
-    { recursive: true },
+    { recursive: true }
   )
 
   readdirSpy.mockRestore()
