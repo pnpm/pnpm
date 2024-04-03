@@ -110,7 +110,8 @@ export async function lockfileToLicenseNode (
       return [name, dep]
     }))).filter(Boolean) as Array<[string, LicenseNode]>
   )
-
+  const linkDependencies = await Promise.all(step.links.map((link) => lockfileToLicenseNode(link.next(), options)))
+  Object.assign(dependencies, ...linkDependencies)
   return dependencies
 }
 
@@ -131,7 +132,7 @@ export async function lockfileToLicenseNodeTree (
   const importerWalkers = lockfileWalkerGroupImporterSteps(
     lockfile,
     opts.includedImporterIds ?? Object.keys(lockfile.importers),
-    { include: opts?.include, recursive: true }
+    { include: opts?.include }
   )
   const depTypes = detectDepTypes(lockfile)
   const dependencies = Object.fromEntries(

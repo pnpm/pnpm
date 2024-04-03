@@ -1,8 +1,14 @@
-import { type Lockfile, type PackageSnapshot } from '@pnpm/lockfile-types'
+import { type ProjectSnapshot, type Lockfile, type PackageSnapshot } from '@pnpm/lockfile-types'
 import { type DependenciesField } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import path from 'node:path'
 import normalizePath from 'normalize-path'
+
+export interface LockedLink {
+  importerId: string
+  projectSnapshot: ProjectSnapshot
+  next: () => LockfileWalkerStep
+}
 
 export interface LockedDependency {
   depPath: string
@@ -12,7 +18,7 @@ export interface LockedDependency {
 
 export interface LockfileWalkerStep {
   dependencies: LockedDependency[]
-  links: string[]
+  links: LockedLink[]
   missing: string[]
 }
 
@@ -22,13 +28,18 @@ export function lockfileWalkerGroupImporterSteps (
   opts?: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     skipped?: Set<string>
-    recursive?: boolean
   }
 ): Array<{ importerId: string, step: LockfileWalkerStep }> {
   const walked = new Set<string>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
 
   return importerIds.map((importerId) => {
-    const entryNodes = lockfileDeps(lockfile, [importerId], opts).map(({ depPath }) => depPath)
+    const projectSnapshot = lockfile.importers[importerId]
+    const entryNodes = Object.entries({
+      ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
+      ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
+      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
+    })
+      .map(([pkgName, reference]) => getDepPath(pkgName, reference, importerId))
     return {
       importerId,
       step: step({
@@ -61,13 +72,19 @@ export function lockfileWalker (
   const directDeps = [] as Array<{ alias: string, depPath: string }>
 
   importerIds.forEach((importerId) => {
-    const deps = lockfileDeps(lockfile, [importerId], {
-      ...opts,
-      recursive: false,
+    const projectSnapshot = lockfile.importers[importerId]
+    Object.entries({
+      ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
+      ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
+      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
-    const nodes = deps.map(({ depPath }) => depPath)
-    directDeps.push(...deps)
-    entryNodes.push(...nodes)
+      .forEach(([pkgName, reference]) => {
+        const depPath = getDepPath(pkgName, reference, importerId)
+        if (!depPath.startsWith('link:')) {
+          directDeps.push({ alias: pkgName, depPath })
+        }
+        entryNodes.push(depPath)
+      })
   })
   return {
     directDeps,
@@ -77,44 +94,6 @@ export function lockfileWalker (
       walked,
     }, entryNodes),
   }
-}
-
-// may return duplicate dependencies if recursive == true
-function lockfileDeps (
-  lockfile: Lockfile,
-  visitedImporterIds: string[],
-  opts?: {
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    skipped?: Set<string>
-    recursive?: boolean
-  }
-): Array<{ alias: string, depPath: string }> {
-  const importerId = visitedImporterIds[visitedImporterIds.length - 1]
-  const projectSnapshot = lockfile.importers[importerId]
-  const deps = [] as Array<{ alias: string, depPath: string }>
-  const isBaseCall = visitedImporterIds.length === 1
-
-  Object.entries({
-    ...(!isBaseCall || opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
-    ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
-    ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
-  })
-    .forEach(([pkgName, reference]) => {
-      const depPath = dp.refToRelative(reference, pkgName)
-      if (depPath !== null) {
-        deps.push({ alias: pkgName, depPath })
-      } else if (opts?.recursive) {
-        const relativePath = reference.slice('link:'.length)
-        const childImporterId = normalizePath(path.normalize(path.join(importerId, relativePath)))
-        if (visitedImporterIds.includes(childImporterId)) {
-          return
-        }
-        const visitedIds = [...visitedImporterIds, childImporterId]
-        const childDeps = lockfileDeps(lockfile, visitedIds, opts)
-        deps.push(...childDeps)
-      }
-    })
-  return deps
 }
 
 function step (
@@ -136,7 +115,13 @@ function step (
     const pkgSnapshot = ctx.lockfile.packages?.[depPath]
     if (pkgSnapshot == null) {
       if (depPath.startsWith('link:')) {
-        result.links.push(depPath)
+        const importerId = depPath.slice('link:'.length)
+        const projectSnapshot = ctx.lockfile.importers[importerId]
+        result.links.push({
+          importerId,
+          next: () => step(ctx, next({ includeOptionalDependencies: ctx.includeOptionalDependencies, importerId }, projectSnapshot)),
+          projectSnapshot,
+        })
         continue
       }
       result.missing.push(depPath)
@@ -151,11 +136,28 @@ function step (
   return result
 }
 
-function next (opts: { includeOptionalDependencies: boolean }, nextPkg: PackageSnapshot): string[] {
+function next (opts: { includeOptionalDependencies: boolean, importerId?: string }, nextPkg: PackageSnapshot | ProjectSnapshot): string[] {
   return Object.entries({
     ...nextPkg.dependencies,
     ...(opts.includeOptionalDependencies ? nextPkg.optionalDependencies : {}),
   })
-    .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
-    .filter((nodeId) => nodeId !== null) as string[]
+    .map(([pkgName, reference]) => getDepPath(pkgName, reference, opts.importerId))
+    .filter((depPath): depPath is string => depPath !== null)
+}
+
+function getDepPath (pkgName: string, reference: string, importerId: string): string
+// eslint-disable-next-line
+function getDepPath (pkgName: string, reference: string, importerId?: string): string | null
+// eslint-disable-next-line
+function getDepPath (pkgName: string, reference: string, importerId?: string): string | null {
+  const depPath = dp.refToRelative(reference, pkgName)
+  if (depPath !== null) {
+    return depPath
+  } else if (importerId !== undefined) {
+    const relativePath = reference.slice('link:'.length)
+    const childImporterId = normalizePath(path.normalize(path.join(importerId, relativePath)))
+    return `link:${childImporterId}`
+  } else {
+    return null
+  }
 }
