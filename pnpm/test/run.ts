@@ -307,6 +307,8 @@ test('parallel dlx calls of the same package', async () => {
     `cache-dir=${path.resolve('cache')}`,
     'dlx-cache-max-age=Infinity',
   ].join('\n'))
+
+  // parallel dlx calls without cache
   await Promise.all(['foo', 'bar', 'baz'].map(
     name => execPnpm(['dlx', 'shx', 'touch', name])
   ))
@@ -318,6 +320,70 @@ test('parallel dlx calls of the same package', async () => {
       .sort()
   ).toStrictEqual([
     'link',
+    '***********-*****',
+    '***********-*****',
+    '***********-*****',
+  ].sort())
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))
+  ).toStrictEqual([
+    'node_modules',
+    'package.json',
+    'pnpm-lock.yaml',
+  ])
+  expect(
+    path.resolve(path.dirname(fs.readlinkSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))))
+  ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+
+  // parallel dlx calls with cache
+  await Promise.all(['abc', 'def', 'ghi'].map(
+    name => execPnpm(['dlx', 'shx', 'mkdir', name])
+  ))
+
+  expect(['abc', 'def', 'ghi'].filter(name => fs.existsSync(name))).toStrictEqual(['abc', 'def', 'ghi'])
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+      .map(sanitizeDlxCacheComponent)
+      .sort()
+  ).toStrictEqual([
+    'link',
+    '***********-*****',
+    '***********-*****',
+    '***********-*****',
+  ].sort())
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))
+  ).toStrictEqual([
+    'node_modules',
+    'package.json',
+    'pnpm-lock.yaml',
+  ])
+  expect(
+    path.resolve(path.dirname(fs.readlinkSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))))
+  ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+
+  // set dlx-cache-max-age to 0
+  fs.writeFileSync('.npmrc', [
+    `store-dir=${path.resolve('store')}`,
+    `cache-dir=${path.resolve('cache')}`,
+    'dlx-cache-max-age=0',
+  ].join('\n'))
+
+  // parallel dlx calls with expired cache
+  await Promise.all(['a/b/c', 'd/e/f', 'g/h/i'].map(
+    dirPath => execPnpm(['dlx', 'shx', 'mkdir', '-p', dirPath])
+  ))
+
+  expect(['a/b/c', 'd/e/f', 'g/h/i'].filter(name => fs.existsSync(name))).toStrictEqual(['a/b/c', 'd/e/f', 'g/h/i'])
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+      .map(sanitizeDlxCacheComponent)
+      .sort()
+  ).toStrictEqual([
+    'link',
+    '***********-*****',
+    '***********-*****',
+    '***********-*****',
     '***********-*****',
     '***********-*****',
     '***********-*****',
