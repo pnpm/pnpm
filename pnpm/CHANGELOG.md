@@ -1,6 +1,6 @@
 # pnpm
 
-## 9.0.0-beta.2
+## 9.0.0-beta.3
 
 ### Major Changes
 
