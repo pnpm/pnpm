@@ -23,7 +23,7 @@ export function packageIsInstallable (
   const pnpmVersion = packageManager.name === 'pnpm'
     ? packageManager.version
     : undefined
-  if (pkg.packageManager) {
+  if (pkg.packageManager && !process.env.COREPACK_HOME) {
     const [pmName, pmReference] = pkg.packageManager.split('@')
     if (pmName && pmName !== 'pnpm') {
       const msg = `This project is configured to use ${pmName}`

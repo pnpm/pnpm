@@ -5,7 +5,7 @@ import execa from 'execa'
 export async function isGitRepo () {
   try {
     await execa('git', ['rev-parse', '--git-dir'])
-  } catch (_: any) { // eslint-disable-line
+  } catch {
     return false
   }
   return true
@@ -15,7 +15,7 @@ export async function getCurrentBranch () {
   try {
     const { stdout } = await execa('git', ['symbolic-ref', '--short', 'HEAD'])
     return stdout
-  } catch (_: any) {  // eslint-disable-line
+  } catch {
     // Command will fail with code 1 if the HEAD is detached.
     return null
   }
@@ -28,7 +28,7 @@ export async function isWorkingTreeClean () {
       return false
     }
     return true
-  } catch (_: any) { // eslint-disable-line
+  } catch {
     return false
   }
 }
@@ -38,7 +38,7 @@ export async function isRemoteHistoryClean () {
   try { // Gracefully handle no remote set up.
     const { stdout } = await execa('git', ['rev-list', '--count', '--left-only', '@{u}...HEAD'])
     history = stdout
-  } catch (_: any) { // eslint-disable-line
+  } catch {
     history = null
   }
   if (history && history !== '0') {

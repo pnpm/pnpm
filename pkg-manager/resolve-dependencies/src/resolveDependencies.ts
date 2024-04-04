@@ -164,6 +164,7 @@ export interface ResolutionContext {
   virtualStoreDir: string
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<string, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
+  hoistPeers?: boolean
 }
 
 export type MissingPeers = Record<string, { range: string, optional: boolean }>
@@ -292,11 +293,13 @@ export async function resolveRootDependencies (
 ): Promise<ResolvedRootDependenciesResult> {
   if (ctx.autoInstallPeers) {
     ctx.allPreferredVersions = getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, [])
+  } else if (ctx.hoistPeers) {
+    ctx.allPreferredVersions = {}
   }
   const { pkgAddressesByImportersWithoutPeers, publishedBy, time } = await resolveDependenciesOfImporters(ctx, importers)
   const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
     const pkgAddresses = importerResolutionResult.pkgAddresses
-    if (!ctx.autoInstallPeers) return pkgAddresses
+    if (!ctx.hoistPeers) return pkgAddresses
     let prevMissingOptionalPeers: string[] = []
     while (true) {
       for (const pkgAddress of importerResolutionResult.pkgAddresses) {
@@ -306,12 +309,14 @@ export async function resolveRootDependencies (
       for (const missingPeerName of Object.keys(missingRequiredPeers)) {
         parentPkgAliases[missingPeerName] = true
       }
-      // All the missing peers should get installed in the root.
-      // Otherwise, pending nodes will not work.
-      // even those peers should be hoisted that are not autoinstalled
-      for (const [resolvedPeerName, resolvedPeerAddress] of Object.entries(importerResolutionResult.resolvedPeers ?? {})) {
-        if (!parentPkgAliases[resolvedPeerName]) {
-          pkgAddresses.push(resolvedPeerAddress)
+      if (ctx.autoInstallPeers) {
+        // All the missing peers should get installed in the root.
+        // Otherwise, pending nodes will not work.
+        // even those peers should be hoisted that are not autoinstalled
+        for (const [resolvedPeerName, resolvedPeerAddress] of Object.entries(importerResolutionResult.resolvedPeers ?? {})) {
+          if (!parentPkgAliases[resolvedPeerName]) {
+            pkgAddresses.push(resolvedPeerAddress)
+          }
         }
       }
       const missingOptionalPeerNames = Array.from(
@@ -323,13 +328,23 @@ export async function resolveRootDependencies (
         )
       )
       if (!missingRequiredPeers.length && !missingOptionalPeerNames.length) break
-      const dependencies = Object.fromEntries(
-        missingRequiredPeers
-          .map(([peerName, { range }]) => {
-            if (!ctx.allPreferredVersions![peerName]) return [peerName, range]
-            return [peerName, Object.keys(ctx.allPreferredVersions![peerName]).join(' || ')]
-          })
-      )
+      const dependencies: Record<string, string> = {}
+      for (const [peerName, { range }] of missingRequiredPeers) {
+        if (ctx.allPreferredVersions![peerName]) {
+          const versions: string[] = []
+          const nonVersions: string[] = []
+          for (const [spec, specType] of Object.entries(ctx.allPreferredVersions![peerName])) {
+            if (specType === 'version') {
+              versions.push(spec)
+            } else {
+              nonVersions.push(spec)
+            }
+          }
+          dependencies[peerName] = [semver.maxSatisfying(versions, '*'), ...nonVersions].join(' || ')
+        } else if (ctx.autoInstallPeers) {
+          dependencies[peerName] = range
+        }
+      }
       const nextMissingOptionalPeers: string[] = []
       for (const missingOptionalPeerName of missingOptionalPeerNames) {
         if (ctx.allPreferredVersions![missingOptionalPeerName]) {
@@ -465,7 +480,7 @@ async function resolveDependenciesOfImporters (
     const childrenResults = await Promise.all(
       postponedResolutionsQueue.map((postponedResolution) => postponedResolution(postponedResolutionOpts))
     )
-    if (!ctx.autoInstallPeers) {
+    if (!ctx.hoistPeers) {
       return {
         missingPeers: {},
         pkgAddresses,
@@ -595,7 +610,7 @@ export async function resolveDependencies (
   const childrenResults = await Promise.all(
     postponedResolutionsQueue.map((postponedResolution) => postponedResolution(postponedResolutionOpts))
   )
-  if (!ctx.autoInstallPeers) {
+  if (!ctx.hoistPeers) {
     return {
       resolvingPeers: Promise.resolve({
         missingPeers: {},
@@ -1372,7 +1387,7 @@ async function resolveDependency (
     ctx.resolvedPackagesByDepPath[depPath].prod = ctx.resolvedPackagesByDepPath[depPath].prod || !wantedDependency.dev && !wantedDependency.optional
     ctx.resolvedPackagesByDepPath[depPath].dev = ctx.resolvedPackagesByDepPath[depPath].dev || wantedDependency.dev
     ctx.resolvedPackagesByDepPath[depPath].optional = ctx.resolvedPackagesByDepPath[depPath].optional && currentIsOptional
-    if (ctx.autoInstallPeers) {
+    if (ctx.hoistPeers) {
       resolveChildren = !ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved &&
         !ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.has(parentImporterId)
       ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.add(parentImporterId)
@@ -1399,7 +1414,7 @@ async function resolveDependency (
     ? path.resolve(ctx.lockfileDir, (pkgResponse.body.resolution as DirectoryResolution).directory)
     : options.prefix
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined
-  if (ctx.autoInstallPeers && !nodeIdContains(options.parentPkg.nodeId, depPath)) {
+  if (ctx.hoistPeers && !nodeIdContains(options.parentPkg.nodeId, depPath)) {
     if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
       if (!options.parentPkg.nodeId.startsWith(ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].parentImporterId)) {
         missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren
