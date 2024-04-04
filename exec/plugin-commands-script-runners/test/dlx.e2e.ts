@@ -30,6 +30,10 @@ function verifyDlxCache (cacheName: string): void {
     'link',
     '***********-*****',
   ].sort())
+  verifyDlxCacheLink(cacheName)
+}
+
+function verifyDlxCacheLink (cacheName: string): void {
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx', cacheName, 'link'))
       .sort()
@@ -233,6 +237,63 @@ test('dlx with cache', async () => {
   expect(spy).not.toHaveBeenCalled()
 
   spy.mockRestore()
+})
+
+test('dlx does not reuse expired cache', async () => {
+  prepareEmpty()
+
+  const now = new Date()
+
+  // first execution to initialize the cache
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['shx', 'echo', 'hello world'])
+  verifyDlxCache(createBase32Hash('shx'))
+
+  // change the date attributes of the cache to 30 minutes older than now
+  const newDate = new Date(now.getTime() - 30 * 60_000)
+  fs.lutimesSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'), newDate, newDate)
+
+  const addHandlerSpy = jest.spyOn(add, 'handler')
+  const unlinkSpy = jest.spyOn(fs.promises, 'unlink')
+  const symlinkSpy = jest.spyOn(fs.promises, 'symlink')
+
+  // main dlx execution
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: 10, // 10 minutes should make 30 minutes old cache expired
+  }, ['shx', 'touch', 'BAR'])
+
+  expect(fs.existsSync('BAR')).toBe(true)
+  expect(addHandlerSpy).toHaveBeenCalledWith(expect.anything(), ['shx'])
+  expect(unlinkSpy).toHaveBeenCalledWith(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))
+  expect(symlinkSpy).toHaveBeenCalledWith(
+    expect.stringContaining(path.resolve('cache', 'dlx', createBase32Hash('shx'))),
+    path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'),
+    'junction'
+  )
+
+  addHandlerSpy.mockRestore()
+  unlinkSpy.mockRestore()
+  symlinkSpy.mockRestore()
+
+  expect(
+    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+      .map(sanitizeDlxCacheComponent)
+      .sort()
+  ).toStrictEqual([
+    'link',
+    '***********-*****',
+    '***********-*****',
+  ].sort())
+  verifyDlxCacheLink(createBase32Hash('shx'))
 })
 
 test('dlx still saves cache even if execution fails', async () => {
