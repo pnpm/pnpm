@@ -1,4 +1,5 @@
-import fs from 'fs'
+import { type Stats } from 'fs'
+import fs from 'fs/promises'
 import path from 'path'
 import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
@@ -79,8 +80,8 @@ export async function handler (
     cacheDir: opts.cacheDir,
     pkgs,
   })
-  fs.mkdirSync(cachePath, { recursive: true })
-  const { cacheLink, newPrefix, prefix } = getPrefixInfo({
+  await fs.mkdir(cachePath, { recursive: true })
+  const { cacheLink, newPrefix, prefix } = await getPrefixInfo({
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     pid: process.pid,
     cachePath,
@@ -90,7 +91,7 @@ export async function handler (
   const binsDir = path.join(modulesDir, '.bin')
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
   if (newPrefix) {
-    fs.mkdirSync(newPrefix, { recursive: true })
+    await fs.mkdir(newPrefix, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
@@ -106,14 +107,14 @@ export async function handler (
       savePeer: false,
     }, pkgs)
     try {
-      fs.unlinkSync(cacheLink)
+      await fs.unlink(cacheLink)
     } catch (err) {
       if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
         throw err
       }
     }
     try {
-      fs.symlinkSync(newPrefix, cacheLink, 'junction')
+      await fs.symlink(newPrefix, cacheLink, 'junction')
     } catch (err) {
       if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) {
         throw err
@@ -197,7 +198,7 @@ async function getInfo (opts: {
   return { storeDir, dlxCacheDir, cacheName, cachePath }
 }
 
-function getPrefixInfo (opts: {
+async function getPrefixInfo (opts: {
   cachePath: string
   dlxCacheMaxAge: number
   now: Date
@@ -205,17 +206,17 @@ function getPrefixInfo (opts: {
 }) {
   const { cachePath, dlxCacheMaxAge, now, pid } = opts
   const cacheLink = path.join(cachePath, 'link')
-  const cacheStatus = checkCacheLink(cacheLink, dlxCacheMaxAge, now)
+  const cacheStatus = await checkCacheLink(cacheLink, dlxCacheMaxAge, now)
   const shouldInstall = cacheStatus === 'not-exist' || cacheStatus === 'out-of-date'
   const newPrefix = shouldInstall ? getNewPrefix(cachePath, now, pid) : null
   const prefix = newPrefix ?? cacheLink
   return { cacheLink, cacheStatus, shouldInstall, newPrefix, prefix }
 }
 
-function checkCacheLink (cacheLink: string, dlxCacheMaxAge: number, now: Date): 'not-exist' | 'out-of-date' | 'up-to-date' {
-  let stats: fs.Stats
+async function checkCacheLink (cacheLink: string, dlxCacheMaxAge: number, now: Date): Promise<'not-exist' | 'out-of-date' | 'up-to-date'> {
+  let stats: Stats
   try {
-    stats = fs.lstatSync(cacheLink)
+    stats = await fs.lstat(cacheLink)
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return 'not-exist'
