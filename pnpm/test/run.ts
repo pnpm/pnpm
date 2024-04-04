@@ -334,7 +334,7 @@ test('parallel dlx calls of the same package', async () => {
   ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
 })
 
-test('dlx creates cache and store prune clean cache', async () => {
+test('dlx creates cache and store prune cleans cache', async () => {
   prepareEmpty()
 
   fs.writeFileSync('.npmrc', [
