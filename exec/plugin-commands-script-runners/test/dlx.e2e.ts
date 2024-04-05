@@ -43,7 +43,7 @@ function verifyDlxCacheLink (cacheName: string): void {
     'pnpm-lock.yaml',
   ].sort())
   expect(
-    path.resolve(path.dirname(fs.readlinkSync(path.resolve('cache', 'dlx', cacheName, 'link'))))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', cacheName, 'link')))
   ).toBe(path.resolve('cache', 'dlx', cacheName))
 }
 
@@ -258,9 +258,7 @@ test('dlx does not reuse expired cache', async () => {
   const newDate = new Date(now.getTime() - 30 * 60_000)
   fs.lutimesSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'), newDate, newDate)
 
-  const addHandlerSpy = jest.spyOn(add, 'handler')
-  const unlinkSpy = jest.spyOn(fs.promises, 'unlink')
-  const symlinkSpy = jest.spyOn(fs.promises, 'symlink')
+  const spy = jest.spyOn(add, 'handler')
 
   // main dlx execution
   await dlx.handler({
@@ -272,17 +270,9 @@ test('dlx does not reuse expired cache', async () => {
   }, ['shx', 'touch', 'BAR'])
 
   expect(fs.existsSync('BAR')).toBe(true)
-  expect(addHandlerSpy).toHaveBeenCalledWith(expect.anything(), ['shx'])
-  expect(unlinkSpy).toHaveBeenCalledWith(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))
-  expect(symlinkSpy).toHaveBeenCalledWith(
-    expect.stringContaining(path.resolve('cache', 'dlx', createBase32Hash('shx'))),
-    path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'),
-    'junction'
-  )
+  expect(spy).toHaveBeenCalledWith(expect.anything(), ['shx'])
 
-  addHandlerSpy.mockRestore()
-  unlinkSpy.mockRestore()
-  symlinkSpy.mockRestore()
+  spy.mockRestore()
 
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx')))

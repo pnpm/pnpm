@@ -15,6 +15,7 @@ import execa from 'execa'
 import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import symlinkDir from 'symlink-dir'
 import { makeEnv } from './makeEnv'
 
 export const commandNames = ['dlx']
@@ -106,20 +107,7 @@ export async function handler (
       saveOptional: false,
       savePeer: false,
     }, pkgs)
-    try {
-      await fs.unlink(cacheLink)
-    } catch (err) {
-      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
-        throw err
-      }
-    }
-    try {
-      await fs.symlink(newPrefix, cacheLink, 'junction')
-    } catch (err) {
-      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) {
-        throw err
-      }
-    }
+    await symlinkDir(newPrefix, cacheLink, { overwrite: true })
   }
   const binName = opts.package
     ? command
