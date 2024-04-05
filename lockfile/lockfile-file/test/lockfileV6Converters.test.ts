@@ -2,7 +2,7 @@ import { convertToLockfileFile, convertToLockfileObject } from '../lib/lockfileF
 
 test('convertToLockfileFile()', () => {
   const lockfileV5 = {
-    lockfileVersion: '7.0',
+    lockfileVersion: '9.0',
     importers: {
       project1: {
         specifiers: {
@@ -39,7 +39,7 @@ test('convertToLockfileFile()', () => {
     },
   }
   const lockfileV6 = {
-    lockfileVersion: '7.0',
+    lockfileVersion: '9.0',
     importers: {
       project1: {
         dependencies: {
@@ -93,7 +93,7 @@ test('convertToLockfileFile()', () => {
 
 test('convertToLockfileFile() with lockfile v6', () => {
   const lockfileV5 = {
-    lockfileVersion: '7.0',
+    lockfileVersion: '9.0',
     importers: {
       project1: {
         specifiers: {
@@ -130,7 +130,7 @@ test('convertToLockfileFile() with lockfile v6', () => {
     },
   }
   const lockfileV6 = {
-    lockfileVersion: '7.0',
+    lockfileVersion: '9.0',
     importers: {
       project1: {
         dependencies: {

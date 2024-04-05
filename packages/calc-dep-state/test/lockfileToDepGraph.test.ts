@@ -2,7 +2,7 @@ import { lockfileToDepGraph } from '@pnpm/calc-dep-state'
 
 test('lockfileToDepGraph', () => {
   expect(lockfileToDepGraph({
-    lockfileVersion: '7.0',
+    lockfileVersion: '9.0',
     importers: {},
     packages: {
       'foo@1.0.0': {

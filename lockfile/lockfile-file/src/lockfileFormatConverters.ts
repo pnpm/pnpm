@@ -186,7 +186,7 @@ function convertFromLockfileFileMutable (lockfileFile: LockfileFile): InlineSpec
 
 export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV7): Lockfile {
   if ((lockfile as LockfileFileV7).snapshots) {
-    return convertLockfileV7ToLockfileObject(lockfile as LockfileFileV7)
+    return convertLockfileV9ToLockfileObject(lockfile as LockfileFileV7)
   }
   convertPkgIds(lockfile)
   const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
@@ -268,7 +268,7 @@ function convertPkgIds (lockfile: LockfileFile) {
   }
 }
 
-export function convertLockfileV7ToLockfileObject (lockfile: LockfileFileV7): Lockfile {
+export function convertLockfileV9ToLockfileObject (lockfile: LockfileFileV7): Lockfile {
   const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
 
   const packages: PackageSnapshots = {}

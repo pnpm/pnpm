@@ -1,6 +1,6 @@
 import fs from 'fs'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileV7 as Lockfile } from '@pnpm/lockfile-types'
+import { type LockfileV9 as Lockfile } from '@pnpm/lockfile-types'
 import { preparePackages } from '@pnpm/prepare'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
