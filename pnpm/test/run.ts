@@ -332,7 +332,7 @@ test('parallel dlx calls of the same package', async () => {
     'pnpm-lock.yaml',
   ])
   expect(
-    path.resolve(path.dirname(fs.readlinkSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link')))
   ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
 
   // parallel dlx calls with cache
@@ -359,7 +359,7 @@ test('parallel dlx calls of the same package', async () => {
     'pnpm-lock.yaml',
   ])
   expect(
-    path.resolve(path.dirname(fs.readlinkSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link')))
   ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
 
   // set dlx-cache-max-age to 0
@@ -396,7 +396,7 @@ test('parallel dlx calls of the same package', async () => {
     'pnpm-lock.yaml',
   ])
   expect(
-    path.resolve(path.dirname(fs.readlinkSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link')))
   ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
 })
 
