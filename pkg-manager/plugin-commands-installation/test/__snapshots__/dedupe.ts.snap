@@ -15,7 +15,7 @@ exports[`pnpm dedupe updates old resolutions from importers block and removes ol
       },
 @@ -20,31 +20,16 @@
     },
-    "lockfileVersion": "7.0",
+    "lockfileVersion": "9.0",
     "packages": Object {
 -     "ajv@6.10.2": Object {
 -       "resolution": Object {
@@ -116,7 +116,7 @@ exports[`pnpm dedupe updates old resolutions from package block 1`] = `
 
 @@ -20,14 +20,6 @@
     },
-    "lockfileVersion": "7.0",
+    "lockfileVersion": "9.0",
     "packages": Object {
 -     "punycode@2.1.1": Object {
 -       "engines": Object {
