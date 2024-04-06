@@ -83,10 +83,12 @@ export async function buildModules (
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)
-  logger.info({
-    message: `The following dependencies have build scripts that were ignored: ${Array.from(ignoredPkgs).sort().join(', ')}`,
-    prefix: opts.lockfileDir,
-  })
+  if (ignoredPkgs.size > 0) {
+    logger.info({
+      message: `The following dependencies have build scripts that were ignored: ${Array.from(ignoredPkgs).sort().join(', ')}`,
+      prefix: opts.lockfileDir,
+    })
+  }
 }
 
 async function buildDependency (
