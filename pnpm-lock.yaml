@@ -6360,7 +6360,7 @@ importers:
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
         specifier: 0.4.9
-        version: 0.4.9(@types/node@20.11.30)
+        version: 0.4.9(@types/node@18.19.26)
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -7890,9 +7890,6 @@ packages:
 
   '@types/node@18.19.26':
     resolution: {integrity: sha512-+wiMJsIwLOYCvUqSdKTrfkS8mpTp+MPINe6+Np4TAGFWWRWiBQ5kSq9nZGCSPkzx9mvT+uEukzpX4MOSCydcvw==}
-
-  '@types/node@20.11.30':
-    resolution: {integrity: sha512-dHM6ZxwlmuZaRmUPfv1p+KrdD1Dci04FbdEm/9wEMouFqxYoFl5aMkt0VMAUtYRQDyYvD41WJLukhq/ha3YuTw==}
 
   '@types/node@20.5.1':
     resolution: {integrity: sha512-4tT2UrL5LBqDwoed9wZ6N3umC4Yhz3W3FloMmiiG4JwmUJWpie0c7lcnUNd4gtMKuDEO4wRVS8B6Xa0uMRsMKg==}
@@ -14475,9 +14472,9 @@ snapshots:
       '@reflink/reflink-win32-arm64-msvc': 0.1.16
       '@reflink/reflink-win32-x64-msvc': 0.1.16
 
-  '@rushstack/worker-pool@0.4.9(@types/node@20.11.30)':
+  '@rushstack/worker-pool@0.4.9(@types/node@18.19.26)':
     dependencies:
-      '@types/node': 20.11.30
+      '@types/node': 18.19.26
 
   '@sinclair/typebox@0.27.8': {}
 
@@ -14660,10 +14657,6 @@ snapshots:
       undici-types: 5.26.5
 
   '@types/node@18.19.26':
-    dependencies:
-      undici-types: 5.26.5
-
-  '@types/node@20.11.30':
     dependencies:
       undici-types: 5.26.5
 

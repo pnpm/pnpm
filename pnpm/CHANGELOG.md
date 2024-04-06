@@ -5,7 +5,7 @@
 ### Major Changes
 
 - Node.js v16 support dropped. Use at least Node.js v18.12.
-- Lockfile version bumped to v7.
+- Lockfile version bumped to v9.
 - Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
 - The [`dedupe-injected-deps`](https://pnpm.io/npmrc#dedupe-injected-deps) setting is `true` by default.
 - The default value of the `link-workspace-packages` setting changed from `true` to `false`. This means that by default, dependencies will be linked from workspace packages only when they are specified using the [workspace protocol](https://pnpm.io/workspaces#workspace-protocol-workspace).

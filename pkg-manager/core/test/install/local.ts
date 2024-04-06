@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type LockfileV7 as Lockfile } from '@pnpm/lockfile-file'
+import { type LockfileV9 as Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'

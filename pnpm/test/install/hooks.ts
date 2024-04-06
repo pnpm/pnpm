@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { type LockfileV7 as Lockfile } from '@pnpm/lockfile-types'
+import { type LockfileV9 as Lockfile } from '@pnpm/lockfile-types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { sync as readYamlFile } from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'

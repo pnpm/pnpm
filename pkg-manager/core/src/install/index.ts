@@ -5,6 +5,7 @@ import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
+  LOCKFILE_MAJOR_VERSION,
   LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
@@ -351,7 +352,7 @@ export async function mutateModules (
     }
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
-      !ctx.wantedLockfile.lockfileVersion.toString().startsWith('7.') ||
+      !ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`) ||
       opts.forceFullResolution
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {

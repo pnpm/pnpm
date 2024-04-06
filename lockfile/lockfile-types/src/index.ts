@@ -22,7 +22,7 @@ export interface Lockfile {
   settings?: LockfileSettings
 }
 
-export interface LockfileV7 {
+export interface LockfileV9 {
   importers: Record<string, ProjectSnapshot>
   lockfileVersion: number | string
   time?: Record<string, string>
