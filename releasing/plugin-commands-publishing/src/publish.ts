@@ -185,26 +185,7 @@ Do you want to continue?`,
   }
 
   let args = opts.argv.original.slice(1)
-
-  if ((params.length > 0) && params[0].endsWith('.tgz')) {
-    const { status } = runNpm(opts.npmPath, ['publish', ...args])
-    return { exitCode: status ?? 0 }
-  }
-  const dirInParams = (params.length > 0) && params[0]
-  const dir = dirInParams || opts.dir || process.cwd()
-
-  const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
-    depPath: dir,
-    extraBinPaths: opts.extraBinPaths,
-    extraEnv: opts.extraEnv,
-    pkgRoot: dir,
-    rawConfig: opts.rawConfig,
-    rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
-    stdio: 'inherit',
-    unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
-  })
-  const { manifest } = await readProjectManifest(dir, opts)
-  // Unfortunately, we cannot support postpack at the moment
+  const dirInParams = (params.length > 0) ? params[0] : undefined
   if (dirInParams) {
     args = args.filter(arg => arg !== params[0])
   }
@@ -218,6 +199,25 @@ Do you want to continue?`,
       args.splice(index, 2)
     }
   }
+
+  if (dirInParams?.endsWith('.tgz')) {
+    const { status } = runNpm(opts.npmPath, ['publish', ...args])
+    return { exitCode: status ?? 0 }
+  }
+  const dir = dirInParams ?? opts.dir ?? process.cwd()
+
+  const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
+    depPath: dir,
+    extraBinPaths: opts.extraBinPaths,
+    extraEnv: opts.extraEnv,
+    pkgRoot: dir,
+    rawConfig: opts.rawConfig,
+    rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
+    stdio: 'inherit',
+    unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+  })
+  const { manifest } = await readProjectManifest(dir, opts)
+  // Unfortunately, we cannot support postpack at the moment
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([
       'prepublishOnly',
