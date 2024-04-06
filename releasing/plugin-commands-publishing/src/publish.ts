@@ -183,8 +183,11 @@ Do you want to continue?`,
     })
     return { exitCode }
   }
+
+  let args = opts.argv.original.slice(1)
+
   if ((params.length > 0) && params[0].endsWith('.tgz')) {
-    const { status } = runNpm(opts.npmPath, ['publish', ...params])
+    const { status } = runNpm(opts.npmPath, ['publish', ...args])
     return { exitCode: status ?? 0 }
   }
   const dirInParams = (params.length > 0) && params[0]
@@ -202,7 +205,6 @@ Do you want to continue?`,
   })
   const { manifest } = await readProjectManifest(dir, opts)
   // Unfortunately, we cannot support postpack at the moment
-  let args = opts.argv.original.slice(1)
   if (dirInParams) {
     args = args.filter(arg => arg !== params[0])
   }
