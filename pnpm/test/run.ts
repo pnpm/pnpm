@@ -302,15 +302,13 @@ test('dlx should work with npm_config_save_dev env variable', async () => {
 test('parallel dlx calls of the same package', async () => {
   prepareEmpty()
 
-  fs.writeFileSync('.npmrc', [
-    `store-dir=${path.resolve('store')}`,
-    `cache-dir=${path.resolve('cache')}`,
-    'dlx-cache-max-age=Infinity',
-  ].join('\n'))
-
   // parallel dlx calls without cache
   await Promise.all(['foo', 'bar', 'baz'].map(
-    name => execPnpm(['dlx', 'shx', 'touch', name])
+    name => execPnpm([
+      `--config.store-dir=${path.resolve('store')}`,
+      `--config.cache-dir=${path.resolve('cache')}`,
+      '--config.dlx-cache-max-age=Infinity',
+      'dlx', 'shx', 'touch', name])
   ))
 
   expect(['foo', 'bar', 'baz'].filter(name => fs.existsSync(name))).toStrictEqual(['foo', 'bar', 'baz'])
@@ -362,16 +360,13 @@ test('parallel dlx calls of the same package', async () => {
     path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link')))
   ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
 
-  // set dlx-cache-max-age to 0
-  fs.writeFileSync('.npmrc', [
-    `store-dir=${path.resolve('store')}`,
-    `cache-dir=${path.resolve('cache')}`,
-    'dlx-cache-max-age=0',
-  ].join('\n'))
-
   // parallel dlx calls with expired cache
   await Promise.all(['a/b/c', 'd/e/f', 'g/h/i'].map(
-    dirPath => execPnpm(['dlx', 'shx', 'mkdir', '-p', dirPath])
+    dirPath => execPnpm([
+      `--config.store-dir=${path.resolve('store')}`,
+      `--config.cache-dir=${path.resolve('cache')}`,
+      '--config.dlx-cache-max-age=0',
+      'dlx', 'shx', 'mkdir', '-p', dirPath])
   ))
 
   expect(['a/b/c', 'd/e/f', 'g/h/i'].filter(name => fs.existsSync(name))).toStrictEqual(['a/b/c', 'd/e/f', 'g/h/i'])
@@ -403,12 +398,6 @@ test('parallel dlx calls of the same package', async () => {
 test('dlx creates cache and store prune cleans cache', async () => {
   prepareEmpty()
 
-  fs.writeFileSync('.npmrc', [
-    `store-dir=${path.resolve('store')}`,
-    `cache-dir=${path.resolve('cache')}`,
-    'dlx-cache-max-age=50', // big number to avoid false negative should test unexpectedly takes too long to run
-  ].join('\n'))
-
   const commands = {
     shx: ['echo', 'hello from shx'],
     'shelljs/shx#61aca968cd7afc712ca61a4fc4ec3201e3770dc7': ['echo', 'hello from shx.git'],
@@ -416,7 +405,13 @@ test('dlx creates cache and store prune cleans cache', async () => {
     '@pnpm.e2e/touch-file-one-bin': [],
   } satisfies Record<string, string[]>
 
-  await Promise.all(Object.entries(commands).map(([cmd, args]) => execPnpm(['dlx', cmd, ...args])))
+  const settings = [
+    `--config.store-dir=${path.resolve('store')}`,
+    `--config.cache-dir=${path.resolve('cache')}`,
+    '--config.dlx-cache-max-age=50', // big number to avoid false negative should test unexpectedly takes too long to run
+  ]
+
+  await Promise.all(Object.entries(commands).map(([cmd, args]) => execPnpm([...settings, 'dlx', cmd, ...args])))
 
   // ensure that the dlx cache has certain structure
   expect(
@@ -459,7 +454,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
     await fs.promises.lutimes(dlxCacheLink, newDate, newDate)
   }))
 
-  await execPnpm(['store', 'prune'])
+  await execPnpm([...settings, 'store', 'prune'])
 
   // test to see if dlx cache items are deleted or kept as expected
   expect(
@@ -488,14 +483,11 @@ test('dlx creates cache and store prune cleans cache', async () => {
     )
   )
 
-  // set dlx-cache-max-age to 0
-  fs.writeFileSync('.npmrc', [
-    `store-dir=${path.resolve('store')}`,
-    `cache-dir=${path.resolve('cache')}`,
-    'dlx-cache-max-age=0',
-  ].join('\n'))
-
-  await execPnpm(['store', 'prune'])
+  await execPnpm([
+    `--config.store-dir=${path.resolve('store')}`,
+    `--config.cache-dir=${path.resolve('cache')}`,
+    '--config.dlx-cache-max-age=0',
+    'store', 'prune'])
 
   // test to see if all dlx cache items are deleted
   expect(
