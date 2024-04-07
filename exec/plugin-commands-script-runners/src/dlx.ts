@@ -1,5 +1,4 @@
-import { type Stats } from 'fs'
-import fs from 'fs/promises'
+import fs, { type Stats } from 'fs'
 import path from 'path'
 import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
@@ -73,31 +72,21 @@ export async function handler (
   [command, ...args]: string[]
 ) {
   const pkgs = opts.package ?? [command]
-  const now = new Date()
-  const { storeDir, cachePath } = await getInfo({
+  const { storeDir, newPrefix, cacheLink } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
+    dlxCacheMaxAge: opts.dlxCacheMaxAge,
     storeDir: opts.storeDir,
     cacheDir: opts.cacheDir,
     pkgs,
   })
-  await fs.mkdir(cachePath, { recursive: true })
-  const { cacheLink, newPrefix, prefix } = await getPrefixInfo({
-    dlxCacheMaxAge: opts.dlxCacheMaxAge,
-    pid: process.pid,
-    cachePath,
-    now,
-  })
-  const modulesDir = path.join(prefix, 'node_modules')
-  const binsDir = path.join(modulesDir, '.bin')
-  const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
   if (newPrefix) {
-    await fs.mkdir(newPrefix, { recursive: true })
+    fs.mkdirSync(newPrefix, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
       ...omit(['workspaceDir', 'rootProjectManifest'], opts),
-      bin: binsDir,
+      bin: path.join(newPrefix, 'node_modules/.bin'),
       dir: newPrefix,
       lockfileDir: newPrefix,
       rootProjectManifestDir: newPrefix, // This property won't be used as rootProjectManifest will be undefined
@@ -109,9 +98,12 @@ export async function handler (
     }, pkgs)
     await symlinkDir(newPrefix, cacheLink, { overwrite: true })
   }
+  const modulesDir = path.join(cacheLink, 'node_modules')
+  const binsDir = path.join(modulesDir, '.bin')
+  const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
   const binName = opts.package
     ? command
-    : await getBinName(modulesDir, await getPkgName(prefix))
+    : await getBinName(modulesDir, await getPkgName(cacheLink))
   try {
     await execa(binName, args, {
       cwd: process.cwd(),
@@ -173,6 +165,7 @@ async function getInfo (opts: {
   cacheDir: string
   pnpmHomeDir: string
   pkgs: string[]
+  dlxCacheMaxAge: number
 }) {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
@@ -183,28 +176,31 @@ async function getInfo (opts: {
   const hashStr = opts.pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
   const cacheName = createBase32Hash(hashStr)
   const cachePath = path.join(dlxCacheDir, cacheName)
-  return { storeDir, dlxCacheDir, cacheName, cachePath }
+  fs.mkdirSync(cachePath, { recursive: true })
+  const { cacheLink, newPrefix } = await getPrefixInfo({
+    dlxCacheMaxAge: opts.dlxCacheMaxAge,
+    cachePath,
+  })
+  return { storeDir, cacheLink, newPrefix }
 }
 
 async function getPrefixInfo (opts: {
   cachePath: string
   dlxCacheMaxAge: number
-  now: Date
-  pid: number
 }) {
-  const { cachePath, dlxCacheMaxAge, now, pid } = opts
+  const { cachePath, dlxCacheMaxAge } = opts
+  const now = new Date()
   const cacheLink = path.join(cachePath, 'link')
   const cacheStatus = await checkCacheLink(cacheLink, dlxCacheMaxAge, now)
   const shouldInstall = cacheStatus === 'not-exist' || cacheStatus === 'out-of-date'
-  const newPrefix = shouldInstall ? getNewPrefix(cachePath, now, pid) : null
-  const prefix = newPrefix ?? cacheLink
-  return { cacheLink, cacheStatus, shouldInstall, newPrefix, prefix }
+  const newPrefix = shouldInstall ? getNewPrefix(cachePath, now) : null
+  return { cacheLink, newPrefix }
 }
 
 async function checkCacheLink (cacheLink: string, dlxCacheMaxAge: number, now: Date): Promise<'not-exist' | 'out-of-date' | 'up-to-date'> {
   let stats: Stats
   try {
-    stats = await fs.lstat(cacheLink)
+    stats = fs.lstatSync(cacheLink)
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return 'not-exist'
@@ -217,7 +213,7 @@ async function checkCacheLink (cacheLink: string, dlxCacheMaxAge: number, now: D
   return 'up-to-date'
 }
 
-function getNewPrefix (cachePath: string, now: Date, pid: number): string {
-  const name = `${now.getTime().toString(16)}-${pid.toString(16)}`
+function getNewPrefix (cachePath: string, now: Date): string {
+  const name = `${now.getTime().toString(16)}-${process.pid.toString(16)}`
   return path.join(cachePath, name)
 }
