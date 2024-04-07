@@ -71,28 +71,27 @@ export async function handler (
   [command, ...args]: string[]
 ) {
   const pkgs = opts.package ?? [command]
-  const { newPrefix, cacheLink } = getInfo({
-    dir: opts.dir,
+  const { cacheLink, prepareDir } = getLocations({
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
     pkgs,
   })
-  if (newPrefix) {
-    fs.mkdirSync(newPrefix, { recursive: true })
+  if (prepareDir) {
+    fs.mkdirSync(prepareDir, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
       ...omit(['workspaceDir', 'rootProjectManifest'], opts),
-      bin: path.join(newPrefix, 'node_modules/.bin'),
-      dir: newPrefix,
-      lockfileDir: newPrefix,
-      rootProjectManifestDir: newPrefix, // This property won't be used as rootProjectManifest will be undefined
+      bin: path.join(prepareDir, 'node_modules/.bin'),
+      dir: prepareDir,
+      lockfileDir: prepareDir,
+      rootProjectManifestDir: prepareDir, // This property won't be used as rootProjectManifest will be undefined
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
       saveOptional: false,
       savePeer: false,
     }, pkgs)
-    await symlinkDir(newPrefix, cacheLink, { overwrite: true })
+    await symlinkDir(prepareDir, cacheLink, { overwrite: true })
   }
   const modulesDir = path.join(cacheLink, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
@@ -155,20 +154,19 @@ function scopeless (pkgName: string) {
   return pkgName
 }
 
-function getInfo (opts: {
-  dir: string
+function getLocations (opts: {
   cacheDir: string
   pkgs: string[]
   dlxCacheMaxAge: number
 }) {
-  const cachePath = createCachePath(opts.cacheDir, opts.pkgs)
-  const cacheLink = path.join(cachePath, 'link')
+  const dlxCommandCacheDir = createDlxCommandCacheDir(opts.cacheDir, opts.pkgs)
+  const cacheLink = path.join(dlxCommandCacheDir, 'link')
   const valid = isCacheValid(cacheLink, opts.dlxCacheMaxAge)
-  const newPrefix = valid ? null : getNewPrefix(cachePath)
-  return { cacheLink, newPrefix }
+  const prepareDir = valid ? null : getPrepareDir(dlxCommandCacheDir)
+  return { cacheLink, prepareDir }
 }
 
-function createCachePath (cacheDir: string, pkgs: string[]) {
+function createDlxCommandCacheDir (cacheDir: string, pkgs: string[]) {
   const dlxCacheDir = path.resolve(cacheDir, 'dlx')
   const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
   const cacheName = createBase32Hash(hashStr)
@@ -187,13 +185,10 @@ function isCacheValid (cacheLink: string, dlxCacheMaxAge: number): boolean {
     }
     throw err
   }
-  if (stats.mtime.getTime() + dlxCacheMaxAge * 60_000 < new Date().getTime()) {
-    return false
-  }
-  return true
+  return stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= new Date().getTime()
 }
 
-function getNewPrefix (cachePath: string): string {
+function getPrepareDir (cachePath: string): string {
   const name = `${new Date().getTime().toString(16)}-${process.pid.toString(16)}`
   return path.join(cachePath, name)
 }
