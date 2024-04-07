@@ -9,7 +9,6 @@ import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { getStorePath } from '@pnpm/store-path'
 import execa from 'execa'
 import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
@@ -72,11 +71,10 @@ export async function handler (
   [command, ...args]: string[]
 ) {
   const pkgs = opts.package ?? [command]
-  const { storeDir, newPrefix, cacheLink } = await getInfo({
+  const { newPrefix, cacheLink } = await getInfo({
     dir: opts.dir,
     pnpmHomeDir: opts.pnpmHomeDir,
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
-    storeDir: opts.storeDir,
     cacheDir: opts.cacheDir,
     pkgs,
   })
@@ -90,7 +88,6 @@ export async function handler (
       dir: newPrefix,
       lockfileDir: newPrefix,
       rootProjectManifestDir: newPrefix, // This property won't be used as rootProjectManifest will be undefined
-      storeDir,
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
       saveOptional: false,
@@ -159,29 +156,22 @@ function scopeless (pkgName: string) {
   return pkgName
 }
 
-async function getInfo (opts: {
+function getInfo (opts: {
   dir: string
-  storeDir?: string
   cacheDir: string
   pnpmHomeDir: string
   pkgs: string[]
   dlxCacheMaxAge: number
 }) {
-  const storeDir = await getStorePath({
-    pkgRoot: opts.dir,
-    storePath: opts.storeDir,
-    pnpmHomeDir: opts.pnpmHomeDir,
-  })
   const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
   const hashStr = opts.pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
   const cacheName = createBase32Hash(hashStr)
   const cachePath = path.join(dlxCacheDir, cacheName)
   fs.mkdirSync(cachePath, { recursive: true })
-  const { cacheLink, newPrefix } = await getPrefixInfo({
+  return getPrefixInfo({
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cachePath,
   })
-  return { storeDir, cacheLink, newPrefix }
 }
 
 async function getPrefixInfo (opts: {
@@ -189,31 +179,29 @@ async function getPrefixInfo (opts: {
   dlxCacheMaxAge: number
 }) {
   const { cachePath, dlxCacheMaxAge } = opts
-  const now = new Date()
   const cacheLink = path.join(cachePath, 'link')
-  const cacheStatus = await checkCacheLink(cacheLink, dlxCacheMaxAge, now)
-  const shouldInstall = cacheStatus === 'not-exist' || cacheStatus === 'out-of-date'
-  const newPrefix = shouldInstall ? getNewPrefix(cachePath, now) : null
+  const valid = isCacheValid(cacheLink, dlxCacheMaxAge)
+  const newPrefix = valid ? null : getNewPrefix(cachePath)
   return { cacheLink, newPrefix }
 }
 
-async function checkCacheLink (cacheLink: string, dlxCacheMaxAge: number, now: Date): Promise<'not-exist' | 'out-of-date' | 'up-to-date'> {
+function isCacheValid (cacheLink: string, dlxCacheMaxAge: number): boolean {
   let stats: Stats
   try {
     stats = fs.lstatSync(cacheLink)
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return 'not-exist'
+      return false
     }
     throw err
   }
-  if (stats.mtime.getTime() + dlxCacheMaxAge * 60_000 < now.getTime()) {
-    return 'out-of-date'
+  if (stats.mtime.getTime() + dlxCacheMaxAge * 60_000 < new Date().getTime()) {
+    return false
   }
-  return 'up-to-date'
+  return true
 }
 
-function getNewPrefix (cachePath: string, now: Date): string {
-  const name = `${now.getTime().toString(16)}-${process.pid.toString(16)}`
+function getNewPrefix (cachePath: string): string {
+  const name = `${new Date().getTime().toString(16)}-${process.pid.toString(16)}`
   return path.join(cachePath, name)
 }
