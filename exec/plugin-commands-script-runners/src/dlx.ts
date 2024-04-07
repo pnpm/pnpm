@@ -71,9 +71,8 @@ export async function handler (
   [command, ...args]: string[]
 ) {
   const pkgs = opts.package ?? [command]
-  const { newPrefix, cacheLink } = await getInfo({
+  const { newPrefix, cacheLink } = getInfo({
     dir: opts.dir,
-    pnpmHomeDir: opts.pnpmHomeDir,
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
     pkgs,
@@ -159,30 +158,23 @@ function scopeless (pkgName: string) {
 function getInfo (opts: {
   dir: string
   cacheDir: string
-  pnpmHomeDir: string
   pkgs: string[]
   dlxCacheMaxAge: number
 }) {
-  const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
-  const hashStr = opts.pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
+  const cachePath = createCachePath(opts.cacheDir, opts.pkgs)
+  const cacheLink = path.join(cachePath, 'link')
+  const valid = isCacheValid(cacheLink, opts.dlxCacheMaxAge)
+  const newPrefix = valid ? null : getNewPrefix(cachePath)
+  return { cacheLink, newPrefix }
+}
+
+function createCachePath (cacheDir: string, pkgs: string[]) {
+  const dlxCacheDir = path.resolve(cacheDir, 'dlx')
+  const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
   const cacheName = createBase32Hash(hashStr)
   const cachePath = path.join(dlxCacheDir, cacheName)
   fs.mkdirSync(cachePath, { recursive: true })
-  return getPrefixInfo({
-    dlxCacheMaxAge: opts.dlxCacheMaxAge,
-    cachePath,
-  })
-}
-
-async function getPrefixInfo (opts: {
-  cachePath: string
-  dlxCacheMaxAge: number
-}) {
-  const { cachePath, dlxCacheMaxAge } = opts
-  const cacheLink = path.join(cachePath, 'link')
-  const valid = isCacheValid(cacheLink, dlxCacheMaxAge)
-  const newPrefix = valid ? null : getNewPrefix(cachePath)
-  return { cacheLink, newPrefix }
+  return cachePath
 }
 
 function isCacheValid (cacheLink: string, dlxCacheMaxAge: number): boolean {
