@@ -71,10 +71,9 @@ export async function handler (
   [command, ...args]: string[]
 ) {
   const pkgs = opts.package ?? [command]
-  const { cacheLink, prepareDir } = getLocations({
+  const { cacheLink, prepareDir } = findCache(pkgs, {
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
-    pkgs,
   })
   if (prepareDir) {
     fs.mkdirSync(prepareDir, { recursive: true })
@@ -154,12 +153,11 @@ function scopeless (pkgName: string) {
   return pkgName
 }
 
-function getLocations (opts: {
+function findCache (pkgs: string[], opts: {
   cacheDir: string
-  pkgs: string[]
   dlxCacheMaxAge: number
 }) {
-  const dlxCommandCacheDir = createDlxCommandCacheDir(opts.cacheDir, opts.pkgs)
+  const dlxCommandCacheDir = createDlxCommandCacheDir(opts.cacheDir, pkgs)
   const cacheLink = path.join(dlxCommandCacheDir, 'link')
   const valid = isCacheValid(cacheLink, opts.dlxCacheMaxAge)
   const prepareDir = valid ? null : getPrepareDir(dlxCommandCacheDir)
