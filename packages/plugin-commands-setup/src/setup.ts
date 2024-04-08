@@ -9,9 +9,9 @@ import {
 } from '@pnpm/os.env.path-extender'
 import renderHelp from 'render-help'
 
-export const rcOptionsTypes = () => ({})
+export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   force: Boolean,
 })
 
@@ -19,7 +19,7 @@ export const shorthands = {}
 
 export const commandNames = ['setup']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Sets up pnpm',
     descriptionLists: [
@@ -40,7 +40,7 @@ export function help () {
   })
 }
 
-function getExecPath () {
+function getExecPath (): string {
   // @ts-expect-error
   if (process['pkg'] != null) {
     // If the pnpm CLI was bundled by vercel/pkg then we cannot use the js path for npm_execpath
@@ -51,7 +51,7 @@ function getExecPath () {
   return (require.main != null) ? require.main.filename : process.cwd()
 }
 
-function copyCli (currentLocation: string, targetDir: string) {
+function copyCli (currentLocation: string, targetDir: string): void {
   const newExecPath = path.join(targetDir, path.basename(currentLocation))
   if (path.relative(newExecPath, currentLocation) === '') return
   logger.info({
@@ -67,7 +67,7 @@ export async function handler (
     force?: boolean
     pnpmHomeDir: string
   }
-) {
+): Promise<string> {
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
     copyCli(execPath, opts.pnpmHomeDir)
@@ -93,7 +93,7 @@ export async function handler (
   }
 }
 
-function renderSetupOutput (report: PathExtenderReport) {
+function renderSetupOutput (report: PathExtenderReport): string {
   if (report.oldSettings === report.newSettings) {
     return 'No changes to the environment were made. Everything is already up to date.'
   }
