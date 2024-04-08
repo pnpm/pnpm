@@ -21,7 +21,7 @@ function readDlxCachePath (cachePath: string): string[] | 'ENOENT' {
 }
 
 function sanitizeDlxCacheComponent (cacheName: string): string {
-  if (cacheName === 'link') return cacheName
+  if (cacheName === 'pkg') return cacheName
   const segments = cacheName.split('-')
   if (segments.length !== 2) {
     throw new Error(`Unexpected name: ${cacheName}`)
@@ -48,7 +48,7 @@ function createSampleDlxCacheItem (cacheDir: string, cmd: string, now: Date, age
   const pid = 71014 // just an arbitrary number to represent pid
   const targetName = `${(newDate.getTime() - timeError).toString(16)}-${pid.toString(16)}`
   const linkTarget = path.join(cacheDir, 'dlx', hash, targetName)
-  const linkPath = path.join(cacheDir, 'dlx', hash, 'link')
+  const linkPath = path.join(cacheDir, 'dlx', hash, 'pkg')
   createSampleDlxCacheLinkTarget(linkTarget)
   fs.symlinkSync(linkTarget, linkPath, 'junction')
   fs.lutimesSync(linkPath, newDate, newDate)
@@ -77,7 +77,7 @@ test('cleanExpiredCache removes items that outlive dlxCacheMaxAge', async () => 
     baz: 20,
   })
 
-  const readdirSpy = jest.spyOn(fs.promises, 'readdir')
+  const readdirSyncSpy = jest.spyOn(fs, 'readdirSync')
   const lstatSpy = jest.spyOn(fs.promises, 'lstat')
   const rmSpy = jest.spyOn(fs.promises, 'rm')
 
@@ -92,14 +92,14 @@ test('cleanExpiredCache removes items that outlive dlxCacheMaxAge', async () => 
     bar: readDlxCachePath(path.join(cacheDir, 'dlx', createBase32Hash('bar'))),
     baz: readDlxCachePath(path.join(cacheDir, 'dlx', createBase32Hash('baz'))),
   }).toStrictEqual({
-    foo: ['link', '***********-*****'].sort(),
-    bar: ['link', '***********-*****'].sort(),
+    foo: ['pkg', '***********-*****'].sort(),
+    bar: ['pkg', '***********-*****'].sort(),
     baz: 'ENOENT',
   })
 
-  expect(readdirSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx'), expect.anything())
+  expect(readdirSyncSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx'), expect.anything())
   for (const key of ['foo', 'bar', 'baz']) {
-    expect(lstatSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx', createBase32Hash(key), 'link'))
+    expect(lstatSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx', createBase32Hash(key), 'pkg'))
   }
   expect(rmSpy).not.toHaveBeenCalledWith(
     expect.stringContaining(path.join(cacheDir, 'dlx', createBase32Hash('foo'))),
@@ -114,7 +114,7 @@ test('cleanExpiredCache removes items that outlive dlxCacheMaxAge', async () => 
     { recursive: true }
   )
 
-  readdirSpy.mockRestore()
+  readdirSyncSpy.mockRestore()
   lstatSpy.mockRestore()
   rmSpy.mockRestore()
 })
@@ -132,7 +132,7 @@ test('cleanExpiredCache removes all directories without checking stat if dlxCach
     baz: 20,
   })
 
-  const readdirSpy = jest.spyOn(fs.promises, 'readdir')
+  const readdirSyncSpy = jest.spyOn(fs, 'readdirSync')
   const lstatSpy = jest.spyOn(fs.promises, 'lstat')
   const rmSpy = jest.spyOn(fs.promises, 'rm')
 
@@ -147,13 +147,13 @@ test('cleanExpiredCache removes all directories without checking stat if dlxCach
       .sort()
   ).toStrictEqual([])
 
-  expect(readdirSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx'), expect.anything())
+  expect(readdirSyncSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx'), expect.anything())
   expect(lstatSpy).not.toHaveBeenCalled()
   for (const key of ['foo', 'bar', 'baz']) {
     expect(rmSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx', createBase32Hash(key)), { recursive: true })
   }
 
-  readdirSpy.mockRestore()
+  readdirSyncSpy.mockRestore()
   lstatSpy.mockRestore()
   rmSpy.mockRestore()
 })
@@ -181,10 +181,9 @@ test('cleanExpiredCache does nothing if dlxCacheMaxAge is Infinity', async () =>
     now,
   })
 
-  expect(
-    fs.readdirSync(path.join(cacheDir, 'dlx'))
-      .sort()
-  ).toStrictEqual(
+  const dlxCacheDir = path.join(cacheDir, 'dlx')
+
+  expect(fs.readdirSync(dlxCacheDir).sort()).toStrictEqual(
     ['foo', 'bar', 'baz']
       .map(createBase32Hash)
       .sort()
@@ -192,19 +191,19 @@ test('cleanExpiredCache does nothing if dlxCacheMaxAge is Infinity', async () =>
 
   expect(
     Object.fromEntries(
-      fs.readdirSync(path.join(cacheDir, 'dlx'))
+      fs.readdirSync(dlxCacheDir)
         .sort()
         .map(dlxCacheName => [
           dlxCacheName,
-          fs.readdirSync(path.join(cacheDir, 'dlx', dlxCacheName))
+          fs.readdirSync(path.join(dlxCacheDir, dlxCacheName))
             .map(sanitizeDlxCacheComponent)
             .sort(),
         ])
     )
   ).toStrictEqual({
-    [createBase32Hash('foo')]: ['link', '***********-*****'].sort(),
-    [createBase32Hash('bar')]: ['link', '***********-*****'].sort(),
-    [createBase32Hash('baz')]: ['link', '***********-*****'].sort(),
+    [createBase32Hash('foo')]: ['pkg', '***********-*****'].sort(),
+    [createBase32Hash('bar')]: ['pkg', '***********-*****'].sort(),
+    [createBase32Hash('baz')]: ['pkg', '***********-*****'].sort(),
   })
 
   expect(readdirSpy).not.toHaveBeenCalled()
@@ -232,7 +231,7 @@ test("cleanOrphans deletes dirs that don't contain `link` and subdirs that aren'
       .map(sanitizeDlxCacheComponent)
       .sort()
   ).toStrictEqual([
-    'link',
+    'pkg',
     '***********-*****',
     '***********-*****',
     '***********-*****',
@@ -261,7 +260,7 @@ test("cleanOrphans deletes dirs that don't contain `link` and subdirs that aren'
       .map(sanitizeDlxCacheComponent)
       .sort()
   ).toStrictEqual([
-    'link',
+    'pkg',
     '***********-*****',
   ].sort())
 

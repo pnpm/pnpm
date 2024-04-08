@@ -9,7 +9,7 @@ import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 const testOnWindowsOnly = process.platform === 'win32' ? test : test.skip
 
 function sanitizeDlxCacheComponent (cacheName: string): string {
-  if (cacheName === 'link') return cacheName
+  if (cacheName === 'pkg') return cacheName
   const segments = cacheName.split('-')
   if (segments.length !== 2) {
     throw new Error(`Unexpected name: ${cacheName}`)
@@ -27,7 +27,7 @@ function verifyDlxCache (cacheName: string): void {
       .map(sanitizeDlxCacheComponent)
       .sort()
   ).toStrictEqual([
-    'link',
+    'pkg',
     '***********-*****',
   ].sort())
   verifyDlxCacheLink(cacheName)
@@ -35,7 +35,7 @@ function verifyDlxCache (cacheName: string): void {
 
 function verifyDlxCacheLink (cacheName: string): void {
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', cacheName, 'link'))
+    fs.readdirSync(path.resolve('cache', 'dlx', cacheName, 'pkg'))
       .sort()
   ).toStrictEqual([
     'node_modules',
@@ -43,7 +43,7 @@ function verifyDlxCacheLink (cacheName: string): void {
     'pnpm-lock.yaml',
   ].sort())
   expect(
-    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', cacheName, 'link')))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', cacheName, 'pkg')))
   ).toBe(path.resolve('cache', 'dlx', cacheName))
 }
 
@@ -257,7 +257,7 @@ test('dlx does not reuse expired cache', async () => {
 
   // change the date attributes of the cache to 30 minutes older than now
   const newDate = new Date(now.getTime() - 30 * 60_000)
-  fs.lutimesSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'), newDate, newDate)
+  fs.lutimesSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'), newDate, newDate)
 
   const spy = jest.spyOn(add, 'handler')
 
@@ -280,7 +280,7 @@ test('dlx does not reuse expired cache', async () => {
       .map(sanitizeDlxCacheComponent)
       .sort()
   ).toStrictEqual([
-    'link',
+    'pkg',
     '***********-*****',
     '***********-*****',
   ].sort())

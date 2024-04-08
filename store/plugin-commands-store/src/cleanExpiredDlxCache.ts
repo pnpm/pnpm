@@ -1,24 +1,26 @@
-import { type Stats } from 'fs'
+import { readdirSync, type Stats } from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
 import util from 'util'
 
-export async function cleanExpiredDlxCache (opts: {
+export async function cleanExpiredDlxCache ({
+  cacheDir,
+  dlxCacheMaxAge,
+  now,
+}: {
   cacheDir: string
   dlxCacheMaxAge: number
   now: Date
 }): Promise<void> {
-  const { cacheDir, dlxCacheMaxAge, now } = opts
-
   if (dlxCacheMaxAge === Infinity) return
 
   const dlxCacheDir = path.join(cacheDir, 'dlx')
-  const dlxCacheNames = await readOptDir(dlxCacheDir)
+  const dlxCacheNames = readOptDir(dlxCacheDir)
   if (!dlxCacheNames) return
 
   await Promise.all(dlxCacheNames.map(async (dlxCacheName) => {
     const dlxCachePath = path.join(dlxCacheDir, dlxCacheName)
-    const dlxCacheLink = path.join(dlxCachePath, 'link')
+    const dlxCacheLink = path.join(dlxCachePath, 'pkg')
     let shouldClean: boolean
     if (dlxCacheMaxAge <= 0) {
       shouldClean = true
@@ -36,11 +38,11 @@ export async function cleanExpiredDlxCache (opts: {
 }
 
 export async function cleanOrphans (dlxCacheDir: string): Promise<void> {
-  const dlxCacheNames = await readOptDir(dlxCacheDir)
+  const dlxCacheNames = readOptDir(dlxCacheDir)
   if (!dlxCacheNames) return
   await Promise.all(dlxCacheNames.map(async dlxCacheName => {
     const dlxCachePath = path.join(dlxCacheDir, dlxCacheName)
-    const dlxCacheLink = path.join(dlxCachePath, 'link')
+    const dlxCacheLink = path.join(dlxCachePath, 'pkg')
     const dlxCacheLinkStats = await getStats(dlxCacheLink)
     if (dlxCacheLinkStats === 'ENOENT') {
       return fs.rm(dlxCachePath, { recursive: true })
@@ -48,7 +50,7 @@ export async function cleanOrphans (dlxCacheDir: string): Promise<void> {
     const dlxCacheLinkTarget = await getRealPath(dlxCacheLink)
     const children = await fs.readdir(dlxCachePath)
     await Promise.all(children.map(async name => {
-      if (name === 'link') return
+      if (name === 'pkg') return
       const fullPath = path.join(dlxCachePath, name)
       if (fullPath === dlxCacheLinkTarget) return
       await fs.rm(fullPath, { recursive: true })
@@ -71,9 +73,9 @@ async function getStats (path: string): Promise<Stats | 'ENOENT'> {
   }
 }
 
-async function readOptDir (dirPath: string): Promise<string[] | null> {
+function readOptDir (dirPath: string): string[] | null {
   try {
-    return await fs.readdir(dirPath, 'utf-8')
+    return readdirSync(dirPath, 'utf-8')
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return null

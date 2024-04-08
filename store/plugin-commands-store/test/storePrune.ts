@@ -286,7 +286,7 @@ function createSampleDlxCacheItem (cacheDir: string, cmd: string, now: Date, age
   const pid = 71014 // just an arbitrary number to represent pid
   const targetName = `${(newDate.getTime() - timeError).toString(16)}-${pid.toString(16)}`
   const linkTarget = path.join(cacheDir, 'dlx', hash, targetName)
-  const linkPath = path.join(cacheDir, 'dlx', hash, 'link')
+  const linkPath = path.join(cacheDir, 'dlx', hash, 'pkg')
   createSampleDlxCacheLinkTarget(linkTarget)
   fs.symlinkSync(linkTarget, linkPath, 'junction')
   fs.lutimesSync(linkPath, newDate, newDate)

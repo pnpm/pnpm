@@ -158,7 +158,7 @@ function findCache (pkgs: string[], opts: {
   dlxCacheMaxAge: number
 }) {
   const dlxCommandCacheDir = createDlxCommandCacheDir(opts.cacheDir, pkgs)
-  const cacheLink = path.join(dlxCommandCacheDir, 'link')
+  const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
   const valid = isCacheValid(cacheLink, opts.dlxCacheMaxAge)
   const prepareDir = valid ? null : getPrepareDir(dlxCommandCacheDir)
   return { cacheLink, prepareDir }
