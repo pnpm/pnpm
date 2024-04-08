@@ -26,7 +26,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['patch-commit']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Generate a patch out of a directory',
     descriptionLists: [{
@@ -43,7 +43,9 @@ export function help () {
   })
 }
 
-export async function handler (opts: install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest' | 'rootProjectManifestDir'>, params: string[]) {
+type PatchCommitCommandOptions = install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest' | 'rootProjectManifestDir'>
+
+export async function handler (opts: PatchCommitCommandOptions, params: string[]): Promise<string | undefined> {
   const userDir = params[0]
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
@@ -99,10 +101,10 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
       ...opts.rawLocalConfig,
       'frozen-lockfile': false,
     },
-  })
+  }) as Promise<undefined>
 }
 
-async function diffFolders (folderA: string, folderB: string) {
+async function diffFolders (folderA: string, folderB: string): Promise<string> {
   const folderAN = folderA.replace(/\\/g, '/')
   const folderBN = folderB.replace(/\\/g, '/')
   let stdout!: string
@@ -143,7 +145,7 @@ async function diffFolders (folderA: string, folderB: string) {
     .replace(/\n\\ No newline at end of file\n$/, '\n')
 }
 
-function removeTrailingAndLeadingSlash (p: string) {
+function removeTrailingAndLeadingSlash (p: string): string {
   if (p[0] === '/' || p.endsWith('/')) {
     return p.replace(/^\/|\/$/g, '')
   }
@@ -176,14 +178,14 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
   return dest
 }
 
-async function areAllFilesInPkg (files: string[], basePath: string) {
+async function areAllFilesInPkg (files: string[], basePath: string): Promise<boolean> {
   const allFiles = await glob('**', {
     cwd: basePath,
   })
   return equals(allFiles.sort(), files.sort())
 }
 
-async function getGitTarballUrlFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions) {
+async function getGitTarballUrlFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions): Promise<string | undefined> {
   const { preferredVersions } = await getVersionsFromLockfile(dep, opts)
   return preferredVersions[0]?.gitTarballUrl
 }

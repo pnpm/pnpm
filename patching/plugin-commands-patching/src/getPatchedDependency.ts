@@ -54,7 +54,19 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
   return dep
 }
 
-export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions) {
+export interface LockfileVersion {
+  gitTarballUrl?: string
+  name: string
+  peersSuffix?: string
+  version: string
+}
+
+export interface LockfileVersionsList {
+  versions: LockfileVersion[]
+  preferredVersions: LockfileVersion[]
+}
+
+export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions): Promise<LockfileVersionsList> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
   const modules = await readModulesManifest(modulesDir)
   const lockfile = (modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, {

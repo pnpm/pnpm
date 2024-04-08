@@ -6,7 +6,7 @@ export interface ApplyPatchToDirOpts {
   patchFilePath: string
 }
 
-export function applyPatchToDir (opts: ApplyPatchToDirOpts) {
+export function applyPatchToDir (opts: ApplyPatchToDirOpts): void {
   // Ideally, we would just run "patch" or "git apply".
   // However, "patch" is not available on Windows and "git apply" is hard to execute on a subdirectory of an existing repository
   const cwd = process.cwd()
