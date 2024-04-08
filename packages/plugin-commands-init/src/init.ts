@@ -15,7 +15,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['init']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Create a package.json file',
     descriptionLists: [],
@@ -27,7 +27,7 @@ export function help () {
 export async function handler (
   opts: Pick<UniversalOptions, 'rawConfig'>,
   params?: string[]
-) {
+): Promise<string> {
   if (params?.length) {
     throw new PnpmError('INIT_ARG', 'init command does not accept any arguments', {
       hint: `Maybe you wanted to run "pnpm create ${params.join(' ')}"`,

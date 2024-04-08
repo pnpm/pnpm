@@ -17,7 +17,7 @@ export function renderPeerIssues (
     rules?: PeerDependencyRules
     width?: number
   }
-) {
+): string {
   const ignoreMissingPatterns = [...new Set(opts?.rules?.ignoreMissing ?? [])]
   const ignoreMissingMatcher = createMatcher(ignoreMissingPatterns)
   const allowAnyPatterns = [...new Set(opts?.rules?.allowAny ?? [])]
@@ -114,7 +114,7 @@ interface PkgNode {
   dependencies: Record<string, PkgNode>
 }
 
-function createTree (pkgNode: PkgNode, pkgs: Array<{ name: string, version: string }>, issueText: string) {
+function createTree (pkgNode: PkgNode, pkgs: Array<{ name: string, version: string }>, issueText: string): void {
   const [pkg, ...rest] = pkgs
   const label = `${pkg.name} ${chalk.grey(pkg.version)}`
   if (!pkgNode.dependencies[label]) {
@@ -143,7 +143,12 @@ function toArchyData (depName: string, pkgNode: PkgNode): archy.Data {
 
 type AllowedVersionsByParentPkgName = Record<string, Record<string, Array<Required<Pick<VersionOverride, 'parentPkg' | 'targetPkg'>> & { ranges: string[] }>>>
 
-function parseAllowedVersions (allowedVersions: Record<string, string>) {
+interface ParsedAllowedVersions {
+  allowedVersionsMatchAll: Record<string, string[]>
+  allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName
+}
+
+function parseAllowedVersions (allowedVersions: Record<string, string>): ParsedAllowedVersions {
   const overrides = tryParseAllowedVersions(allowedVersions)
   const allowedVersionsMatchAll: Record<string, string[]> = {}
   const allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName = {}
@@ -184,7 +189,7 @@ function parseVersions (versions: string): string[] {
   return versions.split('||').map(v => v.trim())
 }
 
-function isSubRange (superRange: string | undefined, subRange: string) {
+function isSubRange (superRange: string | undefined, subRange: string): boolean {
   return !superRange ||
   subRange === superRange ||
   semver.validRange(subRange) != null &&
