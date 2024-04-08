@@ -16,11 +16,11 @@ import { writePackage } from './writePackage'
 import { getPatchedDependency } from './getPatchedDependency'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return { ...rcOptionsTypes(), 'edit-dir': String, 'ignore-existing': Boolean }
 }
 
@@ -30,7 +30,7 @@ export const shorthands = {
 
 export const commandNames = ['patch']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Prepare a package for patching',
     descriptionLists: [{
@@ -67,7 +67,7 @@ export type PatchCommandOptions = Pick<Config,
   ignoreExisting?: boolean
 }
 
-export async function handler (opts: PatchCommandOptions, params: string[]) {
+export async function handler (opts: PatchCommandOptions, params: string[]): Promise<string> {
   if (opts.editDir && fs.existsSync(opts.editDir) && fs.readdirSync(opts.editDir).length > 0) {
     throw new PnpmError('PATCH_EDIT_DIR_EXISTS', `The target directory already exists: '${opts.editDir}'`)
   }
@@ -118,7 +118,7 @@ function tryPatchWithExistingPatchFile (
     patchedDependencies: Record<string, string>
     lockfileDir: string
   }
-) {
+): void {
   if (!patchedDep.alias || !patchedDep.pref) {
     return
   }
