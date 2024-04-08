@@ -4,7 +4,7 @@ import { makeDedicatedLockfile } from '.'
 
 main() // eslint-disable-line
 
-async function main () {
+async function main (): Promise<void> {
   const projectDir = process.cwd()
   const lockfileDir = await findWorkspaceDir(projectDir)
   if (!lockfileDir) {
