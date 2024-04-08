@@ -69,11 +69,12 @@ test('dlx', async () => {
 test('dlx install from git', async () => {
   prepareEmpty()
 
-  const pkg = 'shelljs/shx#61aca968cd7afc712ca61a4fc4ec3201e3770dc7'
+  const pkg = 'shelljs/shx#0dcbb9d1022037268959f8b706e0f06a6fd43fde'
 
   await dlx.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
+    storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
   }, [pkg, 'touch', 'foo'])

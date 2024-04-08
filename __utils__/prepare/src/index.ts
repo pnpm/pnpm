@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import { assertProject, type Modules, type Project } from '@pnpm/assert-project'
 import { type ProjectManifest } from '@pnpm/types'
-import uniqueString from 'unique-string'
 import { sync as writeJson5File } from 'write-json5-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import writePkg from 'write-pkg'
@@ -12,7 +11,17 @@ export type ManifestFormat = 'JSON' | 'JSON5' | 'YAML'
 
 // The testing folder should be outside of the project to avoid lookup in the project's node_modules
 // Not using the OS temp directory due to issues on Windows CI.
-const tmpPath = path.join(__dirname, `../../../../pnpm_tmp/${uniqueString()}`)
+const tmpBaseDir = path.join(__dirname, '../../../../pnpm_tmp')
+
+function getFilesCountInDir (dir: string): number {
+  try {
+    return fs.readdirSync(dir).length
+  } catch {
+    return 0
+  }
+}
+
+const tmpPath = path.join(tmpBaseDir, `${getFilesCountInDir(tmpBaseDir).toString()}_${process.pid.toString()}`)
 
 let dirNumber = 0
 
