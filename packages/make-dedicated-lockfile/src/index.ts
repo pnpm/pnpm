@@ -13,7 +13,7 @@ import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import pickBy from 'ramda/src/pickBy'
 import renameOverwrite from 'rename-overwrite'
 
-export async function makeDedicatedLockfile (lockfileDir: string, projectDir: string) {
+export async function makeDedicatedLockfile (lockfileDir: string, projectDir: string): Promise<void> {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
   if (lockfile == null) {
     throw new Error('no lockfile found')
@@ -72,7 +72,7 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   }
 }
 
-function projectSnapshotWithoutLinkedDeps (projectSnapshot: ProjectSnapshot) {
+function projectSnapshotWithoutLinkedDeps (projectSnapshot: ProjectSnapshot): ProjectSnapshot {
   const newProjectSnapshot: ProjectSnapshot = {
     specifiers: projectSnapshot.specifiers,
   }
