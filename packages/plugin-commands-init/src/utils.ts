@@ -20,7 +20,7 @@ export function personToString (person: Person): string {
   return name + email + url
 }
 
-export function workWithInitModule (localConfig: Record<string, string>) {
+export function workWithInitModule (localConfig: Record<string, string>): Record<string, string> {
   const { initModule, ...restConfig } = localConfig
   if (initModule) {
     const filePath = path.resolve(localConfig.initModule)
@@ -34,7 +34,7 @@ export function workWithInitModule (localConfig: Record<string, string>) {
   return restConfig
 }
 
-export function workWithInitConfig (localConfig: Record<string, string>) {
+export function workWithInitConfig (localConfig: Record<string, string>): Record<string, string> {
   const packageJson: Record<string, string> = {}
   const authorInfo: Record<string, string> = {}
   for (const localConfigKey in localConfig) {
