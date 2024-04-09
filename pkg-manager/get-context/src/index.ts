@@ -306,7 +306,7 @@ async function purgeModulesDirsOfImporter (
     virtualStoreDir: string
   },
   importer: ImporterToPurge
-) {
+): Promise<void> {
   return purgeModulesDirsOfImporters(opts, [importer])
 }
 
@@ -316,7 +316,7 @@ async function purgeModulesDirsOfImporters (
     virtualStoreDir: string
   },
   importers: ImporterToPurge[]
-) {
+): Promise<void> {
   if (opts.confirmModulesPurge ?? true) {
     const confirmed = await enquirer.prompt({
       type: 'confirm',
@@ -346,7 +346,7 @@ async function purgeModulesDirsOfImporters (
   }))
 }
 
-async function removeContentsOfDir (dir: string, virtualStoreDir: string) {
+async function removeContentsOfDir (dir: string, virtualStoreDir: string): Promise<void> {
   const items = await fs.readdir(dir)
   await Promise.all(items.map(async (item) => {
     // The non-pnpm related hidden files are kept
@@ -362,11 +362,11 @@ async function removeContentsOfDir (dir: string, virtualStoreDir: string) {
   }))
 }
 
-function dirsAreEqual (dir1: string, dir2: string) {
+function dirsAreEqual (dir1: string, dir2: string): boolean {
   return path.relative(dir1, dir2) === ''
 }
 
-function stringifyIncludedDeps (included: IncludedDependencies) {
+function stringifyIncludedDeps (included: IncludedDependencies): string {
   return DEPENDENCIES_FIELDS.filter((depsField) => included[depsField]).join(', ')
 }
 
@@ -551,7 +551,7 @@ function getExtraNodePaths (
     nodeLinker: 'isolated' | 'hoisted' | 'pnp'
     virtualStoreDir: string
   }
-) {
+): string[] {
   if (extendNodePath && nodeLinker === 'isolated' && hoistPattern?.length) {
     return [path.join(virtualStoreDir, 'node_modules')]
   }
