@@ -9,7 +9,7 @@ import {
 } from '@pnpm/store-connection-manager'
 import gfs from '@pnpm/graceful-fs'
 import { install, type InstallOptions } from '@pnpm/core'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type Project } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
@@ -24,6 +24,8 @@ import { parseSyml } from '@yarnpkg/parsers'
 import exists from 'path-exists'
 import { recursive } from '../recursive'
 import { yarnLockFileKeyNormalizer } from './yarnUtil'
+import pick from 'ramda/src/pick'
+import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 
 interface NpmPackageLock {
   dependencies: LockedPackagesMap
@@ -73,15 +75,22 @@ interface YarnLock2Struct {
   object: YarnPackageLock
 }
 
-export const rcOptionsTypes = cliOptionsTypes
+export function rcOptionsTypes () {
+  return pick([
+    'reporter',
+  ], allTypes)
+}
 
 export function cliOptionsTypes () {
-  return {}
+  return rcOptionsTypes()
 }
 
 export function help () {
   return renderHelp({
     description: `Generates ${WANTED_LOCKFILE} from an npm package-lock.json (or npm-shrinkwrap.json, yarn.lock) file.`,
+    descriptionLists: [
+      OUTPUT_OPTIONS,
+    ],
     url: docsUrl('import'),
     usages: [
       'pnpm import',
