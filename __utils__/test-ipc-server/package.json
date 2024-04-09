@@ -10,7 +10,7 @@
   "devDependencies": {
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
-    "@types/node": "^18.19.24",
+    "@types/node": "^18.19.31",
     "execa": "npm:safe-execa@0.1.2"
   },
   "scripts": {

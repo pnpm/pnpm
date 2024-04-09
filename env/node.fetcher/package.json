@@ -42,7 +42,7 @@
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "adm-zip": "^0.5.12",
-    "detect-libc": "^2.0.2",
+    "detect-libc": "^2.0.3",
     "rename-overwrite": "^5.0.0",
     "tempy": "^1.0.1"
   },

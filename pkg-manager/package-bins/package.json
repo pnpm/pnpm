@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@pnpm/package-bins": "workspace:*",
-    "@types/node": "^18.19.24"
+    "@types/node": "^18.19.31"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
