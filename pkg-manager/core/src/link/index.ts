@@ -46,7 +46,7 @@ export async function link (
   linkFromPkgs: Array<{ alias: string, path: string } | string>,
   destModules: string,
   maybeOpts: LinkFunctionOptions
-) {
+): Promise<ProjectManifest> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)

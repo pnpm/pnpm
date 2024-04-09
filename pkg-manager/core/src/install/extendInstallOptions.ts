@@ -150,7 +150,7 @@ export type InstallOptions =
   & Partial<StrictInstallOptions>
   & Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
 
-const defaults = (opts: InstallOptions) => {
+const defaults = (opts: InstallOptions): StrictInstallOptions => {
   const packageManager = opts.packageManager ?? {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,

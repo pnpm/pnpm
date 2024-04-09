@@ -54,7 +54,7 @@ export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptio
   return extendedOpts
 }
 
-async function defaults (opts: LinkOptions) {
+async function defaults (opts: LinkOptions): Promise<StrictLinkOptions> {
   const dir = opts.dir ?? process.cwd()
   return {
     binsDir: path.join(dir, 'node_modules', '.bin'),

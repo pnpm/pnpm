@@ -30,7 +30,7 @@ export async function allProjectsAreUpToDate (
     workspacePackages: WorkspacePackages
     lockfileDir: string
   }
-) {
+): Promise<boolean> {
   const manifestsByDir = opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {}
   const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
     autoInstallPeers: opts.autoInstallPeers,
@@ -55,7 +55,7 @@ export async function allProjectsAreUpToDate (
   })
 }
 
-function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages) {
+function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages): Record<string, DependencyManifest> {
   const workspacePackagesByDirectory: Record<string, DependencyManifest> = {}
   Object.keys(workspacePackages || {}).forEach((pkgName) => {
     Object.keys(workspacePackages[pkgName] || {}).forEach((pkgVersion) => {
@@ -84,7 +84,7 @@ async function linkedPackagesAreUpToDate (
     manifest: ProjectManifest
     snapshot: ProjectSnapshot
   }
-) {
+): Promise<boolean> {
   return pEvery(
     DEPENDENCIES_FIELDS,
     (depField) => {
@@ -139,7 +139,7 @@ async function linkedPackagesAreUpToDate (
   )
 }
 
-async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageSnapshot | undefined) {
+async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageSnapshot | undefined): Promise<boolean> {
   if (!pkgSnapshot) return false
   const localDepDir = path.join(lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
   const manifest = await safeReadPackageJsonFromDir(localDepDir)
@@ -173,7 +173,7 @@ async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageS
   return true
 }
 
-function getVersionRange (spec: string) {
+function getVersionRange (spec: string): string {
   if (spec.startsWith('workspace:')) return spec.slice(10)
   if (spec.startsWith('npm:')) {
     spec = spec.slice(4)
@@ -184,7 +184,7 @@ function getVersionRange (spec: string) {
   return spec
 }
 
-function hasLocalTarballDepsInRoot (importer: ProjectSnapshot) {
+function hasLocalTarballDepsInRoot (importer: ProjectSnapshot): boolean {
   return any(refIsLocalTarball, Object.values(importer.dependencies ?? {})) ||
     any(refIsLocalTarball, Object.values(importer.devDependencies ?? {})) ||
     any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))

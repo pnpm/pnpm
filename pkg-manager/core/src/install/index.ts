@@ -141,13 +141,15 @@ export interface UnlinkSomeDepsMutation {
 
 export type DependenciesMutation = InstallDepsMutation | InstallSomeDepsMutation | UninstallSomeDepsMutation | UnlinkDepsMutation | UnlinkSomeDepsMutation
 
+type Opts = Omit<InstallOptions, 'allProjects'> & {
+  preferredVersions?: PreferredVersions
+  pruneDirectDependencies?: boolean
+} & InstallMutationOptions
+
 export async function install (
   manifest: ProjectManifest,
-  opts: Omit<InstallOptions, 'allProjects'> & {
-    preferredVersions?: PreferredVersions
-    pruneDirectDependencies?: boolean
-  } & InstallMutationOptions
-) {
+  opts: Opts
+): Promise<ProjectManifest> {
   const rootDir = opts.dir ?? process.cwd()
   const { updatedProjects: projects } = await mutateModules(
     [
@@ -697,7 +699,12 @@ Note that in CI environments, this setting is enabled by default.`,
   }
 }
 
-async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string) {
+interface PatchHash {
+  hash: string
+  path: string
+}
+
+async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string): Promise<Record<string, PatchHash>> {
   return pMapValues(async (patchFilePath) => {
     return {
       hash: await createBase32HashFromFile(patchFilePath),
@@ -705,6 +712,15 @@ async function calcPatchHashes (patches: Record<string, string>, lockfileDir: st
     }
   }, patches)
 }
+
+type ChangedField =
+  | 'patchedDependencies'
+  | 'overrides'
+  | 'packageExtensionsChecksum'
+  | 'ignoredOptionalDependencies'
+  | 'settings.autoInstallPeers'
+  | 'settings.excludeLinksFromLockfile'
+  | 'pnpmfileChecksum'
 
 function getOutdatedLockfileSetting (
   lockfile: Lockfile,
@@ -727,7 +743,7 @@ function getOutdatedLockfileSetting (
     excludeLinksFromLockfile?: boolean
     pnpmfileChecksum?: string
   }
-) {
+): ChangedField | null {
   if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
     return 'overrides'
   }
@@ -752,22 +768,22 @@ function getOutdatedLockfileSetting (
   return null
 }
 
-export function createObjectChecksum (obj: Record<string, unknown>) {
+export function createObjectChecksum (obj: Record<string, unknown>): string {
   const s = JSON.stringify(sortKeys(obj, { deep: true }))
   return crypto.createHash('md5').update(s).digest('hex')
 }
 
-function cacheExpired (prunedAt: string, maxAgeInMinutes: number) {
+function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
   return ((Date.now() - new Date(prunedAt).valueOf()) / (1000 * 60)) > maxAgeInMinutes
 }
 
-async function isExternalLink (storeDir: string, modules: string, pkgName: string) {
+async function isExternalLink (storeDir: string, modules: string, pkgName: string): Promise<boolean> {
   const link = await isInnerLink(modules, pkgName)
 
   return !link.isInner
 }
 
-function pkgHasDependencies (manifest: ProjectManifest) {
+function pkgHasDependencies (manifest: ProjectManifest): boolean {
   return Boolean(
     (Object.keys(manifest.dependencies ?? {}).length > 0) ||
     Object.keys(manifest.devDependencies ?? {}).length ||
@@ -777,7 +793,7 @@ function pkgHasDependencies (manifest: ProjectManifest) {
 
 // If the specifier is new, the old resolution probably does not satisfy it anymore.
 // By removing these resolutions we ensure that they are resolved again using the new specs.
-function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDeps: WantedDependency[]) {
+function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDeps: WantedDependency[]): void {
   if (!importer.specifiers) return
   importer.dependencies = importer.dependencies ?? {}
   importer.devDependencies = importer.devDependencies ?? {}
@@ -793,7 +809,7 @@ function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDep
   }
 }
 
-function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: Lockfile) {
+function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: Lockfile): void {
   // Similar to the forgetResolutionsOfPrevWantedDeps function above, we can
   // delete existing resolutions in importers to make sure they're resolved
   // again.
@@ -824,7 +840,7 @@ export async function addDependenciesToPackage (
     pinnedVersion?: 'major' | 'minor' | 'patch'
     targetDependenciesField?: DependenciesField
   } & InstallMutationOptions
-) {
+): Promise<ProjectManifest> {
   const rootDir = opts.dir ?? process.cwd()
   const { updatedProjects: projects } = await mutateModules(
     [
@@ -1424,7 +1440,7 @@ async function linkAllBins (
     optional: boolean
     warn: (message: string) => void
   }
-) {
+): Promise<void[]> {
   return unnest(await Promise.all(
     depNodes.map(async depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))
   ))
