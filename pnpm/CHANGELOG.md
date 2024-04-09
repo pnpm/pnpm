@@ -1,6 +1,6 @@
 # pnpm
 
-## 9.0.0-beta.3
+## 9.0.0-rc.0
 
 ### Major Changes
 
@@ -103,6 +103,8 @@
 - Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped [#7714](https://github.com/pnpm/pnpm/pull/7714).
 
 - The checksum of the `.pnpmfile.cjs` is saved into the lockfile. If the pnpmfile gets modified, the lockfile is reanalyzed to apply the changes [#7662](https://github.com/pnpm/pnpm/pull/7662).
+
+- Added cache for `pnpm dlx` [#5277](https://github.com/pnpm/pnpm/issues/5277).
 
 ### Patch Changes
 
