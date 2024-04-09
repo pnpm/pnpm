@@ -46,6 +46,7 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/command": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
+    "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
@@ -66,6 +67,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "realpath-missing": "^1.1.0",
     "render-help": "^1.0.3",
+    "symlink-dir": "^5.2.1",
     "which": "npm:@pnpm/which@^3.0.1",
     "write-json-file": "^4.3.0"
   },

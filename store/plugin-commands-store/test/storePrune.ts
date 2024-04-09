@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
+import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { store } from '@pnpm/plugin-commands-store'
-import { prepare } from '@pnpm/prepare'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
@@ -47,6 +48,7 @@ test('remove unreferenced packages', async () => {
     reporter,
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -70,6 +72,7 @@ test('remove unreferenced packages', async () => {
     reporter,
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   expect(reporter).not.toHaveBeenCalledWith(
@@ -105,6 +108,7 @@ test.skip('remove packages that are used by project that no longer exist', async
     reporter,
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -143,6 +147,7 @@ test('keep dependencies used by others', async () => {
     registries: { default: REGISTRY },
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   project.storeHasNot('camelcase-keys', '3.0.0')
@@ -167,6 +172,7 @@ test('keep dependency used by package', async () => {
     registries: { default: REGISTRY },
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   project.storeHas('is-positive', '3.1.0')
@@ -189,6 +195,7 @@ test('prune will skip scanning non-directory in storeDir', async () => {
     registries: { default: REGISTRY },
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 })
 
@@ -215,6 +222,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
     reporter,
     storeDir,
     userConfig: {},
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -252,6 +260,7 @@ test('prune removes alien files from the store if the --force flag is used', asy
     storeDir,
     userConfig: {},
     force: true,
+    dlxCacheMaxAge: Infinity,
   }, ['prune'])
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -260,4 +269,71 @@ test('prune removes alien files from the store if the --force flag is used', asy
     })
   )
   expect(fs.existsSync(alienDir)).toBeFalsy()
+})
+
+function createSampleDlxCacheLinkTarget (dirPath: string): void {
+  fs.mkdirSync(path.join(dirPath, 'node_modules', '.pnpm'), { recursive: true })
+  fs.mkdirSync(path.join(dirPath, 'node_modules', '.bin'), { recursive: true })
+  fs.writeFileSync(path.join(dirPath, 'node_modules', '.modules.yaml'), '')
+  fs.writeFileSync(path.join(dirPath, 'package.json'), '')
+  fs.writeFileSync(path.join(dirPath, 'pnpm-lock.yaml'), '')
+}
+
+function createSampleDlxCacheItem (cacheDir: string, cmd: string, now: Date, age: number): void {
+  const hash = createBase32Hash(cmd)
+  const newDate = new Date(now.getTime() - age * 60_000)
+  const timeError = 432 // just an arbitrary amount, nothing is special about this number
+  const pid = 71014 // just an arbitrary number to represent pid
+  const targetName = `${(newDate.getTime() - timeError).toString(16)}-${pid.toString(16)}`
+  const linkTarget = path.join(cacheDir, 'dlx', hash, targetName)
+  const linkPath = path.join(cacheDir, 'dlx', hash, 'pkg')
+  createSampleDlxCacheLinkTarget(linkTarget)
+  fs.symlinkSync(linkTarget, linkPath, 'junction')
+  fs.lutimesSync(linkPath, newDate, newDate)
+}
+
+function createSampleDlxCacheFsTree (cacheDir: string, now: Date, ageTable: Record<string, number>): void {
+  for (const [cmd, age] of Object.entries(ageTable)) {
+    createSampleDlxCacheItem(cacheDir, cmd, now, age)
+  }
+}
+
+test('prune removes cache directories that outlives dlx-cache-max-age', async () => {
+  prepareEmpty()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  fs.mkdirSync(path.join(storeDir, 'v3', 'files'), { recursive: true })
+  fs.mkdirSync(path.join(storeDir, 'v3', 'tmp'), { recursive: true })
+
+  const now = new Date()
+
+  createSampleDlxCacheFsTree(cacheDir, now, {
+    foo: 1,
+    bar: 5,
+    baz: 20,
+  })
+
+  await store.handler({
+    cacheDir,
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    rawConfig: {
+      registry: REGISTRY,
+    },
+    registries: { default: REGISTRY },
+    reporter () {},
+    storeDir,
+    userConfig: {},
+    dlxCacheMaxAge: 7,
+  }, ['prune'])
+
+  expect(
+    fs.readdirSync(path.join(cacheDir, 'dlx'))
+      .sort()
+  ).toStrictEqual(
+    ['foo', 'bar']
+      .map(createBase32Hash)
+      .sort()
+  )
 })

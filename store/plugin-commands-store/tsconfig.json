@@ -34,6 +34,9 @@
       "path": "../../lockfile/lockfile-utils"
     },
     {
+      "path": "../../packages/crypto.base32-hash"
+    },
+    {
       "path": "../../packages/dependency-path"
     },
     {

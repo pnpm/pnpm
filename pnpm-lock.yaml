@@ -298,9 +298,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      unique-string:
-        specifier: ^2.0.0
-        version: 2.0.0
       write-json5-file:
         specifier: ^3.1.0
         version: 3.1.0
@@ -1381,6 +1378,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/crypto.base32-hash':
+        specifier: workspace:*
+        version: link:../../packages/crypto.base32-hash
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -1441,6 +1441,9 @@ importers:
       render-help:
         specifier: ^1.0.3
         version: 1.0.3
+      symlink-dir:
+        specifier: ^5.2.1
+        version: 5.2.1
       which:
         specifier: npm:@pnpm/which@^3.0.1
         version: '@pnpm/which@3.0.1'
@@ -6058,6 +6061,9 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
+      '@pnpm/crypto.base32-hash':
+        specifier: workspace:*
+        version: link:../../packages/crypto.base32-hash
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file

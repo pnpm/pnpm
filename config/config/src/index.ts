@@ -92,6 +92,7 @@ export const types = Object.assign({
   loglevel: ['silent', 'error', 'warn', 'info', 'debug'],
   maxsockets: Number,
   'modules-cache-max-age': Number,
+  'dlx-cache-max-age': Number,
   'modules-dir': String,
   'network-concurrency': Number,
   'node-linker': ['pnp', 'isolated', 'hoisted'],
@@ -238,6 +239,7 @@ export async function getConfig (
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
+    'dlx-cache-max-age': 24 * 60, // 1 day
     'node-linker': 'isolated',
     'package-lock': npmDefaults['package-lock'],
     pending: false,
