@@ -219,7 +219,7 @@ export async function mutateModulesInSingleProject (
   return result.updatedProjects[0]
 }
 
-interface MutateModulesResult {
+export interface MutateModulesResult {
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
 }

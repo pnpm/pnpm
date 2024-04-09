@@ -118,7 +118,7 @@ export type InstallDepsOptions = Pick<Config,
 export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
-) {
+): Promise<void> {
   if (opts.workspace) {
     if (opts.latest) {
       throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
@@ -338,7 +338,7 @@ when running add/update with the --workspace option')
   }
 }
 
-function selectProjectByDir (projects: Project[], searchedDir: string) {
+function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
   const project = projects.find(({ dir }) => path.relative(dir, searchedDir) === '')
   if (project == null) return undefined
   return { [searchedDir]: { dependencies: [], package: project } }

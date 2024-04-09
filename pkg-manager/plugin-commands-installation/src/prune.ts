@@ -7,7 +7,7 @@ import * as install from './install'
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return pick([
     'dev',
     'optional',
@@ -18,7 +18,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['prune']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Removes extraneous packages',
     descriptionLists: [
@@ -46,7 +46,7 @@ export function help () {
 
 export async function handler (
   opts: install.InstallCommandOptions
-) {
+): Promise<void> {
   return install.handler({
     ...opts,
     modulesCacheMaxAge: 0,

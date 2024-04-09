@@ -27,6 +27,7 @@ import {
   type InstallOptions,
   type MutatedProject,
   mutateModules,
+  type MutateModulesResult,
   type ProjectOptions,
   type UpdateMatchingFunction,
   type WorkspacePackages,
@@ -415,7 +416,7 @@ export async function recursive (
   return true
 }
 
-async function unlink (manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+async function unlink (manifest: ProjectManifest, opts: any): Promise<MutateModulesResult> { // eslint-disable-line @typescript-eslint/no-explicit-any
   return mutateModules(
     [
       {
@@ -427,7 +428,7 @@ async function unlink (manifest: ProjectManifest, opts: any) { // eslint-disable
   )
 }
 
-async function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+async function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest, opts: any): Promise<MutateModulesResult> { // eslint-disable-line @typescript-eslint/no-explicit-any
   return mutateModules(
     [
       {
@@ -443,7 +444,7 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest,
 function calculateRepositoryRoot (
   workspaceDir: string,
   projectDirs: string[]
-) {
+): string {
   // assume repo root is workspace dir
   let relativeRepoRoot = '.'
   for (const rootDir of projectDirs) {
@@ -463,7 +464,7 @@ export function matchDependencies (
   match: (input: string) => string | null,
   manifest: ProjectManifest,
   include: IncludedDependencies
-) {
+): string[] {
   const deps = Object.keys(filterDependenciesByType(manifest, include))
   const matchedDeps = []
   for (const dep of deps) {
@@ -530,7 +531,7 @@ function getManifestsByPath (projects: Project[]): Record<string, Omit<Project, 
   }, {} as Record<string, Omit<Project, 'dir'>>)
 }
 
-function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'ignoredPackages'>) {
+function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'ignoredPackages'>): Array<{ rootDir: string }> {
   let rootDirs = Object.keys(opts.selectedProjectsGraph)
   if (opts.ignoredPackages != null) {
     rootDirs = rootDirs.filter((rootDir) => !opts.ignoredPackages!.has(rootDir))
