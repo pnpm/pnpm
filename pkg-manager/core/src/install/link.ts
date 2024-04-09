@@ -448,8 +448,8 @@ async function linkAllPkgs (
     lockfileDir: string
     sideEffectsCacheRead: boolean
   }
-): Promise<undefined[]> {
-  return Promise.all(
+): Promise<void> {
+  await Promise.all(
     depNodes.map(async (depNode): Promise<undefined> => {
       const { files } = await depNode.fetching()
 
