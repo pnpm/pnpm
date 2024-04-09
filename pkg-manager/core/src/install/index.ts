@@ -74,7 +74,6 @@ import isEmpty from 'ramda/src/isEmpty'
 import pickBy from 'ramda/src/pickBy'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
-import unnest from 'ramda/src/unnest'
 import sortKeys from 'sort-keys'
 import { parseWantedDependencies } from '../parseWantedDependencies'
 import { removeDeps } from '../uninstall/removeDeps'
@@ -1440,8 +1439,8 @@ async function linkAllBins (
     optional: boolean
     warn: (message: string) => void
   }
-): Promise<void[]> {
-  return unnest(await Promise.all(
+): Promise<void> {
+  await Promise.all(
     depNodes.map(async depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))
-  ))
+  )
 }
