@@ -1,5 +1,29 @@
 # @pnpm/node.fetcher
 
+## 4.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+  - @pnpm/tarball-fetcher@19.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/create-cafs-store@7.0.0
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/pick-fetcher@3.0.0
+
 ## 3.0.39
 
 ### Patch Changes

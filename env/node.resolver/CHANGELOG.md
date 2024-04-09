@@ -1,5 +1,18 @@
 # @pnpm/node.resolver
 
+## 3.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/node.fetcher@4.0.0
+
 ## 2.0.40
 
 ### Patch Changes

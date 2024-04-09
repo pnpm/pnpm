@@ -1,5 +1,32 @@
 # @pnpm/package-store
 
+## 20.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [11d9ebd]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/worker@1.0.0
+  - @pnpm/package-requester@25.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/create-cafs-store@7.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/store.cafs@3.0.0
+
 ## 19.0.15
 
 ### Patch Changes

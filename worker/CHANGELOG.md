@@ -1,5 +1,35 @@
 # @pnpm/worker
 
+## 1.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- 3ded840: Print the right error code when a package fails to be added to the store [#7679](https://github.com/pnpm/pnpm/issues/7679).
+- 11d9ebd: Always add a name and version field to the index files in the store [#7115](https://github.com/pnpm/pnpm/issues/7115).
+- 36dcaa0: When installing git-hosted dependencies, only pick the files that would be packed with the package [#7638](https://github.com/pnpm/pnpm/pull/7638).
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [0e6b757]
+- Updated dependencies [730929e]
+  - @pnpm/error@6.0.0
+  - @pnpm/create-cafs-store@7.0.0
+  - @pnpm/symlink-dependency@8.0.0
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/cafs-types@5.0.0
+  - @pnpm/graceful-fs@4.0.0
+  - @pnpm/store.cafs@3.0.0
+  - @pnpm/exec.pkg-requires-build@1.0.0
+
 ## 0.3.14
 
 ### Patch Changes

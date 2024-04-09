@@ -1,5 +1,23 @@
 # @pnpm/real-hoist
 
+## 3.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [d381a60]
+- Updated dependencies [98a1266]
+  - @pnpm/error@6.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+
 ## 2.0.19
 
 ### Patch Changes

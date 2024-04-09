@@ -1,5 +1,41 @@
 # @pnpm/outdated
 
+## 14.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [aa33269]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [0963390]
+- Updated dependencies [d381a60]
+- Updated dependencies [f67ad31]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/client@11.0.0
+  - @pnpm/types@10.0.0
+  - @pnpm/hooks.read-package-hook@4.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/npm-resolver@19.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/pick-registry-for-package@6.0.0
+  - @pnpm/manifest-utils@6.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/matcher@6.0.0
+
 ## 13.0.42
 
 ### Patch Changes

@@ -1,5 +1,48 @@
 # @pnpm/plugin-commands-store
 
+## 9.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- 98566d9: Added cache for `pnpm dlx` [#5277](https://github.com/pnpm/pnpm/issues/5277).
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [19c4b4f]
+- Updated dependencies [d381a60]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+- Updated dependencies [98a1266]
+  - @pnpm/store-connection-manager@8.0.0
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/pick-registry-for-package@6.0.0
+  - @pnpm/parse-wanted-dependency@6.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/normalize-registries@6.0.0
+  - @pnpm/get-context@11.0.0
+  - @pnpm/store-path@9.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/store.cafs@3.0.0
+
 ## 8.1.17
 
 ### Patch Changes

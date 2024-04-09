@@ -1,5 +1,58 @@
 # @pnpm/plugin-commands-publishing
 
+## 8.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 7733f3a: Added support for registry-scoped SSL configurations (cert, key, and ca). Three new settings supported: `<registryURL>:certfile`, `<registryURL>:keyfile`, and `<registryURL>:ca`. For instance:
+
+  ```
+  //registry.mycomp.com/:certfile=server-cert.pem
+  //registry.mycomp.com/:keyfile=server-key.pem
+  //registry.mycomp.com/:cafile=client-cert.pem
+  ```
+
+  Related issue: [#7427](https://github.com/pnpm/pnpm/issues/7427).
+  Related PR: [#7626](https://github.com/pnpm/pnpm/pull/7626).
+
+### Patch Changes
+
+- f7537b8: It should be possible to publish a tarball with custom dist-tag [#7845](https://github.com/pnpm/pnpm/issues/7845).
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [82aac81]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [e70a829]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/client@11.0.0
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/pick-registry-for-package@6.0.0
+  - @pnpm/exportable-manifest@6.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/package-bins@9.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/sort-packages@6.0.0
+  - @pnpm/network.auth-header@3.0.0
+  - @pnpm/git-utils@2.0.0
+  - @pnpm/lifecycle@17.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/run-npm@7.0.0
+  - @pnpm/fs.packlist@2.0.0
+
 ## 7.5.3
 
 ### Patch Changes

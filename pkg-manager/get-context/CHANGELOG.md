@@ -1,5 +1,30 @@
 # @pnpm/get-context
 
+## 11.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- 19c4b4f: When purging multiple node_modules folders, pnpm will no longer print multiple prompts simultaneously.
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [c692f80]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [f67ad31]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/read-projects-context@9.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/core-loggers@10.0.0
+
 ## 10.0.11
 
 ### Patch Changes

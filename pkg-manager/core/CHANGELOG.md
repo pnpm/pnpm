@@ -1,5 +1,103 @@
 # @pnpm/core
 
+## 14.0.0
+
+### Major Changes
+
+- aa33269: Peer dependency rules should only affect reporting, not data in the lockfile.
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 7733f3a: Added support for registry-scoped SSL configurations (cert, key, and ca). Three new settings supported: `<registryURL>:certfile`, `<registryURL>:keyfile`, and `<registryURL>:ca`. For instance:
+
+  ```
+  //registry.mycomp.com/:certfile=server-cert.pem
+  //registry.mycomp.com/:keyfile=server-key.pem
+  //registry.mycomp.com/:cafile=client-cert.pem
+  ```
+
+  Related issue: [#7427](https://github.com/pnpm/pnpm/issues/7427).
+  Related PR: [#7626](https://github.com/pnpm/pnpm/pull/7626).
+
+- 086b69c: The checksum of the `.pnpmfile.cjs` is saved into the lockfile. If the pnpmfile gets modified, the lockfile is reanalyzed to apply the changes [#7662](https://github.com/pnpm/pnpm/pull/7662).
+- 9f8948c: Add a new option autoInstallPeersFromHighestMatch that makes pnpm install the highest version satisfying one of the peer dependencies even if the peer dependency ranges don't overlap.
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- 0fa26f4: Correctly detect the active Node.js version during headless installation [#7801](https://github.com/pnpm/pnpm/pull/7801).
+- e5fbac3: Don't print an unnecessary warning when adding new dependencies to a project that uses hoisted node_modules.
+- Updated dependencies [1b26210]
+- Updated dependencies [7733f3a]
+- Updated dependencies [977060f]
+- Updated dependencies [aa33269]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [11d9ebd]
+- Updated dependencies [086b69c]
+- Updated dependencies [0963390]
+- Updated dependencies [9f8948c]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [19c4b4f]
+- Updated dependencies [d381a60]
+- Updated dependencies [f5eadba]
+- Updated dependencies [98a1266]
+- Updated dependencies [7edb917]
+- Updated dependencies [82aac81]
+- Updated dependencies [f67ad31]
+- Updated dependencies [732430a]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+- Updated dependencies [22c7acc]
+- Updated dependencies [8eddd21]
+- Updated dependencies [98a1266]
+  - @pnpm/build-modules@12.0.0
+  - @pnpm/resolve-dependencies@32.0.0
+  - @pnpm/types@10.0.0
+  - @pnpm/hooks.read-package-hook@4.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/worker@1.0.0
+  - @pnpm/package-requester@25.0.0
+  - @pnpm/modules-cleaner@15.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/headless@23.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/parse-wanted-dependency@6.0.0
+  - @pnpm/which-version-is-pinned@6.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/normalize-registries@6.0.0
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/manifest-utils@6.0.0
+  - @pnpm/filter-lockfile@9.0.0
+  - @pnpm/lockfile-to-pnp@4.0.0
+  - @pnpm/lockfile-walker@8.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/prune-lockfile@6.0.0
+  - @pnpm/calc-dep-state@6.0.0
+  - @pnpm/get-context@11.0.0
+  - @pnpm/remove-bins@6.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/symlink-dependency@8.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/link-bins@10.0.0
+  - @pnpm/deps.graph-sequencer@2.0.0
+  - @pnpm/read-modules-dir@7.0.0
+  - @pnpm/hoist@9.0.0
+  - @pnpm/matcher@6.0.0
+  - @pnpm/lifecycle@17.0.0
+  - @pnpm/hooks.types@2.0.0
+  - @pnpm/lockfile.preferred-versions@1.0.0
+
 ## 13.4.0
 
 ### Minor Changes

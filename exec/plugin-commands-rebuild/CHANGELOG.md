@@ -1,5 +1,75 @@
 # @pnpm/plugin-commands-rebuild
 
+## 11.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 7733f3a: Added support for registry-scoped SSL configurations (cert, key, and ca). Three new settings supported: `<registryURL>:certfile`, `<registryURL>:keyfile`, and `<registryURL>:ca`. For instance:
+
+  ```
+  //registry.mycomp.com/:certfile=server-cert.pem
+  //registry.mycomp.com/:keyfile=server-key.pem
+  //registry.mycomp.com/:cafile=client-cert.pem
+  ```
+
+  Related issue: [#7427](https://github.com/pnpm/pnpm/issues/7427).
+  Related PR: [#7626](https://github.com/pnpm/pnpm/pull/7626).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [11d9ebd]
+- Updated dependencies [086b69c]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [19c4b4f]
+- Updated dependencies [d381a60]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [82aac81]
+- Updated dependencies [2b89155]
+- Updated dependencies [27a96a8]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+- Updated dependencies [98a1266]
+  - @pnpm/store-connection-manager@8.0.0
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/worker@1.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/normalize-registries@6.0.0
+  - @pnpm/lockfile-walker@8.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/calc-dep-state@6.0.0
+  - @pnpm/get-context@11.0.0
+  - @pnpm/workspace.find-packages@2.0.0
+  - @pnpm/sort-packages@6.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/link-bins@10.0.0
+  - @pnpm/deps.graph-sequencer@2.0.0
+  - @pnpm/lifecycle@17.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/store.cafs@3.0.0
+
 ## 10.0.17
 
 ### Patch Changes

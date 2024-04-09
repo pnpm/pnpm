@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/graceful-fs",
-  "version": "3.2.0",
+  "version": "4.0.0",
   "description": "Promisified graceful-fs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

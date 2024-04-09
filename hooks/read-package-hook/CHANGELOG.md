@@ -1,5 +1,29 @@
 # @pnpm/hooks.read-package-hook
 
+## 4.0.0
+
+### Major Changes
+
+- aa33269: Peer dependency rules should only affect reporting, not data in the lockfile.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- 0963390: Link overrides should be able to use absolute path [#7749](https://github.com/pnpm/pnpm/pull/7749).
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/parse-wanted-dependency@6.0.0
+  - @pnpm/parse-overrides@5.0.0
+  - @pnpm/matcher@6.0.0
+
 ## 3.0.10
 
 ### Patch Changes

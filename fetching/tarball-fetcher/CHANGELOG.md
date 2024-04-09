@@ -1,5 +1,44 @@
 # @pnpm/tarball-fetcher
 
+## 19.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- b13d2dc: It is now possible to install only a subdirectory from a Git repository.
+
+  For example, `pnpm add github:user/repo#path:packages/foo` will add a dependency from the `packages/foo` subdirectory.
+
+  This new parameter may be combined with other supported parameters separated by `&`. For instance, the next command will install the same package from the `dev` branch: `pnpm add github:user/repo#dev&path:packages/bar`.
+
+  Related issue: [#4765](https://github.com/pnpm/pnpm/issues/4765).
+  Related PR: [#7487](https://github.com/pnpm/pnpm/pull/7487).
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- 3ded840: Print the right error code when a package fails to be added to the store [#7679](https://github.com/pnpm/pnpm/issues/7679).
+- 36dcaa0: When installing git-hosted dependencies, only pick the files that would be packed with the package [#7638](https://github.com/pnpm/pnpm/pull/7638).
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [167ac4d]
+- Updated dependencies [11d9ebd]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+  - @pnpm/error@6.0.0
+  - @pnpm/worker@1.0.0
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/prepare-package@6.0.0
+  - @pnpm/graceful-fs@4.0.0
+  - @pnpm/fs.packlist@2.0.0
+
 ## 18.0.19
 
 ### Patch Changes

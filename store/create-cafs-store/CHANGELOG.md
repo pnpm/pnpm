@@ -1,5 +1,28 @@
 # @pnpm/create-cafs-store
 
+## 7.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [0e6b757]
+- Updated dependencies [730929e]
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/fs.indexed-pkg-importer@6.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/store.cafs@3.0.0
+  - @pnpm/exec.pkg-requires-build@1.0.0
+
 ## 6.0.13
 
 ### Patch Changes

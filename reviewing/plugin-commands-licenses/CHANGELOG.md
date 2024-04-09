@@ -1,5 +1,41 @@
 # @pnpm/plugin-commands-licenses
 
+## 4.0.0
+
+### Major Changes
+
+- f5766d9: `pnpm licenses list` prints license information of all versions of the same package in case different versions use different licenses. The format of the `pnpm licenses list --json` output has been changed [#7528](https://github.com/pnpm/pnpm/pull/7528).
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- 3878ced: Fix `pnpm licenses list --json` command not returning correct paths when run on workspace members
+- Updated dependencies [7733f3a]
+- Updated dependencies [f5766d9]
+- Updated dependencies [3ded840]
+- Updated dependencies [c692f80]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [f67ad31]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/config@21.0.0
+  - @pnpm/license-scanner@3.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/store-path@9.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/command@5.0.0
+
 ## 3.0.14
 
 ### Patch Changes

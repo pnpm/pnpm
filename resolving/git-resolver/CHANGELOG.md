@@ -1,5 +1,31 @@
 # @pnpm/git-resolver
 
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- b13d2dc: It is now possible to install only a subdirectory from a Git repository.
+
+  For example, `pnpm add github:user/repo#path:packages/foo` will add a dependency from the `packages/foo` subdirectory.
+
+  This new parameter may be combined with other supported parameters separated by `&`. For instance, the next command will install the same package from the `dev` branch: `pnpm add github:user/repo#dev&path:packages/bar`.
+
+  Related issue: [#4765](https://github.com/pnpm/pnpm/issues/4765).
+  Related PR: [#7487](https://github.com/pnpm/pnpm/pull/7487).
+
+### Patch Changes
+
+- 985381c: Install gitlab-hosted packages correctly, when they are specified by commit or branch [#7603](https://github.com/pnpm/pnpm/issues/7603).
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [b13d2dc]
+  - @pnpm/fetch@8.0.0
+  - @pnpm/resolver-base@12.0.0
+
 ## 8.0.12
 
 ### Patch Changes

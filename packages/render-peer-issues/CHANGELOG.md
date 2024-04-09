@@ -1,5 +1,26 @@
 # @pnpm/render-peer-issues
 
+## 5.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- aa33269: Peer dependency rules should only affect reporting, not data in the lockfile.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/parse-overrides@5.0.0
+  - @pnpm/matcher@6.0.0
+
 ## 4.0.6
 
 ### Patch Changes

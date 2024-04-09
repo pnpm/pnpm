@@ -1,5 +1,28 @@
 # @pnpm/npm-resolver
 
+## 19.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/resolve-workspace-range@6.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/graceful-fs@4.0.0
+
 ## 18.1.0
 
 ### Minor Changes

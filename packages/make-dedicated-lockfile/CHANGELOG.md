@@ -1,5 +1,30 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.6.0
+
+### Minor Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [3477ee5]
+- Updated dependencies [f67ad31]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/exportable-manifest@6.0.0
+  - @pnpm/find-workspace-dir@7.0.0
+  - @pnpm/prune-lockfile@6.0.0
+  - @pnpm/lockfile-file@9.0.0
+
 ## 0.5.13
 
 ### Patch Changes

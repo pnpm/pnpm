@@ -1,5 +1,26 @@
 # @pnpm/dependency-path
 
+## 3.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 89b396b: createPeersFolderSuffix renamed to createPeersDirSuffix.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Minor Changes
+
+- 98a1266: createPeersDirSuffix may accept dep path.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/crypto.base32-hash@3.0.0
+
 ## 2.1.7
 
 ### Patch Changes

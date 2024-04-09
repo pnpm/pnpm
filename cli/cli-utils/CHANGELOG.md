@@ -1,5 +1,36 @@
 # @pnpm/cli-utils
 
+## 3.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- 3477ee5: pnpm will now check the `package.json` file for a `packageManager` field. If this field is present and specifies a different package manager or a different version of pnpm than the one you're currently using, pnpm will not proceed. This ensures that you're always using the correct package manager and version that the project requires.
+
+  To disable this behaviour, set the `package-manager-strict` setting to `false` or the `COREPACK_ENABLE_STRICT` env variable to `0`.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [aa33269]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/default-reporter@13.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/package-is-installable@9.0.0
+  - @pnpm/manifest-utils@6.0.0
+  - @pnpm/cli-meta@6.0.0
+
 ## 2.1.9
 
 ### Patch Changes

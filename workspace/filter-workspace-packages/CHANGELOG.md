@@ -1,5 +1,21 @@
 # @pnpm/filter-workspace-packages
 
+## 8.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [ca2be03]
+  - @pnpm/error@6.0.0
+  - @pnpm/workspace.find-packages@2.0.0
+  - @pnpm/workspace.pkgs-graph@3.0.0
+  - @pnpm/matcher@6.0.0
+
 ## 7.2.11
 
 ### Patch Changes

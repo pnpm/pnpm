@@ -1,5 +1,21 @@
 # @pnpm/remove-bins
 
+## 6.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/package-bins@9.0.0
+  - @pnpm/core-loggers@10.0.0
+
 ## 5.0.7
 
 ### Patch Changes

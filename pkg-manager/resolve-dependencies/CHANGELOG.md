@@ -1,5 +1,118 @@
 # @pnpm/resolve-dependencies
 
+## 32.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- 98a1266: Peer dependencies of peer dependencies are now resolved correctly. When peer dependencies have peer dependencies of their own, the peer dependencies are grouped with their own peer dependencies before being linked to their dependents.
+
+  For instance, if `card` has `react` in peer dependencies and `react` has `typescript` in its peer dependencies, then the same version of `react` may be linked from different places if there are multiple versions of `typescript`. For instance:
+
+  ```
+  project1/package.json
+  {
+    "dependencies": {
+      "card": "1.0.0",
+      "react": "16.8.0",
+      "typescript": "7.0.0"
+    }
+  }
+  project2/package.json
+  {
+    "dependencies": {
+      "card": "1.0.0",
+      "react": "16.8.0",
+      "typescript": "8.0.0"
+    }
+  }
+  node_modules
+    .pnpm
+      card@1.0.0(react@16.8.0(typescript@7.0.0))
+        node_modules
+          card
+          react --> ../../react@16.8.0(typescript@7.0.0)/node_modules/react
+      react@16.8.0(typescript@7.0.0)
+        node_modules
+          react
+          typescript --> ../../typescript@7.0.0/node_modules/typescript
+      typescript@7.0.0
+        node_modules
+          typescript
+      card@1.0.0(react@16.8.0(typescript@8.0.0))
+        node_modules
+          card
+          react --> ../../react@16.8.0(typescript@8.0.0)/node_modules/react
+      react@16.8.0(typescript@8.0.0)
+        node_modules
+          react
+          typescript --> ../../typescript@8.0.0/node_modules/typescript
+      typescript@8.0.0
+        node_modules
+          typescript
+  ```
+
+  In the above example, both projects have `card` in dependencies but the projects use different versions of `typescript`. Hence, even though the same version of `card` is used, `card` in `project1` will reference `react` from a directory where it is placed with `typescript@7.0.0` (because it resolves `typescript` from the dependencies of `project1`), while `card` in `project2` will reference `react` with `typescript@8.0.0`.
+
+  Related issue: [#7444](https://github.com/pnpm/pnpm/issues/7444).
+  Related PR: [#7606](https://github.com/pnpm/pnpm/pull/7606).
+
+### Minor Changes
+
+- 7733f3a: Added support for registry-scoped SSL configurations (cert, key, and ca). Three new settings supported: `<registryURL>:certfile`, `<registryURL>:keyfile`, and `<registryURL>:ca`. For instance:
+
+  ```
+  //registry.mycomp.com/:certfile=server-cert.pem
+  //registry.mycomp.com/:keyfile=server-key.pem
+  //registry.mycomp.com/:cafile=client-cert.pem
+  ```
+
+  Related issue: [#7427](https://github.com/pnpm/pnpm/issues/7427).
+  Related PR: [#7626](https://github.com/pnpm/pnpm/pull/7626).
+
+- 086b69c: The checksum of the `.pnpmfile.cjs` is saved into the lockfile. If the pnpmfile gets modified, the lockfile is reanalyzed to apply the changes [#7662](https://github.com/pnpm/pnpm/pull/7662).
+- 9f8948c: Add a new option autoInstallPeersFromHighestMatch that makes pnpm install the highest version satisfying one of the peer dependencies even if the peer dependency ranges don't overlap.
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- 977060f: Properly resolve peer dependencies of peer dependencies [#7444](https://github.com/pnpm/pnpm/issues/7444).
+- f5eadba: Revert [#7583](https://github.com/pnpm/pnpm/pull/7583).
+- 7edb917: Deleting a dependencies field via a `readPackage` hook should work [#7704](https://github.com/pnpm/pnpm/pull/7704).
+- 732430a: `bundledDependencies` should never be added to the lockfile with `false` as the value [#7576](https://github.com/pnpm/pnpm/issues/7576).
+- 22c7acc: Link globally the command of a package that has no name in `package.json` [#4761](https://github.com/pnpm/pnpm/issues/4761).
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [27a96a8]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+- Updated dependencies [8eddd21]
+- Updated dependencies [98a1266]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/npm-resolver@19.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/pick-registry-for-package@6.0.0
+  - @pnpm/which-version-is-pinned@6.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/manifest-utils@6.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/prune-lockfile@6.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/pick-fetcher@3.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/lockfile.preferred-versions@1.0.0
+
 ## 31.4.0
 
 ### Minor Changes

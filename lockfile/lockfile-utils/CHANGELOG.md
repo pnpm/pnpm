@@ -1,5 +1,31 @@
 # @pnpm/lockfile-utils
 
+## 10.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [cdd8365]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [27a96a8]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/types@10.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/pick-fetcher@3.0.0
+
 ## 9.0.5
 
 ### Patch Changes

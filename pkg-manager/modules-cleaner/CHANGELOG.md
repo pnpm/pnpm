@@ -1,5 +1,33 @@
 # @pnpm/modules-cleaner
 
+## 15.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [cdd8365]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [27a96a8]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/types@10.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/filter-lockfile@9.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/remove-bins@6.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/read-modules-dir@7.0.0
+
 ## 14.0.24
 
 ### Patch Changes

@@ -1,5 +1,45 @@
 # @pnpm/package-requester
 
+## 25.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [11d9ebd]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [d381a60]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/worker@1.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/package-is-installable@9.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/pick-fetcher@3.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/graceful-fs@4.0.0
+  - @pnpm/store.cafs@3.0.0
+
 ## 24.1.8
 
 ### Patch Changes

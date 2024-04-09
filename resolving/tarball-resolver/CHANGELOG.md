@@ -1,5 +1,17 @@
 # @pnpm/tarball-resolver
 
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+- Updated dependencies [b13d2dc]
+  - @pnpm/resolver-base@12.0.0
+
 ## 8.0.8
 
 ### Patch Changes

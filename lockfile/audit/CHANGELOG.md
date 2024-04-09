@@ -1,5 +1,33 @@
 # @pnpm/audit
 
+## 8.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [27a96a8]
+- Updated dependencies [730929e]
+- Updated dependencies [a22bdf0]
+  - @pnpm/types@10.0.0
+  - @pnpm/fetch@8.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/lockfile-walker@8.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/list@10.0.0
+  - @pnpm/lockfile.detect-dep-types@1.0.0
+
 ## 7.0.25
 
 ### Patch Changes

@@ -1,5 +1,42 @@
 # @pnpm/license-scanner
 
+## 3.0.0
+
+### Major Changes
+
+- f5766d9: `pnpm licenses list` prints license information of all versions of the same package in case different versions use different licenses. The format of the `pnpm licenses list --json` output has been changed [#7528](https://github.com/pnpm/pnpm/pull/7528).
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [f67ad31]
+- Updated dependencies [27a96a8]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+- Updated dependencies [a22bdf0]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/package-is-installable@9.0.0
+  - @pnpm/directory-fetcher@8.0.0
+  - @pnpm/lockfile-walker@8.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/store.cafs@3.0.0
+  - @pnpm/lockfile.detect-dep-types@1.0.0
+
 ## 2.3.0
 
 ### Minor Changes

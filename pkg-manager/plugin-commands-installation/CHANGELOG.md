@@ -1,5 +1,66 @@
 # @pnpm/plugin-commands-installation
 
+## 15.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- d4e13ca: Add `--ignore-scripts` argument to `prune` command
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [aa33269]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [086b69c]
+- Updated dependencies [9f8948c]
+- Updated dependencies [d381a60]
+- Updated dependencies [ca2be03]
+- Updated dependencies [0fa26f4]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [e5fbac3]
+- Updated dependencies [2b89155]
+- Updated dependencies [27a96a8]
+- Updated dependencies [60839fc]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/store-connection-manager@8.0.0
+  - @pnpm/plugin-commands-rebuild@11.0.0
+  - @pnpm/core@14.0.0
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/filter-workspace-packages@8.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/parse-wanted-dependency@6.0.0
+  - @pnpm/find-workspace-dir@7.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/manifest-utils@6.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/workspace.find-packages@2.0.0
+  - @pnpm/sort-packages@6.0.0
+  - @pnpm/workspace.pkgs-graph@3.0.0
+  - @pnpm/package-store@20.0.0
+  - @pnpm/outdated@14.0.0
+  - @pnpm/matcher@6.0.0
+  - @pnpm/graceful-fs@4.0.0
+  - @pnpm/pnpmfile@6.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/dedupe.check@2.0.0
+  - @pnpm/command@5.0.0
+
 ## 14.2.0
 
 ### Minor Changes

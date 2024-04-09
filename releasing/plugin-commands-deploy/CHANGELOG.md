@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-deploy
 
+## 5.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [3477ee5]
+- Updated dependencies [d4e13ca]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/plugin-commands-installation@15.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/directory-fetcher@8.0.0
+  - @pnpm/fs.indexed-pkg-importer@6.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/fs.is-empty-dir-or-nothing@2.0.0
+
 ## 4.0.20
 
 ### Patch Changes

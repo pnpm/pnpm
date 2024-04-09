@@ -1,5 +1,47 @@
 # @pnpm/plugin-commands-patching
 
+## 6.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [d4e13ca]
+- Updated dependencies [e748162]
+- Updated dependencies [f67ad31]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/store-connection-manager@8.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/plugin-commands-installation@15.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/pick-registry-for-package@6.0.0
+  - @pnpm/parse-wanted-dependency@6.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/pick-fetcher@3.0.0
+  - @pnpm/patching.apply-patch@3.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/fs.packlist@2.0.0
+
 ## 5.1.1
 
 ### Patch Changes

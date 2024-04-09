@@ -1,5 +1,46 @@
 # @pnpm/plugin-commands-script-runners
 
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 98566d9: Added cache for `pnpm dlx` [#5277](https://github.com/pnpm/pnpm/issues/5277).
+
+### Patch Changes
+
+- 1a3449e: support `node-options` option inside `.npmrc` file when running scripts [#7596](https://github.com/pnpm/pnpm/issues/7596)
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [d4e13ca]
+- Updated dependencies [e748162]
+- Updated dependencies [82aac81]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/plugin-commands-installation@15.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/package-bins@9.0.0
+  - @pnpm/sort-packages@6.0.0
+  - @pnpm/store-path@9.0.0
+  - @pnpm/lifecycle@17.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/command@5.0.0
+
 ## 8.0.21
 
 ### Patch Changes

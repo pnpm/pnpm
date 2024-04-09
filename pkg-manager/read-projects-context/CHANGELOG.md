@@ -1,5 +1,24 @@
 # @pnpm/read-projects-context
 
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [f67ad31]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/normalize-registries@6.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/lockfile-file@9.0.0
+
 ## 8.0.11
 
 ### Patch Changes

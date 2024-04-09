@@ -1,5 +1,36 @@
 # @pnpm/build-modules
 
+## 12.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 1b26210: Print an info message about dependencies that were not built [#7815](https://github.com/pnpm/pnpm/issues/7815).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [11d9ebd]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [82aac81]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/worker@1.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/calc-dep-state@6.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/link-bins@10.0.0
+  - @pnpm/deps.graph-sequencer@2.0.0
+  - @pnpm/patching.apply-patch@3.0.0
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/lifecycle@17.0.0
+
 ## 11.2.12
 
 ### Patch Changes
