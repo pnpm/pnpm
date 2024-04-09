@@ -53,21 +53,21 @@ export interface ResolvedDirectDependency {
   normalizedPref?: string
 }
 
-export interface Importer<T> {
+export interface Importer<WantedDepExtraProps> {
   id: string
   manifest: ProjectManifest
   modulesDir: string
   removePackages?: string[]
   rootDir: string
-  wantedDependencies: Array<T & WantedDependency>
+  wantedDependencies: Array<WantedDepExtraProps & WantedDependency>
 }
 
-export interface ImporterToResolveGeneric<T> extends Importer<T> {
+export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<WantedDepExtraProps> {
   updatePackageManifest: boolean
   updateMatching?: (pkgName: string) => boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
-  wantedDependencies: Array<T & WantedDependency & { updateDepth: number }>
+  wantedDependencies: Array<WantedDepExtraProps & WantedDependency & { updateDepth: number }>
 }
 
 export interface ResolveDependenciesOptions {
