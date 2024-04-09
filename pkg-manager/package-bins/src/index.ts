@@ -56,6 +56,6 @@ function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string) {
     .filter((cmd) => isSubdir(pkgPath, cmd.path))
 }
 
-function normalizeBinName (name: string) {
+function normalizeBinName (name: string): string {
   return name[0] === '@' ? name.slice(name.indexOf('/') + 1) : name
 }

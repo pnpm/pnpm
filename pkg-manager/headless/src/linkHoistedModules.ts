@@ -66,7 +66,7 @@ export async function linkHoistedModules (
   )
 }
 
-async function tryRemoveDir (dir: string) {
+async function tryRemoveDir (dir: string): Promise<void> {
   removalLogger.debug(dir)
   try {
     await rimraf(dir)
@@ -97,7 +97,7 @@ async function linkAllPkgsInOrder (
     sideEffectsCacheRead: boolean
     warn: (message: string) => void
   }
-) {
+): Promise<void> {
   const _calcDepState = calcDepState.bind(null, graph, opts.depsStateCache)
   await Promise.all(
     Object.entries(hierarchy).map(async ([dir, deps]) => {

@@ -45,7 +45,7 @@ export function createClient (opts: ClientOptions): Client {
   }
 }
 
-export function createResolver (opts: ClientOptions) {
+export function createResolver (opts: ClientOptions): ResolveFunction {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
   return _createResolver(fetchFromRegistry, getAuthHeader, opts)

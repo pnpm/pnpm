@@ -26,7 +26,7 @@ export interface HoistOpts extends GetHoistedDependenciesOpts {
   virtualStoreDir: string
 }
 
-export async function hoist (opts: HoistOpts) {
+export async function hoist (opts: HoistOpts): Promise<HoistedDependencies> {
   const result = getHoistedDependencies(opts)
   if (!result) return {}
   const { hoistedDependencies, hoistedAliasesWithBins } = result
@@ -130,7 +130,7 @@ interface LinkAllBinsOptions {
   preferSymlinkedExecutables?: boolean
 }
 
-async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions) {
+async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions): Promise<void> {
   const bin = path.join(modulesDir, '.bin')
   const warn: WarnFunction = (message, code) => {
     if (code === 'BINARIES_CONFLICT') return
@@ -246,7 +246,7 @@ async function symlinkHoistedDependencies (
     virtualStoreDir: string
     hoistedWorkspacePackages?: Record<string, HoistedWorkspaceProject>
   }
-) {
+): Promise<void> {
   const symlink = symlinkHoistedDependency.bind(null, opts)
   await Promise.all(
     Object.entries(hoistedDependencies)
@@ -280,7 +280,7 @@ async function symlinkHoistedDependency (
   opts: { virtualStoreDir: string },
   depLocation: string,
   dest: string
-) {
+): Promise<void> {
   try {
     await symlinkDir(depLocation, dest, { overwrite: false })
     linkLogger.debug({ target: dest, link: depLocation })

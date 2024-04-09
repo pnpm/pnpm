@@ -96,7 +96,7 @@ export async function writeModulesManifest (
   opts?: {
     makeModulesDir?: boolean
   }
-) {
+): Promise<void> {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   const saveModules = { ...modules }
   if (saveModules.skipped) saveModules.skipped.sort()
