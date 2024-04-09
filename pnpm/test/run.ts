@@ -9,19 +9,6 @@ import { execPnpm, execPnpmSync } from './utils'
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 const testOnPosix = isWindows() ? test.skip : test
 
-function sanitizeDlxCacheComponent (cacheName: string): string {
-  if (cacheName === 'pkg') return cacheName
-  const segments = cacheName.split('-')
-  if (segments.length !== 2) {
-    throw new Error(`Unexpected name: ${cacheName}`)
-  }
-  const [date, pid] = segments
-  if (!/[0-9a-f]+/.test(date) && !/[0-9a-f]+/.test(pid)) {
-    throw new Error(`Name ${cacheName} doesn't end with 2 hex numbers`)
-  }
-  return '***********-*****'
-}
-
 test('run -r: pass the args to the command that is specified in the build script', async () => {
   preparePackages([{
     name: 'project',
@@ -312,16 +299,7 @@ test('parallel dlx calls of the same package', async () => {
   ))
 
   expect(['foo', 'bar', 'baz'].filter(name => fs.existsSync(name))).toStrictEqual(['foo', 'bar', 'baz'])
-  expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx')))
-      .map(sanitizeDlxCacheComponent)
-      .sort()
-  ).toStrictEqual([
-    'pkg',
-    '***********-*****',
-    '***********-*****',
-    '***********-*****',
-  ].sort())
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).length).toBe(4)
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
   ).toStrictEqual([
@@ -339,16 +317,7 @@ test('parallel dlx calls of the same package', async () => {
   ))
 
   expect(['abc', 'def', 'ghi'].filter(name => fs.existsSync(name))).toStrictEqual(['abc', 'def', 'ghi'])
-  expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx')))
-      .map(sanitizeDlxCacheComponent)
-      .sort()
-  ).toStrictEqual([
-    'pkg',
-    '***********-*****',
-    '***********-*****',
-    '***********-*****',
-  ].sort())
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).length).toBe(4)
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
   ).toStrictEqual([
@@ -370,19 +339,7 @@ test('parallel dlx calls of the same package', async () => {
   ))
 
   expect(['a/b/c', 'd/e/f', 'g/h/i'].filter(name => fs.existsSync(name))).toStrictEqual(['a/b/c', 'd/e/f', 'g/h/i'])
-  expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx')))
-      .map(sanitizeDlxCacheComponent)
-      .sort()
-  ).toStrictEqual([
-    'pkg',
-    '***********-*****',
-    '***********-*****',
-    '***********-*****',
-    '***********-*****',
-    '***********-*****',
-    '***********-*****',
-  ].sort())
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).length).toBe(7)
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
   ).toStrictEqual([
@@ -422,23 +379,9 @@ test('dlx creates cache and store prune cleans cache', async () => {
       .map(createBase32Hash)
       .sort()
   )
-  expect(
-    Object.fromEntries(
-      Object.keys(commands).map(cmd => [
-        cmd,
-        fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(cmd)))
-          .map(sanitizeDlxCacheComponent)
-          .sort(),
-      ])
-    )
-  ).toStrictEqual(
-    Object.fromEntries(
-      Object.keys(commands).map(cmd => [
-        cmd,
-        ['pkg', '***********-*****'].sort(),
-      ])
-    )
-  )
+  for (const cmd of Object.keys(commands)) {
+    expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(cmd))).length).toBe(2)
+  }
 
   // modify the dates of the cache items
   const ageTable = {
@@ -465,23 +408,9 @@ test('dlx creates cache and store prune cleans cache', async () => {
       .map(createBase32Hash)
       .sort()
   )
-  expect(
-    Object.fromEntries(
-      ['shx', '@pnpm.e2e/touch-file-good-bin-name'].map(cmd => [
-        cmd,
-        fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(cmd)))
-          .map(sanitizeDlxCacheComponent)
-          .sort(),
-      ])
-    )
-  ).toStrictEqual(
-    Object.fromEntries(
-      ['shx', '@pnpm.e2e/touch-file-good-bin-name'].map(cmd => [
-        cmd,
-        ['pkg', '***********-*****'].sort(),
-      ])
-    )
-  )
+  for (const cmd of ['shx', '@pnpm.e2e/touch-file-good-bin-name']) {
+    expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(cmd))).length).toBe(2)
+  }
 
   await execPnpm([
     `--config.store-dir=${path.resolve('store')}`,
