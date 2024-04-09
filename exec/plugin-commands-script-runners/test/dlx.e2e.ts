@@ -59,45 +59,35 @@ test('dlx', async () => {
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
-    dlxCacheMaxAge: Infinity,
   }, ['shx', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
-  verifyDlxCache(createBase32Hash('shx'))
 })
 
 test('dlx install from git', async () => {
   prepareEmpty()
-
-  const pkg = 'shelljs/shx#0dcbb9d1022037268959f8b706e0f06a6fd43fde'
 
   await dlx.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
-    dlxCacheMaxAge: Infinity,
-  }, [pkg, 'touch', 'foo'])
+  }, ['shelljs/shx#0dcbb9d1022037268959f8b706e0f06a6fd43fde', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
-  verifyDlxCache(createBase32Hash(pkg))
 })
 
 test('dlx should work when the package name differs from the bin name', async () => {
   prepareEmpty()
-
-  const pkg = '@pnpm.e2e/touch-file-one-bin'
 
   await dlx.handler({
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
-    dlxCacheMaxAge: Infinity,
-  }, [pkg])
+  }, ['@pnpm.e2e/touch-file-one-bin'])
 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
-  verifyDlxCache(createBase32Hash(pkg))
 })
 
 test('dlx should fail when the installed package has many commands and none equals the package name', async () => {
@@ -108,7 +98,6 @@ test('dlx should fail when the installed package has many commands and none equa
       ...DEFAULT_OPTS,
       dir: path.resolve('project'),
       storeDir: path.resolve('store'),
-      dlxCacheMaxAge: Infinity,
     }, ['@pnpm.e2e/touch-file-many-bins'])
   ).rejects.toThrow('Could not determine executable to run. @pnpm.e2e/touch-file-many-bins has multiple binaries: t, tt')
 })
@@ -120,7 +109,6 @@ test('dlx should not fail when the installed package has many commands and one e
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
-    dlxCacheMaxAge: Infinity,
   }, ['@pnpm.e2e/touch-file-good-bin-name'])
 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
@@ -129,22 +117,16 @@ test('dlx should not fail when the installed package has many commands and one e
 test('dlx --package <pkg1> [--package <pkg2>]', async () => {
   prepareEmpty()
 
-  const pkgs = [
-    'zkochan/for-testing-pnpm-dlx',
-    'is-positive',
-  ]
-
   await dlx.handler({
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
-    package: pkgs,
-    dlxCacheMaxAge: Infinity,
+    package: [
+      'zkochan/for-testing-pnpm-dlx',
+      'is-positive',
+    ],
   }, ['foo'])
-
-  const hash = createBase32Hash(pkgs.join('\n'))
-  verifyDlxCache(hash)
 
   expect(fs.existsSync('foo')).toBeTruthy()
 })
@@ -157,7 +139,6 @@ test('dlx should fail when the package has no bins', async () => {
       ...DEFAULT_OPTS,
       dir: path.resolve('project'),
       storeDir: path.resolve('store'),
-      dlxCacheMaxAge: Infinity,
     }, ['is-positive'])
   ).rejects.toThrow(/No binaries found in is-positive/)
 })
@@ -173,7 +154,6 @@ test('dlx should work in shell mode', async () => {
       'is-positive',
     ],
     shellMode: true,
-    dlxCacheMaxAge: Infinity,
   }, ['echo "some text" > foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
@@ -189,7 +169,6 @@ test('dlx should return a non-zero exit code when the underlying script fails', 
     package: [
       'touch@3.1.0',
     ],
-    dlxCacheMaxAge: Infinity,
   }, ['nodetouch', '--bad-option'])
 
   expect(exitCode).toBe(1)
@@ -202,7 +181,6 @@ testOnWindowsOnly('dlx should work when running in the root of a Windows Drive',
     ...DEFAULT_OPTS,
     dir: 'C:\\',
     storeDir: path.resolve('store'),
-    dlxCacheMaxAge: Infinity,
   }, ['cowsay', 'hello'])
 })
 

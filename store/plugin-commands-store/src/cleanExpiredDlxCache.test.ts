@@ -20,15 +20,15 @@ function readDlxCachePath (cachePath: string): string[] | 'ENOENT' {
     .sort()
 }
 
-function sanitizeDlxCacheComponent (cacheName: string): string {
-  if (cacheName === 'pkg') return cacheName
-  const segments = cacheName.split('-')
+function sanitizeDlxCacheComponent (cacheEntry: string): string {
+  if (cacheEntry === 'pkg') return cacheEntry
+  const segments = cacheEntry.split('-')
   if (segments.length !== 2) {
-    throw new Error(`Unexpected name: ${cacheName}`)
+    throw new Error(`Unexpected name: ${cacheEntry}`)
   }
   const [date, pid] = segments
   if (!/[0-9a-f]+/.test(date) && !/[0-9a-f]+/.test(pid)) {
-    throw new Error(`Name ${cacheName} doesn't end with 2 hex numbers`)
+    throw new Error(`Name ${cacheEntry} doesn't end with 2 hex numbers`)
   }
   return '***********-*****'
 }

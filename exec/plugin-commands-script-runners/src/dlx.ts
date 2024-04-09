@@ -167,8 +167,8 @@ function findCache (pkgs: string[], opts: {
 function createDlxCommandCacheDir (cacheDir: string, pkgs: string[]) {
   const dlxCacheDir = path.resolve(cacheDir, 'dlx')
   const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
-  const cacheName = createBase32Hash(hashStr)
-  const cachePath = path.join(dlxCacheDir, cacheName)
+  const cacheKey = createBase32Hash(hashStr)
+  const cachePath = path.join(dlxCacheDir, cacheKey)
   fs.mkdirSync(cachePath, { recursive: true })
   return cachePath
 }

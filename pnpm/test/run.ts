@@ -10,7 +10,7 @@ const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stri
 const testOnPosix = isWindows() ? test.skip : test
 
 function sanitizeDlxCacheComponent (cacheName: string): string {
-  if (cacheName === 'link') return cacheName
+  if (cacheName === 'pkg') return cacheName
   const segments = cacheName.split('-')
   if (segments.length !== 2) {
     throw new Error(`Unexpected name: ${cacheName}`)
@@ -317,20 +317,20 @@ test('parallel dlx calls of the same package', async () => {
       .map(sanitizeDlxCacheComponent)
       .sort()
   ).toStrictEqual([
-    'link',
+    'pkg',
     '***********-*****',
     '***********-*****',
     '***********-*****',
   ].sort())
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))
+    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
   ).toStrictEqual([
     'node_modules',
     'package.json',
     'pnpm-lock.yaml',
   ])
   expect(
-    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link')))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg')))
   ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
 
   // parallel dlx calls with cache
@@ -344,20 +344,20 @@ test('parallel dlx calls of the same package', async () => {
       .map(sanitizeDlxCacheComponent)
       .sort()
   ).toStrictEqual([
-    'link',
+    'pkg',
     '***********-*****',
     '***********-*****',
     '***********-*****',
   ].sort())
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))
+    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
   ).toStrictEqual([
     'node_modules',
     'package.json',
     'pnpm-lock.yaml',
   ])
   expect(
-    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link')))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg')))
   ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
 
   // parallel dlx calls with expired cache
@@ -375,7 +375,7 @@ test('parallel dlx calls of the same package', async () => {
       .map(sanitizeDlxCacheComponent)
       .sort()
   ).toStrictEqual([
-    'link',
+    'pkg',
     '***********-*****',
     '***********-*****',
     '***********-*****',
@@ -384,14 +384,14 @@ test('parallel dlx calls of the same package', async () => {
     '***********-*****',
   ].sort())
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link'))
+    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
   ).toStrictEqual([
     'node_modules',
     'package.json',
     'pnpm-lock.yaml',
   ])
   expect(
-    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'link')))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg')))
   ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
 })
 
@@ -435,7 +435,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
     Object.fromEntries(
       Object.keys(commands).map(cmd => [
         cmd,
-        ['link', '***********-*****'].sort(),
+        ['pkg', '***********-*****'].sort(),
       ])
     )
   )
@@ -450,7 +450,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
   const now = new Date()
   await Promise.all(Object.entries(ageTable).map(async ([cmd, age]) => {
     const newDate = new Date(now.getTime() - age * 60_000)
-    const dlxCacheLink = path.resolve('cache', 'dlx', createBase32Hash(cmd), 'link')
+    const dlxCacheLink = path.resolve('cache', 'dlx', createBase32Hash(cmd), 'pkg')
     await fs.promises.lutimes(dlxCacheLink, newDate, newDate)
   }))
 
@@ -478,7 +478,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
     Object.fromEntries(
       ['shx', '@pnpm.e2e/touch-file-good-bin-name'].map(cmd => [
         cmd,
-        ['link', '***********-*****'].sort(),
+        ['pkg', '***********-*****'].sort(),
       ])
     )
   )

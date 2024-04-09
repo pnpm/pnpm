@@ -66,6 +66,7 @@ export const DLX_DEFAULT_OPTS = {
   cacheDir: path.join(tmp, 'cache'),
   extraEnv: {},
   cliOptions: {},
+  dlxCacheMaxAge: Infinity,
   include: {
     dependencies: true,
     devDependencies: true,
