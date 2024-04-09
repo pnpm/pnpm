@@ -5,6 +5,7 @@ import pDefer from 'p-defer'
 import semver from 'semver'
 import { semverUtils } from '@yarnpkg/core'
 import type {
+  ParentPackages,
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
@@ -14,6 +15,7 @@ import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import scan from 'ramda/src/scan'
 import {
+  type ChildrenMap,
   type PeerDependencies,
   type DependenciesTree,
   type DependenciesTreeNode,
@@ -157,7 +159,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   }
 }
 
-function nodeDepsCount (node: GenericDependenciesGraphNode) {
+function nodeDepsCount (node: GenericDependenciesGraphNode): number {
   return Object.keys(node.children).length + node.resolvedPeerNames.size
 }
 
@@ -181,10 +183,15 @@ function deduplicateAll<T extends PartialResolvedPackage> (
   return depPathsMap
 }
 
+interface DeduplicateDepPathsResult {
+  depPathsMap: Record<string, string>
+  remainingDuplicates: Array<Set<string>>
+}
+
 function deduplicateDepPaths<T extends PartialResolvedPackage> (
   duplicates: Array<Set<string>>,
   depGraph: GenericDependenciesGraph<T>
-) {
+): DeduplicateDepPathsResult {
   const depCountSorter = (depPath1: string, depPath2: string) => nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2])
   const depPathsMap: Record<string, string> = {}
   const remainingDuplicates: Array<Set<string>> = []
@@ -224,7 +231,7 @@ function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraph<T>,
   depPath1: string,
   depPath2: string
-) {
+): boolean {
   const node1 = depGraph[depPath1]
   const node2 = depGraph[depPath2]
   if (nodeDepsCount(node1) < nodeDepsCount(node2)) return false
@@ -239,7 +246,7 @@ function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
   return true
 }
 
-function getRootPkgsByName<T extends PartialResolvedPackage> (dependenciesTree: DependenciesTree<T>, projects: ProjectToResolve[]) {
+function getRootPkgsByName<T extends PartialResolvedPackage> (dependenciesTree: DependenciesTree<T>, projects: ProjectToResolve[]): ParentRefs {
   const rootProject = projects.length > 1 ? projects.find(({ id }) => id === '.') : null
   return rootProject == null ? {} : createPkgsByName(dependenciesTree, rootProject)
 }
@@ -250,7 +257,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
     directNodeIdsByAlias: { [alias: string]: string }
     topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }>
   }
-) {
+): ParentRefs {
   const parentRefs = toPkgByName(
     Object
       .keys(directNodeIdsByAlias)
@@ -466,7 +473,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     peerIds: PeerId[],
     pendingPeerNodeIds: string[],
     cycles: string[][]
-  ) {
+  ): Promise<void> {
     const cyclicPeerNodeIds = new Set()
     for (const cycle of cycles) {
       if (cycle.includes(nodeId)) {
@@ -490,7 +497,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     addDepPathToGraph(`${resolvedPackage.depPath}${peersDirSuffix}`)
   }
 
-  function addDepPathToGraph (depPath: string) {
+  function addDepPathToGraph (depPath: string): void {
     cache?.depPath.resolve(depPath)
     ctx.pathsByNodeId.set(nodeId, depPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
@@ -544,10 +551,10 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 // from the dependencies of the parent package.
 // So we need to merge all the children of all the parent packages with same ID as the resolved package.
 // This way we get all the children that were removed, when ending cycles.
-function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (nodeId: string, dependenciesTree: DependenciesTree<T>) {
+function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (nodeId: string, dependenciesTree: DependenciesTree<T>): ChildrenMap {
   const parentIds = splitNodeId(nodeId)
   const ownId = parentIds.pop()
-  const allChildren = {}
+  const allChildren: ChildrenMap = {}
 
   if (!ownId || !parentIds.includes(ownId)) return allChildren
 
@@ -708,6 +715,11 @@ function _resolvePeers<T extends PartialResolvedPackage> (
   return { resolvedPeers, missingPeers }
 }
 
+interface Location {
+  projectId: string
+  parents: ParentPackages
+}
+
 function getLocationFromNodeIdAndPkg<T> (
   {
     dependenciesTree,
@@ -718,7 +730,7 @@ function getLocationFromNodeIdAndPkg<T> (
     nodeId: string
     pkg: { name: string, version: string }
   }
-) {
+): Location {
   const { projectId, parents } = getLocationFromNodeId({ dependenciesTree, nodeId })
   parents.push({ name: pkg.name, version: pkg.version })
   return {
@@ -735,7 +747,7 @@ function getLocationFromNodeId<T> (
     dependenciesTree: DependenciesTree<T>
     nodeId: string
   }
-) {
+): Location {
   const parts = splitNodeId(nodeId).slice(0, -1)
   const parents = scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
     .slice(2)
@@ -777,7 +789,7 @@ function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: st
   return pkgsByName
 }
 
-function updateParentRefs (parentRefs: ParentRefs, newAlias: string, pkg: ParentRef) {
+function updateParentRefs (parentRefs: ParentRefs, newAlias: string, pkg: ParentRef): void {
   const existing = parentRefs[newAlias]
   if (existing) {
     const existingHasAlias = existing.alias != null && existing.alias !== newAlias

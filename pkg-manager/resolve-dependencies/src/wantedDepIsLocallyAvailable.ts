@@ -11,7 +11,7 @@ export function wantedDepIsLocallyAvailable (
     defaultTag: string
     registry: string
   }
-) {
+): boolean {
   const spec = parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
   if ((spec == null) || !workspacePackages[spec.name]) return false
   return pickMatchingLocalVersionOrNull(workspacePackages[spec.name], spec) !== null
@@ -26,7 +26,7 @@ function pickMatchingLocalVersionOrNull (
     }
   },
   spec: RegistryPackageSpec
-) {
+): string | null {
   const localVersions = Object.keys(versions)
   switch (spec.type) {
   case 'tag':

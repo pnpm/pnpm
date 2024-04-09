@@ -66,7 +66,7 @@ const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDepend
 export function nodeIdToParents (
   nodeId: string,
   resolvedPackagesByDepPath: ResolvedPackagesByDepPath
-) {
+): Array<{ id: string, name: string, version: string }> {
   return splitNodeId(nodeId).slice(1)
     .map((depPath) => {
       const { id, name, version } = resolvedPackagesByDepPath[depPath]
@@ -648,7 +648,7 @@ async function startResolvingPeers (
     postponedPeersResolutionQueue: PostponedPeersResolutionFunction[]
     autoInstallPeersFromHighestMatch: boolean
   }
-) {
+): Promise<PeersResolutionResult> {
   const results = await Promise.all(
     postponedPeersResolutionQueue.map((postponedPeersResolution) => postponedPeersResolution(parentPkgAliases))
   )
@@ -795,7 +795,7 @@ async function resolveDependenciesOfDependency (
   }
 }
 
-export function createNodeIdForLinkedLocalPkg (lockfileDir: string, pkgDir: string) {
+export function createNodeIdForLinkedLocalPkg (lockfileDir: string, pkgDir: string): string {
   return `link:${normalizePath(path.relative(lockfileDir, pkgDir))}`
 }
 
@@ -848,7 +848,7 @@ async function resolveChildren (
     preferredVersions: PreferredVersions
     publishedBy?: Date
   }
-) {
+): Promise<PeersResolutionResult> {
   const currentResolvedDependencies = (dependencyLockfile != null)
     ? {
       ...dependencyLockfile.dependencies,
@@ -1476,7 +1476,7 @@ function getMissingPeers (pkg: PackageManifest): MissingPeers {
   return missingPeers
 }
 
-function pkgIsLeaf (pkg: PackageManifest) {
+function pkgIsLeaf (pkg: PackageManifest): boolean {
   return Object.keys(pkg.dependencies ?? {}).length === 0 &&
     Object.keys(pkg.optionalDependencies ?? {}).length === 0 &&
     Object.keys(pkg.peerDependencies ?? {}).length === 0 &&

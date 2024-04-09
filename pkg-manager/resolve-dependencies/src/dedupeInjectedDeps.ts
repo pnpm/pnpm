@@ -20,7 +20,7 @@ export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {
 
 export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
   opts: DedupeInjectedDepsOptions<T>
-) {
+): void {
   const injectedDepsByProjects = getInjectedDepsByProjects(opts)
   const dedupeMap = getDedupeMap(injectedDepsByProjects, opts)
   applyDedupeMap(dedupeMap, opts)
@@ -72,7 +72,7 @@ function getDedupeMap<T extends PartialResolvedPackage> (
 function applyDedupeMap<T extends PartialResolvedPackage> (
   dedupeMap: DedupeMap,
   opts: Pick<DedupeInjectedDepsOptions<T>, 'dependenciesByProjectId' | 'resolvedImporters' | 'lockfileDir'>
-) {
+): void {
   for (const [id, aliases] of dedupeMap.entries()) {
     for (const [alias, dedupedProjectId] of aliases.entries()) {
       delete opts.dependenciesByProjectId[id][alias]

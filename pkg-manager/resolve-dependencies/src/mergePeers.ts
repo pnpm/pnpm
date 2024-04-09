@@ -1,7 +1,12 @@
 import { type MissingPeerIssuesByPeerName } from '@pnpm/types'
 import { intersect } from 'semver-range-intersect'
 
-export function mergePeers (missingPeers: MissingPeerIssuesByPeerName) {
+export interface MergePeersResult {
+  conflicts: string[]
+  intersections: Record<string, string>
+}
+
+export function mergePeers (missingPeers: MissingPeerIssuesByPeerName): MergePeersResult {
   const conflicts: string[] = []
   const intersections: Record<string, string> = {}
   for (const [peerName, ranges] of Object.entries(missingPeers)) {
