@@ -53,21 +53,21 @@ export interface ResolvedDirectDependency {
   normalizedPref?: string
 }
 
-export interface Importer<T> {
+export interface Importer<WantedDepExtraProps> {
   id: string
   manifest: ProjectManifest
   modulesDir: string
   removePackages?: string[]
   rootDir: string
-  wantedDependencies: Array<T & WantedDependency>
+  wantedDependencies: Array<WantedDepExtraProps & WantedDependency>
 }
 
-export interface ImporterToResolveGeneric<T> extends Importer<T> {
+export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<WantedDepExtraProps> {
   updatePackageManifest: boolean
   updateMatching?: (pkgName: string) => boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
-  wantedDependencies: Array<T & WantedDependency & { updateDepth: number }>
+  wantedDependencies: Array<WantedDepExtraProps & WantedDependency & { updateDepth: number }>
 }
 
 export interface ResolveDependenciesOptions {
@@ -105,10 +105,22 @@ export interface ResolveDependenciesOptions {
   updateToLatest?: boolean
 }
 
+export interface ResolveDependencyTreeResult {
+  dependenciesTree: DependenciesTree<ResolvedPackage>
+  outdatedDependencies: {
+    [pkgId: string]: string
+  }
+  resolvedImporters: ResolvedImporters
+  resolvedPackagesByDepPath: ResolvedPackagesByDepPath
+  wantedToBeSkippedPackageIds: Set<string>
+  appliedPatches: Set<string>
+  time?: Record<string, string>
+}
+
 export async function resolveDependencyTree<T> (
   importers: Array<ImporterToResolveGeneric<T>>,
   opts: ResolveDependenciesOptions
-) {
+): Promise<ResolveDependencyTreeResult> {
   const wantedToBeSkippedPackageIds = new Set<string>()
   const autoInstallPeers = opts.autoInstallPeers === true
   const ctx: ResolutionContext = {
@@ -253,7 +265,7 @@ function buildTree (
   children: Array<{ alias: string, depPath: string }>,
   depth: number,
   installable: boolean
-) {
+): Record<string, string> {
   const childrenNodeIds: Record<string, string> = {}
   for (const child of children) {
     if (child.depPath.startsWith('link:')) {
@@ -289,8 +301,8 @@ function buildTree (
   * In order to make sure that the latest 1.0.1 version is installed, we need to remove the duplicate dependency.
   * fix https://github.com/pnpm/pnpm/issues/6966
   */
-function dedupeSameAliasDirectDeps (directDeps: Array<PkgAddress | LinkedDependency>, wantedDependencies: Array<WantedDependency & { isNew?: boolean }>) {
-  const deps = new Map()
+function dedupeSameAliasDirectDeps (directDeps: Array<PkgAddress | LinkedDependency>, wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): Array<PkgAddress | LinkedDependency> {
+  const deps = new Map<string, PkgAddress | LinkedDependency>()
   for (const directDep of directDeps) {
     const { alias, normalizedPref } = directDep
     if (!deps.has(alias)) {

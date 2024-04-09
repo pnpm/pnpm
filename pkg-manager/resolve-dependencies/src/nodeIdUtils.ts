@@ -1,9 +1,9 @@
-export function nodeIdContains (nodeId: string, pkgId: string) {
+export function nodeIdContains (nodeId: string, pkgId: string): boolean {
   const pkgIds = splitNodeId(nodeId)
   return pkgIds.includes(pkgId)
 }
 
-export function nodeIdContainsSequence (nodeId: string, pkgId1: string, pkgId2: string) {
+export function nodeIdContainsSequence (nodeId: string, pkgId1: string, pkgId2: string): boolean {
   const pkgIds = splitNodeId(nodeId)
   pkgIds.pop()
   const pkg1Index = pkgIds.indexOf(pkgId1)
@@ -12,11 +12,11 @@ export function nodeIdContainsSequence (nodeId: string, pkgId1: string, pkgId2: 
   return pkg1Index < pkg2Index
 }
 
-export function createNodeId (parentNodeId: string, pkgId: string) {
+export function createNodeId (parentNodeId: string, pkgId: string): string {
   // using ">" as a separator because it will never be used inside a package ID
   return `${parentNodeId}${pkgId}>`
 }
 
-export function splitNodeId (nodeId: string) {
+export function splitNodeId (nodeId: string): string[] {
   return nodeId.split('>').slice(1, -1)
 }

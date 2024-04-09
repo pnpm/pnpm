@@ -5,6 +5,7 @@ import {
 } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import {
+  type Lockfile,
   type ProjectSnapshot,
 } from '@pnpm/lockfile-types'
 import {
@@ -17,6 +18,7 @@ import {
   type DependenciesField,
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
+  type PeerDependencyIssuesByProjects,
   type ProjectManifest,
 } from '@pnpm/types'
 import difference from 'ramda/src/difference'
@@ -34,6 +36,7 @@ import {
   resolveDependencyTree,
 } from './resolveDependencyTree'
 import {
+  type DependenciesByProjectId,
   type GenericDependenciesGraph,
   type GenericDependenciesGraphNode,
   resolvePeers,
@@ -66,15 +69,14 @@ interface ProjectToLink {
   topParents: Array<{ name: string, version: string }>
 }
 
-export type ImporterToResolve = Importer<{
+export interface ImporterToResolve extends Importer<{
   isNew?: boolean
   nodeExecPath?: string
   pinnedVersion?: PinnedVersion
   raw: string
   updateSpec?: boolean
   preserveNonSemverVersionSpec?: boolean
-}>
-& {
+}> {
   peer?: boolean
   pinnedVersion?: PinnedVersion
   binsDir: string
@@ -84,6 +86,19 @@ export type ImporterToResolve = Importer<{
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest: boolean
   targetDependenciesField?: DependenciesField
+}
+
+export interface ResolveDependenciesResult {
+  dependenciesByProjectId: DependenciesByProjectId
+  dependenciesGraph: GenericDependenciesGraph<ResolvedPackage>
+  outdatedDependencies: {
+    [pkgId: string]: string
+  }
+  linkedDependenciesByProjectId: Record<string, LinkedDependency[]>
+  newLockfile: Lockfile
+  peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
+  waitTillAllFetchingsFinish: () => Promise<void>
+  wantedToBeSkippedPackageIds: Set<string>
 }
 
 export async function resolveDependencies (
@@ -99,7 +114,7 @@ export async function resolveDependencies (
     lockfileIncludeTarballUrl?: boolean
     allowNonAppliedPatches?: boolean
   }
-) {
+): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth: opts.defaultUpdateDepth,
     lockfileOnly: opts.dryRun,
@@ -282,11 +297,13 @@ export async function resolveDependencies (
   }
 
   // waiting till package requests are finished
-  const waitTillAllFetchingsFinish = async () => Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ fetching }) => {
-    try {
-      await fetching?.()
-    } catch {}
-  }))
+  async function waitTillAllFetchingsFinish (): Promise<void> {
+    await Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ fetching }) => {
+      try {
+        await fetching?.()
+      } catch {}
+    }))
+  }
 
   return {
     dependenciesByProjectId,
@@ -393,7 +410,7 @@ function addDirectDependenciesToLockfile (
   return newProjectSnapshot
 }
 
-function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: ProjectSnapshot) {
+function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: ProjectSnapshot): void {
   const depTypesOfAliases = getAliasToDependencyTypeMap(manifest)
 
   // Aligning the dependency types in pnpm-lock.yaml
@@ -420,7 +437,7 @@ function getAliasToDependencyTypeMap (manifest: ProjectManifest): Record<string,
   return depTypesOfAliases
 }
 
-async function getTopParents (pkgAliases: string[], modulesDir: string) {
+async function getTopParents (pkgAliases: string[], modulesDir: string): Promise<DependencyManifest[]> {
   const pkgs = await Promise.all(
     pkgAliases.map((alias) => path.join(modulesDir, alias)).map(safeReadPackageJsonFromDir)
   )

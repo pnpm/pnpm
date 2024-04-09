@@ -8,7 +8,15 @@ import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
 import { type ImporterToResolve } from '.'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
+import { type ImporterToResolveGeneric } from './resolveDependencyTree'
 import { safeIsInnerLink } from './safeIsInnerLink'
+
+export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGeneric<{ isNew?: boolean }> {
+  wantedDependencies: Array<WantedDependency & {
+    isNew?: boolean
+    updateDepth: number
+  }>
+}
 
 export async function toResolveImporter (
   opts: {
@@ -21,7 +29,7 @@ export async function toResolveImporter (
     noDependencySelectors: boolean
   },
   project: ImporterToResolve
-) {
+): Promise<ResolveImporter> {
   const allDeps = getWantedDependencies(project.manifest)
   const nonLinkedDependencies = await partitionLinkedPackages(allDeps, {
     lockfileOnly: opts.lockfileOnly,
@@ -77,7 +85,7 @@ export async function toResolveImporter (
   }
 }
 
-function prefIsLocalTarball (pref: string) {
+function prefIsLocalTarball (pref: string): boolean {
   return pref.startsWith('file:') && pref.endsWith('.tgz')
 }
 

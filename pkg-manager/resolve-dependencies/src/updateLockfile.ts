@@ -153,7 +153,7 @@ function toLockfileDependency (
 function updateResolvedDeps (
   updatedDeps: Array<{ alias: string, depPath: string }>,
   depGraph: DependenciesGraph
-) {
+): Record<string, string> {
   return Object.fromEntries(
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
@@ -209,6 +209,6 @@ function toLockfileResolution (
   }
 }
 
-function removeProtocol (url: string) {
+function removeProtocol (url: string): string {
   return url.split('://')[1]
 }

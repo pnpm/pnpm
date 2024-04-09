@@ -7,7 +7,7 @@ export function depPathToRef (
     realName: string
     resolution: Resolution
   }
-) {
+): string {
   if (opts.alias === opts.realName && depPath.startsWith(`${opts.realName}@`)) {
     return depPath.substring(opts.realName.length + 1)
   }
