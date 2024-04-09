@@ -280,7 +280,7 @@ function getChildren (
   pkgSnapshot: PackageSnapshot,
   pkgLocationsByDepPath: Record<string, string[]>,
   opts: { include: IncludedDependencies }
-) {
+): Record<string, string> {
   const allDeps = {
     ...pkgSnapshot.dependencies,
     ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),

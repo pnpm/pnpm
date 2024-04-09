@@ -711,7 +711,7 @@ async function linkBinsOfImporter (
     rootDir: string
   },
   { extraNodePaths, preferSymlinkedExecutables }: { extraNodePaths?: string[], preferSymlinkedExecutables?: boolean } = {}
-) {
+): Promise<string[]> {
   const warn = (message: string) => {
     logger.info({ message, prefix: rootDir })
   }
@@ -816,8 +816,8 @@ async function linkAllPkgs (
     lockfileDir: string
     sideEffectsCacheRead: boolean
   }
-) {
-  return Promise.all(
+): Promise<void> {
+  await Promise.all(
     depNodes.map(async (depNode) => {
       if (!depNode.fetching) return
       let filesResponse!: PackageFilesResponse
@@ -872,8 +872,8 @@ async function linkAllBins (
     preferSymlinkedExecutables?: boolean
     warn: (message: string) => void
   }
-) {
-  return Promise.all(
+): Promise<void> {
+  await Promise.all(
     Object.values(depGraph)
       .map(async (depNode) => limitLinking(async () => {
         const childrenToLink: Record<string, string> = opts.optional
@@ -923,7 +923,7 @@ async function linkAllModules (
   opts: {
     optional: boolean
   }
-) {
+): Promise<void> {
   await symlinkAllModules({
     deps: depNodes.map((depNode) => ({
       children: opts.optional
