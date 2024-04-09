@@ -1,7 +1,7 @@
 import { type DependencyManifest } from '@pnpm/types'
 import { getAllDependenciesFromManifest } from './getAllDependenciesFromManifest'
 
-export function getAllUniqueSpecs (manifests: DependencyManifest[]) {
+export function getAllUniqueSpecs (manifests: DependencyManifest[]): Record<string, string> {
   const allSpecs: Record<string, string> = {}
   const ignored = new Set<string>()
   for (const manifest of manifests) {

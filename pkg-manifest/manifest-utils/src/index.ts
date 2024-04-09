@@ -30,5 +30,5 @@ export function getAllDependenciesFromManifest (
     ...manifest.devDependencies,
     ...manifest.dependencies,
     ...manifest.optionalDependencies,
-  } as Dependencies
+  }
 }

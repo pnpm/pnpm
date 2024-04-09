@@ -24,7 +24,7 @@ export async function createExportableManifest (
   dir: string,
   originalManifest: ProjectManifest,
   opts?: MakePublishManifestOptions
-) {
+): Promise<ProjectManifest> {
   const publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
@@ -58,7 +58,7 @@ async function makePublishDependencies (
   return publishDependencies
 }
 
-async function makePublishDependency (depName: string, depSpec: string, dir: string, modulesDir?: string) {
+async function makePublishDependency (depName: string, depSpec: string, dir: string, modulesDir?: string): Promise<string> {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
