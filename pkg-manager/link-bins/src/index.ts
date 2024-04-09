@@ -166,7 +166,7 @@ async function _linkBins (
   return allCmds.map(cmd => cmd.pkgName)
 }
 
-async function isFromModules (filename: string) {
+async function isFromModules (filename: string): Promise<boolean> {
   const real = await fs.realpath(filename)
   return normalizePath(real).includes('/node_modules/')
 }
@@ -216,7 +216,7 @@ export interface LinkBinOptions {
   preferSymlinkedExecutables?: boolean
 }
 
-async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions) {
+async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
   if (IS_WINDOWS) {
     const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)

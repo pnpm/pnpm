@@ -196,7 +196,7 @@ function getScopeFromPackageName (pkgName: string): string | undefined {
   return undefined
 }
 
-async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string) {
+async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string): Promise<string[]> {
   try {
     return await fs.readdir(virtualStoreDir)
   } catch (err: any) { // eslint-disable-line
@@ -211,7 +211,7 @@ async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string
   }
 }
 
-async function tryRemovePkg (lockfileDir: string, virtualStoreDir: string, pkgDir: string) {
+async function tryRemovePkg (lockfileDir: string, virtualStoreDir: string, pkgDir: string): Promise<void> {
   const pathToRemove = path.join(virtualStoreDir, pkgDir)
   removalLogger.debug(pathToRemove)
   try {
@@ -247,7 +247,7 @@ function getPkgsDepPathsOwnedOnlyByImporters (
   lockfile: Lockfile,
   include: { [dependenciesField in DependenciesField]: boolean },
   skipped: Set<string>
-) {
+): Record<string, string> {
   const selected = filterLockfileByImporters(lockfile,
     importerIds,
     {
