@@ -10,14 +10,14 @@ export const rcOptionsTypes = cliOptionsTypes
 
 export { cliOptionsTypes }
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
 
 export const commandNames = ['fetch']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Fetch packages from a lockfile into virtual store, package manifest is ignored. WARNING! This is an experimental command. Breaking changes may be introduced in non-major versions of the CLI',
     descriptionLists: [
@@ -44,9 +44,9 @@ export function help () {
   })
 }
 
-export async function handler (
-  opts: Pick<Config, 'production' | 'dev' | 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
-) {
+type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
+
+export async function handler (opts: FetchCommandOptions): Promise<void> {
   const store = await createOrConnectStoreController(opts)
   const include = {
     dependencies: opts.production !== false,

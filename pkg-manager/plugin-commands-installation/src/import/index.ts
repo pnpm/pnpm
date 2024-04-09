@@ -11,7 +11,7 @@ import gfs from '@pnpm/graceful-fs'
 import { install, type InstallOptions } from '@pnpm/core'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type Project } from '@pnpm/types'
+import { type ProjectsGraph, type Project } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import rimraf from '@zkochan/rimraf'
@@ -75,11 +75,11 @@ interface YarnLock2Struct {
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {}
 }
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: `Generates ${WANTED_LOCKFILE} from an npm package-lock.json (or npm-shrinkwrap.json, yarn.lock) file.`,
     url: docsUrl('import'),
@@ -106,7 +106,7 @@ export type ImportCommandOptions = Pick<Config,
 export async function handler (
   opts: ImportCommandOptions,
   params: string[]
-) {
+): Promise<void> {
   // Removing existing pnpm lockfile
   // it should not influence the new one
   await rimraf(path.join(opts.dir, WANTED_LOCKFILE))
@@ -231,7 +231,7 @@ function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
   }
 }
 
-async function readNpmLockfile (dir: string) {
+async function readNpmLockfile (dir: string): Promise<LockedPackage> {
   try {
     return await loadJsonFile<LockedPackage>(path.join(dir, 'package-lock.json'))
   } catch (err: any) { // eslint-disable-line
@@ -245,7 +245,7 @@ async function readNpmLockfile (dir: string) {
   throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No package-lock.json or npm-shrinkwrap.json found')
 }
 
-function getPreferredVersions (versionsByPackageNames: VersionsByPackageNames) {
+function getPreferredVersions (versionsByPackageNames: VersionsByPackageNames): Record<string, Record<string, string>> {
   const preferredVersions = mapValues(
     (versions) => Object.fromEntries(Array.from(versions).map((version) => [version, 'version'])),
     versionsByPackageNames
@@ -258,7 +258,7 @@ type VersionsByPackageNames = Record<string, Set<string>>
 function getAllVersionsByPackageNamesPreV3 (
   npmPackageLock: NpmPackageLock | LockedPackage,
   versionsByPackageNames: VersionsByPackageNames
-) {
+): void {
   if (npmPackageLock.dependencies == null) return
   for (const [packageName, { version }] of Object.entries(npmPackageLock.dependencies)) {
     if (!versionsByPackageNames[packageName]) {
@@ -317,7 +317,7 @@ function getAllVersionsFromYarnLockFile (
   versionsByPackageNames: {
     [packageName: string]: Set<string>
   }
-) {
+): void {
   for (const [packageName, { version }] of Object.entries(yarnPackageLock)) {
     const pkgName = packageName.substring(0, packageName.lastIndexOf('@'))
     if (!versionsByPackageNames[pkgName]) {
@@ -327,7 +327,7 @@ function getAllVersionsFromYarnLockFile (
   }
 }
 
-function selectProjectByDir (projects: Project[], searchedDir: string) {
+function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
   const project = projects.find(({ dir }) => path.relative(dir, searchedDir) === '')
   if (project == null) return undefined
   return { [searchedDir]: { dependencies: [], package: project } }

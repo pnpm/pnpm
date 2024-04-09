@@ -11,7 +11,7 @@ export { cliOptionsTypes, rcOptionsTypes }
 
 export const commandNames = ['unlink', 'dislink']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['dislink'],
     description: 'Removes the link created by `pnpm link` and reinstalls package if it is saved in `package.json`',
@@ -61,7 +61,7 @@ export async function handler (
     recursive?: boolean
   },
   params: string[]
-) {
+): Promise<void> {
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
     await recursive(opts.allProjects, params, {
       ...opts,

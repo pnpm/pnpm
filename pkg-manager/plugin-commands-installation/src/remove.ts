@@ -42,7 +42,7 @@ class RemoveMissingDepsError extends PnpmError {
   }
 }
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'global-dir',
@@ -67,13 +67,13 @@ export function rcOptionsTypes () {
   ], allTypes)
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
   recursive: Boolean,
 })
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['rm', 'uninstall', 'un'],
     description: 'Removes packages from `node_modules` and from the project\'s `package.json`.',
@@ -153,7 +153,7 @@ export async function handler (
     recursive?: boolean
   },
   params: string[]
-) {
+): Promise<void> {
   if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')
   const include = {
     dependencies: opts.production !== false,

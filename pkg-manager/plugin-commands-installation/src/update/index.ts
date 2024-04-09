@@ -10,6 +10,7 @@ import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { PnpmError } from '@pnpm/error'
+import { type IncludedDependencies } from '@pnpm/types'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
@@ -20,7 +21,7 @@ import { type InstallCommandOptions } from '../install'
 import { installDeps } from '../installDeps'
 import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices'
 import { parseUpdateParam } from '../recursive'
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'depth',
@@ -73,7 +74,7 @@ export function rcOptionsTypes () {
   ], allTypes)
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
     interactive: Boolean,
@@ -83,7 +84,7 @@ export function cliOptionsTypes () {
   }
 }
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
@@ -94,7 +95,7 @@ export const completion: CompletionFunc = async (cliOpts) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['up', 'upgrade'],
     description: 'Updates packages to their latest version based on the specified range. You can use "*" in package name to update all packages with the same pattern.',
@@ -169,17 +170,17 @@ export type UpdateCommandOptions = InstallCommandOptions & {
 export async function handler (
   opts: UpdateCommandOptions,
   params: string[] = []
-) {
+): Promise<string | undefined> {
   if (opts.interactive) {
     return interactiveUpdate(params, opts)
   }
-  return update(params, opts)
+  return update(params, opts) as Promise<undefined>
 }
 
 async function interactiveUpdate (
   input: string[],
   opts: UpdateCommandOptions
-) {
+): Promise<string | undefined> {
   const include = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const projects = (opts.selectedProjectsGraph != null)
     ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
@@ -270,13 +271,13 @@ async function interactiveUpdate (
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
   const updatePkgNames = pluck('value', updateDependencies as ChoiceRow[])
-  return update(updatePkgNames, opts)
+  return update(updatePkgNames, opts) as Promise<undefined>
 }
 
 async function update (
   dependencies: string[],
   opts: UpdateCommandOptions
-) {
+): Promise<void> {
   if (opts.latest) {
     const dependenciesWithTags = dependencies.filter((name) => parseUpdateParam(name).versionSpec != null)
     if (dependenciesWithTags.length) {
@@ -311,7 +312,7 @@ function makeIncludeDependenciesFromCLI (opts: {
   production?: boolean
   dev?: boolean
   optional?: boolean
-}) {
+}): IncludedDependencies {
   return {
     dependencies: opts.production === true || (opts.dev !== true && opts.optional !== true),
     devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),
