@@ -1435,7 +1435,6 @@ test('when there are several aliased dependencies of the same package, pick the 
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/abc@1.0.0'], opts)
 
   const lockfile = readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
-  console.log(JSON.stringify(lockfile, null, 2))
   expect(lockfile.snapshots['@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)']).toBeTruthy()
 })
 
@@ -1826,6 +1825,5 @@ test('optional peer dependency is resolved if it is installed anywhere in the de
   )
 
   const lockfile = project.readLockfile()
-  console.log(JSON.stringify(lockfile, null, 2))
   expect(lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeDefined()
 })
