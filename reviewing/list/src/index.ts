@@ -20,10 +20,14 @@ const DEFAULTS = {
   showExtraneous: true,
 }
 
+export interface FlattenedSearchPackage extends PackageDependencyHierarchy {
+  depPath: string
+}
+
 export function flattenSearchedPackages (pkgs: PackageDependencyHierarchy[], opts: {
   lockfileDir: string
-}) {
-  const flattedPkgs: Array<PackageDependencyHierarchy & { depPath: string }> = []
+}): FlattenedSearchPackage[] {
+  const flattedPkgs: FlattenedSearchPackage[] = []
   for (const pkg of pkgs) {
     _walker([
       ...(pkg.optionalDependencies ?? []),
@@ -35,7 +39,7 @@ export function flattenSearchedPackages (pkgs: PackageDependencyHierarchy[], opt
 
   return flattedPkgs
 
-  function _walker (packages: PackageNode[], depPath: string) {
+  function _walker (packages: PackageNode[], depPath: string): void {
     for (const pkg of packages) {
       const nextDepPath = `${depPath} > ${pkg.name}@${pkg.version}`
       if (pkg.dependencies?.length) {
@@ -61,7 +65,7 @@ export async function searchForPackages (
     registries?: Registries
     modulesDir?: string
   }
-) {
+): Promise<PackageDependencyHierarchy[]> {
   const search = createPackagesSearcher(packages)
 
   return Promise.all(
@@ -101,7 +105,7 @@ export async function listForPackages (
     registries?: Registries
     modulesDir?: string
   }
-) {
+): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
   const pkgs = await searchForPackages(packages, projectPaths, opts)
@@ -132,7 +136,7 @@ export async function list (
     showExtraneous?: boolean
     modulesDir?: string
   }
-) {
+): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
   const pkgs = await Promise.all(
@@ -174,7 +178,15 @@ export async function list (
   })
 }
 
-function getPrinter (reportAs: 'parseable' | 'tree' | 'json') {
+type Printer = (packages: PackageDependencyHierarchy[], opts: {
+  alwaysPrintRootPackage: boolean
+  depth: number
+  long: boolean
+  search: boolean
+  showExtraneous: boolean
+}) => Promise<string>
+
+function getPrinter (reportAs: 'parseable' | 'tree' | 'json'): Printer {
   switch (reportAs) {
   case 'parseable': return renderParseable
   case 'json': return renderJson
