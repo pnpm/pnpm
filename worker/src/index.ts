@@ -15,12 +15,12 @@ import {
 
 let workerPool: WorkerPool | undefined
 
-export async function restartWorkerPool () {
+export async function restartWorkerPool (): Promise<void> {
   await finishWorkers()
   workerPool = createTarballWorkerPool()
 }
 
-export async function finishWorkers () {
+export async function finishWorkers (): Promise<void> {
   // @ts-expect-error
   await global.finishWorkers?.()
 }
@@ -48,9 +48,15 @@ function createTarballWorkerPool (): WorkerPool {
   return workerPool
 }
 
-export async function addFilesFromDir (
-  opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
-) {
+interface AddFilesResult {
+  filesIndex: Record<string, string>
+  manifest: DependencyManifest
+  requiresBuild: boolean
+}
+
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
+
+export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
@@ -111,11 +117,11 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
   }
 }
 
-export async function addFilesFromTarball (
-  opts: Pick<TarballExtractMessage, 'buffer' | 'cafsDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
-    url: string
-  }
-) {
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'cafsDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
+  url: string
+}
+
+export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Promise<AddFilesResult> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }

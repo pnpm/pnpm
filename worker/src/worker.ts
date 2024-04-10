@@ -152,7 +152,16 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, r
   return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
 }
 
-function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, pkg, readManifest, files }: AddDirToStoreMessage) {
+interface AddFilesFromDirResult {
+  status: string
+  value: {
+    filesIndex: Record<string, string>
+    manifest?: DependencyManifest
+    requiresBuild: boolean
+  }
+}
+
+function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, pkg, readManifest, files }: AddDirToStoreMessage): AddFilesFromDirResult {
   if (!cafsCache.has(cafsDir)) {
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
@@ -184,7 +193,12 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, p
   return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
 }
 
-function processFilesIndex (filesIndex: FilesIndex) {
+interface ProcessFilesIndexResult {
+  filesIntegrity: Record<string, PackageFileInfo>
+  filesMap: Record<string, string>
+}
+
+function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
   const filesIntegrity: Record<string, PackageFileInfo> = {}
   const filesMap: Record<string, string> = {}
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of Object.entries(filesIndex)) {
@@ -199,6 +213,14 @@ function processFilesIndex (filesIndex: FilesIndex) {
   return { filesIntegrity, filesMap }
 }
 
+interface ImportPackageResult {
+  status: string
+  value: {
+    isBuilt: boolean
+    importMethod?: string
+  }
+}
+
 function importPackage ({
   storeDir,
   packageImportMethod,
@@ -209,7 +231,7 @@ function importPackage ({
   force,
   keepModulesDir,
   disableRelinkLocalDirDeps,
-}: LinkPkgMessage) {
+}: LinkPkgMessage): ImportPackageResult {
   const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
   if (!cafsStoreCache.has(cacheKey)) {
     cafsStoreCache.set(cacheKey, createCafsStore(storeDir, { packageImportMethod, cafsLocker }))
@@ -226,7 +248,7 @@ function importPackage ({
   return { status: 'success', value: { isBuilt, importMethod } }
 }
 
-function symlinkAllModules (opts: SymlinkAllModulesMessage) {
+function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success' } {
   for (const dep of opts.deps) {
     for (const [alias, pkgDir] of Object.entries(dep.children)) {
       if (alias !== dep.name) {
@@ -257,7 +279,7 @@ function writeFilesIndexFile (
   return requiresBuild
 }
 
-function writeJsonFile (filePath: string, data: unknown) {
+function writeJsonFile (filePath: string, data: unknown): void {
   const targetDir = path.dirname(filePath)
   // TODO: use the API of @pnpm/cafs to write this file
   // There is actually no need to create the directory in 99% of cases.

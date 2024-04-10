@@ -1,6 +1,6 @@
 import { type CommentSpecifier } from './CommentSpecifier'
 
-export function insertComments (json: string, comments: CommentSpecifier[]) {
+export function insertComments (json: string, comments: CommentSpecifier[]): string {
   // We need to reintroduce the comments. So create an index of
   // the lines of the manifest so we can try to match them up.
   // We eliminate whitespace and quotes in the index entries,
