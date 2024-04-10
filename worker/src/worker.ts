@@ -2,10 +2,12 @@ import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
+import { type Cafs } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
+  type CafsFunctions,
   checkPkgFilesIntegrity,
   createCafs,
   type PackageFileInfo,
@@ -33,8 +35,8 @@ const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
 
 parentPort!.on('message', handleMessage)
 
-const cafsCache = new Map<string, ReturnType<typeof createCafs>>()
-const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
+const cafsCache = new Map<string, CafsFunctions>()
+const cafsStoreCache = new Map<string, Cafs>()
 const cafsLocker = new Map<string, number>()
 
 async function handleMessage (
