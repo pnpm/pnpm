@@ -30,7 +30,7 @@ export interface RenderTreeOptions {
 export async function renderTree (
   packages: PackageDependencyHierarchy[],
   opts: RenderTreeOptions
-) {
+): Promise<string> {
   const output = (
     await Promise.all(packages.map(async (pkg) => renderTreeForPackage(pkg, opts)))
   )
@@ -42,7 +42,7 @@ export async function renderTree (
 async function renderTreeForPackage (
   pkg: PackageDependencyHierarchy,
   opts: RenderTreeOptions
-) {
+): Promise<string> {
   if (
     !opts.alwaysPrintRootPackage &&
     !pkg.dependencies?.length &&
@@ -142,7 +142,7 @@ export async function toArchyTree (
   )
 }
 
-function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
+function printLabel (getPkgColor: GetPkgColor, node: PackageNode): string {
   const color = getPkgColor(node)
   let txt = `${color(node.name)} ${chalk.gray(node.version)}`
   if (node.isPeer) {
@@ -154,7 +154,7 @@ function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
   return node.searched ? chalk.bold(txt) : txt
 }
 
-function getPkgColor (node: PackageNode) {
+function getPkgColor (node: PackageNode): (text: string) => string {
   if (node.dev === true) return DEV_DEP_ONLY_CLR
   if (node.optional) return OPTIONAL_DEP_CLR
   return PROD_DEP_CLR
