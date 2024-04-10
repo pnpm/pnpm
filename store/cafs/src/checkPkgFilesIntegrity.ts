@@ -113,7 +113,7 @@ function verifyFile (
   if (readManifest) {
     return {
       passed: true,
-      manifest: parseJsonBufferSync(gfs.readFileSync(filename)),
+      manifest: parseJsonBufferSync(gfs.readFileSync(filename)) as DependencyManifest,
     }
   }
   // If a file was not edited, we are skipping integrity check.
@@ -137,7 +137,7 @@ export function verifyFileIntegrity (
     } else if (readManifest) {
       return {
         passed,
-        manifest: parseJsonBufferSync(data),
+        manifest: parseJsonBufferSync(data) as DependencyManifest,
       }
     }
     return { passed }
@@ -154,7 +154,7 @@ export function verifyFileIntegrity (
   }
 }
 
-function checkFile (filename: string, checkedAt?: number) {
+function checkFile (filename: string, checkedAt?: number): { isModified: boolean, size: number } | null {
   try {
     const { mtimeMs, size } = fs.statSync(filename)
     return {

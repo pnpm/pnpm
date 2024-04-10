@@ -55,7 +55,7 @@ export function writeBufferToCafs (
   }
 }
 
-export function optimisticRenameOverwrite (temp: string, fileDest: string) {
+export function optimisticRenameOverwrite (temp: string, fileDest: string): void {
   try {
     renameOverwrite.sync(temp, fileDest)
   } catch (err: unknown) {
@@ -94,7 +94,7 @@ function removeSuffix (filePath: string): string {
   return withoutSuffix
 }
 
-function existsSame (filename: string, integrity: ssri.IntegrityLike) {
+function existsSame (filename: string, integrity: ssri.IntegrityLike): boolean {
   const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
   if (!existingFile) return false
   return verifyFileIntegrity(filename, {

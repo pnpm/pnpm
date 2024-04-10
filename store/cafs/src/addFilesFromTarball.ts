@@ -3,6 +3,7 @@ import {
   type FilesIndex,
   type FileWriteResult,
 } from '@pnpm/cafs-types'
+import { type DependencyManifest } from '@pnpm/types'
 import isGzip from 'is-gzip'
 import { gunzipSync } from 'zlib'
 import { parseJsonBufferSync } from './parseJson'
@@ -35,6 +36,6 @@ export function addFilesFromTarball (
   }
   return {
     filesIndex,
-    manifest: manifestBuffer ? parseJsonBufferSync(manifestBuffer) : undefined,
+    manifest: manifestBuffer ? parseJsonBufferSync(manifestBuffer) as DependencyManifest : undefined,
   }
 }

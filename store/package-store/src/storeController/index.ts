@@ -65,7 +65,7 @@ export function createPackageStore (
     upload,
   }
 
-  async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) {
+  async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }): Promise<void> {
     await addFilesFromDir({
       cafsDir: cafs.cafsDir,
       dir: builtPkgLocation,

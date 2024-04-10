@@ -26,6 +26,11 @@ interface RequestBody {
   searchQueries: string[]
 }
 
+export interface StoreServerHandle {
+  close: () => Promise<void>
+  waitForClose: Promise<void>
+}
+
 export function createServer (
   store: StoreController,
   opts: {
@@ -35,7 +40,7 @@ export function createServer (
     ignoreStopRequests?: boolean
     ignoreUploadRequests?: boolean
   }
-) {
+): StoreServerHandle {
   const filesPromises: Record<string, () => Promise<PkgRequestFetchResult>> = {}
 
   // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
@@ -176,7 +181,7 @@ export function createServer (
 
   return { close, waitForClose }
 
-  async function close () {
+  async function close (): Promise<void> {
     listener.close()
     return store.close()
   }

@@ -22,7 +22,7 @@ export function cliOptionsTypes () {
   return {}
 }
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Prints the index file of a specific package from the store.',
     descriptionLists: [],
@@ -42,7 +42,7 @@ Config,
 | 'sslConfigs'
 >
 
-export async function handler (opts: CatIndexCommandOptions, params: string[]) {
+export async function handler (opts: CatIndexCommandOptions, params: string[]): Promise<string> {
   if (!params || params.length === 0) {
     throw new PnpmError(
       'MISSING_PACKAGE_NAME',
