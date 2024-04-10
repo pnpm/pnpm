@@ -103,12 +103,12 @@ function fromLocal (
   }
 }
 
-function resolvePath (where: string, spec: string) {
+function resolvePath (where: string, spec: string): string {
   if (isAbsolutePath.test(spec)) return spec
   return path.resolve(where, spec)
 }
 
-function isAbsolute (dir: string) {
+function isAbsolute (dir: string): boolean {
   if (dir[0] === '/') return true
   if (/^[A-Za-z]:/.test(dir)) return true
   return false

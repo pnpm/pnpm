@@ -89,7 +89,7 @@ export function pickLowestVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
   preferredVerSels?: VersionSelectors
-) {
+): string | null {
   if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVerSels)
     for (const preferredVersions of prioritizedPreferredVersions) {
@@ -110,7 +110,7 @@ export function pickVersionByVersionRange (
   versionRange: string,
   preferredVerSels?: VersionSelectors,
   publishedBy?: Date
-) {
+): string | null {
   let latest: string | undefined = meta['dist-tags'].latest
 
   if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
@@ -193,7 +193,7 @@ function prioritizePreferredVersions (
 class PreferredVersionsPrioritizer {
   private preferredVersions: Record<string, number> = {}
 
-  add (version: string, weight: number) {
+  add (version: string, weight: number): void {
     if (!this.preferredVersions[version]) {
       this.preferredVersions[version] = weight
     } else {
@@ -201,7 +201,7 @@ class PreferredVersionsPrioritizer {
     }
   }
 
-  versionsByPriority () {
+  versionsByPriority (): string[][] {
     const versionsByWeight = Object.entries(this.preferredVersions)
       .reduce((acc, [version, weight]) => {
         acc[weight] = acc[weight] ?? []

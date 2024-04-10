@@ -54,7 +54,7 @@ export async function parsePref (pref: string): Promise<HostedPackageSpec | null
   return null
 }
 
-function urlToFetchSpec (url: URL) {
+function urlToFetchSpec (url: URL): string {
   url.hash = ''
   const fetchSpec = urlLib.format(url)
   if (fetchSpec.startsWith('git+')) {
@@ -126,7 +126,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
   }
 }
 
-async function isRepoPublic (httpsUrl: string) {
+async function isRepoPublic (httpsUrl: string): Promise<boolean> {
   try {
     const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
     return response.ok
@@ -135,7 +135,7 @@ async function isRepoPublic (httpsUrl: string) {
   }
 }
 
-async function accessRepository (repository: string) {
+async function accessRepository (repository: string): Promise<boolean> {
   try {
     await git(['ls-remote', '--exit-code', repository, 'HEAD'], { retries: 0 })
     return true
@@ -167,7 +167,7 @@ function parseGitParams (committish: string | null): GitParsedParams {
 
 // handle SCP-like URLs
 // see https://github.com/yarnpkg/yarn/blob/5682d55/src/util/git.js#L103
-function correctUrl (gitUrl: string) {
+function correctUrl (gitUrl: string): string {
   const parsed = urlLib.parse(gitUrl.replace(/^git\+/, '')) // eslint-disable-line n/no-deprecated-api
 
   if (parsed.protocol === 'ssh:' &&

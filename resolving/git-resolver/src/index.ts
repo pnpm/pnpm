@@ -5,12 +5,14 @@ import { parsePref, type HostedPackageSpec } from './parsePref'
 
 export type { HostedPackageSpec }
 
+export type GitResolver = (wantedDependency: {
+  pref: string
+}) => Promise<ResolveResult | null>
+
 export function createGitResolver (
   opts: unknown
-) {
-  return async function resolveGit (
-    wantedDependency: { pref: string }
-  ): Promise<ResolveResult | null> {
+): GitResolver {
+  return async function resolveGit (wantedDependency): Promise<ResolveResult | null> {
     const parsedSpec = await parsePref(wantedDependency.pref)
 
     if (parsedSpec == null) return null
@@ -67,11 +69,11 @@ export function createGitResolver (
   }
 }
 
-function resolveVTags (vTags: string[], range: string) {
+function resolveVTags (vTags: string[], range: string): string | null {
   return semver.maxSatisfying(vTags, range, true)
 }
 
-async function getRepoRefs (repo: string, ref: string | null) {
+async function getRepoRefs (repo: string, ref: string | null): Promise<Record<string, string>> {
   const gitArgs = [repo]
   if (ref !== 'HEAD') {
     gitArgs.unshift('--refs')
@@ -81,7 +83,7 @@ async function getRepoRefs (repo: string, ref: string | null) {
   }
   // graceful-git by default retries 10 times, reduce to single retry
   const result = await git(['ls-remote', ...gitArgs], { retries: 1 })
-  const refs = result.stdout.split('\n').reduce((obj: Record<string, string>, line: string) => {
+  const refs: Record<string, string> = result.stdout.split('\n').reduce((obj: Record<string, string>, line: string) => {
     const [commit, refName] = line.split('\t')
     obj[refName] = commit
     return obj
@@ -89,7 +91,7 @@ async function getRepoRefs (repo: string, ref: string | null) {
   return refs
 }
 
-async function resolveRef (repo: string, ref: string, range?: string) {
+async function resolveRef (repo: string, ref: string, range?: string): Promise<string> {
   if (ref.match(/^[0-9a-f]{7,40}$/) != null) {
     return ref
   }
@@ -97,7 +99,7 @@ async function resolveRef (repo: string, ref: string, range?: string) {
   return resolveRefFromRefs(refs, repo, ref, range)
 }
 
-function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref: string, range?: string) {
+function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref: string, range?: string): string {
   if (!range) {
     const commitId =
       refs[ref] ||

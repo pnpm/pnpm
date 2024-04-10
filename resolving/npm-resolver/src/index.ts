@@ -70,11 +70,13 @@ export interface ResolverFactoryOptions {
   timeout?: number
 }
 
+export type NpmResolver = (wantedDependency: WantedDependency, opts: ResolveFromNpmOptions) => Promise<ResolveResult | null>
+
 export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-) {
+): NpmResolver {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
@@ -245,7 +247,7 @@ function tryResolveFromWorkspace (
     registry: string
     workspacePackages?: WorkspacePackages
   }
-) {
+): ResolveResult | null {
   if (!wantedDependency.pref?.startsWith('workspace:')) {
     return null
   }
@@ -276,7 +278,7 @@ function tryResolveFromWorkspacePackages (
     projectDir: string
     lockfileDir?: string
   }
-) {
+): ResolveResult {
   if (!workspacePackages[spec.name]) {
     throw new PnpmError(
       'WORKSPACE_PKG_NOT_FOUND',
@@ -304,7 +306,7 @@ function pickMatchingLocalVersionOrNull (
     }
   },
   spec: RegistryPackageSpec
-) {
+): string | null {
   const localVersions = Object.keys(versions)
   switch (spec.type) {
   case 'tag':
@@ -333,7 +335,7 @@ function resolveFromLocalPackage (
     projectDir: string
     lockfileDir?: string
   }
-) {
+): ResolveResult {
   let id!: string
   let directory!: string
   const localPackageDir = resolveLocalPackageDir(localPackage)
@@ -356,7 +358,7 @@ function resolveFromLocalPackage (
   }
 }
 
-function resolveLocalPackageDir (localPackage: LocalPackage) {
+function resolveLocalPackageDir (localPackage: LocalPackage): string {
   if (
     localPackage.manifest.publishConfig?.directory == null ||
     localPackage.manifest.publishConfig?.linkDirectory === false
@@ -376,7 +378,7 @@ function getIntegrity (dist: {
   integrity?: string
   shasum: string
   tarball: string
-}) {
+}): string | undefined {
   if (dist.integrity) {
     return dist.integrity
   }
