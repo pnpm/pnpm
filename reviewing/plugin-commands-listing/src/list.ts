@@ -7,7 +7,7 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { listRecursive } from './recursive'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'depth',
     'dev',
@@ -22,20 +22,20 @@ export function rcOptionsTypes () {
   ], allTypes)
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   'only-projects': Boolean,
   recursive: Boolean,
 })
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
 
 export const commandNames = ['list', 'ls']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['list', 'ls', 'la', 'll'],
     description: 'When run as ll or la, it shows extended information by default. \
@@ -134,7 +134,7 @@ export type ListCommandOptions = Pick<Config,
 export async function handler (
   opts: ListCommandOptions,
   params: string[]
-) {
+): Promise<string> {
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
@@ -167,7 +167,7 @@ export async function render (
     parseable?: boolean
     modulesDir?: string
   }
-) {
+): Promise<string> {
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth ?? 0,

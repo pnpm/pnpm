@@ -23,7 +23,7 @@ import {
   renderPackageName,
   toOutdatedWithVersionDiff,
 } from './outdated'
-import { DEFAULT_COMPARATORS } from './utils'
+import { DEFAULT_COMPARATORS, type OutdatedWithVersionDiff } from './utils'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,
@@ -50,7 +50,7 @@ export async function outdatedRecursive (
   pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
   params: string[],
   opts: OutdatedCommandOptions & { include: IncludedDependencies }
-) {
+): Promise<{ output: string, exitCode: number }> {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
   const rootManifest = pkgs.find(({ dir }) => dir === opts.lockfileDir)
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, {
@@ -100,7 +100,7 @@ export async function outdatedRecursive (
   }
 }
 
-function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }): string {
   if (isEmpty(outdatedMap)) return ''
   const columnNames = [
     'Package',
@@ -143,7 +143,7 @@ function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, 
   })
 }
 
-function renderOutdatedList (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+function renderOutdatedList (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }): string {
   if (isEmpty(outdatedMap)) return ''
   return sortOutdatedPackages(Object.values(outdatedMap))
     .map((outdatedPkg) => {
@@ -199,14 +199,16 @@ function renderOutdatedJSON (
   return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 
-function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {
+function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace): string {
   return dependentPkgs
     .map(({ manifest, location }) => manifest.name ?? location)
     .sort()
     .join(', ')
 }
 
-function sortOutdatedPackages (outdatedPackages: readonly OutdatedInWorkspace[]) {
+interface SortedOutdatedPackage extends OutdatedInWorkspace, OutdatedWithVersionDiff {}
+
+function sortOutdatedPackages (outdatedPackages: readonly OutdatedInWorkspace[]): SortedOutdatedPackage[] {
   return sortWith(
     COMPARATORS,
     outdatedPackages.map(toOutdatedWithVersionDiff)

@@ -3,11 +3,11 @@ import npa from '@pnpm/npm-package-arg'
 import { type SearchFunction } from './types'
 import semver from 'semver'
 
-export function createPackagesSearcher (queries: string[]) {
+export function createPackagesSearcher (queries: string[]): SearchFunction {
   const searchers: SearchFunction[] = queries
     .map(parseSearchQuery)
     .map((packageSelector) => search.bind(null, packageSelector))
-  return (pkg: { name: string, version: string }) => searchers.some((search) => search(pkg))
+  return (pkg) => searchers.some((search) => search(pkg))
 }
 
 type MatchFunction = (entry: string) => boolean
@@ -18,7 +18,7 @@ function search (
     matchVersion?: MatchFunction
   },
   pkg: { name: string, version: string }
-) {
+): boolean {
   if (!packageSelector.matchName(pkg.name)) {
     return false
   }
@@ -28,7 +28,12 @@ function search (
   return !pkg.version.startsWith('link:') && packageSelector.matchVersion(pkg.version)
 }
 
-function parseSearchQuery (query: string) {
+interface ParsedSearchQuery {
+  matchName: (name: string) => boolean
+  matchVersion?: (version: string) => boolean
+}
+
+function parseSearchQuery (query: string): ParsedSearchQuery {
   const parsed = npa(query)
   if (parsed.raw === parsed.name) {
     return { matchName: createMatcher(parsed.name) }

@@ -29,7 +29,7 @@ export async function getManifest (
   opts: GetManifestOpts,
   packageName: string,
   pref: string
-) {
+): Promise<DependencyManifest | null> {
   const resolution = await resolve({ alias: packageName, pref }, {
     lockfileDir: opts.lockfileDir,
     preferredVersions: {},

@@ -28,7 +28,7 @@ import {
 } from './utils'
 import { outdatedRecursive } from './recursive'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'depth',
@@ -44,12 +44,12 @@ export function rcOptionsTypes () {
   }
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   recursive: Boolean,
 })
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
   table: '--format=table',
@@ -59,7 +59,7 @@ export const shorthands = {
 
 export const commandNames = ['outdated']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: `Check for outdated packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
 
@@ -161,7 +161,7 @@ export type OutdatedCommandOptions = {
 export async function handler (
   opts: OutdatedCommandOptions,
   params: string[] = []
-) {
+): Promise<{ output: string, exitCode: number }> {
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
@@ -216,7 +216,7 @@ export async function handler (
   }
 }
 
-function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
+function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }): string {
   if (outdatedPackages.length === 0) return ''
   const columnNames = [
     'Package',
@@ -246,7 +246,7 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
   ], TABLE_OPTIONS)
 }
 
-function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
+function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }): string {
   if (outdatedPackages.length === 0) return ''
   return sortOutdatedPackages(outdatedPackages)
     .map((outdatedPkg) => {
@@ -275,7 +275,7 @@ export interface OutdatedPackageJSONOutput {
   latestManifest?: PackageManifest
 }
 
-function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
+function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }): string {
   const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages)
     .reduce((acc, outdatedPkg) => {
       acc[outdatedPkg.packageName] = {
@@ -300,7 +300,7 @@ function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[]) {
   )
 }
 
-export function getCellWidth (data: string[][], columnNumber: number, maxWidth: number) {
+export function getCellWidth (data: string[][], columnNumber: number, maxWidth: number): number {
   const maxCellWidth = data.reduce((cellWidth, row) => {
     const cellLines = stripAnsi(row[columnNumber]).split('\n')
     const currentCellWidth = cellLines.reduce((lineWidth, line) => {
@@ -311,7 +311,7 @@ export function getCellWidth (data: string[][], columnNumber: number, maxWidth: 
   return Math.min(maxWidth, maxCellWidth)
 }
 
-export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T & OutdatedWithVersionDiff {
+export function toOutdatedWithVersionDiff<Pkg extends OutdatedPackage> (outdated: Pkg): Pkg & OutdatedWithVersionDiff {
   if (outdated.latestManifest != null) {
     return {
       ...outdated,
@@ -324,7 +324,7 @@ export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T 
   }
 }
 
-export function renderPackageName ({ belongsTo, packageName }: OutdatedPackage) {
+export function renderPackageName ({ belongsTo, packageName }: OutdatedPackage): string {
   switch (belongsTo) {
   case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
   case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
@@ -332,7 +332,7 @@ export function renderPackageName ({ belongsTo, packageName }: OutdatedPackage) 
   }
 }
 
-export function renderCurrent ({ current, wanted }: OutdatedPackage) {
+export function renderCurrent ({ current, wanted }: OutdatedPackage): string {
   const output = current ?? 'missing'
   if (current === wanted) return output
   return `${output} (wanted ${wanted})`
@@ -350,7 +350,7 @@ export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
   return colorizeSemverDiff({ change, diff })
 }
 
-export function renderDetails ({ latestManifest }: OutdatedPackage) {
+export function renderDetails ({ latestManifest }: OutdatedPackage): string {
   if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {

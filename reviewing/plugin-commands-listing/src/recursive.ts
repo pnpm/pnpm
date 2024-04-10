@@ -15,7 +15,7 @@ export async function listRecursive (
     parseable?: boolean
     lockfileDir?: string
   }
-) {
+): Promise<string> {
   const depth = opts.depth ?? 0
   if (opts.lockfileDir) {
     return render(pkgs.map((pkg) => pkg.dir), params, {
