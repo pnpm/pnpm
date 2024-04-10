@@ -46,7 +46,7 @@ export function addFilesFromDir (
   for (const { absolutePath, relativePath, stat } of files) {
     const buffer = gfs.readFileSync(absolutePath)
     if (opts.readManifest && relativePath === 'package.json') {
-      manifest = parseJsonBufferSync(buffer)
+      manifest = parseJsonBufferSync(buffer) as DependencyManifest
     }
     filesIndex[relativePath] = {
       mode: stat.mode,
@@ -73,7 +73,7 @@ function findFiles (
   filesList: File[],
   dir: string,
   relativeDir = ''
-) {
+): void {
   const files = fs.readdirSync(dir, { withFileTypes: true })
   for (const file of files) {
     const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file.name}`

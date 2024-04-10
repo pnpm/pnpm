@@ -268,14 +268,14 @@ export function parseTarball (buffer: Buffer): IParseResult {
   // eslint-enable no-var
 }
 
-function indexOf (block: Buffer, num: number, offset: number, end: number) {
+function indexOf (block: Buffer, num: number, offset: number, end: number): number {
   for (; offset < end; offset++) {
     if (block[offset] === num) return offset
   }
   return end
 }
 
-function clamp (index: number, len: number, defaultValue: number) {
+function clamp (index: number, len: number, defaultValue: number): number {
   if (typeof index !== 'number') return defaultValue
   index = ~~index // Coerce to integer.
   if (index >= len) return len

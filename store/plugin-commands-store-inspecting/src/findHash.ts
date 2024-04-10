@@ -17,11 +17,11 @@ export const commandNames = ['find-hash']
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {}
 }
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description:
       'Experimental! Lists the packages that include the file with the specified hash.',
@@ -37,7 +37,7 @@ export interface FindHashResult {
   filesIndexFile: string
 }
 
-export async function handler (opts: FindHashCommandOptions, params: string[]) {
+export async function handler (opts: FindHashCommandOptions, params: string[]): Promise<string> {
   if (!params || params.length === 0) {
     throw new PnpmError('MISSING_HASH', '`pnpm find-hash` requires the hash')
   }

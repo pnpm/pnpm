@@ -11,7 +11,7 @@ export async function storePrune (
     cacheDir: string
     dlxCacheMaxAge: number
   }
-) {
+): Promise<void> {
   const reporter = opts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)

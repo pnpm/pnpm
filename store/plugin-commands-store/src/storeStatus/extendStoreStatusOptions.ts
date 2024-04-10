@@ -25,7 +25,7 @@ export interface StrictStoreStatusOptions {
 export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &
 Pick<StrictStoreStatusOptions, 'storeDir'>
 
-const defaults = async (opts: StoreStatusOptions) => {
+const defaults = async (opts: StoreStatusOptions): Promise<StrictStoreStatusOptions> => {
   const dir = opts.dir ?? process.cwd()
   const lockfileDir = opts.lockfileDir ?? dir
   return {

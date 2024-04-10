@@ -16,7 +16,7 @@ import {
 } from './extendStoreStatusOptions'
 import { type TarballResolution } from '@pnpm/store-controller-types'
 
-export async function storeStatus (maybeOpts: StoreStatusOptions) {
+export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<string[]> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
