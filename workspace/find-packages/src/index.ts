@@ -69,7 +69,7 @@ export function arrayOfWorkspacePackagesToMap (
   }, {} as ArrayOfWorkspacePackagesToMapResult)
 }
 
-function checkNonRootProjectManifest ({ manifest, dir }: Project) {
+function checkNonRootProjectManifest ({ manifest, dir }: Project): void {
   for (const rootOnlyField of ['pnpm', 'resolutions']) {
     if (manifest?.[rootOnlyField as keyof ProjectManifest]) {
       logger.warn({

@@ -329,14 +329,14 @@ function matchPackages<T> (
 function matchPackagesByExactPath<T> (
   graph: PackageGraph<T>,
   pathStartsWith: string
-) {
+): string[] {
   return Object.keys(graph).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
 }
 
 function matchPackagesByGlob<T> (
   graph: PackageGraph<T>,
   pathStartsWith: string
-) {
+): string[] {
   const format = (str: string) => str.replace(/\/$/, '')
   const formattedFilter = pathStartsWith.replace(/\\/g, '/').replace(/\/$/, '')
   return Object.keys(graph).filter((parentDir) => micromatch.isMatch(parentDir, formattedFilter, { format }))
@@ -349,7 +349,7 @@ function pickSubgraph (
   opts: {
     includeRoot: boolean
   }
-) {
+): void {
   for (const nextNodeId of nextNodeIds) {
     if (!walked.has(nextNodeId)) {
       if (opts.includeRoot) {
