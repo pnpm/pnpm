@@ -19,10 +19,22 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../fs/read-modules-dir"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../pkg-manager/get-context"
+    },
+    {
+      "path": "../../pkg-manager/link-bins"
+    },
+    {
+      "path": "../../pkg-manager/package-bins"
     },
     {
       "path": "../../pkg-manager/remove-bins"

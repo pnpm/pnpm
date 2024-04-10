@@ -32,6 +32,12 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'storeDir'
 | 'useNodeVersion'
 | 'pnpmHomeDir'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
+| 'extendNodePath'
+| 'nodeLinker'
+| 'hoistPattern'
+| 'virtualStoreDir'
 > & Partial<Pick<Config, 'configDir' | 'cliOptions' | 'sslConfigs'>> & {
   remote?: boolean
 }

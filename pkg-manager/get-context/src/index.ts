@@ -544,7 +544,7 @@ export async function getContextForSingleImporter (
   return ctx
 }
 
-function getExtraNodePaths (
+export function getExtraNodePaths (
   { extendNodePath = true, hoistPattern, nodeLinker, virtualStoreDir }: {
     extendNodePath?: boolean
     hoistPattern?: string[]

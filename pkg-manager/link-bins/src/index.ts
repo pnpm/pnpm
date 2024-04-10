@@ -90,7 +90,7 @@ export async function linkBinsOfPkgsByAliases (
   return _linkBins(cmdsToLink, binsDir, opts)
 }
 
-function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>) {
+export function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>) {
   const [directCmds, hoistedCmds] = partition((cmd) => cmd.isDirectDependency === true, allCmds)
   const usedDirectCmds = new Set(directCmds.map((directCmd) => directCmd.name))
   return [
@@ -171,7 +171,7 @@ async function isFromModules (filename: string) {
   return normalizePath(real).includes('/node_modules/')
 }
 
-async function getPackageBins (
+export async function getPackageBins (
   opts: {
     allowExoticManifests: boolean
     warn: WarnFunction
@@ -280,7 +280,7 @@ function getExeExtension (): string {
   return cmdExtension ?? '.exe'
 }
 
-async function getBinNodePaths (target: string): Promise<string[]> {
+export async function getBinNodePaths (target: string): Promise<string[]> {
   const targetDir = path.dirname(target)
   try {
     const targetRealPath = await fs.realpath(targetDir)
