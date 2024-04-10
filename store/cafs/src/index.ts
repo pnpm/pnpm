@@ -42,10 +42,10 @@ export interface CreateCafsOpts {
 }
 
 export interface CafsFunctions {
-  addFilesFromDir (dirname: string, opts?: { files?: string[], readManifest?: boolean }): AddToStoreResult
-  addFilesFromTarball (tarballBuffer: Buffer, readManifest?: boolean): AddToStoreResult
-  getFilePathInCafs (integrity: string | ssri.IntegrityLike, fileType: FileType): string
-  getFilePathByModeInCafs (integrity: string | ssri.IntegrityLike, mode: number): string
+  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean }) => AddToStoreResult
+  addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
+  getFilePathInCafs: (integrity: string | ssri.IntegrityLike, fileType: FileType) => string
+  getFilePathByModeInCafs: (integrity: string | ssri.IntegrityLike, mode: number) => string
 }
 
 export function createCafs (cafsDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {
