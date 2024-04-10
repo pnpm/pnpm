@@ -25,7 +25,7 @@ const GIT_HOSTERS = new Set([
   'bitbucket.org',
 ])
 
-function isRepository (pref: string) {
+function isRepository (pref: string): boolean {
   if (pref.endsWith('/')) {
     pref = pref.slice(0, -1)
   }
