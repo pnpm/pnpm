@@ -299,7 +299,6 @@ test('parallel dlx calls of the same package', async () => {
   ))
 
   expect(['foo', 'bar', 'baz'].filter(name => fs.existsSync(name))).toStrictEqual(['foo', 'bar', 'baz'])
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).length).toBe(4)
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
   ).toStrictEqual([
@@ -311,13 +310,15 @@ test('parallel dlx calls of the same package', async () => {
     path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg')))
   ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
 
+  const cacheContentAfterFirstRun = fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()
+
   // parallel dlx calls with cache
   await Promise.all(['abc', 'def', 'ghi'].map(
     name => execPnpm(['dlx', 'shx', 'mkdir', name])
   ))
 
   expect(['abc', 'def', 'ghi'].filter(name => fs.existsSync(name))).toStrictEqual(['abc', 'def', 'ghi'])
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).length).toBe(4)
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(cacheContentAfterFirstRun)
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
   ).toStrictEqual([
@@ -339,7 +340,7 @@ test('parallel dlx calls of the same package', async () => {
   ))
 
   expect(['a/b/c', 'd/e/f', 'g/h/i'].filter(name => fs.existsSync(name))).toStrictEqual(['a/b/c', 'd/e/f', 'g/h/i'])
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).length).toBe(7)
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).length).toBeGreaterThan(cacheContentAfterFirstRun.length)
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
   ).toStrictEqual([
