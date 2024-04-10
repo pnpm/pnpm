@@ -14,7 +14,7 @@ export type FetchWithAgentOptions = RequestInit & {
   agentOptions: AgentOptions
 }
 
-export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions) {
+export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions): Promise<Response> {
   const agent = getAgent(url.toString(), {
     ...opts.agentOptions,
     strictSsl: opts.agentOptions.strictSsl ?? true,
@@ -87,13 +87,19 @@ export function createFetchFromRegistry (
   }
 }
 
+interface Headers {
+  accept: string
+  authorization?: string
+  'user-agent'?: string
+}
+
 function getHeaders (
   opts: {
     auth?: string
     fullMetadata?: boolean
     userAgent?: string
   }
-) {
+): Headers {
   const headers: { accept: string, authorization?: string, 'user-agent'?: string } = {
     accept: opts.fullMetadata === true ? JSON_DOC : ABBREVIATED_DOC,
   }
