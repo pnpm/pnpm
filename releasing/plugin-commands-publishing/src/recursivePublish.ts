@@ -149,7 +149,7 @@ async function isAlreadyPublished (
   },
   pkgName: string,
   pkgVersion: string
-) {
+): Promise<boolean> {
   try {
     await opts.resolve({ alias: pkgName, pref: pkgVersion }, {
       lockfileDir: opts.lockfileDir,
