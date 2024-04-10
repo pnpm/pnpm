@@ -14,17 +14,17 @@ import { logger } from '@pnpm/logger'
 
 export const shorthands = install.shorthands
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return install.rcOptionsTypes()
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return install.cliOptionsTypes()
 }
 
 export const commandNames = ['deploy']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Experimental! Deploy a package from a workspace',
     url: docsUrl('deploy'),
@@ -57,7 +57,7 @@ export function help () {
 export async function handler (
   opts: install.InstallCommandOptions,
   params: string[]
-) {
+): Promise<void> {
   if (!opts.workspaceDir) {
     throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace')
   }
@@ -117,7 +117,7 @@ export async function handler (
   })
 }
 
-async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }) {
+async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }): Promise<void> {
   const { filesIndex } = await fetchFromDir(src, opts)
   const importPkg = createIndexedPkgImporter('clone-or-copy')
   importPkg(dest, { filesMap: filesIndex, force: true, resolvedFrom: 'local-dir' })
