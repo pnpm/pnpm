@@ -14,6 +14,6 @@ export const help = list.help
 export async function handler (
   opts: list.ListCommandOptions,
   params: string[]
-) {
+): Promise<string> {
   return list.handler({ ...opts, long: true }, params)
 }

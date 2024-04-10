@@ -4,8 +4,9 @@ import chalk from 'chalk'
 import { table } from '@zkochan/table'
 import { groupBy, sortWith, omit, pick } from 'ramda'
 import semver from 'semver'
+import { type LicensesCommandResult } from './LicensesCommandResult'
 
-function sortLicensesPackages (licensePackages: readonly LicensePackage[]) {
+function sortLicensesPackages (licensePackages: readonly LicensePackage[]): LicensePackage[] {
   return sortWith(
     [
       (o1: LicensePackage, o2: LicensePackage) =>
@@ -15,7 +16,7 @@ function sortLicensesPackages (licensePackages: readonly LicensePackage[]) {
   )
 }
 
-function renderPackageName ({ belongsTo, name: packageName }: LicensePackage) {
+function renderPackageName ({ belongsTo, name: packageName }: LicensePackage): string {
   switch (belongsTo) {
   case 'devDependencies':
     return `${packageName} ${chalk.dim('(dev)')}`
@@ -26,12 +27,12 @@ function renderPackageName ({ belongsTo, name: packageName }: LicensePackage) {
   }
 }
 
-function renderPackageLicense ({ license }: LicensePackage) {
+function renderPackageLicense ({ license }: LicensePackage): string {
   const output = license ?? 'Unknown'
   return output as string
 }
 
-function renderDetails (licensePackage: LicensePackage) {
+function renderDetails (licensePackage: LicensePackage): string {
   const outputs = []
   if (licensePackage.author) {
     outputs.push(licensePackage.author)
@@ -48,7 +49,7 @@ function renderDetails (licensePackage: LicensePackage) {
 export function renderLicences (
   licensesMap: LicensePackage[],
   opts: { long?: boolean, json?: boolean }
-) {
+): LicensesCommandResult {
   if (opts.json) {
     return { output: renderLicensesJson(licensesMap), exitCode: 0 }
   }
@@ -56,7 +57,7 @@ export function renderLicences (
   return { output: renderLicensesTable(licensesMap, opts), exitCode: 0 }
 }
 
-function renderLicensesJson (licensePackages: readonly LicensePackage[]) {
+function renderLicensesJson (licensePackages: readonly LicensePackage[]): string {
   const data = licensePackages
     .map((item) => pick(['name', 'version', 'path', 'license', 'author', 'homepage', 'description'], item))
 
@@ -96,7 +97,7 @@ export interface LicensePackageJson {
 function renderLicensesTable (
   licensePackages: readonly LicensePackage[],
   opts: { long?: boolean }
-) {
+): string {
   const columnNames = ['Package', 'License']
 
   const columnFns = [renderPackageName, renderPackageLicense]

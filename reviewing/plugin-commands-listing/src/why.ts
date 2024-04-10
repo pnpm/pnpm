@@ -6,7 +6,7 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { handler as list, type ListCommandOptions } from './list'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'depth',
     'dev',
@@ -21,19 +21,19 @@ export function rcOptionsTypes () {
   ], allTypes)
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   recursive: Boolean,
 })
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
 
 export const commandNames = ['why']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: `Shows the packages that depend on <pkg>
 For example: pnpm why babel-* eslint-*`,

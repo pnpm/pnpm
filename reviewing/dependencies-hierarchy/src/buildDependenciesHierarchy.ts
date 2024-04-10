@@ -5,6 +5,7 @@ import {
   type ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
+  type ResolvedDependencies,
 } from '@pnpm/lockfile-file'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
@@ -109,7 +110,7 @@ async function dependenciesHierarchyForPackage (
     modulesDir?: string
     virtualStoreDir?: string
   }
-) {
+): Promise<DependenciesHierarchy> {
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
   if (!currentLockfile.importers[importerId]) return {}
@@ -223,7 +224,7 @@ async function dependenciesHierarchyForPackage (
   return result
 }
 
-function getAllDirectDependencies (projectSnapshot: ProjectSnapshot) {
+function getAllDirectDependencies (projectSnapshot: ProjectSnapshot): ResolvedDependencies {
   return {
     ...projectSnapshot.dependencies,
     ...projectSnapshot.devDependencies,

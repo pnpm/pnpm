@@ -5,6 +5,7 @@ import { getStorePath } from '@pnpm/store-path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile-file'
 import { findDependencyLicenses } from '@pnpm/license-scanner'
+import { type LicensesCommandResult } from './LicensesCommandResult'
 import { renderLicences } from './outputRenderer'
 
 export type LicensesCommandOptions = {
@@ -30,7 +31,7 @@ Config,
 > &
 Partial<Pick<Config, 'userConfig'>>
 
-export async function licensesList (opts: LicensesCommandOptions) {
+export async function licensesList (opts: LicensesCommandOptions): Promise<LicensesCommandResult> {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, {
     ignoreIncompatible: true,
   })

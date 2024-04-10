@@ -39,7 +39,7 @@ export async function outdatedDepsOfProjects (
     fullMetadata: opts.fullMetadata === true,
     lockfileDir,
   })
-  return Promise.all(pkgs.map(async ({ dir, manifest }) => {
+  return Promise.all(pkgs.map(async ({ dir, manifest }): Promise<OutdatedPackage[]> => {
     const match = (args.length > 0) && createMatcher(args) || undefined
     return outdated({
       compatible: opts.compatible,
