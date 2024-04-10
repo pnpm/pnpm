@@ -15,6 +15,12 @@ import { parsePref, type WantedLocalDependency } from './parsePref'
 
 export type { WantedLocalDependency }
 
+export interface ResolveFromLocalResult extends ResolveResult {
+  normalizedPref: string
+  resolution: TarballResolution | DirectoryResolution
+  manifest?: DependencyManifest
+}
+
 /**
  * Resolves a package hosted on the local filesystem
  */
@@ -24,19 +30,7 @@ export async function resolveFromLocal (
     lockfileDir?: string
     projectDir: string
   }
-): Promise<
-  (
-    ResolveResult &
-    Required<Pick<ResolveResult, 'normalizedPref'>> &
-    (
-      {
-        resolution: TarballResolution
-      } | ({
-        resolution: DirectoryResolution
-      } & Required<Pick<ResolveResult, 'manifest'>>)
-    )
-  ) | null
-  > {
+): Promise<ResolveFromLocalResult | null> {
   const spec = parsePref(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
   if (spec == null) return null
   if (spec.type === 'file') {
@@ -100,6 +94,6 @@ export async function resolveFromLocal (
   }
 }
 
-async function getFileIntegrity (filename: string) {
+async function getFileIntegrity (filename: string): Promise<string> {
   return (await ssri.fromStream(gfs.createReadStream(filename))).toString()
 }

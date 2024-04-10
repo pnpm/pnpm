@@ -94,7 +94,7 @@ function pickPackageFromMetaUsingTime (
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
   publishedBy?: Date
-) {
+): PackageInRegistry | null {
   const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
   if (pickedPackage) return pickedPackage
   return pickPackageFromMeta(pickLowestVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
@@ -265,7 +265,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
   }
 }
 
-function encodePkgName (pkgName: string) {
+function encodePkgName (pkgName: string): string {
   if (pkgName !== pkgName.toLowerCase()) {
     return `${pkgName}_${crypto.createHash('md5').update(pkgName).digest('hex')}`
   }
