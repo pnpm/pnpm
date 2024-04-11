@@ -17,16 +17,16 @@ export interface WorkspaceFilter {
   followProdDepsOnly: boolean
 }
 
-export interface PackageGraph<T> {
-  [id: string]: PackageNode<T>
+export interface PackageGraph<Pkg extends Package> {
+  [id: string]: PackageNode<Pkg>
 }
 
 interface Graph {
   [nodeId: string]: string[]
 }
 
-interface FilteredGraph<T> {
-  selectedProjectsGraph: PackageGraph<T>
+interface FilteredGraph<Pkg extends Package> {
+  selectedProjectsGraph: PackageGraph<Pkg>
   unmatchedFilters: string[]
 }
 
@@ -92,13 +92,13 @@ export async function filterPackagesFromDir (
   }
 }
 
-export async function filterPackages<T> (
-  pkgs: Array<Package & T>,
+export async function filterPackages<Pkg extends Package> (
+  pkgs: Pkg[],
   filter: WorkspaceFilter[],
   opts: FilterPackagesOptions
 ): Promise<{
-    allProjectsGraph: PackageGraph<T>
-    selectedProjectsGraph: PackageGraph<T>
+    allProjectsGraph: PackageGraph<Pkg>
+    selectedProjectsGraph: PackageGraph<Pkg>
     unmatchedFilters: string[]
   }> {
   const packageSelectors = filter.map(({ filter: f, followProdDepsOnly }) => ({ ...parsePackageSelector(f, opts.prefix), followProdDepsOnly }))
@@ -106,8 +106,8 @@ export async function filterPackages<T> (
   return filterPkgsBySelectorObjects(pkgs, packageSelectors, opts)
 }
 
-export async function filterPkgsBySelectorObjects<T> (
-  pkgs: Array<Package & T>,
+export async function filterPkgsBySelectorObjects<Pkg extends Package> (
+  pkgs: Pkg[],
   packageSelectors: PackageSelector[],
   opts: {
     linkWorkspacePackages?: boolean
@@ -117,15 +117,15 @@ export async function filterPkgsBySelectorObjects<T> (
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
-    allProjectsGraph: PackageGraph<T>
-    selectedProjectsGraph: PackageGraph<T>
+    allProjectsGraph: PackageGraph<Pkg>
+    selectedProjectsGraph: PackageGraph<Pkg>
     unmatchedFilters: string[]
   }> {
   const [prodPackageSelectors, allPackageSelectors] = partition(({ followProdDepsOnly }) => !!followProdDepsOnly, packageSelectors)
 
   if ((allPackageSelectors.length > 0) || (prodPackageSelectors.length > 0)) {
-    let filteredGraph: FilteredGraph<T> | undefined
-    const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
+    let filteredGraph: FilteredGraph<Pkg> | undefined
+    const { graph } = createPkgGraph<Pkg>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
 
     if (allPackageSelectors.length > 0) {
       filteredGraph = await filterWorkspacePackages(graph, allPackageSelectors, {
@@ -136,10 +136,10 @@ export async function filterPkgsBySelectorObjects<T> (
       })
     }
 
-    let prodFilteredGraph: FilteredGraph<T> | undefined
+    let prodFilteredGraph: FilteredGraph<Pkg> | undefined
 
     if (prodPackageSelectors.length > 0) {
-      const { graph } = createPkgGraph<T>(pkgs, { ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages })
+      const { graph } = createPkgGraph<Pkg>(pkgs, { ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages })
       prodFilteredGraph = await filterWorkspacePackages(graph, prodPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
@@ -160,13 +160,13 @@ export async function filterPkgsBySelectorObjects<T> (
       ],
     }
   } else {
-    const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createPkgGraph<Pkg>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
     return { allProjectsGraph: graph, selectedProjectsGraph: graph, unmatchedFilters: [] }
   }
 }
 
-export async function filterWorkspacePackages<T> (
-  pkgGraph: PackageGraph<T>,
+export async function filterWorkspacePackages<Pkg extends Package> (
+  pkgGraph: PackageGraph<Pkg>,
   packageSelectors: PackageSelector[],
   opts: {
     workspaceDir: string
@@ -175,7 +175,7 @@ export async function filterWorkspacePackages<T> (
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
-    selectedProjectsGraph: PackageGraph<T>
+    selectedProjectsGraph: PackageGraph<Pkg>
     unmatchedFilters: string[]
   }> {
   const [excludeSelectors, includeSelectors] = partition<PackageSelector>(
@@ -196,8 +196,8 @@ export async function filterWorkspacePackages<T> (
   }
 }
 
-async function _filterGraph<T> (
-  pkgGraph: PackageGraph<T>,
+async function _filterGraph<Pkg extends Package> (
+  pkgGraph: PackageGraph<Pkg>,
   opts: {
     workspaceDir: string
     testPattern?: string[]
@@ -291,7 +291,7 @@ async function _filterGraph<T> (
   }
 }
 
-function pkgGraphToGraph<T> (pkgGraph: PackageGraph<T>): Graph {
+function pkgGraphToGraph<Pkg extends Package> (pkgGraph: PackageGraph<Pkg>): Graph {
   const graph: Graph = {}
   Object.keys(pkgGraph).forEach((nodeId) => {
     graph[nodeId] = pkgGraph[nodeId].dependencies
@@ -313,8 +313,8 @@ function reverseGraph (graph: Graph): Graph {
   return reversedGraph
 }
 
-function matchPackages<T> (
-  graph: PackageGraph<T>,
+function matchPackages<Pkg extends Package> (
+  graph: PackageGraph<Pkg>,
   pattern: string
 ): string[] {
   const match = createMatcher(pattern)
@@ -326,17 +326,17 @@ function matchPackages<T> (
   return matches
 }
 
-function matchPackagesByExactPath<T> (
-  graph: PackageGraph<T>,
+function matchPackagesByExactPath<Pkg extends Package> (
+  graph: PackageGraph<Pkg>,
   pathStartsWith: string
-) {
+): string[] {
   return Object.keys(graph).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
 }
 
-function matchPackagesByGlob<T> (
-  graph: PackageGraph<T>,
+function matchPackagesByGlob<Pkg extends Package> (
+  graph: PackageGraph<Pkg>,
   pathStartsWith: string
-) {
+): string[] {
   const format = (str: string) => str.replace(/\/$/, '')
   const formattedFilter = pathStartsWith.replace(/\\/g, '/').replace(/\/$/, '')
   return Object.keys(graph).filter((parentDir) => micromatch.isMatch(parentDir, formattedFilter, { format }))
@@ -349,7 +349,7 @@ function pickSubgraph (
   opts: {
     includeRoot: boolean
   }
-) {
+): void {
   for (const nextNodeId of nextNodeIds) {
     if (!walked.has(nextNodeId)) {
       if (opts.includeRoot) {
