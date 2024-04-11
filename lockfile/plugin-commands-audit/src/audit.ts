@@ -44,7 +44,7 @@ const MAX_PATHS_COUNT = 3
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'dev',
@@ -60,14 +60,14 @@ export function cliOptionsTypes () {
   }
 }
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
 
 export const commandNames = ['audit']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Checks for known security issues with the installed packages.',
     descriptionLists: [
@@ -142,7 +142,7 @@ export async function handler (
   | 'rawConfig'
   | 'rootProjectManifest'
   >
-) {
+): Promise<{ exitCode: number, output: string }> {
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) {
@@ -254,7 +254,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   }
 }
 
-function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number) {
+function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number): string {
   if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
     Object.entries(vulnerabilities)

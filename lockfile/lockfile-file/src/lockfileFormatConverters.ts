@@ -198,7 +198,7 @@ export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV7
   return newLockfile
 }
 
-function convertPkgIds (lockfile: LockfileFile) {
+function convertPkgIds (lockfile: LockfileFile): void {
   const oldIdToNewId: Record<string, string> = {}
   if (lockfile.packages == null || isEmpty(lockfile.packages)) return
   for (const [pkgId, pkg] of Object.entries(lockfile.packages ?? {})) {

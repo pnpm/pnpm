@@ -46,7 +46,7 @@ function detectDepTypesInSubGraph (
   opts: {
     dev: boolean
   }
-) {
+): void {
   for (const depPath of depPaths) {
     const key = `${depPath}:${opts.dev.toString()}`
     if (ctx.walked.has(key)) continue
@@ -70,7 +70,7 @@ function detectDepTypesInSubGraph (
   }
 }
 
-function resolvedDepsToDepPaths (deps: ResolvedDependencies) {
+function resolvedDepsToDepPaths (deps: ResolvedDependencies): string[] {
   return Object.entries(deps)
     .map(([alias, ref]) => dp.refToRelative(ref, alias))
     .filter((depPath) => depPath !== null) as string[]

@@ -24,7 +24,7 @@ export async function audit (
     retry?: RetryTimeoutOptions
     timeout?: number
   }
-) {
+): Promise<AuditReport> {
   const auditTree = await lockfileToAuditTree(lockfile, { include: opts.include, lockfileDir: opts.lockfileDir })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/audits`
@@ -63,8 +63,12 @@ export async function audit (
   }
 }
 
-function getAuthHeaders (authHeaderValue: string | undefined) {
-  const headers: { authorization?: string } = {}
+interface AuthHeaders {
+  authorization?: string
+}
+
+function getAuthHeaders (authHeaderValue: string | undefined): AuthHeaders {
+  const headers: AuthHeaders = {}
   if (authHeaderValue) {
     headers['authorization'] = authHeaderValue
   }
@@ -103,7 +107,7 @@ async function searchPackagePaths (
   },
   projectDirs: string[],
   pkg: string
-) {
+): Promise<string[]> {
   const pkgs = await searchForPackages([pkg], projectDirs, searchOpts)
   return flattenSearchedPackages(pkgs, { lockfileDir: searchOpts.lockfileDir }).map(({ depPath }) => depPath)
 }

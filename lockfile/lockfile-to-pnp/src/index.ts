@@ -17,7 +17,7 @@ export async function writePnpFile (
     virtualStoreDir: string
     registries: Registries
   }
-) {
+): Promise<void> {
   const packageRegistry = lockfileToPackageRegistry(lockfile, opts)
 
   const loaderFile = generateInlinedScript({
