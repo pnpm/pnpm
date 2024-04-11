@@ -33,8 +33,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing#readme",
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",
-    "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.20.0",
     "@pnpm/test-ipc-server": "workspace:*",
@@ -50,7 +50,7 @@
     "is-windows": "^1.0.2",
     "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",
-    "tar": "^6.2.0",
+    "tar": "^6.2.1",
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
