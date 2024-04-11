@@ -2,6 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   type FetchFunction,
   type FetchOptions,
+  type FetchResult,
 } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import {
@@ -70,7 +71,7 @@ async function fetchFromTarball (
     tarball: string
   },
   opts: FetchOptions
-) {
+): Promise<FetchResult> {
   if (ctx.offline) {
     throw new PnpmError('NO_OFFLINE_TARBALL',
       `A package is missing from the store but cannot download it in offline mode. The missing package may be downloaded from ${resolution.tarball}.`)
