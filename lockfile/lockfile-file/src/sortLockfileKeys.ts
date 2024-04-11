@@ -48,7 +48,7 @@ const ROOT_KEYS: readonly RootKey[] = [
 ]
 const ROOT_KEYS_ORDER = Object.fromEntries(ROOT_KEYS.map((key, index) => [key, index]))
 
-function compareWithPriority (priority: Record<string, number>, left: string, right: string) {
+function compareWithPriority (priority: Record<string, number>, left: string, right: string): number {
   const leftPriority = priority[left]
   const rightPriority = priority[right]
   if (leftPriority != null && rightPriority != null) return leftPriority - rightPriority
@@ -57,7 +57,7 @@ function compareWithPriority (priority: Record<string, number>, left: string, ri
   return lexCompare(left, right)
 }
 
-export function sortLockfileKeys (lockfile: LockfileFileV7) {
+export function sortLockfileKeys (lockfile: LockfileFileV7): LockfileFileV7 {
   const compareRootKeys = compareWithPriority.bind(null, ROOT_KEYS_ORDER)
   if (lockfile.importers != null) {
     lockfile.importers = sortKeys(lockfile.importers)

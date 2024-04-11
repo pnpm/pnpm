@@ -16,10 +16,15 @@ import { filterImporter } from './filterImporter'
 
 const lockfileLogger = logger('lockfile')
 
+export interface FilterLockfileResult {
+  lockfile: Lockfile
+  selectedImporterIds: string[]
+}
+
 export function filterLockfileByEngine (
   lockfile: Lockfile,
   opts: FilterLockfileOptions
-) {
+): FilterLockfileResult {
   const importerIds = Object.keys(lockfile.importers)
   return filterLockfileByImportersAndEngine(lockfile, importerIds, opts)
 }
@@ -42,7 +47,7 @@ export function filterLockfileByImportersAndEngine (
   lockfile: Lockfile,
   importerIds: string[],
   opts: FilterLockfileOptions
-): { lockfile: Lockfile, selectedImporterIds: string[] } {
+): FilterLockfileResult {
   const importerIdSet = new Set(importerIds) as Set<string>
 
   const directDepPaths = toImporterDepPaths(lockfile, importerIds, {
@@ -103,7 +108,7 @@ function pickPkgsWithAllDeps (
     skipped: Set<string>
     supportedArchitectures?: SupportedArchitectures
   }
-) {
+): PackageSnapshots {
   const pickedPackages = {} as PackageSnapshots
   pkgAllDeps({ lockfile, pickedPackages, importerIdSet }, depPaths, true, opts)
   return pickedPackages
@@ -225,7 +230,12 @@ function toImporterDepPaths (
   ]
 }
 
-function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfile) {
+interface ParsedDepRefs {
+  depPaths: string[]
+  importerIds: string[]
+}
+
+function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfile): ParsedDepRefs {
   return refsByPkgNames
     .reduce((acc, [pkgName, ref]) => {
       if (ref.startsWith('link:')) {
@@ -239,5 +249,5 @@ function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfi
       if (depPath == null) return acc
       acc.depPaths.push(depPath)
       return acc
-    }, { depPaths: [] as string[], importerIds: [] as string[] })
+    }, { depPaths: [], importerIds: [] } as ParsedDepRefs)
 }

@@ -16,7 +16,12 @@ export function autofixMergeConflicts (fileContent: string): Lockfile {
   )
 }
 
-function parseMergeFile (fileContent: string) {
+interface MergeFileInfo {
+  ours: string
+  theirs: string
+}
+
+function parseMergeFile (fileContent: string): MergeFileInfo {
   const lines = fileContent.split(/[\n\r]+/g)
   let state: 'top' | 'ours' | 'theirs' | 'parent' = 'top'
   const ours = []
@@ -45,7 +50,7 @@ function parseMergeFile (fileContent: string) {
   return { ours: ours.join('\n'), theirs: theirs.join('\n') }
 }
 
-export function isDiff (fileContent: string) {
+export function isDiff (fileContent: string): boolean {
   return fileContent.includes(MERGE_CONFLICT_OURS) &&
     fileContent.includes(MERGE_CONFLICT_THEIRS) &&
     fileContent.includes(MERGE_CONFLICT_END)

@@ -74,7 +74,7 @@ function mergeDict<T> (
   ourDict: Record<string, T>,
   theirDict: Record<string, T>,
   valueMerger: ValueMerger<T>
-) {
+): Record<string, T> {
   const newDict: Record<string, T> = {}
   for (const key of Object.keys(ourDict).concat(Object.keys(theirDict))) {
     const changedValue = valueMerger(
@@ -93,7 +93,7 @@ function takeChangedValue<T> (ourValue: T, theirValue: T): T {
   return theirValue
 }
 
-function mergeVersions (ourValue: string, theirValue: string) {
+function mergeVersions (ourValue: string, theirValue: string): string {
   if (ourValue === theirValue || !theirValue) return ourValue
   if (!ourValue) return theirValue
   const [ourVersion] = ourValue.split('(')
