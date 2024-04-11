@@ -68,7 +68,7 @@
     "path-exists": "^4.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "run-groups": "^3.0.1",
-    "semver": "^7.5.4",
+    "semver": "^7.6.0",
     "sort-keys": "^4.2.0",
     "version-selector-type": "^3.0.0"
   },
@@ -85,8 +85,8 @@
     "@pnpm/registry-mock": "3.20.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@types/fs-extra": "^9.0.13",
     "@types/is-windows": "^1.0.2",
     "@types/normalize-path": "^3.0.2",
