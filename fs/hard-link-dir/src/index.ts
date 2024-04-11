@@ -4,7 +4,7 @@ import util from 'util'
 import fs from 'fs'
 import { globalWarn } from '@pnpm/logger'
 
-export function hardLinkDir (src: string, destDirs: string[]) {
+export function hardLinkDir (src: string, destDirs: string[]): void {
   if (destDirs.length === 0) return
   // Don't try to hard link the source directory to itself
   destDirs = destDirs.filter((destDir) => path.relative(destDir, src) !== '')
@@ -54,7 +54,7 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
   }
 }
 
-function linkOrCopyFile (srcFile: string, destFile: string) {
+function linkOrCopyFile (srcFile: string, destFile: string): void {
   try {
     linkOrCopy(srcFile, destFile)
   } catch (err: unknown) {
@@ -74,7 +74,7 @@ function linkOrCopyFile (srcFile: string, destFile: string) {
  * This function could be optimized because we don't really need to try linking again
  * if linking failed once.
  */
-function linkOrCopy (srcFile: string, destFile: string) {
+function linkOrCopy (srcFile: string, destFile: string): void {
   try {
     fs.linkSync(srcFile, destFile)
   } catch (err: unknown) {

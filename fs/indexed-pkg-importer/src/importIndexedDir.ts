@@ -20,7 +20,7 @@ export function importIndexedDir (
   opts: {
     keepModulesDir?: boolean
   }
-) {
+): void {
   const stage = pathTemp(newDir)
   try {
     tryImportIndexedDir(importFile, stage, filenames)
@@ -63,7 +63,12 @@ They were renamed.`)
   }
 }
 
-function sanitizeFilenames (filenames: Record<string, string>) {
+interface SanitizeFilenamesResult {
+  sanitizedFilenames: Record<string, string>
+  invalidFilenames: string[]
+}
+
+function sanitizeFilenames (filenames: Record<string, string>): SanitizeFilenamesResult {
   const sanitizedFilenames: Record<string, string> = {}
   const invalidFilenames: string[] = []
   for (const [filename, src] of Object.entries(filenames)) {
@@ -76,7 +81,7 @@ function sanitizeFilenames (filenames: Record<string, string>) {
   return { sanitizedFilenames, invalidFilenames }
 }
 
-function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>) {
+function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>): void {
   makeEmptyDir(newDir, { recursive: true })
   const allDirs = new Set<string>()
   Object.keys(filenames)
@@ -94,7 +99,12 @@ function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames:
   }
 }
 
-function getUniqueFileMap (fileMap: Record<string, string>) {
+interface GetUniqueFileMapResult {
+  conflictingFileNames: Record<string, string>
+  uniqueFileMap: Record<string, string>
+}
+
+function getUniqueFileMap (fileMap: Record<string, string>): GetUniqueFileMapResult {
   const lowercaseFiles = new Map<string, string>()
   const conflictingFileNames: Record<string, string> = {}
   const uniqueFileMap: Record<string, string> = {}
@@ -113,7 +123,7 @@ function getUniqueFileMap (fileMap: Record<string, string>) {
   }
 }
 
-function moveOrMergeModulesDirs (src: string, dest: string) {
+function moveOrMergeModulesDirs (src: string, dest: string): void {
   try {
     renameEvenAcrossDevices(src, dest)
   } catch (err: unknown) {
@@ -132,7 +142,7 @@ function moveOrMergeModulesDirs (src: string, dest: string) {
   }
 }
 
-function renameEvenAcrossDevices (src: string, dest: string) {
+function renameEvenAcrossDevices (src: string, dest: string): void {
   try {
     fs.renameSync(src, dest)
   } catch (err: unknown) {
@@ -141,7 +151,7 @@ function renameEvenAcrossDevices (src: string, dest: string) {
   }
 }
 
-function mergeModulesDirs (src: string, dest: string) {
+function mergeModulesDirs (src: string, dest: string): void {
   const srcFiles = fs.readdirSync(src)
   const destFiles = new Set(fs.readdirSync(dest))
   const filesToMove = srcFiles.filter((file) => !destFiles.has(file))

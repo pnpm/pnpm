@@ -70,7 +70,7 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
   )
 }
 
-function normalizePatterns (patterns: readonly string[]) {
+function normalizePatterns (patterns: readonly string[]): string[] {
   const normalizedPatterns: string[] = []
   for (const pattern of patterns) {
     // We should add separate pattern for each extension

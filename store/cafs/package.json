@@ -33,7 +33,7 @@
     "@types/is-gzip": "2.0.0",
     "@types/node": "^18.19.31",
     "@types/ssri": "^7.1.5",
-    "symlink-dir": "^5.2.1",
+    "symlink-dir": "^6.0.0",
     "tempy": "^1.0.1"
   },
   "bugs": {
