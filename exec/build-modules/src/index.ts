@@ -54,7 +54,14 @@ export async function buildModules (
     warn,
   }
   const chunks = buildSequence(depGraph, rootDepPaths)
-  const allowBuild = opts.allowBuild ?? (() => true)
+  const ignoredPkgs = new Set<string>()
+  const allowBuild = opts.allowBuild
+    ? (pkgName: string) => {
+      if (opts.allowBuild!(pkgName)) return true
+      ignoredPkgs.add(pkgName)
+      return false
+    }
+    : () => true
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
@@ -74,6 +81,12 @@ export async function buildModules (
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)
+  if (ignoredPkgs.size > 0) {
+    logger.info({
+      message: `The following dependencies have build scripts that were ignored: ${Array.from(ignoredPkgs).sort().join(', ')}`,
+      prefix: opts.lockfileDir,
+    })
+  }
 }
 
 async function buildDependency (
