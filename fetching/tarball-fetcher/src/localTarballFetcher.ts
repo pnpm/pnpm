@@ -30,7 +30,7 @@ export function createLocalTarballFetcher (): FetchFunction {
   return fetch as FetchFunction
 }
 
-function resolvePath (where: string, spec: string) {
+function resolvePath (where: string, spec: string): string {
   if (isAbsolutePath.test(spec)) return spec
   return path.resolve(where, spec)
 }

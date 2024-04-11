@@ -17,7 +17,7 @@ export interface CreateDirectoryFetcherOptions {
 
 export function createDirectoryFetcher (
   opts?: CreateDirectoryFetcherOptions
-) {
+): { directory: DirectoryFetcher } {
   const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
   const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir.bind(null, readFileStat)
 
@@ -33,10 +33,18 @@ export function createDirectoryFetcher (
 
 type FetchFromDirOpts = Omit<DirectoryFetcherOptions, 'lockfileDir'>
 
+interface FetchResult {
+  local: true
+  filesIndex: Record<string, string>
+  packageImportMethod: 'hardlink'
+  manifest: DependencyManifest
+  requiresBuild: boolean
+}
+
 export async function fetchFromDir (
   dir: string,
   opts: FetchFromDirOpts & CreateDirectoryFetcherOptions
-) {
+): Promise<FetchResult> {
   if (opts.includeOnlyPackageFiles) {
     return fetchPackageFilesFromDir(dir)
   }
@@ -47,7 +55,7 @@ export async function fetchFromDir (
 async function fetchAllFilesFromDir (
   readFileStat: ReadFileStat,
   dir: string
-) {
+): Promise<FetchResult> {
   const filesIndex = await _fetchAllFilesFromDir(readFileStat, dir)
   // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
   // Safe read was added to support the Bit workspace in which the components have no package.json files.
@@ -55,9 +63,9 @@ async function fetchAllFilesFromDir (
   const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
   const requiresBuild = pkgRequiresBuild(manifest, filesIndex)
   return {
-    local: true as const,
+    local: true,
     filesIndex,
-    packageImportMethod: 'hardlink' as const,
+    packageImportMethod: 'hardlink',
     manifest,
     requiresBuild,
   }
@@ -124,7 +132,7 @@ async function fileStat (filePath: string): Promise<{ filePath: string, stat: St
   }
 }
 
-async function fetchPackageFilesFromDir (dir: string) {
+async function fetchPackageFilesFromDir (dir: string): Promise<FetchResult> {
   const files = await packlist(dir)
   const filesIndex: Record<string, string> = Object.fromEntries(files.map((file) => [file, path.join(dir, file)]))
   // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
@@ -133,9 +141,9 @@ async function fetchPackageFilesFromDir (dir: string) {
   const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
   const requiresBuild = pkgRequiresBuild(manifest, filesIndex)
   return {
-    local: true as const,
+    local: true,
     filesIndex,
-    packageImportMethod: 'hardlink' as const,
+    packageImportMethod: 'hardlink',
     manifest,
     requiresBuild,
   }

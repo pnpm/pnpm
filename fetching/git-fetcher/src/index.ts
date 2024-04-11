@@ -17,7 +17,7 @@ export interface CreateGitFetcherOptions {
   ignoreScripts?: boolean
 }
 
-export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
+export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: GitFetcher } {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
   const ignoreScripts = createOpts.ignoreScripts ?? false
   const preparePkg = preparePackage.bind(null, {
@@ -85,7 +85,7 @@ function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-function execGit (args: string[], opts?: object) {
+async function execGit (args: string[], opts?: object): Promise<void> {
   const fullArgs = prefixGitArgs().concat(args || [])
-  return execa('git', fullArgs, opts)
+  await execa('git', fullArgs, opts)
 }
