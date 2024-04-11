@@ -65,8 +65,8 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "realpath-missing": "^1.1.0",
     "render-help": "^1.0.3",
-    "safe-execa": "^0.1.4",
-    "semver": "^7.6.0",
+    "safe-execa": "^0.1.3",
+    "semver": "^7.5.4",
     "tempy": "^1.0.1"
   },
   "peerDependencies": {

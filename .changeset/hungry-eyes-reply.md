@@ -1,4 +1,5 @@
 ---
+"@pnpm/plugin-commands-publishing": patch
 "pnpm": patch
 ---
 
