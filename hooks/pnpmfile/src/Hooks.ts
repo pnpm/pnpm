@@ -11,9 +11,9 @@ export interface HookContext {
 export interface Hooks {
   // eslint-disable-next-line
   readPackage?: (pkg: any, context: HookContext) => any;
-  preResolution?: PreResolutionHook;
-  afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>;
-  filterLog?: (log: Log) => boolean;
-  importPackage?: ImportIndexedPackageAsync;
-  fetchers?: CustomFetchers;
+  preResolution?: PreResolutionHook
+  afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>
+  filterLog?: (log: Log) => boolean
+  importPackage?: ImportIndexedPackageAsync
+  fetchers?: CustomFetchers
 }
