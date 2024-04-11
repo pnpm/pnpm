@@ -30,7 +30,7 @@ beforeEach(() => {
 
 test('fetch', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {} })
   const { filesIndex, manifest } = await fetch(
     createCafsStore(cafsDir),
     {
@@ -49,7 +49,7 @@ test('fetch', async () => {
 
 test('fetch a package from Git sub folder', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {} })
   const { filesIndex } = await fetch(
     createCafsStore(cafsDir),
     {
@@ -67,7 +67,7 @@ test('fetch a package from Git sub folder', async () => {
 
 test('prevent directory traversal attack when using Git sub folder', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {} })
   const repo = 'https://github.com/RexSkz/test-git-subfolder-fetch.git'
   const pkgDir = '../../etc'
   await expect(
@@ -88,7 +88,7 @@ test('prevent directory traversal attack when using Git sub folder', async () =>
 
 test('prevent directory traversal attack when using Git sub folder', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {} })
   const repo = 'https://github.com/RexSkz/test-git-subfolder-fetch.git'
   const pkgDir = 'not/exists'
   await expect(
@@ -109,7 +109,7 @@ test('prevent directory traversal attack when using Git sub folder', async () =>
 
 test('fetch a package from Git that has a prepare script', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {} })
   const { filesIndex } = await fetch(
     createCafsStore(cafsDir),
     {
@@ -127,7 +127,7 @@ test('fetch a package from Git that has a prepare script', async () => {
 // Test case for https://github.com/pnpm/pnpm/issues/1866
 test('fetch a package without a package.json', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {} })
   const { filesIndex } = await fetch(
     createCafsStore(cafsDir),
     {
@@ -146,7 +146,7 @@ test('fetch a package without a package.json', async () => {
 // Covers the regression reported in https://github.com/pnpm/pnpm/issues/4064
 test('fetch a big repository', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {} })
   const { filesIndex } = await fetch(createCafsStore(cafsDir),
     {
       commit: 'a65fbf5a90f53c9d72fed4daaca59da50f074355',
@@ -160,7 +160,7 @@ test('fetch a big repository', async () => {
 
 test('still able to shallow fetch for allowed hosts', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ gitShallowHosts: ['github.com'], rawConfig: {} }).git
+  const fetch = createGitFetcher({ gitShallowHosts: ['github.com'], rawConfig: {} })
   const resolution = {
     commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
     repo: 'https://github.com/kevva/is-positive.git',
@@ -189,7 +189,7 @@ test('still able to shallow fetch for allowed hosts', async () => {
 
 test('fail when preparing a git-hosted package', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {} })
   await expect(
     fetch(createCafsStore(cafsDir),
       {
@@ -204,7 +204,7 @@ test('fail when preparing a git-hosted package', async () => {
 
 test('do not build the package when scripts are ignored', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ ignoreScripts: true, rawConfig: {} }).git
+  const fetch = createGitFetcher({ ignoreScripts: true, rawConfig: {} })
   const { filesIndex } = await fetch(createCafsStore(cafsDir),
     {
       commit: '55416a9c468806a935636c0ad0371a14a64df8c9',
@@ -224,7 +224,7 @@ function prefixGitArgs (): string[] {
 
 test('fetch only the included files', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const fetch = createGitFetcher({ rawConfig: {} })
   const { filesIndex } = await fetch(
     createCafsStore(cafsDir),
     {

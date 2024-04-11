@@ -17,17 +17,13 @@ export interface CreateDirectoryFetcherOptions {
 
 export function createDirectoryFetcher (
   opts?: CreateDirectoryFetcherOptions
-): { directory: DirectoryFetcher } {
+): DirectoryFetcher {
   const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
   const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir.bind(null, readFileStat)
 
-  const directoryFetcher: DirectoryFetcher = (cafs, resolution, opts) => {
+  return (_cafs, resolution, opts) => {
     const dir = path.join(opts.lockfileDir, resolution.directory)
     return fetchFromDir(dir)
-  }
-
-  return {
-    directory: directoryFetcher,
   }
 }
 

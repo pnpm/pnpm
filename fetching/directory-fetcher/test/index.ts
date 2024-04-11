@@ -18,7 +18,7 @@ test('fetch including only package files', async () => {
   const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: true })
 
   // eslint-disable-next-line
-  const fetchResult = await fetcher.directory({} as any, {
+  const fetchResult = await fetcher({} as any, {
     directory: '.',
     type: 'directory',
   }, {
@@ -41,7 +41,7 @@ test('fetch including all files', async () => {
   const fetcher = createDirectoryFetcher()
 
   // eslint-disable-next-line
-  const fetchResult = await fetcher.directory({} as any, {
+  const fetchResult = await fetcher({} as any, {
     directory: '.',
     type: 'directory',
   }, {
@@ -65,7 +65,7 @@ test('fetch a directory that has no package.json', async () => {
   const fetcher = createDirectoryFetcher()
 
   // eslint-disable-next-line
-  const fetchResult = await fetcher.directory({} as any, {
+  const fetchResult = await fetcher({} as any, {
     directory: '.',
     type: 'directory',
   }, {
@@ -90,7 +90,7 @@ test('fetch does not fail on package with broken symlink', async () => {
   const fetcher = createDirectoryFetcher()
 
   // eslint-disable-next-line
-  const fetchResult = await fetcher.directory({} as any, {
+  const fetchResult = await fetcher({} as any, {
     directory: '.',
     type: 'directory',
   }, {
@@ -122,7 +122,7 @@ describe('fetch resolves symlinked files to their real locations', () => {
   test('fetch resolves symlinked files to their real locations', async () => {
     const fetcher = createDirectoryFetcher({ resolveSymlinks: true })
     // eslint-disable-next-line
-    const fetchResult = await fetcher.directory({} as any, {
+    const fetchResult = await fetcher({} as any, {
       directory: '.',
       type: 'directory',
     }, {
@@ -139,7 +139,7 @@ describe('fetch resolves symlinked files to their real locations', () => {
     const fetcher = createDirectoryFetcher()
 
     // eslint-disable-next-line
-    const fetchResult = await fetcher.directory({} as any, {
+    const fetchResult = await fetcher({} as any, {
       directory: '.',
       type: 'directory',
     }, {

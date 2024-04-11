@@ -17,7 +17,7 @@ export interface CreateGitFetcherOptions {
   ignoreScripts?: boolean
 }
 
-export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: GitFetcher } {
+export function createGitFetcher (createOpts: CreateGitFetcherOptions): GitFetcher {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
   const ignoreScripts = createOpts.ignoreScripts ?? false
   const preparePkg = preparePackage.bind(null, {
@@ -26,7 +26,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
     unsafePerm: createOpts.unsafePerm,
   })
 
-  const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
+  return async (cafs, resolution, opts) => {
     const tempLocation = await cafs.tempDir()
     if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
       await execGit(['init'], { cwd: tempLocation })
@@ -62,10 +62,6 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
       readManifest: opts.readManifest,
       pkg: opts.pkg,
     })
-  }
-
-  return {
-    git: gitFetcher,
   }
 }
 
