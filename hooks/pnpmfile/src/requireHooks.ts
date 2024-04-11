@@ -1,27 +1,12 @@
-import type { PreResolutionHook, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
+import type { PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
 import { hookLogger } from '@pnpm/core-loggers'
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import pathAbsolute from 'path-absolute'
-import type { Lockfile } from '@pnpm/lockfile-types'
-import type { Log } from '@pnpm/core-loggers'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
 import { getPnpmfilePath } from './getPnpmfilePath'
 import { requirePnpmfile } from './requirePnpmfile'
-
-interface HookContext {
-  log: (message: string) => void
-}
-
-interface Hooks {
-  // eslint-disable-next-line
-  readPackage?: (pkg: any, context: HookContext) => any
-  preResolution?: PreResolutionHook
-  afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>
-  filterLog?: (log: Log) => boolean
-  importPackage?: ImportIndexedPackageAsync
-  fetchers?: CustomFetchers
-}
+import { type HookContext, type Hooks } from './Hooks'
 
 // eslint-disable-next-line
 type Cook<T extends (...args: any[]) => any> = (
@@ -47,17 +32,17 @@ export function requireHooks (
     pnpmfile?: string
   }
 ): CookedHooks {
-  const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
-  let globalHooks: Hooks = globalPnpmfile?.hooks
+  const globalPnpmfile = opts.globalPnpmfile ? requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix) : undefined
+  let globalHooks: Hooks | undefined = globalPnpmfile?.hooks
 
   const pnpmfilePath = getPnpmfilePath(prefix, opts.pnpmfile)
   const pnpmFile = requirePnpmfile(pnpmfilePath, prefix)
-  let hooks: Hooks = pnpmFile?.hooks
+  let hooks: Hooks | undefined = pnpmFile?.hooks
 
   if (!globalHooks && !hooks) return { afterAllResolved: [], filterLog: [], readPackage: [] }
   const calculatePnpmfileChecksum = hooks ? () => createBase32HashFromFile(pnpmfilePath) : undefined
-  globalHooks = globalHooks || {}
-  hooks = hooks || {}
+  globalHooks = globalHooks ?? {}
+  hooks = hooks ?? {}
   const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'filterLog'>> = {
     afterAllResolved: [],
     filterLog: [],
@@ -67,12 +52,12 @@ export function requireHooks (
   for (const hookName of ['readPackage', 'afterAllResolved'] as const) {
     if (globalHooks[hookName]) {
       const globalHook = globalHooks[hookName]
-      const context = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
+      const context = createReadPackageHookContext(globalPnpmfile!.filename, prefix, hookName)
       cookedHooks[hookName]!.push((pkg: object) => globalHook!(pkg as any, context)) // eslint-disable-line @typescript-eslint/no-explicit-any
     }
     if (hooks[hookName]) {
       const hook = hooks[hookName]
-      const context = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
+      const context = createReadPackageHookContext(pnpmFile!.filename, prefix, hookName)
       cookedHooks[hookName]!.push((pkg: object) => hook!(pkg as any, context)) // eslint-disable-line @typescript-eslint/no-explicit-any
     }
   }
