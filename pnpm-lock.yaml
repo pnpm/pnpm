@@ -684,8 +684,8 @@ importers:
         specifier: ^2.0.2
         version: 2.0.2
       symlink-dir:
-        specifier: ^5.2.1
-        version: 5.2.1
+        specifier: ^6.0.0
+        version: 6.0.0
 
   config/matcher:
     dependencies:
@@ -1053,8 +1053,8 @@ importers:
         specifier: ^7.6.0
         version: 7.6.0
       symlink-dir:
-        specifier: ^5.2.1
-        version: 5.2.1
+        specifier: ^6.0.0
+        version: 6.0.0
       write-json-file:
         specifier: ^4.3.0
         version: 4.3.0
@@ -1442,8 +1442,8 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
       symlink-dir:
-        specifier: ^5.2.1
-        version: 5.2.1
+        specifier: ^6.0.0
+        version: 6.0.0
       which:
         specifier: npm:@pnpm/which@^3.0.1
         version: '@pnpm/which@3.0.1'
@@ -1878,8 +1878,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       symlink-dir:
-        specifier: ^5.2.1
-        version: 5.2.1
+        specifier: ^6.0.0
+        version: 6.0.0
     devDependencies:
       '@pnpm/prepare':
         specifier: workspace:*
@@ -3314,8 +3314,8 @@ importers:
         specifier: ^16.1.3
         version: 16.1.3
       symlink-dir:
-        specifier: ^5.2.1
-        version: 5.2.1
+        specifier: ^6.0.0
+        version: 6.0.0
       write-json-file:
         specifier: ^4.3.0
         version: 4.3.0
@@ -3620,8 +3620,8 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       symlink-dir:
-        specifier: ^5.2.1
-        version: 5.2.1
+        specifier: ^6.0.0
+        version: 6.0.0
     devDependencies:
       '@pnpm/hoist':
         specifier: workspace:*
@@ -3681,8 +3681,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: '@pnpm/ramda@0.28.1'
       symlink-dir:
-        specifier: ^5.2.1
-        version: 5.2.1
+        specifier: ^6.0.0
+        version: 6.0.0
     devDependencies:
       '@pnpm/link-bins':
         specifier: workspace:*
@@ -4122,8 +4122,8 @@ importers:
         specifier: ^16.1.3
         version: 16.1.3
       symlink-dir:
-        specifier: ^5.2.1
-        version: 5.2.1
+        specifier: ^6.0.0
+        version: 6.0.0
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -4775,8 +4775,8 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1
       symlink-dir:
-        specifier: ^5.2.1
-        version: 5.2.1
+        specifier: ^6.0.0
+        version: 6.0.0
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -5800,8 +5800,8 @@ importers:
         specifier: ^7.1.5
         version: 7.1.5
       symlink-dir:
-        specifier: ^5.2.1
-        version: 5.2.1
+        specifier: ^6.0.0
+        version: 6.0.0
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -6366,7 +6366,7 @@ importers:
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
         specifier: 0.4.9
-        version: 0.4.9(@types/node@20.12.6)
+        version: 0.4.9(@types/node@18.19.31)
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -12261,9 +12261,9 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  symlink-dir@5.2.1:
-    resolution: {integrity: sha512-HfqqI7BoCx3+482BUfoR1sXAFx5G90KrWImT5/J/a+HZWvzMTTA/hYKh2030WFYn7OwRRUAoMCQvqlwBMnhBUw==}
-    engines: {node: '>=12.10'}
+  symlink-dir@6.0.0:
+    resolution: {integrity: sha512-n9BprpIwCiM5yqTpYwOXbIkrycqk8M+fA4VeeVuC/qn5kh+NjpCw26rY2Ltnzs2uGaZKS/wPSKhAQBK78sgLJA==}
+    engines: {node: '>=18.12'}
     hasBin: true
 
   syncpack@8.5.14:
@@ -14475,9 +14475,9 @@ snapshots:
       '@reflink/reflink-win32-arm64-msvc': 0.1.16
       '@reflink/reflink-win32-x64-msvc': 0.1.16
 
-  '@rushstack/worker-pool@0.4.9(@types/node@20.12.6)':
+  '@rushstack/worker-pool@0.4.9(@types/node@18.19.31)':
     dependencies:
-      '@types/node': 20.12.6
+      '@types/node': 18.19.31
 
   '@sinclair/typebox@0.27.8': {}
 
@@ -19723,7 +19723,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  symlink-dir@5.2.1:
+  symlink-dir@6.0.0:
     dependencies:
       better-path-resolve: 1.0.0
       rename-overwrite: 5.0.0

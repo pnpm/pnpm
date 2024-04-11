@@ -48,7 +48,7 @@
     "proxyquire": "^2.1.3",
     "read-yaml-file": "^2.1.0",
     "sinon": "^16.1.3",
-    "symlink-dir": "^5.2.1",
+    "symlink-dir": "^6.0.0",
     "tempy": "^1.0.1",
     "write-json-file": "^4.3.0",
     "write-pkg": "4.0.0",
