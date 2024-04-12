@@ -21,7 +21,7 @@ const PREPUBLISH_SCRIPTS = [
 
 export interface PreparePackageOptions {
   ignoreScripts?: boolean
-  rawConfig: object
+  rawConfig: Record<string, unknown>
   unsafePerm?: boolean
 }
 

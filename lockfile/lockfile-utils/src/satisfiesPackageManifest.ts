@@ -21,7 +21,7 @@ export function satisfiesPackageManifest (
     pkg = {
       ...pkg,
       dependencies: {
-        ...omit(Object.keys(existingDeps), pkg.peerDependencies),
+        ...pkg.peerDependencies && omit(Object.keys(existingDeps), pkg.peerDependencies),
         ...pkg.dependencies,
       },
     }
