@@ -48,7 +48,7 @@
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "1.0.0",
+    "@pnpm/util.lex-comparator": "3.0.0",
     "is-subdir": "^1.2.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "resolve-link-target": "^2.0.0",

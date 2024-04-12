@@ -50,7 +50,7 @@
     "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
-    "@pnpm/log.group": "1.0.1",
+    "@pnpm/log.group": "3.0.0",
     "@pnpm/package-bins": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
