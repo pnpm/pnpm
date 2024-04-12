@@ -34,7 +34,7 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/normalize-registries": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "0.29.12"
   },
   "exports": {
     ".": "./lib/index.js"

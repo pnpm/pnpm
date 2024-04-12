@@ -32,7 +32,7 @@
     "@pnpm/exportable-manifest": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/cross-spawn": "^6.0.6",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "cross-spawn": "^7.0.3",
     "write-yaml-file": "^5.0.0"
   },

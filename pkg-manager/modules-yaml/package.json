@@ -40,7 +40,7 @@
   "devDependencies": {
     "@pnpm/modules-yaml": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",

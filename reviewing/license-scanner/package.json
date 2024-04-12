@@ -54,7 +54,7 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/license-scanner": "workspace:*",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/semver": "^7.5.8"
   },
   "funding": "https://opencollective.com/pnpm",

@@ -34,7 +34,7 @@
     "@pnpm/plugin-commands-audit": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/zkochan__table": "npm:@types/table@6.0.0",
     "load-json-file": "^6.2.0",
     "nock": "13.3.4",

@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "@pnpm/modules-cleaner": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "0.29.12"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

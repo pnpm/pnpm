@@ -64,7 +64,7 @@
     "@pnpm/registry-mock": "3.29.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/semver": "7.5.3",
     "@types/ssri": "^7.1.5",
     "delay": "^5.0.0",

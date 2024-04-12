@@ -32,7 +32,7 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/ssri": "^7.1.5",
     "tempy": "^1.0.1"
   },
