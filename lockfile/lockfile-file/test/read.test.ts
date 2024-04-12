@@ -175,7 +175,7 @@ test('existsNonEmptyWantedLockfile()', async () => {
         },
       },
     },
-    lockfileVersion: 3,
+    lockfileVersion: '3',
     packages: {
       'is-negative/1.0.0': {
         dependencies: {
