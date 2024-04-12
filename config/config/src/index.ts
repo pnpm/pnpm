@@ -150,7 +150,7 @@ export const types = Object.assign({
   'registry-supports-time-field': Boolean,
   'fail-if-no-match': Boolean,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-} as Partial<Record<keyof KebabCaseConfig, any>>, npmTypes.types)
+}, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
 

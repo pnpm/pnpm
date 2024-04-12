@@ -60,7 +60,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'save-optional',
     'save-prod',
     'shared-workspace-lockfile',
-    'store',
     'store-dir',
     'strict-peer-dependencies',
     'virtual-store-dir',
