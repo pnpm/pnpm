@@ -24,14 +24,14 @@ import which from 'which'
 import writeJsonFile from 'write-json-file'
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
 
-export const shorthands = {
+export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
   c: '--shell-mode',
 }
 
 export const commandNames = ['exec']
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'bail',
@@ -46,13 +46,13 @@ export function rcOptionsTypes () {
   }
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   recursive: Boolean,
   reverse: Boolean,
 })
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Run a shell command in the context of a project.',
     descriptionLists: [
@@ -111,14 +111,14 @@ export async function writeRecursiveSummary (opts: { dir: string, summary: Recur
   })
 }
 
-export function createEmptyRecursiveSummary (chunks: string[][]) {
+export function createEmptyRecursiveSummary (chunks: string[][]): RecursiveSummary {
   return chunks.flat().reduce<RecursiveSummary>((acc, prefix) => {
     acc[prefix] = { status: 'queued' }
     return acc
   }, {})
 }
 
-export function getExecutionDuration (start: [number, number]) {
+export function getExecutionDuration (start: [number, number]): number {
   const end = process.hrtime(start)
   return (end[0] * 1e9 + end[1]) / 1e6
 }
@@ -136,7 +136,7 @@ export async function handler (
     implicitlyFellbackFromRun?: boolean
   } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir' | 'nodeOptions'>,
   params: string[]
-) {
+): Promise<{ exitCode: number }> {
   // For backward compatibility
   if (params[0] === '--') {
     params.shift()
@@ -308,7 +308,7 @@ interface CommandError extends Error {
   shortMessage: string
 }
 
-function isErrorCommandNotFound (command: string, error: CommandError, prependPaths: string[]) {
+function isErrorCommandNotFound (command: string, error: CommandError, prependPaths: string[]): boolean {
   // Mac/Linux
   if (process.platform === 'linux' || process.platform === 'darwin') {
     return error.originalMessage === `spawn ${command} ENOENT`

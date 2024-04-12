@@ -52,7 +52,7 @@ export type StrictRebuildOptions = {
 export type RebuildOptions = Partial<StrictRebuildOptions> &
 Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> & Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
 
-const defaults = async (opts: RebuildOptions) => {
+const defaults = async (opts: RebuildOptions): Promise<StrictRebuildOptions> => {
   const packageManager = opts.packageManager ??
     await loadJsonFile<{ name: string, version: string }>(path.join(__dirname, '../../package.json'))!
   const dir = opts.dir ?? process.cwd()
