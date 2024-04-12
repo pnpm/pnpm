@@ -2,13 +2,19 @@ import { PnpmError } from '@pnpm/error'
 import path from 'path'
 import PATH from 'path-name'
 
+export interface Env extends NodeJS.ProcessEnv {
+  npm_config_user_agent: string
+  PATH?: string
+  Path?: string
+}
+
 export function makeEnv (
   opts: {
     extraEnv?: NodeJS.ProcessEnv
     userAgent?: string
     prependPaths: string[]
   }
-) {
+): Env {
   for (const prependPath of opts.prependPaths) {
     if (prependPath.includes(path.delimiter)) {
       // Unfortunately, there is no way to escape the PATH delimiter,

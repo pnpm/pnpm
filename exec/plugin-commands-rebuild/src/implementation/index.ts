@@ -71,7 +71,7 @@ function findPackages (
 function matches (
   searched: PackageSelector[],
   manifest: { name: string, version?: string }
-) {
+): boolean {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
       return manifest.name === searchedPkg
@@ -90,7 +90,7 @@ export async function rebuildSelectedPkgs (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
-) {
+): Promise<void> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -135,7 +135,7 @@ export async function rebuildSelectedPkgs (
 export async function rebuildProjects (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
   maybeOpts: RebuildOptions
-) {
+): Promise<void> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -209,7 +209,7 @@ function getSubgraphToBuild (
   opts: {
     pkgsToRebuild: Set<string>
   }
-) {
+): boolean {
   let currentShouldBeBuilt = false
   for (const { depPath, next } of step.dependencies) {
     if (nodesToBuildAndTransitive.has(depPath)) {
@@ -245,11 +245,11 @@ async function _rebuild (
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
-) {
+): Promise<Set<string>> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile)
   const depsStateCache: DepsStateCache = {}
   const cafsDir = path.join(opts.storeDir, 'files')
-  const pkgsThatWereRebuilt = new Set()
+  const pkgsThatWereRebuilt = new Set<string>()
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
 

@@ -1,6 +1,6 @@
 import { type DependencyManifest } from '@pnpm/types'
 
-export function pkgRequiresBuild (manifest: Partial<DependencyManifest> | undefined, filesIndex: Record<string, unknown>) {
+export function pkgRequiresBuild (manifest: Partial<DependencyManifest> | undefined, filesIndex: Record<string, unknown>): boolean {
   return Boolean(
     manifest?.scripts != null && (
       Boolean(manifest.scripts.preinstall) ||

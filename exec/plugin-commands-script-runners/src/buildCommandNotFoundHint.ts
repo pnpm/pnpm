@@ -13,7 +13,7 @@ export function getNearestProgram ({
   modulesDir: string
   programName: string
   workspaceDir: string | undefined
-}) {
+}): string | null {
   try {
     const binDir = path.join(dir, modulesDir, '.bin')
     const programList = readProgramsFromDir(binDir)
@@ -37,7 +37,7 @@ function readProgramsFromDir (binDir: string): string[] {
   })
 }
 
-export function buildCommandNotFoundHint (scriptName: string, scripts?: PackageScripts | undefined) {
+export function buildCommandNotFoundHint (scriptName: string, scripts?: PackageScripts | undefined): string {
   let hint = `Command "${scriptName}" not found.`
 
   const nearestCommand = getNearestScript(scriptName, scripts)
@@ -49,7 +49,7 @@ export function buildCommandNotFoundHint (scriptName: string, scripts?: PackageS
   return hint
 }
 
-export function getNearestScript (scriptName: string, scripts?: PackageScripts | undefined) {
+export function getNearestScript (scriptName: string, scripts?: PackageScripts | undefined): string | null {
   return getNearest(scriptName, Object.keys(scripts ?? []))
 }
 

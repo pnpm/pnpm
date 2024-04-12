@@ -77,7 +77,7 @@ function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boole
   return !fs.existsSync(path.join(pkgDir, mainFile))
 }
 
-function safeJoinPath (root: string, sub: string) {
+function safeJoinPath (root: string, sub: string): string {
   const joined = path.join(root, sub)
   // prevent the dir traversal attack
   const relative = path.relative(root, joined)

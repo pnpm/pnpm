@@ -40,7 +40,7 @@ export async function recursiveRebuild (
   opts: RecursiveRebuildOpts & {
     ignoredPackages?: Set<string>
   } & Required<Pick<Config, 'selectedProjectsGraph' | 'workspaceDir'>>
-) {
+): Promise<void> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
     return

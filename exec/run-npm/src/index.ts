@@ -8,7 +8,7 @@ export interface RunNPMOptions {
   env?: Record<string, string>
 }
 
-export function runNpm (npmPath: string | undefined, args: string[], options?: RunNPMOptions) {
+export function runNpm (npmPath: string | undefined, args: string[], options?: RunNPMOptions): childProcess.SpawnSyncReturns<Buffer> {
   const npm = npmPath ?? 'npm'
   return runScriptSync(npm, args, {
     cwd: options?.cwd ?? process.cwd(),
@@ -27,7 +27,7 @@ export function runScriptSync (
     userAgent?: string
     env: Record<string, string>
   }
-) {
+): childProcess.SpawnSyncReturns<Buffer> {
   const env = {
     ...createEnv(opts),
     ...opts.env,
@@ -45,7 +45,7 @@ function createEnv (
     cwd: string
     userAgent?: string
   }
-) {
+): NodeJS.ProcessEnv {
   const env = { ...process.env }
 
   env[PATH] = [

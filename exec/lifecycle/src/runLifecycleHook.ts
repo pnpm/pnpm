@@ -29,7 +29,7 @@ export async function runLifecycleHook (
   stage: string,
   manifest: ProjectManifest | DependencyManifest,
   opts: RunLifecycleHookOptions
-) {
+): Promise<void> {
   const optional = opts.optional === true
 
   const m = { _id: getId(manifest), ...manifest }
@@ -93,7 +93,7 @@ export async function runLifecycleHook (
     unsafePerm: opts.unsafePerm,
   })
 
-  function npmLog (prefix: string, logId: string, stdtype: string, line: string) {
+  function npmLog (prefix: string, logId: string, stdtype: string, line: string): void {
     switch (stdtype) {
     case 'stdout':
     case 'stderr':
@@ -123,6 +123,6 @@ export async function runLifecycleHook (
   }
 }
 
-function getId (manifest: ProjectManifest | DependencyManifest) {
+function getId (manifest: ProjectManifest | DependencyManifest): string {
   return `${manifest.name ?? ''}@${manifest.version ?? ''}`
 }
