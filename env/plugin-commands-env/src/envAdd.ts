@@ -3,7 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import { downloadNodeVersion } from './downloadNodeVersion'
 import { type NvmNodeCommandOptions } from './node'
 
-export async function envAdd (opts: NvmNodeCommandOptions, params: string[]) {
+export async function envAdd (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (!opts.global) {
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env add <version>" can only be used with the "--global" option currently')
   }

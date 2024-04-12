@@ -5,7 +5,14 @@ import { parseEnvSpecifier } from './parseEnvSpecifier'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
 
-export async function getNodeVersion (opts: NvmNodeCommandOptions, envSpecifier: string) {
+export interface GetNodeVersionResult {
+  nodeVersion: string | null
+  nodeMirrorBaseUrl: string
+  releaseChannel: string
+  versionSpecifier: string
+}
+
+export async function getNodeVersion (opts: NvmNodeCommandOptions, envSpecifier: string): Promise<GetNodeVersionResult> {
   const fetch = createFetchFromRegistry(opts)
   const { releaseChannel, versionSpecifier } = parseEnvSpecifier(envSpecifier)
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
@@ -13,7 +20,13 @@ export async function getNodeVersion (opts: NvmNodeCommandOptions, envSpecifier:
   return { nodeVersion, nodeMirrorBaseUrl, releaseChannel, versionSpecifier }
 }
 
-export async function downloadNodeVersion (opts: NvmNodeCommandOptions, envSpecifier: string) {
+export interface DownloadNodeVersionResult {
+  nodeVersion: string
+  nodeDir: string
+  nodeMirrorBaseUrl: string
+}
+
+export async function downloadNodeVersion (opts: NvmNodeCommandOptions, envSpecifier: string): Promise<DownloadNodeVersionResult | null> {
   const fetch = createFetchFromRegistry(opts)
   const { nodeVersion, nodeMirrorBaseUrl } = await getNodeVersion(opts, envSpecifier)
   if (!nodeVersion) {
