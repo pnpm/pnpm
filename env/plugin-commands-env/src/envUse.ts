@@ -10,7 +10,7 @@ import { type NvmNodeCommandOptions } from './node'
 import { CURRENT_NODE_DIRNAME, getNodeExecPathInBinDir, getNodeExecPathInNodeDir } from './utils'
 import { downloadNodeVersion } from './downloadNodeVersion'
 
-export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
+export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (!opts.global) {
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
   }
@@ -52,7 +52,7 @@ ${dest} -> ${src}`
 
 // On Windows, symlinks only work with developer mode enabled
 // or with admin permissions. So it is better to use hard links on Windows.
-async function symlinkOrHardLink (existingPath: string, newPath: string) {
+async function symlinkOrHardLink (existingPath: string, newPath: string): Promise<void> {
   if (isWindows()) {
     return fs.link(existingPath, newPath)
   }
