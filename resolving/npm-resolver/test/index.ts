@@ -1768,7 +1768,7 @@ test('request to a package with no versions', async () => {
 })
 
 test('request to a package with no dist-tags', async () => {
-  const isPositiveMeta = omit(['dist-tags'], loadJsonFile.sync(f.find('is-positive.json')))
+  const isPositiveMeta = omit(['dist-tags'], loadJsonFile.sync<any>(f.find('is-positive.json'))) // eslint-disable-line
   nock(registry)
     .get('/is-positive')
     .reply(200, isPositiveMeta)
