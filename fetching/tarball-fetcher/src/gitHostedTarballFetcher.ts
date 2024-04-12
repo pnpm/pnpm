@@ -20,7 +20,7 @@ interface Resolution {
 
 export interface CreateGitHostedTarballFetcher {
   ignoreScripts?: boolean
-  rawConfig: object
+  rawConfig: Record<string, unknown>
   unsafePerm?: boolean
 }
 

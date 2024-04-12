@@ -32,7 +32,7 @@ export function createTarballFetcher (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: {
-    rawConfig: object
+    rawConfig: Record<string, unknown>
     unsafePerm?: boolean
     ignoreScripts?: boolean
     timeout?: number

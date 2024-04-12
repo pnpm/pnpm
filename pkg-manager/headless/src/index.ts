@@ -412,7 +412,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
       const hoistLockfile = {
         ...filteredLockfile,
-        packages: omit(Array.from(skipped), filteredLockfile.packages),
+        packages: filteredLockfile.packages != null ? omit(Array.from(skipped), filteredLockfile.packages) : {},
       }
       newHoistedDependencies = await hoist({
         extraNodePath: opts.extraNodePaths,

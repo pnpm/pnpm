@@ -259,7 +259,7 @@ async function resolveAndFetch (
     }
   }
 
-  const pkg: PkgNameVersion = pick(['name', 'version'], manifest ?? {})
+  const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
     force: forceFetch,

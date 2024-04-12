@@ -9,7 +9,7 @@ import {
   type InlineSpecifiersProjectSnapshot,
   type InlineSpecifiersResolvedDependencies,
   type PackageInfo,
-  type LockfileFileV7,
+  type LockfileFileV9,
   type PackageSnapshots,
 } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
@@ -32,14 +32,12 @@ export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfi
       'dependencies',
       'optionalDependencies',
       'transitivePeerDependencies',
-      'dev',
       'optional',
       'id',
     ], pkg)
     const pkgId = removePeersSuffix(depPath)
     if (!packages[pkgId]) {
       packages[pkgId] = pick([
-        'bundleDependencies',
         'bundledDependencies',
         'cpu',
         'deprecated',
@@ -81,8 +79,8 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
     if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
     }
-    if (isEmpty((lockfileToSave as LockfileFileV7).snapshots) || ((lockfileToSave as LockfileFileV7).snapshots == null)) {
-      delete (lockfileToSave as LockfileFileV7).snapshots
+    if (isEmpty((lockfileToSave as LockfileFileV9).snapshots) || ((lockfileToSave as LockfileFileV9).snapshots == null)) {
+      delete (lockfileToSave as LockfileFileV9).snapshots
     }
   } else {
     lockfileToSave = {
@@ -106,8 +104,8 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
     if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
     }
-    if (isEmpty((lockfileToSave as LockfileFileV7).snapshots) || ((lockfileToSave as LockfileFileV7).snapshots == null)) {
-      delete (lockfileToSave as LockfileFileV7).snapshots
+    if (isEmpty((lockfileToSave as LockfileFileV9).snapshots) || ((lockfileToSave as LockfileFileV9).snapshots == null)) {
+      delete (lockfileToSave as LockfileFileV9).snapshots
     }
   }
   if (lockfileToSave.time) {
@@ -166,7 +164,7 @@ function refToRelative (
 /**
  * Reverts changes from the "forceSharedFormat" write option if necessary.
  */
-function convertFromLockfileFileMutable (lockfileFile: LockfileFile): InlineSpecifiersLockfile {
+function convertFromLockfileFileMutable (lockfileFile: LockfileFile): LockfileFileV9 {
   if (typeof lockfileFile?.['importers'] === 'undefined') {
     lockfileFile.importers = {
       '.': {
@@ -184,9 +182,9 @@ function convertFromLockfileFileMutable (lockfileFile: LockfileFile): InlineSpec
   return lockfileFile as InlineSpecifiersLockfile
 }
 
-export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV7): Lockfile {
-  if ((lockfile as LockfileFileV7).snapshots) {
-    return convertLockfileV9ToLockfileObject(lockfile as LockfileFileV7)
+export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV9): Lockfile {
+  if ((lockfile as LockfileFileV9).snapshots) {
+    return convertLockfileV9ToLockfileObject(lockfile as LockfileFileV9)
   }
   convertPkgIds(lockfile)
   const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
@@ -268,7 +266,7 @@ function convertPkgIds (lockfile: LockfileFile): void {
   }
 }
 
-export function convertLockfileV9ToLockfileObject (lockfile: LockfileFileV7): Lockfile {
+export function convertLockfileV9ToLockfileObject (lockfile: LockfileFileV9): Lockfile {
   const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
 
   const packages: PackageSnapshots = {}

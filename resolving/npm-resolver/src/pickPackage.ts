@@ -39,6 +39,7 @@ export interface PackageMetaCache {
 }
 
 export type PackageInRegistry = PackageManifest & {
+  hasInstallScript?: boolean
   dist: {
     integrity?: string
     shasum: string

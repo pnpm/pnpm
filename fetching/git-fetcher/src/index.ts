@@ -12,7 +12,7 @@ import { URL } from 'url'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]
-  rawConfig: object
+  rawConfig: Record<string, unknown>
   unsafePerm?: boolean
   ignoreScripts?: boolean
 }
