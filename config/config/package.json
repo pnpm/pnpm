@@ -60,7 +60,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/which": "^2.0.2",
     "symlink-dir": "^6.0.0"
   },

@@ -1,3 +1,4 @@
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { outdated } from '../lib/outdated'
 
 async function getLatestManifest (packageName: string) {
@@ -45,7 +46,7 @@ test('outdated()', async () => {
           },
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         'is-negative@2.1.0': {
           resolution: {
@@ -104,7 +105,7 @@ test('outdated()', async () => {
           },
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         'is-negative@1.1.0': {
           resolution: {
@@ -194,7 +195,7 @@ test('outdated() should return deprecated package even if its current version is
         },
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       'deprecated-pkg@1.0.0': {
         resolution: {
@@ -256,7 +257,7 @@ test('using a matcher', async () => {
           },
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         'is-negative@2.1.0': {
           resolution: {
@@ -308,7 +309,7 @@ test('using a matcher', async () => {
           },
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         'is-negative@1.1.0': {
           resolution: {
@@ -371,7 +372,7 @@ test('outdated() aliased dependency', async () => {
           },
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         'is-positive@1.0.0': {
           resolution: {
@@ -402,7 +403,7 @@ test('outdated() aliased dependency', async () => {
           },
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         'is-positive@3.1.0': {
           resolution: {
@@ -447,7 +448,7 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
         },
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       'foo@1.0.0': {
         resolution: {
@@ -551,7 +552,7 @@ test('should ignore dependencies as expected', async () => {
           },
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         'is-negative@2.1.0': {
           resolution: {
@@ -611,7 +612,7 @@ test('should ignore dependencies as expected', async () => {
           },
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         'is-negative@1.1.0': {
           resolution: {

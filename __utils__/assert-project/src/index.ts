@@ -3,7 +3,7 @@ import path from 'path'
 import util from 'util'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileFileV7 } from '@pnpm/lockfile-types'
+import { type LockfileFileV9 } from '@pnpm/lockfile-types'
 import { type Modules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -31,14 +31,14 @@ export interface Project {
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readCurrentLockfile: () => Required<LockfileFileV7>
+  readCurrentLockfile: () => Required<LockfileFileV9>
   readModulesManifest: () => Modules | null
   /**
    * TODO: Remove the `Required<T>` cast.
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readLockfile: (lockfileName?: string) => Required<LockfileFileV7>
+  readLockfile: (lockfileName?: string) => Required<LockfileFileV9>
   writePackageJson: (pkgJson: object) => void
 }
 

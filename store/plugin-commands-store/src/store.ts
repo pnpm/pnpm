@@ -15,7 +15,6 @@ export const rcOptionsTypes = cliOptionsTypes
 export function cliOptionsTypes (): Record<string, unknown> {
   return pick([
     'registry',
-    'store',
     'store-dir',
     'force',
   ], allTypes)

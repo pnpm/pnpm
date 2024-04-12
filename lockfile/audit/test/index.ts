@@ -155,7 +155,7 @@ describe('audit', () => {
     try {
       await audit({
         importers: {},
-        lockfileVersion: 5,
+        lockfileVersion: LOCKFILE_VERSION,
       },
       getAuthHeader,
       {

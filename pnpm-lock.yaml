@@ -106,7 +106,7 @@ importers:
         version: 9.0.11
       jest:
         specifier: ^29.7.0
-        version: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3))
+        version: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5))
       keyv:
         specifier: 4.5.4
         version: 4.5.4
@@ -127,13 +127,13 @@ importers:
         version: 8.5.14
       ts-jest:
         specifier: 29.1.1
-        version: 29.1.1(@babel/core@7.24.4)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.4)(@babel/types@7.24.0))(jest@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3)))(typescript@5.3.3)
+        version: 29.1.1(@babel/core@7.24.4)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.4)(@babel/types@7.24.0))(jest@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5)))(typescript@5.4.5)
       ts-node:
         specifier: ^10.9.2
-        version: 10.9.2(@types/node@18.19.31)(typescript@5.3.3)
+        version: 10.9.2(@types/node@18.19.31)(typescript@5.4.5)
       typescript:
-        specifier: 5.3.3
-        version: 5.3.3
+        specifier: 5.4.5
+        version: 5.4.5
       verdaccio:
         specifier: 5.20.1
         version: 5.20.1(encoding@0.1.13)(typanion@3.14.0)
@@ -241,19 +241,19 @@ importers:
     dependencies:
       '@typescript-eslint/eslint-plugin':
         specifier: 6.18.1
-        version: 6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0)(typescript@5.3.3)
+        version: 6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)
       '@typescript-eslint/parser':
         specifier: 6.18.1
-        version: 6.18.1(eslint@8.57.0)(typescript@5.3.3)
+        version: 6.18.1(eslint@8.57.0)(typescript@5.4.5)
       eslint:
         specifier: ^8.57.0
         version: 8.57.0
       eslint-config-standard-with-typescript:
         specifier: ^39.1.1
-        version: 39.1.1(@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0)(typescript@5.3.3))(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.1.1(eslint@8.57.0))(eslint@8.57.0)(typescript@5.3.3)
+        version: 39.1.1(@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.1.1(eslint@8.57.0))(eslint@8.57.0)(typescript@5.4.5)
       eslint-plugin-import:
         specifier: ^2.29.1
-        version: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0)
+        version: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)
       eslint-plugin-n:
         specifier: ^16.6.2
         version: 16.6.2(eslint@8.57.0)
@@ -264,8 +264,8 @@ importers:
         specifier: ^6.1.1
         version: 6.1.1(eslint@8.57.0)
       typescript:
-        specifier: 5.3.3
-        version: 5.3.3
+        specifier: 5.4.5
+        version: 5.4.5
     devDependencies:
       '@pnpm/eslint-config':
         specifier: workspace:*
@@ -421,8 +421,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   cli/command:
     dependencies:
@@ -513,8 +513,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -593,8 +593,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   config/config:
     dependencies:
@@ -678,8 +678,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/which':
         specifier: ^2.0.2
         version: 2.0.2
@@ -713,8 +713,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   config/package-is-installable:
     dependencies:
@@ -919,8 +919,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   deps/graph-sequencer:
     devDependencies:
@@ -1145,8 +1145,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   exec/lifecycle:
     dependencies:
@@ -1343,8 +1343,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -1470,8 +1470,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/which':
         specifier: ^2.0.2
         version: 2.0.2
@@ -1522,8 +1522,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -1719,8 +1719,8 @@ importers:
         specifier: 4.1.7
         version: 4.1.7
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/retry':
         specifier: ^0.12.5
         version: 0.12.5
@@ -1965,8 +1965,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -2039,8 +2039,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       nock:
         specifier: 13.3.4
         version: 13.3.4
@@ -2098,8 +2098,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       detect-libc:
         specifier: ^2.0.3
         version: 2.0.3
@@ -2183,8 +2183,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -2235,8 +2235,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       rimraf:
         specifier: ^3.0.2
         version: 3.0.2
@@ -2282,8 +2282,8 @@ importers:
         specifier: ^4.0.9
         version: 4.0.9
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -2332,8 +2332,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -2393,8 +2393,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/zkochan__table':
         specifier: npm:@types/table@6.0.0
         version: '@types/table@6.0.0'
@@ -2455,8 +2455,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       yaml-tag:
         specifier: 1.1.0
         version: 1.1.0
@@ -2713,8 +2713,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       execa:
         specifier: npm:safe-execa@0.1.2
         version: safe-execa@0.1.2
@@ -2991,8 +2991,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -3040,8 +3040,8 @@ importers:
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   pkg-manager/core:
     dependencies:
@@ -3272,8 +3272,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -3351,8 +3351,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   pkg-manager/get-context:
     dependencies:
@@ -3400,8 +3400,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   pkg-manager/headless:
     dependencies:
@@ -3548,8 +3548,8 @@ importers:
         specifier: ^9.0.13
         version: 9.0.13
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/rimraf':
         specifier: ^3.0.2
         version: 3.0.2
@@ -3627,8 +3627,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   pkg-manager/link-bins:
     dependencies:
@@ -3700,8 +3700,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       cmd-extension:
         specifier: ^1.0.2
         version: 1.0.2
@@ -3755,8 +3755,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   pkg-manager/modules-yaml:
     dependencies:
@@ -3783,8 +3783,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -3896,8 +3896,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -4092,8 +4092,8 @@ importers:
         specifier: ^1.3.31
         version: 1.3.31
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/sinon':
         specifier: ^10.0.20
         version: 10.0.20
@@ -4221,8 +4221,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   pkg-manager/resolve-dependencies:
     dependencies:
@@ -4336,8 +4336,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -4370,8 +4370,8 @@ importers:
         specifier: ^6.0.6
         version: 6.0.6
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       cross-spawn:
         specifier: ^7.0.3
         version: 7.0.3
@@ -4685,8 +4685,8 @@ importers:
         specifier: npm:@types/byline@^4.2.36
         version: '@types/byline@4.2.36'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -5021,8 +5021,8 @@ importers:
         specifier: ^1.3.31
         version: 1.3.31
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/sinon':
         specifier: ^10.0.20
         version: 10.0.20
@@ -5238,8 +5238,8 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -5404,8 +5404,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: ^7.5.8
         version: 7.5.8
@@ -5450,8 +5450,8 @@ importers:
         specifier: 0.0.33
         version: 0.0.33
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   reviewing/outdated:
     dependencies:
@@ -5508,8 +5508,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -5581,8 +5581,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
@@ -5645,8 +5645,8 @@ importers:
         specifier: 3.29.0
         version: 3.29.0(encoding@0.1.13)(typanion@3.14.0)
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       execa:
         specifier: npm:safe-execa@0.1.2
         version: safe-execa@0.1.2
@@ -5742,8 +5742,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/wrap-ansi':
         specifier: 8.0.2
         version: 8.0.2
@@ -5858,8 +5858,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
 
   store/package-store:
     dependencies:
@@ -5913,8 +5913,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/ssri':
         specifier: ^7.1.5
         version: 7.1.5
@@ -5986,8 +5986,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/signal-exit':
         specifier: ^3.0.4
         version: 3.0.4
@@ -6080,8 +6080,8 @@ importers:
         specifier: 0.0.33
         version: 0.0.33
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/ssri':
         specifier: ^7.1.5
         version: 7.1.5
@@ -6366,7 +6366,7 @@ importers:
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
         specifier: 0.4.9
-        version: 0.4.9(@types/node@18.19.31)
+        version: 0.4.9(@types/node@20.12.7)
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -6421,8 +6421,8 @@ importers:
         specifier: ^4.0.6
         version: 4.0.6
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       '@types/touch':
         specifier: ^3.1.5
         version: 3.1.5
@@ -6499,8 +6499,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
+        specifier: 0.29.12
+        version: 0.29.12
       better-path-resolve:
         specifier: 1.0.0
         version: 1.0.0
@@ -7897,6 +7897,9 @@ packages:
   '@types/node@20.12.6':
     resolution: {integrity: sha512-3KurE8taB8GCvZBPngVbp0lk5CKi8M9f9k1rsADh0Evdz5SzJ+Q+Hx9uHoFGsLnLnd1xmkDQr2hVhlA0Mn0lKQ==}
 
+  '@types/node@20.12.7':
+    resolution: {integrity: sha512-wq0cICSkRLVaf3UGLMGItu/PtdY7oaXaI/RVU+xliKVOtRna3PRY57ZDfztpDL0n11vfymMUnXv8QwYCO7L1wg==}
+
   '@types/node@20.5.1':
     resolution: {integrity: sha512-4tT2UrL5LBqDwoed9wZ6N3umC4Yhz3W3FloMmiiG4JwmUJWpie0c7lcnUNd4gtMKuDEO4wRVS8B6Xa0uMRsMKg==}
 
@@ -7915,8 +7918,8 @@ packages:
   '@types/proxyquire@1.3.31':
     resolution: {integrity: sha512-uALowNG2TSM1HNPMMOR0AJwv4aPYPhqB0xlEhkeRTMuto5hjoSPZkvgu1nbPUkz3gEPAHv4sy4DmKsurZiEfRQ==}
 
-  '@types/ramda@0.28.20':
-    resolution: {integrity: sha512-MeUhzGSXQTRsY19JGn5LIBTLxVEnyF6HDNr08KSJqybsm4DlfLIgK1jBHjhpiSyk252tXYmp+UOe0UFg0UiFsA==}
+  '@types/ramda@0.29.12':
+    resolution: {integrity: sha512-sgIEjpJhdQPB52gDF4aphs9nl0xe54CR22DPdWqT8gQHjZYmVApgA0R3/CpMbl0Y8az2TEZrPNL2zy0EvjbkLA==}
 
   '@types/responselike@1.0.3':
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
@@ -12432,8 +12435,8 @@ packages:
       '@swc/wasm':
         optional: true
 
-  ts-toolbelt@6.15.5:
-    resolution: {integrity: sha512-FZIXf1ksVyLcfr7M317jbB67XFJhOO1YqdTcuGaq9q5jLUoTikukZ+98TPjKiP2jC5CgmYdWWYs0s2nLSU0/1A==}
+  ts-toolbelt@9.6.0:
+    resolution: {integrity: sha512-nsZd8ZeNUzukXPlJmTBwUAuABDe/9qtVDelJeT/qW0ow3ZS3BsQJtNkan1802aM9Uf68/Y8ljw86Hu0h5IUW3w==}
 
   tsconfig-paths@3.15.0:
     resolution: {integrity: sha512-2Ac2RgzDe/cn48GvOe3M+o82pEFewD3UPbyoUHHdKasHwJKjds4fLXWf/Ux5kATBKN20oaFGu+jbElp1pos0mg==}
@@ -12536,8 +12539,11 @@ packages:
   typedarray@0.0.6:
     resolution: {integrity: sha512-/aCDEGatGvZ2BIk+HmLf4ifCJFwvKFNb9/JeZPMulfgFracn9QFcAf5GO8B/mweUjSoblS5In0cWhqpfs/5PQA==}
 
-  typescript@5.3.3:
-    resolution: {integrity: sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==}
+  types-ramda@0.29.10:
+    resolution: {integrity: sha512-5PJiW/eiTPyXXBYGZOYGezMl6qj7keBiZheRwfjJZY26QPHsNrjfJnz0mru6oeqqoTHOni893Jfd6zyUXfQRWg==}
+
+  typescript@5.4.5:
+    resolution: {integrity: sha512-vcI4UpRgg81oIRUFwR0WSIHKt11nJ7SAVlYNIu+QpqeyXP+gpQJy/Z4+F0aGxSE4MqwjyXvW/TzgkLAx2AGHwQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -13432,14 +13438,14 @@ snapshots:
       '@commitlint/types': 17.8.1
       '@types/node': 20.5.1
       chalk: 4.1.2
-      cosmiconfig: 8.3.6(typescript@5.3.3)
-      cosmiconfig-typescript-loader: 4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.3.3))(ts-node@10.9.2(@types/node@20.5.1)(typescript@5.3.3))(typescript@5.3.3)
+      cosmiconfig: 8.3.6(typescript@5.4.5)
+      cosmiconfig-typescript-loader: 4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.4.5))(ts-node@10.9.2(@types/node@20.5.1)(typescript@5.4.5))(typescript@5.4.5)
       lodash.isplainobject: 4.0.6
       lodash.merge: 4.6.2
       lodash.uniq: 4.5.0
       resolve-from: 5.0.0
-      ts-node: 10.9.2(@types/node@20.5.1)(typescript@5.3.3)
-      typescript: 5.3.3
+      ts-node: 10.9.2(@types/node@20.5.1)(typescript@5.4.5)
+      typescript: 5.4.5
     transitivePeerDependencies:
       - '@swc/core'
       - '@swc/wasm'
@@ -13813,7 +13819,7 @@ snapshots:
       jest-util: 29.7.0
       slash: 3.0.0
 
-  '@jest/core@29.7.0(@babel/types@7.24.0)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3))':
+  '@jest/core@29.7.0(@babel/types@7.24.0)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5))':
     dependencies:
       '@jest/console': 29.7.0
       '@jest/reporters': 29.7.0(@babel/types@7.24.0)
@@ -13827,7 +13833,7 @@ snapshots:
       exit: 0.1.2
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-changed-files: 29.7.0
-      jest-config: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3))
+      jest-config: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5))
       jest-haste-map: 29.7.0
       jest-message-util: 29.7.0
       jest-regex-util: 29.6.3
@@ -14475,9 +14481,9 @@ snapshots:
       '@reflink/reflink-win32-arm64-msvc': 0.1.16
       '@reflink/reflink-win32-x64-msvc': 0.1.16
 
-  '@rushstack/worker-pool@0.4.9(@types/node@18.19.31)':
+  '@rushstack/worker-pool@0.4.9(@types/node@20.12.7)':
     dependencies:
-      '@types/node': 18.19.31
+      '@types/node': 20.12.7
 
   '@sinclair/typebox@0.27.8': {}
 
@@ -14663,6 +14669,10 @@ snapshots:
     dependencies:
       undici-types: 5.26.5
 
+  '@types/node@20.12.7':
+    dependencies:
+      undici-types: 5.26.5
+
   '@types/node@20.5.1': {}
 
   '@types/normalize-package-data@2.4.4': {}
@@ -14675,9 +14685,9 @@ snapshots:
 
   '@types/proxyquire@1.3.31': {}
 
-  '@types/ramda@0.28.20':
+  '@types/ramda@0.29.12':
     dependencies:
-      ts-toolbelt: 6.15.5
+      types-ramda: 0.29.10
 
   '@types/responselike@1.0.3':
     dependencies:
@@ -14749,13 +14759,13 @@ snapshots:
 
   '@types/yarnpkg__lockfile@1.1.9': {}
 
-  '@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0)(typescript@5.3.3)':
+  '@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)':
     dependencies:
       '@eslint-community/regexpp': 4.10.0
-      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.3.3)
+      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
       '@typescript-eslint/scope-manager': 6.18.1
-      '@typescript-eslint/type-utils': 6.18.1(eslint@8.57.0)(typescript@5.3.3)
-      '@typescript-eslint/utils': 6.18.1(eslint@8.57.0)(typescript@5.3.3)
+      '@typescript-eslint/type-utils': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
+      '@typescript-eslint/utils': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
       '@typescript-eslint/visitor-keys': 6.18.1
       debug: 4.3.4
       eslint: 8.57.0
@@ -14763,20 +14773,20 @@ snapshots:
       ignore: 5.3.1
       natural-compare: 1.4.0
       semver: 7.6.0
-      ts-api-utils: 1.3.0(typescript@5.3.3)
-      typescript: 5.3.3
+      ts-api-utils: 1.3.0(typescript@5.4.5)
+      typescript: 5.4.5
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3)':
+  '@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5)':
     dependencies:
       '@typescript-eslint/scope-manager': 6.18.1
       '@typescript-eslint/types': 6.18.1
-      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.3.3)
+      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.4.5)
       '@typescript-eslint/visitor-keys': 6.18.1
       debug: 4.3.4
       eslint: 8.57.0
-      typescript: 5.3.3
+      typescript: 5.4.5
     transitivePeerDependencies:
       - supports-color
 
@@ -14785,20 +14795,20 @@ snapshots:
       '@typescript-eslint/types': 6.18.1
       '@typescript-eslint/visitor-keys': 6.18.1
 
-  '@typescript-eslint/type-utils@6.18.1(eslint@8.57.0)(typescript@5.3.3)':
+  '@typescript-eslint/type-utils@6.18.1(eslint@8.57.0)(typescript@5.4.5)':
     dependencies:
-      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.3.3)
-      '@typescript-eslint/utils': 6.18.1(eslint@8.57.0)(typescript@5.3.3)
+      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.4.5)
+      '@typescript-eslint/utils': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
       debug: 4.3.4
       eslint: 8.57.0
-      ts-api-utils: 1.3.0(typescript@5.3.3)
-      typescript: 5.3.3
+      ts-api-utils: 1.3.0(typescript@5.4.5)
+      typescript: 5.4.5
     transitivePeerDependencies:
       - supports-color
 
   '@typescript-eslint/types@6.18.1': {}
 
-  '@typescript-eslint/typescript-estree@6.18.1(typescript@5.3.3)':
+  '@typescript-eslint/typescript-estree@6.18.1(typescript@5.4.5)':
     dependencies:
       '@typescript-eslint/types': 6.18.1
       '@typescript-eslint/visitor-keys': 6.18.1
@@ -14807,19 +14817,19 @@ snapshots:
       is-glob: 4.0.3
       minimatch: 9.0.3
       semver: 7.6.0
-      ts-api-utils: 1.3.0(typescript@5.3.3)
-      typescript: 5.3.3
+      ts-api-utils: 1.3.0(typescript@5.4.5)
+      typescript: 5.4.5
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/utils@6.18.1(eslint@8.57.0)(typescript@5.3.3)':
+  '@typescript-eslint/utils@6.18.1(eslint@8.57.0)(typescript@5.4.5)':
     dependencies:
       '@eslint-community/eslint-utils': 4.4.0(eslint@8.57.0)
       '@types/json-schema': 7.0.15
       '@types/semver': 7.5.8
       '@typescript-eslint/scope-manager': 6.18.1
       '@typescript-eslint/types': 6.18.1
-      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.3.3)
+      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.4.5)
       eslint: 8.57.0
       semver: 7.6.0
     transitivePeerDependencies:
@@ -15794,12 +15804,12 @@ snapshots:
       object-assign: 4.1.1
       vary: 1.1.2
 
-  cosmiconfig-typescript-loader@4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.3.3))(ts-node@10.9.2(@types/node@20.5.1)(typescript@5.3.3))(typescript@5.3.3):
+  cosmiconfig-typescript-loader@4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.4.5))(ts-node@10.9.2(@types/node@20.5.1)(typescript@5.4.5))(typescript@5.4.5):
     dependencies:
       '@types/node': 20.5.1
-      cosmiconfig: 8.3.6(typescript@5.3.3)
-      ts-node: 10.9.2(@types/node@20.5.1)(typescript@5.3.3)
-      typescript: 5.3.3
+      cosmiconfig: 8.3.6(typescript@5.4.5)
+      ts-node: 10.9.2(@types/node@20.5.1)(typescript@5.4.5)
+      typescript: 5.4.5
 
   cosmiconfig@8.0.0:
     dependencies:
@@ -15808,21 +15818,21 @@ snapshots:
       parse-json: 5.2.0
       path-type: 4.0.0
 
-  cosmiconfig@8.3.6(typescript@5.3.3):
+  cosmiconfig@8.3.6(typescript@5.4.5):
     dependencies:
       import-fresh: 3.3.0
       js-yaml: '@zkochan/js-yaml@0.0.7'
       parse-json: 5.2.0
       path-type: 4.0.0
-      typescript: 5.3.3
+      typescript: 5.4.5
 
-  create-jest@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3)):
+  create-jest@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5)):
     dependencies:
       '@jest/types': 29.6.3
       chalk: 4.1.2
       exit: 0.1.2
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
-      jest-config: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3))
+      jest-config: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5))
       jest-util: 29.7.0
       prompts: 2.4.2
     transitivePeerDependencies:
@@ -16304,23 +16314,23 @@ snapshots:
       eslint: 8.57.0
       semver: 7.6.0
 
-  eslint-config-standard-with-typescript@39.1.1(@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0)(typescript@5.3.3))(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.1.1(eslint@8.57.0))(eslint@8.57.0)(typescript@5.3.3):
+  eslint-config-standard-with-typescript@39.1.1(@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.1.1(eslint@8.57.0))(eslint@8.57.0)(typescript@5.4.5):
     dependencies:
-      '@typescript-eslint/eslint-plugin': 6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0)(typescript@5.3.3)
-      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.3.3)
+      '@typescript-eslint/eslint-plugin': 6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)
+      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
       eslint: 8.57.0
-      eslint-config-standard: 17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.1.1(eslint@8.57.0))(eslint@8.57.0)
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0)
+      eslint-config-standard: 17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.1.1(eslint@8.57.0))(eslint@8.57.0)
+      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)
       eslint-plugin-n: 16.6.2(eslint@8.57.0)
       eslint-plugin-promise: 6.1.1(eslint@8.57.0)
-      typescript: 5.3.3
+      typescript: 5.4.5
     transitivePeerDependencies:
       - supports-color
 
-  eslint-config-standard@17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.1.1(eslint@8.57.0))(eslint@8.57.0):
+  eslint-config-standard@17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.1.1(eslint@8.57.0))(eslint@8.57.0):
     dependencies:
       eslint: 8.57.0
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0)
+      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)
       eslint-plugin-n: 16.6.2(eslint@8.57.0)
       eslint-plugin-promise: 6.1.1(eslint@8.57.0)
 
@@ -16332,9 +16342,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.8.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.9)(eslint@8.57.0):
+  eslint-module-utils@2.8.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint@8.57.0):
     dependencies:
-      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.3.3)
+      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
       debug: 3.2.7
       eslint: 8.57.0
       eslint-import-resolver-node: 0.3.9
@@ -16354,9 +16364,9 @@ snapshots:
       eslint-utils: 2.1.0
       regexpp: 3.2.0
 
-  eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint@8.57.0):
+  eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0):
     dependencies:
-      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.3.3)
+      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
       array-includes: 3.1.8
       array.prototype.findlastindex: 1.2.5
       array.prototype.flat: 1.3.2
@@ -16365,7 +16375,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 8.57.0
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.8.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.3.3))(eslint-import-resolver-node@0.3.9)(eslint@8.57.0)
+      eslint-module-utils: 2.8.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint@8.57.0)
       hasown: 2.0.2
       is-core-module: 2.13.1
       is-glob: 4.0.3
@@ -17538,16 +17548,16 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
-  jest-cli@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3)):
+  jest-cli@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5)):
     dependencies:
-      '@jest/core': 29.7.0(@babel/types@7.24.0)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3))
+      '@jest/core': 29.7.0(@babel/types@7.24.0)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5))
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
       chalk: 4.1.2
-      create-jest: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3))
+      create-jest: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5))
       exit: 0.1.2
       import-local: 3.1.0
-      jest-config: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3))
+      jest-config: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5))
       jest-util: 29.7.0
       jest-validate: 29.7.0
       yargs: 17.7.2
@@ -17558,7 +17568,7 @@ snapshots:
       - supports-color
       - ts-node
 
-  jest-config@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3)):
+  jest-config@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5)):
     dependencies:
       '@babel/core': 7.24.4
       '@jest/test-sequencer': 29.7.0
@@ -17583,7 +17593,7 @@ snapshots:
       pretty-format: 29.7.0
       slash: 3.0.0
       strip-json-comments: 3.1.1
-      ts-node: 10.9.2(@types/node@18.19.31)(typescript@5.3.3)
+      ts-node: 10.9.2(@types/node@18.19.31)(typescript@5.4.5)
     transitivePeerDependencies:
       - '@babel/types'
       - babel-plugin-macros
@@ -17806,12 +17816,12 @@ snapshots:
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
-  jest@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3)):
+  jest@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5)):
     dependencies:
-      '@jest/core': 29.7.0(@babel/types@7.24.0)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3))
+      '@jest/core': 29.7.0(@babel/types@7.24.0)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5))
       '@jest/types': 29.6.3
       import-local: 3.1.0
-      jest-cli: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3))
+      jest-cli: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5))
     transitivePeerDependencies:
       - '@babel/types'
       - '@types/node'
@@ -19869,27 +19879,27 @@ snapshots:
     dependencies:
       utf8-byte-length: 1.0.4
 
-  ts-api-utils@1.3.0(typescript@5.3.3):
+  ts-api-utils@1.3.0(typescript@5.4.5):
     dependencies:
-      typescript: 5.3.3
+      typescript: 5.4.5
 
-  ts-jest@29.1.1(@babel/core@7.24.4)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.4)(@babel/types@7.24.0))(jest@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3)))(typescript@5.3.3):
+  ts-jest@29.1.1(@babel/core@7.24.4)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.4)(@babel/types@7.24.0))(jest@29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5)))(typescript@5.4.5):
     dependencies:
       '@babel/core': 7.24.4
       '@jest/types': 29.6.3
       babel-jest: 29.7.0(@babel/core@7.24.4)(@babel/types@7.24.0)
       bs-logger: 0.2.6
       fast-json-stable-stringify: 2.1.0
-      jest: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3))
+      jest: 29.7.0(@babel/types@7.24.0)(@types/node@18.19.31)(ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5))
       jest-util: 29.7.0
       json5: 2.2.3
       lodash.memoize: 4.1.2
       make-error: 1.3.6
       semver: 7.6.0
-      typescript: 5.3.3
+      typescript: 5.4.5
       yargs-parser: 21.1.1
 
-  ts-node@10.9.2(@types/node@18.19.31)(typescript@5.3.3):
+  ts-node@10.9.2(@types/node@18.19.31)(typescript@5.4.5):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.11
@@ -19903,11 +19913,11 @@ snapshots:
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 5.3.3
+      typescript: 5.4.5
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
 
-  ts-node@10.9.2(@types/node@20.5.1)(typescript@5.3.3):
+  ts-node@10.9.2(@types/node@20.5.1)(typescript@5.4.5):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.11
@@ -19921,11 +19931,11 @@ snapshots:
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 5.3.3
+      typescript: 5.4.5
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
 
-  ts-toolbelt@6.15.5: {}
+  ts-toolbelt@9.6.0: {}
 
   tsconfig-paths@3.15.0:
     dependencies:
@@ -20027,7 +20037,11 @@ snapshots:
 
   typedarray@0.0.6: {}
 
-  typescript@5.3.3: {}
+  types-ramda@0.29.10:
+    dependencies:
+      ts-toolbelt: 9.6.0
+
+  typescript@5.4.5: {}
 
   uglify-js@3.17.4:
     optional: true

@@ -61,7 +61,7 @@
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/semver": "7.5.3",
     "@types/ssri": "^7.1.5",
     "nock": "13.3.4",

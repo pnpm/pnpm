@@ -12,7 +12,7 @@ const simpleLockfile = {
       },
     },
   },
-  lockfileVersion: 5.2,
+  lockfileVersion: '5.2',
   packages: {
     '/foo@1.0.0': {
       resolution: {
@@ -66,7 +66,7 @@ test('picks the newer version when dependencies differ inside package', () => {
         specifiers: {},
       },
     },
-    lockfileVersion: 5.2,
+    lockfileVersion: '5.2',
     packages: {
       '/a@1.0.0': {
         dependencies: {

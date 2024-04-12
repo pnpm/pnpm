@@ -42,7 +42,6 @@ export const GLOBAL_OPTIONS = pick([
   'filter',
   'filter-prod',
   'loglevel',
-  'help',
   'parseable',
   'prefix',
   'reporter',

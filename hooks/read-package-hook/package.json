@@ -41,7 +41,7 @@
   "devDependencies": {
     "@pnpm/hooks.read-package-hook": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/semver": "7.5.3",
     "@yarnpkg/core": "4.0.3"
   },

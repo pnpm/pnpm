@@ -54,7 +54,7 @@
     "@types/is-windows": "^1.0.2",
     "@types/node": "^18.19.31",
     "@types/normalize-path": "^3.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "cmd-extension": "^1.0.2",
     "path-exists": "^4.0.0",
     "tempy": "^1.0.1"

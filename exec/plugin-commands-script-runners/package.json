@@ -37,7 +37,7 @@
     "@pnpm/registry-mock": "3.29.0",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/which": "^2.0.2",
     "is-windows": "^1.0.2",
     "write-yaml-file": "^5.0.0"
@@ -46,8 +46,8 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/command": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
-    "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/log.group": "1.0.1",

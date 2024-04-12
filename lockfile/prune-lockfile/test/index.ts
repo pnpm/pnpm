@@ -629,7 +629,7 @@ test('keep lockfileMinorVersion, if present', () => {
         },
       },
     },
-    lockfileVersion: 5.2,
+    lockfileVersion: '5.2',
     packages: {
       'is-positive@1.0.0': {
         resolution: {
@@ -655,7 +655,7 @@ test('keep lockfileMinorVersion, if present', () => {
         },
       },
     },
-    lockfileVersion: 5.2,
+    lockfileVersion: '5.2',
     packages: {
       'is-positive@1.0.0': {
         resolution: {

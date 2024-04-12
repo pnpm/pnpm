@@ -40,7 +40,7 @@
     "@types/cross-spawn": "^6.0.6",
     "@types/is-windows": "^1.0.2",
     "@types/proxyquire": "^1.3.31",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/sinon": "^10.0.20",
     "@types/tar": "^6.1.12",
     "@types/tar-stream": "^2.2.3",

@@ -31,7 +31,7 @@
   "devDependencies": {
     "@pnpm/plugin-commands-server": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/signal-exit": "^3.0.4"
   },
   "dependencies": {

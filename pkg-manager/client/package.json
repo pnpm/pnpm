@@ -45,7 +45,7 @@
   "devDependencies": {
     "@pnpm/client": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "0.29.12"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
