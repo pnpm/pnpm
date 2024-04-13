@@ -39,7 +39,7 @@ test('config get on array should return a comma-separated list', async () => {
         '*eslint*',
         '*prettier*',
       ],
-    }
+    },
   }, ['get', 'public-hoist-pattern'])
 
   expect(configKey).toBe('*eslint*,*prettier*')
