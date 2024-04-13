@@ -1,5 +1,5 @@
 import { packageManager } from '@pnpm/cli-meta'
-import { getConfig as _getConfig, type CliOptions } from '@pnpm/config'
+import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 
 export async function getConfig (
@@ -11,7 +11,7 @@ export async function getConfig (
     workspaceDir: string | undefined
     checkUnknownSetting?: boolean
   }
-) {
+): Promise<Config> {
   const { config, warnings } = await _getConfig({
     cliOptions,
     globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,

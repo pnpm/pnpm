@@ -17,6 +17,12 @@ interface ModulesInstallProgress {
   requirer: string
 }
 
+export interface StatusMessage {
+  msg: string
+  fixed: boolean
+  done?: boolean
+}
+
 export function reportProgress (
   log$: {
     progress: Rx.Observable<ProgressLog>
@@ -29,7 +35,7 @@ export function reportProgress (
     hideAddedPkgsProgress?: boolean
     hideProgressPrefix?: boolean
   }
-) {
+): Rx.Observable<Rx.Observable<StatusMessage>> {
   const progressOutput = throttledProgressOutput.bind(null, opts)
 
   return getModulesInstallProgress$(log$.stage, log$.progress).pipe(
@@ -42,7 +48,7 @@ export function reportProgress (
           return output$
         }
         return output$.pipe(
-          map((msg: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          map((msg) => {
             msg['msg'] = zoomOut(opts.cwd, requirer, msg['msg'])
             return msg
           })
@@ -59,7 +65,7 @@ function throttledProgressOutput (
   },
   importingDone$: Rx.Observable<boolean>,
   progress$: Rx.Observable<ProgressStats>
-) {
+): Rx.Observable<StatusMessage> {
   if (opts.throttle != null) {
     progress$ = progress$.pipe(opts.throttle)
   }
@@ -107,7 +113,7 @@ function getModulesInstallProgress$ (
   return Rx.from(modulesInstallProgressPushStream)
 }
 
-function stage$ToImportingDone$ (stage$: Rx.Observable<StageLog>) {
+function stage$ToImportingDone$ (stage$: Rx.Observable<StageLog>): Rx.Observable<boolean> {
   return stage$
     .pipe(
       filter((log: StageLog) => log.stage === 'importing_done'),
@@ -117,7 +123,7 @@ function stage$ToImportingDone$ (stage$: Rx.Observable<StageLog>) {
     )
 }
 
-function getProgressStatsPushStreamByRequirer (progress$: Rx.Observable<ProgressLog>) {
+function getProgressStatsPushStreamByRequirer (progress$: Rx.Observable<ProgressLog>): { [requirer: string]: Rx.Subject<ProgressStats> } {
   const progressStatsPushStreamByRequirer: {
     [requirer: string]: Rx.Subject<ProgressStats>
   } = {}
@@ -157,7 +163,7 @@ function getProgressStatsPushStreamByRequirer (progress$: Rx.Observable<Progress
   return progressStatsPushStreamByRequirer
 }
 
-function createStatusMessage ([progress, importingDone]: [ProgressStats, boolean]) {
+function createStatusMessage ([progress, importingDone]: [ProgressStats, boolean]): StatusMessage {
   const msg = `Progress: resolved ${
     hlValue(progress.resolved.toString())
   }, reused ${
@@ -180,7 +186,7 @@ function createStatusMessage ([progress, importingDone]: [ProgressStats, boolean
   }
 }
 
-function createStatusMessageWithoutAdded ([progress, importingDone]: [ProgressStats, boolean]) {
+function createStatusMessageWithoutAdded ([progress, importingDone]: [ProgressStats, boolean]): StatusMessage {
   const msg = `Progress: resolved ${
     hlValue(progress.resolved.toString())
   }, reused ${

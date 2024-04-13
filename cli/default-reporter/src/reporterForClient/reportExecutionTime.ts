@@ -5,7 +5,7 @@ import { map, take } from 'rxjs/operators'
 
 export function reportExecutionTime (
   executionTime$: Rx.Observable<ExecutionTimeLog>
-) {
+): Rx.Observable<Rx.Observable<{ fixed: boolean, msg: string }>> {
   return executionTime$.pipe(
     take(1),
     map((log) => {

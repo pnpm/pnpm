@@ -19,7 +19,7 @@ export function packageIsInstallable (
     nodeVersion?: string
     supportedArchitectures?: SupportedArchitectures
   }
-) {
+): void {
   const pnpmVersion = packageManager.name === 'pnpm'
     ? packageManager.version
     : undefined
