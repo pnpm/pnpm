@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 21.1.0
+
+### Minor Changes
+
+- e0f47f4: `pnpm config get` now prints a comma-separated list for an array value instead of nothing.
+
 ## 21.0.0
 
 ### Major Changes

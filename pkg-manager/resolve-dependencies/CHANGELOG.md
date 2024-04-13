@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 32.0.1
+
+### Patch Changes
+
+- 253d50c: Optional peer dependencies should be resolved as optional dependencies [#7918](https://github.com/pnpm/pnpm/pull/7918).
+
 ## 32.0.0
 
 ### Major Changes

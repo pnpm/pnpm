@@ -1,6 +1,6 @@
 # pnpm
 
-## 9.0.0-rc.0
+## 9.0.0-rc.1
 
 ### Major Changes
 
@@ -111,6 +111,7 @@
 - Package tarballs are not downloaded during `--lockfile-only` installation [#1328](https://github.com/pnpm/pnpm/issues/1328).
 - Peer dependency rules should only affect reporting, not data in the lockfile [#7758](https://github.com/pnpm/pnpm/pull/7758).
 - Link overrides should be able to use absolute path [#7749](https://github.com/pnpm/pnpm/pull/7749).
+- `pnpm dlx` should not read settings from the current working directory [#7916](https://github.com/pnpm/pnpm/pull/7916).
 
 ## 8.15.0
 

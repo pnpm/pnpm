@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 13.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+
 ## 13.0.0
 
 ### Major Changes
