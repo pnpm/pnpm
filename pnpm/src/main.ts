@@ -21,7 +21,6 @@ import { formatUnknownOptionsError } from './formatError'
 import { parseCliArgs } from './parseCliArgs'
 import { initReporter, type ReporterType } from './reporter'
 import { isCI } from 'ci-info'
-import os from 'os'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
 import stripAnsi from 'strip-ansi'
@@ -91,15 +90,14 @@ export async function main (inputArgv: string[]) {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
-    const isDlxCommand = cmd === 'dlx'
-    config = await getConfig(isDlxCommand ? { ...cliOptions, dir: os.homedir() } : cliOptions, {
+    config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
     }) as typeof config
-    if (isDlxCommand) {
+    if (cmd === 'dlx') {
       config.useStderr = true
     }
     config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
