@@ -1,5 +1,13 @@
 # pnpm
 
+## 8.15.7
+
+### Patch Changes
+
+- `pnpm config get` prints a comma-separated list for an array value instead of nothing.
+- It should be possible to publish a tarball with custom dist-tag [#7845](https://github.com/pnpm/pnpm/issues/7845).
+- Print the list of packages that were not built because they are ignored by configuration settings.
+
 ## 8.15.6
 
 ### Patch Changes
