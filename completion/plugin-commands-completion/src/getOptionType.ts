@@ -15,7 +15,7 @@ export function getOptionCompletions (
   optionTypes: Record<string, unknown>,
   shorthands: Record<string, string | string[]>,
   option: string
-) {
+): string[] | undefined {
   const optionType = getOptionType(optionTypes, shorthands, option)
   return optionTypeToCompletion(optionType)
 }
@@ -40,13 +40,13 @@ function getOptionType (
   optionTypes: Record<string, unknown>,
   shorthands: Record<string, string | string[]>,
   option: string
-) {
+): unknown {
   const allBools = Object.fromEntries(Object.keys(optionTypes).map((optionName) => [optionName, Boolean]))
   const result = omit(['argv'], nopt(allBools, shorthands, [option], 0))
   return optionTypes[Object.entries(result)[0]?.[0]]
 }
 
-export function getLastOption (completionCtx: CompletionCtx) {
+export function getLastOption (completionCtx: CompletionCtx): string | null {
   if (isOption(completionCtx.prev)) return completionCtx.prev
   if (completionCtx.lastPartial === '' || completionCtx.words <= 1) return null
   const words = completionCtx.line.slice(0, completionCtx.point).trim().split(/\s+/)
@@ -54,12 +54,12 @@ export function getLastOption (completionCtx: CompletionCtx) {
   return isOption(lastWord) ? lastWord : null
 }
 
-function isOption (word: string) {
+function isOption (word: string): boolean {
   return word.startsWith('--') && word.length >= 3 ||
     word.startsWith('-') && word.length >= 2
 }
 
-export function currentTypedWordType (completionCtx: CompletionCtx) {
+export function currentTypedWordType (completionCtx: CompletionCtx): 'option' | 'value' | null {
   if (completionCtx.partial.endsWith(' ')) return null
   return completionCtx.lastPartial.startsWith('-') ? 'option' : 'value'
 }
