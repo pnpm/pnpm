@@ -19,7 +19,7 @@ export function checkPlatform (
   packageId: string,
   wantedPlatform: WantedPlatform,
   supportedArchitectures?: SupportedArchitectures
-) {
+): UnsupportedPlatformError | null {
   const current = {
     os: dedupeCurrent(process.platform, supportedArchitectures?.os ?? ['current']),
     cpu: dedupeCurrent(process.arch, supportedArchitectures?.cpu ?? ['current']),
@@ -82,6 +82,6 @@ function checkList (value: string | string[], list: string | string[]): boolean 
   return match || blc === list.length
 }
 
-function dedupeCurrent (current: string, supported: string[]) {
+function dedupeCurrent (current: string, supported: string[]): string[] {
   return supported.map((supported) => supported === 'current' ? current : supported)
 }

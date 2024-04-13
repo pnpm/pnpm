@@ -21,17 +21,17 @@ export async function checkGlobalBinDir (
   }
 }
 
-async function globalBinDirIsInPath (globalBinDir: string, env: Record<string, string | undefined>) {
+async function globalBinDirIsInPath (globalBinDir: string, env: Record<string, string | undefined>): Promise<boolean> {
   const dirs = env[PATH]?.split(path.delimiter) ?? []
   if (dirs.some((dir) => areDirsEqual(globalBinDir, dir))) return true
   const realGlobalBinDir = await fs.realpath(globalBinDir)
   return dirs.some((dir) => areDirsEqual(realGlobalBinDir, dir))
 }
 
-const areDirsEqual = (dir1: string, dir2: string) =>
+const areDirsEqual = (dir1: string, dir2: string): boolean =>
   path.relative(dir1, dir2) === ''
 
-function canWriteToDirAndExists (dir: string) {
+function canWriteToDirAndExists (dir: string): boolean {
   try {
     return canWriteToDir(dir)
   } catch (err: unknown) {
