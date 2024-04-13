@@ -579,7 +579,7 @@ export async function getConfig (
   return { config: pnpmConfig, warnings }
 }
 
-function getProcessEnv (env: string) {
+function getProcessEnv (env: string): string | undefined {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
