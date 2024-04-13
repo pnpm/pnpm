@@ -32,7 +32,7 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/fs.find-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "1.0.0",
+    "@pnpm/util.lex-comparator": "3.0.0",
     "@pnpm/workspace.read-manifest": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",

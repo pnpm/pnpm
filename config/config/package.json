@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/config/config#readme",
   "dependencies": {
-    "@pnpm/config.env-replace": "1.1.0",
+    "@pnpm/config.env-replace": "3.0.0",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
