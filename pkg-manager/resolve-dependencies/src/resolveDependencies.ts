@@ -329,6 +329,7 @@ export async function resolveRootDependencies (
       )
       if (!missingRequiredPeers.length && !missingOptionalPeerNames.length) break
       const dependencies: Record<string, string> = {}
+      const optionalDependencies: Record<string, string> = {}
       for (const [peerName, { range }] of missingRequiredPeers) {
         if (ctx.allPreferredVersions![peerName]) {
           const versions: string[] = []
@@ -348,14 +349,14 @@ export async function resolveRootDependencies (
       const nextMissingOptionalPeers: string[] = []
       for (const missingOptionalPeerName of missingOptionalPeerNames) {
         if (ctx.allPreferredVersions![missingOptionalPeerName]) {
-          dependencies[missingOptionalPeerName] = Object.keys(ctx.allPreferredVersions![missingOptionalPeerName]).join(' || ')
+          optionalDependencies[missingOptionalPeerName] = Object.keys(ctx.allPreferredVersions![missingOptionalPeerName]).join(' || ')
         } else {
           nextMissingOptionalPeers.push(missingOptionalPeerName)
         }
       }
       prevMissingOptionalPeers = nextMissingOptionalPeers
-      if (!Object.keys(dependencies).length) break
-      const wantedDependencies = getNonDevWantedDependencies({ dependencies })
+      if (!Object.keys(dependencies).length && !Object.keys(optionalDependencies).length) break
+      const wantedDependencies = getNonDevWantedDependencies({ dependencies, optionalDependencies })
 
       // eslint-disable-next-line no-await-in-loop
       const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
