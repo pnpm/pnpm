@@ -17,7 +17,7 @@ test('config list', async () => {
     },
   }, ['list'])
 
-  expect(normalizeNewlines(output)).toEqual(`fetch-retries=2
+  expect(normalizeNewlines(output!)).toEqual(`fetch-retries=2
 store-dir=~/store
 `)
 })
