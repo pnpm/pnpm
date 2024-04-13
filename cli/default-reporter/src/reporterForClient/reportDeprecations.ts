@@ -14,7 +14,7 @@ export function reportDeprecations (
     cwd: string
     isRecursive: boolean
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   const [deprecatedDirectDeps$, deprecatedSubdeps$] = Rx.partition(log$.deprecation, (log) => log.depth === 0)
   const resolutionDone$ = log$.stage.pipe(
     filter((log) => log.stage === 'resolution_done')

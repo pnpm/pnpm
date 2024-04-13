@@ -27,6 +27,13 @@ export const propertyByDependencyType = {
   prod: 'dependencies',
 }
 
+export interface PkgsDiff {
+  dev: Map<PackageDiff>
+  nodeModulesOnly: Map<PackageDiff>
+  optional: Map<PackageDiff>
+  prod: Map<PackageDiff>
+}
+
 export function getPkgsDiff (
   log$: {
     deprecation: Rx.Observable<logs.DeprecationLog>
@@ -37,7 +44,7 @@ export function getPkgsDiff (
   opts: {
     prefix: string
   }
-) {
+): Rx.Observable<PkgsDiff> {
   const deprecationSet$ = log$.deprecation
     .pipe(
       filter((log) => log.prefix === opts.prefix),

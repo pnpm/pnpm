@@ -8,7 +8,7 @@ import semver from 'semver'
 export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
   env: NodeJS.ProcessEnv
   process: NodeJS.Process
-}) {
+}): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return log$.pipe(
     take(1),
     filter((log) => semver.gt(log.latestVersion, log.currentVersion)),
@@ -44,7 +44,7 @@ interface UpdateMessageOptions {
   latestVersion: string
 }
 
-function renderUpdateMessage (opts: UpdateMessageOptions) {
+function renderUpdateMessage (opts: UpdateMessageOptions): string {
   if (opts.currentPkgIsExecutable && opts.env.PNPM_HOME) {
     return 'Run a script from: https://pnpm.io/installation'
   }
@@ -52,7 +52,7 @@ function renderUpdateMessage (opts: UpdateMessageOptions) {
   return `Run "${chalk.magenta(updateCommand)}" to update.`
 }
 
-function renderUpdateCommand (opts: UpdateMessageOptions) {
+function renderUpdateCommand (opts: UpdateMessageOptions): string {
   if (opts.env.COREPACK_ROOT) {
     return `corepack prepare pnpm@${opts.latestVersion} --activate`
   }
@@ -60,6 +60,6 @@ function renderUpdateCommand (opts: UpdateMessageOptions) {
   return `pnpm add -g ${pkgName}`
 }
 
-function detectIfCurrentPkgIsExecutable (process: NodeJS.Process) {
+function detectIfCurrentPkgIsExecutable (process: NodeJS.Process): boolean {
   return process['pkg'] != null
 }

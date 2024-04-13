@@ -64,7 +64,7 @@ export async function parseCliArgs (
     return getParsedArgsForHelp()
   }
 
-  function getParsedArgsForHelp () {
+  function getParsedArgsForHelp (): ParsedCliArgs {
     return {
       argv: noptExploratoryResults.argv,
       cmd: 'help',
@@ -80,7 +80,7 @@ export async function parseCliArgs (
     ...opts.getTypesByCommandName(commandName),
   } as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  function getCommandName (args: string[]) {
+  function getCommandName (args: string[]): string {
     if (recursiveCommandUsed) {
       args = args.slice(1)
     }
@@ -90,7 +90,7 @@ export async function parseCliArgs (
     return 'add'
   }
 
-  function getEscapeArgsWithSpecialCaseForRun () {
+  function getEscapeArgsWithSpecialCaseForRun (): string[] | undefined {
     if (cmd !== 'run') {
       return opts.escapeArgs
     }
@@ -184,7 +184,12 @@ export async function parseCliArgs (
 
 const CUSTOM_OPTION_PREFIX = 'config.'
 
-function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<string>) {
+interface NormalizeOptionsResult {
+  options: Record<string, unknown>
+  unknownOptions: Map<string, string[]>
+}
+
+function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<string>): NormalizeOptionsResult {
   const standardOptionNames = []
   const normalizedOptions: Record<string, unknown> = {}
   for (const [optionName, optionValue] of Object.entries(options)) {
@@ -199,7 +204,7 @@ function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<s
   return { options: normalizedOptions, unknownOptions }
 }
 
-function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
+function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>): Map<string, string[]> {
   const unknownOptions = new Map<string, string[]>()
   const closestMatches = getClosestOptionMatches.bind(null, Array.from(knownOptions))
   for (const usedOption of usedOptions) {
@@ -210,7 +215,7 @@ function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
   return unknownOptions
 }
 
-function getClosestOptionMatches (knownOptions: string[], option: string) {
+function getClosestOptionMatches (knownOptions: string[], option: string): string[] {
   return didYouMean(option, knownOptions, {
     returnType: ReturnTypeEnums.ALL_CLOSEST_MATCHES,
   })

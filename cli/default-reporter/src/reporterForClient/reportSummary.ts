@@ -41,7 +41,7 @@ export function reportSummary (
     filterPkgsDiff?: FilterPkgsDiff
     pnpmConfig?: Config
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
 
   const summaryLog$ = log$.summary.pipe(take(1))
@@ -96,7 +96,7 @@ function printDiffs (
   },
   pkgsDiff: PackageDiff[],
   depType: string
-) {
+): string {
   // Sorts by alphabet then by removed/added
   // + ava 0.10.0
   // - chalk 1.0.0
