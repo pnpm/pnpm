@@ -28,6 +28,23 @@ test('config get a boolean should return string format', async () => {
   expect(configKey).toEqual('true')
 })
 
+test('config get on array should return a comma-separated list', async () => {
+  const configKey = await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    rawConfig: {
+      'public-hoist-pattern': [
+        '*eslint*',
+        '*prettier*',
+      ],
+    },
+  }, ['get', 'public-hoist-pattern'])
+
+  expect(configKey).toBe('*eslint*,*prettier*')
+})
+
 test('config get without key show list all settings ', async () => {
   const rawConfig = {
     'store-dir': '~/store',
