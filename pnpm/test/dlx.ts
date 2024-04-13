@@ -3,6 +3,7 @@ import path from 'path'
 import PATH_NAME from 'path-name'
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { readModulesManifest } from '@pnpm/modules-yaml'
 import { execPnpm, execPnpmSync } from './utils'
 
 test('silent dlx prints the output of the child process only', async () => {
@@ -194,4 +195,18 @@ test('dlx creates cache and store prune cleans cache', async () => {
     fs.readdirSync(path.resolve('cache', 'dlx'))
       .sort()
   ).toStrictEqual([])
+})
+
+test('dlx should ignore .npmrc in the current directory', async () => {
+  prepare({})
+  fs.writeFileSync('.npmrc', 'hoist-pattern=', 'utf8')
+
+  const cacheDir = path.resolve('cache')
+  await execPnpm([
+    `--config.store-dir=${path.resolve('store')}`,
+    `--config.cache-dir=${cacheDir}`,
+    'dlx', 'shx', 'echo', 'hi'])
+
+  const modulesManifest = await readModulesManifest(path.join(cacheDir, 'dlx', createBase32Hash('shx'), 'pkg/node_modules'))
+  expect(modulesManifest?.hoistPattern).toStrictEqual(['*'])
 })
