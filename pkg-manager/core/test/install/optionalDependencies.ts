@@ -23,10 +23,20 @@ test('successfully install optional dependency with subdependencies', async () =
 
 test('skip failing optional dependencies', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['pkg-with-failing-optional-dependency@1.0.1'], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-failing-optional-dependency@1.0.0'], testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('pkg-with-failing-optional-dependency')
-  expect(m(-1)).toBeTruthy()
+  project.has('@pnpm.e2e/pkg-with-failing-optional-dependency/package.json')
+})
+
+test('skip failing optional peer dependencies', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-failing-optional-dependency@1.0.0', '@pnpm.e2e/pkg-with-failing-optional-peer@1.0.0'], testDefaults({ fastUnpack: false }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-failing-optional-peer@1.0.0(@pnpm.e2e/pkg-with-failing-postinstall@1.0.0)'].optionalDependencies).toStrictEqual({
+    '@pnpm.e2e/pkg-with-failing-postinstall': '1.0.0',
+  })
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-failing-postinstall@1.0.0'].optional).toBe(true)
 })
 
 test('skip non-existing optional dependency', async () => {

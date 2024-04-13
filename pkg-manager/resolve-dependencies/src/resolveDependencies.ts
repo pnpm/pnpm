@@ -329,7 +329,6 @@ export async function resolveRootDependencies (
       )
       if (!missingRequiredPeers.length && !missingOptionalPeerNames.length) break
       const dependencies: Record<string, string> = {}
-      const optionalDependencies: Record<string, string> = {}
       for (const [peerName, { range }] of missingRequiredPeers) {
         if (ctx.allPreferredVersions![peerName]) {
           const versions: string[] = []
@@ -347,6 +346,7 @@ export async function resolveRootDependencies (
         }
       }
       const nextMissingOptionalPeers: string[] = []
+      const optionalDependencies: Record<string, string> = {}
       for (const missingOptionalPeerName of missingOptionalPeerNames) {
         if (ctx.allPreferredVersions![missingOptionalPeerName]) {
           optionalDependencies[missingOptionalPeerName] = Object.keys(ctx.allPreferredVersions![missingOptionalPeerName]).join(' || ')
