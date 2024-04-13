@@ -22,7 +22,7 @@ const withSortingOptions: hash.BaseOptions = {
   unorderedSets: true,
 }
 
-function hashUnknown (object: unknown, options: hash.BaseOptions) {
+function hashUnknown (object: unknown, options: hash.BaseOptions): string {
   if (object === undefined) {
     // '0'.repeat(40) to match the length of other returned sha1 hashes.
     return '0000000000000000000000000000000000000000'
@@ -30,5 +30,5 @@ function hashUnknown (object: unknown, options: hash.BaseOptions) {
   return hash(object, options)
 }
 
-export const hashObjectWithoutSorting = (object: unknown) => hashUnknown(object, withoutSortingOptions)
-export const hashObject = (object: unknown) => hashUnknown(object, withSortingOptions)
+export const hashObjectWithoutSorting = (object: unknown): string => hashUnknown(object, withoutSortingOptions)
+export const hashObject = (object: unknown): string => hashUnknown(object, withSortingOptions)

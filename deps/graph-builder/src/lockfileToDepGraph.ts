@@ -249,7 +249,7 @@ function getChildrenPaths (
   allDeps: { [alias: string]: string },
   peerDeps: Set<string> | null,
   importerId: string
-) {
+): { [alias: string]: string } {
   const children: { [alias: string]: string } = {}
   for (const [alias, ref] of Object.entries(allDeps)) {
     const childDepPath = dp.refToRelative(ref, alias)
