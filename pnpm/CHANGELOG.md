@@ -1,6 +1,6 @@
 # pnpm
 
-## 9.0.0-rc.1
+## 9.0.0-rc.2
 
 ### Major Changes
 
