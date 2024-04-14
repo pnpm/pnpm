@@ -21,7 +21,12 @@ const pnpm = JSON.parse(fs.readFileSync(path.join(pnpmDir, 'package.json'), 'utf
 const release = getChangelogEntry(changelog, pnpm.version)
 fs.writeFileSync(path.join(dirname, '../../../RELEASE.md'), release.content)
 
-function getChangelogEntry (changelog: string, version: string) {
+interface ChangelogEntry {
+  content: string
+  highestLevel: number
+}
+
+function getChangelogEntry (changelog: string, version: string): ChangelogEntry {
   const ast = unified().use(remarkParse).parse(changelog)
 
   let highestLevel: number = BumpLevels.dep
