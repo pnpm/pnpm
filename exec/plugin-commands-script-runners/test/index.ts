@@ -17,6 +17,8 @@ import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
+const skipOnWindows = isWindows() ? test.skip : test
+
 test('pnpm run: returns correct exit code', async () => {
   prepare({
     scripts: {
@@ -437,7 +439,7 @@ test('scripts work with PnP', async () => {
   expect(fooOutput).toStrictEqual(helloWorldJsBinOutput)
 })
 
-test('pnpm run with custom shell', async () => {
+skipOnWindows('pnpm run with custom shell', async () => {
   prepare({
     scripts: {
       build: 'foo bar',
