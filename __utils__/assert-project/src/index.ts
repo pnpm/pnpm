@@ -46,16 +46,17 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const modules = path.join(projectPath, 'node_modules')
 
-  let cachedStore: {
+  interface StoreInstance {
     storePath: string
     getPkgIndexFilePath: (pkgName: string, version?: string) => string
-    cafsHas: (pkgName: string, version?: string | undefined) => void
-    cafsHasNot: (pkgName: string, version?: string | undefined) => void
-    storeHas: (pkgName: string, version?: string | undefined) => void
-    storeHasNot: (pkgName: string, version?: string | undefined) => void
-    resolve: (pkgName: string, version?: string | undefined, relativePath?: string | undefined) => string
+    cafsHas: (pkgName: string, version?: string) => void
+    cafsHasNot: (pkgName: string, version?: string) => void
+    storeHas: (pkgName: string, version?: string) => void
+    storeHasNot: (pkgName: string, version?: string) => void
+    resolve: (pkgName: string, version?: string, relativePath?: string) => string
   }
-  function getStoreInstance () {
+  let cachedStore: StoreInstance
+  function getStoreInstance (): StoreInstance {
     if (!cachedStore) {
       const modulesYaml = readModulesManifest(modules)
       if (modulesYaml == null) {
@@ -69,7 +70,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     }
     return cachedStore
   }
-  function getVirtualStoreDir () {
+  function getVirtualStoreDir (): string {
     const modulesYaml = readModulesManifest(modules)
     if (modulesYaml == null) {
       return path.join(modules, '.pnpm')
@@ -159,7 +160,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
   }
 }
 
-function readModulesManifest (modulesDir: string) {
+function readModulesManifest (modulesDir: string): Modules {
   try {
     return readYamlFile<Modules>(path.join(modulesDir, '.modules.yaml'))
   } catch (err: unknown) {

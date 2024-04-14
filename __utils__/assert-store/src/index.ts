@@ -3,10 +3,19 @@ import path from 'path'
 import { getFilePathInCafs } from '@pnpm/store.cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
+export interface StoreAssertions {
+  getPkgIndexFilePath: (pkgName: string, version?: string) => string
+  cafsHas: (pkgName: string, version?: string) => void
+  cafsHasNot: (pkgName: string, version?: string) => void
+  storeHas: (pkgName: string, version?: string) => void
+  storeHasNot: (pkgName: string, version?: string) => void
+  resolve: (pkgName: string, version?: string, relativePath?: string) => string
+}
+
 export function assertStore (
   storePath: string,
   encodedRegistryName?: string
-) {
+): StoreAssertions {
   // eslint-disable-next-line
   const ok = (value: any) => expect(value).toBeTruthy()
   // eslint-disable-next-line
