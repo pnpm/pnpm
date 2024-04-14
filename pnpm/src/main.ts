@@ -40,7 +40,7 @@ const DEPRECATED_OPTIONS = new Set([
 // A workaround for the https://github.com/vercel/pkg/issues/897 issue.
 delete process.env.PKG_EXECPATH
 
-export async function main (inputArgv: string[]) {
+export async function main (inputArgv: string[]): Promise<void> {
   let parsedCliArgs!: ParsedCliArgs
   try {
     parsedCliArgs = await parseCliArgs(inputArgv)
@@ -317,7 +317,7 @@ export async function main (inputArgv: string[]) {
   }
 }
 
-function printError (message: string, hint?: string) {
+function printError (message: string, hint?: string): void {
   const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
   console.log(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
   if (hint) {

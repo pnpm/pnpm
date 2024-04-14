@@ -202,17 +202,17 @@ handlerByCommandName['completion-server'] = createCompletionServer({
   parseCliArgs,
 })
 
-function initialCompletion () {
+function initialCompletion (): Array<{ name: string }> {
   return Object.keys(handlerByCommandName).map((name) => ({ name }))
 }
 
 export const pnpmCmds = handlerByCommandName
 
-export function getCliOptionsTypes (commandName: string) {
+export function getCliOptionsTypes (commandName: string): Record<string, unknown> {
   return cliOptionsTypesByCommandName[commandName]?.() || {}
 }
 
-export function getCommandFullName (commandName: string) {
+export function getCommandFullName (commandName: string): string | null {
   return aliasToFullName.get(commandName) ??
     (handlerByCommandName[commandName] ? commandName : null)
 }

@@ -1,7 +1,7 @@
 import { packageManager } from '@pnpm/cli-meta'
 import renderHelp from 'render-help'
 
-export function createHelp (helpByCommandName: Record<string, () => string>) {
+export function createHelp (helpByCommandName: Record<string, () => string>): (opts: unknown, params: string[]) => string {
   return function (opts: unknown, params: string[]) {
     let helpText!: string
     if (params.length === 0) {
@@ -17,7 +17,7 @@ ${process['pkg'] != null ? ` (compiled to binary; bundled Node.js ${process.vers
   }
 }
 
-function getHelpText () {
+function getHelpText (): string {
   return renderHelp({
     descriptionLists: [
       {

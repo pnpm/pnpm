@@ -5,7 +5,7 @@ import renderHelp from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return pick([
     'global',
   ], allTypes)
@@ -13,7 +13,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['bin']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Print the directory where pnpm will install executables.',
     descriptionLists: [
@@ -38,6 +38,6 @@ export async function handler (
   opts: {
     bin: string
   }
-) {
+): Promise<string> {
   return opts.bin
 }

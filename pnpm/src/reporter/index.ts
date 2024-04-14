@@ -11,7 +11,7 @@ export function initReporter (
     cmd: string | null
     config: Config
   }
-) {
+): void {
   switch (reporterType) {
   case 'default':
     initDefaultReporter({

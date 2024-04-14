@@ -55,7 +55,7 @@ const argv = process.argv.slice(2)
   }
 })()
 
-async function runPnpm () {
+async function runPnpm (): Promise<void> {
   const { errorHandler } = await import('./errorHandler')
   try {
     const { main } = await import('./main')
@@ -65,7 +65,7 @@ async function runPnpm () {
   }
 }
 
-async function passThruToNpm () {
+async function passThruToNpm (): Promise<void> {
   const { runNpm } = await import('./runNpm')
   const { status } = await runNpm(argv)
   process.exit(status!)
