@@ -1,6 +1,6 @@
 import { createServer } from 'net'
 
-export const isPortInUse = (port: number) => new Promise<boolean>((resolve, reject) => {
+export const isPortInUse = (port: number): Promise<boolean> => new Promise((resolve, reject) => {
   const server = createServer()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   server.once('error', (err: any) => {

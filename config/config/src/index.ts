@@ -149,7 +149,7 @@ export const types = Object.assign({
   'update-notifier': Boolean,
   'registry-supports-time-field': Boolean,
   'fail-if-no-match': Boolean,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 }, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }

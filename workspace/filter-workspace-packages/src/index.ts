@@ -69,6 +69,10 @@ export interface FilterPackagesOptions {
   sharedWorkspaceLockfile?: boolean
 }
 
+export interface FilterPackagesFromDirResult extends FilterPackagesResult<Project> {
+  allProjects: Project[]
+}
+
 export async function filterPackagesFromDir (
   workspaceDir: string,
   filter: WorkspaceFilter[],
@@ -78,7 +82,7 @@ export async function filterPackagesFromDir (
     patterns: string[]
     supportedArchitectures?: SupportedArchitectures
   }
-) {
+): Promise<FilterPackagesFromDirResult> {
   const allProjects = await findWorkspacePackages(workspaceDir, {
     engineStrict: opts?.engineStrict,
     patterns: opts.patterns,
@@ -92,15 +96,17 @@ export async function filterPackagesFromDir (
   }
 }
 
+export interface FilterPackagesResult<Pkg extends Package> {
+  allProjectsGraph: PackageGraph<Pkg>
+  selectedProjectsGraph: PackageGraph<Pkg>
+  unmatchedFilters: string[]
+}
+
 export async function filterPackages<Pkg extends Package> (
   pkgs: Pkg[],
   filter: WorkspaceFilter[],
   opts: FilterPackagesOptions
-): Promise<{
-    allProjectsGraph: PackageGraph<Pkg>
-    selectedProjectsGraph: PackageGraph<Pkg>
-    unmatchedFilters: string[]
-  }> {
+): Promise<FilterPackagesResult<Pkg>> {
   const packageSelectors = filter.map(({ filter: f, followProdDepsOnly }) => ({ ...parsePackageSelector(f, opts.prefix), followProdDepsOnly }))
 
   return filterPkgsBySelectorObjects(pkgs, packageSelectors, opts)

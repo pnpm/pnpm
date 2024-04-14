@@ -18,7 +18,7 @@ export const commandNames = ['cat-index']
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {}
 }
 
