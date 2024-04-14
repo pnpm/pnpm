@@ -416,7 +416,8 @@ async function resolveDependenciesOfImporters (
       const postponedResolutionsQueue: PostponedResolutionFunction[] = []
       const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] = []
       const pkgAddresses: PkgAddress[] = []
-      ;(await Promise.all(
+
+      const resolvedDependenciesOfImporter = await Promise.all(
         extendedWantedDeps.map((extendedWantedDep) => resolveDependenciesOfDependency(
           ctx,
           importer.preferredVersions,
@@ -427,7 +428,9 @@ async function resolveDependenciesOfImporters (
           },
           extendedWantedDep
         ))
-      )).forEach(({ resolveDependencyResult, postponedPeersResolution, postponedResolution }) => {
+      )
+
+      for (const { resolveDependencyResult, postponedPeersResolution, postponedResolution } of resolvedDependenciesOfImporter) {
         if (resolveDependencyResult) {
           pkgAddresses.push(resolveDependencyResult as PkgAddress)
         }
@@ -437,7 +440,8 @@ async function resolveDependenciesOfImporters (
         if (postponedPeersResolution) {
           postponedPeersResolutionQueue.push(postponedPeersResolution)
         }
-      })
+      }
+
       return { pkgAddresses, postponedResolutionsQueue, postponedPeersResolutionQueue }
     }, extendedWantedDepsByImporters, importers)
   )
