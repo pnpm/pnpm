@@ -1,4 +1,4 @@
-import { parseCliArgs as parseCliArgsLib } from '@pnpm/parse-cli-args'
+import { type ParsedCliArgs, parseCliArgs as parseCliArgsLib } from '@pnpm/parse-cli-args'
 import {
   getCliOptionsTypes,
   getCommandFullName,
@@ -14,7 +14,7 @@ const RENAMED_OPTIONS = {
   store: 'store-dir',
 }
 
-export async function parseCliArgs (inputArgv: string[]) {
+export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgs> {
   return parseCliArgsLib({
     fallbackCommand: 'run',
     escapeArgs: ['create', 'dlx', 'exec'],
