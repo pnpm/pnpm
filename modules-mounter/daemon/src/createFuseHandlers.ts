@@ -37,7 +37,7 @@ export async function createFuseHandlers (lockfileDir: string, cafsDir: string):
   return createFuseHandlersFromLockfile(lockfile, cafsDir)
 }
 
-export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: string) {
+export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: string): FuseHandlers {
   const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
   const virtualNodeModules = makeVirtualNodeModules(lockfile)
   return {

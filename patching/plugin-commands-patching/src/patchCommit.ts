@@ -20,7 +20,7 @@ import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './get
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return pick(['patches-dir'], allTypes)
 }
 

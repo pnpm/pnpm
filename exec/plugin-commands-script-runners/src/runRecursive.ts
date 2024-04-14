@@ -203,7 +203,7 @@ function formatSectionName ({
   return `${name ?? 'unknown'}${version ? `@${version}` : ''} ${script ? `: ${script}` : ''} ${prefix}`
 }
 
-export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
+export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): string[] {
   // if scripts in package.json has script which is equal to scriptName a user passes, return it.
   if (scripts[scriptName]) {
     return [scriptName]

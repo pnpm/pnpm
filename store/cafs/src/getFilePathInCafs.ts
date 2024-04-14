@@ -1,7 +1,7 @@
 import path from 'path'
 import ssri, { type IntegrityLike } from 'ssri'
 
-export const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
+export const modeIsExecutable = (mode: number): boolean => (mode & 0o111) === 0o111
 
 export type FileType = 'exec' | 'nonexec' | 'index'
 

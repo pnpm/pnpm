@@ -21,7 +21,7 @@ export function getStorePath (
     storePath?: string
     pnpmHomeDir: string
   }
-) {
+): string | Promise<string> {
   if (!storePath) {
     if (!pnpmHomeDir) {
       throw new PnpmError('NO_PNPM_HOME_DIR', 'The pnpm home directory is unknown. Cannot calculate the store directory location.')

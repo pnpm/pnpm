@@ -76,7 +76,7 @@ export class TestIpcServer implements AsyncDisposable {
   /**
    * Reset the buffer to an empty string.
    */
-  public clear () {
+  public clear (): void {
     this.buffer = ''
   }
 
@@ -84,7 +84,7 @@ export class TestIpcServer implements AsyncDisposable {
    * Generates a shell script that can used as a package manifest "scripts"
    * entry. Exits after sending the message.
    */
-  public sendLineScript (message: string) {
+  public sendLineScript (message: string): string {
     return `node -e "const c = require('net').connect('${JSON.stringify(this.listenPath).slice(1, -1)}', () => { c.write('${message}\\n'); c.end(); })"`
   }
 
@@ -92,11 +92,11 @@ export class TestIpcServer implements AsyncDisposable {
    * Generates a shell script that can used as a package manifest "scripts"
    * entry. This script consumes its stdin and sends it to the server.
    */
-  public generateSendStdinScript () {
+  public generateSendStdinScript (): string {
     return `node -e "const c = require('net').connect('${JSON.stringify(this.listenPath).slice(1, -1)}', () => { process.stdin.pipe(c).on('end', () => { c.destroy(); }); })"`
   }
 
-  public [Symbol.asyncDispose] = async () => {
+  public [Symbol.asyncDispose] = async (): Promise<void> => {
     const close = promisify(this.server.close).bind(this.server)
     await close()
   }

@@ -5,7 +5,7 @@ export const commandNames = ['ll', 'la']
 
 export const rcOptionsTypes = list.rcOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return omit(['long'], list.cliOptionsTypes())
 }
 

@@ -93,7 +93,7 @@ export function getResumedPackageChunks ({
   resumeFrom: string
   chunks: string[][]
   selectedProjectsGraph: ProjectsGraph
-}) {
+}): string[][] {
   const resumeFromPackagePrefix = Object.keys(selectedProjectsGraph)
     .find((prefix) => selectedProjectsGraph[prefix]?.package.manifest.name === resumeFrom)
 
@@ -105,7 +105,7 @@ export function getResumedPackageChunks ({
   return chunks.slice(chunkPosition)
 }
 
-export async function writeRecursiveSummary (opts: { dir: string, summary: RecursiveSummary }) {
+export async function writeRecursiveSummary (opts: { dir: string, summary: RecursiveSummary }): Promise<void> {
   await writeJsonFile(path.join(opts.dir, 'pnpm-exec-summary.json'), {
     executionStatus: opts.summary,
   })
