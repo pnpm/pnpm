@@ -38,7 +38,7 @@ export interface PackageMetaCache {
   has: (key: string) => boolean
 }
 
-export type PackageInRegistry = PackageManifest & {
+export interface PackageInRegistry extends PackageManifest {
   hasInstallScript?: boolean
   dist: {
     integrity?: string
