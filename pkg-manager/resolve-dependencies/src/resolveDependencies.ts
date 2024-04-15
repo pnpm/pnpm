@@ -403,16 +403,16 @@ async function resolveDependenciesOfImporters (
   ctx: ResolutionContext,
   importers: ImporterToResolve[]
 ): Promise<ResolveDependenciesOfImportersResult> {
-  const extendedWantedDepsByImporters = importers.map(({ wantedDependencies, options }) => getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
-    preferredDependencies: options.preferredDependencies,
-    prefix: options.prefix,
-    proceed: options.proceed || ctx.forceFullResolution,
-    registries: ctx.registries,
-    resolvedDependencies: options.resolvedDependencies,
-  }))
   const pickLowestVersion = ctx.resolutionMode === 'time-based' || ctx.resolutionMode === 'lowest-direct'
   const resolveResults = await Promise.all(
-    zipWith(async (extendedWantedDeps, importer) => {
+    importers.map(async (importer) => {
+      const extendedWantedDeps = getDepsToResolve(importer.wantedDependencies, ctx.wantedLockfile, {
+        preferredDependencies: importer.options.preferredDependencies,
+        prefix: importer.options.prefix,
+        proceed: importer.options.proceed || ctx.forceFullResolution,
+        registries: ctx.registries,
+        resolvedDependencies: importer.options.resolvedDependencies,
+      })
       const postponedResolutionsQueue: PostponedResolutionFunction[] = []
       const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] = []
       const pkgAddresses: PkgAddress[] = []
@@ -443,7 +443,7 @@ async function resolveDependenciesOfImporters (
       }
 
       return { pkgAddresses, postponedResolutionsQueue, postponedPeersResolutionQueue }
-    }, extendedWantedDepsByImporters, importers)
+    })
   )
   let publishedBy: Date | undefined
   let time: Record<string, string> | undefined
