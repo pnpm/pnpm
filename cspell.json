@@ -51,6 +51,7 @@
     "ebusy",
     "ehrkoext",
     "eintegrity",
+    "einval",
     "elifecycle",
     "elit",
     "emfile",
