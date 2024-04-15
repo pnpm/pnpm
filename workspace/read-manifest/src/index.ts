@@ -2,10 +2,30 @@ import util from 'util'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import path from 'node:path'
 import readYamlFile from 'read-yaml-file'
+import {
+  assertValidWorkspaceManifestCatalog,
+  assertValidWorkspaceManifestCatalogs,
+  checkDefaultCatalogIsDefinedOnce,
+  type WorkspaceCatalog,
+  type WorkspaceNamedCatalogs,
+} from './catalogs'
 import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError'
 
 export interface WorkspaceManifest {
   packages?: string[]
+
+  /**
+   * The default catalog. Package manifests may refer to dependencies in this
+   * definition through the `catalog:default` specifier or the `catalog:`
+   * shorthand.
+   */
+  catalog?: WorkspaceCatalog
+
+  /**
+   * A dictionary of named catalogs. Package manifests may refer to dependencies
+   * in this definition through the `catalog:<name>` specifier.
+   */
+  catalogs?: WorkspaceNamedCatalogs
 }
 
 export async function readWorkspaceManifest (dir: string): Promise<WorkspaceManifest | undefined> {
@@ -48,6 +68,10 @@ function validateWorkspaceManifest (manifest: unknown): asserts manifest is Work
   }
 
   assertValidWorkspaceManifestPackages(manifest)
+  assertValidWorkspaceManifestCatalog(manifest)
+  assertValidWorkspaceManifestCatalogs(manifest)
+  checkDefaultCatalogIsDefinedOnce(manifest)
+
   checkWorkspaceManifestAssignability(manifest)
 }
 
