@@ -1166,8 +1166,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       '@pnpm/npm-lifecycle':
-        specifier: ^3.0.2
-        version: 3.0.2(typanion@3.14.0)
+        specifier: ^3.0.4
+        version: 3.0.4(typanion@3.14.0)
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -6366,7 +6366,7 @@ importers:
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
         specifier: 0.4.9
-        version: 0.4.9(@types/node@18.19.31)
+        version: 0.4.9(@types/node@20.12.7)
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -7592,8 +7592,8 @@ packages:
     resolution: {integrity: sha512-UA91GwWPhFExt3IizW6bOeY/pQ0BkuNwKjk9iQW9KqxluGCrg4VenZ0/L+2Y0+ZOtme72EVvg6v0zo3AMQRCeA==}
     engines: {node: '>=12'}
 
-  '@pnpm/npm-lifecycle@3.0.2':
-    resolution: {integrity: sha512-frMT7I+H70XeNqOx3TDbIFo7P6BX23G9RKLTMDdVIpqa9EbGBV9rXIms3els8e/J6sh079YXH8pJu77cCNnmGg==}
+  '@pnpm/npm-lifecycle@3.0.4':
+    resolution: {integrity: sha512-fTzGiezzHeFHmmCZH6pXnii32nv4iNc7ox1DpdA9B00BTakcji33ugVGV2rE4ze6lU6IPOGuJa0NiQHnkuwUUQ==}
     engines: {node: '>=18.12'}
 
   '@pnpm/npm-package-arg@1.0.0':
@@ -7901,6 +7901,9 @@ packages:
 
   '@types/node@18.19.31':
     resolution: {integrity: sha512-ArgCD39YpyyrtFKIqMDvjz79jto5fcI/SVUs2HwB+f0dAzq68yqOdyaSivLiLugSziTpNXLQrVb7RZFmdZzbhA==}
+
+  '@types/node@20.12.7':
+    resolution: {integrity: sha512-wq0cICSkRLVaf3UGLMGItu/PtdY7oaXaI/RVU+xliKVOtRna3PRY57ZDfztpDL0n11vfymMUnXv8QwYCO7L1wg==}
 
   '@types/node@20.5.1':
     resolution: {integrity: sha512-4tT2UrL5LBqDwoed9wZ6N3umC4Yhz3W3FloMmiiG4JwmUJWpie0c7lcnUNd4gtMKuDEO4wRVS8B6Xa0uMRsMKg==}
@@ -14302,7 +14305,7 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-lifecycle@3.0.2(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@3.0.4(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
       '@pnpm/error': 6.0.0
@@ -14488,9 +14491,9 @@ snapshots:
       '@reflink/reflink-win32-arm64-msvc': 0.1.16
       '@reflink/reflink-win32-x64-msvc': 0.1.16
 
-  '@rushstack/worker-pool@0.4.9(@types/node@18.19.31)':
+  '@rushstack/worker-pool@0.4.9(@types/node@20.12.7)':
     optionalDependencies:
-      '@types/node': 18.19.31
+      '@types/node': 20.12.7
 
   '@sinclair/typebox@0.27.8': {}
 
@@ -14671,6 +14674,11 @@ snapshots:
   '@types/node@18.19.31':
     dependencies:
       undici-types: 5.26.5
+
+  '@types/node@20.12.7':
+    dependencies:
+      undici-types: 5.26.5
+    optional: true
 
   '@types/node@20.5.1': {}
 
