@@ -1,8 +1,8 @@
 import util from 'util'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
 import path from 'node:path'
 import readYamlFile from 'read-yaml-file'
+import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError'
 
 export interface WorkspaceManifest {
   packages?: string[]
@@ -79,9 +79,3 @@ function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown })
  * the future.
  */
 function checkWorkspaceManifestAssignability (_manifest: WorkspaceManifest): void {}
-
-class InvalidWorkspaceManifestError extends PnpmError {
-  constructor (message: string) {
-    super('INVALID_WORKSPACE_CONFIGURATION', message)
-  }
-}
