@@ -28,8 +28,29 @@ export interface WorkspaceManifest {
   catalogs?: WorkspaceNamedCatalogs
 }
 
-export async function readWorkspaceManifest (dir: string): Promise<WorkspaceManifest | undefined> {
+export interface ReadWorkspaceManifestOptions {
+  /**
+   * Whether or not to read the catalog and catalogs fields. This is currently
+   * disabled by default while the overall catalogs feature is in development.
+   *
+   * @default false
+   */
+  readonly catalogs?: boolean
+}
+
+export async function readWorkspaceManifest (
+  dir: string,
+  opts?: ReadWorkspaceManifestOptions
+): Promise<WorkspaceManifest | undefined> {
   const manifest = await readManifestRaw(dir)
+
+  // Disable catalogs config reads by default until the overall feature is ready.
+  const isCatalogsConfigEnabled = opts?.catalogs ?? false
+  if (!isCatalogsConfigEnabled && typeof manifest === 'object' && manifest != null) {
+    delete (manifest as { catalog?: unknown }).catalog
+    delete (manifest as { catalogs?: unknown }).catalogs
+  }
+
   validateWorkspaceManifest(manifest)
   return manifest
 }

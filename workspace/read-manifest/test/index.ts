@@ -64,8 +64,10 @@ test('readWorkspaceManifest() works when workspace file is null', async () => {
 })
 
 describe('readWorkspaceManifest() catalog field', () => {
+  const read = (dir: string) => readWorkspaceManifest(dir, { catalogs: true })
+
   test('works on simple catalog', async () => {
-    await expect(readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalog-ok'))).resolves.toEqual({
+    await expect(read(path.join(__dirname, '__fixtures__/catalog-ok'))).resolves.toEqual({
       packages: ['packages/**', 'types'],
       catalog: {
         foo: '^1.0.0',
@@ -75,26 +77,28 @@ describe('readWorkspaceManifest() catalog field', () => {
 
   test('throws on invalid array', async () => {
     await expect(
-      readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalog-invalid-array'))
+      read(path.join(__dirname, '__fixtures__/catalog-invalid-array'))
     ).rejects.toThrow('Expected catalog field to be an object, but found - array')
   })
 
   test('throws on invalid object', async () => {
     await expect(
-      readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalog-invalid-object'))
+      read(path.join(__dirname, '__fixtures__/catalog-invalid-object'))
     ).rejects.toThrow('Expected catalog field to be an object, but found - number')
   })
 
   test('throws on invalid specifier', async () => {
     await expect(
-      readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalog-invalid-specifier'))
+      read(path.join(__dirname, '__fixtures__/catalog-invalid-specifier'))
     ).rejects.toThrow('Invalid catalog entry for foo. Expected string, but found: object')
   })
 })
 
 describe('readWorkspaceManifest() catalogs field', () => {
+  const read = (dir: string) => readWorkspaceManifest(dir, { catalogs: true })
+
   test('works with simple named catalogs', async () => {
-    await expect(readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-ok'))).resolves.toEqual({
+    await expect(read(path.join(__dirname, '__fixtures__/catalogs-ok'))).resolves.toEqual({
       packages: ['packages/**', 'types'],
       catalog: {
         bar: '^1.0.0',
@@ -107,40 +111,49 @@ describe('readWorkspaceManifest() catalogs field', () => {
     })
   })
 
+  test('reads empty catalog if config flag is false', async () => {
+    // Similar to the test above, but explicitly set the catalogs option to false and make sure no catalogs are read.
+    await expect(readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-ok'), { catalogs: false })).resolves.toEqual({
+      packages: ['packages/**', 'types'],
+    })
+  })
+
   test('throws on invalid array', async () => {
     await expect(
-      readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-invalid-array'))
+      read(path.join(__dirname, '__fixtures__/catalogs-invalid-array'))
     ).rejects.toThrow('Expected catalogs field to be an object, but found - array')
   })
 
   test('throws on invalid value', async () => {
     await expect(
-      readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-invalid-object'))
+      read(path.join(__dirname, '__fixtures__/catalogs-invalid-object'))
     ).rejects.toThrow('Expected catalogs field to be an object, but found - number')
   })
 
   test('throws on invalid named catalog array', async () => {
     await expect(
-      readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-invalid-named-catalog-array'))
+      read(path.join(__dirname, '__fixtures__/catalogs-invalid-named-catalog-array'))
     ).rejects.toThrow('Expected named catalog foo to be an object, but found - array')
   })
 
   test('throws on invalid named catalog object', async () => {
     await expect(
-      readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-invalid-named-catalog-object'))
+      read(path.join(__dirname, '__fixtures__/catalogs-invalid-named-catalog-object'))
     ).rejects.toThrow('Expected named catalog foo to be an object, but found - number')
   })
 
   test('throws on invalid named catalog specifier', async () => {
     await expect(
-      readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-invalid-named-catalog-specifier'))
+      read(path.join(__dirname, '__fixtures__/catalogs-invalid-named-catalog-specifier'))
     ).rejects.toThrow('Catalog \'foo\' has invalid entry \'bar\'. Expected string specifier, but found: object')
   })
 })
 
 describe('readWorkspaceManifest() reads default catalog defined alongside named catalogs', () => {
+  const read = (dir: string) => readWorkspaceManifest(dir, { catalogs: true })
+
   test('works when implicit default catalog is configured alongside named catalogs', async () => {
-    await expect(readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-ok'))).resolves.toEqual({
+    await expect(read(path.join(__dirname, '__fixtures__/catalogs-ok'))).resolves.toEqual({
       packages: ['packages/**', 'types'],
       catalog: {
         bar: '^1.0.0',
@@ -155,7 +168,7 @@ describe('readWorkspaceManifest() reads default catalog defined alongside named 
 
   test('throws if both catalog and catalogs.default are defined', async () => {
     await expect(
-      readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-conflicting-defaults'))
+      read(path.join(__dirname, '__fixtures__/catalogs-conflicting-defaults'))
     ).rejects.toThrow('The \'default\' catalog was defined multiple times. Use the \'catalog\' field or \'catalogs.default\', but not both')
   })
 })
