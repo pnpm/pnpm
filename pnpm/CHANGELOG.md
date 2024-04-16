@@ -4,73 +4,31 @@
 
 ### Major Changes
 
-- Node.js v16 support dropped. Use at least Node.js v18.12.
-- Lockfile version bumped to v9.
-- Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
-- The [`dedupe-injected-deps`](https://pnpm.io/npmrc#dedupe-injected-deps) setting is `true` by default.
-- The default value of the `link-workspace-packages` setting changed from `true` to `false`. This means that by default, dependencies will be linked from workspace packages only when they are specified using the [workspace protocol](https://pnpm.io/workspaces#workspace-protocol-workspace).
-- The default value of the [hoist-workspace-packages](https://pnpm.io/npmrc#hoist-workspace-packages) is `true`.
+- Node.js v16 support discontinued
+
+  If you still require Node.js 16, don't worry. We ship pnpm bundled with Node.js. This means that regardless of which Node.js version you've installed, pnpm will operate using the necessary Node.js runtime. For this to work you need to install pnpm either using the [standalone script](https://pnpm.io/installation#using-a-standalone-script) or install the `@pnpm/exe` package.
+
+- Configuration updates:
+  - [`dedupe-injected-deps`](https://pnpm.io/npmrc#dedupe-injected-deps): enabled by default.
+  - [`link-workspace-packages`](https://pnpm.io/npmrc#link-workspace-packages): disabled by default. This means that by default, dependencies will be linked from workspace packages only when they are specified using the [workspace protocol](https://pnpm.io/workspaces#workspace-protocol-workspace).
+  - [`hoist-workspace-packages`](https://pnpm.io/npmrc#hoist-workspace-packages): enabled by default.
+  - [`enable-pre-post-scripts`](https://pnpm.io/cli/run#enable-pre-post-scripts): enabled by default.
+  - Use the same directory for state files on macOS as on Linux (`~/.local/state/pnpm`).
+  - pnpm will now check the `package.json` file for a `packageManager` field. If this field is present and specifies a different package manager or a different version of pnpm than the one you're currently using, pnpm will not proceed. This ensures that you're always using the correct package manager and version that the project requires.
+
+- Lockfile changes:
+  - Lockfile v9 is adopted. This new format has changes for better readability, and better resistence to Git conflicts.
+  - Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+- Dependency resolution changes:
+  - Correct resolution of peer dependencies that have their own peer dependencies.
+      Related issue: [#7444](https://github.com/pnpm/pnpm/issues/7444).
+      Related PR: [#7606](https://github.com/pnpm/pnpm/pull/7606).
+  - Optional peer dependencies may be resolved from any packages in the dependency graph [#7830](https://github.com/pnpm/pnpm/pull/7830).
+
 - `pnpm licenses list` prints license information of all versions of the same package in case different versions use different licenses. The format of the `pnpm licenses list --json` output has been changed [#7528](https://github.com/pnpm/pnpm/pull/7528).
 - A new command added for printing completion code to the console: `pnpm completion [shell]`. The old command that modified the user's shell dotfiles has been removed [#3083](https://github.com/pnpm/pnpm/issues/3083).
-- pnpm will now check the `package.json` file for a `packageManager` field. If this field is present and specifies a different package manager or a different version of pnpm than the one you're currently using, pnpm will not proceed. This ensures that you're always using the correct package manager and version that the project requires.
-- `enable-pre-post-scripts` is set to `true` by default. This means that when you run a script like `start`, `prestart` and `poststart` will also run.
 - When installing git-hosted dependencies, only pick the files that would be packed with the package [#7638](https://github.com/pnpm/pnpm/pull/7638).
-- Use the same directory for state files on macOS as on Linux (`~/.local/state/pnpm`).
-
-- Peer dependencies of peer dependencies are now resolved correctly. When peer dependencies have peer dependencies of their own, the peer dependencies are grouped with their own peer dependencies before being linked to their dependents.
-
-  For instance, if `card` has `react` in peer dependencies and `react` has `typescript` in its peer dependencies, then the same version of `react` may be linked from different places if there are multiple versions of `typescript`. For instance:
-
-  ```
-  project1/package.json
-  {
-    "dependencies": {
-      "card": "1.0.0",
-      "react": "16.8.0",
-      "typescript": "7.0.0"
-    }
-  }
-  project2/package.json
-  {
-    "dependencies": {
-      "card": "1.0.0",
-      "react": "16.8.0",
-      "typescript": "8.0.0"
-    }
-  }
-  node_modules
-    .pnpm
-      card@1.0.0(react@16.8.0(typescript@7.0.0))
-        node_modules
-          card
-          react --> ../../react@16.8.0(typescript@7.0.0)/node_modules/react
-      react@16.8.0(typescript@7.0.0)
-        node_modules
-          react
-          typescript --> ../../typescript@7.0.0/node_modules/typescript
-      typescript@7.0.0
-        node_modules
-          typescript
-      card@1.0.0(react@16.8.0(typescript@8.0.0))
-        node_modules
-          card
-          react --> ../../react@16.8.0(typescript@8.0.0)/node_modules/react
-      react@16.8.0(typescript@8.0.0)
-        node_modules
-          react
-          typescript --> ../../typescript@8.0.0/node_modules/typescript
-      typescript@8.0.0
-        node_modules
-          typescript
-  ```
-
-  In the above example, both projects have `card` in dependencies but the projects use different versions of `typescript`. Hence, even though the same version of `card` is used, `card` in `project1` will reference `react` from a directory where it is placed with `typescript@7.0.0` (because it resolves `typescript` from the dependencies of `project1`), while `card` in `project2` will reference `react` with `typescript@8.0.0`.
-
-  Related issue: [#7444](https://github.com/pnpm/pnpm/issues/7444).
-
-  Related PR: [#7606](https://github.com/pnpm/pnpm/pull/7606).
-
-- Optional peer dependencies may be resolved from any packages in the dependency graph [#7830](https://github.com/pnpm/pnpm/pull/7830).
 
 ### Minor Changes
 
