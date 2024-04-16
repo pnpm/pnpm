@@ -1177,6 +1177,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      is-windows:
+        specifier: ^1.0.2
+        version: 1.0.2
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -1193,6 +1196,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@types/is-windows':
+        specifier: ^1.0.2
+        version: 1.0.2
       '@types/rimraf':
         specifier: ^3.0.2
         version: 3.0.2
