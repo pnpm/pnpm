@@ -277,7 +277,7 @@ function buildTree (
     }
     const childNodeId = createNodeId(parentNodeId, child.depPath)
     childrenNodeIds[child.alias] = childNodeId
-    installable = installable && !ctx.skipped.has(child.depPath)
+    installable = installable || !ctx.skipped.has(child.depPath)
     ctx.dependenciesTree.set(childNodeId, {
       children: () => buildTree(ctx,
         childNodeId,

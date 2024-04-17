@@ -689,3 +689,12 @@ test('optional dependency is hardlinked to the store if it does not require a bu
     })
   )
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/7943
+test('complex scenario with same optional dependencies appearing in many places of the dependency graph', async () => {
+  prepareEmpty()
+  await addDependenciesToPackage({}, ['@storybook/addon-essentials@7.6.17', 'storybook@7.6.17', 'vite@5.2.8'], testDefaults())
+
+  expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.18.20/node_modules/@esbuild').length).toEqual(1)
+  expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.20.2/node_modules/@esbuild').length).toEqual(1)
+})
