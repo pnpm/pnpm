@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 32.0.2
+
+### Patch Changes
+
+- b3961cb: Fixed an issue where optional dependencies were not linked into the dependent's node_modules [#7943](https://github.com/pnpm/pnpm/issues/7943).
+
 ## 32.0.1
 
 ### Patch Changes

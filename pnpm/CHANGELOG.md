@@ -1,5 +1,11 @@
 # pnpm
 
+## 9.0.2
+
+### Patch Changes
+
+- Fixed an issue where optional dependencies were not linked into the dependent's `node_modules` [#7943](https://github.com/pnpm/pnpm/issues/7943).
+
 ## 9.0.1
 
 ### Patch Changes

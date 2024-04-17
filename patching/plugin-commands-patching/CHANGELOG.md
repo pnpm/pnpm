@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-patching
 
+## 6.0.3
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.3
+
 ## 6.0.2
 
 ### Patch Changes
