@@ -167,5 +167,5 @@ function isWindowsBatchFile (scriptShell: string) {
   //
   // https://github.com/nodejs/node/commit/6627222409#diff-1e725bfa950eda4d4b5c0c00a2bb6be3e5b83d819872a1adf2ef87c658273903
   const scriptShellLower = scriptShell.toLowerCase()
-  return (scriptShellLower.endsWith('.cmd') || scriptShellLower.endsWith('.bat')) && isWindows()
+  return isWindows() && (scriptShellLower.endsWith('.cmd') || scriptShellLower.endsWith('.bat'))
 }
