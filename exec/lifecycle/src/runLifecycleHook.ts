@@ -4,6 +4,7 @@ import lifecycle from '@pnpm/npm-lifecycle'
 import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
+import isWindows from 'is-windows'
 
 function noop () {} // eslint-disable-line:no-empty
 
@@ -31,6 +32,39 @@ export async function runLifecycleHook (
   opts: RunLifecycleHookOptions
 ): Promise<void> {
   const optional = opts.optional === true
+
+  // To remediate CVE_2024_27980, Node.js does not allow .bat or .cmd files to
+  // be spawned without the "shell: true" option.
+  //
+  // https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows
+  //
+  // Unfortunately, setting spawn's shell option also causes arguments to be
+  // evaluated before they're passed to the shell, resulting in a surprising
+  // behavior difference only with .bat/.cmd files.
+  //
+  // Instead of showing a "spawn EINVAL" error, let's throw a clearer error that
+  // this isn't supported.
+  //
+  // If this behavior needs to be supported in the future, the arguments would
+  // need to be escaped before they're passed to the .bat/.cmd file. For
+  // example, scripts such as "echo %PATH%" should be passed verbatim rather
+  // than expanded. This is difficult to do correctly. Other open source tools
+  // (e.g. Rust) attempted and introduced bugs. The Rust blog has a good
+  // high-level explanation of the same security vulnerability Node.js patched.
+  //
+  // https://blog.rust-lang.org/2024/04/09/cve-2024-24576.html#overview
+  //
+  // Note that npm (as of version 10.5.0) doesn't support setting script-shell
+  // to a .bat or .cmd file either.
+  if (opts.scriptShell != null && isWindowsBatchFile(opts.scriptShell)) {
+    throw new PnpmError('ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS', 'Cannot spawn .bat or .cmd as a script shell.', {
+      hint: `\
+The .npmrc script-shell option was configured to a .bat or .cmd file. These cannot be used as a script shell reliably.
+
+Please unset the script-shell option, or configure it to a .exe instead.
+`,
+    })
+  }
 
   const m = { _id: getId(manifest), ...manifest }
   m.scripts = { ...m.scripts }
@@ -125,4 +159,13 @@ export async function runLifecycleHook (
 
 function getId (manifest: ProjectManifest | DependencyManifest): string {
   return `${manifest.name ?? ''}@${manifest.version ?? ''}`
+}
+
+function isWindowsBatchFile (scriptShell: string) {
+  // Node.js performs a similar check to determine whether it should throw
+  // EINVAL when spawning a .cmd/.bat file.
+  //
+  // https://github.com/nodejs/node/commit/6627222409#diff-1e725bfa950eda4d4b5c0c00a2bb6be3e5b83d819872a1adf2ef87c658273903
+  const scriptShellLower = scriptShell.toLowerCase()
+  return isWindows() && (scriptShellLower.endsWith('.cmd') || scriptShellLower.endsWith('.bat'))
 }
