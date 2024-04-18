@@ -17,6 +17,9 @@ import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
+const skipOnWindows = isWindows() ? test.skip : test
+const onlyOnWindows = !isWindows() ? test.skip : test
+
 test('pnpm run: returns correct exit code', async () => {
   prepare({
     scripts: {
@@ -437,7 +440,10 @@ test('scripts work with PnP', async () => {
   expect(fooOutput).toStrictEqual(helloWorldJsBinOutput)
 })
 
-test('pnpm run with custom shell', async () => {
+// A .exe file to configure as the scriptShell option would be necessary to test
+// this behavior on Windows. Skip this test for now since compiling a custom
+// .exe would be quite involved and hard to maintain.
+skipOnWindows('pnpm run with custom shell', async () => {
   prepare({
     scripts: {
       build: 'foo bar',
@@ -459,10 +465,42 @@ test('pnpm run with custom shell', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    scriptShell: path.resolve(`node_modules/.bin/shell-mock${isWindows() ? '.cmd' : ''}`),
+    scriptShell: path.resolve('node_modules/.bin/shell-mock'),
   }, ['build'])
 
   expect((await import(path.resolve('shell-input.json'))).default).toStrictEqual(['-c', 'foo bar'])
+})
+
+onlyOnWindows('pnpm shows error if script-shell is .cmd', async () => {
+  prepare({
+    scripts: {
+      build: 'foo bar',
+    },
+    dependencies: {
+      '@pnpm.e2e/shell-mock': '0.0.0',
+    },
+  })
+
+  await execa(pnpmBin, [
+    'install',
+    `--registry=${REGISTRY_URL}`,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  async function runScript () {
+    await run.handler({
+      dir: process.cwd(),
+      extraBinPaths: [],
+      extraEnv: {},
+      rawConfig: {},
+      scriptShell: path.resolve('node_modules/.bin/shell-mock.cmd'),
+    }, ['build'])
+  }
+
+  await expect(runScript).rejects.toEqual(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS',
+  }))
 })
 
 test('pnpm run with RegExp script selector should work', async () => {
