@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 23.0.1
+
+### Patch Changes
+
+- Updated dependencies [bfadc0a]
+  - @pnpm/lifecycle@17.0.1
+  - @pnpm/build-modules@12.0.1
+  - @pnpm/package-requester@25.0.0
+
 ## 23.0.0
 
 ### Major Changes

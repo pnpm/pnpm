@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-server
 
+## 7.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+  - @pnpm/server@18.0.0
+  - @pnpm/store-connection-manager@8.0.2
+
 ## 7.0.1
 
 ### Patch Changes

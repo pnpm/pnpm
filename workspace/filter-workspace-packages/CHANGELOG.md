@@ -1,5 +1,11 @@
 # @pnpm/filter-workspace-packages
 
+## 8.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.0.2
+
 ## 8.0.1
 
 ### Patch Changes

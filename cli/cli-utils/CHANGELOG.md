@@ -1,5 +1,11 @@
 # @pnpm/cli-utils
 
+## 3.0.2
+
+### Patch Changes
+
+- a80b539: Print a hint about the `package-manager-strict` setting, when pnpm doesn't match the version specified in the `packageManager` field in `package.json`.
+
 ## 3.0.1
 
 ### Patch Changes

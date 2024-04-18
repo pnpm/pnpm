@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-setup
 
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+
 ## 5.0.1
 
 ### Patch Changes

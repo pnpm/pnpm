@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 14.0.4
+
+### Patch Changes
+
+- Updated dependencies [bfadc0a]
+  - @pnpm/lifecycle@17.0.1
+  - @pnpm/build-modules@12.0.1
+  - @pnpm/headless@23.0.1
+  - @pnpm/package-requester@25.0.0
+
 ## 14.0.3
 
 ### Patch Changes

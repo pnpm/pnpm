@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [bfadc0a]
+  - @pnpm/lifecycle@17.0.1
+
 ## 12.0.0
 
 ### Major Changes
