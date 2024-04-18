@@ -39,7 +39,7 @@ export function packageIsInstallable (
         const msg = `This project is configured to use v${pmVersion} of pnpm. Your current pnpm is v${pnpmVersion}`
         if (opts.packageManagerStrict) {
           throw new PnpmError('BAD_PM_VERSION', msg, {
-            hint: 'If you want to make this check less strict, set the package-manager-strict setting to false or the COREPACK_ENABLE_STRICT env variable to 0',
+            hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
           })
         } else {
           globalWarn(msg)
