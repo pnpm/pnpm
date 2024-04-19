@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 32.0.3
+
+### Patch Changes
+
+- eb19475: Fix aliased dependencies resolution on repeat install with existing lockfile [#7957](https://github.com/pnpm/pnpm/issues/7957).
+
 ## 32.0.2
 
 ### Patch Changes

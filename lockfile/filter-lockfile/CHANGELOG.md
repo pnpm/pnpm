@@ -1,5 +1,11 @@
 # @pnpm/filter-lockfile
 
+## 9.0.1
+
+### Patch Changes
+
+- b7d2ed4: The `engines.pnpm` field in the `package.json` files of dependencies should be ignored [#7965](https://github.com/pnpm/pnpm/issues/7965).
+
 ## 9.0.0
 
 ### Major Changes

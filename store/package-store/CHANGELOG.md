@@ -1,5 +1,12 @@
 # @pnpm/package-store
 
+## 20.0.1
+
+### Patch Changes
+
+- Updated dependencies [b7d2ed4]
+  - @pnpm/package-requester@25.0.1
+
 ## 20.0.0
 
 ### Major Changes

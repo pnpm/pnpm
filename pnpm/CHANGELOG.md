@@ -1,5 +1,12 @@
 # pnpm
 
+## 9.0.4
+
+### Patch Changes
+
+- Fix aliased dependencies resolution on repeat install with existing lockfile [#7957](https://github.com/pnpm/pnpm/issues/7957).
+- The `engines.pnpm` field in the `package.json` files of dependencies should be ignored [#7965](https://github.com/pnpm/pnpm/issues/7965).
+
 ## 9.0.3
 
 ### Patch Changes

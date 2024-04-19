@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 23.0.2
+
+### Patch Changes
+
+- b7d2ed4: The `engines.pnpm` field in the `package.json` files of dependencies should be ignored [#7965](https://github.com/pnpm/pnpm/issues/7965).
+- Updated dependencies [b7d2ed4]
+  - @pnpm/package-requester@25.0.1
+  - @pnpm/filter-lockfile@9.0.1
+  - @pnpm/deps.graph-builder@1.0.1
+  - @pnpm/modules-cleaner@15.0.1
+
 ## 23.0.1
 
 ### Patch Changes

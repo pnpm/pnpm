@@ -1,5 +1,17 @@
 # @pnpm/core
 
+## 14.0.5
+
+### Patch Changes
+
+- Updated dependencies [b7d2ed4]
+- Updated dependencies [eb19475]
+  - @pnpm/package-requester@25.0.1
+  - @pnpm/filter-lockfile@9.0.1
+  - @pnpm/headless@23.0.2
+  - @pnpm/resolve-dependencies@32.0.3
+  - @pnpm/modules-cleaner@15.0.1
+
 ## 14.0.4
 
 ### Patch Changes
