@@ -161,7 +161,7 @@ test('skip optional dependency that does not support the current Node version', 
   expect(reportedTimes).toBe(1)
 })
 
-test('skip optional dependency that does not support the current pnpm version', async () => {
+test('do not skip optional dependency that does not support the current pnpm version', async () => {
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
@@ -175,7 +175,7 @@ test('skip optional dependency that does not support the current pnpm version', 
     pnpmVersion: '4.0.0',
   }))
 
-  project.hasNot('@pnpm.e2e/for-legacy-pnpm')
+  project.has('@pnpm.e2e/for-legacy-pnpm')
   project.storeHas('@pnpm.e2e/for-legacy-pnpm', '1.0.0')
 
   const logMatcher = sinon.match({
@@ -187,7 +187,7 @@ test('skip optional dependency that does not support the current pnpm version', 
     reason: 'unsupported_engine',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
-  expect(reportedTimes).toBe(1)
+  expect(reportedTimes).toBe(0)
 })
 
 test('don\'t skip optional dependency that does not support the current OS when forcing', async () => {

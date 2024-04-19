@@ -168,7 +168,6 @@ function pkgAllDeps (
           lockfileDir: opts.lockfileDir,
           nodeVersion: opts.currentEngine.nodeVersion,
           optional: pkgSnapshot.optional === true,
-          pnpmVersion: opts.currentEngine.pnpmVersion,
           supportedArchitectures: opts.supportedArchitectures,
         }) !== false
       if (!installable) {

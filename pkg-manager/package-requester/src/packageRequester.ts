@@ -235,7 +235,6 @@ async function resolveAndFetch (
             lockfileDir: options.lockfileDir,
             nodeVersion: ctx.nodeVersion,
             optional: wantedDependency.optional === true,
-            pnpmVersion: ctx.pnpmVersion,
             supportedArchitectures: options.supportedArchitectures,
           })
       )

@@ -120,7 +120,6 @@ export async function lockfileToDepGraph (
             lockfileDir: opts.lockfileDir,
             nodeVersion: opts.nodeVersion,
             optional: pkgSnapshot.optional === true,
-            pnpmVersion: opts.pnpmVersion,
             supportedArchitectures: opts.supportedArchitectures,
           }) === false
         ) {
