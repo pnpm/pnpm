@@ -1139,7 +1139,11 @@ async function resolveDependency (
   }
   try {
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`)) {
-      wantedDependency.pref = currentPkg.version
+      if (semver.validRange(wantedDependency.pref)) {
+        wantedDependency.pref = currentPkg.version
+      } else if (wantedDependency.pref.startsWith('npm:')) {
+        wantedDependency.pref = `${wantedDependency.pref.substring(0, wantedDependency.pref.lastIndexOf('@') + 1)}${currentPkg.version}`
+      }
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
