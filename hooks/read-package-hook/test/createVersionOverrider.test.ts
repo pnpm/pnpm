@@ -289,7 +289,7 @@ test('createVersionsOverrider() overrides dependencies with file', () => {
     name: 'foo',
     version: '1.2.0',
     dependencies: {
-      qar: `file:${path.resolve('../qar')}`,
+      qar: `file:../qar`,
     },
   })
 })
