@@ -275,7 +275,7 @@ test('createVersionsOverrider() should work for scoped parent and scoped child',
   })
 })
 
-test('createVersionsOverrider() overrides dependencies with file', () => {
+test('createVersionsOverrider() overrides dependencies with file with relative path', () => {
   const overrider = createVersionsOverrider({
     qar: 'file:../qar',
   }, process.cwd())
