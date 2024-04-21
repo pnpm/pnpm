@@ -57,6 +57,7 @@ import {
   nodeIdContains,
   splitNodeId,
 } from './nodeIdUtils'
+import { hoistPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
 import { replaceVersionInPref } from './replaceVersionInPref'
 
@@ -329,23 +330,7 @@ export async function resolveRootDependencies (
         )
       )
       if (!missingRequiredPeers.length && !missingOptionalPeerNames.length) break
-      const dependencies: Record<string, string> = {}
-      for (const [peerName, { range }] of missingRequiredPeers) {
-        if (ctx.allPreferredVersions![peerName]) {
-          const versions: string[] = []
-          const nonVersions: string[] = []
-          for (const [spec, specType] of Object.entries(ctx.allPreferredVersions![peerName])) {
-            if (specType === 'version') {
-              versions.push(spec)
-            } else {
-              nonVersions.push(spec)
-            }
-          }
-          dependencies[peerName] = [semver.maxSatisfying(versions, '*'), ...nonVersions].join(' || ')
-        } else if (ctx.autoInstallPeers) {
-          dependencies[peerName] = range
-        }
-      }
+      const dependencies = hoistPeers(missingRequiredPeers, ctx)
       const nextMissingOptionalPeers: string[] = []
       const optionalDependencies: Record<string, string> = {}
       for (const missingOptionalPeerName of missingOptionalPeerNames) {
