@@ -202,9 +202,9 @@ function convertPkgIds (lockfile: LockfileFile): void {
   for (const [pkgId, pkg] of Object.entries(lockfile.packages ?? {})) {
     if (pkg.name) {
       const { id, peersSuffix } = parseDepPath(pkgId)
-      let newId: string
+      let newId = `${pkg.name}@`
       if ('tarball' in pkg.resolution) {
-        newId = pkg.resolution.tarball
+        newId += pkg.resolution.tarball
         if (pkg.resolution.path) {
           newId += `#path:${pkg.resolution.path}`
         }
@@ -214,7 +214,7 @@ function convertPkgIds (lockfile: LockfileFile): void {
           newId += `&path:${pkg.resolution.path}`
         }
       } else if ('directory' in pkg.resolution) {
-        newId = `${pkg.name}@${id}`
+        newId += id
       } else {
         continue
       }
