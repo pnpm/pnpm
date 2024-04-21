@@ -58,6 +58,7 @@ import {
   splitNodeId,
 } from './nodeIdUtils'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
+import { replaceVersionInPref } from './replaceVersionInPref'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
@@ -1139,11 +1140,7 @@ async function resolveDependency (
   }
   try {
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`)) {
-      if (semver.validRange(wantedDependency.pref)) {
-        wantedDependency.pref = currentPkg.version
-      } else if (wantedDependency.pref.startsWith('npm:')) {
-        wantedDependency.pref = `${wantedDependency.pref.substring(0, wantedDependency.pref.lastIndexOf('@') + 1)}${currentPkg.version}`
-      }
+      wantedDependency.pref = replaceVersionInPref(wantedDependency.pref, currentPkg.version)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
