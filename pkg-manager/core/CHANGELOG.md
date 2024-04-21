@@ -1,5 +1,22 @@
 # @pnpm/core
 
+## 14.0.6
+
+### Patch Changes
+
+- 6b6ca69: The lockfile should be saved in the new format even if it is up-to-date.
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [abaf12e]
+- Updated dependencies [e9530a8]
+- Updated dependencies [6b6ca69]
+- Updated dependencies [04310be]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/resolve-dependencies@32.0.4
+  - @pnpm/hooks.read-package-hook@4.0.1
+  - @pnpm/lockfile-to-pnp@4.0.1
+  - @pnpm/get-context@11.0.1
+  - @pnpm/headless@23.0.3
+
 ## 14.0.5
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # pnpm
 
+## 9.0.5
+
+### Patch Changes
+
+- Lockfiles with local or git-hosted dependencies are now successfully converted to the new lockfile format [#7955](https://github.com/pnpm/pnpm/issues/7955).
+- Resolve peer dependencies correctly, when they have prerelease versions [#7977](https://github.com/pnpm/pnpm/issues/7977).
+- Fix aliased dependencies resolution on repeat install with existing lockfile, when the aliased dependency doesn't specify a version or range [#7957](https://github.com/pnpm/pnpm/issues/7957).
+- The lockfile should be saved in the new format even if it is up-to-date.
+
 ## 9.0.4
 
 ### Patch Changes

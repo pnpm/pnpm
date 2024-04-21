@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-patching
 
+## 6.0.6
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/plugin-commands-installation@15.0.6
+
 ## 6.0.5
 
 ### Patch Changes

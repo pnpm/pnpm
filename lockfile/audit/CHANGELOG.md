@@ -1,5 +1,11 @@
 # @pnpm/audit
 
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/list@10.0.1
+
 ## 8.0.0
 
 ### Major Changes

@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 14.0.2
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+- Updated dependencies [04310be]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/hooks.read-package-hook@4.0.1
+
 ## 14.0.1
 
 ### Patch Changes

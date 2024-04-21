@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 32.0.4
+
+### Patch Changes
+
+- abaf12e: Resolve peer dependencies correctly, when they have prerelease versions [#7977](https://github.com/pnpm/pnpm/issues/7977).
+- e9530a8: Fix aliased dependencies resolution on repeat install with existing lockfile, when the aliased dependency doesn't specify a version or range [#7957](https://github.com/pnpm/pnpm/issues/7957).
+
 ## 32.0.3
 
 ### Patch Changes

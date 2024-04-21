@@ -1,5 +1,11 @@
 # @pnpm/hooks.read-package-hook
 
+## 4.0.1
+
+### Patch Changes
+
+- 04310be: Write overrides with `file:` scheme to lockfile as-is [#7858](https://github.com/pnpm/pnpm/issues/7858).
+
 ## 4.0.0
 
 ### Major Changes
