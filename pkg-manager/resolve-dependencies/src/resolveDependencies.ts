@@ -340,7 +340,7 @@ export async function resolveRootDependencies (
               nonVersions.push(spec)
             }
           }
-          dependencies[peerName] = [semver.maxSatisfying(versions, '*'), ...nonVersions].join(' || ')
+          dependencies[peerName] = [semver.maxSatisfying(versions, '*', { includePrerelease: true }), ...nonVersions].join(' || ')
         } else if (ctx.autoInstallPeers) {
           dependencies[peerName] = range
         }
