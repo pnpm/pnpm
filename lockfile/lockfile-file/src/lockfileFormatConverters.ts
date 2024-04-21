@@ -201,21 +201,23 @@ function convertPkgIds (lockfile: LockfileFile): void {
   if (lockfile.packages == null || isEmpty(lockfile.packages)) return
   for (const [pkgId, pkg] of Object.entries(lockfile.packages ?? {})) {
     if (pkg.name) {
-      let newId: string
+      const { id, peersSuffix } = parseDepPath(pkgId)
+      let newId = `${pkg.name}@`
       if ('tarball' in pkg.resolution) {
-        newId = pkg.resolution.tarball
+        newId += pkg.resolution.tarball
         if (pkg.resolution.path) {
           newId += `#path:${pkg.resolution.path}`
         }
       } else if ('repo' in pkg.resolution) {
-        newId = `${pkg.resolution.repo.startsWith('git+') ? '' : 'git+'}${pkg.resolution.repo}#${pkg.resolution.commit}`
+        newId += `${pkg.resolution.repo.startsWith('git+') ? '' : 'git+'}${pkg.resolution.repo}#${pkg.resolution.commit}`
         if (pkg.resolution.path) {
           newId += `&path:${pkg.resolution.path}`
         }
+      } else if ('directory' in pkg.resolution) {
+        newId += id
       } else {
         continue
       }
-      const { id, peersSuffix } = parseDepPath(pkgId)
       oldIdToNewId[pkgId] = `${newId}${peersSuffix}`
       if (id !== pkgId) {
         oldIdToNewId[id] = newId
@@ -242,7 +244,11 @@ function convertPkgIds (lockfile: LockfileFile): void {
     for (const depType of ['dependencies', 'optionalDependencies'] as const) {
       for (const [alias, depPath] of Object.entries(pkg[depType] ?? {})) {
         if (oldIdToNewId[depPath]) {
-          pkg[depType]![alias] = oldIdToNewId[depPath]
+          if (oldIdToNewId[depPath].startsWith(`${alias}@`)) {
+            pkg[depType]![alias] = oldIdToNewId[depPath].substring(alias.length + 1)
+          } else {
+            pkg[depType]![alias] = oldIdToNewId[depPath]
+          }
         }
       }
     }
@@ -252,7 +258,11 @@ function convertPkgIds (lockfile: LockfileFile): void {
     for (const depType of ['dependencies', 'optionalDependencies', 'devDependencies'] as const) {
       for (const [alias, { version }] of Object.entries(importer[depType] ?? {})) {
         if (oldIdToNewId[version]) {
-          importer[depType]![alias].version = oldIdToNewId[version]
+          if (oldIdToNewId[version].startsWith(`${alias}@`)) {
+            importer[depType]![alias].version = oldIdToNewId[version].substring(alias.length + 1)
+          } else {
+            importer[depType]![alias].version = oldIdToNewId[version]
+          }
         }
       }
     }
