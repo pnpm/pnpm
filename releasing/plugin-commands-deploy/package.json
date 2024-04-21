@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-deploy",
-  "version": "4.0.20",
+  "version": "5.0.6",
   "description": "Commands for deploy",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -39,7 +39,7 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.25.0"
+    "@pnpm/registry-mock": "3.30.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",

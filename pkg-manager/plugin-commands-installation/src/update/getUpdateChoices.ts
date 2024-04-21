@@ -18,7 +18,7 @@ type ChoiceGroup = Array<{
   disabled?: boolean
 }>
 
-export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], workspacesEnabled: boolean) {
+export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], workspacesEnabled: boolean): ChoiceGroup {
   if (isEmpty(outdatedPkgsOfProjects)) {
     return []
   }
@@ -110,7 +110,7 @@ function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolea
   }
 }
 
-function getPkgUrl (pkg: OutdatedPackage) {
+function getPkgUrl (pkg: OutdatedPackage): string {
   if (pkg.latestManifest?.homepage) {
     return pkg.latestManifest?.homepage
   }
@@ -124,7 +124,7 @@ function getPkgUrl (pkg: OutdatedPackage) {
   return ''
 }
 
-function alignColumns (rows: string[][]) {
+function alignColumns (rows: string[][]): string[] {
   return table(
     rows,
     {

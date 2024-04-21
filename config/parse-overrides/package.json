@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/parse-overrides",
   "description": "Parse overrides",
-  "version": "4.0.2",
+  "version": "5.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

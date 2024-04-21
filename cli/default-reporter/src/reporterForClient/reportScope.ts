@@ -20,7 +20,7 @@ export function reportScope (
     isRecursive: boolean
     cmd: string
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   if (!COMMANDS_THAT_REPORT_SCOPE.has(opts.cmd)) {
     return Rx.NEVER
   }

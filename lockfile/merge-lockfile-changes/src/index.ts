@@ -9,6 +9,18 @@ export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile): Lockfil
       ? theirs.lockfileVersion
       : ours.lockfileVersion,
   }
+  const pnpmfileChecksum = ours.pnpmfileChecksum ?? theirs.pnpmfileChecksum // Install should automatically detect change later
+  if (pnpmfileChecksum) {
+    newLockfile.pnpmfileChecksum = pnpmfileChecksum
+  }
+
+  const ignoredOptionalDependencies = [...new Set([
+    ...ours.ignoredOptionalDependencies ?? [],
+    ...theirs.ignoredOptionalDependencies ?? [],
+  ])]
+  if (ignoredOptionalDependencies.length) {
+    newLockfile.ignoredOptionalDependencies = ignoredOptionalDependencies
+  }
 
   for (const importerId of Array.from(new Set([...Object.keys(ours.importers), ...Object.keys(theirs.importers)]))) {
     newLockfile.importers[importerId] = {
@@ -62,7 +74,7 @@ function mergeDict<T> (
   ourDict: Record<string, T>,
   theirDict: Record<string, T>,
   valueMerger: ValueMerger<T>
-) {
+): Record<string, T> {
   const newDict: Record<string, T> = {}
   for (const key of Object.keys(ourDict).concat(Object.keys(theirDict))) {
     const changedValue = valueMerger(
@@ -81,7 +93,7 @@ function takeChangedValue<T> (ourValue: T, theirValue: T): T {
   return theirValue
 }
 
-function mergeVersions (ourValue: string, theirValue: string) {
+function mergeVersions (ourValue: string, theirValue: string): string {
   if (ourValue === theirValue || !theirValue) return ourValue
   if (!ourValue) return theirValue
   const [ourVersion] = ourValue.split('(')

@@ -15,7 +15,7 @@ export class PnpmError extends Error {
     }
   ) {
     super(message)
-    this.code = `ERR_PNPM_${code}`
+    this.code = code.startsWith('ERR_PNPM_') ? code : `ERR_PNPM_${code}`
     this.hint = opts?.hint
     this.attempts = opts?.attempts
   }
@@ -54,7 +54,7 @@ export class FetchError extends PnpmError {
   }
 }
 
-function hideAuthInformation (authHeaderValue: string) {
+function hideAuthInformation (authHeaderValue: string): string {
   const [authType, token] = authHeaderValue.split(' ')
   return `${authType} ${token.substring(0, 4)}[hidden]`
 }

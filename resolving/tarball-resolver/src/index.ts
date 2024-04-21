@@ -10,7 +10,7 @@ export async function resolveFromTarball (
   if (isRepository(wantedDependency.pref)) return null
 
   return {
-    id: `@${wantedDependency.pref.replace(/^.*:\/\/(git@)?/, '').replace(':', '+')}`,
+    id: wantedDependency.pref,
     normalizedPref: wantedDependency.pref,
     resolution: {
       tarball: wantedDependency.pref,
@@ -25,7 +25,7 @@ const GIT_HOSTERS = new Set([
   'bitbucket.org',
 ])
 
-function isRepository (pref: string) {
+function isRepository (pref: string): boolean {
   if (pref.endsWith('/')) {
     pref = pref.slice(0, -1)
   }

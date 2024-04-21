@@ -1,4 +1,6 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -37,7 +39,7 @@ Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' 
 export async function runRecursive (
   params: string[],
   opts: RecursiveRunOpts
-) {
+): Promise<void> {
   const [scriptName, ...passedThruArgs] = params
   if (!scriptName) {
     throw new PnpmError('SCRIPT_NAME_IS_REQUIRED', 'You must specify the script you want to run')
@@ -140,7 +142,8 @@ export async function runRecursive (
           groupEnd?.()
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
-        } catch (err: any) { // eslint-disable-line
+        } catch (err: unknown) {
+          assert(util.types.isNativeError(err))
           result[prefix] = {
             status: 'failure',
             duration: getExecutionDuration(startTime),
@@ -153,8 +156,10 @@ export async function runRecursive (
             return
           }
 
-          err['code'] = 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL'
-          err['prefix'] = prefix
+          Object.assign(err, {
+            code: 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL',
+            prefix,
+          })
           opts.reportSummary && await writeRecursiveSummary({
             dir: opts.workspaceDir ?? opts.dir,
             summary: result,
@@ -198,7 +203,7 @@ function formatSectionName ({
   return `${name ?? 'unknown'}${version ? `@${version}` : ''} ${script ? `: ${script}` : ''} ${prefix}`
 }
 
-export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
+export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): string[] {
   // if scripts in package.json has script which is equal to scriptName a user passes, return it.
   if (scripts[scriptName]) {
     return [scriptName]

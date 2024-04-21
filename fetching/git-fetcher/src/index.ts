@@ -1,4 +1,6 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import type { GitFetcher } from '@pnpm/fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
@@ -10,12 +12,12 @@ import { URL } from 'url'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]
-  rawConfig: object
+  rawConfig: Record<string, unknown>
   unsafePerm?: boolean
   ignoreScripts?: boolean
 }
 
-export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
+export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: GitFetcher } {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
   const ignoreScripts = createOpts.ignoreScripts ?? false
   const preparePkg = preparePackage.bind(null, {
@@ -41,7 +43,8 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
       if (ignoreScripts && prepareResult.shouldBeBuilt) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }
-    } catch (err: any) { // eslint-disable-line
+    } catch (err: unknown) {
+      assert(util.types.isNativeError(err))
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
       throw err
     }
@@ -82,7 +85,7 @@ function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-function execGit (args: string[], opts?: object) {
+async function execGit (args: string[], opts?: object): Promise<void> {
   const fullArgs = prefixGitArgs().concat(args || [])
-  return execa('git', fullArgs, opts)
+  await execa('git', fullArgs, opts)
 }

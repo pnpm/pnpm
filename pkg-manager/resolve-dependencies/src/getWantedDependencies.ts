@@ -53,7 +53,7 @@ export function getWantedDependencies (
   })
 }
 
-function updateWorkspacePref (pref: string) {
+function updateWorkspacePref (pref: string): string {
   return pref.startsWith('workspace:') ? 'workspace:*' : pref
 }
 

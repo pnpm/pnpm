@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import path from 'path'
+import fs from 'fs'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { install } from '@pnpm/plugin-commands-installation'
 import { tempDir } from '@pnpm/prepare'
@@ -117,6 +118,56 @@ test('pnpm licenses: output as json', async () => {
   ])
 })
 
+test('pnpm licenses: path should be correct for workspaces', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-licenses', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await readProjects(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const barPackageDir = path.join(workspaceDir, 'bar')
+  for (const packageDir of [workspaceDir, barPackageDir]) {
+    // eslint-disable-next-line no-await-in-loop
+    const { output, exitCode } = await licenses.handler({
+      ...DEFAULT_OPTS,
+      dir: packageDir,
+      lockfileDir: workspaceDir,
+      pnpmHomeDir: '',
+      long: false,
+      json: true,
+      storeDir: path.resolve(storeDir, 'v3'),
+    }, ['list'])
+
+    expect(exitCode).toBe(0)
+
+    const parsedOutput = JSON.parse(output)
+    for (const license in parsedOutput) {
+      const packages = parsedOutput[license]
+      for (const pkg of packages) {
+        const pkgRoots = pkg['paths']
+        expect(pkgRoots).not.toHaveLength(0)
+        for (const pkgRoot of pkgRoots) {
+          const packageJsonPath = path.join(pkgRoot, 'package.json')
+          expect(fs.existsSync(packageJsonPath)).toBeTruthy()
+        }
+      }
+    }
+  }
+})
+
 test('pnpm licenses: filter outputs', async () => {
   const workspaceDir = tempDir()
   f.copy('workspace-licenses', workspaceDir)
@@ -228,6 +279,7 @@ test('pnpm licenses should work with git protocol dep that have patches', async 
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
+    frozenLockfile: true,
     pnpmHomeDir: '',
     storeDir,
   })

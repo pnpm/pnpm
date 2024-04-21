@@ -2,19 +2,24 @@ import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
+import { type Cafs } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
+  type CafsFunctions,
   checkPkgFilesIntegrity,
   createCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
+  type SideEffects,
   type FilesIndex,
   optimisticRenameOverwrite,
   readManifestFromStore,
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
+import { type DependencyManifest } from '@pnpm/types'
 import { sync as loadJsonFile } from 'load-json-file'
 import { parentPort } from 'worker_threads'
 import {
@@ -30,8 +35,8 @@ const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
 
 parentPort!.on('message', handleMessage)
 
-const cafsCache = new Map<string, ReturnType<typeof createCafs>>()
-const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
+const cafsCache = new Map<string, CafsFunctions>()
+const cafsStoreCache = new Map<string, Cafs>()
 const cafsLocker = new Map<string, number>()
 
 async function handleMessage (
@@ -56,7 +61,7 @@ async function handleMessage (
       break
     }
     case 'readPkgFromCafs': {
-      const { cafsDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
+      let { cafsDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
@@ -74,6 +79,9 @@ async function handleMessage (
         return
       }
       let verifyResult: VerifyResult | undefined
+      if (pkgFilesIndex.requiresBuild == null) {
+        readManifest = true
+      }
       if (verifyStoreIntegrity) {
         verifyResult = checkPkgFilesIntegrity(cafsDir, pkgFilesIndex, readManifest)
       } else {
@@ -82,12 +90,14 @@ async function handleMessage (
           manifest: readManifest ? readManifestFromStore(cafsDir, pkgFilesIndex) : undefined,
         }
       }
+      const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
       parentPort!.postMessage({
         status: 'success',
         value: {
           verified: verifyResult.passed,
           manifest: verifyResult.manifest,
           pkgFilesIndex,
+          requiresBuild,
         },
       })
       break
@@ -103,7 +113,13 @@ async function handleMessage (
     }
     }
   } catch (e: any) { // eslint-disable-line
-    parentPort!.postMessage({ status: 'error', error: e.toString() })
+    parentPort!.postMessage({
+      status: 'error',
+      error: {
+        code: e.code,
+        message: e.message ?? e.toString(),
+      },
+    })
   }
 }
 
@@ -130,36 +146,59 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, r
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
   const cafs = cafsCache.get(cafsDir)!
-  const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, readManifest)
+  const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? {}, files: filesIntegrity })
-  return { status: 'success', value: { filesIndex: filesMap, manifest } }
+  const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
+  return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
 }
 
-function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, pkg, readManifest, files }: AddDirToStoreMessage) {
+interface AddFilesFromDirResult {
+  status: string
+  value: {
+    filesIndex: Record<string, string>
+    manifest?: DependencyManifest
+    requiresBuild: boolean
+  }
+}
+
+function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, pkg, readManifest, files }: AddDirToStoreMessage): AddFilesFromDirResult {
   if (!cafsCache.has(cafsDir)) {
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
   const cafs = cafsCache.get(cafsDir)!
-  const { filesIndex, manifest } = cafs.addFilesFromDir(dir, { files, readManifest })
+  const { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
+    files,
+    readManifest: true,
+  })
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
+  let requiresBuild: boolean
   if (sideEffectsCacheKey) {
     let filesIndex!: PackageFilesIndex
     try {
       filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
     } catch {
-      filesIndex = { files: filesIntegrity }
+      filesIndex = { name: manifest?.name, version: manifest?.version, files: filesIntegrity }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
     filesIndex.sideEffects[sideEffectsCacheKey] = filesIntegrity
+    if (filesIndex.requiresBuild == null) {
+      requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
+    } else {
+      requiresBuild = filesIndex.requiresBuild
+    }
     writeJsonFile(filesIndexFile, filesIndex)
   } else {
-    writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? {}, files: filesIntegrity })
+    requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
   }
-  return { status: 'success', value: { filesIndex: filesMap, manifest } }
+  return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
 }
 
-function processFilesIndex (filesIndex: FilesIndex) {
+interface ProcessFilesIndexResult {
+  filesIntegrity: Record<string, PackageFileInfo>
+  filesMap: Record<string, string>
+}
+
+function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
   const filesIntegrity: Record<string, PackageFileInfo> = {}
   const filesMap: Record<string, string> = {}
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of Object.entries(filesIndex)) {
@@ -174,6 +213,14 @@ function processFilesIndex (filesIndex: FilesIndex) {
   return { filesIntegrity, filesMap }
 }
 
+interface ImportPackageResult {
+  status: string
+  value: {
+    isBuilt: boolean
+    importMethod?: string
+  }
+}
+
 function importPackage ({
   storeDir,
   packageImportMethod,
@@ -184,7 +231,7 @@ function importPackage ({
   force,
   keepModulesDir,
   disableRelinkLocalDirDeps,
-}: LinkPkgMessage) {
+}: LinkPkgMessage): ImportPackageResult {
   const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
   if (!cafsStoreCache.has(cacheKey)) {
     cafsStoreCache.set(cacheKey, createCafsStore(storeDir, { packageImportMethod, cafsLocker }))
@@ -201,7 +248,7 @@ function importPackage ({
   return { status: 'success', value: { isBuilt, importMethod } }
 }
 
-function symlinkAllModules (opts: SymlinkAllModulesMessage) {
+function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success' } {
   for (const dep of opts.deps) {
     for (const [alias, pkgDir] of Object.entries(dep.children)) {
       if (alias !== dep.name) {
@@ -214,19 +261,25 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage) {
 
 function writeFilesIndexFile (
   filesIndexFile: string,
-  { pkg, files }: {
-    pkg: { name?: string, version?: string }
+  { manifest, files, sideEffects }: {
+    manifest: Partial<DependencyManifest>
     files: Record<string, PackageFileInfo>
+    sideEffects?: SideEffects
   }
-) {
-  writeJsonFile(filesIndexFile, {
-    name: pkg.name,
-    version: pkg.version,
+): boolean {
+  const requiresBuild = pkgRequiresBuild(manifest, files)
+  const filesIndex: PackageFilesIndex = {
+    name: manifest.name,
+    version: manifest.version,
+    requiresBuild,
     files,
-  })
+    sideEffects,
+  }
+  writeJsonFile(filesIndexFile, filesIndex)
+  return requiresBuild
 }
 
-function writeJsonFile (filePath: string, data: unknown) {
+function writeJsonFile (filePath: string, data: unknown): void {
   const targetDir = path.dirname(filePath)
   // TODO: use the API of @pnpm/cafs to write this file
   // There is actually no need to create the directory in 99% of cases.

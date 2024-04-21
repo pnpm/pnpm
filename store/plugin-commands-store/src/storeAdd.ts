@@ -16,7 +16,7 @@ export async function storeAdd (
     tag?: string
     supportedArchitectures?: SupportedArchitectures
   }
-) {
+): Promise<void> {
   const reporter = opts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)

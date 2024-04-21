@@ -9,7 +9,7 @@ export function reportInstallChecks (
   opts: {
     cwd: string
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return installCheck$.pipe(
     map((log) => formatInstallCheck(opts.cwd, log)),
     filter(Boolean),
@@ -23,7 +23,7 @@ function formatInstallCheck (
   opts?: {
     zoomOutCurrent: boolean
   }
-) {
+): string | undefined {
   const zoomOutCurrent = opts?.zoomOutCurrent ?? false
   switch (logObj.code) {
   case 'EBADPLATFORM':

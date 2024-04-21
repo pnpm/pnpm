@@ -1,5 +1,27 @@
 # @pnpm/default-resolver
 
+## 19.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [43cdd87]
+- Updated dependencies [985381c]
+- Updated dependencies [d381a60]
+- Updated dependencies [b13d2dc]
+  - @pnpm/error@6.0.0
+  - @pnpm/npm-resolver@19.0.0
+  - @pnpm/tarball-resolver@9.0.0
+  - @pnpm/local-resolver@12.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/git-resolver@9.0.0
+
 ## 18.0.22
 
 ### Patch Changes

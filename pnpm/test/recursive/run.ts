@@ -1,6 +1,6 @@
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from '../utils'
 
 test('pnpm recursive run finds bins from the root of the workspace', async () => {
@@ -32,7 +32,7 @@ test('pnpm recursive run finds bins from the root of the workspace', async () =>
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['-r', 'install'])
 

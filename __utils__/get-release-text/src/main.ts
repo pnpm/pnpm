@@ -21,7 +21,12 @@ const pnpm = JSON.parse(fs.readFileSync(path.join(pnpmDir, 'package.json'), 'utf
 const release = getChangelogEntry(changelog, pnpm.version)
 fs.writeFileSync(path.join(dirname, '../../../RELEASE.md'), release.content)
 
-function getChangelogEntry (changelog: string, version: string) {
+interface ChangelogEntry {
+  content: string
+  highestLevel: number
+}
+
+function getChangelogEntry (changelog: string, version: string): ChangelogEntry {
   const ast = unified().use(remarkParse).parse(changelog)
 
   let highestLevel: number = BumpLevels.dep
@@ -141,6 +146,15 @@ function getChangelogEntry (changelog: string, version: string) {
           </picture>
         </a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
+            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" />
+          </picture>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
@@ -202,6 +216,22 @@ function getChangelogEntry (changelog: string, version: string) {
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/macpaw_light.svg" />
             <img src="https://pnpm.io/img/users/macpaw.svg" width="200" />
           </picture>
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://cerbos.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/cerbos.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/cerbos_light.svg" />
+            <img src="https://pnpm.io/img/users/cerbos.svg" width="180" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://vpsserver.com/en-us/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <img src="https://pnpm.io/img/users/vpsserver.svg" width="180" />
         </a>
       </td>
     </tr>

@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import which from '@pnpm/which'
 
-export async function getNodeExecPath () {
+export async function getNodeExecPath (): Promise<string> {
   try {
     // The system default Node.js executable is preferred
     // not the one used to run the pnpm CLI.

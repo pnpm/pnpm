@@ -11,7 +11,7 @@ export function createGetAuthHeaderByURI (
     allSettings: Record<string, string>
     userSettings?: Record<string, string>
   }
-) {
+): (uri: string) => string | undefined {
   const authHeaders = getAuthHeadersFromConfig({
     allSettings: opts.allSettings,
     userSettings: opts.userSettings ?? {},
@@ -20,7 +20,7 @@ export function createGetAuthHeaderByURI (
   return getAuthHeaderByURI.bind(null, authHeaders, getMaxParts(Object.keys(authHeaders)))
 }
 
-function getMaxParts (uris: string[]) {
+function getMaxParts (uris: string[]): number {
   return uris.reduce((max, uri) => {
     const parts = uri.split('/').length
     return parts > max ? parts : max

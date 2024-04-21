@@ -4,7 +4,7 @@ import * as dp from '@pnpm/dependency-path'
 export function packageIdFromSnapshot (
   depPath: string,
   pkgSnapshot: PackageSnapshot
-) {
+): string {
   if (pkgSnapshot.id) return pkgSnapshot.id
   return dp.tryGetPackageId(depPath) ?? depPath
 }

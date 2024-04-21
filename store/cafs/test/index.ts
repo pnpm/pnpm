@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import symlinkDir from 'symlink-dir'
 import tempy from 'tempy'
 import {
   createCafs,
@@ -44,7 +45,25 @@ describe('cafs', () => {
     const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
     const { filesIndex } = addFiles()
-    expect(filesIndex[path.join('subdir', 'should-exist.txt')]).toBeDefined()
+    expect(filesIndex['subdir/should-exist.txt']).toBeDefined()
+  })
+
+  it('symlinks are resolved and added as regular files', async () => {
+    const storeDir = tempy.directory()
+    const srcDir = tempy.directory()
+    const filePath = path.join(srcDir, 'index.js')
+    const symlinkPath = path.join(srcDir, 'symlink.js')
+    fs.writeFileSync(filePath, '// comment', 'utf8')
+    fs.symlinkSync(filePath, symlinkPath)
+    fs.mkdirSync(path.join(srcDir, 'lib'))
+    fs.writeFileSync(path.join(srcDir, 'lib/index.js'), '// comment 2', 'utf8')
+    await symlinkDir(path.join(srcDir, 'lib'), path.join(srcDir, 'lib-symlink'))
+
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+    expect(filesIndex['symlink.js']).toBeDefined()
+    expect(filesIndex['symlink.js']).toStrictEqual(filesIndex['index.js'])
+    expect(filesIndex['lib/index.js']).toBeDefined()
+    expect(filesIndex['lib/index.js']).toStrictEqual(filesIndex['lib-symlink/index.js'])
   })
 })
 
@@ -119,6 +138,16 @@ test('unpack a tarball that contains hard links', () => {
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
     fs.readFileSync(path.join(__dirname, 'fixtures/vue.examples.todomvc.todo-store-0.0.1.tgz'))
+  )
+  expect(Object.keys(filesIndex).length).toBeGreaterThan(0)
+})
+
+// Related issue: https://github.com/pnpm/pnpm/issues/7120
+test('unpack should not fail when the tarball format seems to be not USTAR or GNU TAR', () => {
+  const dest = tempy.directory()
+  const cafs = createCafs(dest)
+  const { filesIndex } = cafs.addFilesFromTarball(
+    fs.readFileSync(path.join(__dirname, '../__fixtures__/devextreme-17.1.6.tgz'))
   )
   expect(Object.keys(filesIndex).length).toBeGreaterThan(0)
 })

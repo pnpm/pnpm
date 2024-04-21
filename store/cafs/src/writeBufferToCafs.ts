@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import renameOverwrite from 'rename-overwrite'
 import type ssri from 'ssri'
 import { verifyFileIntegrity } from './checkPkgFilesIntegrity'
@@ -54,11 +55,11 @@ export function writeBufferToCafs (
   }
 }
 
-export function optimisticRenameOverwrite (temp: string, fileDest: string) {
+export function optimisticRenameOverwrite (temp: string, fileDest: string): void {
   try {
     renameOverwrite.sync(temp, fileDest)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT' || !fs.existsSync(fileDest)) throw err
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') || !fs.existsSync(fileDest)) throw err
     // The temporary file path is created by appending the process ID to the target file name.
     // This is done to avoid lots of random crypto number generations.
     //   PR with related performance optimization: https://github.com/pnpm/pnpm/pull/6817
@@ -93,7 +94,7 @@ function removeSuffix (filePath: string): string {
   return withoutSuffix
 }
 
-function existsSame (filename: string, integrity: ssri.IntegrityLike) {
+function existsSame (filename: string, integrity: ssri.IntegrityLike): boolean {
   const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
   if (!existingFile) return false
   return verifyFileIntegrity(filename, {

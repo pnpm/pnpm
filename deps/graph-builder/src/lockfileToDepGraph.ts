@@ -11,7 +11,6 @@ import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
-  refIsLocalDirectory,
 } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
@@ -41,8 +40,7 @@ export interface DependenciesGraphNode {
   optional: boolean
   depPath: string // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
   isBuilt?: boolean
-  requiresBuild: boolean
-  prepare: boolean
+  requiresBuild?: boolean
   hasBin: boolean
   filesIndexFile?: string
   patchFile?: PatchFile
@@ -122,7 +120,6 @@ export async function lockfileToDepGraph (
             lockfileDir: opts.lockfileDir,
             nodeVersion: opts.nodeVersion,
             optional: pkgSnapshot.optional === true,
-            pnpmVersion: opts.pnpmVersion,
             supportedArchitectures: opts.supportedArchitectures,
           }) === false
         ) {
@@ -130,7 +127,7 @@ export async function lockfileToDepGraph (
           return
         }
         const dir = path.join(modules, pkgName)
-        const depIsPresent = !refIsLocalDirectory(depPath) &&
+        const depIsPresent = !('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) &&
           currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies)
         let dirExists: boolean | undefined
         if (
@@ -178,7 +175,7 @@ export async function lockfileToDepGraph (
               },
             }) as any // eslint-disable-line
             if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-          } catch (err: any) { // eslint-disable-line
+          } catch (err: unknown) {
             if (pkgSnapshot.optional) return
             throw err
           }
@@ -195,8 +192,6 @@ export async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-          prepare: pkgSnapshot.prepare === true,
-          requiresBuild: pkgSnapshot.requiresBuild === true,
           patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
@@ -253,7 +248,7 @@ function getChildrenPaths (
   allDeps: { [alias: string]: string },
   peerDeps: Set<string> | null,
   importerId: string
-) {
+): { [alias: string]: string } {
   const children: { [alias: string]: string } = {}
   for (const [alias, ref] of Object.entries(allDeps)) {
     const childDepPath = dp.refToRelative(ref, alias)

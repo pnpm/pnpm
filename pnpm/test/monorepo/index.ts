@@ -1,9 +1,9 @@
 // cspell:ignore buildscript
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type LockfileFile } from '@pnpm/lockfile-types'
+import { type LockfileFileV9 as LockfileFile } from '@pnpm/lockfile-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   prepare,
@@ -12,13 +12,12 @@ import {
   tempDir as makeTempDir,
 } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import execa from 'execa'
-import rimraf from '@zkochan/rimraf'
-import exists from 'path-exists'
+import { sync as rimraf } from '@zkochan/rimraf'
 import tempy from 'tempy'
 import symlink from 'symlink-dir'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils'
 import { addDistTag } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
@@ -32,7 +31,7 @@ test('no projects matched the filters', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   {
     const { stdout } = execPnpmSync(['list', '--filter=not-exists'])
@@ -70,7 +69,7 @@ test('incorrect workspace manifest', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yml', { packages: ['**', '!store/**'] })
 
   const { status, stdout } = execPnpmSync(['install'])
   expect(stdout.toString()).toMatch(/The workspace manifest file should be named "pnpm-workspace.yaml"/)
@@ -97,7 +96,7 @@ test('linking a package inside a monorepo', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-1')
 
@@ -113,9 +112,9 @@ test('linking a package inside a monorepo', async () => {
   expect(pkg?.devDependencies).toStrictEqual({ 'project-3': '^3.0.0' }) // spec of linked package added to devDependencies
   expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
-  await projects['project-1'].has('project-2')
-  await projects['project-1'].has('project-3')
-  await projects['project-1'].has('project-4')
+  projects['project-1'].has('project-2')
+  projects['project-1'].has('project-3')
+  projects['project-1'].has('project-4')
 })
 
 test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies', async () => {
@@ -138,8 +137,8 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
     },
   ])
 
-  await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'link-workspace-packages = true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-1')
 
@@ -155,9 +154,9 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
   expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
   expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
-  await projects['project-1'].has('project-2')
-  await projects['project-1'].has('project-3')
-  await projects['project-1'].has('project-4')
+  projects['project-1'].has('project-2')
+  projects['project-1'].has('project-3')
+  projects['project-1'].has('project-4')
 })
 
 test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies and save-workspace-protocol is "rolling"', async () => {
@@ -180,14 +179,14 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
     },
   ])
 
-  await fs.writeFile(
+  fs.writeFileSync(
     '.npmrc',
     [
       'link-workspace-packages = true',
       'save-workspace-protocol = "rolling"',
     ].join('\n'),
     'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-1')
 
@@ -203,9 +202,9 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
   expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
   expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
-  await projects['project-1'].has('project-2')
-  await projects['project-1'].has('project-3')
-  await projects['project-1'].has('project-4')
+  projects['project-1'].has('project-2')
+  projects['project-1'].has('project-3')
+  projects['project-1'].has('project-4')
 })
 
 test('linking a package inside a monorepo with --link-workspace-packages', async () => {
@@ -247,12 +246,12 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
     },
   ])
 
-  await fs.writeFile('.npmrc', `
+  fs.writeFileSync('.npmrc', `
 link-workspace-packages = true
 shared-workspace-lockfile=false
 save-workspace-protocol=false
 `, 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-1')
 
@@ -260,18 +259,18 @@ save-workspace-protocol=false
 
   expect(server.getLines()).toStrictEqual(['project-2', 'project-1'])
 
-  await projects['project-1'].has('project-2')
-  await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('is-positive')
+  projects['project-1'].has('project-2')
+  projects['project-1'].has('is-negative')
+  projects['project-1'].has('is-positive')
 
   {
-    const lockfile = await projects['project-1'].readLockfile()
-    expect(lockfile.dependencies['project-2'].version).toBe('link:../project-2')
-    expect(lockfile.devDependencies['is-negative'].version).toBe('link:../is-negative')
-    expect(lockfile.optionalDependencies['is-positive'].version).toBe('link:../is-positive')
+    const lockfile = projects['project-1'].readLockfile()
+    expect(lockfile.importers['.'].dependencies?.['project-2'].version).toBe('link:../project-2')
+    expect(lockfile.importers['.'].devDependencies?.['is-negative'].version).toBe('link:../is-negative')
+    expect(lockfile.importers['.'].optionalDependencies?.['is-positive'].version).toBe('link:../is-positive')
   }
 
-  await projects['is-positive'].writePackageJson({
+  projects['is-positive'].writePackageJson({
     name: 'is-positive',
     version: '2.0.0',
   })
@@ -279,15 +278,15 @@ save-workspace-protocol=false
   await execPnpm(['install'])
 
   {
-    const lockfile = await projects['project-1'].readLockfile()
-    expect(lockfile.optionalDependencies['is-positive'].version).toBe('1.0.0') // is-positive is unlinked and installed from registry
+    const lockfile = projects['project-1'].readLockfile()
+    expect(lockfile.importers['.'].optionalDependencies?.['is-positive'].version).toBe('1.0.0') // is-positive is unlinked and installed from registry
   }
 
   await execPnpm(['update', 'is-negative@2.0.0'])
 
   {
-    const lockfile = await projects['project-1'].readLockfile()
-    expect(lockfile.devDependencies['is-negative'].version).toBe('2.0.0')
+    const lockfile = projects['project-1'].readLockfile()
+    expect(lockfile.importers['.'].devDependencies?.['is-negative'].version).toBe('2.0.0')
   }
 })
 
@@ -327,8 +326,8 @@ test('topological order of packages with self-dependencies in monorepo is correc
       },
     },
   ])
-  await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'link-workspace-packages = true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-1')
 
@@ -391,10 +390,10 @@ test('test-pattern is respected by the test script', async () => {
   await execa('git', ['remote', 'add', 'origin', remote])
   await execa('git', ['push', '-u', 'origin', 'main'])
 
-  await fs.writeFile('project-2/file.js', '')
-  await fs.writeFile('project-4/different-pattern.js', '')
-  await fs.writeFile('.npmrc', 'test-pattern[]=*/file.js', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('project-2/file.js', '')
+  fs.writeFileSync('project-4/different-pattern.js', '')
+  fs.writeFileSync('.npmrc', 'test-pattern[]=*/file.js', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execa('git', ['add', '.'])
   await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
@@ -443,25 +442,25 @@ test('changed-files-ignore-pattern is respected', async () => {
   await execa('git', ['push', '-u', 'origin', 'main'])
 
   const npmrcLines = []
-  await fs.writeFile('project-2-change-is-never-ignored/index.js', '')
+  fs.writeFileSync('project-2-change-is-never-ignored/index.js', '')
 
   npmrcLines.push('changed-files-ignore-pattern[]=**/{*.spec.js,*.md}')
-  await fs.writeFile('project-3-ignored-by-pattern/index.spec.js', '')
-  await fs.writeFile('project-3-ignored-by-pattern/README.md', '')
+  fs.writeFileSync('project-3-ignored-by-pattern/index.spec.js', '')
+  fs.writeFileSync('project-3-ignored-by-pattern/README.md', '')
 
   npmrcLines.push('changed-files-ignore-pattern[]=**/buildscript.js')
-  await fs.mkdir('project-4-ignored-by-pattern/a/b/c', {
+  fs.mkdirSync('project-4-ignored-by-pattern/a/b/c', {
     recursive: true,
   })
-  await fs.writeFile('project-4-ignored-by-pattern/a/b/c/buildscript.js', '')
+  fs.writeFileSync('project-4-ignored-by-pattern/a/b/c/buildscript.js', '')
 
   npmrcLines.push('changed-files-ignore-pattern[]=**/cache/**')
-  await fs.mkdir('project-5-ignored-by-pattern/cache/a/b', {
+  fs.mkdirSync('project-5-ignored-by-pattern/cache/a/b', {
     recursive: true,
   })
-  await fs.writeFile('project-5-ignored-by-pattern/cache/a/b/index.js', '')
+  fs.writeFileSync('project-5-ignored-by-pattern/cache/a/b/index.js', '')
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execa('git', ['add', '.'])
   await execa('git', [
@@ -472,7 +471,7 @@ test('changed-files-ignore-pattern is respected', async () => {
     '--no-gpg-sign',
   ])
 
-  await fs.writeFile('.npmrc', npmrcLines.join('\n'), 'utf8')
+  fs.writeFileSync('.npmrc', npmrcLines.join('\n'), 'utf8')
   await execPnpm(['install'])
 
   const getChangedProjects = async (opts?: {
@@ -555,8 +554,8 @@ test('do not get confused by filtered dependencies when searching for dependents
       },
     },
   ])
-  await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'link-workspace-packages = true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-2')
 
@@ -594,17 +593,17 @@ test('installation with --link-workspace-packages links packages even if they we
   await execPnpm(['recursive', 'install', '--no-link-workspace-packages'])
 
   {
-    const lockfile = await projects.project.readLockfile()
-    expect(lockfile.dependencies['is-positive'].version).toBe('2.0.0')
-    expect(lockfile.dependencies.negative.version).toBe('/is-negative@1.0.0')
+    const lockfile = projects.project.readLockfile()
+    expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toBe('2.0.0')
+    expect(lockfile.importers['.'].dependencies?.negative.version).toBe('is-negative@1.0.0')
   }
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages'])
 
   {
-    const lockfile = await projects.project.readLockfile()
-    expect(lockfile.dependencies['is-positive'].version).toBe('link:../is-positive')
-    expect(lockfile.dependencies.negative.version).toBe('link:../is-negative')
+    const lockfile = projects.project.readLockfile()
+    expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toBe('link:../is-positive')
+    expect(lockfile.importers['.'].dependencies?.negative.version).toBe('link:../is-negative')
   }
 })
 
@@ -629,23 +628,23 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true\nlink-workspace-packages = true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'shared-workspace-lockfile = true\nlink-workspace-packages = true', 'utf8')
 
   await execPnpm(['recursive', 'install'])
 
   {
-    const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+    const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
     expect(lockfile.importers!.project!.dependencies!['is-positive'].version).toBe('2.0.0')
-    expect(lockfile.importers!.project!.dependencies!.negative.version).toBe('/is-negative@1.0.0')
+    expect(lockfile.importers!.project!.dependencies!.negative.version).toBe('is-negative@1.0.0')
   }
 
-  await projects['is-positive'].writePackageJson({
+  projects['is-positive'].writePackageJson({
     name: 'is-positive',
     version: '2.0.0',
   })
 
-  await projects['is-negative'].writePackageJson({
+  projects['is-negative'].writePackageJson({
     name: 'is-negative',
     version: '1.0.0',
   })
@@ -653,7 +652,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   await execPnpm(['recursive', 'install'])
 
   {
-    const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+    const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
     expect(lockfile.importers!.project!.dependencies!['is-positive'].version).toBe('link:../is-positive')
     expect(lockfile.importers!.project!.dependencies!.negative.version).toBe('link:../is-negative')
   }
@@ -693,13 +692,13 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile(
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync(
     'is-positive/.npmrc',
     'save-exact = true',
     'utf8'
   )
-  await fs.writeFile(
+  fs.writeFileSync(
     'project-1/.npmrc',
     'save-prefix = ~',
     'utf8'
@@ -710,7 +709,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   expect(projects['is-positive'].requireModule('is-negative')).toBeTruthy()
   expect(projects['project-1'].requireModule('is-positive/package.json').author).toBeFalsy()
 
-  const sharedLockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+  const sharedLockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
   expect(sharedLockfile.importers!['project-1']!.devDependencies!['is-positive'].version).toBe('link:../is-positive')
 
   expect(server.getLines()).toStrictEqual(['is-positive', 'project-1'])
@@ -779,7 +778,7 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
     },
   ], { manifestFormat: 'YAML' })
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
 
@@ -801,7 +800,7 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
     'project-2-prepare',
   ])
 
-  await rimraf('node_modules')
+  rimraf('node_modules')
   server1.clear()
   server2.clear()
 
@@ -855,17 +854,17 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
       return pkg
     }
   `
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store'])
 
-  const lockfile = await readYamlFile<LockfileFile>(`./${WANTED_LOCKFILE}`)
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  const lockfile = readYamlFile<LockfileFile>(`./${WANTED_LOCKFILE}`)
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store', '--filter', 'project-1'])
 
-  await projects['project-1'].hasNot('project-1')
+  projects['project-1'].hasNot('project-1')
 })
 
 test('local packages should be preferred when running "pnpm install" inside a workspace', async () => {
@@ -884,16 +883,16 @@ test('local packages should be preferred when running "pnpm install" inside a wo
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'link-workspace-packages = true\nshared-workspace-lockfile=false', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'link-workspace-packages = true\nshared-workspace-lockfile=false', 'utf8')
 
   process.chdir('project-1')
 
   await execPnpm(['link', '.'])
 
-  const lockfile = await projects['project-1'].readLockfile()
+  const lockfile = projects['project-1'].readLockfile()
 
-  expect(lockfile?.dependencies?.['is-positive'].version).toBe('link:../is-positive')
+  expect(lockfile?.importers['.'].dependencies?.['is-positive'].version).toBe('link:../is-positive')
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1437
@@ -904,12 +903,12 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
     },
   })
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', 'project', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', 'project', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
   await execPnpm(['install', '--store-dir', 'store'])
 
-  const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
   expect(lockfile.importers).toHaveProperty(['.'])
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
@@ -945,14 +944,14 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
 
   await symlink('workspace-2/package-2', 'workspace-1/package-2')
 
-  await writeYamlFile('workspace-1/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await writeYamlFile('workspace-2/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('workspace-1/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('workspace-2/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('workspace-1')
 
   await execPnpm(['recursive', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages'])
 
-  const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -975,8 +974,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-positive@1.0.0': {
-        dev: false,
+      'is-positive@1.0.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -984,6 +982,9 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
+    },
+    snapshots: {
+      'is-positive@1.0.0': {},
     },
   })
 })
@@ -1027,13 +1028,13 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
     },
   ])
 
-  await writeYamlFile('monorepo/workspace/pnpm-workspace.yaml', { packages: ['../**', '!store/**'] })
+  writeYamlFile('monorepo/workspace/pnpm-workspace.yaml', { packages: ['../**', '!store/**'] })
 
   process.chdir('monorepo/workspace')
 
   await execPnpm(['-r', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages', '--no-save-workspace-protocol'])
 
-  const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -1076,8 +1077,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative@1.0.0': {
-        dev: false,
+      'is-negative@1.0.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -1085,8 +1085,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
           integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
         },
       },
-      '/is-positive@1.0.0': {
-        dev: false,
+      'is-positive@1.0.0': {
         engines: {
           node: '>=0.10.0',
         },
@@ -1094,6 +1093,10 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
+    },
+    snapshots: {
+      'is-negative@1.0.0': {},
+      'is-positive@1.0.0': {},
     },
   })
 })
@@ -1118,21 +1121,21 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['recursive', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages'])
 
   {
-    const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+    const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
     expect(Object.keys(lockfile.importers!)).toStrictEqual(['package-1', 'package-2'])
   }
 
-  await rimraf('package-2')
+  rimraf('package-2')
 
   await execPnpm(['recursive', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages'])
 
   {
-    const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+    const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
     expect(Object.keys(lockfile.importers!)).toStrictEqual(['package-1'])
   }
 })
@@ -1145,11 +1148,11 @@ test('shared-workspace-lockfile config is ignored if no pnpm-workspace.yaml is f
     },
   })
 
-  await fs.writeFile('.npmrc', 'shared-workspace-lockfile=true', 'utf8')
+  fs.writeFileSync('.npmrc', 'shared-workspace-lockfile=true', 'utf8')
 
   await execPnpm(['install'])
 
-  await project.has('is-positive')
+  project.has('is-positive')
 })
 
 test('shared-workspace-lockfile: removing a package recursively', async () => {
@@ -1177,8 +1180,8 @@ test('shared-workspace-lockfile: removing a package recursively', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true\nlink-workspace-packages = true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'shared-workspace-lockfile = true\nlink-workspace-packages = true', 'utf8')
 
   await execPnpm(['recursive', 'install'])
 
@@ -1196,9 +1199,9 @@ test('shared-workspace-lockfile: removing a package recursively', async () => {
     expect(pkg.dependencies).toStrictEqual({ 'is-negative': '1.0.0' }) // is-positive removed from project2')
   }
 
-  const lockfile = await readYamlFile<LockfileFile>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
-  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/is-negative@1.0.0']) // is-positive removed from ${WANTED_LOCKFILE}
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['is-negative@1.0.0']) // is-positive removed from ${WANTED_LOCKFILE}
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1506
@@ -1218,8 +1221,8 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', `shared-workspace-lockfile = true
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', `shared-workspace-lockfile = true
 link-workspace-packages = true
 auto-install-peers=false`, 'utf8')
 
@@ -1228,7 +1231,7 @@ auto-install-peers=false`, 'utf8')
   await execPnpm(['install', 'ajv@4.10.4', 'ajv-keywords@1.5.0'])
 
   {
-    const lockfile = await readYamlFile<LockfileFile>(path.resolve('..', WANTED_LOCKFILE))
+    const lockfile = readYamlFile<LockfileFile>(path.resolve('..', WANTED_LOCKFILE))
     expect(lockfile.importers!.foo).toStrictEqual({
       dependencies: {
         ajv: {
@@ -1250,7 +1253,7 @@ auto-install-peers=false`, 'utf8')
   await execPnpm(['uninstall', 'ajv', '--no-strict-peer-dependencies'])
 
   {
-    const lockfile = await readYamlFile<LockfileFile>(path.resolve('..', WANTED_LOCKFILE))
+    const lockfile = readYamlFile<LockfileFile>(path.resolve('..', WANTED_LOCKFILE))
     expect(lockfile.importers!.foo).toStrictEqual({
       dependencies: {
         'ajv-keywords': {
@@ -1278,8 +1281,8 @@ test('dependencies of workspace projects are built during headless installation'
     },
   ])
 
-  await fs.writeFile('.npmrc', 'shared-workspace-lockfile=false', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'shared-workspace-lockfile=false', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['recursive', 'install', '--lockfile-only'])
   await execPnpm(['recursive', 'install', '--frozen-lockfile'])
@@ -1311,20 +1314,20 @@ test("linking the package's bin to another workspace package in a monorepo", asy
     },
   ], { manifestFormat: 'YAML' })
 
-  await fs.writeFile('./hello/index.js', '#!/usr/bin/env node', 'utf8')
+  fs.writeFileSync('./hello/index.js', '#!/usr/bin/env node', 'utf8')
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['recursive', 'install'])
 
-  await projects.main.isExecutable('.bin/hello')
+  projects.main.isExecutable('.bin/hello')
 
-  expect(await exists('main/node_modules')).toBeTruthy()
-  await rimraf('main/node_modules')
+  expect(fs.existsSync('main/node_modules')).toBeTruthy()
+  rimraf('main/node_modules')
 
   await execPnpm(['recursive', 'install', '--frozen-lockfile'])
 
-  await projects.main.isExecutable('.bin/hello')
+  projects.main.isExecutable('.bin/hello')
 })
 
 test('pnpm sees the bins from the root of the workspace', async () => {
@@ -1351,7 +1354,7 @@ test('pnpm sees the bins from the root of the workspace', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['install'])
 
@@ -1394,7 +1397,7 @@ test('root package is included when not specified', async () => {
       { tempDir: `${tempDir}/project` }
     )
   )
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-', '!store/**'] })
   const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false })
 
   expect(workspacePackages.some(project => {
@@ -1431,7 +1434,7 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
       { tempDir: `${tempDir}/project` }
     )
   )
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-', '!.', '!./', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-', '!.', '!./', '!store/**'] })
   const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false })
 
   expect(workspacePackages.some(project => {
@@ -1452,24 +1455,34 @@ test('custom virtual store directory in a workspace with not shared lockfile', a
     },
   ])
 
-  await fs.writeFile('.npmrc', 'virtual-store-dir=virtual-store\nshared-workspace-lockfile=false', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'virtual-store-dir=virtual-store\nshared-workspace-lockfile=false', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['install'])
 
   {
-    const modulesManifest = await projects['project-1'].readModulesManifest()
-    expect(modulesManifest?.virtualStoreDir).toBe(path.resolve('project-1/virtual-store'))
+    const modulesManifest = projects['project-1'].readModulesManifest()
+    const virtualStoreDir = modulesManifest!.virtualStoreDir
+    if (path.isAbsolute(virtualStoreDir)) {
+      expect(virtualStoreDir).toBe(path.resolve('project-1/virtual-store'))
+    } else {
+      expect(virtualStoreDir).toBe('../virtual-store')
+    }
   }
 
-  await rimraf('project-1/virtual-store')
-  await rimraf('project-1/node_modules')
+  rimraf('project-1/virtual-store')
+  rimraf('project-1/node_modules')
 
   await execPnpm(['install', '--frozen-lockfile'])
 
   {
-    const modulesManifest = await projects['project-1'].readModulesManifest()
-    expect(modulesManifest?.virtualStoreDir).toBe(path.resolve('project-1/virtual-store'))
+    const modulesManifest = projects['project-1'].readModulesManifest()
+    const virtualStoreDir = modulesManifest!.virtualStoreDir
+    if (path.isAbsolute(virtualStoreDir)) {
+      expect(virtualStoreDir).toBe(path.resolve('project-1/virtual-store'))
+    } else {
+      expect(virtualStoreDir).toBe('../virtual-store')
+    }
   }
 })
 
@@ -1485,8 +1498,8 @@ test('custom virtual store directory in a workspace with shared lockfile', async
     },
   ])
 
-  await fs.writeFile('.npmrc', 'virtual-store-dir=virtual-store\nshared-workspace-lockfile=true', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'virtual-store-dir=virtual-store\nshared-workspace-lockfile=true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['install'])
 
@@ -1495,8 +1508,8 @@ test('custom virtual store directory in a workspace with shared lockfile', async
     expect(modulesManifest?.virtualStoreDir).toBe(path.resolve('virtual-store'))
   }
 
-  await rimraf('virtual-store')
-  await rimraf('node_modules')
+  rimraf('virtual-store')
+  rimraf('node_modules')
 
   await execPnpm(['install', '--frozen-lockfile'])
 
@@ -1525,11 +1538,11 @@ test('pnpm run should ignore the root project', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['-r', '--config.use-beta-cli=true', 'test'])
 
-  expect(await exists('project/test')).toBeTruthy()
+  expect(fs.existsSync('project/test')).toBeTruthy()
 })
 
 test('pnpm run should include the workspace root when --workspace-root option is used', async () => {
@@ -1551,12 +1564,12 @@ test('pnpm run should include the workspace root when --workspace-root option is
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['--filter=project', '--workspace-root', 'test'])
 
-  expect(await exists('test')).toBeTruthy()
-  expect(await exists('project/test')).toBeTruthy()
+  expect(fs.existsSync('test')).toBeTruthy()
+  expect(fs.existsSync('project/test')).toBeTruthy()
 })
 
 test('pnpm run should include the workspace root when include-workspace-root is set to true', async () => {
@@ -1578,13 +1591,13 @@ test('pnpm run should include the workspace root when include-workspace-root is 
     },
   ])
 
-  await fs.writeFile('.npmrc', 'include-workspace-root', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'include-workspace-root', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['-r', 'test'])
 
-  expect(await exists('test')).toBeTruthy()
-  expect(await exists('project/test')).toBeTruthy()
+  expect(fs.existsSync('test')).toBeTruthy()
+  expect(fs.existsSync('project/test')).toBeTruthy()
 })
 
 test('legacy directory filtering', async () => {
@@ -1605,8 +1618,8 @@ test('legacy directory filtering', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'legacy-dir-filtering=true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'legacy-dir-filtering=true', 'utf8')
 
   const { stdout } = execPnpmSync(['list', '--filter=./packages', '--parseable', '--depth=-1'])
   const output = stdout.toString()
@@ -1632,7 +1645,7 @@ test('directory filtering', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   {
     const { stdout } = execPnpmSync(['list', '--filter=./packages', '--parseable', '--depth=-1'])
@@ -1678,7 +1691,7 @@ test('run --stream should prefix with dir name', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   const result = execPnpmSync([
     '--stream',
@@ -1758,7 +1771,7 @@ test('run --reporter-hide-prefix should hide prefix', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   const result = execPnpmSync([
     '--stream',
@@ -1831,14 +1844,14 @@ test('peer dependencies are resolved from the root of the workspace when a new d
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-2')
 
   await execPnpm(['add', 'ajv-keywords@1.5.0', '--strict-peer-dependencies', '--config.resolve-peers-from-workspace-root=true'])
 
-  const lockfile = await projects['project-1'].readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/ajv-keywords@1.5.0(ajv@4.10.4)'])
+  const lockfile = projects['project-1'].readLockfile()
+  expect(lockfile.snapshots).toHaveProperty(['ajv-keywords@1.5.0(ajv@4.10.4)'])
 })
 
 test('overrides in workspace project should be taken into account when shared-workspace-lockfiles is false', async () => {
@@ -1859,14 +1872,14 @@ test('overrides in workspace project should be taken into account when shared-wo
     },
   ])
 
-  await fs.writeFile('.npmrc', `
+  fs.writeFileSync('.npmrc', `
 shared-workspace-lockfile=false
 `, 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   await execPnpm(['install'])
 
-  const lockfile = await projects['project-1'].readLockfile()
+  const lockfile = projects['project-1'].readLockfile()
   expect(lockfile.overrides).toStrictEqual({
     'is-odd': '1.0.0',
   })

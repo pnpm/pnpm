@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import { assertProject, type Modules, type Project } from '@pnpm/assert-project'
 import { type ProjectManifest } from '@pnpm/types'
-import uniqueString from 'unique-string'
 import { sync as writeJson5File } from 'write-json5-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import writePkg from 'write-pkg'
@@ -12,11 +11,21 @@ export type ManifestFormat = 'JSON' | 'JSON5' | 'YAML'
 
 // The testing folder should be outside of the project to avoid lookup in the project's node_modules
 // Not using the OS temp directory due to issues on Windows CI.
-const tmpPath = path.join(__dirname, `../../../../pnpm_tmp/${uniqueString()}`)
+const tmpBaseDir = path.join(__dirname, '../../../../pnpm_tmp')
+
+function getFilesCountInDir (dir: string): number {
+  try {
+    return fs.readdirSync(dir).length
+  } catch {
+    return 0
+  }
+}
+
+const tmpPath = path.join(tmpBaseDir, `${getFilesCountInDir(tmpBaseDir).toString()}_${process.pid.toString()}`)
 
 let dirNumber = 0
 
-export function tempDir (chdir: boolean = true) {
+export function tempDir (chdir: boolean = true): string {
   dirNumber++
   const dirname = dirNumber.toString()
   const tmpDir = path.join(tmpPath, dirname)
@@ -38,12 +47,12 @@ export function preparePackages (
     manifestFormat?: ManifestFormat
     tempDir?: string
   }
-) {
+): Record<string, Project> {
   const pkgTmpPath = opts?.tempDir ?? path.join(tempDir(), 'project')
   const manifestFormat = opts?.manifestFormat
 
   const dirname = path.dirname(pkgTmpPath)
-  const result: { [name: string]: Project } = {}
+  const result: Record<string, Project> = {}
   const cwd = process.cwd()
   for (const aPkg of pkgs) {
     if (typeof (aPkg as LocationAndManifest).location === 'string') {
@@ -68,7 +77,7 @@ export function prepare (
     manifestFormat?: ManifestFormat
     tempDir?: string
   }
-) {
+): Project {
   const dir = opts?.tempDir ?? path.join(tempDir(), 'project')
 
   fs.mkdirSync(dir, { recursive: true })
@@ -88,7 +97,7 @@ export function prepare (
   return assertProject(dir)
 }
 
-export function prepareEmpty () {
+export function prepareEmpty (): Project {
   const pkgTmpPath = path.join(tempDir(), 'project')
 
   fs.mkdirSync(pkgTmpPath, { recursive: true })

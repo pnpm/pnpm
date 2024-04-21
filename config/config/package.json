@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "20.4.2",
+  "version": "21.1.0",
   "description": "Gets configuration options for pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/config/config#readme",
   "dependencies": {
-    "@pnpm/config.env-replace": "1.1.0",
+    "@pnpm/config.env-replace": "3.0.0",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
@@ -60,9 +60,9 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/which": "^2.0.2",
-    "symlink-dir": "^5.2.1"
+    "symlink-dir": "^6.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

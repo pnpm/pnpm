@@ -1,5 +1,25 @@
 # @pnpm/store.cafs
 
+## 3.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- 36dcaa0: Breaking change to addFileFromDir args.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- 6cdbf11: Don't fail on a tarball that appears to be not a USTAR or GNU TAR archive. Still try to unpack the tarball [#7120](https://github.com/pnpm/pnpm/issues/7120).
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/graceful-fs@4.0.0
+
 ## 2.0.12
 
 ### Patch Changes

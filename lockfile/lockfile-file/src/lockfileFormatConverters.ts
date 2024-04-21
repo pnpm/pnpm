@@ -1,26 +1,64 @@
+import { parseDepPath, removePeersSuffix } from '@pnpm/dependency-path'
 import {
   type Lockfile,
   type ProjectSnapshot,
+  type PackageSnapshotV7,
   type ResolvedDependencies,
   type LockfileFile,
   type InlineSpecifiersLockfile,
   type InlineSpecifiersProjectSnapshot,
   type InlineSpecifiersResolvedDependencies,
+  type PackageInfo,
+  type LockfileFileV9,
+  type PackageSnapshots,
 } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import _mapValues from 'ramda/src/map'
+import omit from 'ramda/src/omit'
 import pickBy from 'ramda/src/pickBy'
+import pick from 'ramda/src/pick'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 
 export interface NormalizeLockfileOpts {
   forceSharedFormat: boolean
 }
 
 export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfileOpts): LockfileFile {
+  const packages: Record<string, PackageInfo> = {}
+  const snapshots: Record<string, PackageSnapshotV7> = {}
+  for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
+    snapshots[depPath] = pick([
+      'dependencies',
+      'optionalDependencies',
+      'transitivePeerDependencies',
+      'optional',
+      'id',
+    ], pkg)
+    const pkgId = removePeersSuffix(depPath)
+    if (!packages[pkgId]) {
+      packages[pkgId] = pick([
+        'bundledDependencies',
+        'cpu',
+        'deprecated',
+        'engines',
+        'hasBin',
+        'libc',
+        'name',
+        'os',
+        'peerDependencies',
+        'peerDependenciesMeta',
+        'resolution',
+        'version',
+      ], pkg)
+    }
+  }
   const newLockfile = {
     ...lockfile,
-    lockfileVersion: lockfile.lockfileVersion.toString(),
+    snapshots,
+    packages,
+    lockfileVersion: LOCKFILE_VERSION,
     importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
   }
   return normalizeLockfile(newLockfile, opts)
@@ -41,6 +79,9 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
     }
     if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
+    }
+    if (isEmpty((lockfileToSave as LockfileFileV9).snapshots) || ((lockfileToSave as LockfileFileV9).snapshots == null)) {
+      delete (lockfileToSave as LockfileFileV9).snapshots
     }
   } else {
     lockfileToSave = {
@@ -64,6 +105,9 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
     if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
     }
+    if (isEmpty((lockfileToSave as LockfileFileV9).snapshots) || ((lockfileToSave as LockfileFileV9).snapshots == null)) {
+      delete (lockfileToSave as LockfileFileV9).snapshots
+    }
   }
   if (lockfileToSave.time) {
     lockfileToSave.time = pruneTimeInLockfileV6(lockfileToSave.time, lockfile.importers ?? {})
@@ -74,18 +118,14 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
   if ((lockfileToSave.patchedDependencies != null) && isEmpty(lockfileToSave.patchedDependencies)) {
     delete lockfileToSave.patchedDependencies
   }
-  if (lockfileToSave.neverBuiltDependencies != null) {
-    if (isEmpty(lockfileToSave.neverBuiltDependencies)) {
-      delete lockfileToSave.neverBuiltDependencies
-    } else {
-      lockfileToSave.neverBuiltDependencies = lockfileToSave.neverBuiltDependencies.sort()
-    }
-  }
-  if (lockfileToSave.onlyBuiltDependencies != null) {
-    lockfileToSave.onlyBuiltDependencies = lockfileToSave.onlyBuiltDependencies.sort()
-  }
   if (!lockfileToSave.packageExtensionsChecksum) {
     delete lockfileToSave.packageExtensionsChecksum
+  }
+  if (!lockfileToSave.ignoredOptionalDependencies?.length) {
+    delete lockfileToSave.ignoredOptionalDependencies
+  }
+  if (!lockfileToSave.pnpmfileChecksum) {
+    delete lockfileToSave.pnpmfileChecksum
   }
   return lockfileToSave
 }
@@ -125,7 +165,7 @@ function refToRelative (
 /**
  * Reverts changes from the "forceSharedFormat" write option if necessary.
  */
-function convertFromLockfileFileMutable (lockfileFile: LockfileFile): InlineSpecifiersLockfile {
+function convertFromLockfileFileMutable (lockfileFile: LockfileFile): LockfileFileV9 {
   if (typeof lockfileFile?.['importers'] === 'undefined') {
     lockfileFile.importers = {
       '.': {
@@ -143,7 +183,11 @@ function convertFromLockfileFileMutable (lockfileFile: LockfileFile): InlineSpec
   return lockfileFile as InlineSpecifiersLockfile
 }
 
-export function convertToLockfileObject (lockfile: LockfileFile): Lockfile {
+export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV9): Lockfile {
+  if ((lockfile as LockfileFileV9).snapshots) {
+    return convertLockfileV9ToLockfileObject(lockfile as LockfileFileV9)
+  }
+  convertPkgIds(lockfile)
   const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
 
   const newLockfile = {
@@ -153,10 +197,106 @@ export function convertToLockfileObject (lockfile: LockfileFile): Lockfile {
   return newLockfile
 }
 
+function convertPkgIds (lockfile: LockfileFile): void {
+  const oldIdToNewId: Record<string, string> = {}
+  if (lockfile.packages == null || isEmpty(lockfile.packages)) return
+  for (const [pkgId, pkg] of Object.entries(lockfile.packages ?? {})) {
+    if (pkg.name) {
+      const { id, peersSuffix } = parseDepPath(pkgId)
+      let newId = `${pkg.name}@`
+      if ('tarball' in pkg.resolution) {
+        newId += pkg.resolution.tarball
+        if (pkg.resolution.path) {
+          newId += `#path:${pkg.resolution.path}`
+        }
+      } else if ('repo' in pkg.resolution) {
+        newId += `${pkg.resolution.repo.startsWith('git+') ? '' : 'git+'}${pkg.resolution.repo}#${pkg.resolution.commit}`
+        if (pkg.resolution.path) {
+          newId += `&path:${pkg.resolution.path}`
+        }
+      } else if ('directory' in pkg.resolution) {
+        newId += id
+      } else {
+        continue
+      }
+      oldIdToNewId[pkgId] = `${newId}${peersSuffix}`
+      if (id !== pkgId) {
+        oldIdToNewId[id] = newId
+      }
+    } else {
+      const { id, peersSuffix } = parseDepPath(pkgId)
+      const newId = id.substring(1)
+      oldIdToNewId[pkgId] = `${newId}${peersSuffix}`
+      if (id !== pkgId) {
+        oldIdToNewId[id] = newId
+      }
+    }
+  }
+  const newLockfilePackages: PackageSnapshots = {}
+  for (const [pkgId, pkg] of Object.entries(lockfile.packages ?? {})) {
+    if (oldIdToNewId[pkgId]) {
+      if (pkg.id) {
+        pkg.id = oldIdToNewId[pkg.id]
+      }
+      newLockfilePackages[oldIdToNewId[pkgId]] = pkg
+    } else {
+      newLockfilePackages[pkgId] = pkg
+    }
+    for (const depType of ['dependencies', 'optionalDependencies'] as const) {
+      for (const [alias, depPath] of Object.entries(pkg[depType] ?? {})) {
+        if (oldIdToNewId[depPath]) {
+          if (oldIdToNewId[depPath].startsWith(`${alias}@`)) {
+            pkg[depType]![alias] = oldIdToNewId[depPath].substring(alias.length + 1)
+          } else {
+            pkg[depType]![alias] = oldIdToNewId[depPath]
+          }
+        }
+      }
+    }
+  }
+  lockfile.packages = newLockfilePackages
+  for (const importer of Object.values(lockfile.importers ?? {})) {
+    for (const depType of ['dependencies', 'optionalDependencies', 'devDependencies'] as const) {
+      for (const [alias, { version }] of Object.entries(importer[depType] ?? {})) {
+        if (oldIdToNewId[version]) {
+          if (oldIdToNewId[version].startsWith(`${alias}@`)) {
+            importer[depType]![alias].version = oldIdToNewId[version].substring(alias.length + 1)
+          } else {
+            importer[depType]![alias].version = oldIdToNewId[version]
+          }
+        }
+      }
+    }
+  }
+  for (const depType of ['dependencies', 'optionalDependencies', 'devDependencies'] as const) {
+    for (const [alias, { version }] of Object.entries(lockfile[depType] ?? {})) {
+      if (oldIdToNewId[version]) {
+        lockfile[depType]![alias].version = oldIdToNewId[version]
+      }
+    }
+  }
+}
+
+export function convertLockfileV9ToLockfileObject (lockfile: LockfileFileV9): Lockfile {
+  const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
+
+  const packages: PackageSnapshots = {}
+  for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
+    const pkgId = removePeersSuffix(depPath)
+    packages[depPath] = Object.assign(pkg, lockfile.packages?.[pkgId])
+  }
+  return {
+    ...omit(['snapshots'], rest),
+    packages,
+    importers: mapValues(importers ?? {}, revertProjectSnapshot),
+  }
+}
+
 function convertProjectSnapshotToInlineSpecifiersFormat (
   projectSnapshot: ProjectSnapshot
 ): InlineSpecifiersProjectSnapshot {
   const { specifiers, ...rest } = projectSnapshot
+  if (specifiers == null) return projectSnapshot as InlineSpecifiersProjectSnapshot
   const convertBlock = (block?: ResolvedDependencies) =>
     block != null
       ? convertResolvedDependenciesToInlineSpecifiersFormat(block, { specifiers })

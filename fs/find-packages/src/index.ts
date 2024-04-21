@@ -1,4 +1,5 @@
 import path from 'path'
+import util from 'util'
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
 import { type ProjectManifest } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -58,8 +59,8 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
             dir: path.dirname(manifestPath),
             ...await readExactProjectManifest(manifestPath),
           } as Project
-        } catch (err: any) { // eslint-disable-line
-          if (err.code === 'ENOENT') {
+        } catch (err: unknown) {
+          if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
             return null!
           }
           throw err
@@ -69,7 +70,7 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
   )
 }
 
-function normalizePatterns (patterns: readonly string[]) {
+function normalizePatterns (patterns: readonly string[]): string[] {
   const normalizedPatterns: string[] = []
   for (const pattern of patterns) {
     // We should add separate pattern for each extension

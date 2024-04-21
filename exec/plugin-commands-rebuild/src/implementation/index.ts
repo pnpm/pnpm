@@ -1,4 +1,6 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
@@ -69,7 +71,7 @@ function findPackages (
 function matches (
   searched: PackageSelector[],
   manifest: { name: string, version?: string }
-) {
+): boolean {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
       return manifest.name === searchedPkg
@@ -88,7 +90,7 @@ export async function rebuildSelectedPkgs (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
-) {
+): Promise<void> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -133,7 +135,7 @@ export async function rebuildSelectedPkgs (
 export async function rebuildProjects (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
   maybeOpts: RebuildOptions
-) {
+): Promise<void> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -207,7 +209,7 @@ function getSubgraphToBuild (
   opts: {
     pkgsToRebuild: Set<string>
   }
-) {
+): boolean {
   let currentShouldBeBuilt = false
   for (const { depPath, next } of step.dependencies) {
     if (nodesToBuildAndTransitive.has(depPath)) {
@@ -243,11 +245,11 @@ async function _rebuild (
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
-) {
+): Promise<Set<string>> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile)
   const depsStateCache: DepsStateCache = {}
   const cafsDir = path.join(opts.storeDir, 'files')
-  const pkgsThatWereRebuilt = new Set()
+  const pkgsThatWereRebuilt = new Set<string>()
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
 
@@ -349,8 +351,9 @@ async function _rebuild (
               sideEffectsCacheKey,
               filesIndexFile,
             })
-          } catch (err: any) { // eslint-disable-line
-            if (err.statusCode === 403) {
+          } catch (err: unknown) {
+            assert(util.types.isNativeError(err))
+            if ('statusCode' in err && err.statusCode === 403) {
               logger.warn({
                 message: `The store server disabled upload requests, could not upload ${pkgRoot}`,
                 prefix: opts.lockfileDir,
@@ -365,7 +368,8 @@ async function _rebuild (
           }
         }
         pkgsThatWereRebuilt.add(depPath)
-      } catch (err: any) { // eslint-disable-line
+      } catch (err: unknown) {
+        assert(util.types.isNativeError(err))
         if (pkgSnapshot.optional) {
           // TODO: add parents field to the log
           skippedOptionalDependencyLogger.debug({

@@ -24,6 +24,6 @@ const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
   copyArtifact('win-x64/pnpm.exe', 'pnpm-win-x64.exe')
 })()
 
-function copyArtifact (srcName: string, destName: string) {
+function copyArtifact (srcName: string, destName: string): void {
   fs.copyFileSync(path.join(artifactsDir, srcName), path.join(dest, destName))
 }

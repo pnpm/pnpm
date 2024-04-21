@@ -1,6 +1,6 @@
 import { type CompletionItem } from '@pnpm/tabtab'
 
-export function optionTypesToCompletions (optionTypes: Record<string, unknown>) {
+export function optionTypesToCompletions (optionTypes: Record<string, unknown>): CompletionItem[] {
   const completions: CompletionItem[] = []
   for (const [name, typeObj] of Object.entries(optionTypes)) {
     if (typeObj === Boolean) {

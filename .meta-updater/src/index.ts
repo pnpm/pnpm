@@ -1,8 +1,8 @@
 import fs from 'fs'
 import path from 'path'
-import { readWantedLockfile, Lockfile } from '@pnpm/lockfile-file'
-import { ProjectManifest } from '@pnpm/types'
-import { createUpdateOptions, FormatPluginFnOptions } from '@pnpm/meta-updater'
+import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile-file'
+import { type ProjectManifest } from '@pnpm/types'
+import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import isSubdir from 'is-subdir'
 import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
@@ -77,7 +77,7 @@ async function updateTSConfig (
     dir,
     manifest,
   }: FormatPluginFnOptions
-) {
+): Promise<object | null> {
   if (tsConfig == null) return tsConfig
   if (manifest.name === '@pnpm/tsconfig') return tsConfig
   const relative = normalizePath(path.relative(context.workspaceDir, dir))
@@ -99,7 +99,8 @@ async function updateTSConfig (
         manifest.name === '@pnpm/git-fetcher' ||
         manifest.name === '@pnpm/tarball-fetcher' ||
         manifest.name === '@pnpm/package-requester'
-      )
+      ) ||
+      depName === 'pnpm' && manifest.name === '@pnpm/make-dedicated-lockfile'
     ) {
       // This is to avoid a circular graph (which TypeScript references do not support.
       continue
@@ -128,7 +129,9 @@ async function updateTSConfig (
 
 let registryMockPort = 7769
 
-async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string) {
+type UpdatedManifest = ProjectManifest & Record<string, unknown>
+
+async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string): Promise<UpdatedManifest> {
   const relative = normalizePath(path.relative(workspaceDir, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {

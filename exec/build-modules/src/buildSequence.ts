@@ -27,7 +27,7 @@ export interface DependenciesGraph {
 export function buildSequence (
   depGraph: Record<string, Pick<DependenciesGraphNode, 'children' | 'requiresBuild'>>,
   rootDepPaths: string[]
-) {
+): string[][] {
   const nodesToBuild = new Set<string>()
   getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<string>())
   const onlyFromBuildGraph = filter((depPath: string) => nodesToBuild.has(depPath))
@@ -46,7 +46,7 @@ function getSubgraphToBuild (
   entryNodes: string[],
   nodesToBuild: Set<string>,
   walked: Set<string>
-) {
+): boolean {
   let currentShouldBeBuilt = false
   for (const depPath of entryNodes) {
     const node = graph[depPath]

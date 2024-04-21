@@ -13,9 +13,6 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
-      "path": "../../exec/files-include-install-scripts"
-    },
-    {
       "path": "../../fetching/pick-fetcher"
     },
     {
@@ -23,6 +20,9 @@
     },
     {
       "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../lockfile/preferred-versions"
     },
     {
       "path": "../../lockfile/prune-lockfile"

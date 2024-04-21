@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "8.1.2",
+  "version": "9.0.0",
   "description": "Checks if a package is installable on the current system",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "detect-libc": "^2.0.2",
+    "detect-libc": "^2.0.3",
     "execa": "npm:safe-execa@0.1.2",
     "mem": "^8.1.1",
     "semver": "^7.6.0"

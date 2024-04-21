@@ -1,5 +1,28 @@
 # @pnpm/calc-dep-state
 
+## 6.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [d636eed]
+- Updated dependencies [27a96a8]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/crypto.object-hasher@2.0.0
+
 ## 5.0.0
 
 ### Major Changes

@@ -33,7 +33,7 @@ export async function runLifecycleHooksConcurrently (
   importers: Importer[],
   childConcurrency: number,
   opts: RunLifecycleHooksConcurrentlyOptions
-) {
+): Promise<void> {
   const importersByBuildIndex = new Map<number, Importer[]>()
   for (const importer of importers) {
     if (!importersByBuildIndex.has(importer.buildIndex)) {
@@ -101,7 +101,7 @@ export async function runLifecycleHooksConcurrently (
   await runGroups(childConcurrency, groups)
 }
 
-async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Record<string, string>) {
+async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Record<string, string>): Promise<void> {
   const files = await fs.promises.readdir(currentDir)
   await Promise.all(files.map(async (file) => {
     const fullPath = path.join(currentDir, file)

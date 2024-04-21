@@ -2,11 +2,11 @@ import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { type Registries } from '@pnpm/types'
 import semver from 'semver'
 
-export function isAbsolute (dependencyPath: string) {
+export function isAbsolute (dependencyPath: string): boolean {
   return dependencyPath[0] !== '/'
 }
 
-export function indexOfPeersSuffix (depPath: string) {
+export function indexOfPeersSuffix (depPath: string): number {
   if (!depPath.endsWith(')')) return -1
   let open = 1
   for (let i = depPath.length - 2; i >= 0; i--) {
@@ -21,10 +21,26 @@ export function indexOfPeersSuffix (depPath: string) {
   return -1
 }
 
-export function tryGetPackageId (relDepPath: string) {
-  if (relDepPath[0] !== '/') {
-    return null
+export interface ParsedDepPath {
+  id: string
+  peersSuffix: string
+}
+
+export function parseDepPath (relDepPath: string): ParsedDepPath {
+  const sepIndex = indexOfPeersSuffix(relDepPath)
+  if (sepIndex !== -1) {
+    return {
+      id: relDepPath.substring(0, sepIndex),
+      peersSuffix: relDepPath.substring(sepIndex),
+    }
   }
+  return {
+    id: relDepPath,
+    peersSuffix: '',
+  }
+}
+
+export function removePeersSuffix (relDepPath: string): string {
   const sepIndex = indexOfPeersSuffix(relDepPath)
   if (sepIndex !== -1) {
     return relDepPath.substring(0, sepIndex)
@@ -32,7 +48,18 @@ export function tryGetPackageId (relDepPath: string) {
   return relDepPath
 }
 
-export function getRegistryByPackageName (registries: Registries, packageName: string) {
+export function tryGetPackageId (relDepPath: string): string {
+  const sepIndex = indexOfPeersSuffix(relDepPath)
+  if (sepIndex !== -1) {
+    relDepPath = relDepPath.substring(0, sepIndex)
+  }
+  if (relDepPath.includes(':')) {
+    relDepPath = relDepPath.substring(relDepPath.indexOf('@', 1) + 1)
+  }
+  return relDepPath
+}
+
+export function getRegistryByPackageName (registries: Registries, packageName: string): string {
   if (packageName[0] !== '@') return registries.default
   const scope = packageName.substring(0, packageName.indexOf('/'))
   return registries[scope] || registries.default
@@ -45,16 +72,23 @@ export function refToRelative (
   if (reference.startsWith('link:')) {
     return null
   }
-  if (reference.startsWith('file:')) {
-    return reference
-  }
-  if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
-    return `/${pkgName}@${reference}`
-  }
-  return reference
+  if (reference.startsWith('@')) return reference
+  const atIndex = reference.indexOf('@')
+  if (atIndex === -1) return `${pkgName}@${reference}`
+  const colonIndex = reference.indexOf(':')
+  const bracketIndex = reference.indexOf('(')
+  if ((colonIndex === -1 || atIndex < colonIndex) && (bracketIndex === -1 || atIndex < bracketIndex)) return reference
+  return `${pkgName}@${reference}`
 }
 
-export function parse (dependencyPath: string) {
+export interface DependencyPath {
+  name?: string
+  peersSuffix?: string
+  version?: string
+  nonSemverVersion?: string
+}
+
+export function parse (dependencyPath: string): DependencyPath {
   // eslint-disable-next-line: strict-type-predicates
   if (typeof dependencyPath !== 'string') {
     throw new TypeError(`Expected \`dependencyPath\` to be of type \`string\`, got \`${
@@ -62,11 +96,11 @@ export function parse (dependencyPath: string) {
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }
-  const sepIndex = dependencyPath.indexOf('@', 2)
+  const sepIndex = dependencyPath.indexOf('@', 1)
   if (sepIndex === -1) {
     return {}
   }
-  const name = dependencyPath.substring(1, sepIndex)
+  const name = dependencyPath.substring(0, sepIndex)
   let version = dependencyPath.substring(sepIndex + 1)
   if (version) {
     let peerSepIndex!: number
@@ -85,14 +119,18 @@ export function parse (dependencyPath: string) {
         version,
       }
     }
+    return {
+      name,
+      nonSemverVersion: version,
+      peersSuffix,
+    }
   }
-  return {
-  }
+  return {}
 }
 
 const MAX_LENGTH_WITHOUT_HASH = 120 - 26 - 1
 
-export function depPathToFilename (depPath: string) {
+export function depPathToFilename (depPath: string): string {
   let filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|]/g, '+')
   if (filename.includes('(')) {
     filename = filename
@@ -105,7 +143,7 @@ export function depPathToFilename (depPath: string) {
   return filename
 }
 
-function depPathToFilenameUnescaped (depPath: string) {
+function depPathToFilenameUnescaped (depPath: string): string {
   if (depPath.indexOf('file:') !== 0) {
     if (depPath[0] === '/') {
       depPath = depPath.substring(1)

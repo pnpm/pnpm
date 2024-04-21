@@ -1,4 +1,6 @@
+import assert from 'assert'
 import { type IncomingMessage } from 'http'
+import util from 'util'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError } from '@pnpm/error'
 import { type FetchResult, type FetchOptions } from '@pnpm/fetcher-base'
@@ -99,6 +101,7 @@ export function createDownloader (
     })
 
     async function fetch (currentAttempt: number): Promise<FetchResult> {
+      let data: Buffer
       try {
         const res = await fetchFromRegistry(url, {
           authHeaderValue,
@@ -142,26 +145,29 @@ export function createDownloader (
           })
         }
 
-        const data: Buffer = Buffer.from(new SharedArrayBuffer(downloaded))
+        data = Buffer.from(new SharedArrayBuffer(downloaded))
         let offset: number = 0
         for (const chunk of chunks) {
           chunk.copy(data, offset)
           offset += chunk.length
         }
-        return await addFilesFromTarball({
-          buffer: data,
-          cafsDir: opts.cafs.cafsDir,
-          readManifest: opts.readManifest,
-          integrity: opts.integrity,
-          filesIndexFile: opts.filesIndexFile,
-          url,
-          pkg: opts.pkg,
+      } catch (err: unknown) {
+        assert(util.types.isNativeError(err))
+        Object.assign(err, {
+          attempts: currentAttempt,
+          resource: url,
         })
-      } catch (err: any) { // eslint-disable-line
-        err.attempts = currentAttempt
-        err.resource = url
         throw err
       }
+      return addFilesFromTarball({
+        buffer: data,
+        cafsDir: opts.cafs.cafsDir,
+        readManifest: opts.readManifest,
+        integrity: opts.integrity,
+        filesIndexFile: opts.filesIndexFile,
+        url,
+        pkg: opts.pkg,
+      })
     }
   }
 }

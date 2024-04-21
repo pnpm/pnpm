@@ -22,12 +22,12 @@ describe('audit', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        '/bar@1.0.0': {
+        'bar@1.0.0': {
           resolution: {
             integrity: 'bar-integrity',
           },
         },
-        '/foo@1.0.0': {
+        'foo@1.0.0': {
           dependencies: {
             bar: '1.0.0',
           },
@@ -89,12 +89,12 @@ describe('audit', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        '/bar@1.0.0': {
+        'bar@1.0.0': {
           resolution: {
             integrity: 'bar-integrity',
           },
         },
-        '/foo@1.0.0': {
+        'foo@1.0.0': {
           dependencies: {
             bar: '1.0.0',
           },
@@ -155,7 +155,7 @@ describe('audit', () => {
     try {
       await audit({
         importers: {},
-        lockfileVersion: 5,
+        lockfileVersion: LOCKFILE_VERSION,
       },
       getAuthHeader,
       {

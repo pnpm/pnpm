@@ -10,7 +10,7 @@ export function reportHooks (
     cwd: string
     isRecursive: boolean
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return hook$.pipe(
     map((log) => Rx.of({
       msg: autozoom(

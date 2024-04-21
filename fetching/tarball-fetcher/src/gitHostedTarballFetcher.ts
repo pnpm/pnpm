@@ -1,4 +1,6 @@
+import assert from 'assert'
 import fs from 'node:fs/promises'
+import util from 'util'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import { packlist } from '@pnpm/fs.packlist'
@@ -18,14 +20,14 @@ interface Resolution {
 
 export interface CreateGitHostedTarballFetcher {
   ignoreScripts?: boolean
-  rawConfig: object
+  rawConfig: Record<string, unknown>
   unsafePerm?: boolean
 }
 
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tempIndexFile = pathTemp(opts.filesIndexFile)
-    const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, {
+    const { filesIndex, manifest, requiresBuild } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
       filesIndexFile: tempIndexFile,
     })
@@ -37,8 +39,10 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
       return {
         filesIndex: prepareResult.filesIndex,
         manifest: prepareResult.manifest ?? manifest,
+        requiresBuild,
       }
-    } catch (err: any) { // eslint-disable-line
+    } catch (err: unknown) {
+      assert(util.types.isNativeError(err))
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
       throw err
     }
@@ -67,6 +71,7 @@ async function prepareGitHostedPkg (
     filesResponse: {
       filesIndex,
       resolvedFrom: 'remote',
+      requiresBuild: false,
     },
     force: true,
   })

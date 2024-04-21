@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-export function isEmptyDirOrNothing (path: string) {
+export function isEmptyDirOrNothing (path: string): boolean {
   try {
     const pathStat = fs.statSync(path)
 
@@ -19,7 +19,7 @@ export function isEmptyDirOrNothing (path: string) {
   }
 }
 
-function isDirEmpty (path: string) {
+function isDirEmpty (path: string): boolean {
   const files = fs.readdirSync(path)
   return files.length === 0
 }

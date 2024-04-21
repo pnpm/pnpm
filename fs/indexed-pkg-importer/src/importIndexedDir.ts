@@ -1,4 +1,5 @@
 import fs from 'fs'
+import util from 'util'
 import { copySync } from 'fs-extra'
 import path from 'path'
 import { globalWarn, logger } from '@pnpm/logger'
@@ -19,7 +20,7 @@ export function importIndexedDir (
   opts: {
     keepModulesDir?: boolean
   }
-) {
+): void {
   const stage = pathTemp(newDir)
   try {
     tryImportIndexedDir(importFile, stage, filenames)
@@ -28,11 +29,11 @@ export function importIndexedDir (
       moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
     }
     renameOverwrite.sync(stage, newDir)
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     try {
       rimraf(stage)
-    } catch (err) {} // eslint-disable-line:no-empty
-    if (err['code'] === 'EEXIST') {
+    } catch {} // eslint-disable-line:no-empty
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') {
       const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
       if (Object.keys(conflictingFileNames).length === 0) throw err
       filenameConflictsLogger.debug({
@@ -48,7 +49,7 @@ export function importIndexedDir (
       importIndexedDir(importFile, newDir, uniqueFileMap, opts)
       return
     }
-    if (err['code'] === 'ENOENT') {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
       if (invalidFilenames.length === 0) throw err
       globalWarn(`\
@@ -62,7 +63,12 @@ They were renamed.`)
   }
 }
 
-function sanitizeFilenames (filenames: Record<string, string>) {
+interface SanitizeFilenamesResult {
+  sanitizedFilenames: Record<string, string>
+  invalidFilenames: string[]
+}
+
+function sanitizeFilenames (filenames: Record<string, string>): SanitizeFilenamesResult {
   const sanitizedFilenames: Record<string, string> = {}
   const invalidFilenames: string[] = []
   for (const [filename, src] of Object.entries(filenames)) {
@@ -75,7 +81,7 @@ function sanitizeFilenames (filenames: Record<string, string>) {
   return { sanitizedFilenames, invalidFilenames }
 }
 
-function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>) {
+function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>): void {
   makeEmptyDir(newDir, { recursive: true })
   const allDirs = new Set<string>()
   Object.keys(filenames)
@@ -93,7 +99,12 @@ function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames:
   }
 }
 
-function getUniqueFileMap (fileMap: Record<string, string>) {
+interface GetUniqueFileMapResult {
+  conflictingFileNames: Record<string, string>
+  uniqueFileMap: Record<string, string>
+}
+
+function getUniqueFileMap (fileMap: Record<string, string>): GetUniqueFileMapResult {
   const lowercaseFiles = new Map<string, string>()
   const conflictingFileNames: Record<string, string> = {}
   const uniqueFileMap: Record<string, string> = {}
@@ -112,11 +123,11 @@ function getUniqueFileMap (fileMap: Record<string, string>) {
   }
 }
 
-function moveOrMergeModulesDirs (src: string, dest: string) {
+function moveOrMergeModulesDirs (src: string, dest: string): void {
   try {
     renameEvenAcrossDevices(src, dest)
-  } catch (err: any) { // eslint-disable-line
-    switch (err.code) {
+  } catch (err: unknown) {
+    switch (util.types.isNativeError(err) && 'code' in err && err.code) {
     case 'ENOENT':
       // If src directory doesn't exist, there is nothing to do
       return
@@ -131,16 +142,16 @@ function moveOrMergeModulesDirs (src: string, dest: string) {
   }
 }
 
-function renameEvenAcrossDevices (src: string, dest: string) {
+function renameEvenAcrossDevices (src: string, dest: string): void {
   try {
     fs.renameSync(src, dest)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'EXDEV') throw err
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
     copySync(src, dest)
   }
 }
 
-function mergeModulesDirs (src: string, dest: string) {
+function mergeModulesDirs (src: string, dest: string): void {
   const srcFiles = fs.readdirSync(src)
   const destFiles = new Set(fs.readdirSync(dest))
   const filesToMove = srcFiles.filter((file) => !destFiles.has(file))

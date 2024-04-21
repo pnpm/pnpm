@@ -9,13 +9,13 @@ export function autozoom (
   opts: {
     zoomOutCurrent: boolean
   }
-) {
+): string {
   if (!logPrefix || !opts.zoomOutCurrent && currentPrefix === logPrefix) {
     return line
   }
   return zoomOut(currentPrefix, logPrefix, line)
 }
 
-export function zoomOut (currentPrefix: string, logPrefix: string, line: string) {
+export function zoomOut (currentPrefix: string, logPrefix: string, line: string): string {
   return `${rightPad(formatPrefix(currentPrefix, logPrefix), PREFIX_MAX_LENGTH)} | ${line}`
 }

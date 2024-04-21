@@ -1,3 +1,5 @@
+import assert from 'assert'
+import util from 'util'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
 import nodeFetch, { type Request, type RequestInit as NodeRequestInit, Response } from 'node-fetch'
@@ -46,8 +48,13 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
           } else {
             resolve(res)
           }
-        } catch (error: any) { // eslint-disable-line
-          if (error.code && NO_RETRY_ERROR_CODES.has(error.code)) {
+        } catch (error: unknown) {
+          assert(util.types.isNativeError(error))
+          if (
+            'code' in error &&
+            typeof error.code === 'string' &&
+            NO_RETRY_ERROR_CODES.has(error.code)
+          ) {
             throw error
           }
           const timeout = op.retry(error)

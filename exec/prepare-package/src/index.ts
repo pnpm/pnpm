@@ -1,5 +1,7 @@
+import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -19,7 +21,7 @@ const PREPUBLISH_SCRIPTS = [
 
 export interface PreparePackageOptions {
   ignoreScripts?: boolean
-  rawConfig: object
+  rawConfig: Record<string, unknown>
   unsafePerm?: boolean
 }
 
@@ -44,11 +46,21 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
     await runLifecycleHook(installScriptName, manifest, execOpts)
     for (const scriptName of PREPUBLISH_SCRIPTS) {
       if (manifest.scripts[scriptName] == null || manifest.scripts[scriptName] === '') continue
+      let newScriptName
+      if (pm !== 'pnpm') {
+        newScriptName = `${pm}-run-${scriptName}`
+        manifest.scripts[newScriptName] = `${pm} run ${scriptName}`
+      } else {
+        newScriptName = scriptName
+      }
       // eslint-disable-next-line no-await-in-loop
-      await runLifecycleHook(scriptName, manifest, execOpts)
+      await runLifecycleHook(newScriptName, manifest, execOpts)
     }
-  } catch (err: any) { // eslint-disable-line
-    err.code = 'ERR_PNPM_PREPARE_PACKAGE'
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    Object.assign(err, {
+      code: 'ERR_PNPM_PREPARE_PACKAGE',
+    })
     throw err
   }
   await rimraf(path.join(pkgDir, 'node_modules'))
@@ -65,7 +77,7 @@ function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boole
   return !fs.existsSync(path.join(pkgDir, mainFile))
 }
 
-function safeJoinPath (root: string, sub: string) {
+function safeJoinPath (root: string, sub: string): string {
   const joined = path.join(root, sub)
   // prevent the dir traversal attack
   const relative = path.relative(root, joined)

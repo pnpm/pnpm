@@ -5,7 +5,7 @@ import { readModulesManifest } from '@pnpm/modules-yaml'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from '../utils'
 
 test('recursive update', async () => {
@@ -48,7 +48,7 @@ test('recursive update', async () => {
   }, ['is-positive@2.0.0'])
 
   expect(projects['project-1'].requireModule('is-positive/package.json').version).toBe('2.0.0')
-  await projects['project-2'].hasNot('is-positive')
+  projects['project-2'].hasNot('is-positive')
 })
 
 test('recursive update prod dependencies only', async () => {
@@ -108,11 +108,11 @@ test('recursive update prod dependencies only', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('./pnpm-lock.yaml')
   expect(
     Object.keys(lockfile.packages ?? {})
   ).toStrictEqual(
-    ['/@pnpm.e2e/bar@100.0.0', '/@pnpm.e2e/foo@100.1.0']
+    ['@pnpm.e2e/bar@100.0.0', '@pnpm.e2e/foo@100.1.0']
   )
   const modules = await readModulesManifest('./node_modules')
   expect(modules?.included).toStrictEqual({
@@ -313,13 +313,13 @@ test('recursive update --latest foo should only update projects that have foo', 
     workspaceDir: process.cwd(),
   }, ['@zkochan/async-regex-replace', '@pnpm.e2e/foo'])
 
-  const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('./pnpm-lock.yaml')
 
   expect(Object.keys(lockfile.packages ?? {}).sort()).toStrictEqual([
-    '/@zkochan/async-regex-replace@0.2.0',
-    '/@pnpm.e2e/bar@100.0.0',
-    '/@pnpm.e2e/foo@100.1.0',
-    '/@pnpm.e2e/qar@100.0.0',
+    '@zkochan/async-regex-replace@0.2.0',
+    '@pnpm.e2e/bar@100.0.0',
+    '@pnpm.e2e/foo@100.1.0',
+    '@pnpm.e2e/qar@100.0.0',
   ].sort())
 })
 
@@ -372,15 +372,15 @@ test('recursive update --latest foo should only update packages that have foo', 
   }, ['@pnpm.e2e/foo'])
 
   {
-    const lockfile = await projects['project-1'].readLockfile()
+    const lockfile = projects['project-1'].readLockfile()
 
-    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/foo@100.1.0', '/@pnpm.e2e/qar@100.0.0'])
+    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['@pnpm.e2e/foo@100.1.0', '@pnpm.e2e/qar@100.0.0'])
   }
 
   {
-    const lockfile = await projects['project-2'].readLockfile()
+    const lockfile = projects['project-2'].readLockfile()
 
-    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/bar@100.0.0'])
+    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['@pnpm.e2e/bar@100.0.0'])
   }
 })
 
@@ -412,6 +412,6 @@ test('recursive update in workspace should not add new dependencies', async () =
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
 
-  await projects['project-1'].hasNot('is-positive')
-  await projects['project-2'].hasNot('is-positive')
+  projects['project-1'].hasNot('is-positive')
+  projects['project-2'].hasNot('is-positive')
 })

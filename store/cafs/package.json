@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.cafs",
-  "version": "2.0.12",
+  "version": "3.0.0",
   "description": "A content-addressable filesystem for the packages storage",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,8 +31,9 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/is-gzip": "2.0.0",
-    "@types/node": "^18.19.15",
+    "@types/node": "^18.19.31",
     "@types/ssri": "^7.1.5",
+    "symlink-dir": "^6.0.0",
     "tempy": "^1.0.1"
   },
   "bugs": {

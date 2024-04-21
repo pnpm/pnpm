@@ -1,26 +1,25 @@
-lockfileVersion: '6.0'
+lockfileVersion: '9.0'
 
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  is-negative:
-    specifier: github:kevva/is-negative#master
-    version: github.com/kevva/is-negative/219c424611ff4a2af15f7deeff4f93c62558c43d
+importers:
+
+  .:
+    dependencies:
+      is-negative:
+        specifier: github:kevva/is-negative#master
+        version: https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c
 
 packages:
 
-  /is-positive@3.1.0:
-    resolution: {integrity: sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==}
+  is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c:
+    resolution: {tarball: https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c}
+    version: 2.1.0
     engines: {node: '>=0.10.0'}
-    dev: false
 
-  github.com/kevva/is-negative/219c424611ff4a2af15f7deeff4f93c62558c43d:
-    resolution: {tarball: https://codeload.github.com/kevva/is-negative/tar.gz/219c424611ff4a2af15f7deeff4f93c62558c43d}
-    name: is-negative
-    version: 2.0.0
-    engines: {node: '>=0.10.0'}
-    dependencies:
-      is-positive: 3.1.0
+snapshots:
+
+  is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c:
     dev: false

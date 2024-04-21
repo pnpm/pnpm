@@ -27,7 +27,7 @@ export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions,
 export async function createOrConnectStoreControllerCached (
   storeControllerCache: Map<string, Promise<{ ctrl: StoreController, dir: string }>>,
   opts: CreateStoreControllerOptions
-) {
+): Promise<{ ctrl: StoreController, dir: string }> {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/license-scanner",
-  "version": "2.3.0",
+  "version": "3.0.1",
   "description": "Check for licenses packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -40,6 +40,7 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
+    "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
@@ -53,8 +54,8 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/license-scanner": "workspace:*",
-    "@types/ramda": "0.28.20",
-    "@types/semver": "^7.5.7"
+    "@types/ramda": "0.29.12",
+    "@types/semver": "^7.5.8"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

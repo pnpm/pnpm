@@ -1,5 +1,18 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 6.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/graceful-fs@4.0.0
+
 ## 5.0.13
 
 ### Patch Changes

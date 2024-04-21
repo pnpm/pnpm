@@ -1,19 +1,18 @@
 {
   "name": "@pnpm/prepare",
-  "version": "0.0.89",
+  "version": "0.0.90",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "unique-string": "^2.0.0",
     "write-json5-file": "^3.1.0",
     "write-pkg": "4.0.0",
     "write-yaml-file": "^5.0.0"
   },
   "devDependencies": {
     "@pnpm/prepare": "workspace:*",
-    "@types/node": "^18.19.15"
+    "@types/node": "^18.19.31"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts",

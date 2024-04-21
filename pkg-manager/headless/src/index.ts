@@ -102,7 +102,7 @@ export interface HeadlessOptions {
   childConcurrency?: number
   currentLockfile?: Lockfile
   currentEngine: {
-    nodeVersion: string
+    nodeVersion?: string
     pnpmVersion: string
   }
   dedupeDirectDeps?: boolean
@@ -412,7 +412,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
       const hoistLockfile = {
         ...filteredLockfile,
-        packages: omit(Array.from(skipped), filteredLockfile.packages),
+        packages: filteredLockfile.packages != null ? omit(Array.from(skipped), filteredLockfile.packages) : {},
       }
       newHoistedDependencies = await hoist({
         extraNodePath: opts.extraNodePaths,
@@ -711,7 +711,7 @@ async function linkBinsOfImporter (
     rootDir: string
   },
   { extraNodePaths, preferSymlinkedExecutables }: { extraNodePaths?: string[], preferSymlinkedExecutables?: boolean } = {}
-) {
+): Promise<string[]> {
   const warn = (message: string) => {
     logger.info({ message, prefix: rootDir })
   }
@@ -816,8 +816,8 @@ async function linkAllPkgs (
     lockfileDir: string
     sideEffectsCacheRead: boolean
   }
-) {
-  return Promise.all(
+): Promise<void> {
+  await Promise.all(
     depNodes.map(async (depNode) => {
       if (!depNode.fetching) return
       let filesResponse!: PackageFilesResponse
@@ -828,6 +828,7 @@ async function linkAllPkgs (
         throw err
       }
 
+      depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
         sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
@@ -839,7 +840,7 @@ async function linkAllPkgs (
         filesResponse,
         force: opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-        requiresBuild: depNode.patchFile != null || (depNode.optional ? (depNode.requiresBuild ? undefined : false) : depNode.requiresBuild),
+        requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
         sideEffectsCacheKey,
       })
       if (importMethod) {
@@ -871,8 +872,8 @@ async function linkAllBins (
     preferSymlinkedExecutables?: boolean
     warn: (message: string) => void
   }
-) {
-  return Promise.all(
+): Promise<void> {
+  await Promise.all(
     Object.values(depGraph)
       .map(async (depNode) => limitLinking(async () => {
         const childrenToLink: Record<string, string> = opts.optional
@@ -922,7 +923,7 @@ async function linkAllModules (
   opts: {
     optional: boolean
   }
-) {
+): Promise<void> {
   await symlinkAllModules({
     deps: depNodes.map((depNode) => ({
       children: opts.optional

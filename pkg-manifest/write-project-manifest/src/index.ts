@@ -38,7 +38,7 @@ export async function writeProjectManifest (
   return writeFileAtomic(filePath, `${json}${trailingNewline}`)
 }
 
-function stringifyJson5 (obj: object, indent: string | number, comments?: CommentSpecifier[]) {
+function stringifyJson5 (obj: object, indent: string | number, comments?: CommentSpecifier[]): string {
   const json5 = JSON5.stringify(obj, undefined, indent)
   if (comments) {
     return insertComments(json5, comments)

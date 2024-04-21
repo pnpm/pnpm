@@ -1,5 +1,6 @@
 import path from 'path'
 import { createVersionsOverrider } from '../lib/createVersionsOverrider'
+import normalizePath from 'normalize-path'
 
 test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider({
@@ -148,6 +149,27 @@ test('createVersionsOverrider() overrides dependencies with links', () => {
   })
 })
 
+test('createVersionsOverrider() overrides dependencies with absolute links', () => {
+  const qarAbsolutePath = path.resolve(process.cwd(), './qar')
+  const overrider = createVersionsOverrider({
+    qar: `link:${qarAbsolutePath}`,
+  }, process.cwd())
+
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: `link:${normalizePath(path.relative(path.resolve('pkg'), qarAbsolutePath))}`,
+    },
+  })
+})
+
 test('createVersionsOverrider() overrides dependency of pkg matched by name and version', () => {
   const overrider = createVersionsOverrider({
     'yargs@^7.1.0>yargs-parser': '^20.0.0',
@@ -253,7 +275,7 @@ test('createVersionsOverrider() should work for scoped parent and scoped child',
   })
 })
 
-test('createVersionsOverrider() overrides dependencies with file', () => {
+test('createVersionsOverrider() overrides dependencies with file with relative path', () => {
   const overrider = createVersionsOverrider({
     qar: 'file:../qar',
   }, process.cwd())
@@ -267,7 +289,7 @@ test('createVersionsOverrider() overrides dependencies with file', () => {
     name: 'foo',
     version: '1.2.0',
     dependencies: {
-      qar: `file:${path.resolve('../qar')}`,
+      qar: 'file:../qar',
     },
   })
 })

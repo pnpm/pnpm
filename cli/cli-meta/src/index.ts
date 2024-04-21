@@ -21,7 +21,7 @@ if (require.main == null) {
         path.join(path.dirname(require.main.filename), '../package.json')
       ),
     }
-  } catch (err: any) { // eslint-disable-line
+  } catch {
     pkgJson = defaultManifest
   }
 }

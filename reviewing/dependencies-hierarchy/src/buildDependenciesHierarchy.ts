@@ -5,7 +5,9 @@ import {
   type ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
+  type ResolvedDependencies,
 } from '@pnpm/lockfile-file'
+import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
@@ -108,7 +110,7 @@ async function dependenciesHierarchyForPackage (
     modulesDir?: string
     virtualStoreDir?: string
   }
-) {
+): Promise<DependenciesHierarchy> {
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
   if (!currentLockfile.importers[importerId]) return {}
@@ -119,10 +121,12 @@ async function dependenciesHierarchyForPackage (
   const allDirectDeps = await readModulesDir(modulesDir) ?? []
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
 
+  const depTypes = detectDepTypes(currentLockfile)
   const getChildrenTree = getTree.bind(null, {
     currentPackages: currentLockfile.packages ?? {},
     importers: currentLockfile.importers,
     includeOptionalDependencies: opts.include.optionalDependencies,
+    depTypes,
     lockfileDir: opts.lockfileDir,
     onlyProjects: opts.onlyProjects,
     rewriteLinkVersionDir: projectPath,
@@ -143,6 +147,7 @@ async function dependenciesHierarchyForPackage (
       const packageInfo = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
+        depTypes,
         rewriteLinkVersionDir: projectPath,
         linkedPathBaseDir: projectPath,
         ref,
@@ -191,7 +196,7 @@ async function dependenciesHierarchyForPackage (
       try {
         pkgPath = await resolveLinkTarget(pkgPath)
         version = `link:${normalizePath(path.relative(projectPath, pkgPath))}`
-      } catch (err: any) { // eslint-disable-line
+      } catch {
         // if error happened. The package is not a link
         const pkg = await safeReadPackageJsonFromDir(pkgPath)
         version = pkg?.version ?? 'undefined'
@@ -219,7 +224,7 @@ async function dependenciesHierarchyForPackage (
   return result
 }
 
-function getAllDirectDependencies (projectSnapshot: ProjectSnapshot) {
+function getAllDirectDependencies (projectSnapshot: ProjectSnapshot): ResolvedDependencies {
   return {
     ...projectSnapshot.dependencies,
     ...projectSnapshot.devDependencies,

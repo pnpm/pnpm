@@ -19,12 +19,12 @@ export function packageIsInstallable (
     nodeVersion?: string
     supportedArchitectures?: SupportedArchitectures
   }
-) {
+): void {
   const pnpmVersion = packageManager.name === 'pnpm'
-    ? packageManager.stableVersion
+    ? packageManager.version
     : undefined
-  if (pkg.packageManager) {
-    const [pmName, pmVersion] = pkg.packageManager.split('@')
+  if (pkg.packageManager && !process.env.COREPACK_ROOT) {
+    const [pmName, pmReference] = pkg.packageManager.split('@')
     if (pmName && pmName !== 'pnpm') {
       const msg = `This project is configured to use ${pmName}`
       if (opts.packageManagerStrict) {
@@ -32,12 +32,18 @@ export function packageIsInstallable (
       } else {
         globalWarn(msg)
       }
-    } else if (pmVersion && pnpmVersion && pmVersion !== pnpmVersion) {
-      const msg = `This project is configured to use v${pmVersion} of pnpm. Your current pnpm is v${pnpmVersion}`
-      if (opts.packageManagerStrict) {
-        throw new PnpmError('BAD_PM_VERSION', msg)
-      } else {
-        globalWarn(msg)
+    } else if (!pmReference.includes(':')) {
+      // pmReference is semantic versioning, not URL
+      const [pmVersion] = pmReference.split('+')
+      if (pmVersion && pnpmVersion && pmVersion !== pnpmVersion) {
+        const msg = `This project is configured to use v${pmVersion} of pnpm. Your current pnpm is v${pnpmVersion}`
+        if (opts.packageManagerStrict) {
+          throw new PnpmError('BAD_PM_VERSION', msg, {
+            hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
+          })
+        } else {
+          globalWarn(msg)
+        }
       }
     }
   }

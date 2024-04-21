@@ -1,3 +1,5 @@
+import assert from 'assert'
+import util from 'util'
 import {
   type RecursiveSummary,
   throwOnCommandFail,
@@ -38,7 +40,7 @@ export async function recursiveRebuild (
   opts: RecursiveRebuildOpts & {
     ignoredPackages?: Set<string>
   } & Required<Pick<Config, 'selectedProjectsGraph' | 'workspaceDir'>>
-) {
+): Promise<void> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
     return
@@ -142,20 +144,23 @@ export async function recursiveRebuild (
             }
           )
           result[rootDir].status = 'passed'
-        } catch (err: any) { // eslint-disable-line
-          logger.info(err)
+        } catch (err: unknown) {
+          assert(util.types.isNativeError(err))
+          const errWithPrefix = Object.assign(err, {
+            prefix: rootDir,
+          })
+          logger.info(errWithPrefix)
 
           if (!opts.bail) {
             result[rootDir] = {
               status: 'failure',
-              error: err,
+              error: errWithPrefix,
               message: err.message,
               prefix: rootDir,
             }
             return
           }
 
-          err['prefix'] = rootDir
           throw err
         }
       })

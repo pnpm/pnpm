@@ -1,5 +1,35 @@
 # @pnpm/find-workspace-packages
 
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.1
+
+## 2.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [3477ee5]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/workspace.read-manifest@2.0.0
+  - @pnpm/fs.find-packages@3.0.0
+  - @pnpm/cli-utils@3.0.0
+
 ## 1.1.10
 
 ### Patch Changes

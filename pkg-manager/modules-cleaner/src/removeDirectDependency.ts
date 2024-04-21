@@ -17,7 +17,7 @@ export async function removeDirectDependency (
     muteLogs?: boolean
     rootDir: string
   }
-) {
+): Promise<void> {
   const dependencyDir = path.join(opts.modulesDir, dependency.name)
   const results = await Promise.all([
     removeBinsOfDependency(dependencyDir, opts),
@@ -41,13 +41,13 @@ export async function removeDirectDependency (
   }
 }
 
-export async function removeIfEmpty (dir: string) {
+export async function removeIfEmpty (dir: string): Promise<void> {
   if (await dirIsEmpty(dir)) {
     await rimraf(dir)
   }
 }
 
-async function dirIsEmpty (dir: string) {
+async function dirIsEmpty (dir: string): Promise<boolean> {
   try {
     const fileNames = await fs.readdir(dir)
     return fileNames.length === 0

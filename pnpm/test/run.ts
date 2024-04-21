@@ -1,7 +1,6 @@
-import { promises as fs, mkdirSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
-import PATH_NAME from 'path-name'
-import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { execPnpm, execPnpmSync } from './utils'
 
@@ -17,8 +16,8 @@ test('run -r: pass the args to the command that is specified in the build script
       prefoo: 'node recordArgs',
     },
   }])
-  await fs.writeFile('project/args.json', '[]', 'utf8')
-  await fs.writeFile('project/recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('project/args.json', '[]', 'utf8')
+  fs.writeFileSync('project/recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await execPnpm(['run', '-r', '--config.enable-pre-post-scripts', 'foo', 'arg', '--flag=true'])
 
@@ -39,8 +38,8 @@ test('run: pass the args to the command that is specified in the build script', 
       prefoo: 'node recordArgs',
     },
   })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await execPnpm(['run', 'foo', 'arg', '--flag=true'])
 
@@ -64,8 +63,8 @@ test('run: pass all arguments after script name to the build script, even --', a
       prefoo: 'node recordArgs',
     },
   })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await execPnpm(['run', 'foo', 'arg', '--', '--flag=true'])
 
@@ -75,6 +74,16 @@ test('run: pass all arguments after script name to the build script, even --', a
     ['arg', '--', '--flag=true'],
     [],
   ])
+})
+
+test('exit code of child process is preserved', async () => {
+  prepare({
+    scripts: {
+      foo: 'exit 87',
+    },
+  })
+  const result = execPnpmSync(['run', 'foo'])
+  expect(result.status).toBe(87)
 })
 
 test('test -r: pass the args to the command that is specified in the build script of a package.json manifest', async () => {
@@ -93,7 +102,7 @@ test('test -r: pass the args to the command that is specified in the build scrip
 test('start: run "node server.js" by default', async () => {
   prepare({}, { manifestFormat: 'YAML' })
 
-  await fs.writeFile('server.js', 'console.log("Hello world!")', 'utf8')
+  fs.writeFileSync('server.js', 'console.log("Hello world!")', 'utf8')
 
   const result = execPnpmSync(['start'])
 
@@ -109,7 +118,7 @@ test('install-test: install dependencies and runs tests', async () => {
 
   await execPnpm(['install-test'])
 
-  const scriptsRan = (await fs.readFile('output.txt')).toString()
+  const scriptsRan = (fs.readFileSync('output.txt')).toString()
   expect(scriptsRan.trim()).toStrictEqual('test')
 })
 
@@ -125,46 +134,6 @@ test('silent run only prints the output of the child process', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
-test('silent dlx prints the output of the child process only', async () => {
-  prepare({})
-  const global = path.resolve('..', 'global')
-  const pnpmHome = path.join(global, 'pnpm')
-  mkdirSync(global)
-
-  const env = {
-    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`,
-    PNPM_HOME: pnpmHome,
-    XDG_DATA_HOME: global,
-  }
-
-  const result = execPnpmSync(['--silent', 'dlx', 'shx', 'echo', 'hi'], { env })
-
-  expect(result.stdout.toString().trim()).toBe('hi')
-})
-
-test('dlx ignores configuration in current project package.json', async () => {
-  prepare({
-    pnpm: {
-      patchedDependencies: {
-        'shx@0.3.4': 'this_does_not_exist',
-      },
-    },
-  })
-  const global = path.resolve('..', 'global')
-  const pnpmHome = path.join(global, 'pnpm')
-  mkdirSync(global)
-
-  const env = {
-    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`,
-    PNPM_HOME: pnpmHome,
-    XDG_DATA_HOME: global,
-  }
-
-  const result = execPnpmSync(['dlx', 'shx@0.3.4', 'echo', 'hi'], { env })
-  // It didn't try to use the patch that doesn't exist, so it did not fail
-  expect(result.status).toBe(0)
-})
-
 testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
   prepare({
     scripts: {
@@ -176,7 +145,7 @@ testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
     prefer-symlinked-executables=true=true
   `
 
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
   const result = execPnpmSync(['run', 'build'])
 
@@ -195,7 +164,7 @@ testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir
     prefer-symlinked-executables=true=true
   `
 
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
   const result = execPnpmSync(['run', 'build'])
 
@@ -262,15 +231,4 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
   expect(output).not.toContain('script1: 1')
   expect(output).toContain('2')
   expect(output).not.toContain('script2: 2')
-})
-
-test('dlx should work with npm_config_save_dev env variable', async () => {
-  prepareEmpty()
-  const result = execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
-    env: {
-      npm_config_save_dev: 'true',
-    },
-    stdio: 'inherit',
-  })
-  expect(result.status).toBe(0)
 })

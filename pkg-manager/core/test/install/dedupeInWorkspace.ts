@@ -54,12 +54,12 @@ test('pick common range for a dependency used in two workspace projects when res
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true, resolutionMode: 'highest' }))
+  await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true, resolutionMode: 'highest' }))
 
   const project = assertProject(process.cwd())
-  const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('pick common range for a dependency used in two workspace projects when resolution mode is lowest-direct', async () => {
@@ -111,10 +111,10 @@ test('pick common range for a dependency used in two workspace projects when res
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true, resolutionMode: 'lowest-direct' }))
+  await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true, resolutionMode: 'lowest-direct' }))
 
   const project = assertProject(process.cwd())
-  const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 })

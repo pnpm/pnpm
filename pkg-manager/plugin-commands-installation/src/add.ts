@@ -7,7 +7,7 @@ import renderHelp from 'render-help'
 import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'child-concurrency',
@@ -37,7 +37,7 @@ export function rcOptionsTypes () {
     'network-concurrency',
     'node-linker',
     'noproxy',
-    'npmPath',
+    'npm-path',
     'package-import-method',
     'pnpmfile',
     'prefer-offline',
@@ -58,7 +58,6 @@ export function rcOptionsTypes () {
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
     'side-effects-cache',
-    'store',
     'store-dir',
     'strict-peer-dependencies',
     'unsafe-perm',
@@ -72,7 +71,7 @@ export function rcOptionsTypes () {
   ], allTypes)
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
     recursive: Boolean,
@@ -83,7 +82,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['add']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Installs a package and any packages that it depends on.',
     descriptionLists: [
@@ -173,7 +172,7 @@ export type AddCommandOptions = InstallCommandOptions & {
 export async function handler (
   opts: AddCommandOptions,
   params: string[]
-) {
+): Promise<void> {
   if (opts.cliOptions['save'] === false) {
     throw new PnpmError('OPTION_NOT_SUPPORTED', 'The "add" command currently does not support the no-save option')
   }

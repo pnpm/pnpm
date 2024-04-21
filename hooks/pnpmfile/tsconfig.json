@@ -19,6 +19,9 @@
       "path": "../../packages/core-loggers"
     },
     {
+      "path": "../../packages/crypto.base32-hash"
+    },
+    {
       "path": "../../packages/error"
     },
     {

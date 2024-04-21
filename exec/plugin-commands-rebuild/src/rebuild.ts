@@ -14,7 +14,7 @@ import {
 } from './implementation'
 import { recursiveRebuild } from './recursive'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'npm-path',
@@ -26,7 +26,7 @@ export function rcOptionsTypes () {
   }
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
     pending: Boolean,
@@ -36,7 +36,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['rebuild', 'rb']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['rb'],
     description: 'Rebuild a package.',
@@ -100,7 +100,7 @@ export async function handler (
     onlyBuiltDependencies?: string[]
   },
   params: string[]
-) {
+): Promise<void> {
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
     await recursiveRebuild(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir })
     return

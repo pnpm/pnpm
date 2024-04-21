@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.pkgs-graph",
-  "version": "2.0.14",
+  "version": "3.0.0",
   "description": "Create a graph from an array of packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -26,13 +26,14 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/pkgs-graph#readme",
   "devDependencies": {
     "@pnpm/workspace.pkgs-graph": "workspace:*",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "better-path-resolve": "1.0.0"
   },
   "dependencies": {
     "@pnpm/npm-package-arg": "^1.0.0",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/resolve-workspace-range": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",

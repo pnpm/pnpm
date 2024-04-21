@@ -5,7 +5,7 @@ import * as run from './run'
 
 export const commandNames = ['test', 't', 'tst']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['t', 'tst'],
     description: 'Runs a package\'s "test" script, if one was provided.',
@@ -34,6 +34,6 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export async function handler (
   opts: run.RunOpts,
   params: string[] = []
-) {
+): Promise<string | { exitCode: number } | undefined> {
   return run.handler(opts, ['test', ...params])
 }

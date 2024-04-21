@@ -20,7 +20,7 @@ export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {
 
 export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
   opts: DedupeInjectedDepsOptions<T>
-) {
+): void {
   const injectedDepsByProjects = getInjectedDepsByProjects(opts)
   const dedupeMap = getDedupeMap(injectedDepsByProjects, opts)
   applyDedupeMap(dedupeMap, opts)
@@ -35,7 +35,7 @@ function getInjectedDepsByProjects<T extends PartialResolvedPackage> (
   for (const project of opts.projects) {
     for (const [alias, nodeId] of Object.entries(project.directNodeIdsByAlias)) {
       const depPath = opts.pathsByNodeId.get(nodeId)!
-      if (!depPath.startsWith('file:')) continue
+      if (!opts.depGraph[depPath].id.startsWith('file:')) continue
       const id = opts.depGraph[depPath].id.substring(5)
       if (opts.projects.some((project) => project.id === id)) {
         if (!injectedDepsByProjects.has(project.id)) injectedDepsByProjects.set(project.id, new Map())
@@ -72,7 +72,7 @@ function getDedupeMap<T extends PartialResolvedPackage> (
 function applyDedupeMap<T extends PartialResolvedPackage> (
   dedupeMap: DedupeMap,
   opts: Pick<DedupeInjectedDepsOptions<T>, 'dependenciesByProjectId' | 'resolvedImporters' | 'lockfileDir'>
-) {
+): void {
   for (const [id, aliases] of dedupeMap.entries()) {
     for (const [alias, dedupedProjectId] of aliases.entries()) {
       delete opts.dependenciesByProjectId[id][alias]

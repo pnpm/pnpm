@@ -1,3 +1,4 @@
+import util from 'util'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import path from 'node:path'
@@ -16,9 +17,9 @@ export async function readWorkspaceManifest (dir: string): Promise<WorkspaceMani
 async function readManifestRaw (dir: string): Promise<unknown> {
   try {
     return await readYamlFile<WorkspaceManifest>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     // File not exists is the same as empty file (undefined)
-    if (err['code'] === 'ENOENT') {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return undefined
     }
 
@@ -77,7 +78,7 @@ function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown })
  * make sure the validation logic in this file is correct as it's refactored in
  * the future.
  */
-function checkWorkspaceManifestAssignability (_manifest: WorkspaceManifest) {}
+function checkWorkspaceManifestAssignability (_manifest: WorkspaceManifest): void {}
 
 class InvalidWorkspaceManifestError extends PnpmError {
   constructor (message: string) {

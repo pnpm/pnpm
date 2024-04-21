@@ -8,7 +8,7 @@ test('lockfileToPackageRegistry', () => {
       importer1: {
         dependencies: {
           dep1: '1.0.0',
-          dep2: '/foo@2.0.0',
+          dep2: 'foo@2.0.0',
         },
         optionalDependencies: {
           qar: '2.0.0',
@@ -22,17 +22,17 @@ test('lockfileToPackageRegistry', () => {
         specifiers: {},
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: '5',
     packages: {
-      '/dep1@1.0.0': {
+      'dep1@1.0.0': {
         dependencies: {
-          dep2: '/foo@2.0.0',
+          dep2: 'foo@2.0.0',
         },
         resolution: {
           integrity: '',
         },
       },
-      '/foo@2.0.0': {
+      'foo@2.0.0': {
         dependencies: {
           qar: '3.0.0',
         },
@@ -40,12 +40,12 @@ test('lockfileToPackageRegistry', () => {
           integrity: '',
         },
       },
-      '/qar@2.0.0': {
+      'qar@2.0.0': {
         resolution: {
           integrity: '',
         },
       },
-      '/qar@3.0.0': {
+      'qar@3.0.0': {
         resolution: {
           integrity: '',
         },
@@ -184,9 +184,9 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
         specifiers: {},
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: '5',
     packages: {
-      '/haspeer@2.0.0(peer@1.0.0)': {
+      'haspeer@2.0.0(peer@1.0.0)': {
         dependencies: {
           peer: '1.0.0',
         },
@@ -197,7 +197,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
           integrity: '',
         },
       },
-      '/peer@1.0.0': {
+      'peer@1.0.0': {
         resolution: {
           integrity: '',
         },

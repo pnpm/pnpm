@@ -1,5 +1,23 @@
 # @pnpm/workspace.pkgs-graph
 
+## 3.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- ca2be03: When sorting packages in a workspace, take into account workspace dependencies specified as `peerDependencies` [#7813](https://github.com/pnpm/pnpm/issues/7813).
+- Updated dependencies [7733f3a]
+- Updated dependencies [cdd8365]
+- Updated dependencies [43cdd87]
+- Updated dependencies [d381a60]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/npm-resolver@19.0.0
+  - @pnpm/resolve-workspace-range@6.0.0
+
 ## 2.0.14
 
 ### Patch Changes

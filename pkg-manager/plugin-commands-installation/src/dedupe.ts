@@ -7,12 +7,12 @@ import { installDeps } from './installDeps'
 import omit from 'ramda/src/omit'
 
 // In general, the "pnpm dedupe" command should use .npmrc options that "pnpm install" would also accept.
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   // Some options on pnpm install (like --frozen-lockfile) don't make sense on pnpm dedupe.
   return omit(['frozen-lockfile'], installCommandRcOptionsTypes())
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
     check: Boolean,
@@ -21,7 +21,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['dedupe']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Perform an install removing older dependencies in the lockfile if a newer version can be used.',
     descriptionLists: [
@@ -51,7 +51,7 @@ export interface DedupeCommandOptions extends InstallCommandOptions {
   readonly check?: boolean
 }
 
-export async function handler (opts: DedupeCommandOptions) {
+export async function handler (opts: DedupeCommandOptions): Promise<void> {
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,

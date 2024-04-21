@@ -1,5 +1,29 @@
 # @pnpm/directory-fetcher
 
+## 8.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [0e6b757]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/fs.packlist@2.0.0
+  - @pnpm/exec.pkg-requires-build@1.0.0
+
 ## 7.0.11
 
 ### Patch Changes

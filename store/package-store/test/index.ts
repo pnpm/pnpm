@@ -17,7 +17,7 @@ describe('store.importPackage()', () => {
       cacheDir: path.join(tmp, 'cache'),
       rawConfig: {},
     })
-    const storeController = await createPackageStore(resolve, fetchers, {
+    const storeController = createPackageStore(resolve, fetchers, {
       storeDir,
       cacheDir,
       verifyStoreIntegrity: true,
@@ -54,7 +54,7 @@ describe('store.importPackage()', () => {
       cacheDir: path.join(tmp, 'cache'),
       rawConfig: {},
     })
-    const storeController = await createPackageStore(resolve, fetchers, {
+    const storeController = createPackageStore(resolve, fetchers, {
       packageImportMethod: 'copy',
       storeDir,
       cacheDir,

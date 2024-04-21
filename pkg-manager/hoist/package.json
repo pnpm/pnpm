@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "8.2.1",
+  "version": "9.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@pnpm/hoist": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "0.29.12"
   },
   "directories": {
     "test": "test"
@@ -48,11 +48,11 @@
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "1.0.0",
+    "@pnpm/util.lex-comparator": "3.0.0",
     "is-subdir": "^1.2.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "resolve-link-target": "^2.0.0",
-    "symlink-dir": "^5.2.1"
+    "symlink-dir": "^6.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

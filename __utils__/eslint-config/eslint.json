@@ -61,6 +61,7 @@
     "@typescript-eslint/no-unnecessary-type-assertion": "off",
     "@typescript-eslint/type-annotation-spacing": "error",
     "@typescript-eslint/ban-ts-comment": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "error",
     "brace-style": [
         "error",
         "1tbs"

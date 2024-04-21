@@ -48,7 +48,7 @@ type LinkOpts = CreateStoreControllerOptions & Pick<Config,
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return pick([
     'global-dir',
     'global',
@@ -67,7 +67,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['link', 'ln']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['ln'],
     descriptionLists: [
@@ -104,10 +104,10 @@ async function checkPeerDeps (linkCwdDir: string, opts: LinkOpts) {
 
     logger.warn({
       message: `The package ${packageName}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:
-      
+
 ${peerDeps}
 
-The linked in dependency will not resolve the peer dependencies from the target node_modules. 
+The linked in dependency will not resolve the peer dependencies from the target node_modules.
 This might cause issues in your project. To resolve this, you may use the "file:" protocol to reference the local dependency.`,
       prefix: opts.dir,
     })
@@ -117,7 +117,7 @@ This might cause issues in your project. To resolve this, you may use the "file:
 export async function handler (
   opts: LinkOpts,
   params?: string[]
-) {
+): Promise<void> {
   const cwd = process.cwd()
 
   const storeControllerCache = new Map<string, Promise<{ dir: string, ctrl: StoreController }>>()

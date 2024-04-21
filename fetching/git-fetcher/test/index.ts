@@ -62,7 +62,7 @@ test('fetch a package from Git sub folder', async () => {
       filesIndexFile: path.join(cafsDir, 'index.json'),
     }
   )
-  expect(filesIndex[`public${path.sep}index.html`]).toBeTruthy()
+  expect(filesIndex['public/index.html']).toBeTruthy()
 })
 
 test('prevent directory traversal attack when using Git sub folder', async () => {
@@ -113,7 +113,7 @@ test('fetch a package from Git that has a prepare script', async () => {
   const { filesIndex } = await fetch(
     createCafsStore(cafsDir),
     {
-      commit: 'd222f6bfbdea55c032fdb5f0538d52b2a484bbbf',
+      commit: '8b333f12d5357f4f25a654c305c826294cb073bf',
       repo: 'https://github.com/pnpm/test-git-fetch.git',
       type: 'git',
     },
@@ -121,7 +121,7 @@ test('fetch a package from Git that has a prepare script', async () => {
       filesIndexFile: path.join(cafsDir, 'index.json'),
     }
   )
-  expect(filesIndex[`dist${path.sep}index.js`]).toBeTruthy()
+  expect(filesIndex['dist/index.js']).toBeTruthy()
 })
 
 // Test case for https://github.com/pnpm/pnpm/issues/1866
@@ -238,7 +238,7 @@ test('fetch only the included files', async () => {
   )
   expect(Object.keys(filesIndex).sort()).toStrictEqual([
     'README.md',
-    `dist${path.sep}index.js`,
+    'dist/index.js',
     'package.json',
   ])
 })

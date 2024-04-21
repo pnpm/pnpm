@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { promises as fs, statSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
@@ -54,7 +54,7 @@ test('request package', async () => {
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe('/is-positive@1.0.0')
+  expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
   expect(pkgResponse.body.resolvedVia).toBe('npm-registry')
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
@@ -96,7 +96,7 @@ test('request package but skip fetching', async () => {
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe('/is-positive@1.0.0')
+  expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
@@ -125,7 +125,7 @@ test('request package but skip fetching, when resolution is already available', 
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     currentPkg: {
-      id: '/is-positive/1.0.0',
+      id: 'is-positive@1.0.0',
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -148,7 +148,7 @@ test('request package but skip fetching, when resolution is already available', 
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe('/is-positive@1.0.0')
+  expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest.name).toBe('is-positive')
@@ -356,7 +356,7 @@ test('fetchPackageToStore()', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = '/is-positive/1.0.0'
+  const pkgId = 'is-positive@1.0.0'
   const fetchResult = packageRequester.fetchPackageToStore({
     force: false,
     lockfileDir: tempy.directory(),
@@ -372,11 +372,11 @@ test('fetchPackageToStore()', async () => {
   })
 
   const { files, bundledManifest } = await fetchResult.fetching()
-  expect(bundledManifest).toBeFalsy()
+  expect(bundledManifest).toBeTruthy() // we always read the bundled manifest
   expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 
-  const indexFile = await loadJsonFile<PackageFilesIndex>(fetchResult.filesIndexFile)
+  const indexFile = loadJsonFile.sync<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
   expect(typeof indexFile.files['package.json'].checkedAt).toBeTruthy()
 
@@ -421,7 +421,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = '/is-positive/1.0.0'
+  const pkgId = 'is-positive@1.0.0'
   const projectDir1 = tempy.directory()
   const projectDir2 = tempy.directory()
   const fetchResults = await Promise.all([
@@ -460,7 +460,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[0]
     const { files } = await fetchResult.fetching()
 
-    ino1 = statSync(files.filesIndex['package.json'] as string).ino
+    ino1 = fs.statSync(files.filesIndex['package.json'] as string).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.resolvedFrom).toBe('remote')
@@ -470,7 +470,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[1]
     const { files } = await fetchResult.fetching()
 
-    ino2 = statSync(files.filesIndex['package.json'] as string).ino
+    ino2 = fs.statSync(files.filesIndex['package.json'] as string).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.resolvedFrom).toBe('remote')
@@ -506,7 +506,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = '/is-positive/1.0.0'
+  const pkgId = 'is-positive@1.0.0'
 
   const badRequest = packageRequester.fetchPackageToStore({
     force: false,
@@ -575,7 +575,7 @@ test('always return a package manifest in the response', async () => {
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       currentPkg: {
-        id: '/is-positive/1.0.0',
+        id: 'is-positive@1.0.0',
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -619,7 +619,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = '/is-positive/1.0.0'
+  const pkgId = 'is-positive@1.0.0'
   const resolution = {
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   }
@@ -656,7 +656,7 @@ test('refetch package to store if it has been modified', async () => {
   const storeDir = tempy.directory()
   const lockfileDir = tempy.directory()
 
-  const pkgId = '/magic-hook/2.0.0'
+  const pkgId = 'magic-hook@2.0.0'
   const resolution = {
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/magic-hook/-/magic-hook-2.0.0.tgz`,
   }
@@ -695,7 +695,7 @@ test('refetch package to store if it has been modified', async () => {
 
   await delay(200)
   // Adding some content to the file to change its integrity
-  await fs.appendFile(indexJsFile, '// foobar')
+  fs.appendFileSync(indexJsFile, '// foobar')
 
   const reporter = jest.fn()
   streamParser.on('data', reporter)
@@ -728,9 +728,9 @@ test('refetch package to store if it has been modified', async () => {
 
   streamParser.removeListener('data', reporter)
 
-  expect(await fs.readFile(indexJsFile, 'utf8')).not.toContain('// foobar')
+  expect(fs.readFileSync(indexJsFile, 'utf8')).not.toContain('// foobar')
 
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
     message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId))} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',
@@ -764,7 +764,7 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(pkgResponse.body).toBeTruthy()
 
   expect(pkgResponse.body.isInstallable).toBe(false)
-  expect(pkgResponse.body.id).toBe('/@pnpm.e2e/not-compatible-with-any-os@1.0.0')
+  expect(pkgResponse.body.id).toBe('@pnpm.e2e/not-compatible-with-any-os@1.0.0')
 
   expect(pkgResponse.fetching).toBeFalsy()
 })
@@ -801,7 +801,7 @@ test('fetch a git package without a package.json', async () => {
     expect(pkgResponse.body).toBeTruthy()
     expect(pkgResponse.body.manifest).toBeUndefined()
     expect(pkgResponse.body.isInstallable).toBeFalsy()
-    expect(pkgResponse.body.id).toBe(`github.com/${repo}/${commit}`)
+    expect(pkgResponse.body.id).toBe(`https://codeload.github.com/${repo}/tar.gz/${commit}`)
   }
 })
 

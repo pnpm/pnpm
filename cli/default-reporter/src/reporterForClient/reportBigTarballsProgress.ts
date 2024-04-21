@@ -17,7 +17,7 @@ export function reportBigTarballProgress (
   log$: {
     fetchingProgress: Rx.Observable<FetchingProgressLog>
   }
-) {
+): Rx.Observable<Rx.Observable<{ fixed: boolean, msg: string }>> {
   return log$.fetchingProgress.pipe(
     filter((log: FetchingProgressLog) => log.status === 'started' &&
       typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE &&

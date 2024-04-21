@@ -9,7 +9,9 @@ export interface WantedDependency {
   injected?: boolean
 }
 
-export function getNonDevWantedDependencies (pkg: Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>) {
+type GetNonDevWantedDependenciesManifest = Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>
+
+export function getNonDevWantedDependencies (pkg: GetNonDevWantedDependenciesManifest): WantedDependency[] {
   let bd = pkg.bundledDependencies ?? pkg.bundleDependencies
   if (bd === true) {
     bd = pkg.dependencies != null ? Object.keys(pkg.dependencies) : []

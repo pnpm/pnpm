@@ -11,9 +11,23 @@ export interface LockfileSettings {
 
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
-  lockfileVersion: number | string
+  lockfileVersion: string
   time?: Record<string, string>
   packages?: PackageSnapshots
+  overrides?: Record<string, string>
+  packageExtensionsChecksum?: string
+  ignoredOptionalDependencies?: string[]
+  patchedDependencies?: Record<string, PatchFile>
+  pnpmfileChecksum?: string
+  settings?: LockfileSettings
+}
+
+export interface LockfileV9 {
+  importers: Record<string, ProjectSnapshot>
+  lockfileVersion: string
+  time?: Record<string, string>
+  snapshots?: Record<string, PackageSnapshotV7>
+  packages?: Record<string, PackageInfo>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   overrides?: Record<string, string>
@@ -44,6 +58,7 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
+  path?: string
 }
 
 /**
@@ -61,6 +76,7 @@ export interface GitRepositoryResolution {
   type: 'git'
   repo: string
   commit: string
+  path?: string
 }
 
 export type Resolution =
@@ -72,13 +88,14 @@ export type LockfileResolution = Resolution | {
   integrity: string
 }
 
+export type PackageSnapshotV7 = Pick<PackageSnapshot, 'optional' | 'dependencies' | 'optionalDependencies' | 'transitivePeerDependencies'>
+
+export type PackageInfo = Pick<PackageSnapshot, 'id' | 'patched' | 'hasBin' | 'name' | 'version' | 'resolution' | 'peerDependencies' | 'peerDependenciesMeta' | 'bundledDependencies' | 'engines' | 'cpu' | 'os' | 'libc' | 'deprecated'>
+
 export interface PackageSnapshot {
   id?: string
-  dev?: true | false
   optional?: true
-  requiresBuild?: true
   patched?: true
-  prepare?: true
   hasBin?: true
   // name and version are only needed
   // for packages that are hosted not in the npm registry

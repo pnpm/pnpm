@@ -235,7 +235,6 @@ async function resolveAndFetch (
             lockfileDir: options.lockfileDir,
             nodeVersion: ctx.nodeVersion,
             optional: wantedDependency.optional === true,
-            pnpmVersion: ctx.pnpmVersion,
             supportedArchitectures: options.supportedArchitectures,
           })
       )
@@ -259,7 +258,7 @@ async function resolveAndFetch (
     }
   }
 
-  const pkg: PkgNameVersion = pick(['name', 'version'], manifest ?? {})
+  const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
     force: forceFetch,
@@ -276,13 +275,16 @@ async function resolveAndFetch (
     onFetchError: options.onFetchError,
   })
 
+  if (!manifest) {
+    manifest = (await fetchResult.fetching()).bundledManifest
+  }
   return {
     body: {
       id,
       isLocal: false as const,
       isInstallable: isInstallable ?? undefined,
       latest,
-      manifest,
+      manifest: manifest ?? (await fetchResult.fetching()).bundledManifest,
       normalizedPref,
       resolution,
       resolvedVia,
@@ -320,7 +322,7 @@ function fetchToStore (
     readPkgFromCafs: (
       filesIndexFile: string,
       readManifest?: boolean
-    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest }>
+    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     fetch: (
       packageId: string,
       resolution: Resolution,
@@ -459,7 +461,7 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        const { verified, pkgFilesIndex, manifest } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
+        const { verified, pkgFilesIndex, manifest, requiresBuild } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
         if (verified) {
           if (
             (
@@ -488,6 +490,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               filesIndex: pkgFilesIndex.files,
               resolvedFrom: 'store',
               sideEffects: pkgFilesIndex.sideEffects,
+              requiresBuild,
             },
             bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
           })
@@ -549,6 +552,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           resolvedFrom: fetchedPackage.local ? 'local-dir' : 'remote',
           filesIndex: fetchedPackage.filesIndex,
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
+          requiresBuild: fetchedPackage.requiresBuild,
         },
         bundledManifest: fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest),
       })

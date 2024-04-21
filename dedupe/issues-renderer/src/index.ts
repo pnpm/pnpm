@@ -7,7 +7,7 @@ import {
 import archy from 'archy'
 import chalk from 'chalk'
 
-export function renderDedupeCheckIssues (dedupeCheckIssues: DedupeCheckIssues) {
+export function renderDedupeCheckIssues (dedupeCheckIssues: DedupeCheckIssues): string {
   const importersReport = report(dedupeCheckIssues.importerIssuesByImporterId)
   const packagesReport = report(dedupeCheckIssues.packageIssuesByDepPath)
 

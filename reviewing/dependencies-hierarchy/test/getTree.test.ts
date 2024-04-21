@@ -83,6 +83,7 @@ describe('getTree', () => {
     const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'a') }
 
     const getTreeArgs = {
+      depTypes: {},
       maxDepth: 0,
       rewriteLinkVersionDir: '',
       virtualStoreDir: '.pnpm',
@@ -159,6 +160,7 @@ describe('getTree', () => {
   // result in incorrect output if the cache was used when it's not supposed to.
   describe('prints at expected depth for cache regression testing cases', () => {
     const commonMockGetTreeArgs = {
+      depTypes: {},
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
@@ -294,6 +296,7 @@ describe('getTree', () => {
   // result in incorrect output if the cache was used when it's not supposed to.
   describe('fully visited cache optimization handles requested depth correctly', () => {
     const commonMockGetTreeArgs = {
+      depTypes: {},
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},

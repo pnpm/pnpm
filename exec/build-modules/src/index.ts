@@ -1,4 +1,6 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
@@ -42,7 +44,7 @@ export async function buildModules (
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
   }
-) {
+): Promise<void> {
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })
   }
@@ -54,7 +56,14 @@ export async function buildModules (
     warn,
   }
   const chunks = buildSequence(depGraph, rootDepPaths)
-  const allowBuild = opts.allowBuild ?? (() => true)
+  const ignoredPkgs = new Set<string>()
+  const allowBuild = opts.allowBuild
+    ? (pkgName: string) => {
+      if (opts.allowBuild!(pkgName)) return true
+      ignoredPkgs.add(pkgName)
+      return false
+    }
+    : () => true
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
@@ -74,6 +83,12 @@ export async function buildModules (
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)
+  if (ignoredPkgs.size > 0) {
+    logger.info({
+      message: `The following dependencies have build scripts that were ignored: ${Array.from(ignoredPkgs).sort().join(', ')}`,
+      prefix: opts.lockfileDir,
+    })
+  }
 }
 
 async function buildDependency (
@@ -140,8 +155,9 @@ async function buildDependency (
           sideEffectsCacheKey,
           filesIndexFile: depNode.filesIndexFile,
         })
-      } catch (err: any) { // eslint-disable-line
-        if (err.statusCode === 403) {
+      } catch (err: unknown) {
+        assert(util.types.isNativeError(err))
+        if (err && 'statusCode' in err && err.statusCode === 403) {
           logger.warn({
             message: `The store server disabled upload requests, could not upload ${depNode.dir}`,
             prefix: opts.lockfileDir,
@@ -155,7 +171,8 @@ async function buildDependency (
         }
       }
     }
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
     if (depNode.optional) {
       // TODO: add parents field to the log
       const pkg = await readPackageJsonFromDir(path.join(depNode.dir)) as DependencyManifest
@@ -196,7 +213,7 @@ export async function linkBinsOfDependencies (
     preferSymlinkedExecutables?: boolean
     warn: (message: string) => void
   }
-) {
+): Promise<void> {
   const childrenToLink: Record<string, string> = opts.optional
     ? depNode.children
     : pickBy((child, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)

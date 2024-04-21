@@ -12,7 +12,6 @@ import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageExtension,
-  type PeerDependencyRules,
   type ReadPackageHook,
   type Registries,
 } from '@pnpm/types'
@@ -23,7 +22,6 @@ import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
-  forceSharedLockfile: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enablePnp: boolean
@@ -68,8 +66,11 @@ export interface StrictInstallOptions {
   onlyBuiltDependenciesFile?: string
   nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-  nodeVersion: string
+  nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
+  ignoredOptionalDependencies: string[]
+  pnpmfile: string
+  ignorePnpmfile: boolean
   packageManager: {
     name: string
     version: string
@@ -79,6 +80,7 @@ export interface StrictInstallOptions {
     readPackage?: ReadPackageHook[]
     preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
     afterAllResolved?: Array<(lockfile: Lockfile) => Lockfile | Promise<Lockfile>>
+    calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
@@ -102,7 +104,6 @@ export interface StrictInstallOptions {
   symlink: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
-  peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allowNonAppliedPatches: boolean
   preferSymlinkedExecutables: boolean
@@ -149,7 +150,7 @@ export type InstallOptions =
   & Partial<StrictInstallOptions>
   & Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
 
-const defaults = (opts: InstallOptions) => {
+const defaults = (opts: InstallOptions): StrictInstallOptions => {
   const packageManager = opts.packageManager ?? {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
@@ -167,7 +168,6 @@ const defaults = (opts: InstallOptions) => {
     engineStrict: false,
     force: false,
     forceFullResolution: false,
-    forceSharedLockfile: false,
     frozenLockfile: false,
     hoistPattern: undefined,
     publicHoistPattern: undefined,
@@ -187,13 +187,14 @@ const defaults = (opts: InstallOptions) => {
     },
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
-    nodeVersion: process.version,
+    nodeVersion: opts.nodeVersion,
     nodeLinker: 'isolated',
     overrides: {},
     ownLifecycleHooksStdio: 'inherit',
     ignoreCompatibilityDb: false,
     ignorePackageManifest: false,
     packageExtensions: {},
+    ignoredOptionalDependencies: [] as string[],
     packageManager,
     preferFrozenLockfile: true,
     preferWorkspacePackages: false,
@@ -213,7 +214,7 @@ const defaults = (opts: InstallOptions) => {
     symlink: true,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
-    strictPeerDependencies: true,
+    strictPeerDependencies: false,
     tag: 'latest',
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
@@ -268,7 +269,7 @@ export function extendOptions (
     overrides: extendedOpts.overrides,
     lockfileDir: extendedOpts.lockfileDir,
     packageExtensions: extendedOpts.packageExtensions,
-    peerDependencyRules: extendedOpts.peerDependencyRules,
+    ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,
   })
   if (extendedOpts.lockfileOnly) {
     extendedOpts.ignoreScripts = true

@@ -63,16 +63,16 @@ test('deploy', async () => {
   }, ['deploy'])
 
   const project = assertProject(path.resolve('deploy'))
-  await project.has('project-2')
-  await project.has('is-positive')
-  await project.hasNot('project-3')
-  await project.hasNot('is-negative')
+  project.has('project-2')
+  project.has('is-positive')
+  project.hasNot('project-3')
+  project.hasNot('is-negative')
   expect(fs.existsSync('deploy/index.js')).toBeTruthy()
   expect(fs.existsSync('deploy/test.js')).toBeFalsy()
-  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-2/node_modules/project-2/index.js')).toBeTruthy()
-  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-2/node_modules/project-2/test.js')).toBeFalsy()
-  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/index.js')).toBeTruthy()
-  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/test.js')).toBeFalsy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-2@file+project-2/node_modules/project-2/index.js')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-2@file+project-2/node_modules/project-2/test.js')).toBeFalsy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/project-3/index.js')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/project-3/test.js')).toBeFalsy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
@@ -157,8 +157,8 @@ test('forced deploy succeeds with a warning when destination directory exists an
 
   // deployed successfully
   const project = assertProject(deployFullPath)
-  await project.has('is-positive')
-  await project.hasNot('is-negative')
+  project.has('is-positive')
+  project.hasNot('is-negative')
   expect(fs.existsSync('deploy/index.js')).toBeTruthy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 
@@ -210,6 +210,6 @@ test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDepen
     dedupePeerDependents: true, // This is ignored by deploy
   }, ['deploy'])
   const project = assertProject(path.resolve('deploy'))
-  await project.has('is-positive')
+  project.has('is-positive')
   expect(fs.existsSync('sub-dir/deploy')).toBe(false)
 })

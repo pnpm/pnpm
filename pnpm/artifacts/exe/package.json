@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/exe",
   "description": "Fast, disk space efficient package manager",
-  "version": "9.0.0-alpha.4",
+  "version": "9.0.5",
   "publishConfig": {
     "tag": "next-9",
     "bin": {
@@ -24,10 +24,10 @@
     "pkg": "5.8.1"
   },
   "funding": "https://opencollective.com/pnpm",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/exe#readme",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/exe#readme",
   "license": "MIT",
   "preferGlobal": true,
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/exe",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/exe",
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",

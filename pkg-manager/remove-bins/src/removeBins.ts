@@ -9,7 +9,7 @@ import rimraf from '@zkochan/rimraf'
 import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
 
-async function removeOnWin (cmd: string) {
+async function removeOnWin (cmd: string): Promise<void> {
   removalLogger.debug(cmd)
   await Promise.all([
     rimraf(cmd),
@@ -18,12 +18,12 @@ async function removeOnWin (cmd: string) {
   ])
 }
 
-async function removeOnNonWin (p: string) {
+async function removeOnNonWin (p: string): Promise<void> {
   removalLogger.debug(p)
   return rimraf(p)
 }
 
-export const removeBin = isWindows() ? removeOnWin : removeOnNonWin
+export const removeBin: (cmd: string) => Promise<void> = isWindows() ? removeOnWin : removeOnNonWin
 
 export async function removeBinsOfDependency (
   dependencyDir: string,
@@ -31,7 +31,7 @@ export async function removeBinsOfDependency (
     dryRun?: boolean
     binsDir: string
   }
-) {
+): Promise<DependencyManifest | undefined> {
   const uninstalledPkgJson = await safeReadPackageJsonFromDir(dependencyDir) as DependencyManifest
 
   if (!uninstalledPkgJson) return

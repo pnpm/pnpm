@@ -1,4 +1,6 @@
 /* eslint-disable no-await-in-loop */
+import util from 'util'
+import assert from 'assert'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, logger } from '@pnpm/logger'
 import { removeBin } from '@pnpm/remove-bins'
@@ -9,7 +11,7 @@ import { getNodeVersion } from './downloadNodeVersion'
 import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
 import { getNodeExecPathAndTargetDir } from './utils'
 
-export async function envRemove (opts: NvmNodeCommandOptions, params: string[]) {
+export async function envRemove (opts: NvmNodeCommandOptions, params: string[]): Promise<{ exitCode: number }> {
   if (!opts.global) {
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env remove <version>" can only be used with the "--global" option currently')
   }
@@ -53,8 +55,9 @@ async function removeNodeVersion (opts: NvmNodeCommandOptions, version: string):
         removeBin(npmPath),
         removeBin(npxPath),
       ])
-    } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'ENOENT') return err
+    } catch (err: unknown) {
+      assert(util.types.isNativeError(err))
+      if (!('code' in err && err.code === 'ENOENT')) return err
     }
   }
 

@@ -1,5 +1,31 @@
 # @pnpm/pnpmfile
 
+## 6.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 086b69c: The checksum of the `.pnpmfile.cjs` is saved into the lockfile. If the pnpmfile gets modified, the lockfile is reanalyzed to apply the changes [#7662](https://github.com/pnpm/pnpm/pull/7662).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [27a96a8]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/hooks.types@2.0.0
+
 ## 5.0.20
 
 ### Patch Changes

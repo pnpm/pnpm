@@ -13,7 +13,7 @@ export async function renderParseable (
     alwaysPrintRootPackage: boolean
     search: boolean
   }
-) {
+): Promise<string> {
   const depPaths = new Set<string>()
   return pkgs
     .map(renderParseableForPackage.bind(null, depPaths, opts))
@@ -30,7 +30,7 @@ function renderParseableForPackage (
     search: boolean
   },
   pkg: PackageDependencyHierarchy
-) {
+): string {
   const pkgs = sortPackages(
     flatten(
       depPaths,

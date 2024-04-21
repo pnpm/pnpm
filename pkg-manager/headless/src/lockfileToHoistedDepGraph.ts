@@ -185,7 +185,6 @@ async function fetchDeps (
         lockfileDir: opts.lockfileDir,
         nodeVersion: opts.nodeVersion,
         optional: pkgSnapshot.optional === true,
-        pnpmVersion: opts.pnpmVersion,
         supportedArchitectures: opts.supportedArchitectures,
       }) === false
     ) {
@@ -247,8 +246,6 @@ async function fetchDeps (
       name: pkgName,
       optional: !!pkgSnapshot.optional,
       optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-      prepare: pkgSnapshot.prepare === true,
-      requiresBuild: pkgSnapshot.requiresBuild === true,
       patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
     }
     if (!opts.pkgLocationsByDepPath[depPath]) {
@@ -282,7 +279,7 @@ function getChildren (
   pkgSnapshot: PackageSnapshot,
   pkgLocationsByDepPath: Record<string, string[]>,
   opts: { include: IncludedDependencies }
-) {
+): Record<string, string> {
   const allDeps = {
     ...pkgSnapshot.dependencies,
     ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),

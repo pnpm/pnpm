@@ -7,12 +7,9 @@ export function depPathToRef (
     realName: string
     resolution: Resolution
   }
-) {
-  if (opts.resolution.type) return depPath
-
-  if (depPath[0] === '/' && opts.alias === opts.realName) {
-    const ref = depPath.replace(`/${opts.realName}@`, '')
-    return ref
+): string {
+  if (opts.alias === opts.realName && depPath.startsWith(`${opts.realName}@`)) {
+    return depPath.substring(opts.realName.length + 1)
   }
   return depPath
 }

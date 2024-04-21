@@ -21,13 +21,23 @@ const STAT_DEFAULT = {
   gid: process.getgid ? process.getgid() : 0,
 }
 
-export async function createFuseHandlers (lockfileDir: string, cafsDir: string) {
+export interface FuseHandlers {
+  open: (p: string, flags: string | number, cb: (exitCode: number, fd?: number) => void) => void
+  release: (p: string, fd: number, cb: (exitCode: number) => void) => void
+  read: (p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) => void
+  readlink: (p: string, cb: (returnCode: number, target?: string) => void) => void
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  getattr: (p: string, cb: (returnCode: number, files?: any) => void) => void
+  readdir: (p: string, cb: (returnCode: number, files?: string[]) => void) => void
+}
+
+export async function createFuseHandlers (lockfileDir: string, cafsDir: string): Promise<FuseHandlers> {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
   return createFuseHandlersFromLockfile(lockfile, cafsDir)
 }
 
-export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: string) {
+export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: string): FuseHandlers {
   const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
   const virtualNodeModules = makeVirtualNodeModules(lockfile)
   return {

@@ -6,9 +6,12 @@ export function getCacheDir (
     env: NodeJS.ProcessEnv
     platform: string
   }
-) {
+): string {
   if (opts.env.XDG_CACHE_HOME) {
     return path.join(opts.env.XDG_CACHE_HOME, 'pnpm')
+  }
+  if (opts.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library/Caches/pnpm')
   }
   if (opts.platform !== 'win32') {
     return path.join(os.homedir(), '.cache/pnpm')
@@ -24,7 +27,7 @@ export function getStateDir (
     env: NodeJS.ProcessEnv
     platform: string
   }
-) {
+): string {
   if (opts.env.XDG_STATE_HOME) {
     return path.join(opts.env.XDG_STATE_HOME, 'pnpm')
   }
@@ -42,12 +45,15 @@ export function getDataDir (
     env: NodeJS.ProcessEnv
     platform: string
   }
-) {
+): string {
   if (opts.env.PNPM_HOME) {
     return opts.env.PNPM_HOME
   }
   if (opts.env.XDG_DATA_HOME) {
     return path.join(opts.env.XDG_DATA_HOME, 'pnpm')
+  }
+  if (opts.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library/pnpm')
   }
   if (opts.platform !== 'win32') {
     return path.join(os.homedir(), '.local/share/pnpm')
@@ -63,9 +69,12 @@ export function getConfigDir (
     env: NodeJS.ProcessEnv
     platform: string
   }
-) {
+): string {
   if (opts.env.XDG_CONFIG_HOME) {
     return path.join(opts.env.XDG_CONFIG_HOME, 'pnpm')
+  }
+  if (opts.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library/Preferences/pnpm')
   }
   if (opts.platform !== 'win32') {
     return path.join(os.homedir(), '.config/pnpm')

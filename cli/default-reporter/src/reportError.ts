@@ -4,7 +4,7 @@ import { renderDedupeCheckIssues } from '@pnpm/dedupe.issues-renderer'
 import { type DedupeCheckIssues } from '@pnpm/dedupe.types'
 import { type PnpmError } from '@pnpm/error'
 import { renderPeerIssues } from '@pnpm/render-peer-issues'
-import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
+import { type PeerDependencyRules, type PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import equals from 'ramda/src/equals'
 import StackTracey from 'stacktracey'
@@ -19,8 +19,9 @@ StackTracey.maxColumnWidths = {
 const highlight = chalk.yellow
 const colorPath = chalk.gray
 
-export function reportError (logObj: Log, config?: Config) {
-  const errorInfo = getErrorInfo(logObj, config)
+export function reportError (logObj: Log, config?: Config, peerDependencyRules?: PeerDependencyRules): string | null {
+  const errorInfo = getErrorInfo(logObj, config, peerDependencyRules)
+  if (!errorInfo) return null
   let output = formatErrorSummary(errorInfo.title, (logObj as LogObjWithPossibleError).err?.code)
   if (logObj['pkgsStack'] != null) {
     if (logObj['pkgsStack'].length > 0) {
@@ -43,10 +44,12 @@ export function reportError (logObj: Log, config?: Config) {
   }
 }
 
-function getErrorInfo (logObj: Log, config?: Config): {
+interface ErrorInfo {
   title: string
   body?: string
-} {
+}
+
+function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerDependencyRules): ErrorInfo | null {
   if (logObj['err']) {
     const err = logObj['err'] as (PnpmError & { stack: object })
     switch (err.code) {
@@ -75,7 +78,7 @@ function getErrorInfo (logObj: Log, config?: Config): {
     case 'ERR_PNPM_UNSUPPORTED_ENGINE':
       return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_PEER_DEP_ISSUES':
-      return reportPeerDependencyIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      return reportPeerDependencyIssuesError(err, logObj as any, peerDependencyRules) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_DEDUPE_CHECK_ISSUES':
       return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_FETCH_401':
@@ -134,7 +137,7 @@ function reportUnexpectedStore (
     expectedStorePath: string
     modulesDir: string
   }
-) {
+): ErrorInfo {
   return {
     title: err.message,
     body: `The dependencies at "${msg.modulesDir}" are currently linked from the store at "${msg.expectedStorePath}".
@@ -155,7 +158,7 @@ function reportUnexpectedVirtualStoreDir (
     expected: string
     modulesDir: string
   }
-) {
+): ErrorInfo {
   return {
     title: err.message,
     body: `The dependencies at "${msg.modulesDir}" are currently symlinked from the virtual store directory at "${msg.expected}".
@@ -173,7 +176,7 @@ function reportStoreBreakingChange (msg: {
   storePath: string
   relatedIssue?: number
   relatedPR?: number
-}) {
+}): ErrorInfo {
   let output = `Store path: ${colorPath(msg.storePath)}
 
 Run "pnpm install" to recreate node_modules.`
@@ -194,7 +197,7 @@ function reportModulesBreakingChange (msg: {
   modulesPath: string
   relatedIssue?: number
   relatedPR?: number
-}) {
+}): ErrorInfo {
   let output = `node_modules path: ${colorPath(msg.modulesPath)}
 
 Run ${highlight('pnpm install')} to recreate node_modules.`
@@ -213,7 +216,7 @@ Run ${highlight('pnpm install')} to recreate node_modules.`
 function formatRelatedSources (msg: {
   relatedIssue?: number
   relatedPR?: number
-}) {
+}): string {
   let output = ''
 
   if (!msg.relatedIssue && !msg.relatedPR) return output
@@ -231,12 +234,12 @@ function formatRelatedSources (msg: {
   return output
 }
 
-function formatGenericError (errorMessage: string, stack: object) {
+function formatGenericError (errorMessage: string, stack: object): ErrorInfo {
   if (stack) {
     let prettyStack: string | undefined
     try {
       prettyStack = new StackTracey(stack).asTable()
-    } catch (err: any) { // eslint-disable-line
+    } catch {
       prettyStack = stack.toString()
     }
     if (prettyStack) {
@@ -249,11 +252,11 @@ function formatGenericError (errorMessage: string, stack: object) {
   return { title: errorMessage }
 }
 
-function formatErrorSummary (message: string, code?: string) {
+function formatErrorSummary (message: string, code?: string): string {
   return `${chalk.bgRed.black(`\u2009${code ?? 'ERROR'}\u2009`)} ${chalk.red(message)}`
 }
 
-function reportModifiedDependency (msg: { modified: string[] }) {
+function reportModifiedDependency (msg: { modified: string[] }): ErrorInfo {
   return {
     title: 'Packages in the store have been mutated',
     body: `These packages are modified:
@@ -263,14 +266,14 @@ You can run ${highlight('pnpm install --force')} to refetch the modified package
   }
 }
 
-function reportLockfileBreakingChange (err: Error, msg: object) {
+function reportLockfileBreakingChange (err: Error, msg: object): ErrorInfo {
   return {
     title: err.message,
     body: `Run with the ${highlight('--force')} parameter to recreate the lockfile.`,
   }
 }
 
-function formatRecursiveCommandSummary (msg: { failures: Array<Error & { prefix: string }>, passes: number }) {
+function formatRecursiveCommandSummary (msg: { failures: Array<Error & { prefix: string }>, passes: number }): ErrorInfo {
   const output = EOL + `Summary: ${chalk.red(`${msg.failures.length} fails`)}, ${msg.passes} passes` + EOL + EOL +
     msg.failures.map(({ message, prefix }) => {
       return prefix + ':' + EOL + formatErrorSummary(message)
@@ -281,7 +284,7 @@ function formatRecursiveCommandSummary (msg: { failures: Array<Error & { prefix:
   }
 }
 
-function reportBadTarballSize (err: Error, msg: object) {
+function reportBadTarballSize (err: Error, msg: object): ErrorInfo {
   return {
     title: err.message,
     body: `Seems like you have internet connection issues.
@@ -306,7 +309,7 @@ function reportLifecycleError (
     stage: string
     errno?: number | string
   }
-) {
+): ErrorInfo {
   if (msg.stage === 'test') {
     return { title: 'Test failed. See above for more details.' }
   }
@@ -329,7 +332,7 @@ function reportEngineError (
       pnpm?: string
     }
   }
-) {
+): ErrorInfo {
   let output = ''
   if (msg.wanted.pnpm) {
     output += `\
@@ -365,7 +368,7 @@ function reportAuthError (
   err: Error,
   msg: { hint?: string },
   config?: Config
-) {
+): ErrorInfo {
   const foundSettings = [] as string[]
   for (const [key, value] of Object.entries(config?.rawConfig ?? {})) {
     if (key[0] === '@') {
@@ -397,7 +400,7 @@ ${foundSettings.join('\n')}`
   }
 }
 
-function hideSecureInfo (key: string, value: string) {
+function hideSecureInfo (key: string, value: string): string {
   if (key.endsWith('_password')) return '[hidden]'
   if (key.endsWith('_auth') || key.endsWith('_authToken')) return `${value.substring(0, 4)}[hidden]`
   return value
@@ -405,28 +408,31 @@ function hideSecureInfo (key: string, value: string) {
 
 function reportPeerDependencyIssuesError (
   err: Error,
-  msg: { issuesByProjects: PeerDependencyIssuesByProjects }
-) {
+  msg: { issuesByProjects: PeerDependencyIssuesByProjects },
+  peerDependencyRules?: PeerDependencyRules
+): ErrorInfo | null {
   const hasMissingPeers = getHasMissingPeers(msg.issuesByProjects)
   const hints: string[] = []
   if (hasMissingPeers) {
     hints.push('If you want peer dependencies to be automatically installed, add "auto-install-peers=true" to an .npmrc file at the root of your project.')
   }
   hints.push('If you don\'t want pnpm to fail on peer dependency issues, add "strict-peer-dependencies=false" to an .npmrc file at the root of your project.')
+  const rendered = renderPeerIssues(msg.issuesByProjects, { rules: peerDependencyRules })
+  if (!rendered) return null
   return {
     title: err.message,
-    body: `${renderPeerIssues(msg.issuesByProjects)}
+    body: `${rendered}
 ${hints.map((hint) => `hint: ${hint}`).join('\n')}
 `,
   }
 }
 
-function getHasMissingPeers (issuesByProjects: PeerDependencyIssuesByProjects) {
+function getHasMissingPeers (issuesByProjects: PeerDependencyIssuesByProjects): boolean {
   return Object.values(issuesByProjects)
     .some((issues) => Object.values(issues.missing).flat().some(({ optional }) => !optional))
 }
 
-function reportDedupeCheckIssuesError (err: Error, msg: { dedupeCheckIssues: DedupeCheckIssues }) {
+function reportDedupeCheckIssuesError (err: Error, msg: { dedupeCheckIssues: DedupeCheckIssues }): ErrorInfo {
   return {
     title: err.message,
     body: `\

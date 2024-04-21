@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/hooks.read-package-hook",
-  "version": "3.0.10",
+  "version": "4.0.1",
   "description": "Creates the default package reader hook used by pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -41,7 +41,7 @@
   "devDependencies": {
     "@pnpm/hooks.read-package-hook": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/semver": "7.5.3",
     "@yarnpkg/core": "4.0.3"
   },

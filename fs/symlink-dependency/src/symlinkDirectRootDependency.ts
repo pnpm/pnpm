@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import util from 'util'
 import {
   type DependencyType,
   rootLogger,
@@ -25,7 +26,7 @@ export async function symlinkDirectRootDependency (
     }
     prefix: string
   }
-) {
+): Promise<void> {
   // `opts.destModulesDir` may be a non-existent `node_modules` dir
   // so `fs.realpath` would throw.
   // Even though `symlinkDir` creates the dir if it doesn't exist,
@@ -34,8 +35,8 @@ export async function symlinkDirectRootDependency (
   let destModulesDirReal
   try {
     destModulesDirReal = await fs.realpath(destModulesDir)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       await fs.mkdir(destModulesDir, { recursive: true })
       destModulesDirReal = await fs.realpath(destModulesDir)
     } else {

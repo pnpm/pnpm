@@ -78,7 +78,6 @@ export interface GetContextOptions {
   confirmModulesPurge?: boolean
   force: boolean
   forceNewModules?: boolean
-  forceSharedLockfile: boolean
   frozenLockfile?: boolean
   extraBinPaths: string[]
   extendNodePath?: boolean
@@ -185,7 +184,6 @@ export async function getContext (
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
-      forceSharedLockfile: opts.forceSharedLockfile,
       frozenLockfile: opts.frozenLockfile === true,
       lockfileDir: opts.lockfileDir,
       projects: importersContext.projects,
@@ -308,7 +306,7 @@ async function purgeModulesDirsOfImporter (
     virtualStoreDir: string
   },
   importer: ImporterToPurge
-) {
+): Promise<void> {
   return purgeModulesDirsOfImporters(opts, [importer])
 }
 
@@ -318,7 +316,7 @@ async function purgeModulesDirsOfImporters (
     virtualStoreDir: string
   },
   importers: ImporterToPurge[]
-) {
+): Promise<void> {
   if (opts.confirmModulesPurge ?? true) {
     const confirmed = await enquirer.prompt({
       type: 'confirm',
@@ -348,7 +346,7 @@ async function purgeModulesDirsOfImporters (
   }))
 }
 
-async function removeContentsOfDir (dir: string, virtualStoreDir: string) {
+async function removeContentsOfDir (dir: string, virtualStoreDir: string): Promise<void> {
   const items = await fs.readdir(dir)
   await Promise.all(items.map(async (item) => {
     // The non-pnpm related hidden files are kept
@@ -364,11 +362,11 @@ async function removeContentsOfDir (dir: string, virtualStoreDir: string) {
   }))
 }
 
-function dirsAreEqual (dir1: string, dir2: string) {
+function dirsAreEqual (dir1: string, dir2: string): boolean {
   return path.relative(dir1, dir2) === ''
 }
 
-function stringifyIncludedDeps (included: IncludedDependencies) {
+function stringifyIncludedDeps (included: IncludedDependencies): string {
   return DEPENDENCIES_FIELDS.filter((depsField) => included[depsField]).join(', ')
 }
 
@@ -409,7 +407,6 @@ export async function getContextForSingleImporter (
     excludeLinksFromLockfile: boolean
     force: boolean
     forceNewModules?: boolean
-    forceSharedLockfile: boolean
     confirmModulesPurge?: boolean
     extraBinPaths: string[]
     extendNodePath?: boolean
@@ -524,7 +521,6 @@ export async function getContextForSingleImporter (
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
-      forceSharedLockfile: opts.forceSharedLockfile,
       frozenLockfile: false,
       lockfileDir: opts.lockfileDir,
       projects: [{ id: importerId, rootDir: opts.dir }],
@@ -555,7 +551,7 @@ function getExtraNodePaths (
     nodeLinker: 'isolated' | 'hoisted' | 'pnp'
     virtualStoreDir: string
   }
-) {
+): string[] {
   if (extendNodePath && nodeLinker === 'isolated' && hoistPattern?.length) {
     return [path.join(virtualStoreDir, 'node_modules')]
   }

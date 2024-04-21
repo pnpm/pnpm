@@ -18,7 +18,7 @@ import { runScriptsIfPresent } from './publish'
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
 const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...cliOptionsTypes(),
     ...pick([
@@ -27,7 +27,7 @@ export function rcOptionsTypes () {
   }
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     'pack-destination': String,
     ...pick([
@@ -38,7 +38,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['pack']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Create a tarball from a package',
     usages: ['pnpm pack'],
@@ -66,7 +66,7 @@ export async function handler (
     packDestination?: string
     workspaceDir?: string
   }
-) {
+): Promise<string> {
   const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: opts.dir,
@@ -140,7 +140,7 @@ export async function handler (
   return path.relative(opts.dir, path.join(dir, tarballName))
 }
 
-async function readReadmeFile (projectDir: string) {
+async function readReadmeFile (projectDir: string): Promise<string | undefined> {
   const files = await fs.promises.readdir(projectDir)
   const readmePath = files.find(name => /readme\.md$/i.test(name))
   const readmeFile = readmePath ? await fs.promises.readFile(path.join(projectDir, readmePath), 'utf8') : undefined
@@ -188,7 +188,7 @@ async function createPublishManifest (opts: {
   embedReadme?: boolean
   modulesDir: string
   manifest: ProjectManifest
-}) {
+}): Promise<ProjectManifest> {
   const { projectDir, embedReadme, modulesDir, manifest } = opts
   const readmeFile = embedReadme ? await readReadmeFile(projectDir) : undefined
   return createExportableManifest(projectDir, manifest, { readmeFile, modulesDir })

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/matcher",
-  "version": "5.0.0",
+  "version": "6.0.0",
   "description": "A simple pattern matcher for pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

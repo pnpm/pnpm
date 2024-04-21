@@ -3,7 +3,7 @@ import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
-import { parseOverrides } from '@pnpm/parse-overrides'
+import { parseOverrides, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
 import { isIntersectingRange } from './isIntersectingRange'
 
@@ -17,12 +17,12 @@ export function createVersionsOverrider (
       .map((override) => {
         let linkTarget: string | undefined
         if (override.newPref.startsWith('link:')) {
-          linkTarget = path.join(rootDir, override.newPref.substring(5))
+          const pkgPath = override.newPref.substring(5)
+          linkTarget = path.isAbsolute(pkgPath) ? pkgPath : path.join(rootDir, pkgPath)
         }
         let linkFileTarget: string | undefined
         if (override.newPref.startsWith('file:')) {
-          const pkgPath = override.newPref.substring(5)
-          linkFileTarget = path.isAbsolute(pkgPath) ? pkgPath : path.join(rootDir, pkgPath)
+          linkFileTarget = override.newPref.substring(5)
         }
         return {
           ...override,
@@ -44,7 +44,7 @@ export function createVersionsOverrider (
   }) as ReadPackageHook
 }
 
-function tryParseOverrides (overrides: Record<string, string>) {
+function tryParseOverrides (overrides: Record<string, string>): VersionOverrideBase[] {
   try {
     return parseOverrides(overrides)
   } catch (e) {
@@ -52,16 +52,7 @@ function tryParseOverrides (overrides: Record<string, string>) {
   }
 }
 
-interface VersionOverride {
-  parentPkg?: {
-    name: string
-    pref?: string
-  }
-  targetPkg: {
-    name: string
-    pref?: string
-  }
-  newPref: string
+interface VersionOverride extends VersionOverrideBase {
   linkTarget?: string
   linkFileTarget?: string
 }
@@ -77,7 +68,7 @@ function overrideDepsOfPkg (
   { manifest, dir }: { manifest: PackageManifest, dir: string | undefined },
   versionOverrides: VersionOverrideWithParent[],
   genericVersionOverrides: VersionOverride[]
-) {
+): void {
   if (manifest.dependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.dependencies, dir)
   if (manifest.optionalDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.optionalDependencies, dir)
   if (manifest.devDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.devDependencies, dir)
@@ -89,7 +80,7 @@ function overrideDeps (
   genericVersionOverrides: VersionOverride[],
   deps: Dependencies,
   dir: string | undefined
-) {
+): void {
   for (const [name, pref] of Object.entries(deps)) {
     const versionOverride =
     pickMostSpecificVersionOverride(

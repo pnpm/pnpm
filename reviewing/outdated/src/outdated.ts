@@ -181,12 +181,12 @@ export async function outdated (
   return outdated.sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
 }
 
-function packageHasNoDeps (manifest: ProjectManifest) {
+function packageHasNoDeps (manifest: ProjectManifest): boolean {
   return ((manifest.dependencies == null) || isEmpty(manifest.dependencies)) &&
     ((manifest.devDependencies == null) || isEmpty(manifest.devDependencies)) &&
     ((manifest.optionalDependencies == null) || isEmpty(manifest.optionalDependencies))
 }
 
-function isEmpty (obj: object) {
+function isEmpty (obj: object): boolean {
   return Object.keys(obj).length === 0
 }

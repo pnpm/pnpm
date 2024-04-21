@@ -1,5 +1,30 @@
 # @pnpm/plugin-commands-setup
 
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+- Updated dependencies [3477ee5]
+  - @pnpm/cli-utils@3.0.0
+
 ## 4.0.34
 
 ### Patch Changes

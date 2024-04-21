@@ -1,5 +1,15 @@
 # @pnpm/run-npm
 
+## 7.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- e70a829: The npm CLI executed from pnpm should not use Corepack [#7747](https://github.com/pnpm/pnpm/pull/7747).
+
 ## 6.1.0
 
 ### Minor Changes

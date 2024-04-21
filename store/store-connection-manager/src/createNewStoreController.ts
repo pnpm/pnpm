@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import { createClient, type ClientOptions } from '@pnpm/client'
 import { type Config } from '@pnpm/config'
-import { createPackageStore, type CafsLocker } from '@pnpm/package-store'
+import { createPackageStore, type CafsLocker, type StoreController } from '@pnpm/package-store'
 import { packageManager } from '@pnpm/cli-meta'
 
 type CreateResolverOptions = Pick<Config,
@@ -48,7 +48,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
-) {
+): Promise<{ ctrl: StoreController, dir: string }> {
   const fullMetadata = opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
   const { resolve, fetchers } = createClient({
     customFetchers: opts.hooks?.fetchers,
@@ -90,7 +90,7 @@ export async function createNewStoreController (
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {
-    ctrl: await createPackageStore(resolve, fetchers, {
+    ctrl: createPackageStore(resolve, fetchers, {
       cafsLocker: opts.cafsLocker,
       engineStrict: opts.engineStrict,
       force: opts.force,
