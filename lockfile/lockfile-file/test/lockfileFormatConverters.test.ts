@@ -85,3 +85,50 @@ test('convertToLockfileObject converts git-hosted dependencies', () => {
     },
   })
 })
+
+test('convertToLockfileObject converts git-hosted dependencies via ssh', () => {
+  expect(convertToLockfileObject({
+    lockfileVersion: '',
+    importers: {
+      '.': {
+        dependencies: {
+          'git-resolver': {
+            specifier: 'ssh://git@gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
+            version: 'git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
+          },
+        },
+      },
+    },
+    packages: {
+      'git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc': {
+        name: 'git-resolver',
+        resolution: {
+          commit: '988c61e11dc8d9ca0b5580cb15291951812549dc',
+          repo: 'ssh://git@gitlab/pnpm/git-resolver',
+          type: 'git',
+        },
+      } as any, // eslint-disable-line
+    },
+  })).toMatchObject({
+    lockfileVersion: '',
+    importers: {
+      '.': {
+        dependencies: {
+          'git-resolver': 'git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
+        },
+        specifiers: {
+          'git-resolver': 'ssh://git@gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
+        },
+      },
+    },
+    packages: {
+      'git-resolver@git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc': {
+        resolution: {
+          commit: '988c61e11dc8d9ca0b5580cb15291951812549dc',
+          repo: 'ssh://git@gitlab/pnpm/git-resolver',
+          type: 'git',
+        },
+      },
+    },
+  })
+})

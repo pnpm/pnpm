@@ -209,7 +209,7 @@ function convertPkgIds (lockfile: LockfileFile): void {
           newId += `#path:${pkg.resolution.path}`
         }
       } else if ('repo' in pkg.resolution) {
-        newId = `${pkg.resolution.repo.startsWith('git+') ? '' : 'git+'}${pkg.resolution.repo}#${pkg.resolution.commit}`
+        newId += `${pkg.resolution.repo.startsWith('git+') ? '' : 'git+'}${pkg.resolution.repo}#${pkg.resolution.commit}`
         if (pkg.resolution.path) {
           newId += `&path:${pkg.resolution.path}`
         }
