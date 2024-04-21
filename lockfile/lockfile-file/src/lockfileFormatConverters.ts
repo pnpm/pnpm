@@ -19,6 +19,7 @@ import _mapValues from 'ramda/src/map'
 import omit from 'ramda/src/omit'
 import pickBy from 'ramda/src/pickBy'
 import pick from 'ramda/src/pick'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 
 export interface NormalizeLockfileOpts {
   forceSharedFormat: boolean
@@ -57,7 +58,7 @@ export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfi
     ...lockfile,
     snapshots,
     packages,
-    lockfileVersion: lockfile.lockfileVersion.toString(),
+    lockfileVersion: LOCKFILE_VERSION,
     importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
   }
   return normalizeLockfile(newLockfile, opts)
