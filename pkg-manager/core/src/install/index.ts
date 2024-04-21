@@ -351,9 +351,10 @@ export async function mutateModules (
         throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
       }
     }
+    const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
-      !ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`) && ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION_V6 ||
+      !upToDateLockfileMajorVersion && ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION_V6 ||
       opts.forceFullResolution
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
@@ -470,7 +471,7 @@ Note that in CI environments, this setting is enabled by default.`,
             wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
             useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
           })
-          if (opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles) {
+          if (opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles || !upToDateLockfileMajorVersion) {
             await writeLockfiles({
               currentLockfile: ctx.currentLockfile,
               currentLockfileDir: ctx.virtualStoreDir,
