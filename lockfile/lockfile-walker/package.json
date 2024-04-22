@@ -36,7 +36,9 @@
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
-    "@pnpm/types": "workspace:*"
+    "@pnpm/types": "workspace:*",
+    "@types/normalize-path": "^3.0.2",
+    "normalize-path": "^3.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

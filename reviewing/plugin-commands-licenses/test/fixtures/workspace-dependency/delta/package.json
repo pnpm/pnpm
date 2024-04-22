@@ -1,0 +1,10 @@
+{
+  "name": "delta",
+  "version": "1.0.0",
+  "dependencies": {
+    "wordwrap": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/is-windows": "^1.0.2"
+  }
+}

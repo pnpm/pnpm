@@ -110,7 +110,8 @@ export async function lockfileToLicenseNode (
       return [name, dep]
     }))).filter(Boolean) as Array<[string, LicenseNode]>
   )
-
+  const linkDependencies = await Promise.all(step.links.map((link) => lockfileToLicenseNode(link.next(), options)))
+  Object.assign(dependencies, ...linkDependencies)
   return dependencies
 }
 

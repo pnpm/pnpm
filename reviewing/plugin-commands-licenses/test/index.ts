@@ -340,3 +340,105 @@ test('pnpm licenses should work git repository name containing capital letters',
 
   expect(exitCode).toBe(0)
 })
+
+test('pnpm licenses: list only dependencies of selected workspace member', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-dependency', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await readProjects(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const betaPackageDir = path.join(workspaceDir, 'beta')
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: betaPackageDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    storeDir: path.resolve(storeDir, 'v3'),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toMatchSnapshot('show-packages')
+})
+
+test('pnpm licenses: workspace production dependency', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-dependency', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await readProjects(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const alphaPackageDir = path.join(workspaceDir, 'alpha')
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: alphaPackageDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    storeDir: path.resolve(storeDir, 'v3'),
+    dev: false,
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toMatchSnapshot('show-packages')
+})
+
+test('pnpm licenses: list all dependencies of workspace', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-dependency', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await readProjects(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    storeDir: path.resolve(storeDir, 'v3'),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toMatchSnapshot('show-packages')
+})

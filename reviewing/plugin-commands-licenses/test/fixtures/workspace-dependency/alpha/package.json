@@ -1,0 +1,12 @@
+{
+  "name": "alpha",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-positive": "^3.1.0",
+    "beta-alias": "workspace:beta@*"
+  },
+  "devDependencies": {
+    "@types/uuid": "^9.0.8",
+    "gamma": "workspace:*"
+  }
+}
