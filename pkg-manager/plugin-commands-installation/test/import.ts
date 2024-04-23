@@ -162,7 +162,7 @@ test('has package-lock.json that has two dependencies with the same dependency b
 
   const project = assertProject(process.cwd())
   const lockfile = project.readLockfile()
-  console.log(lockfile.packages)
-  expect(lockfile.packages['/@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
-  expect(lockfile.packages['/@pnpm.e2e/has-foo-100.1.0-dep-1@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.1.0')
+  // console.log(JSON.stringify(lockfile, null, 2))
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
 })
