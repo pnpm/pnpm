@@ -59,8 +59,7 @@ function updateWorkspacePref (pref: string): string {
   const prefBody = pref.slice(PREFIX.length)
   const [alias, ...afterAlias] = prefBody.split('@')
   if (afterAlias.length > 0) return `workspace:${alias}@*`
-  if (['', '*', '^', '~'].includes(prefBody)) return 'workspace:*'
-  throw new Error(`pnpm update doesn't know how to handle ${pref} yet`)
+  return 'workspace:*'
 }
 
 function getWantedDependenciesFromGivenSet (
