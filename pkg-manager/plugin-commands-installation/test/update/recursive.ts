@@ -423,8 +423,8 @@ test('recursive update with aliased workspace dependency (#7975)', async () => {
       name: 'project-1',
       version: '1.0.0',
       dependencies: {
-        pkg: 'workspace:project-2@^'
-      }
+        pkg: 'workspace:project-2@^',
+      },
     },
     {
       name: 'project-2',
