@@ -471,7 +471,10 @@ Note that in CI environments, this setting is enabled by default.`,
             wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
             useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
           })
-          if (opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles || !upToDateLockfileMajorVersion) {
+          if (
+            opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
+            !upToDateLockfileMajorVersion && !opts.frozenLockfile
+          ) {
             await writeLockfiles({
               currentLockfile: ctx.currentLockfile,
               currentLockfileDir: ctx.virtualStoreDir,
