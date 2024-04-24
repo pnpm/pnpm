@@ -44,7 +44,7 @@ jobs:
         node-version: ${{ matrix.node }}
         cache: 'pnpm'
     - name: Install npm@10
-      run: npm add --global npm@10
+      run: pnpm add --global npm@10
     - name: pnpm install
       run: pnpm install
     - name: Audit
