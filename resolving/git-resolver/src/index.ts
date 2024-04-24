@@ -2,6 +2,9 @@ import { type TarballResolution, type GitResolution, type ResolveResult } from '
 import git from 'graceful-git'
 import semver from 'semver'
 import { parsePref, type HostedPackageSpec } from './parsePref'
+import { createGitHostedPkgId } from './createGitHostedPkgId'
+
+export { createGitHostedPkgId }
 
 export type { HostedPackageSpec }
 
@@ -54,10 +57,7 @@ export function createGitResolver (
         id += `#path:${resolution.path}`
       }
     } else {
-      id = `${resolution.repo.startsWith('git+') ? '' : 'git+'}${resolution.repo}#${resolution.commit}`
-      if (resolution.path) {
-        id += `&path:${resolution.path}`
-      }
+      id = createGitHostedPkgId(resolution)
     }
 
     return {

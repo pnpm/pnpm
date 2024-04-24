@@ -1,4 +1,5 @@
 import { parseDepPath, removePeersSuffix } from '@pnpm/dependency-path'
+import { createGitHostedPkgId } from '@pnpm/git-resolver'
 import {
   type Lockfile,
   type ProjectSnapshot,
@@ -210,10 +211,7 @@ function convertPkgIds (lockfile: LockfileFile): void {
           newId += `#path:${pkg.resolution.path}`
         }
       } else if ('repo' in pkg.resolution) {
-        newId += `${pkg.resolution.repo.startsWith('git+') ? '' : 'git+'}${pkg.resolution.repo}#${pkg.resolution.commit}`
-        if (pkg.resolution.path) {
-          newId += `&path:${pkg.resolution.path}`
-        }
+        newId += createGitHostedPkgId(pkg.resolution)
       } else if ('directory' in pkg.resolution) {
         newId += id
       } else {
