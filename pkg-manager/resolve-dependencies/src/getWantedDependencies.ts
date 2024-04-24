@@ -56,9 +56,7 @@ export function getWantedDependencies (
 
 function updateWorkspacePref (pref: string): string {
   const parseResult = parseWorkspacePref(pref)
-  if (!parseResult) {
-    throw new Error(`Invalid workspace pref: ${pref}`)
-  }
+  if (!parseResult) return pref
   const { alias } = parseResult
   return alias ? `workspace:${alias}@*` : 'workspace:*'
 }
