@@ -17,7 +17,7 @@ jobs:
         node:
           - '18.12'
           - '20'
-          - '21'
+          - '22'
         platform:
           - ubuntu-latest
           - windows-latest
