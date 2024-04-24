@@ -1,4 +1,5 @@
 import { parseDepPath, removePeersSuffix } from '@pnpm/dependency-path'
+import { createGitHostedPkgId } from '@pnpm/git-resolver'
 import {
   type Lockfile,
   type ProjectSnapshot,
@@ -210,10 +211,7 @@ function convertPkgIds (lockfile: LockfileFile): void {
           newId += `#path:${pkg.resolution.path}`
         }
       } else if ('repo' in pkg.resolution) {
-        newId += `${pkg.resolution.repo.startsWith('git+') ? '' : 'git+'}${pkg.resolution.repo}#${pkg.resolution.commit}`
-        if (pkg.resolution.path) {
-          newId += `&path:${pkg.resolution.path}`
-        }
+        newId += createGitHostedPkgId(pkg.resolution)
       } else if ('directory' in pkg.resolution) {
         newId += id
       } else {
@@ -255,6 +253,17 @@ function convertPkgIds (lockfile: LockfileFile): void {
     }
   }
   lockfile.packages = newLockfilePackages
+  if ((lockfile.dependencies != null || lockfile.devDependencies != null || lockfile.optionalDependencies != null) && !lockfile.importers?.['.']) {
+    lockfile.importers = lockfile.importers ?? {}
+    lockfile.importers['.'] = {
+      dependencies: lockfile.dependencies,
+      devDependencies: lockfile.devDependencies,
+      optionalDependencies: lockfile.optionalDependencies,
+    }
+    delete lockfile.dependencies
+    delete lockfile.devDependencies
+    delete lockfile.optionalDependencies
+  }
   for (const importer of Object.values(lockfile.importers ?? {})) {
     for (const depType of ['dependencies', 'optionalDependencies', 'devDependencies'] as const) {
       for (const [alias, { version }] of Object.entries(importer[depType] ?? {})) {

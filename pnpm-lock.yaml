@@ -2130,6 +2130,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/git-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/git-resolver
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
@@ -6372,7 +6375,7 @@ importers:
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
         specifier: 0.4.9
-        version: 0.4.9(@types/node@20.12.7)
+        version: 0.4.9(@types/node@18.19.31)
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -7907,9 +7910,6 @@ packages:
 
   '@types/node@18.19.31':
     resolution: {integrity: sha512-ArgCD39YpyyrtFKIqMDvjz79jto5fcI/SVUs2HwB+f0dAzq68yqOdyaSivLiLugSziTpNXLQrVb7RZFmdZzbhA==}
-
-  '@types/node@20.12.7':
-    resolution: {integrity: sha512-wq0cICSkRLVaf3UGLMGItu/PtdY7oaXaI/RVU+xliKVOtRna3PRY57ZDfztpDL0n11vfymMUnXv8QwYCO7L1wg==}
 
   '@types/node@20.5.1':
     resolution: {integrity: sha512-4tT2UrL5LBqDwoed9wZ6N3umC4Yhz3W3FloMmiiG4JwmUJWpie0c7lcnUNd4gtMKuDEO4wRVS8B6Xa0uMRsMKg==}
@@ -14497,9 +14497,9 @@ snapshots:
       '@reflink/reflink-win32-arm64-msvc': 0.1.16
       '@reflink/reflink-win32-x64-msvc': 0.1.16
 
-  '@rushstack/worker-pool@0.4.9(@types/node@20.12.7)':
+  '@rushstack/worker-pool@0.4.9(@types/node@18.19.31)':
     optionalDependencies:
-      '@types/node': 20.12.7
+      '@types/node': 18.19.31
 
   '@sinclair/typebox@0.27.8': {}
 
@@ -14680,11 +14680,6 @@ snapshots:
   '@types/node@18.19.31':
     dependencies:
       undici-types: 5.26.5
-
-  '@types/node@20.12.7':
-    dependencies:
-      undici-types: 5.26.5
-    optional: true
 
   '@types/node@20.5.1': {}
 
