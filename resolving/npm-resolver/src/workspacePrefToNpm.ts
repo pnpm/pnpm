@@ -1,17 +1,14 @@
-export function workspacePrefToNpm (workspacePref: string): string {
-  const prefParts = /^workspace:([^._/][^@]*@)?(.*)$/.exec(workspacePref)
+import { parseWorkspacePref } from '@pnpm/workspace-pref'
 
-  if (prefParts == null) {
+export function workspacePrefToNpm (workspacePref: string): string {
+  const parseResult = parseWorkspacePref(workspacePref)
+  if (parseResult == null) {
     throw new Error(`Invalid workspace spec: ${workspacePref}`)
   }
-  const [workspacePkgAlias, workspaceVersion] = prefParts.slice(1)
 
-  const pkgAliasPart = workspacePkgAlias != null && workspacePkgAlias
-    ? `npm:${workspacePkgAlias}`
-    : ''
-  const versionPart = workspaceVersion === '^' || workspaceVersion === '~'
-    ? '*'
-    : workspaceVersion
-
-  return `${pkgAliasPart}${versionPart}`
+  const { alias, version } = parseResult
+  const versionPart = version === '^' || version === '~' ? '*' : version
+  return alias
+    ? `npm:${alias}@${versionPart}`
+    : versionPart
 }

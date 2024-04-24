@@ -6,6 +6,7 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
+import { parseWorkspacePref } from '@pnpm/workspace-pref'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
@@ -54,12 +55,12 @@ export function getWantedDependencies (
 }
 
 function updateWorkspacePref (pref: string): string {
-  const PREFIX = 'workspace:'
-  if (!pref.startsWith(PREFIX)) return pref
-  const prefBody = pref.slice(PREFIX.length)
-  const [alias, ...afterAlias] = prefBody.split('@')
-  if (afterAlias.length > 0) return `workspace:${alias}@*`
-  return 'workspace:*'
+  const parseResult = parseWorkspacePref(pref)
+  if (!parseResult) {
+    throw new Error(`Invalid workspace pref: ${pref}`)
+  }
+  const { alias } = parseResult
+  return alias ? `workspace:${alias}@*` : 'workspace:*'
 }
 
 function getWantedDependenciesFromGivenSet (
