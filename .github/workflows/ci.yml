@@ -32,14 +32,14 @@ jobs:
         git config --global user.name "xyz"
         git config --global user.email "x@y.z"
     - name: Checkout Commit
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Install pnpm
       uses: pnpm/action-setup@v3.0.0
       with:
         version: next-9
         standalone: true
     - name: Setup Node
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node }}
         cache: 'pnpm'
