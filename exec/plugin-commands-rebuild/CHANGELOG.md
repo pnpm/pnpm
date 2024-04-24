@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 11.0.5
+
+### Patch Changes
+
+- @pnpm/get-context@11.0.2
+- @pnpm/store-connection-manager@8.0.4
+
 ## 11.0.4
 
 ### Patch Changes

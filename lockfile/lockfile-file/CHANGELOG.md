@@ -1,5 +1,13 @@
 # @pnpm/lockfile-file
 
+## 9.0.2
+
+### Patch Changes
+
+- c969f37: Lockfiles that have git-hosted dependencies specified should be correctly converted to the new lockfile format [#7990](https://github.com/pnpm/pnpm/issues/7990).
+- Updated dependencies [c969f37]
+  - @pnpm/git-resolver@9.0.1
+
 ## 9.0.1
 
 ### Patch Changes

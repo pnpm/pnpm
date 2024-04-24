@@ -1,5 +1,12 @@
 # pnpm
 
+## 9.0.6
+
+### Patch Changes
+
+- Lockfiles that have git-hosted dependencies specified should be correctly converted to the new lockfile format [#7990](https://github.com/pnpm/pnpm/issues/7990).
+- Don't upgrade the lockfile format on `pnpm install --frozen-lockfile` [#7991](https://github.com/pnpm/pnpm/issues/7991).
+
 ## 9.0.5
 
 ### Patch Changes

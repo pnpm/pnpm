@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 23.0.4
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+  - @pnpm/deps.graph-builder@1.0.3
+  - @pnpm/lockfile-to-pnp@4.0.2
+  - @pnpm/real-hoist@3.0.0
+  - @pnpm/package-requester@25.0.1
+
 ## 23.0.3
 
 ### Patch Changes

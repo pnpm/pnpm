@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 19.0.1
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/git-resolver@9.0.1
+
 ## 19.0.0
 
 ### Major Changes

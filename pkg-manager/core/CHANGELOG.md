@@ -1,5 +1,17 @@
 # @pnpm/core
 
+## 14.0.7
+
+### Patch Changes
+
+- 8209342: Don't upgrade the lockfile format on `pnpm install --frozen-lockfile` [#7991](https://github.com/pnpm/pnpm/issues/7991).
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+  - @pnpm/lockfile-to-pnp@4.0.2
+  - @pnpm/get-context@11.0.2
+  - @pnpm/headless@23.0.4
+  - @pnpm/package-requester@25.0.1
+
 ## 14.0.6
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-store
 
+## 9.0.5
+
+### Patch Changes
+
+- @pnpm/get-context@11.0.2
+- @pnpm/store-connection-manager@8.0.4
+
 ## 9.0.4
 
 ### Patch Changes
