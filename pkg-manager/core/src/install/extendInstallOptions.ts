@@ -149,7 +149,7 @@ export interface StrictInstallOptions {
 
 export type InstallOptions =
   & Partial<StrictInstallOptions>
-  & Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
+  & Pick<StrictInstallOptions, 'storeDir' | 'storeController' | 'virtualStoreDirMaxLength'>
 
 const defaults = (opts: InstallOptions): StrictInstallOptions => {
   const packageManager = opts.packageManager ?? {
@@ -238,7 +238,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     ignoreWorkspaceCycles: false,
     disallowWorkspaceCycles: false,
     excludeLinksFromLockfile: false,
-    virtualStoreDirMaxLength: 120
+    virtualStoreDirMaxLength: 120,
   } as StrictInstallOptions
 }
 

@@ -141,6 +141,7 @@ export async function handler (
   | 'userConfig'
   | 'rawConfig'
   | 'rootProjectManifest'
+  | 'virtualStoreDirMaxLength'
   >
 ): Promise<{ exitCode: number, output: string }> {
   const lockfileDir = opts.lockfileDir ?? opts.dir
@@ -179,6 +180,7 @@ export async function handler (
         retries: opts.fetchRetries,
       },
       timeout: opts.fetchTimeout,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
   } catch (err: any) { // eslint-disable-line
     if (opts.ignoreRegistryErrors) {

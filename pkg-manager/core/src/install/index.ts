@@ -1048,6 +1048,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       tag: opts.tag,
       updateToLatest: opts.updateToLatest,
       virtualStoreDir: ctx.virtualStoreDir,
+      virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
       patchedDependencies: opts.patchedDependencies,
@@ -1131,6 +1132,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         skipped: ctx.skipped,
         storeController: opts.storeController,
         virtualStoreDir: ctx.virtualStoreDir,
+        virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
         wantedLockfile: newLockfile,
         wantedToBeSkippedPackageIds,
         hoistWorkspacePackages: opts.hoistWorkspacePackages,
@@ -1145,6 +1147,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         importerNames,
         lockfileDir: ctx.lockfileDir,
         virtualStoreDir: ctx.virtualStoreDir,
+        virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
         registries: ctx.registries,
       })
     }
@@ -1315,6 +1318,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           skipped: Array.from(ctx.skipped),
           storeDir: ctx.storeDir,
           virtualStoreDir: ctx.virtualStoreDir,
+          virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
         }, {
           makeModulesDir: Object.keys(result.currentLockfile.packages ?? {}).length > 0,
         })
