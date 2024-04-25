@@ -34,7 +34,7 @@
       "path": "../../workspace/resolve-workspace-range"
     },
     {
-      "path": "../../workspace/workspace-pref"
+      "path": "../../workspace/spec-parser"
     },
     {
       "path": "../resolver-base"

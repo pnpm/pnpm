@@ -4286,9 +4286,9 @@ importers:
       '@pnpm/which-version-is-pinned':
         specifier: workspace:*
         version: link:../../packages/which-version-is-pinned
-      '@pnpm/workspace-pref':
+      '@pnpm/workspace.spec-parser':
         specifier: workspace:*
-        version: link:../../workspace/workspace-pref
+        version: link:../../workspace/spec-parser
       '@yarnpkg/core':
         specifier: 4.0.3
         version: 4.0.3(typanion@3.14.0)
@@ -5191,9 +5191,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/workspace-pref':
+      '@pnpm/workspace.spec-parser':
         specifier: workspace:*
-        version: link:../../workspace/workspace-pref
+        version: link:../../workspace/spec-parser
       '@zkochan/retry':
         specifier: ^0.2.0
         version: 0.2.0
@@ -6559,9 +6559,9 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  workspace/workspace-pref:
+  workspace/spec-parser:
     devDependencies:
-      '@pnpm/workspace-pref':
+      '@pnpm/workspace.spec-parser':
         specifier: workspace:*
         version: 'link:'
 

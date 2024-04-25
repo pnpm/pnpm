@@ -61,7 +61,7 @@
       "path": "../../store/store-controller-types"
     },
     {
-      "path": "../../workspace/workspace-pref"
+      "path": "../../workspace/spec-parser"
     }
   ],
   "composite": true

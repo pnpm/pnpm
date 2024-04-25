@@ -1,4 +1,4 @@
-# @pnpm/workspace-pref
+# @pnpm/workspace.spec-parser
 
 > Parse and stringify workspace pref
 

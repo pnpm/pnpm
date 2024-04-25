@@ -6,7 +6,7 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
-import { parseWorkspacePref } from '@pnpm/workspace-pref'
+import { parseWorkspacePref } from '@pnpm/workspace.spec-parser'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
