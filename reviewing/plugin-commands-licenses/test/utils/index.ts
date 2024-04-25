@@ -47,4 +47,5 @@ export const DEFAULT_OPTS = {
   useStoreServer: false,
   virtualStoreDir: 'node_modules/.pnpm',
   workspaceConcurrency: 4,
+  virtualStoreDirMaxLength: 120,
 }
