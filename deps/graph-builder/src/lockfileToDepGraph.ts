@@ -209,6 +209,7 @@ export async function lockfileToDepGraph (
       storeController: opts.storeController,
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }
     for (const [dir, node] of Object.entries(graph)) {
       const pkgSnapshot = pkgSnapshotByLocation[dir]

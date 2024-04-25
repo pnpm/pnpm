@@ -24,6 +24,7 @@ export interface HoistOpts extends GetHoistedDependenciesOpts {
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
 }
 
 export async function hoist (opts: HoistOpts): Promise<HoistedDependencies> {
@@ -36,6 +37,7 @@ export async function hoist (opts: HoistOpts): Promise<HoistedDependencies> {
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     hoistedWorkspacePackages: opts.hoistedWorkspacePackages,
   })
 
@@ -244,6 +246,7 @@ async function symlinkHoistedDependencies (
     privateHoistedModulesDir: string
     publicHoistedModulesDir: string
     virtualStoreDir: string
+    virtualStoreDirMaxLength: number
     hoistedWorkspacePackages?: Record<string, HoistedWorkspaceProject>
   }
 ): Promise<void> {
@@ -255,7 +258,7 @@ async function symlinkHoistedDependencies (
         let depLocation!: string
         if (pkgSnapshot) {
           const pkgName = nameVerFromPkgSnapshot(hoistedDepId, pkgSnapshot).name
-          const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(hoistedDepId), 'node_modules')
+          const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(hoistedDepId, opts.virtualStoreDirMaxLength), 'node_modules')
           depLocation = path.join(modules, pkgName as string)
         } else {
           if (!opts.lockfile.importers[hoistedDepId]) {

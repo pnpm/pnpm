@@ -200,6 +200,7 @@ export async function rebuildProjects (
     skipped: Array.from(ctx.skipped),
     storeDir: ctx.storeDir,
     virtualStoreDir: ctx.virtualStoreDir,
+    virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
   })
 }
 

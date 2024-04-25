@@ -164,6 +164,7 @@ export interface ResolutionContext {
   registries: Registries
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<string, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
@@ -1104,7 +1105,7 @@ async function resolveDependency (
     await exists(
       path.join(
         ctx.virtualStoreDir,
-        dp.depPathToFilename(currentPkg.depPath),
+        dp.depPathToFilename(currentPkg.depPath, ctx.virtualStoreDirMaxLength),
         'node_modules',
         currentPkg.name,
         'package.json'

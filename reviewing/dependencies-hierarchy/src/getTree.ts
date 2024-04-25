@@ -23,6 +23,7 @@ interface GetTreeOpts {
   currentPackages: PackageSnapshots
   wantedPackages: PackageSnapshots
   virtualStoreDir?: string
+  virtualStoreDirMaxLength: number
 }
 
 interface DependencyInfo {
@@ -136,6 +137,7 @@ function getTreeHelper (
       skipped: opts.skipped,
       wantedPackages: opts.wantedPackages,
       virtualStoreDir: opts.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
     let circular: boolean
     const matchedSearched = opts.search?.(packageInfo)

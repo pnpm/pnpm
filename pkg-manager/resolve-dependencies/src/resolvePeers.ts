@@ -69,6 +69,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     projects: ProjectToResolve[]
     dependenciesTree: DependenciesTree<T>
     virtualStoreDir: string
+    virtualStoreDirMaxLength: number
     lockfileDir: string
     resolvePeersFromWorkspaceRoot?: boolean
     dedupePeerDependents?: boolean
@@ -114,6 +115,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       purePkgs: new Set(),
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
     if (finishing) {
       finishingList.push(finishing)
@@ -312,6 +314,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     dependenciesTree: DependenciesTree<T>
     depGraph: GenericDependenciesGraph<T>
     virtualStoreDir: string
+    virtualStoreDirMaxLength: number
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     purePkgs: Set<string> // pure packages are those that don't rely on externally resolved peers
@@ -510,7 +513,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
     const peerDependencies = { ...resolvedPackage.peerDependencies }
     if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
-      const modules = path.join(ctx.virtualStoreDir, depPathToFilename(depPath), 'node_modules')
+      const modules = path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.virtualStoreDirMaxLength), 'node_modules')
       const dir = path.join(modules, resolvedPackage.name)
 
       const transitivePeerDependencies = new Set<string>()
@@ -584,6 +587,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     virtualStoreDir: string
+    virtualStoreDirMaxLength: number
     purePkgs: Set<string>
     depGraph: GenericDependenciesGraph<T>
     dependenciesTree: DependenciesTree<T>

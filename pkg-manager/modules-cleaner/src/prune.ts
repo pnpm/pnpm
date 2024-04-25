@@ -49,6 +49,7 @@ export async function prune (
     pruneVirtualStore?: boolean
     skipped: Set<string>
     virtualStoreDir: string
+    virtualStoreDirMaxLength: number
     lockfileDir: string
     storeController: StoreController
   }
@@ -169,13 +170,13 @@ export async function prune (
       const _tryRemovePkg = tryRemovePkg.bind(null, opts.lockfileDir, opts.virtualStoreDir)
       await Promise.all(
         orphanDepPaths
-          .map((orphanDepPath) => depPathToFilename(orphanDepPath))
+          .map((orphanDepPath) => depPathToFilename(orphanDepPath, opts.virtualStoreDirMaxLength))
           .map(async (orphanDepPath) => _tryRemovePkg(orphanDepPath))
       )
       const neededPkgs = new Set<string>(['node_modules'])
       for (const depPath of Object.keys(opts.wantedLockfile.packages ?? {})) {
         if (opts.skipped.has(depPath)) continue
-        neededPkgs.add(depPathToFilename(depPath))
+        neededPkgs.add(depPathToFilename(depPath, opts.virtualStoreDirMaxLength))
       }
       const availablePkgs = await readVirtualStoreDir(opts.virtualStoreDir, opts.lockfileDir)
       await Promise.all(

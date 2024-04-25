@@ -52,6 +52,7 @@ export interface PnpmContext {
   publicHoistPattern: string[] | undefined
   lockfileDir: string
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   skipped: Set<string>
   storeDir: string
   wantedLockfile: Lockfile
@@ -92,6 +93,7 @@ export interface GetContextOptions {
   useGitBranchLockfile?: boolean
   mergeGitBranchLockfiles?: boolean
   virtualStoreDir?: string
+  virtualStoreDirMaxLength: number
 
   hoistPattern?: string[] | undefined
   forceHoistPattern?: boolean
@@ -180,6 +182,7 @@ export async function getContext (
     skipped: importersContext.skipped,
     storeDir: opts.storeDir,
     virtualStoreDir,
+    virtualStoreDirMaxLength: importersContext.virtualStoreDirMaxLength ?? opts.virtualStoreDirMaxLength,
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
