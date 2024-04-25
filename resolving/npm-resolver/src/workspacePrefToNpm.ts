@@ -1,7 +1,7 @@
-import { parseWorkspacePref } from '@pnpm/workspace.spec-parser'
+import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
 
 export function workspacePrefToNpm (workspacePref: string): string {
-  const parseResult = parseWorkspacePref(workspacePref)
+  const parseResult = WorkspaceSpec.parse(workspacePref)
   if (parseResult == null) {
     throw new Error(`Invalid workspace spec: ${workspacePref}`)
   }
