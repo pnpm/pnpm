@@ -140,6 +140,7 @@ export const types = Object.assign({
   'use-stderr': Boolean,
   'verify-store-integrity': Boolean,
   'virtual-store-dir': String,
+  'virtual-store-dir-max-length': Number,
   'workspace-concurrency': Number,
   'workspace-packages': [String, Array],
   'workspace-root': Boolean,
