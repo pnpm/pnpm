@@ -1,15 +1,56 @@
 import util from 'util'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
 import path from 'node:path'
 import readYamlFile from 'read-yaml-file'
+import {
+  assertValidWorkspaceManifestCatalog,
+  assertValidWorkspaceManifestCatalogs,
+  checkDefaultCatalogIsDefinedOnce,
+  type WorkspaceCatalog,
+  type WorkspaceNamedCatalogs,
+} from './catalogs'
+import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError'
 
 export interface WorkspaceManifest {
   packages?: string[]
+
+  /**
+   * The default catalog. Package manifests may refer to dependencies in this
+   * definition through the `catalog:default` specifier or the `catalog:`
+   * shorthand.
+   */
+  catalog?: WorkspaceCatalog
+
+  /**
+   * A dictionary of named catalogs. Package manifests may refer to dependencies
+   * in this definition through the `catalog:<name>` specifier.
+   */
+  catalogs?: WorkspaceNamedCatalogs
 }
 
-export async function readWorkspaceManifest (dir: string): Promise<WorkspaceManifest | undefined> {
+export interface ReadWorkspaceManifestOptions {
+  /**
+   * Whether or not to read the catalog and catalogs fields. This is currently
+   * disabled by default while the overall catalogs feature is in development.
+   *
+   * @default false
+   */
+  readonly catalogs?: boolean
+}
+
+export async function readWorkspaceManifest (
+  dir: string,
+  opts?: ReadWorkspaceManifestOptions
+): Promise<WorkspaceManifest | undefined> {
   const manifest = await readManifestRaw(dir)
+
+  // Disable catalogs config reads by default until the overall feature is ready.
+  const isCatalogsConfigEnabled = opts?.catalogs ?? false
+  if (!isCatalogsConfigEnabled && typeof manifest === 'object' && manifest != null) {
+    delete (manifest as { catalog?: unknown }).catalog
+    delete (manifest as { catalogs?: unknown }).catalogs
+  }
+
   validateWorkspaceManifest(manifest)
   return manifest
 }
@@ -48,6 +89,10 @@ function validateWorkspaceManifest (manifest: unknown): asserts manifest is Work
   }
 
   assertValidWorkspaceManifestPackages(manifest)
+  assertValidWorkspaceManifestCatalog(manifest)
+  assertValidWorkspaceManifestCatalogs(manifest)
+  checkDefaultCatalogIsDefinedOnce(manifest)
+
   checkWorkspaceManifestAssignability(manifest)
 }
 
@@ -79,9 +124,3 @@ function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown })
  * the future.
  */
 function checkWorkspaceManifestAssignability (_manifest: WorkspaceManifest): void {}
-
-class InvalidWorkspaceManifestError extends PnpmError {
-  constructor (message: string) {
-    super('INVALID_WORKSPACE_CONFIGURATION', message)
-  }
-}

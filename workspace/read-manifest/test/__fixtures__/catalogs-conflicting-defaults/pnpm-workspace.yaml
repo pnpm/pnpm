@@ -1,0 +1,10 @@
+packages:
+  - "packages/**"
+  - "types"
+
+catalog:
+  foo: ^1.0.0
+
+catalogs:
+  default:
+    bar: ^2.0.0
