@@ -35,6 +35,7 @@ const fixtureWithAliasedDep = f.find('with-aliased-dep')
 test('list all deps of a package that has an external lockfile', async () => {
   expect(await list([fixtureWithExternalLockfile], {
     lockfileDir: path.join(fixtureWithExternalLockfile, '..'),
+    virtualStoreDirMaxLength: 120,
   })).toBe(`${LEGEND}
 
 ${boldHighlighted(`pkg@1.0.0 ${fixtureWithExternalLockfile}`)}
@@ -49,6 +50,7 @@ test('print legend only once', async () => {
     path.join(workspaceWith2Pkgs, 'packages/foo'),
   ], {
     lockfileDir: workspaceWith2Pkgs,
+    virtualStoreDirMaxLength: 120,
   })).toBe(`${LEGEND}
 
 ${boldHighlighted(`bar@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/bar')}`)}
@@ -68,6 +70,7 @@ test('list in workspace with private package', async () => {
     path.join(workspaceWithPrivatePkgs, 'packages/public'),
   ], {
     lockfileDir: workspaceWithPrivatePkgs,
+    virtualStoreDirMaxLength: 120,
   })).toBe(`${LEGEND}
 
 ${boldHighlighted(`private@1.0.0 ${path.join(workspaceWithPrivatePkgs, 'packages/private')} (PRIVATE)`)}
@@ -82,7 +85,7 @@ is-positive ${VERSION_CLR('1.0.0')}`)
 })
 
 test('list with default parameters', async () => {
-  expect(await list([fixture], { lockfileDir: fixture })).toBe(`${LEGEND}
+  expect(await list([fixture], { lockfileDir: fixture, virtualStoreDirMaxLength: 120 })).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
@@ -97,7 +100,7 @@ ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
 })
 
 test('list with default parameters in pkg that has no name and version', async () => {
-  expect(await list([fixtureWithNoPkgNameAndNoVersion], { lockfileDir: fixtureWithNoPkgNameAndNoVersion })).toBe(`${LEGEND}
+  expect(await list([fixtureWithNoPkgNameAndNoVersion], { lockfileDir: fixtureWithNoPkgNameAndNoVersion, virtualStoreDirMaxLength: 120 })).toBe(`${LEGEND}
 
 ${boldHighlighted(fixtureWithNoPkgNameAndNoVersion)}
 
@@ -112,7 +115,7 @@ ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
 })
 
 test('list with default parameters in pkg that has no version', async () => {
-  expect(await list([fixtureWithNoPkgVersion], { lockfileDir: fixtureWithNoPkgVersion })).toBe(`${LEGEND}
+  expect(await list([fixtureWithNoPkgVersion], { lockfileDir: fixtureWithNoPkgVersion, virtualStoreDirMaxLength: 120 })).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture ${fixtureWithNoPkgVersion}`)}
 
@@ -131,6 +134,7 @@ test('list dev only', async () => {
     await list([fixture], {
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
       lockfileDir: fixture,
+      virtualStoreDirMaxLength: 120,
     })
   ).toBe(`${LEGEND}
 
@@ -146,6 +150,7 @@ test('list prod only', async () => {
     await list([fixture], {
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
       lockfileDir: fixture,
+      virtualStoreDirMaxLength: 120,
     })
   ).toBe(`${LEGEND}
 
@@ -162,6 +167,7 @@ test('list prod only with depth 2', async () => {
       depth: 2,
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
       lockfileDir: fixture,
+      virtualStoreDirMaxLength: 120,
     })
   ).toBe(`${LEGEND}
 
@@ -184,7 +190,7 @@ write-json-file ${VERSION_CLR('2.3.0')}
 })
 
 test('list with depth 1', async () => {
-  expect(await list([fixture], { depth: 1, lockfileDir: fixture })).toBe(`${LEGEND}
+  expect(await list([fixture], { depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
@@ -205,12 +211,12 @@ ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}`)
 })
 
 test('list with depth -1', async () => {
-  expect(await list([fixture], { depth: -1, lockfileDir: fixture })).toBe(`${boldHighlighted(`fixture@1.0.0 ${fixture}`)}`)
+  expect(await list([fixture], { depth: -1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })).toBe(`${boldHighlighted(`fixture@1.0.0 ${fixture}`)}`)
 })
 
 test('list with depth 1 and selected packages', async () => {
   expect(
-    await listForPackages(['make-dir', 'pify@2', 'sort-keys@2', 'is-negative'], [fixture], { depth: 1, lockfileDir: fixture })
+    await listForPackages(['make-dir', 'pify@2', 'sort-keys@2', 'is-negative'], [fixture], { depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })
   ).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
@@ -226,7 +232,7 @@ ${highlighted(OPTIONAL_DEP_CLR('is-negative') + ' ' + VERSION_CLR('2.1.0'))}`
 })
 
 test('list in long format', async () => {
-  expect(await list([fixture], { long: true, lockfileDir: fixture })).toBe(`${LEGEND}
+  expect(await list([fixture], { long: true, lockfileDir: fixture, virtualStoreDirMaxLength: 0 })).toBe(`${LEGEND}
 
 ${boldHighlighted(`fixture@1.0.0 ${fixture}`)}
 
@@ -259,6 +265,7 @@ test('parseable list in workspace with private package', async () => {
   ], {
     reportAs: 'parseable',
     lockfileDir: workspaceWithPrivatePkgs,
+    virtualStoreDirMaxLength: 120,
   })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}
 ${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}
 ${path.join(workspaceWithPrivatePkgs, 'packages/public')}`)
@@ -272,6 +279,7 @@ test('long parseable list in workspace with private package', async () => {
     reportAs: 'parseable',
     long: true,
     lockfileDir: workspaceWithPrivatePkgs,
+    virtualStoreDirMaxLength: 120,
   })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}:private@1.0.0:PRIVATE
 ${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}:is-positive@1.0.0
 ${path.join(workspaceWithPrivatePkgs, 'packages/public')}:public@1.0.0`)
@@ -284,6 +292,7 @@ test('JSON list in workspace with private package', async () => {
   ], {
     reportAs: 'json',
     lockfileDir: workspaceWithPrivatePkgs,
+    virtualStoreDirMaxLength: 120,
   })).toBe(
     JSON.stringify([
       {
@@ -319,7 +328,7 @@ test('JSON list in workspace with private package', async () => {
 })
 
 test('parseable list with depth 1', async () => {
-  expect(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture })).toBe(`${fixture}
+  expect(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })).toBe(`${fixture}
 ${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}
 ${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs')}
 ${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}
@@ -332,7 +341,7 @@ ${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/writ
 })
 
 test('JSON list with depth 1', async () => {
-  expect(await list([fixture], { reportAs: 'json', depth: 1, lockfileDir: fixture })).toBe(JSON.stringify([{
+  expect(await list([fixture], { reportAs: 'json', depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })).toBe(JSON.stringify([{
     name: 'fixture',
     version: '1.0.0',
     path: fixture,
@@ -414,7 +423,7 @@ test('JSON list with depth 1', async () => {
 
 test('JSON list with aliased dep', async () => {
   expect(
-    await list([fixtureWithAliasedDep], { reportAs: 'json', lockfileDir: fixtureWithAliasedDep })
+    await list([fixtureWithAliasedDep], { reportAs: 'json', lockfileDir: fixtureWithAliasedDep, virtualStoreDirMaxLength: 120 })
   ).toBe(
     JSON.stringify([
       {
@@ -434,7 +443,7 @@ test('JSON list with aliased dep', async () => {
     ], null, 2)
   )
   expect(
-    await list([fixtureWithAliasedDep], { lockfileDir: fixtureWithAliasedDep, long: true, reportAs: 'json' })
+    await list([fixtureWithAliasedDep], { lockfileDir: fixtureWithAliasedDep, long: true, reportAs: 'json', virtualStoreDirMaxLength: 120 })
   ).toBe(
     JSON.stringify([{
       name: 'with-aliased-dep',
@@ -471,6 +480,7 @@ test('parseable list with depth 1 and dev only', async () => {
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
       lockfileDir: fixture,
       reportAs: 'parseable',
+      virtualStoreDirMaxLength: 120,
     })
   ).toBe(`${fixture}
 ${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}`
@@ -488,6 +498,7 @@ test('parseable list with depth 1 without unnecessary empty newlines', async () 
       lockfileDir: workspaceWithDifferentDeps,
       depth: 1,
       reportAs: 'parseable',
+      virtualStoreDirMaxLength: 120,
     }
   )).toBe(`${path.join(workspaceWithDifferentDeps, 'packages/bar')}
 ${path.join(workspaceWithDifferentDeps, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}`
@@ -495,7 +506,7 @@ ${path.join(workspaceWithDifferentDeps, 'node_modules/.pnpm/is-positive@3.1.0/no
 })
 
 test('long parseable list with depth 1', async () => {
-  expect(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, long: true })).toBe(`${fixture}:fixture@1.0.0
+  expect(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, long: true, virtualStoreDirMaxLength: 120 })).toBe(`${fixture}:fixture@1.0.0
 ${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}:detect-indent@5.0.0
 ${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs')}:graceful-fs@4.2.2
 ${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}:is-negative@2.1.0
@@ -508,7 +519,7 @@ ${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/writ
 })
 
 test('long parseable list with depth 1 when package has no version', async () => {
-  expect(await list([fixtureWithNoPkgVersion], { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgVersion, long: true })).toBe(`\
+  expect(await list([fixtureWithNoPkgVersion], { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgVersion, long: true, virtualStoreDirMaxLength: 120 })).toBe(`\
 ${fixtureWithNoPkgVersion}:fixture
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}:detect-indent@5.0.0
 ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs')}:graceful-fs@4.2.2
@@ -525,7 +536,7 @@ test('long parseable list with depth 1 when package has no name and no version',
   expect(
     await list(
       [fixtureWithNoPkgNameAndNoVersion],
-      { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgNameAndNoVersion, long: true }
+      { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgNameAndNoVersion, long: true, virtualStoreDirMaxLength: 120 }
     )
   ).toBe(`${fixtureWithNoPkgNameAndNoVersion}
 ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}:detect-indent@5.0.0
@@ -541,11 +552,11 @@ ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-json-fil
 })
 
 test('print empty', async () => {
-  expect(await list([emptyFixture], { lockfileDir: emptyFixture })).toBe(`${LEGEND}\n\n${boldHighlighted(`empty@1.0.0 ${emptyFixture}`)}`)
+  expect(await list([emptyFixture], { lockfileDir: emptyFixture, virtualStoreDirMaxLength: 120 })).toBe(`${LEGEND}\n\n${boldHighlighted(`empty@1.0.0 ${emptyFixture}`)}`)
 })
 
 test("don't print empty", async () => {
-  expect(await list([emptyFixture], { alwaysPrintRootPackage: false, lockfileDir: emptyFixture })).toBe('')
+  expect(await list([emptyFixture], { alwaysPrintRootPackage: false, lockfileDir: emptyFixture, virtualStoreDirMaxLength: 120 })).toBe('')
 })
 
 test('unsaved dependencies are marked', async () => {
@@ -783,7 +794,7 @@ foo ${VERSION_CLR('1.0.0')}
 
 test('peer dependencies are marked', async () => {
   const fixture = f.find('with-peer')
-  const output = await list([fixture], { depth: 1, lockfileDir: fixture })
+  const output = await list([fixture], { depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })
   expect(output).toBe(`${LEGEND}
 
 ${boldHighlighted(`with-peer@1.0.0 ${fixture}`)}
@@ -800,7 +811,7 @@ ajv-keywords ${VERSION_CLR('3.4.1')}
 
 test('peer dependencies are marked when searching', async () => {
   const fixture = f.find('with-peer')
-  const output = await listForPackages(['ajv'], [fixture], { depth: 1, lockfileDir: fixture })
+  const output = await listForPackages(['ajv'], [fixture], { depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120 })
   expect(output).toBe(`${LEGEND}
 
 ${boldHighlighted(`with-peer@1.0.0 ${fixture}`)}
@@ -813,7 +824,7 @@ ajv-keywords ${VERSION_CLR('3.4.1')}
 
 test('--only-projects shows only projects', async () => {
   const fixture = f.find('workspace-with-nested-workspace-deps')
-  const output = await list([fixture], { depth: 999, lockfileDir: fixture, onlyProjects: true })
+  const output = await list([fixture], { depth: 999, lockfileDir: fixture, onlyProjects: true, virtualStoreDirMaxLength: 120 })
 
   // The "workspace-with-nested-workspace-deps" test case has an external
   // dependency under @scope/b, but that package should not be printed when
