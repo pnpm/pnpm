@@ -27,6 +27,7 @@ const basePatchOption = {
   registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
   userConfig: {},
   virtualStoreDir: 'node_modules/.pnpm',
+  virtualStoreDirMaxLength: 120,
 }
 
 describe('patch and commit', () => {
