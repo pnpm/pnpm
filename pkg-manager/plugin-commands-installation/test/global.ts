@@ -36,6 +36,7 @@ const DEFAULT_OPTIONS = {
   storeDir: path.join(tmp, 'store'),
   userConfig: {},
   workspaceConcurrency: 1,
+  virtualStoreDirMaxLength: 120,
 }
 
 test('globally installed package is linked with active version of Node.js', async () => {
