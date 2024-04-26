@@ -92,4 +92,5 @@ export const DLX_DEFAULT_OPTS = {
     cpu: ['current'],
     libc: ['current'],
   },
+  virtualStoreDirMaxLength: 120,
 }
