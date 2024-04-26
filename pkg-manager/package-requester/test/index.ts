@@ -732,7 +732,7 @@ test('refetch package to store if it has been modified', async () => {
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
-    message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId))} to store. It was either modified or had no integrity checksums`,
+    message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId, 120))} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',
     prefix: lockfileDir,
   }))
