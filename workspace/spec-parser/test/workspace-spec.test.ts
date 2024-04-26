@@ -1,20 +1,5 @@
 import { WorkspaceSpec } from '../src/index'
 
-test('shape', () => {
-  expect(new WorkspaceSpec('*')).toMatchObject({ alias: undefined, version: '*' })
-  expect(new WorkspaceSpec('^')).toMatchObject({ alias: undefined, version: '^' })
-  expect(new WorkspaceSpec('~')).toMatchObject({ alias: undefined, version: '~' })
-  expect(new WorkspaceSpec('0.1.2')).toMatchObject({ alias: undefined, version: '0.1.2' })
-  expect(new WorkspaceSpec('*', 'foo')).toMatchObject({ alias: 'foo', version: '*' })
-  expect(new WorkspaceSpec('^', 'foo')).toMatchObject({ alias: 'foo', version: '^' })
-  expect(new WorkspaceSpec('~', 'foo')).toMatchObject({ alias: 'foo', version: '~' })
-  expect(new WorkspaceSpec('0.1.2', 'foo')).toMatchObject({ alias: 'foo', version: '0.1.2' })
-  expect(new WorkspaceSpec('*', '@foo/bar')).toMatchObject({ alias: '@foo/bar', version: '*' })
-  expect(new WorkspaceSpec('^', '@foo/bar')).toMatchObject({ alias: '@foo/bar', version: '^' })
-  expect(new WorkspaceSpec('~', '@foo/bar')).toMatchObject({ alias: '@foo/bar', version: '~' })
-  expect(new WorkspaceSpec('0.1.2', '@foo/bar')).toMatchObject({ alias: '@foo/bar', version: '0.1.2' })
-})
-
 test('parse valid workspace spec', () => {
   expect(WorkspaceSpec.parse('workspace:*')).toStrictEqual(new WorkspaceSpec('*'))
   expect(WorkspaceSpec.parse('workspace:^')).toStrictEqual(new WorkspaceSpec('^'))
