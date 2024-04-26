@@ -1,6 +1,6 @@
 import path from 'path'
 import normalize from 'normalize-path'
-import { type ResolvedImporters } from './resolveDependencyTree'
+import { type ResolvedDirectDependency, type ResolvedImporters } from './resolveDependencyTree'
 import { type LinkedDependency } from './resolveDependencies'
 import {
   type DependenciesByProjectId,
@@ -79,7 +79,7 @@ function applyDedupeMap<T extends PartialResolvedPackage> (
       const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
       const prev = opts.resolvedImporters[id].directDependencies[index]
       const depPath = `link:${normalize(path.relative(id, dedupedProjectId))}`
-      const linkedDep: LinkedDependency = {
+      const linkedDep: LinkedDependency & ResolvedDirectDependency = {
         ...prev,
         isLinkedDependency: true,
         depPath,
