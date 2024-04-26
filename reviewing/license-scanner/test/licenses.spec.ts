@@ -71,6 +71,7 @@ describe('licences', () => {
       registries: {} as Registries,
       wantedLockfile: lockfile,
       storeDir: '/opt/.pnpm',
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(licensePackages).toEqual([
@@ -157,6 +158,7 @@ describe('licences', () => {
       wantedLockfile: lockfile,
       storeDir: '/opt/.pnpm',
       includedImporterIds: ['packages/a'],
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(licensePackages).toEqual([
@@ -232,6 +234,7 @@ describe('licences', () => {
       registries: {} as Registries,
       wantedLockfile: lockfile,
       storeDir: '/opt/.pnpm',
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(licensePackages).toEqual([
