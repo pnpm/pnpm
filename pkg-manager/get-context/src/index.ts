@@ -99,6 +99,15 @@ export interface GetContextOptions {
   publicHoistPattern?: string[] | undefined
   forcePublicHoistPattern?: boolean
   global?: boolean
+
+  /**
+   * A temporary feature flag that determines whether or not pnpm catalogs
+   * should be used. This will default to true and be removed when catalogs
+   * development has finished.
+   *
+   * @default false
+   */
+  useBetaCatalogsFeat?: boolean
 }
 interface ImporterToPurge {
   modulesDir: string

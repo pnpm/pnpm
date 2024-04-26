@@ -313,6 +313,14 @@ export type InstallCommandOptions = Pick<Config,
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
   confirmModulesPurge?: boolean
+  /**
+   * A temporary feature flag that determines whether or not pnpm catalogs
+   * should be used. This will default to true and be removed when catalogs
+   * development has finished.
+   *
+   * @default false
+   */
+  useBetaCatalogsFeat?: boolean
 } & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages'>>
 
 export async function handler (opts: InstallCommandOptions): Promise<void> {
