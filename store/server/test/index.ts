@@ -30,6 +30,7 @@ async function createStoreController (storeDir?: string) {
     cacheDir,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
 }
 
