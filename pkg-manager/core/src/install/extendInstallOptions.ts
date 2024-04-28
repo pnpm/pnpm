@@ -149,7 +149,7 @@ export interface StrictInstallOptions {
 
 export type InstallOptions =
   & Partial<StrictInstallOptions>
-  & Pick<StrictInstallOptions, 'storeDir' | 'storeController' | 'virtualStoreDirMaxLength'>
+  & Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
 
 const defaults = (opts: InstallOptions): StrictInstallOptions => {
   const packageManager = opts.packageManager ?? {
