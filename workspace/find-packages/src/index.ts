@@ -7,16 +7,18 @@ import { logger } from '@pnpm/logger'
 
 export type { Project }
 
+export interface FindWorkspacePackagesOptions {
+  engineStrict?: boolean
+  packageManagerStrict?: boolean
+  nodeVersion?: string
+  patterns?: string[]
+  sharedWorkspaceLockfile?: boolean
+  supportedArchitectures?: SupportedArchitectures
+}
+
 export async function findWorkspacePackages (
   workspaceRoot: string,
-  opts?: {
-    engineStrict?: boolean
-    packageManagerStrict?: boolean
-    nodeVersion?: string
-    patterns?: string[]
-    sharedWorkspaceLockfile?: boolean
-    supportedArchitectures?: SupportedArchitectures
-  }
+  opts?: FindWorkspacePackagesOptions
 ): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
   for (const pkg of pkgs) {
@@ -36,7 +38,11 @@ export async function findWorkspacePackages (
   return pkgs
 }
 
-export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
+export interface FindWorkspacePackagesNoCheckOptions {
+  patterns?: string[]
+}
+
+export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?: FindWorkspacePackagesNoCheckOptions): Promise<Project[]> {
   let patterns = opts?.patterns
   if (patterns == null) {
     const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
