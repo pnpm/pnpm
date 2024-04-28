@@ -303,7 +303,7 @@ export async function resolveRootDependencies (
   const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
     const pkgAddresses = importerResolutionResult.pkgAddresses
     if (!ctx.hoistPeers) return pkgAddresses
-    let prevMissingOptionalPeers: Record<string, string[]> = {}
+    const allMissingOptionalPeers: Record<string, string[]> = {}
     while (true) {
       for (const pkgAddress of importerResolutionResult.pkgAddresses) {
         parentPkgAliases[pkgAddress.alias] = true
@@ -323,28 +323,16 @@ export async function resolveRootDependencies (
         }
       }
       for (const [missingOptionalPeerName, { range: missingOptionalPeerRange }] of missingOptionalPeers) {
-        if (!prevMissingOptionalPeers[missingOptionalPeerName]) {
-          prevMissingOptionalPeers[missingOptionalPeerName] = [missingOptionalPeerRange]
-        }
-        if (!prevMissingOptionalPeers[missingOptionalPeerName].includes(missingOptionalPeerRange)) {
-          prevMissingOptionalPeers[missingOptionalPeerName].push(missingOptionalPeerRange)
+        if (!allMissingOptionalPeers[missingOptionalPeerName]) {
+          allMissingOptionalPeers[missingOptionalPeerName] = [missingOptionalPeerRange]
+        } else if (!allMissingOptionalPeers[missingOptionalPeerName].includes(missingOptionalPeerRange)) {
+          allMissingOptionalPeers[missingOptionalPeerName].push(missingOptionalPeerRange)
         }
       }
-      if (!missingRequiredPeers.length && !Object.keys(prevMissingOptionalPeers).length) break
+      if (!missingRequiredPeers.length) break
       const dependencies = hoistPeers(missingRequiredPeers, ctx)
-      const nextMissingOptionalPeers: Record<string, string[]> = {}
-      const optionalDependencies: Record<string, string> = {}
-      for (const [missingOptionalPeerName, ranges] of Object.entries(prevMissingOptionalPeers)) {
-        const optionalPeerVersionThatSatisfyAll = Object.entries(ctx.allPreferredVersions?.[missingOptionalPeerName] ?? {}).filter(([_, specType]) => specType === 'version').find(([version]) => ranges.every((range) => semver.satisfies(version, range)))
-        if (optionalPeerVersionThatSatisfyAll) {
-          optionalDependencies[missingOptionalPeerName] = optionalPeerVersionThatSatisfyAll[0]
-        } else {
-          nextMissingOptionalPeers[missingOptionalPeerName] = ranges
-        }
-      }
-      prevMissingOptionalPeers = nextMissingOptionalPeers
-      if (!Object.keys(dependencies).length && !Object.keys(optionalDependencies).length) break
-      const wantedDependencies = getNonDevWantedDependencies({ dependencies, optionalDependencies })
+      if (!Object.keys(dependencies).length) break
+      const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
       // eslint-disable-next-line no-await-in-loop
       const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
@@ -358,6 +346,31 @@ export async function resolveRootDependencies (
         ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
       }
       pkgAddresses.push(...importerResolutionResult.pkgAddresses)
+    }
+    if (Object.keys(allMissingOptionalPeers).length) {
+      const optionalDependencies: Record<string, string> = {}
+      for (const [missingOptionalPeerName, ranges] of Object.entries(allMissingOptionalPeers)) {
+        if (ctx.allPreferredVersions?.[missingOptionalPeerName] == null) continue
+        const optionalPeerVersionThatSatisfyAll = Object.entries(ctx.allPreferredVersions[missingOptionalPeerName])
+          .filter(([_, specType]) => specType === 'version')
+          .find(([version]) => ranges.every((range) => semver.satisfies(version, range)))
+        if (optionalPeerVersionThatSatisfyAll) {
+          optionalDependencies[missingOptionalPeerName] = optionalPeerVersionThatSatisfyAll[0]
+        }
+      }
+      if (Object.keys(optionalDependencies).length) {
+        const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
+        const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
+          ...options,
+          parentPkgAliases,
+          publishedBy,
+        })
+        importerResolutionResult = {
+          pkgAddresses: resolveDependenciesResult.pkgAddresses,
+          ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
+        }
+        pkgAddresses.push(...importerResolutionResult.pkgAddresses)
+      }
     }
     return pkgAddresses
   }, pkgAddressesByImportersWithoutPeers, importers))
