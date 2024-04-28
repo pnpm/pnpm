@@ -303,7 +303,7 @@ export async function resolveRootDependencies (
   const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
     const pkgAddresses = importerResolutionResult.pkgAddresses
     if (!ctx.hoistPeers) return pkgAddresses
-    let prevMissingOptionalPeers: string[] = []
+    let prevMissingOptionalPeers: Record<string, string[]> = {}
     while (true) {
       for (const pkgAddress of importerResolutionResult.pkgAddresses) {
         parentPkgAliases[pkgAddress.alias] = true
@@ -322,23 +322,24 @@ export async function resolveRootDependencies (
           }
         }
       }
-      const missingOptionalPeerNames = Array.from(
-        new Set(
-          [
-            ...missingOptionalPeers.map(([peerName]) => peerName),
-            ...prevMissingOptionalPeers,
-          ]
-        )
-      )
-      if (!missingRequiredPeers.length && !missingOptionalPeerNames.length) break
+      for (const [missingOptionalPeerName, { range: missingOptionalPeerRange }] of missingOptionalPeers) {
+        if (!prevMissingOptionalPeers[missingOptionalPeerName]) {
+          prevMissingOptionalPeers[missingOptionalPeerName] = [missingOptionalPeerRange]
+        }
+        if (!prevMissingOptionalPeers[missingOptionalPeerName].includes(missingOptionalPeerRange)) {
+          prevMissingOptionalPeers[missingOptionalPeerName].push(missingOptionalPeerRange)
+        }
+      }
+      if (!missingRequiredPeers.length && !Object.keys(prevMissingOptionalPeers).length) break
       const dependencies = hoistPeers(missingRequiredPeers, ctx)
-      const nextMissingOptionalPeers: string[] = []
+      const nextMissingOptionalPeers: Record<string, string[]> = {}
       const optionalDependencies: Record<string, string> = {}
-      for (const missingOptionalPeerName of missingOptionalPeerNames) {
-        if (ctx.allPreferredVersions![missingOptionalPeerName]) {
-          optionalDependencies[missingOptionalPeerName] = Object.keys(ctx.allPreferredVersions![missingOptionalPeerName]).join(' || ')
+      for (const [missingOptionalPeerName, ranges] of Object.entries(prevMissingOptionalPeers)) {
+        const optionalPeerVersionThatSatisfyAll = Object.entries(ctx.allPreferredVersions?.[missingOptionalPeerName] ?? {}).filter(([_, specType]) => specType === 'version').find(([version]) => ranges.every((range) => semver.satisfies(version, range)))
+        if (optionalPeerVersionThatSatisfyAll) {
+          optionalDependencies[missingOptionalPeerName] = optionalPeerVersionThatSatisfyAll[0]
         } else {
-          nextMissingOptionalPeers.push(missingOptionalPeerName)
+          nextMissingOptionalPeers[missingOptionalPeerName] = ranges
         }
       }
       prevMissingOptionalPeers = nextMissingOptionalPeers
