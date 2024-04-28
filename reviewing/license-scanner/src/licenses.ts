@@ -73,6 +73,7 @@ export async function findDependencyLicenses (opts: {
   manifest: ProjectManifest
   storeDir: string
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   modulesDir?: string
   registries: Registries
   wantedLockfile: Lockfile | null
@@ -92,6 +93,7 @@ export async function findDependencyLicenses (opts: {
     modulesDir: opts.modulesDir,
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     include: opts.include,
     registries: opts.registries,
     includedImporterIds: opts.includedImporterIds,

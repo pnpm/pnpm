@@ -12,11 +12,12 @@ export function extendProjectsWithTargetDirs<T> (
   ctx: {
     virtualStoreDir: string
     pkgLocationsByDepPath?: Record<string, string[]>
+    virtualStoreDirMaxLength: number
   }
 ): Array<T & { id: string, stages: string[], targetDirs: string[] }> {
   const getLocalLocations: GetLocalLocations = ctx.pkgLocationsByDepPath != null
     ? (depPath: string) => ctx.pkgLocationsByDepPath![depPath]
-    : (depPath: string, pkgName: string) => [path.join(ctx.virtualStoreDir, depPathToFilename(depPath), 'node_modules', pkgName)]
+    : (depPath: string, pkgName: string) => [path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.virtualStoreDirMaxLength), 'node_modules', pkgName)]
   const projectsById: Record<string, T & { id: string, targetDirs: string[], stages?: string[] }> =
     Object.fromEntries(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
   Object.entries(lockfile.packages ?? {})

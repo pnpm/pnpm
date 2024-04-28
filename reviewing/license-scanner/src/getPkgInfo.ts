@@ -220,6 +220,13 @@ export type ReadPackageIndexFileResult =
   | { local: false, files: Record<string, PackageFileInfo> }
   | { local: true, files: Record<string, string> }
 
+export interface ReadPackageIndexFileOptions {
+  cafsDir: string
+  storeDir: string
+  lockfileDir: string
+  virtualStoreDirMaxLength: number
+}
+
 /**
  * Returns the index of files included in
  * the package identified by the integrity id
@@ -230,7 +237,7 @@ export type ReadPackageIndexFileResult =
 export async function readPackageIndexFile (
   packageResolution: Resolution,
   id: string,
-  opts: { cafsDir: string, storeDir: string, lockfileDir: string }
+  opts: ReadPackageIndexFileOptions
 ): Promise<ReadPackageIndexFileResult> {
   // If the package resolution is of type directory we need to do things
   // differently and generate our own package index file
@@ -257,7 +264,7 @@ export async function readPackageIndexFile (
       'index'
     )
   } else if (!packageResolution.type && packageResolution.tarball) {
-    const packageDirInStore = depPathToFilename(parse(id).nonSemverVersion ?? id)
+    const packageDirInStore = depPathToFilename(parse(id).nonSemverVersion ?? id, opts.virtualStoreDirMaxLength)
     pkgIndexFilePath = path.join(
       opts.storeDir,
       packageDirInStore,
@@ -300,6 +307,7 @@ export interface PackageInfo {
 export interface GetPackageInfoOptions {
   storeDir: string
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   dir: string
   modulesDir: string
 }
@@ -334,6 +342,7 @@ export async function getPkgInfo (
       cafsDir,
       storeDir: opts.storeDir,
       lockfileDir: opts.dir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }
   )
 
@@ -377,7 +386,7 @@ export async function getPkgInfo (
   // TODO: fix issue that path is only correct when using node-linked=isolated
   const packageModulePath = path.join(
     virtualStoreDir,
-    depPathToFilename(pkg.depPath),
+    depPathToFilename(pkg.depPath, opts.virtualStoreDirMaxLength),
     modulesDir,
     manifest.name
   )

@@ -129,6 +129,7 @@ export interface HeadlessOptions {
   lockfileDir: string
   modulesDir?: string
   virtualStoreDir?: string
+  virtualStoreDirMaxLength: number
   patchedDependencies?: Record<string, PatchFile>
   scriptsPrependNodePath?: boolean | 'warn-only'
   scriptShell?: string
@@ -248,6 +249,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           skipped,
           storeController: opts.storeController,
           virtualStoreDir,
+          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
           wantedLockfile: filterLockfileByEngine(wantedLockfile, filterOpts).lockfile,
         }
       )
@@ -338,6 +340,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       importerNames,
       lockfileDir,
       virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       registries: opts.registries,
     })
   }
@@ -424,6 +427,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistedModulesDir,
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         hoistedWorkspacePackages: opts.hoistWorkspacePackages
           ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
             if (project.manifest.name && project.id !== '.') {
@@ -531,6 +535,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
     pkgLocationsByDepPath,
     virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   })
 
   if (opts.enableModulesDir !== false) {
@@ -598,6 +603,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       skipped: Array.from(skipped),
       storeDir: opts.storeDir,
       virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }, {
       makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
     })

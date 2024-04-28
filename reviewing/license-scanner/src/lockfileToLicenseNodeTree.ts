@@ -34,6 +34,7 @@ LicenseNode,
 export interface LicenseExtractOptions {
   storeDir: string
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   modulesDir?: string
   dir: string
   registries: Registries
@@ -80,6 +81,7 @@ export async function lockfileToLicenseNode (
         {
           storeDir: options.storeDir,
           virtualStoreDir: options.virtualStoreDir,
+          virtualStoreDirMaxLength: options.virtualStoreDirMaxLength,
           dir: options.dir,
           modulesDir: options.modulesDir ?? 'node_modules',
         }
@@ -140,6 +142,7 @@ export async function lockfileToLicenseNodeTree (
         const importerDeps = await lockfileToLicenseNode(importerWalker.step, {
           storeDir: opts.storeDir,
           virtualStoreDir: opts.virtualStoreDir,
+          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
           modulesDir: opts.modulesDir,
           dir: opts.dir,
           registries: opts.registries,

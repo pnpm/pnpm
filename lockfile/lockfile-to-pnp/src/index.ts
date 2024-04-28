@@ -15,6 +15,7 @@ export async function writePnpFile (
     importerNames: Record<string, string>
     lockfileDir: string
     virtualStoreDir: string
+    virtualStoreDirMaxLength: number
     registries: Registries
   }
 ): Promise<void> {
@@ -36,6 +37,7 @@ export function lockfileToPackageRegistry (
     importerNames: { [importerId: string]: string }
     lockfileDir: string
     virtualStoreDir: string
+    virtualStoreDirMaxLength: number
     registries: Registries
   }
 ): PackageRegistry {
@@ -87,7 +89,7 @@ export function lockfileToPackageRegistry (
     // Seems like this field should always contain a relative path
     let packageLocation = normalizePath(path.relative(opts.lockfileDir, path.join(
       opts.virtualStoreDir,
-      depPathToFilename(relDepPath),
+      depPathToFilename(relDepPath, opts.virtualStoreDirMaxLength),
       'node_modules',
       name
     )))

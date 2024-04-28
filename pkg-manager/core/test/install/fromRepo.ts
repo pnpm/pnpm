@@ -140,7 +140,7 @@ test('a subdependency is from a github repo with different name', async () => {
   project.isExecutable('@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin/hi')
   project.isExecutable('@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin/szia')
 
-  expect(fs.existsSync(path.resolve(`node_modules/.pnpm/${depPathToFilename('@pnpm.e2e/has-say-hi-peer@1.0.0(hi@https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)')}/node_modules/@pnpm.e2e/has-say-hi-peer`))).toBeTruthy()
+  expect(fs.existsSync(path.resolve(`node_modules/.pnpm/${depPathToFilename('@pnpm.e2e/has-say-hi-peer@1.0.0(hi@https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)', 120)}/node_modules/@pnpm.e2e/has-say-hi-peer`))).toBeTruthy()
 })
 
 test('from a git repo', async () => {

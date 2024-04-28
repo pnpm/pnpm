@@ -96,6 +96,7 @@ test('packages are not deduplicated when versions do not match', async () => {
     } as DependenciesTreeNode<PartialResolvedPackage>])),
     dedupePeerDependents: true,
     virtualStoreDir: '',
+    virtualStoreDirMaxLength: 120,
     lockfileDir: '',
   })
 

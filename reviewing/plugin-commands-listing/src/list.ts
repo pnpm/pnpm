@@ -121,6 +121,7 @@ export type ListCommandOptions = Pick<Config,
 | 'production'
 | 'selectedProjectsGraph'
 | 'modulesDir'
+| 'virtualStoreDirMaxLength'
 > & Partial<Pick<Config, 'cliOptions'>> & {
   alwaysPrintRootPackage?: boolean
   depth?: number
@@ -166,6 +167,7 @@ export async function render (
     onlyProjects?: boolean
     parseable?: boolean
     modulesDir?: string
+    virtualStoreDirMaxLength: number
   }
 ): Promise<string> {
   const listOpts = {
@@ -178,6 +180,7 @@ export async function render (
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
     showExtraneous: false,
     modulesDir: opts.modulesDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   }
   return (params.length > 0)
     ? listForPackages(params, prefixes, listOpts)

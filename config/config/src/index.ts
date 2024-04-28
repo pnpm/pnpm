@@ -140,6 +140,7 @@ export const types = Object.assign({
   'use-stderr': Boolean,
   'verify-store-integrity': Boolean,
   'virtual-store-dir': String,
+  'virtual-store-dir-max-length': Number,
   'workspace-concurrency': Number,
   'workspace-packages': [String, Array],
   'workspace-root': Boolean,
@@ -272,6 +273,7 @@ export async function getConfig (
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
     'registry-supports-time-field': false,
+    'virtual-store-dir-max-length': 120,
   }
 
   const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)

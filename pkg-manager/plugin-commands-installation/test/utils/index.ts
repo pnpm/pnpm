@@ -49,4 +49,5 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
+  virtualStoreDirMaxLength: 120,
 }

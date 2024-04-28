@@ -68,6 +68,7 @@ export interface LinkPackagesOptions {
   skipped: Set<string>
   storeController: StoreController
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   wantedLockfile: Lockfile
   wantedToBeSkippedPackageIds: Set<string>
   hoistWorkspacePackages?: boolean
@@ -117,6 +118,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     skipped: opts.skipped,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     wantedLockfile: opts.wantedLockfile,
   })
 
@@ -224,6 +226,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       publicHoistedModulesDir: opts.rootModulesDir,
       publicHoistPattern: opts.publicHoistPattern ?? [],
       virtualStoreDir: opts.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       hoistedWorkspacePackages: opts.hoistWorkspacePackages
         ? projects.reduce((hoistedWorkspacePackages, project) => {
           if (project.manifest.name && project.id !== '.') {

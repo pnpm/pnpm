@@ -38,6 +38,7 @@ const DEFAULT_OPTS = {
   userConfig: {},
   useRunningStoreServer: false,
   useStoreServer: false,
+  virtualStoreDirMaxLength: 120,
 }
 
 test('import from shared yarn.lock of monorepo', async () => {

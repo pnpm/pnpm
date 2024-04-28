@@ -20,10 +20,11 @@ export interface StrictStoreStatusOptions {
   development: boolean
   optional: boolean
   binsDir: string
+  virtualStoreDirMaxLength: number
 }
 
 export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &
-Pick<StrictStoreStatusOptions, 'storeDir'>
+Pick<StrictStoreStatusOptions, 'storeDir' | 'virtualStoreDirMaxLength'>
 
 const defaults = async (opts: StoreStatusOptions): Promise<StrictStoreStatusOptions> => {
   const dir = opts.dir ?? process.cwd()

@@ -68,6 +68,7 @@ export interface LockfileToDepGraphOptions {
   storeDir: string
   virtualStoreDir: string
   supportedArchitectures?: SupportedArchitectures
+  virtualStoreDirMaxLength: number
 }
 
 export interface DirectDependenciesByImporterId {
@@ -103,7 +104,7 @@ export async function lockfileToDepGraph (
         if (opts.skipped.has(depPath)) return
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
+        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
         const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
 
         const pkg = {
@@ -208,6 +209,7 @@ export async function lockfileToDepGraph (
       storeController: opts.storeController,
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }
     for (const [dir, node] of Object.entries(graph)) {
       const pkgSnapshot = pkgSnapshotByLocation[dir]
@@ -244,6 +246,7 @@ function getChildrenPaths (
     lockfileDir: string
     sideEffectsCacheRead: boolean
     storeController: StoreController
+    virtualStoreDirMaxLength: number
   },
   allDeps: { [alias: string]: string },
   peerDeps: Set<string> | null,
@@ -263,7 +266,7 @@ function getChildrenPaths (
     } else if (childPkgSnapshot) {
       if (ctx.skipped.has(childRelDepPath)) continue
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-      children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath), 'node_modules', pkgName)
+      children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath, ctx.virtualStoreDirMaxLength), 'node_modules', pkgName)
     } else if (ref.indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.lockfileDir, ref.slice(5))
     } else if (!ctx.skipped.has(childRelDepPath) && ((peerDeps == null) || !peerDeps.has(alias))) {

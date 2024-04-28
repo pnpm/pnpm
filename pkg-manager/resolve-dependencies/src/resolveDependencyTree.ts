@@ -99,6 +99,7 @@ export interface ResolveDependenciesOptions {
   storeController: StoreController
   tag: string
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   wantedLockfile: Lockfile
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
@@ -152,6 +153,7 @@ export async function resolveDependencyTree<T> (
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     wantedLockfile: opts.wantedLockfile,
     appliedPatches: new Set<string>(),
     updatedSet: new Set<string>(),

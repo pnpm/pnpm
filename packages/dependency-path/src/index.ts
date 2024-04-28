@@ -128,17 +128,15 @@ export function parse (dependencyPath: string): DependencyPath {
   return {}
 }
 
-const MAX_LENGTH_WITHOUT_HASH = 120 - 26 - 1
-
-export function depPathToFilename (depPath: string): string {
+export function depPathToFilename (depPath: string, maxLengthWithoutHash: number): string {
   let filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|]/g, '+')
   if (filename.includes('(')) {
     filename = filename
       .replace(/\)$/, '')
       .replace(/(\)\()|\(|\)/g, '_')
   }
-  if (filename.length > 120 || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
-    return `${filename.substring(0, MAX_LENGTH_WITHOUT_HASH)}_${createBase32Hash(filename)}`
+  if (filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
+    return `${filename.substring(0, maxLengthWithoutHash - 27)}_${createBase32Hash(filename)}`
   }
   return filename
 }
