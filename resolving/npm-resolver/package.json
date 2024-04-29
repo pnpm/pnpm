@@ -41,6 +41,7 @@
     "@pnpm/resolve-workspace-range": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.spec-parser": "workspace:*",
     "@zkochan/retry": "^0.2.0",
     "encode-registry": "^3.0.1",
     "load-json-file": "^6.2.0",
