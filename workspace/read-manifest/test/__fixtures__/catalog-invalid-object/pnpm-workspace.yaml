@@ -1,5 +1,0 @@
-packages:
-  - "packages/**"
-  - "types"
-
-catalog: 5
