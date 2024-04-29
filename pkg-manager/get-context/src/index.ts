@@ -125,6 +125,7 @@ export async function getContext (
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       confirmModulesPurge: opts.confirmModulesPurge && !isCI,
 
       forceHoistPattern: opts.forceHoistPattern,
@@ -222,6 +223,7 @@ async function validateModules (
     registries: Registries
     storeDir: string
     virtualStoreDir: string
+    virtualStoreDirMaxLength: number
     confirmModulesPurge?: boolean
 
     hoistPattern?: string[] | undefined
@@ -233,6 +235,17 @@ async function validateModules (
   }
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
+  if (opts.virtualStoreDirMaxLength !== modules.virtualStoreDirMaxLength) {
+    if (opts.forceNewModules && (rootProject != null)) {
+      await purgeModulesDirsOfImporter(opts, rootProject)
+      return { purged: true }
+    }
+    throw new PnpmError(
+      'VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF',
+      'This modules directory was created using a different virtual-store-dir-max-length value.' +
+      ' Run "pnpm install" to recreate the modules directory.'
+    )
+  }
   if (
     opts.forcePublicHoistPattern &&
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
@@ -425,6 +438,7 @@ export async function getContextForSingleImporter (
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
     virtualStoreDir?: string
+    virtualStoreDirMaxLength: number
 
     hoistPattern?: string[] | undefined
     forceHoistPattern?: boolean
@@ -475,6 +489,7 @@ export async function getContextForSingleImporter (
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       confirmModulesPurge: opts.confirmModulesPurge && !isCI,
 
       forceHoistPattern: opts.forceHoistPattern,
