@@ -1,5 +1,31 @@
 # @pnpm/headless
 
+## 23.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/package-requester@25.1.0
+  - @pnpm/modules-cleaner@15.1.0
+  - @pnpm/lockfile-to-pnp@4.1.0
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/deps.graph-builder@1.1.0
+  - @pnpm/hoist@9.1.0
+  - @pnpm/filter-lockfile@9.0.2
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/calc-dep-state@6.0.1
+  - @pnpm/real-hoist@3.0.1
+  - @pnpm/build-modules@12.0.2
+  - @pnpm/symlink-dependency@8.0.0
+  - @pnpm/lifecycle@17.0.1
+  - @pnpm/link-bins@10.0.0
+
 ## 23.0.4
 
 ### Patch Changes

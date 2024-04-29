@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.detect-dep-types",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Detect the types of dependencies",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,5 +1,21 @@
 # @pnpm/resolve-dependencies
 
+## 32.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- 1a6f7fb: A dependency is hoisted to resolve an optional peer dependency only if it satisfies the range provided for the optional peer dependency [#8028](https://github.com/pnpm/pnpm/pull/8028).
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/prune-lockfile@6.0.1
+  - @pnpm/lockfile.preferred-versions@1.0.1
+  - @pnpm/npm-resolver@19.0.0
+
 ## 32.0.4
 
 ### Patch Changes

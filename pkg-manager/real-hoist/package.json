@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/real-hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

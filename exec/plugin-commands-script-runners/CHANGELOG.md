@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-script-runners
 
+## 9.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/plugin-commands-installation@15.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/lifecycle@17.0.1
+
 ## 9.0.7
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # pnpm
 
+## 9.1.0-0
+
+### Minor Changes
+
+- New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- A dependency is hoisted to resolve an optional peer dependency only if it satisfies the range provided for the optional peer dependency [#8028](https://github.com/pnpm/pnpm/pull/8028).
+
 ## 9.0.6
 
 ### Patch Changes
