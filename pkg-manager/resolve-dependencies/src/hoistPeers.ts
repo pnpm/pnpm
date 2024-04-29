@@ -34,12 +34,20 @@ export function getHoistableOptionalPeers (
 ): Record<string, string> {
   const optionalDependencies: Record<string, string> = {}
   for (const [missingOptionalPeerName, ranges] of Object.entries(allMissingOptionalPeers)) {
-    if (allPreferredVersions?.[missingOptionalPeerName] == null) continue
-    const optionalPeerVersionThatSatisfyAll = Object.entries(allPreferredVersions[missingOptionalPeerName])
-      .filter(([_, specType]) => specType === 'version')
-      .find(([version]) => ranges.every((range) => semver.satisfies(version, range)))
-    if (optionalPeerVersionThatSatisfyAll) {
-      optionalDependencies[missingOptionalPeerName] = optionalPeerVersionThatSatisfyAll[0]
+    if (!allPreferredVersions[missingOptionalPeerName]) continue
+
+    let maxSatisfyingVersion: string | undefined
+    for (const [version, specType] of Object.entries(allPreferredVersions[missingOptionalPeerName])) {
+      if (
+        specType === 'version' &&
+        ranges.every(range => semver.satisfies(version, range)) &&
+        (!maxSatisfyingVersion || semver.gt(version, maxSatisfyingVersion))
+      ) {
+        maxSatisfyingVersion = version
+      }
+    }
+    if (maxSatisfyingVersion) {
+      optionalDependencies[missingOptionalPeerName] = maxSatisfyingVersion
     }
   }
   return optionalDependencies

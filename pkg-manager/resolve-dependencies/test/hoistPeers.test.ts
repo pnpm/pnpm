@@ -27,3 +27,16 @@ test('getHoistableOptionalPeers only picks a version that satisfies all optional
     foo: '2.1.0',
   })
 })
+
+test('getHoistableOptionalPeers picks the highest version that satisfies all the optional ranges', () => {
+  expect(getHoistableOptionalPeers({
+    foo: ['2', '2.1'],
+  }, {
+    foo: {
+      '2.1.0': 'version',
+      '2.1.1': 'version',
+    },
+  })).toStrictEqual({
+    foo: '2.1.1',
+  })
+})
