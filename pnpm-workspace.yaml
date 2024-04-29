@@ -3,6 +3,7 @@ packages:
   - __typings__
   - __utils__/*
   - "!__utils__/build-artifacts"
+  - catalogs/*
   - cli/*
   - completion/*
   - config/*
