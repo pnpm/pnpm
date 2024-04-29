@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/macos-arm64",
-  "version": "8.15.7",
+  "version": "8.15.8",
   "license": "MIT",
   "publishConfig": {
     "bin": {
