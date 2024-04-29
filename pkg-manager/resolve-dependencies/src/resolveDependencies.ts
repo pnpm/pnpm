@@ -57,7 +57,7 @@ import {
   nodeIdContains,
   splitNodeId,
 } from './nodeIdUtils'
-import { hoistPeers } from './hoistPeers'
+import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
 import { replaceVersionInPref } from './replaceVersionInPref'
 
@@ -303,7 +303,7 @@ export async function resolveRootDependencies (
   const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
     const pkgAddresses = importerResolutionResult.pkgAddresses
     if (!ctx.hoistPeers) return pkgAddresses
-    let prevMissingOptionalPeers: string[] = []
+    const allMissingOptionalPeers: Record<string, string[]> = {}
     while (true) {
       for (const pkgAddress of importerResolutionResult.pkgAddresses) {
         parentPkgAliases[pkgAddress.alias] = true
@@ -322,28 +322,17 @@ export async function resolveRootDependencies (
           }
         }
       }
-      const missingOptionalPeerNames = Array.from(
-        new Set(
-          [
-            ...missingOptionalPeers.map(([peerName]) => peerName),
-            ...prevMissingOptionalPeers,
-          ]
-        )
-      )
-      if (!missingRequiredPeers.length && !missingOptionalPeerNames.length) break
-      const dependencies = hoistPeers(missingRequiredPeers, ctx)
-      const nextMissingOptionalPeers: string[] = []
-      const optionalDependencies: Record<string, string> = {}
-      for (const missingOptionalPeerName of missingOptionalPeerNames) {
-        if (ctx.allPreferredVersions![missingOptionalPeerName]) {
-          optionalDependencies[missingOptionalPeerName] = Object.keys(ctx.allPreferredVersions![missingOptionalPeerName]).join(' || ')
-        } else {
-          nextMissingOptionalPeers.push(missingOptionalPeerName)
+      for (const [missingOptionalPeerName, { range: missingOptionalPeerRange }] of missingOptionalPeers) {
+        if (!allMissingOptionalPeers[missingOptionalPeerName]) {
+          allMissingOptionalPeers[missingOptionalPeerName] = [missingOptionalPeerRange]
+        } else if (!allMissingOptionalPeers[missingOptionalPeerName].includes(missingOptionalPeerRange)) {
+          allMissingOptionalPeers[missingOptionalPeerName].push(missingOptionalPeerRange)
         }
       }
-      prevMissingOptionalPeers = nextMissingOptionalPeers
-      if (!Object.keys(dependencies).length && !Object.keys(optionalDependencies).length) break
-      const wantedDependencies = getNonDevWantedDependencies({ dependencies, optionalDependencies })
+      if (!missingRequiredPeers.length) break
+      const dependencies = hoistPeers(missingRequiredPeers, ctx)
+      if (!Object.keys(dependencies).length) break
+      const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
       // eslint-disable-next-line no-await-in-loop
       const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
@@ -357,6 +346,22 @@ export async function resolveRootDependencies (
         ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
       }
       pkgAddresses.push(...importerResolutionResult.pkgAddresses)
+    }
+    if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
+      const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
+      if (Object.keys(optionalDependencies).length) {
+        const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
+        const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
+          ...options,
+          parentPkgAliases,
+          publishedBy,
+        })
+        importerResolutionResult = {
+          pkgAddresses: resolveDependenciesResult.pkgAddresses,
+          ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
+        }
+        pkgAddresses.push(...importerResolutionResult.pkgAddresses)
+      }
     }
     return pkgAddresses
   }, pkgAddressesByImportersWithoutPeers, importers))
