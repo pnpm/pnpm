@@ -365,6 +365,12 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  catalogs/types:
+    devDependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: 'link:'
+
   cli/cli-meta:
     dependencies:
       '@pnpm/types':
