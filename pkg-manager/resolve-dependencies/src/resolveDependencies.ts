@@ -57,7 +57,7 @@ import {
   nodeIdContains,
   splitNodeId,
 } from './nodeIdUtils'
-import { hoistPeers } from './hoistPeers'
+import { hoistPeers, hoistOptionalPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
 import { replaceVersionInPref } from './replaceVersionInPref'
 
@@ -347,17 +347,8 @@ export async function resolveRootDependencies (
       }
       pkgAddresses.push(...importerResolutionResult.pkgAddresses)
     }
-    if (Object.keys(allMissingOptionalPeers).length) {
-      const optionalDependencies: Record<string, string> = {}
-      for (const [missingOptionalPeerName, ranges] of Object.entries(allMissingOptionalPeers)) {
-        if (ctx.allPreferredVersions?.[missingOptionalPeerName] == null) continue
-        const optionalPeerVersionThatSatisfyAll = Object.entries(ctx.allPreferredVersions[missingOptionalPeerName])
-          .filter(([_, specType]) => specType === 'version')
-          .find(([version]) => ranges.every((range) => semver.satisfies(version, range)))
-        if (optionalPeerVersionThatSatisfyAll) {
-          optionalDependencies[missingOptionalPeerName] = optionalPeerVersionThatSatisfyAll[0]
-        }
-      }
+    if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
+      const optionalDependencies = hoistOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
       if (Object.keys(optionalDependencies).length) {
         const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
         const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
