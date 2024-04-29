@@ -444,5 +444,5 @@ test('recursive update with aliased workspace dependency (#7975)', async () => {
   projects['project-1'].has('pkg')
 
   const manifest = await readProjectManifestOnly('project-1')
-  expect(manifest).toHaveProperty(['dependencies', 'pkg'], 'workspace:npm:project-2@^') // TODO: how to remove the `npm:` part?
+  expect(manifest).toHaveProperty(['dependencies', 'pkg'], 'workspace:project-2@^')
 })
