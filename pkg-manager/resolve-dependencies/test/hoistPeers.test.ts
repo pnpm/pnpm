@@ -1,4 +1,4 @@
-import { hoistPeers, hoistOptionalPeers } from '../lib/hoistPeers'
+import { hoistPeers, getHoistableOptionalPeers } from '../lib/hoistPeers'
 
 test('hoistPeers picks an already available prerelease version', () => {
   expect(hoistPeers([['foo', { range: '*' }]], {
@@ -13,8 +13,8 @@ test('hoistPeers picks an already available prerelease version', () => {
   })
 })
 
-test('hoistOptionalPeers only picks a version that satisfies all optional ranges', () => {
-  expect(hoistOptionalPeers({
+test('getHoistableOptionalPeers only picks a version that satisfies all optional ranges', () => {
+  expect(getHoistableOptionalPeers({
     foo: ['2', '2.1'],
   }, {
     foo: {

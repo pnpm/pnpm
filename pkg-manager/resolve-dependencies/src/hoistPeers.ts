@@ -28,7 +28,7 @@ export function hoistPeers (
   return dependencies
 }
 
-export function hoistOptionalPeers (
+export function getHoistableOptionalPeers (
   allMissingOptionalPeers: Record<string, string[]>,
   allPreferredVersions: PreferredVersions
 ): Record<string, string> {

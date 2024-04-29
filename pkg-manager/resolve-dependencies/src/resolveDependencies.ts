@@ -57,7 +57,7 @@ import {
   nodeIdContains,
   splitNodeId,
 } from './nodeIdUtils'
-import { hoistPeers, hoistOptionalPeers } from './hoistPeers'
+import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
 import { replaceVersionInPref } from './replaceVersionInPref'
 
@@ -348,7 +348,7 @@ export async function resolveRootDependencies (
       pkgAddresses.push(...importerResolutionResult.pkgAddresses)
     }
     if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
-      const optionalDependencies = hoistOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
+      const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
       if (Object.keys(optionalDependencies).length) {
         const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
         const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
