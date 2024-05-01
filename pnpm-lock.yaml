@@ -5601,9 +5601,6 @@ importers:
       '@types/semver':
         specifier: 7.5.3
         version: 7.5.3
-      '@types/wrap-ansi':
-        specifier: 8.0.2
-        version: 8.0.2
       '@types/zkochan__table':
         specifier: npm:@types/table@6.0.0
         version: '@types/table@6.0.0'
@@ -5731,9 +5728,6 @@ importers:
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
-      wrap-ansi:
-        specifier: ^7.0.0
-        version: 7.0.0
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -5759,9 +5753,6 @@ importers:
       '@types/ramda':
         specifier: 0.29.12
         version: 0.29.12
-      '@types/wrap-ansi':
-        specifier: 8.0.2
-        version: 8.0.2
       '@types/zkochan__table':
         specifier: npm:@types/table@6.0.0
         version: '@types/table@6.0.0'
@@ -8003,9 +7994,6 @@ packages:
 
   '@types/which@2.0.2':
     resolution: {integrity: sha512-113D3mDkZDjo+EeUEHCFy0qniNc1ZpecGiAU7WSo7YDoSzolZIQKpYFHrPpjkB2nuyahcKfrmLXeQlh7gqJYdw==}
-
-  '@types/wrap-ansi@8.0.2':
-    resolution: {integrity: sha512-mdaFibQzYYqJF8Sc9By84eBLtDQD9Hnko0yXuezHBU5f5KdtQk+j5hPRQc1j4ayzdqGddKON6PjeuzxD5U1hPg==}
 
   '@types/write-file-atomic@4.0.3':
     resolution: {integrity: sha512-qdo+vZRchyJIHNeuI1nrpsLw+hnkgqP/8mlaN6Wle/NKhydHmUN9l4p3ZE8yP90AJNJW4uB8HQhedb4f1vNayQ==}
@@ -14764,8 +14752,6 @@ snapshots:
   '@types/validate-npm-package-name@4.0.2': {}
 
   '@types/which@2.0.2': {}
-
-  '@types/wrap-ansi@8.0.2': {}
 
   '@types/write-file-atomic@4.0.3':
     dependencies:

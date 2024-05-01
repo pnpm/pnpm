@@ -147,7 +147,6 @@
         "strip-bom",
         "tempy",
         "unique-string",
-        "wrap-ansi",
         "write-json-file",
         "write-pkg"
       ]

@@ -21,7 +21,6 @@ import pick from 'ramda/src/pick'
 import sortWith from 'ramda/src/sortWith'
 import renderHelp from 'render-help'
 import stripAnsi from 'strip-ansi'
-import wrapAnsi from 'wrap-ansi'
 import {
   DEFAULT_COMPARATORS,
   type OutdatedWithVersionDiff,
@@ -239,11 +238,27 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
   for (let i = 0; i < columnNames.length; i++)
     columnNames[i] = chalk.blueBright(columnNames[i])
 
-  return table([
+  const data = [
     columnNames,
     ...sortOutdatedPackages(outdatedPackages)
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
-  ], TABLE_OPTIONS)
+  ]
+  const detailsColumnMaxWidth = data.filter(row => !row[2].includes('Deprecated')).reduce((maxWidth, row) => {
+    const cellWidth = row[3].length
+    return Math.max(maxWidth, cellWidth)
+  }, 0)
+
+  return table(data, {
+    ...TABLE_OPTIONS,
+    columns: {
+      ...TABLE_OPTIONS.columns,
+      // Detail column:
+      3: {
+        width: detailsColumnMaxWidth,
+        wrapWord: true,
+      },
+    },
+  })
 }
 
 function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }): string {
@@ -354,7 +369,7 @@ export function renderDetails ({ latestManifest }: OutdatedPackage): string {
   if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {
-    outputs.push(wrapAnsi(chalk.redBright(latestManifest.deprecated), 40))
+    outputs.push(chalk.redBright(latestManifest.deprecated))
   }
   if (latestManifest.homepage) {
     outputs.push(chalk.underline(latestManifest.homepage))
