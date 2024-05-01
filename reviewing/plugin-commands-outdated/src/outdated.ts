@@ -243,10 +243,13 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
     ...sortOutdatedPackages(outdatedPackages)
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
   ]
-  const detailsColumnMaxWidth = data.filter(row => !row[2].includes('Deprecated')).reduce((maxWidth, row) => {
-    const cellWidth = row[3].length
-    return Math.max(maxWidth, cellWidth)
-  }, 0)
+  let detailsColumnMaxWidth = 40
+  if (opts.long) {
+    detailsColumnMaxWidth = outdatedPackages.filter(pkg => pkg.latestManifest && !pkg.latestManifest.deprecated).reduce((maxWidth, pkg) => {
+      const cellWidth = pkg.latestManifest?.homepage?.length ?? 0
+      return Math.max(maxWidth, cellWidth)
+    }, 0)
+  }
 
   return table(data, {
     ...TABLE_OPTIONS,
