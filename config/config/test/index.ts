@@ -75,7 +75,7 @@ test('throw error if bundledDependencies is used without node-linker=hoisted', a
       version: '1.0.0',
     },
   })).rejects.toMatchObject({
-    code: 'ERR_PNPM_BUNDLE_DEPENDENCIES_WITHOUT_HOISTED',
+    code: 'ERR_PNPM_BUNDLED_DEPENDENCIES_WITHOUT_HOISTED',
     message: 'bundledDependencies does not work properly with node-linker=isolated',
     hint: 'Add node-linker=hoisted to .npmrc or delete bundledDependencies from the root package.json to resolve this error',
   })
