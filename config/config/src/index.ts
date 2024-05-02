@@ -578,6 +578,17 @@ export async function getConfig (
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
 
+  if (pnpmConfig.nodeLinker !== 'hoisted') {
+    for (const key of ['bundledDependencies', 'bundleDependencies'] as const) {
+      const bundledDependencies = pnpmConfig.rootProjectManifest?.[key]
+      if (bundledDependencies) {
+        throw new PnpmError('BUNDLED_DEPENDENCIES_WITHOUT_HOISTED', `${key} does not work properly with node-linker=${pnpmConfig.nodeLinker}`, {
+          hint: `Add node-linker=hoisted to .npmrc or delete ${key} from the root package.json to resolve this error`,
+        })
+      }
+    }
+  }
+
   return { config: pnpmConfig, warnings }
 }
 

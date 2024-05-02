@@ -66,6 +66,21 @@ test('throw error if --link-workspace-packages is used with --global', async () 
   }
 })
 
+test('throw error if bundledDependencies is used without node-linker=hoisted', async () => {
+  const prefix = f.find('pkg-with-bundled-dependencies')
+  await expect(getConfig({
+    cliOptions: { dir: prefix },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_BUNDLE_DEPENDENCIES_WITHOUT_HOISTED',
+    message: 'bundledDependencies does not work properly with node-linker=isolated',
+    hint: 'Add node-linker=hoisted to .npmrc or delete bundledDependencies from the root package.json to resolve this error',
+  })
+})
+
 test('correct settings on global install', async () => {
   const { config } = await getConfig({
     cliOptions: {
