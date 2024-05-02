@@ -1,16 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import {
   depPathToFilename,
-  isAbsolute,
   parse,
   refToRelative,
   tryGetPackageId,
 } from '@pnpm/dependency-path'
-
-test('isAbsolute()', () => {
-  expect(isAbsolute('/foo/1.0.0')).toBeFalsy()
-  expect(isAbsolute('registry.npmjs.org/foo/1.0.0')).toBeTruthy()
-})
 
 test('parse()', () => {
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -90,4 +84,6 @@ test('tryGetPackageId', () => {
   expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/foo@1.0.0')
   expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))')).toEqual('/foo@1.0.0')
   expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/@(-.-)/foo@1.0.0')
+  expect(tryGetPackageId('@automattic/puppeteer-utils@https://codeload.github.com/Automattic/puppeteer-utils/tar.gz/0f3ec50(react-native@0.73.0(@babel/core@7.12.9)(@babel/preset-env@7.12.7(@babel/core@7.12.9))(encoding@0.1.13)(react@17.0.2))')).toEqual('@automattic/puppeteer-utils@https://codeload.github.com/Automattic/puppeteer-utils/tar.gz/0f3ec50')
+  expect(tryGetPackageId('foo@file:../foo')).toEqual('foo@file:../foo')
 })

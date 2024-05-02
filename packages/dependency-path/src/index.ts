@@ -2,10 +2,6 @@ import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { type Registries } from '@pnpm/types'
 import semver from 'semver'
 
-export function isAbsolute (dependencyPath: string): boolean {
-  return dependencyPath[0] !== '/'
-}
-
 export function indexOfPeersSuffix (depPath: string): number {
   if (!depPath.endsWith(')')) return -1
   let open = 1
@@ -52,9 +48,6 @@ export function tryGetPackageId (relDepPath: string): string {
   const sepIndex = indexOfPeersSuffix(relDepPath)
   if (sepIndex !== -1) {
     relDepPath = relDepPath.substring(0, sepIndex)
-  }
-  if (relDepPath.includes(':')) {
-    relDepPath = relDepPath.substring(relDepPath.indexOf('@', 1) + 1)
   }
   return relDepPath
 }

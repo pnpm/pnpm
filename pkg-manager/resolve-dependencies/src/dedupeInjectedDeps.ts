@@ -1,5 +1,6 @@
 import path from 'path'
 import normalize from 'normalize-path'
+import { parse } from '@pnpm/dependency-path'
 import { type ResolvedDirectDependency, type ResolvedImporters } from './resolveDependencyTree'
 import { type LinkedDependency } from './resolveDependencies'
 import {
@@ -35,8 +36,9 @@ function getInjectedDepsByProjects<T extends PartialResolvedPackage> (
   for (const project of opts.projects) {
     for (const [alias, nodeId] of Object.entries(project.directNodeIdsByAlias)) {
       const depPath = opts.pathsByNodeId.get(nodeId)!
-      if (!opts.depGraph[depPath].id.startsWith('file:')) continue
-      const id = opts.depGraph[depPath].id.substring(5)
+      const { nonSemverVersion } = parse(opts.depGraph[depPath].id)
+      if (!nonSemverVersion?.startsWith('file:')) continue
+      const id = nonSemverVersion.substring(5)
       if (opts.projects.some((project) => project.id === id)) {
         if (!injectedDepsByProjects.has(project.id)) injectedDepsByProjects.set(project.id, new Map())
         injectedDepsByProjects.get(project.id)!.set(alias, { depPath, id })

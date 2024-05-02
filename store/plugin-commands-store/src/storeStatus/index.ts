@@ -50,7 +50,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
   const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
     const pkgIndexFilePath = integrity
       ? getFilePathInCafs(cafsDir, integrity, 'index')
-      : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.json')
+      : path.join(storeDir, dp.depPathToFilename(dp.parse(id).nonSemverVersion ?? id, maybeOpts.virtualStoreDirMaxLength), 'integrity.json')
     const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), files)) === false
   }, { concurrency: 8 })

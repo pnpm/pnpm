@@ -1198,6 +1198,10 @@ async function resolveDependency (
   })
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
+  // TODO: the correct ID should be probably returned by the resolvers (but that might be a breaking change to the resolver's API.
+  if (pkgResponse.body.manifest && !pkgResponse.body.id.startsWith(`${pkgResponse.body.manifest.name}@`) && !pkgResponse.body.id.startsWith('link:')) {
+    pkgResponse.body.id = `${pkgResponse.body.manifest.name}@${pkgResponse.body.id}`
+  }
 
   if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
     if (!ctx.allPreferredVersions[pkgResponse.body.manifest.name]) {

@@ -41,7 +41,7 @@ import {
   type WantedDependency,
 } from '@pnpm/store-controller-types'
 import { type DependencyManifest } from '@pnpm/types'
-import { depPathToFilename } from '@pnpm/dependency-path'
+import { depPathToFilename, parse } from '@pnpm/dependency-path'
 import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
 import PQueue from 'p-queue'
 import pDefer from 'p-defer'
@@ -175,7 +175,7 @@ async function resolveAndFetch (
   // When we don't fetch, the only way to get the package's manifest is via resolving it.
   //
   // The resolution step is never skipped for local dependencies.
-  if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:')) || wantedDependency.optional === true) {
+  if (!skipResolution || options.skipFetch === true || pkgId?.includes('@file:') === true || wantedDependency.optional === true) {
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
@@ -199,7 +199,7 @@ async function resolveAndFetch (
     // the local tarball should be unpacked, so a fetch to the store should be forced
     forceFetch = Boolean(
       ((options.currentPkg?.resolution) != null) &&
-      pkgId?.startsWith('file:') &&
+      (pkgId?.includes('@file:') === true || pkgId?.startsWith('file:')) &&
       (options.currentPkg?.resolution as TarballResolution).integrity !== (resolveResult.resolution as TarballResolution).integrity
     )
 
@@ -211,7 +211,7 @@ async function resolveAndFetch (
 
   const id = pkgId as string
 
-  if (resolution.type === 'directory' && !id.startsWith('file:')) {
+  if (resolution.type === 'directory' && !id.startsWith('file:') && !id.includes('@file:')) {
     if (manifest == null) {
       throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
     }
@@ -313,9 +313,11 @@ function getFilesIndexFilePath (
   },
   opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>
 ) {
-  const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
+  const pkgHasIntegrity = (opts.pkg.resolution as TarballResolution).integrity != null
+  const id = pkgHasIntegrity ? opts.pkg.id : (parse(opts.pkg.id).nonSemverVersion ?? opts.pkg.id)
+  const targetRelative = depPathToFilename(id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
+  const filesIndexFile = pkgHasIntegrity
     ? ctx.getFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, 'index')
     : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
   return { filesIndexFile, target }
@@ -455,7 +457,7 @@ function fetchToStore (
     target: string
   ) {
     try {
-      const isLocalTarballDep = opts.pkg.id.startsWith('file:')
+      const isLocalTarballDep = 'tarball' in opts.pkg.resolution && opts.pkg.resolution.tarball.startsWith('file:')
       const isLocalPkg = opts.pkg.resolution.type === 'directory'
 
       if (
