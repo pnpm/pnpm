@@ -74,6 +74,26 @@ test('pack a package with scoped name', async () => {
   expect(fs.existsSync('pnpm-test-scope-0.0.0.tgz')).toBeTruthy()
 })
 
+test('pack when there is bundledDependencies but without node-linker=hoisted', async () => {
+  prepare({
+    name: 'bundled-deps-without-node-linker-hoisted',
+    version: '0.0.0',
+    bundledDependencies: [],
+  })
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'isolated',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_BUNDLED_DEPENDENCIES_WITHOUT_HOISTED',
+    message: 'bundledDependencies does not work with node-linker=isolated',
+    hint: 'Add node-linker=hoisted to .npmrc or delete bundledDependencies from the root package.json to resolve this error',
+  })
+})
+
 test('pack a package without package name', async () => {
   prepare({
     name: undefined,

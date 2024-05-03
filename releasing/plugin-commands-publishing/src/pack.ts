@@ -58,7 +58,7 @@ export function help (): string {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
+  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel' | 'nodeLinker'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
     argv: {
       original: string[]
     }
@@ -68,6 +68,7 @@ export async function handler (
   }
 ): Promise<string> {
   const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
+  preventBundledDependenciesWithoutHoistedNodeLinker(opts.nodeLinker, entryManifest)
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: opts.dir,
     extraBinPaths: opts.extraBinPaths,
@@ -89,6 +90,7 @@ export async function handler (
     : opts.dir
   // always read the latest manifest, as "prepack" or "prepare" script may modify package manifest.
   const { manifest } = await readProjectManifest(dir, opts)
+  preventBundledDependenciesWithoutHoistedNodeLinker(opts.nodeLinker, manifest)
   if (!manifest.name) {
     throw new PnpmError('PACKAGE_NAME_NOT_FOUND', `Package name is not defined in the ${manifestFileName}.`)
   }
@@ -138,6 +140,18 @@ export async function handler (
     return path.join(destDir, tarballName)
   }
   return path.relative(opts.dir, path.join(dir, tarballName))
+}
+
+function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
+  if (nodeLinker === 'hoisted') return
+  for (const key of ['bundledDependencies', 'bundleDependencies'] as const) {
+    const bundledDependencies = manifest[key]
+    if (bundledDependencies) {
+      throw new PnpmError('BUNDLED_DEPENDENCIES_WITHOUT_HOISTED', `${key} does not work with node-linker=${nodeLinker}`, {
+        hint: `Add node-linker=hoisted to .npmrc or delete ${key} from the root package.json to resolve this error`,
+      })
+    }
+  }
 }
 
 async function readReadmeFile (projectDir: string): Promise<string | undefined> {
