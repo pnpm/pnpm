@@ -66,18 +66,6 @@ test('throw error if --link-workspace-packages is used with --global', async () 
   }
 })
 
-test('warns if bundledDependencies is used without node-linker=hoisted', async () => {
-  const prefix = f.find('pkg-with-bundled-dependencies')
-  const { warnings } = await getConfig({
-    cliOptions: { dir: prefix },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-  expect(warnings).toContain('bundledDependencies does not work without node-linker=hoisted')
-})
-
 test('correct settings on global install', async () => {
   const { config } = await getConfig({
     cliOptions: {

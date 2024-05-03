@@ -578,15 +578,6 @@ export async function getConfig (
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
 
-  if (pnpmConfig.nodeLinker !== 'hoisted') {
-    for (const key of ['bundledDependencies', 'bundleDependencies'] as const) {
-      const bundledDependencies = pnpmConfig.rootProjectManifest?.[key]
-      if (bundledDependencies) {
-        warnings.push(`${key} does not work without node-linker=hoisted`)
-      }
-    }
-  }
-
   return { config: pnpmConfig, warnings }
 }
 
