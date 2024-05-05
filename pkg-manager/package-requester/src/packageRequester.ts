@@ -212,7 +212,7 @@ async function resolveAndFetch (
 
   const id = pkgId as string
 
-  if (resolution.type === 'directory' && !id.startsWith('file:') && !id.includes('@file:')) {
+  if (resolution.type === 'directory' && !normalizedPref?.startsWith('file:') && !wantedDependency.injected) {
     if (manifest == null) {
       throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
     }
