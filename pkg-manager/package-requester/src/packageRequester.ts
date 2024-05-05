@@ -165,7 +165,6 @@ async function resolveAndFetch (
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
   const skipResolution = resolution && !options.update
-  let forceFetch = false
   let updated = false
   let resolvedVia: string | undefined
   let publishedAt: string | undefined
@@ -195,15 +194,7 @@ async function resolveAndFetch (
     resolvedVia = resolveResult.resolvedVia
     publishedAt = resolveResult.publishedAt
 
-    // If the integrity of a local tarball dependency has changed,
-    // the local tarball should be unpacked, so a fetch to the store should be forced
-    forceFetch = Boolean(
-      ((options.currentPkg?.resolution) != null) &&
-      (pkgId?.includes('@file:') === true || pkgId?.startsWith('file:')) &&
-      (options.currentPkg?.resolution as TarballResolution).integrity !== (resolveResult.resolution as TarballResolution).integrity
-    )
-
-    updated = pkgId !== resolveResult.id || !resolution || forceFetch
+    updated = pkgId !== resolveResult.id || !resolution
     resolution = resolveResult.resolution
     pkgId = resolveResult.id
     normalizedPref = resolveResult.normalizedPref
@@ -264,7 +255,7 @@ async function resolveAndFetch (
   const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
-    force: forceFetch,
+    force: false,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
