@@ -199,7 +199,8 @@ async function resolveAndFetch (
     // the local tarball should be unpacked, so a fetch to the store should be forced
     forceFetch = Boolean(
       ((options.currentPkg?.resolution) != null) &&
-      (pkgId?.includes('@file:') === true || pkgId?.startsWith('file:')) &&
+      'tarball' in options.currentPkg?.resolution &&
+      options.currentPkg.resolution.tarball.startsWith('file:') &&
       (options.currentPkg?.resolution as TarballResolution).integrity !== (resolveResult.resolution as TarballResolution).integrity
     )
 
