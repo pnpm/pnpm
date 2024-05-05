@@ -175,7 +175,7 @@ async function resolveAndFetch (
   // When we don't fetch, the only way to get the package's manifest is via resolving it.
   //
   // The resolution step is never skipped for local dependencies.
-  if (!skipResolution || options.skipFetch === true || pkgId?.includes('@file:') === true || wantedDependency.optional === true) {
+  if (!skipResolution || options.skipFetch === true || resolution?.type === 'directory' || wantedDependency.optional === true) {
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
