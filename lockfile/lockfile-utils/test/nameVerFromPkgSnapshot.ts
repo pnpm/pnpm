@@ -11,6 +11,7 @@ test('nameVerFromPkgSnapshot()', () => {
     name: 'foo',
     peersSuffix: undefined,
     version: '1.0.0',
+    nonSemverVersion: 'some-weird-path',
   })
 
   expect(nameVerFromPkgSnapshot('foo@1.0.0', {
