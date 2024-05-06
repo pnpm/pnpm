@@ -12,7 +12,6 @@ import {
 } from '@pnpm/lockfile-types'
 import {
   nameVerFromPkgSnapshot,
-  packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
@@ -1047,19 +1046,22 @@ function getInfoFromLockfile (
       }
     }
 
+    const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath, dependencyLockfile)
     return {
-      ...nameVerFromPkgSnapshot(depPath, dependencyLockfile),
+      name,
+      version,
       dependencyLockfile,
       depPath,
-      pkgId: packageIdFromSnapshot(depPath, dependencyLockfile),
+      pkgId: nonSemverVersion ?? `${name}@${version}`,
       // resolution may not exist if lockfile is broken, and an unexpected error will be thrown
       // if resolution does not exist, return undefined so it can be autofixed later
       resolution: dependencyLockfile.resolution && pkgSnapshotToResolution(depPath, dependencyLockfile, registries),
     }
   } else {
+    const parsed = dp.parse(depPath)
     return {
       depPath,
-      pkgId: dp.tryGetPackageId(depPath) ?? depPath, // Does it make sense to set pkgId when we're not sure?
+      pkgId: parsed.nonSemverVersion ?? (parsed.name && parsed.version ? `${parsed.name}@${parsed.version}` : depPath), // Does it make sense to set pkgId when we're not sure?
     }
   }
 }

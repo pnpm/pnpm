@@ -287,7 +287,7 @@ async function resolveAndFetch (
       isLocal: false as const,
       isInstallable: isInstallable ?? undefined,
       latest,
-      manifest: manifest ?? (await fetchResult.fetching()).bundledManifest,
+      manifest,
       normalizedPref,
       resolution,
       resolvedVia,
