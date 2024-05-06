@@ -20,9 +20,12 @@ export function createVersionsOverrider (
           const pkgPath = override.newPref.substring(5)
           linkTarget = path.isAbsolute(pkgPath) ? pkgPath : path.join(rootDir, pkgPath)
         }
-        let linkFileTarget: string | undefined
+        let linkFileTarget: LinkFileTarget | undefined
         if (override.newPref.startsWith('file:')) {
-          linkFileTarget = override.newPref.substring(5)
+          const pkgPath = override.newPref.substring(5)
+          const wasRelative = !path.isAbsolute(pkgPath)
+          const absolutePath = wasRelative ? path.join(rootDir, pkgPath) : pkgPath
+          linkFileTarget = { absolutePath, wasRelative }
         }
         return {
           ...override,
@@ -52,9 +55,14 @@ function tryParseOverrides (overrides: Record<string, string>): VersionOverrideB
   }
 }
 
+interface LinkFileTarget {
+  absolutePath: string
+  wasRelative: boolean
+}
+
 interface VersionOverride extends VersionOverrideBase {
   linkTarget?: string
-  linkFileTarget?: string
+  linkFileTarget?: LinkFileTarget
 }
 
 interface VersionOverrideWithParent extends VersionOverride {
@@ -104,11 +112,13 @@ function overrideDeps (
       continue
     }
     if (versionOverride.linkFileTarget && dir) {
-      deps[
-        versionOverride.targetPkg.name
-      ] = `file:${normalizePath(
-        path.relative(dir, versionOverride.linkFileTarget)
-      )}`
+      if (versionOverride.linkFileTarget.wasRelative) {
+        deps[versionOverride.targetPkg.name] = `file:${normalizePath(
+          path.relative(dir, versionOverride.linkFileTarget.absolutePath)
+        )}`
+      } else {
+        deps[versionOverride.targetPkg.name] = `file:${versionOverride.linkFileTarget.absolutePath}`
+      }
       continue
     }
     deps[versionOverride.targetPkg.name] = versionOverride.newPref
