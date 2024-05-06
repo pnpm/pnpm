@@ -295,6 +295,26 @@ test('createVersionsOverrider() overrides dependencies with file with relative p
   })
 })
 
+test('createVersionsOverrider() overrides dependencies with file with relative path for workspace package', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider({
+    qar: 'file:../qar',
+  }, rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.join(rootDir, 'packages', 'pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'file:../../../qar',
+    },
+  })
+})
+
 test('createVersionsOverrider() overrides dependencies with file specified with absolute path', () => {
   const absolutePath = path.join(__dirname, 'qar')
   const overrider = createVersionsOverrider({
