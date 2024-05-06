@@ -1,5 +1,11 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.6.4
+
+### Patch Changes
+
+- @pnpm/lockfile-file@9.0.4
+
 ## 0.6.3
 
 ### Patch Changes

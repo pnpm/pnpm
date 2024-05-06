@@ -1,5 +1,13 @@
 # @pnpm/npm-resolver
 
+## 19.0.1
+
+### Patch Changes
+
+- cb0f459: `pnpm update` should not fail when there's an aliased local workspace dependency [#7975](https://github.com/pnpm/pnpm/issues/7975).
+- Updated dependencies [cb0f459]
+  - @pnpm/workspace.spec-parser@1.0.0
+
 ## 19.0.0
 
 ### Major Changes

@@ -1,5 +1,12 @@
 # @pnpm/sort-packages
 
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [db1d6ff]
+  - @pnpm/deps.graph-sequencer@2.0.1
+
 ## 6.0.0
 
 ### Major Changes

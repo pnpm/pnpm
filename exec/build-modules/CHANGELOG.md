@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 12.0.3
+
+### Patch Changes
+
+- Updated dependencies [db1d6ff]
+  - @pnpm/deps.graph-sequencer@2.0.1
+
 ## 12.0.2
 
 ### Patch Changes

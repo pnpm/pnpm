@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 10.1.1
+
+### Patch Changes
+
+- 7a0536e: Fix `Cannot read properties of undefined (reading 'missingPeersOfChildren')` exception that happens on install [#8041](https://github.com/pnpm/pnpm/issues/8041).
+
 ## 10.1.0
 
 ### Minor Changes

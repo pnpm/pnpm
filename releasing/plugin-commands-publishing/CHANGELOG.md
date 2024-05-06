@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-publishing
 
+## 8.1.1
+
+### Patch Changes
+
+- c50afe4: Explicitly throw an error when user attempts to run `publish` or `pack` when `bundledDependencies` is set but `node-linker` isn't `hoisted`.
+  - @pnpm/sort-packages@6.0.1
+  - @pnpm/client@11.0.3
+
 ## 8.1.0
 
 ### Minor Changes

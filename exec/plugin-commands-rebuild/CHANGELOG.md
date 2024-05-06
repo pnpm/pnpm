@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-rebuild
 
+## 11.1.1
+
+### Patch Changes
+
+- Updated dependencies [db1d6ff]
+- Updated dependencies [7a0536e]
+  - @pnpm/deps.graph-sequencer@2.0.1
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/sort-packages@6.0.1
+  - @pnpm/get-context@11.1.1
+  - @pnpm/store-connection-manager@8.1.1
+
 ## 11.1.0
 
 ### Minor Changes

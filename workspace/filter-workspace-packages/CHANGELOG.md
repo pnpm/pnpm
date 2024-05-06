@@ -1,5 +1,11 @@
 # @pnpm/filter-workspace-packages
 
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@3.0.1
+
 ## 8.0.3
 
 ### Patch Changes

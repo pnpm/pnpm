@@ -1,5 +1,26 @@
 # @pnpm/core
 
+## 14.1.1
+
+### Patch Changes
+
+- Updated dependencies [db1d6ff]
+- Updated dependencies [7a0536e]
+- Updated dependencies [cb0f459]
+  - @pnpm/deps.graph-sequencer@2.0.1
+  - @pnpm/resolve-dependencies@32.1.1
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/build-modules@12.0.3
+  - @pnpm/filter-lockfile@9.0.3
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/lockfile-to-pnp@4.1.1
+  - @pnpm/lockfile.preferred-versions@1.0.2
+  - @pnpm/headless@23.1.1
+  - @pnpm/hoist@9.1.1
+  - @pnpm/modules-cleaner@15.1.1
+  - @pnpm/get-context@11.1.1
+  - @pnpm/package-requester@25.1.0
+
 ## 14.1.0
 
 ### Minor Changes

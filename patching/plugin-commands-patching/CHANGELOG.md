@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-patching
 
+## 6.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/plugin-commands-installation@15.1.1
+  - @pnpm/store-connection-manager@8.1.1
+
 ## 6.1.0
 
 ### Minor Changes

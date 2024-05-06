@@ -1,6 +1,6 @@
 # pnpm
 
-## 9.1.0-0
+## 9.1.0
 
 ### Minor Changes
 
@@ -9,6 +9,10 @@
 ### Patch Changes
 
 - A dependency is hoisted to resolve an optional peer dependency only if it satisfies the range provided for the optional peer dependency [#8028](https://github.com/pnpm/pnpm/pull/8028).
+- Details in the `pnpm outdated` output are wrapped correctly [#8037](https://github.com/pnpm/pnpm/pull/8037).
+- Fix `Cannot read properties of undefined (reading 'missingPeersOfChildren')` exception that happens on install [#8041](https://github.com/pnpm/pnpm/issues/8041).
+- Explicitly throw an error when user attempts to run `publish` or `pack` when `bundledDependencies` is set but `node-linker` isn't `hoisted`.
+- `pnpm update` should not fail when there's an aliased local workspace dependency [#7975](https://github.com/pnpm/pnpm/issues/7975).
 
 ## 9.0.6
 

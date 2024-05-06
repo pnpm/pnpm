@@ -1,5 +1,13 @@
 # @pnpm/audit
 
+## 8.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/list@10.1.1
+
 ## 8.1.0
 
 ### Minor Changes

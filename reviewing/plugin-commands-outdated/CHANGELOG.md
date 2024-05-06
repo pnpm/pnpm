@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-outdated
 
+## 11.1.1
+
+### Patch Changes
+
+- 21de734: Details in the `pnpm outdated` output are wrapped correctly [#8037](https://github.com/pnpm/pnpm/pull/8037).
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/outdated@14.0.5
+  - @pnpm/default-resolver@19.0.2
+
 ## 11.1.0
 
 ### Minor Changes

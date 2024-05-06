@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-licenses
 
+## 4.1.1
+
+### Patch Changes
+
+- 21de734: Details in the `pnpm outdated` output are wrapped correctly [#8037](https://github.com/pnpm/pnpm/pull/8037).
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/license-scanner@3.1.1
+
 ## 4.1.0
 
 ### Minor Changes

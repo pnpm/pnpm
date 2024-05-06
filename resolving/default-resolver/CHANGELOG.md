@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 19.0.2
+
+### Patch Changes
+
+- Updated dependencies [cb0f459]
+  - @pnpm/npm-resolver@19.0.1
+
 ## 19.0.1
 
 ### Patch Changes

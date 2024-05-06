@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-script-runners
 
+## 9.1.1
+
+### Patch Changes
+
+- @pnpm/sort-packages@6.0.1
+- @pnpm/plugin-commands-installation@15.1.1
+
 ## 9.1.0
 
 ### Minor Changes

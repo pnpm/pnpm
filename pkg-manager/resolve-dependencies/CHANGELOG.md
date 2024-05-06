@@ -1,5 +1,19 @@
 # @pnpm/resolve-dependencies
 
+## 32.1.1
+
+### Patch Changes
+
+- 7a0536e: Fix `Cannot read properties of undefined (reading 'missingPeersOfChildren')` exception that happens on install [#8041](https://github.com/pnpm/pnpm/issues/8041).
+- cb0f459: `pnpm update` should not fail when there's an aliased local workspace dependency [#7975](https://github.com/pnpm/pnpm/issues/7975).
+- Updated dependencies [cb0f459]
+- Updated dependencies [7a0536e]
+- Updated dependencies [cb0f459]
+  - @pnpm/workspace.spec-parser@1.0.0
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/npm-resolver@19.0.1
+  - @pnpm/lockfile.preferred-versions@1.0.2
+
 ## 32.1.0
 
 ### Minor Changes

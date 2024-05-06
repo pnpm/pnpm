@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-listing
 
+## 9.1.1
+
+### Patch Changes
+
+- @pnpm/list@10.1.1
+
 ## 9.1.0
 
 ### Minor Changes

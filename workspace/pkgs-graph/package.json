@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.pkgs-graph",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Create a graph from an array of packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
