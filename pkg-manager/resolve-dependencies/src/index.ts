@@ -186,6 +186,7 @@ export async function resolveDependencies (
     }
   }))
 
+  console.log('RESOLVE PEERS!')
   const {
     dependenciesGraph,
     dependenciesByProjectId,

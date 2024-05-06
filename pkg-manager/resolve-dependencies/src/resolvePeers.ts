@@ -111,6 +111,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       pathsByNodeIdPromises,
       depPathsByPkgId,
       peersCache: new Map(),
+      cachedNodeIds: new Set(),
       peerDependencyIssues,
       purePkgs: new Set(),
       rootDir,
@@ -317,6 +318,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     virtualStoreDirMaxLength: number
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
+    cachedNodeIds: Set<string>
     purePkgs: Set<string> // pure packages are those that don't rely on externally resolved peers
     rootDir: string
     lockfileDir: string
@@ -432,6 +434,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ctx.peersCache.get(resolvedPackage.depPath)!.push(cache)
     } else {
       ctx.peersCache.set(resolvedPackage.depPath, [cache])
+    }
+    for (const cachedNodeId of cache.resolvedPeers.values()) {
+      ctx.cachedNodeIds.add(cachedNodeId)
     }
   }
 
@@ -586,6 +591,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   ctx: ResolvePeersContext & {
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
+    cachedNodeIds: Set<string>
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
     purePkgs: Set<string>
@@ -640,7 +646,14 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     const { cycles } = analyzeGraph(graph as unknown as Graph)
     finishingList.push(...calculateDepPaths.map((calculateDepPath) => calculateDepPath(cycles)))
   }
-  const finishing = Promise.all(finishingList).then(() => {})
+  const finishing = Promise.all(finishingList).then(() => {
+    for (const childNodeId of nodeIds) {
+      if (childNodeId.indexOf('>', 1) < childNodeId.length - 1 && !ctx.cachedNodeIds.has(childNodeId)) {
+        // console.log('delete', childNodeId)
+        ctx.dependenciesTree.delete(childNodeId)
+      }
+    }
+  })
 
   const unknownResolvedPeersOfChildren = new Map<string, string>()
   for (const [alias, v] of allResolvedPeers) {
