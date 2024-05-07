@@ -351,9 +351,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       )
     )
   const hit = findHit(resolvedPackage.depPath)
-  function findHit (depPath: string, prevAttempts: string[] = []) {
-    const newPrevAttempts = [...prevAttempts, depPath]
-    return ctx.peersCache.get(depPath)?.find((cache) => {
+  function findHit (depPath: string, pendingCacheSearches: string[] = []) {
+    const cacheItems = ctx.peersCache.get(depPath)
+    if (!cacheItems) return undefined
+    const newPendingCacheSearches = [...pendingCacheSearches, depPath]
+    return cacheItems.find((cache) => {
       for (const [name, cachedNodeId] of cache.resolvedPeers) {
         const parentPkgNodeId = parentPkgs[name]?.nodeId
         if (!parentPkgNodeId || !cachedNodeId) return false
@@ -367,7 +369,10 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         }
         const parentDepPath = (ctx.dependenciesTree.get(parentPkgNodeId)!.resolvedPackage as T).depPath
         if (!ctx.purePkgs.has(parentDepPath)) {
-          if (newPrevAttempts.includes(parentDepPath) || findHit(parentDepPath, newPrevAttempts)) continue
+          if (
+            newPendingCacheSearches.includes(parentDepPath) ||
+            findHit(parentDepPath, newPendingCacheSearches)
+          ) continue
           return false
         }
         const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
