@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 13.0.3
+
+### Patch Changes
+
+- 43b6bb7: Print a better error message when `resolution-mode` is set to `time-based` and the registry fails to return the `"time"` field in the package's metadata.
+
 ## 13.0.2
 
 ### Patch Changes

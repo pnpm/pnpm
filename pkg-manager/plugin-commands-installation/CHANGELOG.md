@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-installation
 
+## 15.1.2
+
+### Patch Changes
+
+- @pnpm/core@14.1.2
+- @pnpm/outdated@14.0.6
+- @pnpm/workspace.pkgs-graph@3.0.2
+- @pnpm/cli-utils@3.0.4
+- @pnpm/filter-workspace-packages@8.0.5
+- @pnpm/plugin-commands-rebuild@11.1.2
+- @pnpm/workspace.find-packages@2.0.4
+- @pnpm/package-store@20.1.0
+- @pnpm/store-connection-manager@8.1.2
+
 ## 15.1.1
 
 ### Patch Changes

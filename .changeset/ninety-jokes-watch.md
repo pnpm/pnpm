@@ -1,6 +1,4 @@
 ---
-"@pnpm/npm-resolver": patch
-"@pnpm/default-reporter": patch
 "pnpm": patch
 ---
 
