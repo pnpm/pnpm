@@ -1,6 +1,5 @@
 import path from 'path'
 import { createVersionsOverrider } from '../lib/createVersionsOverrider'
-import normalizePath from 'normalize-path'
 
 test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider({

@@ -28,7 +28,6 @@ export function createVersionsOverrider (
           const wasRelative = !path.isAbsolute(pkgPath)
           const absolutePath = wasRelative ? path.join(rootDir, pkgPath) : pkgPath
           linkFileTarget = { absolutePath, wasRelative }
-
         }
         return {
           ...override,
