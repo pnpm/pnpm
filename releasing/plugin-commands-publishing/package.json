@@ -42,7 +42,7 @@
     "@types/proxyquire": "^1.3.31",
     "@types/ramda": "0.29.12",
     "@types/sinon": "^10.0.20",
-    "@types/tar": "^6.1.12",
+    "@types/tar": "^6.1.13",
     "@types/tar-stream": "^2.2.3",
     "ci-info": "^3.9.0",
     "cross-spawn": "^7.0.3",
