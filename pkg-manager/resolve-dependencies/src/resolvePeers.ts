@@ -351,7 +351,8 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       )
     )
   const hit = findHit(resolvedPackage.depPath)
-  function findHit (depPath: string) {
+  function findHit (depPath: string, prevAttempts: string[] = []) {
+    const newPrevAttempts = [...prevAttempts, depPath]
     return ctx.peersCache.get(depPath)?.find((cache) => {
       for (const [name, cachedNodeId] of cache.resolvedPeers) {
         const parentPkgNodeId = parentPkgs[name]?.nodeId
@@ -366,7 +367,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         }
         const parentDepPath = (ctx.dependenciesTree.get(parentPkgNodeId)!.resolvedPackage as T).depPath
         if (!ctx.purePkgs.has(parentDepPath)) {
-          if (findHit(parentDepPath)) continue
+          if (newPrevAttempts.includes(parentDepPath) || findHit(parentDepPath, newPrevAttempts)) continue
           return false
         }
         const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
