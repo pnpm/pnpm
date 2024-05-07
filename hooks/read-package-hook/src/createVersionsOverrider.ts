@@ -111,8 +111,8 @@ function overrideDeps (
       )}`
       continue
     }
-    if (versionOverride.linkFileTarget && dir) {
-      if (versionOverride.linkFileTarget.wasRelative) {
+    if (versionOverride.linkFileTarget) {
+      if (versionOverride.linkFileTarget.wasRelative && dir) {
         deps[versionOverride.targetPkg.name] = `file:${normalizePath(
           path.relative(dir, versionOverride.linkFileTarget.absolutePath)
         )}`
