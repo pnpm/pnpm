@@ -45,14 +45,14 @@ function tryParseOverrides (overrides: Record<string, string>): VersionOverrideB
   }
 }
 
-interface Target {
+interface LocalTarget {
   absolutePath: string
   wasRelative: boolean
 }
 
 type LocalPrefix = 'link:' | 'file:'
 
-function createLocalTarget (override: VersionOverrideBase, prefix: LocalPrefix, rootDir: string): Target | undefined {
+function createLocalTarget (override: VersionOverrideBase, prefix: LocalPrefix, rootDir: string): LocalTarget | undefined {
   if (!override.newPref.startsWith(prefix)) return undefined
   const pkgPath = override.newPref.substring(prefix.length)
   const wasRelative = !path.isAbsolute(pkgPath)
@@ -61,8 +61,8 @@ function createLocalTarget (override: VersionOverrideBase, prefix: LocalPrefix, 
 }
 
 interface VersionOverride extends VersionOverrideBase {
-  linkTarget?: Target
-  linkFileTarget?: Target
+  linkTarget?: LocalTarget
+  linkFileTarget?: LocalTarget
 }
 
 interface VersionOverrideWithParent extends VersionOverride {
@@ -117,7 +117,7 @@ function overrideDeps (
   }
 }
 
-function resolveLocalOverride ({ wasRelative, absolutePath }: Target, pkgDir?: string): string {
+function resolveLocalOverride ({ wasRelative, absolutePath }: LocalTarget, pkgDir?: string): string {
   return wasRelative && pkgDir
     ? normalizePath(path.relative(pkgDir, absolutePath))
     : absolutePath
