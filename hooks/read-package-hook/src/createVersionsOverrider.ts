@@ -56,8 +56,9 @@ function createLocalTarget (override: VersionOverrideBase, rootDir: string): Loc
     protocol = 'file:'
   } else if (override.newPref.startsWith('link:')) {
     protocol = 'link:'
+  } else {
+    return undefined
   }
-  if (!protocol) return undefined
   const pkgPath = override.newPref.substring(protocol.length)
   const specifiedViaRelativePath = !path.isAbsolute(pkgPath)
   const absolutePath = specifiedViaRelativePath ? path.join(rootDir, pkgPath) : pkgPath
