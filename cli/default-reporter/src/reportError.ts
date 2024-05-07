@@ -67,6 +67,8 @@ function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerD
       return reportLockfileBreakingChange(err, logObj)
     case 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT':
       return { title: err.message }
+    case 'ERR_PNPM_MISSING_TIME':
+      return { title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' }
     case 'ERR_PNPM_NO_MATCHING_VERSION':
       return formatNoMatchingVersion(err, logObj)
     case 'ERR_PNPM_RECURSIVE_FAIL':

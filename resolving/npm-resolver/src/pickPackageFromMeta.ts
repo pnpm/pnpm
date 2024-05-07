@@ -1,6 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { type VersionSelectors } from '@pnpm/resolver-base'
 import semver from 'semver'
+import util from 'util'
 import { type RegistryPackageSpec } from './parsePref'
 import { type PackageInRegistry, type PackageMeta } from './pickPackage'
 
@@ -50,7 +51,15 @@ export function pickPackageFromMeta (
       manifest.name = meta['name']
     }
     return manifest
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
+    if (
+      util.types.isNativeError(err) &&
+      'code' in err &&
+      typeof err.code === 'string' &&
+      err.code.startsWith('ERR_PNPM_')
+    ) {
+      throw err
+    }
     throw new PnpmError('MALFORMED_METADATA',
       `Received malformed metadata for "${spec.name}"`,
       { hint: 'This might mean that the package was unpublished from the registry' }
@@ -128,6 +137,9 @@ export function pickVersionByVersionRange (
 
   let versions = Object.keys(meta.versions)
   if (publishedBy) {
+    if (meta.time == null) {
+      throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
+    }
     versions = versions.filter(version => new Date(meta.time![version]) <= publishedBy)
     if (!versions.includes(latest)) {
       latest = undefined
