@@ -165,7 +165,7 @@ test('createVersionsOverrider() overrides dependencies with absolute links', () 
     name: 'foo',
     version: '1.2.0',
     dependencies: {
-      qar: `link:${normalizePath(path.relative(path.resolve('pkg'), qarAbsolutePath))}`,
+      qar: `link:${qarAbsolutePath}`,
     },
   })
 })

@@ -15,17 +15,20 @@ export function createVersionsOverrider (
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
     parsedOverrides
       .map((override) => {
-        let linkTarget: string | undefined
+        let linkTarget: Target | undefined
         if (override.newPref.startsWith('link:')) {
           const pkgPath = override.newPref.substring(5)
-          linkTarget = path.isAbsolute(pkgPath) ? pkgPath : path.join(rootDir, pkgPath)
+          const wasRelative = !path.isAbsolute(pkgPath)
+          const absolutePath = wasRelative ? path.join(rootDir, pkgPath) : pkgPath
+          linkTarget = { absolutePath, wasRelative }
         }
-        let linkFileTarget: LinkFileTarget | undefined
+        let linkFileTarget: Target | undefined
         if (override.newPref.startsWith('file:')) {
           const pkgPath = override.newPref.substring(5)
           const wasRelative = !path.isAbsolute(pkgPath)
           const absolutePath = wasRelative ? path.join(rootDir, pkgPath) : pkgPath
           linkFileTarget = { absolutePath, wasRelative }
+
         }
         return {
           ...override,
@@ -55,14 +58,14 @@ function tryParseOverrides (overrides: Record<string, string>): VersionOverrideB
   }
 }
 
-interface LinkFileTarget {
+interface Target {
   absolutePath: string
   wasRelative: boolean
 }
 
 interface VersionOverride extends VersionOverrideBase {
-  linkTarget?: string
-  linkFileTarget?: LinkFileTarget
+  linkTarget?: Target
+  linkFileTarget?: Target
 }
 
 interface VersionOverrideWithParent extends VersionOverride {
@@ -105,10 +108,14 @@ function overrideDeps (
     )
     if (!versionOverride) continue
 
-    if (versionOverride.linkTarget && dir) {
-      deps[versionOverride.targetPkg.name] = `link:${normalizePath(
-        path.relative(dir, versionOverride.linkTarget)
-      )}`
+    if (versionOverride.linkTarget) {
+      if (versionOverride.linkTarget.wasRelative && dir) {
+        deps[versionOverride.targetPkg.name] = `link:${normalizePath(
+          path.relative(dir, versionOverride.linkTarget.absolutePath)
+        )}`
+      } else {
+        deps[versionOverride.targetPkg.name] = `link:${versionOverride.linkTarget.absolutePath}`
+      }
       continue
     }
     if (versionOverride.linkFileTarget) {
