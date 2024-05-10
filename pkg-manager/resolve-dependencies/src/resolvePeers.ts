@@ -291,7 +291,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
 }
 
 interface PeersCacheItem {
-  depPath: pDefer.DeferredPromise<string> & { value?: string }
+  depPath: pDefer.DeferredPromise<string>
   resolvedPeers: Map<string, string>
   missingPeers: Set<string>
 }
@@ -374,10 +374,10 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
   const hit = findHit(resolvedPackage.depPath)
   function checkParentPkgs (cachedNodeId: string, parentPkgNodeId: string, allPeerName: Set<string>, walkedDepPath: string[]) {
-    if (!parentPkgNodeId.startsWith('>.>')) return true
-    let cachedParentPkgs = ctx.getParentPkgs[cachedNodeId]?.()
+    if (parentPkgNodeId.indexOf('>', 1) === parentPkgNodeId.length - 1) return true
+    const cachedParentPkgs = ctx.getParentPkgs[cachedNodeId]?.()
     if (!cachedParentPkgs) return false
-    let thisParentParentPkgs = ctx.getParentPkgs[parentPkgNodeId]?.()
+    const thisParentParentPkgs = ctx.getParentPkgs[parentPkgNodeId]?.()
     if (!thisParentParentPkgs) return false
     const maxDepth = Object.values(thisParentParentPkgs).reduce((maxDepth, { depth }) => Math.max(depth ?? 0, maxDepth), 0)
     const stop = Object.values(cachedParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null) && Object.values(thisParentParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null)
@@ -401,10 +401,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
     return true
   }
-  function findHit (depPath: string, pendingCacheSearches: string[] = []) {
+  function findHit (depPath: string) {
     const cacheItems = ctx.peersCache.get(depPath)
     if (!cacheItems) return undefined
-    const newPendingCacheSearches = [...pendingCacheSearches, depPath]
     return cacheItems.find((cache) => {
       const allPeerNames = new Set([
         ...cache.resolvedPeers.keys(),
@@ -440,17 +439,6 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     })
   }
   if (hit != null) {
-    if (hit.depPath.value) {
-      const depPath = hit.depPath.value
-      ctx.pathsByNodeId.set(nodeId, depPath)
-      ctx.depGraph[depPath].depth = Math.min(ctx.depGraph[depPath].depth, node.depth)
-      ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
-      return {
-        missingPeers: hit.missingPeers,
-        finishing: (async () => {})(),
-        resolvedPeers: hit.resolvedPeers,
-      }
-    }
     return {
       missingPeers: hit.missingPeers,
       finishing: (async () => {
@@ -580,9 +568,6 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   function addDepPathToGraph (depPath: string): void {
     cache?.depPath.resolve(depPath)
-    if (cache) {
-      cache.depPath.value = depPath
-    }
     ctx.pathsByNodeId.set(nodeId, depPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
     if (ctx.depPathsByPkgId != null) {

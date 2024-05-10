@@ -4,7 +4,6 @@ import { addDependenciesToPackage } from '@pnpm/core'
 import { testDefaults } from '../utils'
 
 test('a package with a huge amount of circular dependencies and many peer dependencies should successfully be resolved', async () => {
-  // jest.setTimeout(1000 * 60 * 60)
   prepareEmpty()
 
   await addDependenciesToPackage({},
@@ -20,4 +19,4 @@ test('a package with a huge amount of circular dependencies and many peer depend
   )
 
   expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
-}, 1000 * 60 * 60)
+})
