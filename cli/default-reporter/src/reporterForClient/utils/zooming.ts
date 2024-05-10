@@ -1,4 +1,3 @@
-import rightPad from 'right-pad'
 import { PREFIX_MAX_LENGTH } from '../outputConstants'
 import { formatPrefix } from './formatPrefix'
 
@@ -17,5 +16,6 @@ export function autozoom (
 }
 
 export function zoomOut (currentPrefix: string, logPrefix: string, line: string): string {
-  return `${rightPad(formatPrefix(currentPrefix, logPrefix), PREFIX_MAX_LENGTH)} | ${line}`
+  const prefix: string = formatPrefix(currentPrefix, logPrefix)
+  return `${prefix.padEnd(PREFIX_MAX_LENGTH)} | ${line}`
 }
