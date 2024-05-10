@@ -66,7 +66,7 @@ export type DependenciesByProjectId = Record<string, Record<string, string>>
 
 export async function resolvePeers<T extends PartialResolvedPackage> (
   opts: {
-    allPeers: Set<string>
+    allPeerDepNames: Set<string>
     projects: ProjectToResolve[]
     dependenciesTree: DependenciesTree<T>
     virtualStoreDir: string
@@ -105,7 +105,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
 
     // eslint-disable-next-line no-await-in-loop
     const { finishing } = await resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
-      allPeers: opts.allPeers,
+      allPeerDepNames: opts.allPeerDepNames,
       getParentPkgs: {},
       dependenciesTree: opts.dependenciesTree,
       depGraph,
@@ -318,7 +318,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   nodeId: string,
   parentParentPkgs: ParentRefs,
   ctx: ResolvePeersContext & {
-    allPeers: Set<string>
+    allPeerDepNames: Set<string>
     getParentPkgs: Record<string, GetParentPkgs>
     dependenciesTree: DependenciesTree<T>
     depGraph: GenericDependenciesGraph<T>
@@ -650,7 +650,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   },
   parentPkgs: ParentRefs,
   ctx: ResolvePeersContext & {
-    allPeers: Set<string>
+    allPeerDepNames: Set<string>
     getParentPkgs: Record<string, GetParentPkgs>
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
@@ -684,7 +684,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const finishingList: FinishingResolutionPromise[] = []
   const parentDepPaths: Record<string, { depPath?: string, version?: string, nodeId?: string, depth?: number, occurrence?: number }> = {}
   for (const [name, parentPkg] of Object.entries(parentPkgs)) {
-    if (!ctx.allPeers.has(name)) continue
+    if (!ctx.allPeerDepNames.has(name)) continue
     if (parentPkg.nodeId && !parentPkg.nodeId.startsWith('link:')) {
       parentDepPaths[name] = {
         nodeId: parentPkg.nodeId,

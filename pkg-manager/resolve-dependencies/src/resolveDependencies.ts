@@ -130,7 +130,7 @@ export interface ChildrenByParentDepPath {
 }
 
 export interface ResolutionContext {
-  allPeerDeps: Set<string>
+  allPeerDepNames: Set<string>
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
   allowBuild?: (pkgName: string) => boolean
@@ -1330,12 +1330,16 @@ async function resolveDependency (
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest
   }
 
-  Object.keys(pkg.peerDependencies ?? {}).forEach((name) => {
-    ctx.allPeerDeps.add(name)
-  })
-  Object.keys(pkg.peerDependenciesMeta ?? {}).forEach((name) => {
-    ctx.allPeerDeps.add(name)
-  })
+  if (pkg.peerDependencies != null) {
+    Object.keys(pkg.peerDependencies).forEach((name) => {
+      ctx.allPeerDepNames.add(name)
+    })
+  }
+  if (pkg.peerDependenciesMeta != null) {
+    Object.keys(pkg.peerDependenciesMeta).forEach((name) => {
+      ctx.allPeerDepNames.add(name)
+    })
+  }
   // In case of leaf dependencies (dependencies that have no prod deps or peer deps),
   // we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless.
   const nodeId = pkgIsLeaf(pkg)

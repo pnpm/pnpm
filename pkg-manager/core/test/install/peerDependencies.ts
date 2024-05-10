@@ -1828,7 +1828,7 @@ test('optional peer dependency is resolved if it is installed anywhere in the de
   expect(lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeDefined()
 })
 
-test('xxxx', async () => {
+test('peer dependency cache is invalidated correctly when the peer of a peer mismatch', async () => {
   const project = prepareEmpty()
 
   await addDependenciesToPackage(
@@ -1838,7 +1838,6 @@ test('xxxx', async () => {
   )
 
   const lockfile = project.readLockfile()
-  console.log(JSON.stringify(lockfile, null, 2))
   expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@1.0.0))']).toBeTruthy()
   expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@2.0.0))']).toBeTruthy()
 })

@@ -107,7 +107,7 @@ export interface ResolveDependenciesOptions {
 }
 
 export interface ResolveDependencyTreeResult {
-  allPeerDeps: Set<string>
+  allPeerDepNames: Set<string>
   dependenciesTree: DependenciesTree<ResolvedPackage>
   outdatedDependencies: {
     [pkgId: string]: string
@@ -161,7 +161,7 @@ export async function resolveDependencyTree<T> (
     workspacePackages: opts.workspacePackages,
     missingPeersOfChildrenByPkgId: {},
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
-    allPeerDeps: new Set(),
+    allPeerDepNames: new Set(),
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
@@ -254,7 +254,7 @@ export async function resolveDependencyTree<T> (
     wantedToBeSkippedPackageIds,
     appliedPatches: ctx.appliedPatches,
     time,
-    allPeerDeps: ctx.allPeerDeps,
+    allPeerDepNames: ctx.allPeerDepNames,
   }
 }
 
