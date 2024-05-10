@@ -13,6 +13,7 @@ coverage
 
 .tmp
 _docpress
+.DS_Store
 
 lib
 dist
