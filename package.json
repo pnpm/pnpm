@@ -82,7 +82,8 @@
       "tough-cookie@<4.1.3": ">=4.1.3",
       "@yarnpkg/fslib@2": "3",
       "socks@2": "^2.8.1",
-      "follow-redirects@<=1.15.5": ">=1.15.6"
+      "follow-redirects@<=1.15.5": ">=1.15.6",
+      "@pnpm/registry-mock": "link:../registry-mock"
     },
     "packageExtensions": {
       "@babel/parser": {
