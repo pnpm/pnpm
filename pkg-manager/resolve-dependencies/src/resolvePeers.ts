@@ -685,7 +685,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const parentDepPaths: Record<string, { depPath?: string, version?: string, nodeId?: string, depth?: number, occurrence?: number }> = {}
   for (const [name, parentPkg] of Object.entries(parentPkgs)) {
     if (!ctx.allPeers.has(name)) continue
-    if (parentPkg.nodeId) {
+    if (parentPkg.nodeId && !parentPkg.nodeId.startsWith('link:')) {
       parentDepPaths[name] = {
         nodeId: parentPkg.nodeId,
         depPath: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).depPath,
