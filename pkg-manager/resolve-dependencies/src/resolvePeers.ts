@@ -10,6 +10,7 @@ import type {
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersDirSuffix, type PeerId } from '@pnpm/dependency-path'
+import memoize from 'mem'
 import mapValues from 'ramda/src/map'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
@@ -312,7 +313,14 @@ interface ResolvePeersContext {
 type CalculateDepPath = (cycles: string[][]) => Promise<void>
 type FinishingResolutionPromise = Promise<void>
 
-type GetParentPkgs = () => Record<string, { depPath?: string, version?: string, nodeId?: string, depth?: number, occurrence?: number }>
+interface ParentPkgInfo {
+  depPath?: string
+  version?: string
+  nodeId?: string
+  depth?: number
+  occurrence?: number
+}
+type GetParentPkgs = () => Record<string, ParentPkgInfo>
 
 async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   nodeId: string,
@@ -353,14 +361,18 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     parentPkgs = parentParentPkgs
   } else {
     parentPkgs = { ...parentParentPkgs }
-    const newParentPkgs = toPkgByName(
-      Object.entries(children).map(([alias, nodeId]) => ({
-        depth,
-        alias,
-        node: ctx.dependenciesTree.get(nodeId)!,
-        nodeId,
-      }))
-    )
+    const parentPkgNodes: Array<ParentPkgNode<T>> = []
+    for (const [alias, nodeId] of Object.entries(children)) {
+      if (ctx.allPeerDepNames.has(alias)) {
+        parentPkgNodes.push({
+          depth,
+          alias,
+          node: ctx.dependenciesTree.get(nodeId)!,
+          nodeId,
+        })
+      }
+    }
+    const newParentPkgs = toPkgByName(parentPkgNodes)
     for (const [newParentPkgName, newParentPkg] of Object.entries(newParentPkgs)) {
       if (parentPkgs[newParentPkgName]) {
         if (parentPkgs[newParentPkgName].version !== newParentPkg.version) {
@@ -682,22 +694,25 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const calculateDepPaths: CalculateDepPath[] = []
   const graph = []
   const finishingList: FinishingResolutionPromise[] = []
-  const parentDepPaths: Record<string, { depPath?: string, version?: string, nodeId?: string, depth?: number, occurrence?: number }> = {}
-  for (const [name, parentPkg] of Object.entries(parentPkgs)) {
-    if (!ctx.allPeerDepNames.has(name)) continue
-    if (parentPkg.nodeId && !parentPkg.nodeId.startsWith('link:')) {
-      parentDepPaths[name] = {
-        nodeId: parentPkg.nodeId,
-        depPath: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).depPath,
-        depth,
-        occurrence: parentPkg.occurrence,
+  const cachedGetParentPkgs = memoize(() => {
+    const parentDepPaths: Record<string, ParentPkgInfo> = {}
+    for (const [name, parentPkg] of Object.entries(parentPkgs)) {
+      if (!ctx.allPeerDepNames.has(name)) continue
+      if (parentPkg.nodeId && !parentPkg.nodeId.startsWith('link:')) {
+        parentDepPaths[name] = {
+          nodeId: parentPkg.nodeId,
+          depPath: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).depPath,
+          depth,
+          occurrence: parentPkg.occurrence,
+        }
+      } else {
+        parentDepPaths[name] = { version: parentPkg.version }
       }
-    } else {
-      parentDepPaths[name] = { version: parentPkg.version }
     }
-  }
+    return parentDepPaths
+  })
   for (const childNodeId of nodeIds) {
-    ctx.getParentPkgs[childNodeId] = () => parentDepPaths
+    ctx.getParentPkgs[childNodeId] = cachedGetParentPkgs
   }
   for (const childNodeId of nodeIds) {
     const {
@@ -862,7 +877,14 @@ interface ParentRef {
   occurrence: number
 }
 
-function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: string, nodeId: string, node: DependenciesTreeNode<T>, depth: number }>): ParentRefs {
+interface ParentPkgNode<T> {
+  alias: string
+  nodeId: string
+  node: DependenciesTreeNode<T>
+  depth: number
+}
+
+function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<ParentPkgNode<T>>): ParentRefs {
   const pkgsByName: ParentRefs = {}
   const _updateParentRefs = updateParentRefs.bind(null, pkgsByName)
   for (const { alias, node, nodeId, depth } of nodes) {
