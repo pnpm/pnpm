@@ -21,69 +21,76 @@ exports[`pnpm licenses: filter outputs: show-packages 1`] = `
 `;
 
 exports[`pnpm licenses: should correctly read LICENSE file with executable file mode: show-packages-details 1`] = `
-"┌──────────────────────────────┬─────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Package                      │ License │ Details                                                                                                │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ inherits                     │ ISC     │ Browser-friendly inheritance fully compatible with standard node.js inherits()                         │
-│                              │         │ https://github.com/isaacs/inherits#readme                                                              │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ sax                          │ ISC     │ Isaac Z. Schlueter                                                                                     │
-│                              │         │ An evented streaming XML parser in JavaScript                                                          │
-│                              │         │ https://github.com/isaacs/sax-js#readme                                                                │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ commander                    │ MIT     │ TJ Holowaychuk                                                                                         │
-│                              │         │ the complete solution for node.js command-line programs                                                │
-│                              │         │ https://github.com/tj/commander.js#readme                                                              │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ core-util-is                 │ MIT     │ Isaac Z. Schlueter                                                                                     │
-│                              │         │ The \`util.is*\` functions introduced in Node v0.12.                                                     │
-│                              │         │ https://github.com/isaacs/core-util-is#readme                                                          │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ isarray                      │ MIT     │ Julian Gruber                                                                                          │
-│                              │         │ Array#isArray for older browsers                                                                       │
-│                              │         │ https://github.com/juliangruber/isarray                                                                │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ neatequal                    │ MIT     │ Nicolas Froidure                                                                                       │
-│                              │         │ Neat deep equal.                                                                                       │
-│                              │         │ https://github.com/nfroidure/neatequal                                                                 │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ process-nextick-args         │ MIT     │ process.nextTick but always with args                                                                  │
-│                              │         │ https://github.com/calvinmetcalf/process-nextick-args                                                  │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ readable-stream              │ MIT     │ Streams3, a user-land copy of the stream library from Node.js                                          │
-│                              │         │ https://github.com/nodejs/readable-stream#readme                                                       │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ safe-buffer                  │ MIT     │ Feross Aboukhadijeh                                                                                    │
-│                              │         │ Safer Node.js Buffer API                                                                               │
-│                              │         │ https://github.com/feross/safe-buffer                                                                  │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ string_decoder               │ MIT     │ The string_decoder module from Node core                                                               │
-│                              │         │ https://github.com/nodejs/string_decoder                                                               │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ string.fromcodepoint         │ MIT     │ Mathias Bynens                                                                                         │
-│                              │         │ A robust & optimized \`String.fromCodePoint\` polyfill, based on the ECMAScript 6 specification.         │
-│                              │         │ http://mths.be/fromcodepoint                                                                           │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ string.prototype.codepointat │ MIT     │ Mathias Bynens                                                                                         │
-│                              │         │ A robust & optimized \`String.prototype.codePointAt\` polyfill, based on the ECMAScript 6 specification. │
-│                              │         │ https://mths.be/codepointat                                                                            │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ svg-pathdata                 │ MIT     │ Nicolas Froidure                                                                                       │
-│                              │         │ Parse, transform and encode SVG Path Data.                                                             │
-│                              │         │ https://github.com/nfroidure/SVGPathData#readme                                                        │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ svgicons2svgfont             │ MIT     │ Nicolas Froidure                                                                                       │
-│                              │         │ Read a set of SVG icons and ouput a SVG font                                                           │
-│                              │         │ https://github.com/nfroidure/svgicons2svgfont                                                          │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ util-deprecate               │ MIT     │ Nathan Rajlich                                                                                         │
-│                              │         │ The Node.js \`util.deprecate()\` function with browser support                                           │
-│                              │         │ https://github.com/TooTallNate/util-deprecate                                                          │
-├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ varstream                    │ MIT     │ Nicolas Froidure                                                                                       │
-│                              │         │ Stream variables beetween 2 JavaScript threads (client/server, ipc, worker/main thread).               │
-│                              │         │ https://github.com/nfroidure/VarStream#readme                                                          │
-└──────────────────────────────┴─────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+"┌──────────────────────────────┬─────────┬───────────────────────────────────────────────────────┐
+│ Package                      │ License │ Details                                               │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ inherits                     │ ISC     │ Browser-friendly inheritance fully compatible with    │
+│                              │         │ standard node.js inherits()                           │
+│                              │         │ https://github.com/isaacs/inherits#readme             │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ sax                          │ ISC     │ Isaac Z. Schlueter                                    │
+│                              │         │ An evented streaming XML parser in JavaScript         │
+│                              │         │ https://github.com/isaacs/sax-js#readme               │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ commander                    │ MIT     │ TJ Holowaychuk                                        │
+│                              │         │ the complete solution for node.js command-line        │
+│                              │         │ programs                                              │
+│                              │         │ https://github.com/tj/commander.js#readme             │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ core-util-is                 │ MIT     │ Isaac Z. Schlueter                                    │
+│                              │         │ The \`util.is*\` functions introduced in Node v0.12.    │
+│                              │         │ https://github.com/isaacs/core-util-is#readme         │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ isarray                      │ MIT     │ Julian Gruber                                         │
+│                              │         │ Array#isArray for older browsers                      │
+│                              │         │ https://github.com/juliangruber/isarray               │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ neatequal                    │ MIT     │ Nicolas Froidure                                      │
+│                              │         │ Neat deep equal.                                      │
+│                              │         │ https://github.com/nfroidure/neatequal                │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ process-nextick-args         │ MIT     │ process.nextTick but always with args                 │
+│                              │         │ https://github.com/calvinmetcalf/process-nextick-args │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ readable-stream              │ MIT     │ Streams3, a user-land copy of the stream library from │
+│                              │         │ Node.js                                               │
+│                              │         │ https://github.com/nodejs/readable-stream#readme      │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ safe-buffer                  │ MIT     │ Feross Aboukhadijeh                                   │
+│                              │         │ Safer Node.js Buffer API                              │
+│                              │         │ https://github.com/feross/safe-buffer                 │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ string_decoder               │ MIT     │ The string_decoder module from Node core              │
+│                              │         │ https://github.com/nodejs/string_decoder              │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ string.fromcodepoint         │ MIT     │ Mathias Bynens                                        │
+│                              │         │ A robust & optimized \`String.fromCodePoint\` polyfill, │
+│                              │         │ based on the ECMAScript 6 specification.              │
+│                              │         │ http://mths.be/fromcodepoint                          │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ string.prototype.codepointat │ MIT     │ Mathias Bynens                                        │
+│                              │         │ A robust & optimized \`String.prototype.codePointAt\`   │
+│                              │         │ polyfill, based on the ECMAScript 6 specification.    │
+│                              │         │ https://mths.be/codepointat                           │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ svg-pathdata                 │ MIT     │ Nicolas Froidure                                      │
+│                              │         │ Parse, transform and encode SVG Path Data.            │
+│                              │         │ https://github.com/nfroidure/SVGPathData#readme       │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ svgicons2svgfont             │ MIT     │ Nicolas Froidure                                      │
+│                              │         │ Read a set of SVG icons and ouput a SVG font          │
+│                              │         │ https://github.com/nfroidure/svgicons2svgfont         │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ util-deprecate               │ MIT     │ Nathan Rajlich                                        │
+│                              │         │ The Node.js \`util.deprecate()\` function with browser  │
+│                              │         │ support                                               │
+│                              │         │ https://github.com/TooTallNate/util-deprecate         │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ varstream                    │ MIT     │ Nicolas Froidure                                      │
+│                              │         │ Stream variables beetween 2 JavaScript threads        │
+│                              │         │ (client/server, ipc, worker/main thread).             │
+│                              │         │ https://github.com/nfroidure/VarStream#readme         │
+└──────────────────────────────┴─────────┴───────────────────────────────────────────────────────┘
 "
 `;
 

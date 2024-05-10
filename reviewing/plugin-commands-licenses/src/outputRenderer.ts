@@ -112,13 +112,46 @@ function renderLicensesTable (
   for (let i = 0; i < columnNames.length; i++)
     columnNames[i] = chalk.blueBright(columnNames[i])
 
+  const data = [
+    columnNames,
+    ...deduplicateLicensesPackages(sortLicensesPackages(licensePackages))
+      .map((licensePkg) => columnFns.map((fn) => fn(licensePkg))),
+  ]
+  let detailsColumnMaxWidth = 40
+  let packageColumnMaxWidth = 0
+  let licenseColumnMaxWidth = 0
+  if (opts.long) {
+    detailsColumnMaxWidth = data.slice(1).reduce((maxWidth, row) => {
+      const texts = row[2].split('\n')
+      const link = texts.find((line) => line.startsWith('https'))
+      // Use the package link to determine the width of the details column
+      const detailMaxWidth = link ? link.length : 0
+      const repeatCount = Math.max(0, texts.length - 1)
+      row[0] = `${row[0]}${'\n '.repeat(repeatCount)}` // Add extra lines to the package column
+      row[1] = `${row[1]}${'\n '.repeat(repeatCount)}` // Add extra lines to the license column
+      packageColumnMaxWidth = Math.max(packageColumnMaxWidth, row[0].length)
+      licenseColumnMaxWidth = Math.max(licenseColumnMaxWidth, row[1].length)
+      return Math.max(maxWidth, detailMaxWidth)
+    }, 0)
+    const remainColumnWidth = process.stdout.columns - packageColumnMaxWidth - licenseColumnMaxWidth - 20
+    if (detailsColumnMaxWidth > remainColumnWidth) {
+      detailsColumnMaxWidth = remainColumnWidth
+    }
+    detailsColumnMaxWidth = Math.max(detailsColumnMaxWidth, 40)
+  }
+
   return table(
-    [
-      columnNames,
-      ...deduplicateLicensesPackages(sortLicensesPackages(licensePackages))
-        .map((licensePkg) => columnFns.map((fn) => fn(licensePkg))),
-    ],
-    TABLE_OPTIONS
+    data,
+    {
+      ...TABLE_OPTIONS,
+      columns: {
+        ...TABLE_OPTIONS.columns,
+        2: {
+          width: detailsColumnMaxWidth,
+          wrapWord: true,
+        },
+      },
+    }
   )
 }
 
