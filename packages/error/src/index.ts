@@ -59,6 +59,10 @@ export class FetchError extends PnpmError {
 
 function hideAuthInformation (authHeaderValue: string): string {
   const [authType, token] = authHeaderValue.split(' ')
+  if (token == null) return '[hidden]'
+  if (token.length < 20) {
+    return `${authType} [hidden]`
+  }
   return `${authType} ${token.substring(0, 4)}[hidden]`
 }
 
