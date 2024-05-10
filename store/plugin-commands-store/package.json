@@ -35,7 +35,7 @@
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/plugin-commands-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.30.0",
+    "@pnpm/registry-mock": "3.31.0",
     "@types/archy": "0.0.33",
     "@types/ramda": "0.29.12",
     "@types/ssri": "^7.1.5",

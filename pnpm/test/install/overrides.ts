@@ -24,6 +24,15 @@ test('overrides with local file and link specs', async () => {
       },
     },
     {
+      location: 'packages/indirect',
+      package: {
+        name: 'indirect',
+        dependencies: {
+          '@pnpm.e2e/depends-on-pkg-abcd': '1.0.0',
+        },
+      },
+    },
+    {
       location: 'overrides/pkg',
       package: {
         name: 'pkg',
@@ -41,6 +50,10 @@ test('overrides with local file and link specs', async () => {
         'absolute-file-pkg': `file:${path.resolve('overrides/pkg')}`,
         'relative-link-pkg': 'link:./overrides/pkg',
         'absolute-link-pkg': `link:${path.resolve('overrides/pkg')}`,
+        '@pnpm.e2e/pkg-a': 'file:./overrides/pkg',
+        '@pnpm.e2e/pkg-b': `file:${path.resolve('overrides/pkg')}`,
+        '@pnpm.e2e/pkg-c': 'link:./overrides/pkg',
+        '@pnpm.e2e/pkg-d': `link:${path.resolve('overrides/pkg')}`,
       },
     },
   })
@@ -71,4 +84,13 @@ test('overrides with local file and link specs', async () => {
       },
     },
   } as typeof lockfile['importers'][string])
+
+  expect(lockfile.snapshots['@pnpm.e2e/depends-on-pkg-abcd@1.0.0']).toStrictEqual({
+    dependencies: {
+      '@pnpm.e2e/pkg-a': 'pkg@file:overrides/pkg',
+      '@pnpm.e2e/pkg-b': 'pkg@file:overrides/pkg',
+      '@pnpm.e2e/pkg-c': 'link:overrides/pkg',
+      '@pnpm.e2e/pkg-d': 'link:overrides/pkg',
+    },
+  } as typeof lockfile['snapshots'][string])
 })
