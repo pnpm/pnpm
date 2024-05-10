@@ -385,42 +385,39 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
   }
   const hit = findHit(resolvedPackage.depPath)
-  function checkParentPkgs (cachedNodeId: string, parentPkgNodeId: string, allPeerName: Set<string>, walkedDepPath: string[]) {
+  function checkParentPkgs (cachedNodeId: string, parentPkgNodeId: string, walkedDepPath: string[]): boolean {
     if (parentPkgNodeId.indexOf('>', 1) === parentPkgNodeId.length - 1) return true
     const cachedParentPkgs = ctx.getParentPkgs[cachedNodeId]?.()
     if (!cachedParentPkgs) return false
     const thisParentParentPkgs = ctx.getParentPkgs[parentPkgNodeId]?.()
     if (!thisParentParentPkgs) return false
-    const maxDepth = Object.values(thisParentParentPkgs).reduce((maxDepth, { depth }) => Math.max(depth ?? 0, maxDepth), 0)
-    const stop = Object.values(cachedParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null) && Object.values(thisParentParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null)
-    if (Object.keys(cachedParentPkgs).length !== Object.keys(thisParentParentPkgs).length || !Object.entries(cachedParentPkgs).every(([name, { version, depPath, nodeId }]) => {
-      if (version && thisParentParentPkgs[name].version) {
-        return version === thisParentParentPkgs[name].version
-      }
-      if (!thisParentParentPkgs[name]) return false
-      if (depPath !== thisParentParentPkgs[name].depPath || (!nodeId || !thisParentParentPkgs[name].nodeId) && !stop) return false
-      if (stop) {
-        return true
-      }
-
-      if (walkedDepPath.includes(depPath!)) {
-        return true
-      }
-      if (thisParentParentPkgs[name].depth === maxDepth) return true
-      return checkParentPkgs(nodeId!, thisParentParentPkgs[name].nodeId!, allPeerName, [...walkedDepPath, depPath!])
-    })) {
-      return false
-    }
-    return true
+    const maxDepth = Object.values(thisParentParentPkgs)
+      .reduce((maxDepth, { depth }) => Math.max(depth ?? 0, maxDepth), 0)
+    const stop = Object.values(cachedParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null) &&
+      Object.values(thisParentParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null)
+    return (
+      Object.keys(cachedParentPkgs).length === Object.keys(thisParentParentPkgs).length &&
+      Object.entries(cachedParentPkgs).every(([name, { version, depPath, nodeId }]) => {
+        if (version && thisParentParentPkgs[name].version) {
+          return version === thisParentParentPkgs[name].version
+        }
+        if (!thisParentParentPkgs[name]) return false
+        if (depPath !== thisParentParentPkgs[name].depPath || (!nodeId || !thisParentParentPkgs[name].nodeId) && !stop) return false
+        if (stop) {
+          return true
+        }
+        if (walkedDepPath.includes(depPath!)) {
+          return true
+        }
+        if (thisParentParentPkgs[name].depth === maxDepth) return true
+        return checkParentPkgs(nodeId!, thisParentParentPkgs[name].nodeId!, [...walkedDepPath, depPath!])
+      })
+    )
   }
   function findHit (depPath: string) {
     const cacheItems = ctx.peersCache.get(depPath)
     if (!cacheItems) return undefined
     return cacheItems.find((cache) => {
-      const allPeerNames = new Set([
-        ...cache.resolvedPeers.keys(),
-        ...Array.from(cache.missingPeers),
-      ])
       for (const [name, cachedNodeId] of cache.resolvedPeers) {
         const parentPkgNodeId = parentPkgs[name]?.nodeId
         if (Boolean(parentPkgNodeId) !== Boolean(cachedNodeId)) return false
@@ -434,11 +431,10 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           return false
         }
         const parentDepPath = (ctx.dependenciesTree.get(parentPkgNodeId)!.resolvedPackage as T).depPath
-        // TODO: this all should be done recursively for each parent
         if (!ctx.purePkgs.has(parentDepPath)) {
           const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
           if (parentDepPath !== cachedDepPath) return false
-          if (!checkParentPkgs(cachedNodeId, parentPkgNodeId, allPeerNames, [cachedDepPath])) return false
+          if (!checkParentPkgs(cachedNodeId, parentPkgNodeId, [cachedDepPath])) return false
           continue
         }
         const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
