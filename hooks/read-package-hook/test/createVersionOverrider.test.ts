@@ -1,6 +1,5 @@
 import path from 'path'
 import { createVersionsOverrider } from '../lib/createVersionsOverrider'
-import normalizePath from 'normalize-path'
 
 test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider({
@@ -165,7 +164,7 @@ test('createVersionsOverrider() overrides dependencies with absolute links', () 
     name: 'foo',
     version: '1.2.0',
     dependencies: {
-      qar: `link:${normalizePath(path.relative(path.resolve('pkg'), qarAbsolutePath))}`,
+      qar: `link:${qarAbsolutePath}`,
     },
   })
 })
@@ -275,21 +274,42 @@ test('createVersionsOverrider() should work for scoped parent and scoped child',
   })
 })
 
-test('createVersionsOverrider() overrides dependencies with file with relative path', () => {
+test('createVersionsOverrider() overrides dependencies with file with relative path for root package', () => {
+  const rootDir = process.cwd()
   const overrider = createVersionsOverrider({
     qar: 'file:../qar',
-  }, process.cwd())
+  }, rootDir)
   expect(overrider({
     name: 'foo',
     version: '1.2.0',
     dependencies: {
       qar: '3.0.0',
     },
-  }, path.resolve('pkg'))).toStrictEqual({
+  }, rootDir)).toStrictEqual({
     name: 'foo',
     version: '1.2.0',
     dependencies: {
       qar: 'file:../qar',
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides dependencies with file with relative path for workspace package', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider({
+    qar: 'file:../qar',
+  }, rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.join(rootDir, 'packages', 'pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'file:../../../qar',
     },
   })
 })
