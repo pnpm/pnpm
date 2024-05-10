@@ -39,7 +39,7 @@
     "@commitlint/prompt-cli": "^17.8.1",
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/meta-updater": "1.0.0",
-    "@pnpm/registry-mock": "3.30.0",
+    "@pnpm/registry-mock": "3.31.0",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@types/jest": "^29.5.12",
@@ -82,8 +82,7 @@
       "tough-cookie@<4.1.3": ">=4.1.3",
       "@yarnpkg/fslib@2": "3",
       "socks@2": "^2.8.1",
-      "follow-redirects@<=1.15.5": ">=1.15.6",
-      "@pnpm/registry-mock": "link:../registry-mock"
+      "follow-redirects@<=1.15.5": ">=1.15.6"
     },
     "packageExtensions": {
       "@babel/parser": {
