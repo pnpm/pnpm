@@ -490,9 +490,6 @@ importers:
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: '@pnpm/ramda@0.28.1'
-      right-pad:
-        specifier: ^1.0.1
-        version: 1.0.1
       rxjs:
         specifier: ^7.8.1
         version: 7.8.1
