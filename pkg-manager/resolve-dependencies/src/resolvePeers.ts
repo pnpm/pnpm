@@ -94,10 +94,10 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const finishingList: FinishingResolutionPromise[] = []
   for (const { directNodeIdsByAlias, topParents, rootDir, id } of opts.projects) {
     const peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'> = { bad: {}, missing: {} }
-    const pkgsByName = {
+    const pkgsByName = Object.fromEntries(Object.entries({
       ...rootPkgsByName,
       ..._createPkgsByName({ directNodeIdsByAlias, topParents }),
-    }
+    }).filter(([peerName]) => opts.allPeerDepNames.has(peerName)))
     for (const { nodeId } of Object.values(pkgsByName)) {
       if (nodeId && !pathsByNodeIdPromises.has(nodeId)) {
         pathsByNodeIdPromises.set(nodeId, pDefer())
