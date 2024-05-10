@@ -13,9 +13,9 @@ test('overrides with local file and link specs', async () => {
       },
     },
     {
-      location: 'packages/main',
+      location: 'packages/direct',
       package: {
-        name: 'main',
+        name: 'direct',
         dependencies: {
           'relative-file-pkg': '*',
           'absolute-file-pkg': '*',
@@ -65,7 +65,7 @@ test('overrides with local file and link specs', async () => {
 
   const lockfile = projects.root.readLockfile()
 
-  expect(lockfile.importers['packages/main']).toStrictEqual({
+  expect(lockfile.importers['packages/direct']).toStrictEqual({
     dependencies: {
       'relative-file-pkg': {
         specifier: 'file:../../overrides/pkg',
@@ -95,7 +95,7 @@ test('overrides with local file and link specs', async () => {
     },
   } as typeof lockfile['snapshots'][string])
 
-  const directPrefix = 'packages/main/node_modules'
+  const directPrefix = 'packages/direct/node_modules'
   expect(fs.realpathSync(path.join(directPrefix, 'absolute-file-pkg'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(directPrefix, 'relative-file-pkg'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(directPrefix, 'absolute-link-pkg'))).toBe(path.resolve('overrides/pkg'))
