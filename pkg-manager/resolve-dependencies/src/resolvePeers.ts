@@ -397,10 +397,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         if (version && thisParentParentPkgs[name].version) {
           return version === thisParentParentPkgs[name].version
         }
-        if (!thisParentParentPkgs[name]) return false
-        if (depPath !== thisParentParentPkgs[name].depPath) return false
-        if (stop) return true
-        return thisParentParentPkgs[name].depth === maxDepth
+        return thisParentParentPkgs[name] &&
+          (depPath === thisParentParentPkgs[name].depPath) &&
+          (stop || thisParentParentPkgs[name].depth === maxDepth)
       })
     )
   }
