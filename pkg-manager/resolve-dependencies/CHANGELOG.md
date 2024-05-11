@@ -1,5 +1,17 @@
 # @pnpm/resolve-dependencies
 
+## 32.1.3
+
+### Patch Changes
+
+- 2cb67d7: Improve the performance of the peers resolution stage by utilizing more cache [#8060](https://github.com/pnpm/pnpm/pull/8060).
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/npm-resolver@19.0.3
+  - @pnpm/lockfile.preferred-versions@1.0.3
+
 ## 32.1.2
 
 ### Patch Changes

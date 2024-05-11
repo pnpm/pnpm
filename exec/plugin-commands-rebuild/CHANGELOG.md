@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-rebuild
 
+## 11.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/lifecycle@17.0.2
+  - @pnpm/get-context@11.1.2
+  - @pnpm/link-bins@10.0.1
+  - @pnpm/store-connection-manager@8.1.3
+  - @pnpm/worker@1.0.1
+  - @pnpm/workspace.find-packages@2.0.5
+
 ## 11.1.2
 
 ### Patch Changes

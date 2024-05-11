@@ -1,5 +1,27 @@
 # @pnpm/headless
 
+## 23.1.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/package-is-installable@9.0.1
+  - @pnpm/lifecycle@17.0.2
+  - @pnpm/filter-lockfile@9.0.4
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/link-bins@10.0.1
+  - @pnpm/package-requester@25.1.1
+  - @pnpm/real-hoist@3.0.3
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/read-project-manifest@6.0.1
+  - @pnpm/worker@1.0.1
+  - @pnpm/deps.graph-builder@1.1.2
+  - @pnpm/build-modules@12.0.4
+  - @pnpm/modules-cleaner@15.1.2
+  - @pnpm/lockfile-to-pnp@4.1.2
+  - @pnpm/hoist@9.1.2
+
 ## 23.1.1
 
 ### Patch Changes

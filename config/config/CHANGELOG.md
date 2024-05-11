@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 21.2.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/pnpmfile@6.0.1
+  - @pnpm/read-project-manifest@6.0.1
+
 ## 21.2.0
 
 ### Minor Changes

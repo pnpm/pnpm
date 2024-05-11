@@ -1,5 +1,12 @@
 # @pnpm/find-workspace-dir
 
+## 7.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
 ## 7.0.0
 
 ### Major Changes

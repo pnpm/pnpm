@@ -1,5 +1,11 @@
 # @pnpm/lockfile-to-pnp
 
+## 4.1.2
+
+### Patch Changes
+
+- @pnpm/lockfile-file@9.0.5
+
 ## 4.1.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/deps.graph-builder
 
+## 1.1.2
+
+### Patch Changes
+
+- @pnpm/package-is-installable@9.0.1
+- @pnpm/lockfile-file@9.0.5
+
 ## 1.1.1
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/hooks.read-package-hook
 
+## 4.0.2
+
+### Patch Changes
+
+- b1d7f8c: Overrides with `link:` now preserves absolute path.
+- b1d7f8c: Fix incorrect path when resolving relative `file:` overrides for workspace package.
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/parse-overrides@5.0.1
+
 ## 4.0.1
 
 ### Patch Changes

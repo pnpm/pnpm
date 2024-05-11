@@ -1,5 +1,16 @@
 # @pnpm/license-scanner
 
+## 3.1.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/package-is-installable@9.0.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/directory-fetcher@8.0.1
+
 ## 3.1.1
 
 ### Patch Changes

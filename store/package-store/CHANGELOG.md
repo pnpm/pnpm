@@ -1,5 +1,12 @@
 # @pnpm/package-store
 
+## 20.1.1
+
+### Patch Changes
+
+- @pnpm/package-requester@25.1.1
+- @pnpm/worker@1.0.1
+
 ## 20.1.0
 
 ### Minor Changes

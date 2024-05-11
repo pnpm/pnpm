@@ -1,5 +1,15 @@
 # @pnpm/build-modules
 
+## 12.0.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.2
+- @pnpm/patching.apply-patch@3.0.1
+- @pnpm/link-bins@10.0.1
+- @pnpm/read-package-json@9.0.1
+- @pnpm/worker@1.0.1
+
 ## 12.0.3
 
 ### Patch Changes
