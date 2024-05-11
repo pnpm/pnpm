@@ -380,69 +380,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
     }
   }
-  const hit = findHit(resolvedPackage.depPath)
-  function findHit (depPath: string) {
-    const cacheItems = ctx.peersCache.get(depPath)
-    if (!cacheItems) return undefined
-    return cacheItems.find((cache) => {
-      for (const [name, cachedNodeId] of cache.resolvedPeers) {
-        const parentPkgNodeId = parentPkgs[name]?.nodeId
-        if (Boolean(parentPkgNodeId) !== Boolean(cachedNodeId)) return false
-        if (parentPkgNodeId === cachedNodeId) continue
-        if (!parentPkgNodeId) return false
-        if (
-          ctx.pathsByNodeId.has(cachedNodeId) &&
-          ctx.pathsByNodeId.get(cachedNodeId) === ctx.pathsByNodeId.get(parentPkgNodeId)
-        ) continue
-        if (!ctx.dependenciesTree.has(parentPkgNodeId) && parentPkgNodeId.startsWith('link:')) {
-          return false
-        }
-        const parentDepPath = (ctx.dependenciesTree.get(parentPkgNodeId)!.resolvedPackage as T).depPath
-        const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
-        if (parentDepPath !== cachedDepPath) {
-          return false
-        }
-        if (
-          !ctx.purePkgs.has(parentDepPath) &&
-          !parentPackagesMatch(cachedNodeId, parentPkgNodeId)
-        ) {
-          return false
-        }
-      }
-      for (const missingPeer of cache.missingPeers) {
-        if (parentPkgs[missingPeer]) return false
-      }
-      return true
-    })
-  }
-  function parentPackagesMatch (cachedNodeId: string, checkedNodeId: string): boolean {
-    const cachedParentPkgs = ctx.getParentPkgs[cachedNodeId]?.()
-    if (!cachedParentPkgs) return false
-    const checkedParentPkgs = ctx.getParentPkgs[checkedNodeId]?.()
-    if (!checkedParentPkgs) return false
-    if (Object.keys(cachedParentPkgs).length !== Object.keys(checkedParentPkgs).length) return false
-    const maxDepth = Object.values(checkedParentPkgs)
-      .reduce((maxDepth, { depth }) => Math.max(depth ?? 0, maxDepth), 0)
-    const peerDepsAreNotShadowed = Object.values(cachedParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null) &&
-      Object.values(checkedParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null)
-    return (
-      Object.entries(cachedParentPkgs).every(([name, { version, depPath }]) => {
-        if (checkedParentPkgs[name] == null) return false
-        if (version && checkedParentPkgs[name].version) {
-          return version === checkedParentPkgs[name].version
-        }
-        return depPath != null &&
-          (depPath === checkedParentPkgs[name].depPath) &&
-          (
-            peerDepsAreNotShadowed ||
-            // Peer dependencies that appear last we can consider valid.
-            // If they do depend on other peer dependencies then they must be those that we will check further.
-            checkedParentPkgs[name].depth === maxDepth ||
-            ctx.purePkgs.has(depPath)
-          )
-      })
-    )
-  }
+  const hit = findHit(ctx, parentPkgs, resolvedPackage.depPath)
   if (hit != null) {
     return {
       missingPeers: hit.missingPeers,
@@ -617,6 +555,83 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
     }
   }
+}
+
+function findHit<T extends PartialResolvedPackage> (ctx: {
+  getParentPkgs: Record<string, GetParentPkgs>
+  peersCache: PeersCache
+  purePkgs: Set<string>
+  pathsByNodeId: Map<string, string>
+  dependenciesTree: DependenciesTree<T>
+}, parentPkgs: ParentRefs, depPath: string) {
+  const cacheItems = ctx.peersCache.get(depPath)
+  if (!cacheItems) return undefined
+  return cacheItems.find((cache) => {
+    for (const [name, cachedNodeId] of cache.resolvedPeers) {
+      const parentPkgNodeId = parentPkgs[name]?.nodeId
+      if (Boolean(parentPkgNodeId) !== Boolean(cachedNodeId)) return false
+      if (parentPkgNodeId === cachedNodeId) continue
+      if (!parentPkgNodeId) return false
+      if (
+        ctx.pathsByNodeId.has(cachedNodeId) &&
+        ctx.pathsByNodeId.get(cachedNodeId) === ctx.pathsByNodeId.get(parentPkgNodeId)
+      ) continue
+      if (!ctx.dependenciesTree.has(parentPkgNodeId) && parentPkgNodeId.startsWith('link:')) {
+        return false
+      }
+      const parentDepPath = (ctx.dependenciesTree.get(parentPkgNodeId)!.resolvedPackage as T).depPath
+      const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
+      if (parentDepPath !== cachedDepPath) {
+        return false
+      }
+      if (
+        !ctx.purePkgs.has(parentDepPath) &&
+        !parentPackagesMatch(ctx, cachedNodeId, parentPkgNodeId)
+      ) {
+        return false
+      }
+    }
+    for (const missingPeer of cache.missingPeers) {
+      if (parentPkgs[missingPeer]) return false
+    }
+    return true
+  })
+}
+
+function parentPackagesMatch (ctx: {
+  getParentPkgs: Record<string, GetParentPkgs>
+  purePkgs: Set<string>
+}, cachedNodeId: string, checkedNodeId: string): boolean {
+  const cachedParentPkgs = ctx.getParentPkgs[cachedNodeId]?.()
+  if (!cachedParentPkgs) return false
+  const checkedParentPkgs = ctx.getParentPkgs[checkedNodeId]?.()
+  if (!checkedParentPkgs) return false
+  if (Object.keys(cachedParentPkgs).length !== Object.keys(checkedParentPkgs).length) return false
+  const maxDepth = Object.values(checkedParentPkgs)
+    .reduce((maxDepth, { depth }) => Math.max(depth ?? 0, maxDepth), 0)
+  const peerDepsAreNotShadowed = parentPkgsHaveSingleOccurrence(cachedParentPkgs) &&
+    parentPkgsHaveSingleOccurrence(checkedParentPkgs)
+  return (
+    Object.entries(cachedParentPkgs).every(([name, { version, depPath }]) => {
+      if (checkedParentPkgs[name] == null) return false
+      if (version && checkedParentPkgs[name].version) {
+        return version === checkedParentPkgs[name].version
+      }
+      return depPath != null &&
+        (depPath === checkedParentPkgs[name].depPath) &&
+        (
+          peerDepsAreNotShadowed ||
+          // Peer dependencies that appear last we can consider valid.
+          // If they do depend on other peer dependencies then they must be those that we will check further.
+          checkedParentPkgs[name].depth === maxDepth ||
+          ctx.purePkgs.has(depPath)
+        )
+    })
+  )
+}
+
+function parentPkgsHaveSingleOccurrence (parentPkgs: Record<string, ParentPkgInfo>): boolean {
+  return Object.values(parentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null)
 }
 
 // When a package has itself in the subdependencies, so there's a cycle,
