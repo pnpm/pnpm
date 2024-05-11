@@ -398,14 +398,16 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           return false
         }
         const parentDepPath = (ctx.dependenciesTree.get(parentPkgNodeId)!.resolvedPackage as T).depPath
-        if (!ctx.purePkgs.has(parentDepPath)) {
-          const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
-          if (parentDepPath !== cachedDepPath) return false
-          if (!parentPackagesMatch(cachedNodeId, parentPkgNodeId)) return false
-          continue
-        }
         const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
-        if (parentDepPath !== cachedDepPath) return false
+        if (parentDepPath !== cachedDepPath) {
+          return false
+        }
+        if (
+          !ctx.purePkgs.has(parentDepPath) &&
+          !parentPackagesMatch(cachedNodeId, parentPkgNodeId)
+        ) {
+          return false
+        }
       }
       for (const missingPeer of cache.missingPeers) {
         if (parentPkgs[missingPeer]) return false
