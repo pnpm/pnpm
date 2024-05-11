@@ -120,7 +120,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    }, 0)
+    })
     if (finishing) {
       finishingList.push(finishing)
     }
@@ -268,7 +268,6 @@ function createPkgsByName<T extends PartialResolvedPackage> (
     Object
       .keys(directNodeIdsByAlias)
       .map((alias) => ({
-        depth: 0,
         alias,
         node: dependenciesTree.get(directNodeIdsByAlias[alias])!,
         nodeId: directNodeIdsByAlias[alias],
@@ -337,8 +336,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     purePkgs: Set<string> // pure packages are those that don't rely on externally resolved peers
     rootDir: string
     lockfileDir: string
-  },
-  depth: number
+  }
 ): Promise<PeersResolution & { finishing?: FinishingResolutionPromise, calculateDepPath?: CalculateDepPath }> {
   const node = ctx.dependenciesTree.get(nodeId)!
   if (node.depth === -1) return { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
@@ -365,7 +363,6 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     for (const [alias, nodeId] of Object.entries(children)) {
       if (ctx.allPeerDepNames.has(alias)) {
         parentPkgNodes.push({
-          depth,
           alias,
           node: ctx.dependenciesTree.get(nodeId)!,
           nodeId,
@@ -410,7 +407,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           return true
         }
         if (thisParentParentPkgs[name].depth === maxDepth) return true
-        return checkParentPkgs(nodeId!, thisParentParentPkgs[name].nodeId!, [...walkedDepPath, depPath!])
+        return false
       })
     )
   }
@@ -463,7 +460,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     resolvedPeers: unknownResolvedPeersOfChildren,
     missingPeers: missingPeersOfChildren,
     finishing,
-  } = await resolvePeersOfChildren(children, parentPkgs, ctx, depth + 1)
+  } = await resolvePeersOfChildren(children, parentPkgs, ctx)
 
   const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies).length === 0
     ? { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
@@ -669,8 +666,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     dependenciesTree: DependenciesTree<T>
     rootDir: string
     lockfileDir: string
-  },
-  depth: number
+  }
 ): Promise<PeersResolution & { finishing: Promise<void> }> {
   const allResolvedPeers = new Map<string, string>()
   const allMissingPeers = new Set<string>()
@@ -698,7 +694,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
         parentDepPaths[name] = {
           nodeId: parentPkg.nodeId,
           depPath: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).depPath,
-          depth,
+          depth: parentPkg.depth,
           occurrence: parentPkg.occurrence,
         }
       } else {
@@ -716,7 +712,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
       missingPeers,
       calculateDepPath,
       finishing,
-    } = await resolvePeersOfNode(childNodeId, parentPkgs, ctx, depth) // eslint-disable-line no-await-in-loop
+    } = await resolvePeersOfNode(childNodeId, parentPkgs, ctx) // eslint-disable-line no-await-in-loop
     if (finishing) {
       finishingList.push(finishing)
     }
@@ -877,16 +873,15 @@ interface ParentPkgNode<T> {
   alias: string
   nodeId: string
   node: DependenciesTreeNode<T>
-  depth: number
 }
 
 function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<ParentPkgNode<T>>): ParentRefs {
   const pkgsByName: ParentRefs = {}
   const _updateParentRefs = updateParentRefs.bind(null, pkgsByName)
-  for (const { alias, node, nodeId, depth } of nodes) {
+  for (const { alias, node, nodeId } of nodes) {
     const pkg = {
       alias,
-      depth,
+      depth: node.depth,
       nodeId,
       version: node.resolvedPackage.version,
       occurrence: 0,
