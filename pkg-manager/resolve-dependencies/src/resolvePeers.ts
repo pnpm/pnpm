@@ -315,7 +315,6 @@ type FinishingResolutionPromise = Promise<void>
 interface ParentPkgInfo {
   depPath?: string
   version?: string
-  nodeId?: string
   depth?: number
   occurrence?: number
 }
@@ -382,7 +381,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
   }
   const hit = findHit(resolvedPackage.depPath)
-  function checkParentPkgs (cachedNodeId: string, parentPkgNodeId: string, walkedDepPath: string[]): boolean {
+  function checkParentPkgs (cachedNodeId: string, parentPkgNodeId: string): boolean {
     if (parentPkgNodeId.indexOf('>', 1) === parentPkgNodeId.length - 1) return true
     const cachedParentPkgs = ctx.getParentPkgs[cachedNodeId]?.()
     if (!cachedParentPkgs) return false
@@ -394,20 +393,14 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       Object.values(thisParentParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null)
     return (
       Object.keys(cachedParentPkgs).length === Object.keys(thisParentParentPkgs).length &&
-      Object.entries(cachedParentPkgs).every(([name, { version, depPath, nodeId }]) => {
+      Object.entries(cachedParentPkgs).every(([name, { version, depPath }]) => {
         if (version && thisParentParentPkgs[name].version) {
           return version === thisParentParentPkgs[name].version
         }
         if (!thisParentParentPkgs[name]) return false
-        if (depPath !== thisParentParentPkgs[name].depPath || (!nodeId || !thisParentParentPkgs[name].nodeId) && !stop) return false
-        if (stop) {
-          return true
-        }
-        if (walkedDepPath.includes(depPath!)) {
-          return true
-        }
-        if (thisParentParentPkgs[name].depth === maxDepth) return true
-        return false
+        if (depPath !== thisParentParentPkgs[name].depPath) return false
+        if (stop) return true
+        return thisParentParentPkgs[name].depth === maxDepth
       })
     )
   }
@@ -431,7 +424,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         if (!ctx.purePkgs.has(parentDepPath)) {
           const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
           if (parentDepPath !== cachedDepPath) return false
-          if (!checkParentPkgs(cachedNodeId, parentPkgNodeId, [cachedDepPath])) return false
+          if (!checkParentPkgs(cachedNodeId, parentPkgNodeId)) return false
           continue
         }
         const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
@@ -692,7 +685,6 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
       if (!ctx.allPeerDepNames.has(name)) continue
       if (parentPkg.nodeId && !parentPkg.nodeId.startsWith('link:')) {
         parentDepPaths[name] = {
-          nodeId: parentPkg.nodeId,
           depPath: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).depPath,
           depth: parentPkg.depth,
           occurrence: parentPkg.occurrence,
