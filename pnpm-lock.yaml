@@ -427,8 +427,8 @@ importers:
   cli/command:
     dependencies:
       '@pnpm/tabtab':
-        specifier: ^0.5.2
-        version: 0.5.2
+        specifier: ^0.5.3
+        version: 0.5.3
     devDependencies:
       '@pnpm/command':
         specifier: workspace:*
@@ -571,8 +571,8 @@ importers:
         specifier: workspace:^
         version: link:../../cli/parse-cli-args
       '@pnpm/tabtab':
-        specifier: ^0.5.2
-        version: 0.5.2
+        specifier: ^0.5.3
+        version: 0.5.3
       '@pnpm/workspace.find-packages':
         specifier: workspace:^
         version: link:../../workspace/find-packages
@@ -4661,8 +4661,8 @@ importers:
         specifier: workspace:*
         version: link:../exec/run-npm
       '@pnpm/tabtab':
-        specifier: ^0.5.2
-        version: 0.5.2
+        specifier: ^0.5.3
+        version: 0.5.3
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../__utils__/test-fixtures
@@ -7674,8 +7674,8 @@ packages:
     resolution: {integrity: sha512-S88sR6xhQ1ZDhMRIjhaRBA11N2OIDU2W+60szQLU8e2bw+KgGU60LbcXMunTdRnJskuB9UfDyoN6YuRtETBqYA==}
     engines: {node: '>=16.14'}
 
-  '@pnpm/tabtab@0.5.2':
-    resolution: {integrity: sha512-ihbP3cE9ejh7EuR4B9TC0syGPlIml6AQWNPZnGSGAMOAax2+4jpCuCNwD2c+Iw/0V1bjvGh9bhs/Lf49EDMuaQ==}
+  '@pnpm/tabtab@0.5.3':
+    resolution: {integrity: sha512-GAe759m0Bk1kQUPvetdi5l6z/wS//Xfg5VQFC92J2LI0LNA/9V9ZVdbzk4RhXSsJIK+BDu2T/JpqFUymnPxjaw==}
     engines: {node: '>=18'}
 
   '@pnpm/text.comments-parser@2.0.0':
@@ -14469,7 +14469,7 @@ snapshots:
       '@pnpm/resolver-base': 10.0.1
       '@pnpm/types': 9.1.0
 
-  '@pnpm/tabtab@0.5.2':
+  '@pnpm/tabtab@0.5.3':
     dependencies:
       debug: 4.3.4
       enquirer: 2.4.1
