@@ -32,6 +32,7 @@ test('packages are not deduplicated when versions do not match', async () => {
   )
 
   const { dependenciesByProjectId } = await resolvePeers({
+    allPeerDepNames: new Set(['bar', 'baz']),
     projects: [
       {
         directNodeIdsByAlias: {

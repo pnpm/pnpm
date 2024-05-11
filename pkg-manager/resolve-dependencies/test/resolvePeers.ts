@@ -25,6 +25,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
     id: '',
   }
   const { dependenciesGraph } = await resolvePeers({
+    allPeerDepNames: new Set(['foo', 'bar', 'qar', 'zoo']),
     projects: [
       {
         directNodeIdsByAlias: {
@@ -139,6 +140,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
     id: '',
   }
   const { dependenciesGraph } = await resolvePeers({
+    allPeerDepNames: new Set(['foo', 'bar', 'qar', 'zoo']),
     projects: [
       {
         directNodeIdsByAlias: {
@@ -265,6 +267,7 @@ describe('peer dependency issues', () => {
       id: '',
     }
     peerDependencyIssuesByProjects = (await resolvePeers({
+      allPeerDepNames: new Set(),
       projects: [
         {
           directNodeIdsByAlias: {
@@ -412,6 +415,7 @@ describe('unmet peer dependency issues', () => {
   let peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   beforeAll(async () => {
     peerDependencyIssuesByProjects = (await resolvePeers({
+      allPeerDepNames: new Set(),
       projects: [
         {
           directNodeIdsByAlias: {
@@ -483,6 +487,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
   let peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   beforeAll(async () => {
     peerDependencyIssuesByProjects = (await resolvePeers({
+      allPeerDepNames: new Set(['dep']),
       projects: [
         {
           directNodeIdsByAlias: {
@@ -581,6 +586,7 @@ test('resolve peer dependencies with npm aliases', async () => {
     id: '',
   }
   const { dependenciesGraph } = await resolvePeers({
+    allPeerDepNames: new Set(['bar']),
     projects: [
       {
         directNodeIdsByAlias: {

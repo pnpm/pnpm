@@ -133,6 +133,7 @@ export async function resolveDependencies (
     wantedToBeSkippedPackageIds,
     appliedPatches,
     time,
+    allPeerDepNames,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
@@ -191,6 +192,7 @@ export async function resolveDependencies (
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
   } = await resolvePeers({
+    allPeerDepNames,
     dependenciesTree,
     dedupePeerDependents: opts.dedupePeerDependents,
     dedupeInjectedDeps: opts.dedupeInjectedDeps,

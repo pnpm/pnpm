@@ -53,6 +53,7 @@
     "graph-cycles": "1.2.1",
     "is-inner-link": "^4.0.0",
     "is-subdir": "^1.2.0",
+    "mem": "^8.1.1",
     "normalize-path": "^3.0.0",
     "p-defer": "^3.0.0",
     "path-exists": "^4.0.0",
