@@ -381,28 +381,6 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
   }
   const hit = findHit(resolvedPackage.depPath)
-  function checkParentPkgs (cachedNodeId: string, parentPkgNodeId: string): boolean {
-    if (parentPkgNodeId.indexOf('>', 1) === parentPkgNodeId.length - 1) return true
-    const cachedParentPkgs = ctx.getParentPkgs[cachedNodeId]?.()
-    if (!cachedParentPkgs) return false
-    const thisParentParentPkgs = ctx.getParentPkgs[parentPkgNodeId]?.()
-    if (!thisParentParentPkgs) return false
-    const maxDepth = Object.values(thisParentParentPkgs)
-      .reduce((maxDepth, { depth }) => Math.max(depth ?? 0, maxDepth), 0)
-    const stop = Object.values(cachedParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null) &&
-      Object.values(thisParentParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null)
-    return (
-      Object.keys(cachedParentPkgs).length === Object.keys(thisParentParentPkgs).length &&
-      Object.entries(cachedParentPkgs).every(([name, { version, depPath }]) => {
-        if (version && thisParentParentPkgs[name].version) {
-          return version === thisParentParentPkgs[name].version
-        }
-        return thisParentParentPkgs[name] &&
-          (depPath === thisParentParentPkgs[name].depPath) &&
-          (stop || thisParentParentPkgs[name].depth === maxDepth)
-      })
-    )
-  }
   function findHit (depPath: string) {
     const cacheItems = ctx.peersCache.get(depPath)
     if (!cacheItems) return undefined
@@ -423,7 +401,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         if (!ctx.purePkgs.has(parentDepPath)) {
           const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
           if (parentDepPath !== cachedDepPath) return false
-          if (!checkParentPkgs(cachedNodeId, parentPkgNodeId)) return false
+          if (!parentPackagesMatch(cachedNodeId, parentPkgNodeId)) return false
           continue
         }
         const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
@@ -434,6 +412,27 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
       return true
     })
+  }
+  function parentPackagesMatch (cachedNodeId: string, checkedNodeId: string): boolean {
+    const cachedParentPkgs = ctx.getParentPkgs[cachedNodeId]?.()
+    if (!cachedParentPkgs) return false
+    const checkedParentPkgs = ctx.getParentPkgs[checkedNodeId]?.()
+    if (!checkedParentPkgs) return false
+    const maxDepth = Object.values(checkedParentPkgs)
+      .reduce((maxDepth, { depth }) => Math.max(depth ?? 0, maxDepth), 0)
+    const stop = Object.values(cachedParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null) &&
+      Object.values(checkedParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null)
+    return (
+      Object.keys(cachedParentPkgs).length === Object.keys(checkedParentPkgs).length &&
+      Object.entries(cachedParentPkgs).every(([name, { version, depPath }]) => {
+        if (checkedParentPkgs[name] == null) return false
+        if (version && checkedParentPkgs[name].version) {
+          return version === checkedParentPkgs[name].version
+        }
+        return (depPath === checkedParentPkgs[name].depPath) &&
+          (stop || checkedParentPkgs[name].depth === maxDepth)
+      })
+    )
   }
   if (hit != null) {
     return {
