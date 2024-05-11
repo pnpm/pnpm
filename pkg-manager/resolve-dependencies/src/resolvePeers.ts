@@ -418,19 +418,26 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     if (!cachedParentPkgs) return false
     const checkedParentPkgs = ctx.getParentPkgs[checkedNodeId]?.()
     if (!checkedParentPkgs) return false
+    if (Object.keys(cachedParentPkgs).length !== Object.keys(checkedParentPkgs).length) return false
     const maxDepth = Object.values(checkedParentPkgs)
       .reduce((maxDepth, { depth }) => Math.max(depth ?? 0, maxDepth), 0)
-    const stop = Object.values(cachedParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null) &&
+    const peerDepsAreNotShadowed = Object.values(cachedParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null) &&
       Object.values(checkedParentPkgs).every(({ occurrence }) => occurrence === 0 || occurrence == null)
     return (
-      Object.keys(cachedParentPkgs).length === Object.keys(checkedParentPkgs).length &&
       Object.entries(cachedParentPkgs).every(([name, { version, depPath }]) => {
         if (checkedParentPkgs[name] == null) return false
         if (version && checkedParentPkgs[name].version) {
           return version === checkedParentPkgs[name].version
         }
-        return (depPath === checkedParentPkgs[name].depPath) &&
-          (stop || checkedParentPkgs[name].depth === maxDepth)
+        return depPath != null &&
+          (depPath === checkedParentPkgs[name].depPath) &&
+          (
+            peerDepsAreNotShadowed ||
+            // Peer dependencies that appear last we can consider valid.
+            // If they do depend on other peer dependencies then they must be those that we will check further.
+            checkedParentPkgs[name].depth === maxDepth ||
+            ctx.purePkgs.has(depPath)
+          )
       })
     )
   }
