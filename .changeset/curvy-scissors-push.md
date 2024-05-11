@@ -1,5 +1,4 @@
 ---
-"@pnpm/hooks.read-package-hook": patch
 "pnpm": patch
 ---
 

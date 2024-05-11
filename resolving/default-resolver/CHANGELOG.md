@@ -1,5 +1,14 @@
 # @pnpm/default-resolver
 
+## 19.0.4
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/local-resolver@12.0.1
+  - @pnpm/npm-resolver@19.0.3
+
 ## 19.0.3
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/package-requester
 
+## 25.1.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/package-is-installable@9.0.1
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/worker@1.0.1
+
 ## 25.1.0
 
 ### Minor Changes

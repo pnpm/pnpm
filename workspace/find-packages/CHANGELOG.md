@@ -1,5 +1,13 @@
 # @pnpm/find-workspace-packages
 
+## 2.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.5
+- @pnpm/workspace.read-manifest@2.0.1
+- @pnpm/fs.find-packages@3.0.1
+
 ## 2.0.4
 
 ### Patch Changes

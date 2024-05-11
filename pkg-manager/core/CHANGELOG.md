@@ -1,5 +1,33 @@
 # @pnpm/core
 
+## 14.1.3
+
+### Patch Changes
+
+- Updated dependencies [b1d7f8c]
+- Updated dependencies [b1d7f8c]
+- Updated dependencies [a7aef51]
+  - @pnpm/hooks.read-package-hook@4.0.2
+  - @pnpm/error@6.0.1
+  - @pnpm/lifecycle@17.0.2
+  - @pnpm/filter-lockfile@9.0.4
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/get-context@11.1.2
+  - @pnpm/headless@23.1.2
+  - @pnpm/link-bins@10.0.1
+  - @pnpm/package-requester@25.1.1
+  - @pnpm/resolve-dependencies@32.1.3
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/read-project-manifest@6.0.1
+  - @pnpm/worker@1.0.1
+  - @pnpm/build-modules@12.0.4
+  - @pnpm/modules-cleaner@15.1.2
+  - @pnpm/lockfile-to-pnp@4.1.2
+  - @pnpm/hoist@9.1.2
+  - @pnpm/lockfile.preferred-versions@1.0.3
+  - @pnpm/remove-bins@6.0.1
+
 ## 14.1.2
 
 ### Patch Changes

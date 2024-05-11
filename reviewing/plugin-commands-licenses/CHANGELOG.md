@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-licenses
 
+## 4.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+- Updated dependencies [37538f5]
+  - @pnpm/error@6.0.1
+  - @pnpm/command@5.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/license-scanner@3.1.2
+  - @pnpm/store-path@9.0.1
+
 ## 4.1.2
 
 ### Patch Changes

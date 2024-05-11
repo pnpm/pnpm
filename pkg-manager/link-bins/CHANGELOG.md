@@ -1,5 +1,15 @@
 # @pnpm/link-bins
 
+## 10.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/read-project-manifest@6.0.1
+
 ## 10.0.0
 
 ### Major Changes

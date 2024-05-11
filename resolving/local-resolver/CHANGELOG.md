@@ -1,5 +1,13 @@
 # @pnpm/local-resolver
 
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/read-project-manifest@6.0.1
+
 ## 12.0.0
 
 ### Major Changes

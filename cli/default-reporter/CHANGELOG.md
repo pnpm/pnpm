@@ -1,5 +1,18 @@
 # @pnpm/default-reporter
 
+## 13.1.0
+
+### Minor Changes
+
+- 524990f: fix(default-reporter): replace deprecated right-pad with String.padEnd
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/config@21.2.1
+  - @pnpm/render-peer-issues@5.0.1
+
 ## 13.0.3
 
 ### Patch Changes

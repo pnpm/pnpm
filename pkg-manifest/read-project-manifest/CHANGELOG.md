@@ -1,5 +1,12 @@
 # @pnpm/read-project-manifest
 
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
 ## 6.0.0
 
 ### Major Changes
