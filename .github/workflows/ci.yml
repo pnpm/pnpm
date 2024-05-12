@@ -15,9 +15,10 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - '18.12'
-          - '20'
-          - '21'
+          - '18.20'
+          - '20.13.1'
+          - '21.7.3'
+          - '22.1.0'
         platform:
           - ubuntu-latest
           - windows-latest
@@ -29,8 +30,8 @@ jobs:
     - name: Configure Git
       run: |
         git config --global core.autocrlf false
-        git config --global user.name "xyz"
-        git config --global user.email "x@y.z"
+        git config --global user.name "bot"
+        git config --global user.email "bot@github.com"
     - name: Checkout Commit
       uses: actions/checkout@v4
     - name: Install pnpm
