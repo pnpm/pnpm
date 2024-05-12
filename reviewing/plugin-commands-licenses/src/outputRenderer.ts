@@ -121,18 +121,17 @@ function renderLicensesTable (
   let packageColumnMaxWidth = 0
   let licenseColumnMaxWidth = 0
   if (opts.long) {
-    detailsColumnMaxWidth = data.slice(1).reduce((maxWidth, row) => {
+    // Use the package link to determine the width of the details column
+    detailsColumnMaxWidth = licensePackages.reduce((max, pkg) => Math.max(max, pkg.homepage?.length ?? 0), 0)
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i]
       const texts = row[2].split('\n')
-      const link = texts.find((line) => line.startsWith('https'))
-      // Use the package link to determine the width of the details column
-      const detailMaxWidth = link ? link.length : 0
       const repeatCount = Math.max(0, texts.length - 1)
-      row[0] = `${row[0]}${'\n '.repeat(repeatCount)}` // Add extra lines to the package column
-      row[1] = `${row[1]}${'\n '.repeat(repeatCount)}` // Add extra lines to the license column
+      row[0] += '\n '.repeat(repeatCount) // Add extra spaces to the package column
+      row[1] += '\n '.repeat(repeatCount) // Add extra spaces to the license column
       packageColumnMaxWidth = Math.max(packageColumnMaxWidth, row[0].length)
       licenseColumnMaxWidth = Math.max(licenseColumnMaxWidth, row[1].length)
-      return Math.max(maxWidth, detailMaxWidth)
-    }, 0)
+    }
     const remainColumnWidth = process.stdout.columns - packageColumnMaxWidth - licenseColumnMaxWidth - 20
     if (detailsColumnMaxWidth > remainColumnWidth) {
       detailsColumnMaxWidth = remainColumnWidth
