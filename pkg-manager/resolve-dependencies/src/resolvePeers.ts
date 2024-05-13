@@ -10,7 +10,6 @@ import type {
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersDirSuffix, type PeerId } from '@pnpm/dependency-path'
-import memoize from 'mem'
 import mapValues from 'ramda/src/map'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
@@ -107,7 +106,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     // eslint-disable-next-line no-await-in-loop
     const { finishing } = await resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
       allPeerDepNames: opts.allPeerDepNames,
-      getParentPkgs: {},
+      parentPkgsOfNode: new Map(),
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       lockfileDir: opts.lockfileDir,
@@ -318,14 +317,15 @@ interface ParentPkgInfo {
   depth?: number
   occurrence?: number
 }
-type GetParentPkgs = () => Record<string, ParentPkgInfo>
+
+type ParentPkgsOfNode = Map<string, Record<string, ParentPkgInfo>>
 
 async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   nodeId: string,
   parentParentPkgs: ParentRefs,
   ctx: ResolvePeersContext & {
     allPeerDepNames: Set<string>
-    getParentPkgs: Record<string, GetParentPkgs>
+    parentPkgsOfNode: ParentPkgsOfNode
     dependenciesTree: DependenciesTree<T>
     depGraph: GenericDependenciesGraph<T>
     virtualStoreDir: string
@@ -558,7 +558,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 }
 
 function findHit<T extends PartialResolvedPackage> (ctx: {
-  getParentPkgs: Record<string, GetParentPkgs>
+  parentPkgsOfNode: ParentPkgsOfNode
   peersCache: PeersCache
   purePkgs: Set<string>
   pathsByNodeId: Map<string, string>
@@ -599,12 +599,12 @@ function findHit<T extends PartialResolvedPackage> (ctx: {
 }
 
 function parentPackagesMatch (ctx: {
-  getParentPkgs: Record<string, GetParentPkgs>
+  parentPkgsOfNode: ParentPkgsOfNode
   purePkgs: Set<string>
 }, cachedNodeId: string, checkedNodeId: string): boolean {
-  const cachedParentPkgs = ctx.getParentPkgs[cachedNodeId]?.()
+  const cachedParentPkgs = ctx.parentPkgsOfNode.get(cachedNodeId)
   if (!cachedParentPkgs) return false
-  const checkedParentPkgs = ctx.getParentPkgs[checkedNodeId]?.()
+  const checkedParentPkgs = ctx.parentPkgsOfNode.get(checkedNodeId)
   if (!checkedParentPkgs) return false
   if (Object.keys(cachedParentPkgs).length !== Object.keys(checkedParentPkgs).length) return false
   const maxDepth = Object.values(checkedParentPkgs)
@@ -671,7 +671,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   parentPkgs: ParentRefs,
   ctx: ResolvePeersContext & {
     allPeerDepNames: Set<string>
-    getParentPkgs: Record<string, GetParentPkgs>
+    parentPkgsOfNode: ParentPkgsOfNode
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     virtualStoreDir: string
@@ -701,24 +701,21 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const calculateDepPaths: CalculateDepPath[] = []
   const graph = []
   const finishingList: FinishingResolutionPromise[] = []
-  const cachedGetParentPkgs = memoize(() => {
-    const parentDepPaths: Record<string, ParentPkgInfo> = {}
-    for (const [name, parentPkg] of Object.entries(parentPkgs)) {
-      if (!ctx.allPeerDepNames.has(name)) continue
-      if (parentPkg.nodeId && !parentPkg.nodeId.startsWith('link:')) {
-        parentDepPaths[name] = {
-          depPath: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).depPath,
-          depth: parentPkg.depth,
-          occurrence: parentPkg.occurrence,
-        }
-      } else {
-        parentDepPaths[name] = { version: parentPkg.version }
+  const parentDepPaths: Record<string, ParentPkgInfo> = {}
+  for (const [name, parentPkg] of Object.entries(parentPkgs)) {
+    if (!ctx.allPeerDepNames.has(name)) continue
+    if (parentPkg.nodeId && !parentPkg.nodeId.startsWith('link:')) {
+      parentDepPaths[name] = {
+        depPath: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).depPath,
+        depth: parentPkg.depth,
+        occurrence: parentPkg.occurrence,
       }
+    } else {
+      parentDepPaths[name] = { version: parentPkg.version }
     }
-    return parentDepPaths
-  })
+  }
   for (const childNodeId of nodeIds) {
-    ctx.getParentPkgs[childNodeId] = cachedGetParentPkgs
+    ctx.parentPkgsOfNode.set(childNodeId, parentDepPaths)
   }
   for (const childNodeId of nodeIds) {
     const {
