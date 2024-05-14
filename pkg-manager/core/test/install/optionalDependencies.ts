@@ -23,10 +23,20 @@ test('successfully install optional dependency with subdependencies', async () =
 
 test('skip failing optional dependencies', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['pkg-with-failing-optional-dependency@1.0.1'], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-failing-optional-dependency@1.0.0'], testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('pkg-with-failing-optional-dependency')
-  expect(m(-1)).toBeTruthy()
+  project.has('@pnpm.e2e/pkg-with-failing-optional-dependency/package.json')
+})
+
+test('skip failing optional peer dependencies', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-failing-optional-dependency@1.0.0', '@pnpm.e2e/pkg-with-failing-optional-peer@1.0.0'], testDefaults({ fastUnpack: false }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-failing-optional-peer@1.0.0(@pnpm.e2e/pkg-with-failing-postinstall@1.0.0)'].optionalDependencies).toStrictEqual({
+    '@pnpm.e2e/pkg-with-failing-postinstall': '1.0.0',
+  })
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-failing-postinstall@1.0.0'].optional).toBe(true)
 })
 
 test('skip non-existing optional dependency', async () => {
@@ -151,7 +161,7 @@ test('skip optional dependency that does not support the current Node version', 
   expect(reportedTimes).toBe(1)
 })
 
-test('skip optional dependency that does not support the current pnpm version', async () => {
+test('do not skip optional dependency that does not support the current pnpm version', async () => {
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
@@ -165,7 +175,7 @@ test('skip optional dependency that does not support the current pnpm version', 
     pnpmVersion: '4.0.0',
   }))
 
-  project.hasNot('@pnpm.e2e/for-legacy-pnpm')
+  project.has('@pnpm.e2e/for-legacy-pnpm')
   project.storeHas('@pnpm.e2e/for-legacy-pnpm', '1.0.0')
 
   const logMatcher = sinon.match({
@@ -177,7 +187,7 @@ test('skip optional dependency that does not support the current pnpm version', 
     reason: 'unsupported_engine',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
-  expect(reportedTimes).toBe(1)
+  expect(reportedTimes).toBe(0)
 })
 
 test('don\'t skip optional dependency that does not support the current OS when forcing', async () => {
@@ -678,4 +688,13 @@ test('optional dependency is hardlinked to the store if it does not require a bu
       to: path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
     })
   )
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/7943
+test('complex scenario with same optional dependencies appearing in many places of the dependency graph', async () => {
+  prepareEmpty()
+  await addDependenciesToPackage({}, ['@storybook/addon-essentials@7.6.17', 'storybook@7.6.17', 'vite@5.2.8'], testDefaults())
+
+  expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.18.20/node_modules/@esbuild').length).toEqual(1)
+  expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.20.2/node_modules/@esbuild').length).toEqual(1)
 })

@@ -27,6 +27,7 @@ test('writeModulesManifest() and readModulesManifest()', async () => {
     skipped: [],
     storeDir: '/.pnpm-store',
     virtualStoreDir: path.join(modulesDir, '.pnpm'),
+    virtualStoreDirMaxLength: 120,
   }
   await writeModulesManifest(modulesDir, modulesYaml)
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
@@ -83,6 +84,7 @@ test('readModulesManifest() should not create a node_modules directory if it doe
     skipped: [],
     storeDir: '/.pnpm-store',
     virtualStoreDir: path.join(modulesDir, '.pnpm'),
+    virtualStoreDirMaxLength: 120,
   }
   await writeModulesManifest(modulesDir, modulesYaml)
   expect(fs.existsSync(modulesDir)).toBeFalsy()
@@ -109,6 +111,7 @@ test('readModulesManifest() should create a node_modules directory if makeModule
     skipped: [],
     storeDir: '/.pnpm-store',
     virtualStoreDir: path.join(modulesDir, '.pnpm'),
+    virtualStoreDirMaxLength: 120,
   }
   await writeModulesManifest(modulesDir, modulesYaml, { makeModulesDir: true })
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)

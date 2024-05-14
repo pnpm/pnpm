@@ -10,16 +10,16 @@ export interface Package {
   dir: string
 }
 
-export interface PackageNode<T> {
-  package: Package & T
+export interface PackageNode<Pkg extends Package> {
+  package: Pkg
   dependencies: string[]
 }
 
-export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
+export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
 }): {
-    graph: Record<string, PackageNode<T>>
+    graph: Record<string, PackageNode<Pkg>>
     unmatched: Array<{ pkgName: string, range: string }>
   } {
   const pkgMap = createPkgMap(pkgs)
@@ -30,7 +30,7 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
   const graph = mapValues((pkg) => ({
     dependencies: createNode(pkg),
     package: pkg,
-  }), pkgMap) as Record<string, PackageNode<T>>
+  }), pkgMap) as Record<string, PackageNode<Pkg>>
   return { graph, unmatched }
 
   function createNode (pkg: Package): string[] {
@@ -115,7 +115,7 @@ function createPkgMap (pkgs: Package[]): Record<string, Package> {
   return pkgMap
 }
 
-function getPkgMapByManifestName (pkgMapValues: Package[]) {
+function getPkgMapByManifestName (pkgMapValues: Package[]): Record<string, Package[] | undefined> {
   const pkgMapByManifestName: Record<string, Package[] | undefined> = {}
   for (const pkg of pkgMapValues) {
     if (pkg.manifest.name) {
@@ -125,7 +125,7 @@ function getPkgMapByManifestName (pkgMapValues: Package[]) {
   return pkgMapByManifestName
 }
 
-function getPkgMapByDir (pkgMapValues: Package[]) {
+function getPkgMapByDir (pkgMapValues: Package[]): Record<string, Package | undefined> {
   const pkgMapByDir: Record<string, Package | undefined> = {}
   for (const pkg of pkgMapValues) {
     pkgMapByDir[path.resolve(pkg.dir)] = pkg

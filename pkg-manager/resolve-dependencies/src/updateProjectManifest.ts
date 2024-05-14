@@ -123,6 +123,7 @@ function resolvedDirectDepToSpecObject (
       shouldUseWorkspaceProtocol &&
       !pref.startsWith('workspace:')
     ) {
+      pref = pref.replace(/^npm:/, '')
       pref = `workspace:${pref}`
     }
   }

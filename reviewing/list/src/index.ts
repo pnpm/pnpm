@@ -64,6 +64,7 @@ export async function searchForPackages (
     onlyProjects?: boolean
     registries?: Registries
     modulesDir?: string
+    virtualStoreDirMaxLength: number
   }
 ): Promise<PackageDependencyHierarchy[]> {
   const search = createPackagesSearcher(packages)
@@ -77,6 +78,7 @@ export async function searchForPackages (
       registries: opts.registries,
       search,
       modulesDir: opts.modulesDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }))
       .map(async ([projectPath, buildDependenciesHierarchy]) => {
         const entryPkg = await safeReadProjectManifestOnly(projectPath) ?? {}
@@ -104,6 +106,7 @@ export async function listForPackages (
     reportAs?: 'parseable' | 'tree' | 'json'
     registries?: Registries
     modulesDir?: string
+    virtualStoreDirMaxLength: number
   }
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -135,6 +138,7 @@ export async function list (
     registries?: Registries
     showExtraneous?: boolean
     modulesDir?: string
+    virtualStoreDirMaxLength: number
   }
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -153,6 +157,7 @@ export async function list (
           onlyProjects: maybeOpts?.onlyProjects,
           registries: opts.registries,
           modulesDir: opts.modulesDir,
+          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         })
     )
       .map(async ([projectPath, dependenciesHierarchy]) => {

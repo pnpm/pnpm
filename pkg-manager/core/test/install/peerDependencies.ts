@@ -550,7 +550,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariation1 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`, 120),
     'node_modules'
   )
   await okFile(path.join(pkgVariation1, '@pnpm.e2e/abc'))
@@ -561,7 +561,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariation2 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`, 120),
     'node_modules'
   )
   await okFile(path.join(pkgVariation2, '@pnpm.e2e/abc'))
@@ -589,7 +589,7 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariation1 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`, 120),
     'node_modules'
   )
   await okFile(path.join(pkgVariation1, '@pnpm.e2e/abc'))
@@ -600,7 +600,7 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariation2 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '2.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '2.0.0' }])}`, 120),
     'node_modules'
   )
   await okFile(path.join(pkgVariation2, '@pnpm.e2e/abc'))
@@ -661,7 +661,7 @@ test('peer bins are linked', async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/for-testing-peers-having-bins'], testDefaults({ fastUnpack: false }))
 
   const suffix = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-with-bin', version: '1.0.0' }])
-  const pkgVariation = path.join('.pnpm', depPathToFilename(`@pnpm.e2e/pkg-with-peer-having-bin@1.0.0${suffix}`), 'node_modules')
+  const pkgVariation = path.join('.pnpm', depPathToFilename(`@pnpm.e2e/pkg-with-peer-having-bin@1.0.0${suffix}`, 120), 'node_modules')
 
   project.isExecutable(path.join(pkgVariation, '@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin', 'peer-with-bin'))
 
@@ -1826,4 +1826,18 @@ test('optional peer dependency is resolved if it is installed anywhere in the de
 
   const lockfile = project.readLockfile()
   expect(lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeDefined()
+})
+
+test('peer dependency cache is invalidated correctly when the peer of a peer mismatch', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/repeat-peers.a@1.0.0', '@pnpm.e2e/repeat-peers.x@1.0.0'],
+    testDefaults({ autoInstallPeers: true })
+  )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@1.0.0))']).toBeTruthy()
+  expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@2.0.0))']).toBeTruthy()
 })

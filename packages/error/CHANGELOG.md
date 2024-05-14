@@ -1,5 +1,11 @@
 # @pnpm/error
 
+## 6.0.1
+
+### Patch Changes
+
+- a7aef51: Hide auth token in FetchError object [#8069](https://github.com/pnpm/pnpm/pull/8069).
+
 ## 6.0.0
 
 ### Major Changes

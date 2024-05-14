@@ -1,5 +1,77 @@
 # @pnpm/plugin-commands-audit
 
+## 10.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/audit@8.1.2
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/network.auth-header@3.0.1
+  - @pnpm/read-project-manifest@6.0.1
+
+## 10.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 10.1.1
+
+### Patch Changes
+
+- @pnpm/audit@8.1.1
+- @pnpm/lockfile-file@9.0.4
+
+## 10.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/audit@8.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/cli-utils@3.0.3
+
+## 10.0.4
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+  - @pnpm/audit@8.0.2
+
+## 10.0.3
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/audit@8.0.1
+
+## 10.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+
+## 10.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/cli-utils@3.0.1
+
 ## 10.0.0
 
 ### Major Changes

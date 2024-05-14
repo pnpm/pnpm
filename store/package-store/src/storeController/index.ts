@@ -27,6 +27,7 @@ export function createPackageStore (
     networkConcurrency?: number
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     verifyStoreIntegrity: boolean
+    virtualStoreDirMaxLength: number
   }
 ): StoreController {
   const storeDir = initOpts.storeDir
@@ -46,6 +47,7 @@ export function createPackageStore (
     networkConcurrency: initOpts.networkConcurrency,
     storeDir: initOpts.storeDir,
     verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
+    virtualStoreDirMaxLength: initOpts.virtualStoreDirMaxLength,
   })
 
   return {

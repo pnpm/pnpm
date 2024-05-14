@@ -1,5 +1,57 @@
 # @pnpm/mount-modules
 
+## 0.6.2
+
+### Patch Changes
+
+- @pnpm/config@21.2.1
+- @pnpm/lockfile-file@9.0.5
+- @pnpm/store-path@9.0.1
+
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/lockfile-file@9.0.4
+
+## 0.6.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/lockfile-file@9.0.3
+
+## 0.5.3
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+
+## 0.5.2
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+
 ## 0.5.0
 
 ### Minor Changes

@@ -1,5 +1,42 @@
 # @pnpm/lockfile-file
 
+## 9.0.5
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+
+## 9.0.2
+
+### Patch Changes
+
+- c969f37: Lockfiles that have git-hosted dependencies specified should be correctly converted to the new lockfile format [#7990](https://github.com/pnpm/pnpm/issues/7990).
+- Updated dependencies [c969f37]
+  - @pnpm/git-resolver@9.0.1
+
+## 9.0.1
+
+### Patch Changes
+
+- 2cbf7b7: Lockfiles with local or git-hosted dependencies are now successfully converted to the new lockfile format [#7955](https://github.com/pnpm/pnpm/issues/7955).
+- 6b6ca69: The lockfile should be saved in the new format even if it is up-to-date.
+
 ## 9.0.0
 
 ### Major Changes

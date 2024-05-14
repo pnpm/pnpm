@@ -7,11 +7,11 @@ import { type NvmNodeCommandOptions } from './node'
 import { envList } from './envList'
 import { envAdd } from './envAdd'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {}
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     global: Boolean,
     remote: Boolean,
@@ -20,7 +20,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['env']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Manage Node.js versions.',
     descriptionLists: [
@@ -87,7 +87,7 @@ export function help () {
   })
 }
 
-export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
+export async function handler (opts: NvmNodeCommandOptions, params: string[]): Promise<string | { exitCode: number }> {
   if (params.length === 0) {
     throw new PnpmError('ENV_NO_SUBCOMMAND', 'Please specify the subcommand', {
       hint: help(),

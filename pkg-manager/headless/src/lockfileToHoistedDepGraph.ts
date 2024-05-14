@@ -185,7 +185,6 @@ async function fetchDeps (
         lockfileDir: opts.lockfileDir,
         nodeVersion: opts.nodeVersion,
         optional: pkgSnapshot.optional === true,
-        pnpmVersion: opts.pnpmVersion,
         supportedArchitectures: opts.supportedArchitectures,
       }) === false
     ) {

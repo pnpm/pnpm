@@ -21,7 +21,7 @@ export function lockfileWalkerGroupImporterSteps (
     include?: { [dependenciesField in DependenciesField]: boolean }
     skipped?: Set<string>
   }
-) {
+): Array<{ importerId: string, step: LockfileWalkerStep }> {
   const walked = new Set<string>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
 
   return importerIds.map((importerId) => {
@@ -44,6 +44,14 @@ export function lockfileWalkerGroupImporterSteps (
   })
 }
 
+export interface LockfileWalker {
+  directDeps: Array<{
+    alias: string
+    depPath: string
+  }>
+  step: LockfileWalkerStep
+}
+
 export function lockfileWalker (
   lockfile: Lockfile,
   importerIds: string[],
@@ -51,7 +59,7 @@ export function lockfileWalker (
     include?: { [dependenciesField in DependenciesField]: boolean }
     skipped?: Set<string>
   }
-) {
+): LockfileWalker {
   const walked = new Set<string>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
   const entryNodes = [] as string[]
   const directDeps = [] as Array<{ alias: string, depPath: string }>
@@ -87,7 +95,7 @@ function step (
     walked: Set<string>
   },
   nextDepPaths: string[]
-) {
+): LockfileWalkerStep {
   const result: LockfileWalkerStep = {
     dependencies: [],
     links: [],
@@ -114,7 +122,7 @@ function step (
   return result
 }
 
-function next (opts: { includeOptionalDependencies: boolean }, nextPkg: PackageSnapshot) {
+function next (opts: { includeOptionalDependencies: boolean }, nextPkg: PackageSnapshot): string[] {
   return Object.entries({
     ...nextPkg.dependencies,
     ...(opts.includeOptionalDependencies ? nextPkg.optionalDependencies : {}),

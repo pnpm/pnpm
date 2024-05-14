@@ -155,7 +155,7 @@ describe('audit', () => {
     try {
       await audit({
         importers: {},
-        lockfileVersion: 5,
+        lockfileVersion: LOCKFILE_VERSION,
       },
       getAuthHeader,
       {
@@ -164,6 +164,7 @@ describe('audit', () => {
         retry: {
           retries: 0,
         },
+        virtualStoreDirMaxLength: 120,
       })
     } catch (_err: any) { // eslint-disable-line
       err = _err

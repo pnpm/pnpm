@@ -19,7 +19,7 @@ export function createCompletionServer (
     universalOptionsTypes: Record<string, unknown>
     universalShorthands: Record<string, string>
   }
-) {
+): () => Promise<void> {
   return async () => {
     const shell = getShellFromEnv(process.env)
 

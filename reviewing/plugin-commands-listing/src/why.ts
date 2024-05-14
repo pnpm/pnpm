@@ -100,7 +100,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export async function handler (
   opts: ListCommandOptions,
   params: string[]
-) {
+): Promise<string> {
   if (params.length === 0) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
   }

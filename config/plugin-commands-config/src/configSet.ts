@@ -5,7 +5,7 @@ import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 import { type ConfigCommandOptions } from './ConfigCommandOptions'
 
-export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null) {
+export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null): Promise<void> {
   const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
   if (opts.global && settingShouldFallBackToNpm(key)) {
     const _runNpm = runNpm.bind(null, opts.npmPath)

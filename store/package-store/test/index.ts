@@ -21,6 +21,7 @@ describe('store.importPackage()', () => {
       storeDir,
       cacheDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
     const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({
@@ -59,6 +60,7 @@ describe('store.importPackage()', () => {
       storeDir,
       cacheDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
     const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({

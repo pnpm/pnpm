@@ -1,5 +1,45 @@
 # @pnpm/filter-workspace-packages
 
+## 8.0.6
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/workspace.find-packages@2.0.5
+  - @pnpm/workspace.pkgs-graph@3.0.3
+
+## 8.0.5
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@3.0.2
+- @pnpm/workspace.find-packages@2.0.4
+
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@3.0.1
+
+## 8.0.3
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.0.3
+
+## 8.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.0.2
+
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.0.1
+
 ## 8.0.0
 
 ### Major Changes

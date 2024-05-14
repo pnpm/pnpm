@@ -18,7 +18,7 @@ export function pruneSharedLockfile (
   opts?: {
     warn?: (msg: string) => void
   }
-) {
+): Lockfile {
   const copiedPackages = (lockfile.packages == null)
     ? {}
     : copyPackageSnapshots(lockfile.packages, {
@@ -163,7 +163,7 @@ function copyDependencySubGraph (
   opts: {
     optional: boolean
   }
-) {
+): void {
   for (const depPath of depPaths) {
     const key = `${depPath}:${opts.optional.toString()}`
     if (ctx.walked.has(key)) continue

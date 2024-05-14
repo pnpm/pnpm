@@ -351,9 +351,10 @@ export async function mutateModules (
         throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
       }
     }
+    const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
-      !ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`) ||
+      !upToDateLockfileMajorVersion && ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION_V6 ||
       opts.forceFullResolution
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
@@ -470,7 +471,10 @@ Note that in CI environments, this setting is enabled by default.`,
             wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
             useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
           })
-          if (opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles) {
+          if (
+            opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
+            !upToDateLockfileMajorVersion && !opts.frozenLockfile
+          ) {
             await writeLockfiles({
               currentLockfile: ctx.currentLockfile,
               currentLockfileDir: ctx.virtualStoreDir,
@@ -1047,6 +1051,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       tag: opts.tag,
       updateToLatest: opts.updateToLatest,
       virtualStoreDir: ctx.virtualStoreDir,
+      virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
       patchedDependencies: opts.patchedDependencies,
@@ -1130,6 +1135,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         skipped: ctx.skipped,
         storeController: opts.storeController,
         virtualStoreDir: ctx.virtualStoreDir,
+        virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
         wantedLockfile: newLockfile,
         wantedToBeSkippedPackageIds,
         hoistWorkspacePackages: opts.hoistWorkspacePackages,
@@ -1144,6 +1150,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         importerNames,
         lockfileDir: ctx.lockfileDir,
         virtualStoreDir: ctx.virtualStoreDir,
+        virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
         registries: ctx.registries,
       })
     }
@@ -1272,7 +1279,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }))
 
-    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, newLockfile, ctx)
+    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, newLockfile, {
+      virtualStoreDir: ctx.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    })
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
         ? writeLockfiles({
@@ -1311,6 +1321,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           skipped: Array.from(ctx.skipped),
           storeDir: ctx.storeDir,
           virtualStoreDir: ctx.virtualStoreDir,
+          virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
         }, {
           makeModulesDir: Object.keys(result.currentLockfile.packages ?? {}).length > 0,
         })

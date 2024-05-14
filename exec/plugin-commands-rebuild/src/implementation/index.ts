@@ -71,7 +71,7 @@ function findPackages (
 function matches (
   searched: PackageSelector[],
   manifest: { name: string, version?: string }
-) {
+): boolean {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
       return manifest.name === searchedPkg
@@ -90,7 +90,7 @@ export async function rebuildSelectedPkgs (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
-) {
+): Promise<void> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -135,7 +135,7 @@ export async function rebuildSelectedPkgs (
 export async function rebuildProjects (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
   maybeOpts: RebuildOptions
-) {
+): Promise<void> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -200,6 +200,7 @@ export async function rebuildProjects (
     skipped: Array.from(ctx.skipped),
     storeDir: ctx.storeDir,
     virtualStoreDir: ctx.virtualStoreDir,
+    virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
   })
 }
 
@@ -209,7 +210,7 @@ function getSubgraphToBuild (
   opts: {
     pkgsToRebuild: Set<string>
   }
-) {
+): boolean {
   let currentShouldBeBuilt = false
   for (const { depPath, next } of step.dependencies) {
     if (nodesToBuildAndTransitive.has(depPath)) {
@@ -245,11 +246,11 @@ async function _rebuild (
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
-) {
+): Promise<Set<string>> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile)
   const depsStateCache: DepsStateCache = {}
   const cafsDir = path.join(opts.storeDir, 'files')
-  const pkgsThatWereRebuilt = new Set()
+  const pkgsThatWereRebuilt = new Set<string>()
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
 
@@ -295,7 +296,7 @@ async function _rebuild (
       const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const pkgRoots = opts.nodeLinker === 'hoisted'
         ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? []).map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
-        : [path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules', pkgInfo.name)]
+        : [path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', pkgInfo.name)]
       if (pkgRoots.length === 0) {
         if (pkgSnapshot.optional) return
         throw new PnpmError('MISSING_HOISTED_LOCATIONS', `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml`, {
@@ -306,7 +307,7 @@ async function _rebuild (
       try {
         const extraBinPaths = ctx.extraBinPaths
         if (opts.nodeLinker !== 'hoisted') {
-          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
+          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
           const binPath = path.join(pkgRoot, 'node_modules', '.bin')
           await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
         } else {
@@ -403,7 +404,7 @@ async function _rebuild (
         .map(async (depPath) => limitLinking(async () => {
           const pkgSnapshot = pkgSnapshots[depPath]
           const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
+          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
           const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
           return linkBins(modules, binPath, { warn })
         }))

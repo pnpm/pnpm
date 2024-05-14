@@ -65,8 +65,9 @@ function renderLicensesJson (licensePackages: readonly LicensePackage[]): string
   const groupedByLicense = groupBy((item) => item.license, data)
   for (const license in groupedByLicense) {
     const outputList: LicensePackageJson[] = []
-    const groupedByName = groupBy((item) => item.name, groupedByLicense[license])
+    const groupedByName = groupBy((item) => item.name, groupedByLicense[license] ?? [])
     for (const inputList of Object.values(groupedByName)) {
+      if (inputList == null) continue
       inputList.sort((a, b) => semver.compare(a.version, b.version))
       const versions = inputList.map((item) => item.version)
       const paths = inputList.map((item) => item.path ?? null)

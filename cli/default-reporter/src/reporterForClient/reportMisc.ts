@@ -33,7 +33,7 @@ export function reportMisc (
     zoomOutCurrent: boolean
     peerDependencyRules?: PeerDependencyRules
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   const maxLogLevel = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
   const reportWarning = makeWarningReporter(opts)
   return Rx.merge(log$.registry, log$.other).pipe(
@@ -61,6 +61,11 @@ export function reportMisc (
   )
 }
 
+type WarningReporter = (obj: {
+  prefix: string
+  message: string
+}) => Rx.Observable<{ msg: string }>
+
 // Sometimes, when installing new dependencies that rely on many peer dependencies,
 // or when running installation on a huge monorepo, there will be hundreds or thousands of warnings.
 // Printing many messages to the terminal is expensive and reduces speed,
@@ -71,7 +76,7 @@ function makeWarningReporter (
     cwd: string
     zoomOutCurrent: boolean
   }
-) {
+): WarningReporter {
   let warningsCounter = 0
   let collapsedWarnings: Rx.Subject<{ msg: string }>
   return (obj: { prefix: string, message: string }) => {

@@ -1,5 +1,74 @@
 # @pnpm/plugin-commands-server
 
+## 7.0.8
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/store-connection-manager@8.1.3
+  - @pnpm/store-path@9.0.1
+  - @pnpm/server@18.1.0
+
+## 7.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+- @pnpm/server@18.1.0
+- @pnpm/store-connection-manager@8.1.2
+
+## 7.0.6
+
+### Patch Changes
+
+- @pnpm/server@18.1.0
+- @pnpm/store-connection-manager@8.1.1
+
+## 7.0.5
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/store-connection-manager@8.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/server@18.1.0
+  - @pnpm/cli-utils@3.0.3
+
+## 7.0.4
+
+### Patch Changes
+
+- @pnpm/server@18.0.0
+- @pnpm/store-connection-manager@8.0.4
+
+## 7.0.3
+
+### Patch Changes
+
+- @pnpm/server@18.0.0
+- @pnpm/store-connection-manager@8.0.3
+
+## 7.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+  - @pnpm/server@18.0.0
+  - @pnpm/store-connection-manager@8.0.2
+
+## 7.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/cli-utils@3.0.1
+  - @pnpm/store-connection-manager@8.0.1
+
 ## 7.0.0
 
 ### Major Changes

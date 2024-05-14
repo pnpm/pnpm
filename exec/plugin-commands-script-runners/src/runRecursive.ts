@@ -39,7 +39,7 @@ Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' 
 export async function runRecursive (
   params: string[],
   opts: RecursiveRunOpts
-) {
+): Promise<void> {
   const [scriptName, ...passedThruArgs] = params
   if (!scriptName) {
     throw new PnpmError('SCRIPT_NAME_IS_REQUIRED', 'You must specify the script you want to run')
@@ -203,7 +203,7 @@ function formatSectionName ({
   return `${name ?? 'unknown'}${version ? `@${version}` : ''} ${script ? `: ${script}` : ''} ${prefix}`
 }
 
-export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
+export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): string[] {
   // if scripts in package.json has script which is equal to scriptName a user passes, return it.
   if (scripts[scriptName]) {
     return [scriptName]

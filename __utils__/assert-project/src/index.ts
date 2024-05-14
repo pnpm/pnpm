@@ -3,7 +3,7 @@ import path from 'path'
 import util from 'util'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileFileV7 } from '@pnpm/lockfile-types'
+import { type LockfileFileV9 } from '@pnpm/lockfile-types'
 import { type Modules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -31,14 +31,14 @@ export interface Project {
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readCurrentLockfile: () => Required<LockfileFileV7>
+  readCurrentLockfile: () => Required<LockfileFileV9>
   readModulesManifest: () => Modules | null
   /**
    * TODO: Remove the `Required<T>` cast.
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readLockfile: (lockfileName?: string) => Required<LockfileFileV7>
+  readLockfile: (lockfileName?: string) => Required<LockfileFileV9>
   writePackageJson: (pkgJson: object) => void
 }
 
@@ -46,16 +46,17 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const modules = path.join(projectPath, 'node_modules')
 
-  let cachedStore: {
+  interface StoreInstance {
     storePath: string
     getPkgIndexFilePath: (pkgName: string, version?: string) => string
-    cafsHas: (pkgName: string, version?: string | undefined) => void
-    cafsHasNot: (pkgName: string, version?: string | undefined) => void
-    storeHas: (pkgName: string, version?: string | undefined) => void
-    storeHasNot: (pkgName: string, version?: string | undefined) => void
-    resolve: (pkgName: string, version?: string | undefined, relativePath?: string | undefined) => string
+    cafsHas: (pkgName: string, version?: string) => void
+    cafsHasNot: (pkgName: string, version?: string) => void
+    storeHas: (pkgName: string, version?: string) => void
+    storeHasNot: (pkgName: string, version?: string) => void
+    resolve: (pkgName: string, version?: string, relativePath?: string) => string
   }
-  function getStoreInstance () {
+  let cachedStore: StoreInstance
+  function getStoreInstance (): StoreInstance {
     if (!cachedStore) {
       const modulesYaml = readModulesManifest(modules)
       if (modulesYaml == null) {
@@ -69,7 +70,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     }
     return cachedStore
   }
-  function getVirtualStoreDir () {
+  function getVirtualStoreDir (): string {
     const modulesYaml = readModulesManifest(modules)
     if (modulesYaml == null) {
       return path.join(modules, '.pnpm')
@@ -159,7 +160,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
   }
 }
 
-function readModulesManifest (modulesDir: string) {
+function readModulesManifest (modulesDir: string): Modules {
   try {
     return readYamlFile<Modules>(path.join(modulesDir, '.modules.yaml'))
   } catch (err: unknown) {

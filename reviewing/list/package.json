@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "10.0.0",
+  "version": "10.1.2",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -48,7 +48,7 @@
     "@pnpm/list": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/archy": "0.0.33",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "0.29.12"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -1,5 +1,12 @@
 # @pnpm/prune-lockfile
 
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+
 ## 6.0.0
 
 ### Major Changes

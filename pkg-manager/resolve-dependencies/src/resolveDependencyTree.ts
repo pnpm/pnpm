@@ -99,6 +99,7 @@ export interface ResolveDependenciesOptions {
   storeController: StoreController
   tag: string
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   wantedLockfile: Lockfile
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
@@ -106,6 +107,7 @@ export interface ResolveDependenciesOptions {
 }
 
 export interface ResolveDependencyTreeResult {
+  allPeerDepNames: Set<string>
   dependenciesTree: DependenciesTree<ResolvedPackage>
   outdatedDependencies: {
     [pkgId: string]: string
@@ -152,12 +154,14 @@ export async function resolveDependencyTree<T> (
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     wantedLockfile: opts.wantedLockfile,
     appliedPatches: new Set<string>(),
     updatedSet: new Set<string>(),
     workspacePackages: opts.workspacePackages,
     missingPeersOfChildrenByPkgId: {},
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
+    allPeerDepNames: new Set(),
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
@@ -250,6 +254,7 @@ export async function resolveDependencyTree<T> (
     wantedToBeSkippedPackageIds,
     appliedPatches: ctx.appliedPatches,
     time,
+    allPeerDepNames: ctx.allPeerDepNames,
   }
 }
 
@@ -277,7 +282,7 @@ function buildTree (
     }
     const childNodeId = createNodeId(parentNodeId, child.depPath)
     childrenNodeIds[child.alias] = childNodeId
-    installable = installable && !ctx.skipped.has(child.depPath)
+    installable = installable || !ctx.skipped.has(child.depPath)
     ctx.dependenciesTree.set(childNodeId, {
       children: () => buildTree(ctx,
         childNodeId,

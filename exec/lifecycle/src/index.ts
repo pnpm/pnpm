@@ -5,7 +5,7 @@ import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHo
 import { runLifecycleHooksConcurrently, type RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently'
 import { type PackageScripts } from '@pnpm/types'
 
-export function makeNodeRequireOption (modulePath: string) {
+export function makeNodeRequireOption (modulePath: string): { NODE_OPTIONS: string } {
   let { NODE_OPTIONS } = process.env
   NODE_OPTIONS = `${NODE_OPTIONS ?? ''} --require=${modulePath}`.trim()
   return { NODE_OPTIONS }
@@ -53,7 +53,7 @@ export async function runPostinstallHooks (
 async function checkBindingGyp (
   root: string,
   scripts: PackageScripts
-) {
+): Promise<void> {
   if (await exists(path.join(root, 'binding.gyp'))) {
     scripts.install = 'node-gyp rebuild'
   }

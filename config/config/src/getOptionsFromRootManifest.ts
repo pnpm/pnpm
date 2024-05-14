@@ -77,7 +77,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   return settings
 }
 
-function createVersionReferencesReplacer (manifest: ProjectManifest) {
+function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: string) => string {
   const allDeps = {
     ...manifest.devDependencies,
     ...manifest.dependencies,
@@ -86,7 +86,7 @@ function createVersionReferencesReplacer (manifest: ProjectManifest) {
   return replaceVersionReferences.bind(null, allDeps)
 }
 
-function replaceVersionReferences (dep: Record<string, string>, spec: string) {
+function replaceVersionReferences (dep: Record<string, string>, spec: string): string {
   if (!(spec[0] === '$')) return spec
   const dependencyName = spec.slice(1)
   const newSpec = dep[dependencyName]

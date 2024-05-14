@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/client",
-  "version": "11.0.0",
+  "version": "11.0.5",
   "description": "Creates the package resolve and fetch functions",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -45,7 +45,7 @@
   "devDependencies": {
     "@pnpm/client": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "0.29.12"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

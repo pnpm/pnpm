@@ -4,6 +4,7 @@ import { type Lockfile } from '@pnpm/lockfile-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { addDistTag } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from '../utils'
@@ -414,4 +415,34 @@ test('recursive update in workspace should not add new dependencies', async () =
 
   projects['project-1'].hasNot('is-positive')
   projects['project-2'].hasNot('is-positive')
+})
+
+test('recursive update with aliased workspace dependency (#7975)', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        pkg: 'workspace:project-2@^',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    depth: 0,
+    dir: process.cwd(),
+    recursive: true,
+    workspaceDir: process.cwd(),
+  })
+
+  projects['project-1'].has('pkg')
+
+  const manifest = await readProjectManifestOnly('project-1')
+  expect(manifest).toHaveProperty(['dependencies', 'pkg'], 'workspace:project-2@^')
 })

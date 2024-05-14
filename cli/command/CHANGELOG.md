@@ -1,5 +1,11 @@
 # @pnpm/command
 
+## 5.0.1
+
+### Patch Changes
+
+- 37538f5: Update the `@pnpm/tabtab` to v0.5.3 which include a fix for shell completion on MinGW-w64 environment.
+
 ## 5.0.0
 
 ### Major Changes

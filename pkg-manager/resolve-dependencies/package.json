@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "32.0.0",
+  "version": "32.1.3",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -46,12 +46,14 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
+    "@pnpm/workspace.spec-parser": "workspace:*",
     "@yarnpkg/core": "4.0.3",
     "filenamify": "^4.3.0",
     "get-npm-tarball-url": "^2.1.0",
     "graph-cycles": "1.2.1",
     "is-inner-link": "^4.0.0",
     "is-subdir": "^1.2.0",
+    "mem": "^8.1.1",
     "normalize-path": "^3.0.0",
     "p-defer": "^3.0.0",
     "path-exists": "^4.0.0",
@@ -66,7 +68,7 @@
   "devDependencies": {
     "@pnpm/resolve-dependencies": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/semver": "7.5.3"
   },
   "bugs": {

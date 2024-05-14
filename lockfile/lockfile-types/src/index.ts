@@ -11,7 +11,7 @@ export interface LockfileSettings {
 
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
-  lockfileVersion: number | string
+  lockfileVersion: string
   time?: Record<string, string>
   packages?: PackageSnapshots
   overrides?: Record<string, string>
@@ -24,7 +24,7 @@ export interface Lockfile {
 
 export interface LockfileV9 {
   importers: Record<string, ProjectSnapshot>
-  lockfileVersion: number | string
+  lockfileVersion: string
   time?: Record<string, string>
   snapshots?: Record<string, PackageSnapshotV7>
   packages?: Record<string, PackageInfo>

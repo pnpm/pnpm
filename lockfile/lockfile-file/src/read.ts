@@ -134,7 +134,7 @@ async function _read (
 export function createLockfileObject (
   importerIds: string[],
   opts: {
-    lockfileVersion: number | string
+    lockfileVersion: string
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
   }

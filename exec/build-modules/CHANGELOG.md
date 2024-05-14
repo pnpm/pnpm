@@ -1,5 +1,39 @@
 # @pnpm/build-modules
 
+## 12.0.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.2
+- @pnpm/patching.apply-patch@3.0.1
+- @pnpm/link-bins@10.0.1
+- @pnpm/read-package-json@9.0.1
+- @pnpm/worker@1.0.1
+
+## 12.0.3
+
+### Patch Changes
+
+- Updated dependencies [db1d6ff]
+  - @pnpm/deps.graph-sequencer@2.0.1
+
+## 12.0.2
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@6.0.1
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/patching.apply-patch@3.0.0
+- @pnpm/lifecycle@17.0.1
+- @pnpm/link-bins@10.0.0
+
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [bfadc0a]
+  - @pnpm/lifecycle@17.0.1
+
 ## 12.0.0
 
 ### Major Changes

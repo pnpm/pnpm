@@ -21,6 +21,7 @@ import { formatUnknownOptionsError } from './formatError'
 import { parseCliArgs } from './parseCliArgs'
 import { initReporter, type ReporterType } from './reporter'
 import { isCI } from 'ci-info'
+import os from 'os'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
 import stripAnsi from 'strip-ansi'
@@ -39,7 +40,7 @@ const DEPRECATED_OPTIONS = new Set([
 // A workaround for the https://github.com/vercel/pkg/issues/897 issue.
 delete process.env.PKG_EXECPATH
 
-export async function main (inputArgv: string[]) {
+export async function main (inputArgv: string[]): Promise<void> {
   let parsedCliArgs!: ParsedCliArgs
   try {
     parsedCliArgs = await parseCliArgs(inputArgv)
@@ -89,14 +90,15 @@ export async function main (inputArgv: string[]) {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
-    config = await getConfig(cliOptions, {
+    const isDlxCommand = cmd === 'dlx'
+    config = await getConfig(isDlxCommand ? { ...cliOptions, dir: os.homedir() } : cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
     }) as typeof config
-    if (cmd === 'dlx') {
+    if (isDlxCommand) {
       config.useStderr = true
     }
     config.argv = argv
@@ -315,7 +317,7 @@ export async function main (inputArgv: string[]) {
   }
 }
 
-function printError (message: string, hint?: string) {
+function printError (message: string, hint?: string): void {
   const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
   console.log(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
   if (hint) {

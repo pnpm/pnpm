@@ -9,7 +9,7 @@ export function getAuthHeadersFromConfig (
     allSettings: Record<string, string>
     userSettings: Record<string, string>
   }
-) {
+): Record<string, string> {
   const authHeaderValueByURI: Record<string, string> = {}
   for (const [key, value] of Object.entries(allSettings)) {
     const [uri, authType] = splitKey(key)
@@ -49,7 +49,7 @@ export function getAuthHeadersFromConfig (
   return authHeaderValueByURI
 }
 
-function splitKey (key: string) {
+function splitKey (key: string): string[] {
   const index = key.lastIndexOf(':')
   if (index === -1) {
     return [key, '']
@@ -57,7 +57,7 @@ function splitKey (key: string) {
   return [key.slice(0, index), key.slice(index + 1)]
 }
 
-export function loadToken (helperPath: string, settingName: string) {
+export function loadToken (helperPath: string, settingName: string): string {
   if (!path.isAbsolute(helperPath) || !fs.existsSync(helperPath)) {
     throw new PnpmError('BAD_TOKEN_HELPER_PATH', `${settingName} must be an absolute path, without arguments`)
   }

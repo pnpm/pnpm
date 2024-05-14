@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/remove-bins",
-  "version": "6.0.0",
+  "version": "6.0.1",
   "description": "Remove bins from .bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -39,7 +39,7 @@
   "devDependencies": {
     "@pnpm/remove-bins": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "0.29.12"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

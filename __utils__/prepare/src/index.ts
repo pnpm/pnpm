@@ -25,7 +25,7 @@ const tmpPath = path.join(tmpBaseDir, `${getFilesCountInDir(tmpBaseDir).toString
 
 let dirNumber = 0
 
-export function tempDir (chdir: boolean = true) {
+export function tempDir (chdir: boolean = true): string {
   dirNumber++
   const dirname = dirNumber.toString()
   const tmpDir = path.join(tmpPath, dirname)
@@ -47,12 +47,12 @@ export function preparePackages (
     manifestFormat?: ManifestFormat
     tempDir?: string
   }
-) {
+): Record<string, Project> {
   const pkgTmpPath = opts?.tempDir ?? path.join(tempDir(), 'project')
   const manifestFormat = opts?.manifestFormat
 
   const dirname = path.dirname(pkgTmpPath)
-  const result: { [name: string]: Project } = {}
+  const result: Record<string, Project> = {}
   const cwd = process.cwd()
   for (const aPkg of pkgs) {
     if (typeof (aPkg as LocationAndManifest).location === 'string') {
@@ -77,7 +77,7 @@ export function prepare (
     manifestFormat?: ManifestFormat
     tempDir?: string
   }
-) {
+): Project {
   const dir = opts?.tempDir ?? path.join(tempDir(), 'project')
 
   fs.mkdirSync(dir, { recursive: true })
@@ -97,7 +97,7 @@ export function prepare (
   return assertProject(dir)
 }
 
-export function prepareEmpty () {
+export function prepareEmpty (): Project {
   const pkgTmpPath = path.join(tempDir(), 'project')
 
   fs.mkdirSync(pkgTmpPath, { recursive: true })

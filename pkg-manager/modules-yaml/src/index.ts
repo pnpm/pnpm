@@ -29,6 +29,7 @@ export interface Modules {
   skipped: string[]
   storeDir: string
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   injectedDeps?: Record<string, string[]>
   hoistedLocations?: Record<string, string[]>
 }
@@ -79,6 +80,9 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
   }
   if (!modules.prunedAt) {
     modules.prunedAt = new Date().toUTCString()
+  }
+  if (!modules.virtualStoreDirMaxLength) {
+    modules.virtualStoreDirMaxLength = 120
   }
   return modules
 }

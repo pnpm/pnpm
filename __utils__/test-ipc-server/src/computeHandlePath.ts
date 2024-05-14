@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
-export function computeHandlePath (handle?: string) {
+export function computeHandlePath (handle?: string): string {
   const handleFilePath = handle != null
     ? path.resolve(handle)
     : path.join(os.tmpdir(), `${crypto.randomUUID()}.sock`)

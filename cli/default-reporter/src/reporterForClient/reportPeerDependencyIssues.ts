@@ -10,7 +10,7 @@ export function reportPeerDependencyIssues (
     peerDependencyIssues: Rx.Observable<PeerDependencyIssuesLog>
   },
   peerDependencyRules?: PeerDependencyRules
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return log$.peerDependencyIssues.pipe(
     take(1),
     map((log) => {

@@ -44,7 +44,7 @@ export async function buildModules (
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
   }
-) {
+): Promise<void> {
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })
   }
@@ -213,7 +213,7 @@ export async function linkBinsOfDependencies (
     preferSymlinkedExecutables?: boolean
     warn: (message: string) => void
   }
-) {
+): Promise<void> {
   const childrenToLink: Record<string, string> = opts.optional
     ? depNode.children
     : pickBy((child, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)

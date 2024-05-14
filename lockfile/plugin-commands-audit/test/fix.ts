@@ -29,6 +29,7 @@ test('overrides are added for vulnerable dependencies', async () => {
     userConfig: {},
     rawConfig,
     registries,
+    virtualStoreDirMaxLength: 120,
   })
 
   expect(exitCode).toBe(0)
@@ -53,6 +54,7 @@ test('no overrides are added if no vulnerabilities are found', async () => {
     userConfig: {},
     rawConfig,
     registries,
+    virtualStoreDirMaxLength: 120,
   })
 
   expect(exitCode).toBe(0)
@@ -88,6 +90,7 @@ test('CVEs found in the allow list are not added as overrides', async () => {
     userConfig: {},
     rawConfig,
     registries,
+    virtualStoreDirMaxLength: 120,
   })
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)

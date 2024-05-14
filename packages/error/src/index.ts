@@ -34,28 +34,35 @@ export class FetchError extends PnpmError {
     response: FetchErrorResponse,
     hint?: string
   ) {
+    const _request: FetchErrorRequest = {
+      url: request.url,
+    }
+    if (request.authHeaderValue) {
+      _request.authHeaderValue = hideAuthInformation(request.authHeaderValue)
+    }
     const message = `GET ${request.url}: ${response.statusText} - ${response.status}`
-    const authHeaderValue = request.authHeaderValue
-      ? hideAuthInformation(request.authHeaderValue)
-      : undefined
     // NOTE: For security reasons, some registries respond with 404 on authentication errors as well.
     // So we print authorization info on 404 errors as well.
     if (response.status === 401 || response.status === 403 || response.status === 404) {
       hint = hint ? `${hint}\n\n` : ''
-      if (authHeaderValue) {
-        hint += `An authorization header was used: ${authHeaderValue}`
+      if (_request.authHeaderValue) {
+        hint += `An authorization header was used: ${_request.authHeaderValue}`
       } else {
         hint += 'No authorization header was set for the request.'
       }
     }
     super(`FETCH_${response.status}`, message, { hint })
-    this.request = request
+    this.request = _request
     this.response = response
   }
 }
 
 function hideAuthInformation (authHeaderValue: string): string {
   const [authType, token] = authHeaderValue.split(' ')
+  if (token == null) return '[hidden]'
+  if (token.length < 20) {
+    return `${authType} [hidden]`
+  }
   return `${authType} ${token.substring(0, 4)}[hidden]`
 }
 

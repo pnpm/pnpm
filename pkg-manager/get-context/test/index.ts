@@ -20,6 +20,7 @@ const DEFAULT_OPTIONS: GetContextOptions = {
     optionalDependencies: true,
   },
   storeDir: path.join(__dirname, 'store'),
+  virtualStoreDirMaxLength: 120,
 }
 
 test('getContext - extendNodePath false', async () => {

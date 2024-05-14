@@ -10,9 +10,9 @@ interface existsNonEmptyWantedLockfileOptions {
 export async function existsNonEmptyWantedLockfile (pkgPath: string, opts: existsNonEmptyWantedLockfileOptions = {
   useGitBranchLockfile: false,
   mergeGitBranchLockfiles: false,
-}) {
+}): Promise<boolean> {
   const wantedLockfile: string = await getWantedLockfileName(opts)
-  return new Promise((resolve, reject) => {
+  return new Promise<boolean>((resolve, reject) => {
     fs.access(path.join(pkgPath, wantedLockfile), (err) => {
       if (err == null) {
         resolve(true)

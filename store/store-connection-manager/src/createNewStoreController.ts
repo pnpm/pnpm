@@ -41,6 +41,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
+| 'virtualStoreDirMaxLength'
 > & {
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
@@ -105,6 +106,7 @@ export async function createNewStoreController (
       verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
         ? opts.verifyStoreIntegrity
         : true,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }),
     dir: opts.storeDir,
   }

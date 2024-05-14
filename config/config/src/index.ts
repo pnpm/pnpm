@@ -140,6 +140,7 @@ export const types = Object.assign({
   'use-stderr': Boolean,
   'verify-store-integrity': Boolean,
   'virtual-store-dir': String,
+  'virtual-store-dir-max-length': Number,
   'workspace-concurrency': Number,
   'workspace-packages': [String, Array],
   'workspace-root': Boolean,
@@ -149,8 +150,8 @@ export const types = Object.assign({
   'update-notifier': Boolean,
   'registry-supports-time-field': Boolean,
   'fail-if-no-match': Boolean,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-} as Partial<Record<keyof KebabCaseConfig, any>>, npmTypes.types)
+
+}, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
 
@@ -272,6 +273,7 @@ export async function getConfig (
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
     'registry-supports-time-field': false,
+    'virtual-store-dir-max-length': 120,
   }
 
   const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)
@@ -579,7 +581,7 @@ export async function getConfig (
   return { config: pnpmConfig, warnings }
 }
 
-function getProcessEnv (env: string) {
+function getProcessEnv (env: string): string | undefined {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]

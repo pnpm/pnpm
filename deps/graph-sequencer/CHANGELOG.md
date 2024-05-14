@@ -1,5 +1,11 @@
 # @pnpm/deps.graph-sequencer
 
+## 2.0.1
+
+### Patch Changes
+
+- db1d6ff: Topological ordering will look for the longest circle
+
 ## 2.0.0
 
 ### Major Changes

@@ -22,7 +22,7 @@ test('lockfileToPackageRegistry', () => {
         specifiers: {},
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: '5',
     packages: {
       'dep1@1.0.0': {
         dependencies: {
@@ -61,6 +61,7 @@ test('lockfileToPackageRegistry', () => {
       default: 'https://registry.npmjs.org/',
     },
     virtualStoreDir: path.resolve('node_modules/.pnpm'),
+    virtualStoreDirMaxLength: 120,
   })
 
   const actual = Array.from(
@@ -184,7 +185,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
         specifiers: {},
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: '5',
     packages: {
       'haspeer@2.0.0(peer@1.0.0)': {
         dependencies: {
@@ -212,6 +213,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
       default: 'https://registry.npmjs.org/',
     },
     virtualStoreDir: path.resolve('node_modules/.pnpm'),
+    virtualStoreDirMaxLength: 120,
   })
 
   const actual = Array.from(

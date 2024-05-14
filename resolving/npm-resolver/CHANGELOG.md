@@ -1,5 +1,26 @@
 # @pnpm/npm-resolver
 
+## 19.0.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
+## 19.0.2
+
+### Patch Changes
+
+- 43b6bb7: Print a better error message when `resolution-mode` is set to `time-based` and the registry fails to return the `"time"` field in the package's metadata.
+
+## 19.0.1
+
+### Patch Changes
+
+- cb0f459: `pnpm update` should not fail when there's an aliased local workspace dependency [#7975](https://github.com/pnpm/pnpm/issues/7975).
+- Updated dependencies [cb0f459]
+  - @pnpm/workspace.spec-parser@1.0.0
+
 ## 19.0.0
 
 ### Major Changes

@@ -18,11 +18,11 @@ import { makeEnv } from './makeEnv'
 
 export const commandNames = ['dlx']
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   c: '--shell-mode',
 }
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'use-node-version',
@@ -31,12 +31,12 @@ export function rcOptionsTypes () {
   }
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   package: [String, Array],
 })
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Run a package in a temporary environment.',
     descriptionLists: [
@@ -69,7 +69,7 @@ export type DlxCommandOptions = {
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
-) {
+): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
   const { cacheLink, prepareDir } = findCache(pkgs, {
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
@@ -108,7 +108,7 @@ export async function handler (
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'exitCode' in err && err.exitCode != null) {
       return {
-        exitCode: err.exitCode,
+        exitCode: err.exitCode as number,
       }
     }
     throw err
@@ -116,7 +116,7 @@ export async function handler (
   return { exitCode: 0 }
 }
 
-async function getPkgName (pkgDir: string) {
+async function getPkgName (pkgDir: string): Promise<string> {
   const manifest = await readPackageJsonFromDir(pkgDir)
   const dependencyNames = Object.keys(manifest.dependencies ?? {})
   if (dependencyNames.length === 0) {
@@ -146,7 +146,7 @@ ${binNames.map(name => `pnpm --package=${pkgName} dlx ${name}`).join('\n')}
   })
 }
 
-function scopeless (pkgName: string) {
+function scopeless (pkgName: string): string {
   if (pkgName[0] === '@') {
     return pkgName.split('/')[1]
   }
@@ -156,7 +156,7 @@ function scopeless (pkgName: string) {
 function findCache (pkgs: string[], opts: {
   cacheDir: string
   dlxCacheMaxAge: number
-}) {
+}): { cacheLink: string, prepareDir: string | null } {
   const dlxCommandCacheDir = createDlxCommandCacheDir(opts.cacheDir, pkgs)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
   const valid = isCacheValid(cacheLink, opts.dlxCacheMaxAge)
@@ -164,7 +164,7 @@ function findCache (pkgs: string[], opts: {
   return { cacheLink, prepareDir }
 }
 
-function createDlxCommandCacheDir (cacheDir: string, pkgs: string[]) {
+function createDlxCommandCacheDir (cacheDir: string, pkgs: string[]): string {
   const dlxCacheDir = path.resolve(cacheDir, 'dlx')
   const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
   const cacheKey = createBase32Hash(hashStr)

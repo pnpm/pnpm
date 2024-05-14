@@ -1,5 +1,87 @@
 # @pnpm/plugin-commands-deploy
 
+## 5.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/plugin-commands-installation@15.1.3
+  - @pnpm/directory-fetcher@8.0.1
+
+## 5.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+- @pnpm/plugin-commands-installation@15.1.2
+
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.1
+
+## 5.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/plugin-commands-installation@15.1.0
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/fs.indexed-pkg-importer@6.0.0
+  - @pnpm/directory-fetcher@8.0.0
+
+## 5.0.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.7
+
+## 5.0.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.6
+
+## 5.0.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.5
+
+## 5.0.4
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+  - @pnpm/plugin-commands-installation@15.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.3
+
+## 5.0.2
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.1
+- @pnpm/plugin-commands-installation@15.0.1
+
 ## 5.0.0
 
 ### Major Changes

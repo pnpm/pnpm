@@ -1,5 +1,73 @@
 # @pnpm/outdated
 
+## 14.0.7
+
+### Patch Changes
+
+- Updated dependencies [b1d7f8c]
+- Updated dependencies [b1d7f8c]
+- Updated dependencies [a7aef51]
+  - @pnpm/hooks.read-package-hook@4.0.2
+  - @pnpm/error@6.0.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/npm-resolver@19.0.3
+  - @pnpm/client@11.0.5
+
+## 14.0.6
+
+### Patch Changes
+
+- Updated dependencies [43b6bb7]
+  - @pnpm/npm-resolver@19.0.2
+  - @pnpm/client@11.0.4
+
+## 14.0.5
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+- Updated dependencies [cb0f459]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/npm-resolver@19.0.1
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/client@11.0.3
+
+## 14.0.4
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/npm-resolver@19.0.0
+
+## 14.0.3
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+  - @pnpm/client@11.0.2
+
+## 14.0.2
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+- Updated dependencies [04310be]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/hooks.read-package-hook@4.0.1
+
+## 14.0.1
+
+### Patch Changes
+
+- @pnpm/client@11.0.1
+
 ## 14.0.0
 
 ### Major Changes

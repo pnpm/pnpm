@@ -11,7 +11,7 @@ import { getNodeVersion } from './downloadNodeVersion'
 import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
 import { getNodeExecPathAndTargetDir } from './utils'
 
-export async function envRemove (opts: NvmNodeCommandOptions, params: string[]) {
+export async function envRemove (opts: NvmNodeCommandOptions, params: string[]): Promise<{ exitCode: number }> {
   if (!opts.global) {
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env remove <version>" can only be used with the "--global" option currently')
   }

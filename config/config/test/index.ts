@@ -4,7 +4,6 @@ import path from 'path'
 import PATH from 'path-name'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { getConfig } from '@pnpm/config'
-import { type PnpmError } from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -48,22 +47,20 @@ test('getConfig()', async () => {
 })
 
 test('throw error if --link-workspace-packages is used with --global', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        global: true,
-        'link-workspace-packages': true,
-      },
-      env,
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "link-workspace-packages" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      global: true,
+      'link-workspace-packages': true,
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL',
+    message: 'Configuration conflict. "link-workspace-packages" may not be used with "global"',
+  })
 })
 
 test('correct settings on global install', async () => {
@@ -82,79 +79,71 @@ test('correct settings on global install', async () => {
 })
 
 test('throw error if --shared-workspace-lockfile is used with --global', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        global: true,
-        'shared-workspace-lockfile': true,
-      },
-      env,
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      global: true,
+      'shared-workspace-lockfile': true,
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL',
+    message: 'Configuration conflict. "shared-workspace-lockfile" may not be used with "global"',
+  })
 })
 
 test('throw error if --lockfile-dir is used with --global', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        global: true,
-        'lockfile-dir': '/home/src',
-      },
-      env,
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "lockfile-dir" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      global: true,
+      'lockfile-dir': '/home/src',
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL',
+    message: 'Configuration conflict. "lockfile-dir" may not be used with "global"',
+  })
 })
 
 test('throw error if --hoist-pattern is used with --global', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        global: true,
-        'hoist-pattern': 'eslint',
-      },
-      env,
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "hoist-pattern" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      global: true,
+      'hoist-pattern': 'eslint',
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL',
+    message: 'Configuration conflict. "hoist-pattern" may not be used with "global"',
+  })
 })
 
 test('throw error if --virtual-store-dir is used with --global', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        global: true,
-        'virtual-store-dir': 'pkgs',
-      },
-      env,
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "virtual-store-dir" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      global: true,
+      'virtual-store-dir': 'pkgs',
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
+    message: 'Configuration conflict. "virtual-store-dir" may not be used with "global"',
+  })
 })
 
 test('when using --global, link-workspace-packages, shared-workspace-lockfile and lockfile-dir are false even if it is set to true in a .npmrc file', async () => {
@@ -280,39 +269,35 @@ test('filter-prod is read from .npmrc as an array', async () => {
 })
 
 test('throw error if --save-prod is used with --save-peer', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        'save-peer': true,
-        'save-prod': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('A package cannot be a peer dependency and a prod dependency at the same time')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      'save-peer': true,
+      'save-prod': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP',
+    message: 'A package cannot be a peer dependency and a prod dependency at the same time',
+  })
 })
 
 test('throw error if --save-optional is used with --save-peer', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        'save-optional': true,
-        'save-peer': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('A package cannot be a peer dependency and an optional dependency at the same time')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      'save-optional': true,
+      'save-peer': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP',
+    message: 'A package cannot be a peer dependency and an optional dependency at the same time',
+  })
 })
 
 test('extraBinPaths', async () => {
@@ -393,57 +378,51 @@ test('hoist-pattern is undefined if --no-hoist used', async () => {
 })
 
 test('throw error if --no-hoist is used with --shamefully-hoist', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        hoist: false,
-        'shamefully-hoist': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('--shamefully-hoist cannot be used with --no-hoist')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      hoist: false,
+      'shamefully-hoist': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_HOIST',
+    message: '--shamefully-hoist cannot be used with --no-hoist',
+  })
 })
 
 test('throw error if --no-hoist is used with --shamefully-flatten', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        hoist: false,
-        'shamefully-flatten': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('--shamefully-flatten cannot be used with --no-hoist')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      hoist: false,
+      'shamefully-flatten': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_HOIST',
+    message: '--shamefully-flatten cannot be used with --no-hoist',
+  })
 })
 
 test('throw error if --no-hoist is used with --hoist-pattern', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        hoist: false,
-        'hoist-pattern': 'eslint-*',
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('--hoist-pattern cannot be used with --no-hoist')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      hoist: false,
+      'hoist-pattern': 'eslint-*',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_HOIST',
+    message: '--hoist-pattern cannot be used with --no-hoist',
+  })
 })
 
 test('normalizing the value of public-hoist-pattern', async () => {

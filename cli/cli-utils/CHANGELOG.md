@@ -1,5 +1,47 @@
 # @pnpm/cli-utils
 
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+- Updated dependencies [524990f]
+  - @pnpm/error@6.0.1
+  - @pnpm/default-reporter@13.1.0
+  - @pnpm/config@21.2.1
+  - @pnpm/package-is-installable@9.0.1
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/read-project-manifest@6.0.1
+
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [43b6bb7]
+  - @pnpm/default-reporter@13.0.3
+
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/config@21.2.0
+  - @pnpm/default-reporter@13.0.2
+
+## 3.0.2
+
+### Patch Changes
+
+- a80b539: Print a hint about the `package-manager-strict` setting, when pnpm doesn't match the version specified in the `packageManager` field in `package.json`.
+
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/default-reporter@13.0.1
+
 ## 3.0.0
 
 ### Major Changes

@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "9.0.0-rc.0",
+  "version": "9.1.1",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -65,9 +65,9 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/registry-mock": "3.29.0",
+    "@pnpm/registry-mock": "3.31.0",
     "@pnpm/run-npm": "workspace:*",
-    "@pnpm/tabtab": "^0.5.2",
+    "@pnpm/tabtab": "^0.5.3",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -78,7 +78,7 @@
     "@types/cross-spawn": "^6.0.6",
     "@types/is-windows": "^1.0.2",
     "@types/pnpm__byline": "npm:@types/byline@^4.2.36",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/semver": "7.5.3",
     "@types/which": "^2.0.2",
     "@zkochan/retry": "^0.2.0",
@@ -108,7 +108,7 @@
     "semver": "^7.6.0",
     "split-cmd": "^1.1.0",
     "strip-ansi": "^6.0.1",
-    "symlink-dir": "^5.2.1",
+    "symlink-dir": "^6.0.0",
     "tempy": "^1.0.1",
     "tree-kill": "^1.2.2",
     "which": "^4.0.0",

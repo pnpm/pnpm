@@ -1,5 +1,35 @@
 # @pnpm/default-resolver
 
+## 19.0.4
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/local-resolver@12.0.1
+  - @pnpm/npm-resolver@19.0.3
+
+## 19.0.3
+
+### Patch Changes
+
+- Updated dependencies [43b6bb7]
+  - @pnpm/npm-resolver@19.0.2
+
+## 19.0.2
+
+### Patch Changes
+
+- Updated dependencies [cb0f459]
+  - @pnpm/npm-resolver@19.0.1
+
+## 19.0.1
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/git-resolver@9.0.1
+
 ## 19.0.0
 
 ### Major Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.find-packages",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Find all packages inside a directory",
   "main": "lib/index.js",
   "files": [
@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "1.0.0",
+    "@pnpm/util.lex-comparator": "3.0.0",
     "fast-glob": "^3.3.2",
     "p-filter": "^2.1.0"
   },

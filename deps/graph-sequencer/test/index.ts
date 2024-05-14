@@ -350,8 +350,7 @@ test('graph with many nodes. Sequencing a subgraph', () => {
   )
 })
 
-// TODO: fix this test
-test.skip('graph with big cycle', () => {
+test('graph with big cycle', () => {
   expect(graphSequencer(new Map([
     ['a', ['b']],
     ['b', ['a', 'c']],
@@ -361,6 +360,23 @@ test.skip('graph with big cycle', () => {
       safe: false,
       chunks: [['a', 'b', 'c']],
       cycles: [['a', 'b', 'c']],
+    }
+  )
+})
+
+test('graph with three cycles', () => {
+  expect(graphSequencer(new Map([
+    ['a', ['b']],
+    ['b', ['a', 'c']],
+    ['c', ['a', 'b']],
+    ['e', ['f']],
+    ['f', ['e']],
+    ['g', ['g']],
+  ]))).toStrictEqual(
+    {
+      safe: false,
+      chunks: [['a', 'b', 'c', 'e', 'f', 'g']],
+      cycles: [['a', 'b', 'c'], ['e', 'f'], ['g']],
     }
   )
 })

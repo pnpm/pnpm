@@ -6,7 +6,7 @@ export interface GetWantedLockfileNameOptions {
   mergeGitBranchLockfiles?: boolean
 }
 
-export async function getWantedLockfileName (opts: GetWantedLockfileNameOptions = { useGitBranchLockfile: false, mergeGitBranchLockfiles: false }) {
+export async function getWantedLockfileName (opts: GetWantedLockfileNameOptions = { useGitBranchLockfile: false, mergeGitBranchLockfiles: false }): Promise<string> {
   if (opts.useGitBranchLockfile && !opts.mergeGitBranchLockfiles) {
     const currentBranchName = await getCurrentBranch()
     if (currentBranchName) {
@@ -20,6 +20,6 @@ export async function getWantedLockfileName (opts: GetWantedLockfileNameOptions 
  * 1. Git branch name may contains slashes, which is not allowed in filenames
  * 2. Filesystem may be case-insensitive, so we need to convert branch name to lowercase
  */
-function stringifyBranchName (branchName: string = '') {
+function stringifyBranchName (branchName: string = ''): string {
   return branchName.replace(/[^a-zA-Z0-9-_.]/g, '!').toLowerCase()
 }

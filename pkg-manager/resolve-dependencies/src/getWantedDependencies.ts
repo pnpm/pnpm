@@ -6,6 +6,7 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
+import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
@@ -54,7 +55,10 @@ export function getWantedDependencies (
 }
 
 function updateWorkspacePref (pref: string): string {
-  return pref.startsWith('workspace:') ? 'workspace:*' : pref
+  const spec = WorkspaceSpec.parse(pref)
+  if (!spec) return pref
+  spec.version = '*'
+  return spec.toString()
 }
 
 function getWantedDependenciesFromGivenSet (

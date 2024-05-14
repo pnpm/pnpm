@@ -24,14 +24,14 @@ export function createPackageExtender (
   return extendPkgHook.bind(null, extensionsByPkgName) as ReadPackageHook
 }
 
-function extendPkgHook (extensionsByPkgName: ExtensionsByPkgName, manifest: PackageManifest) {
+function extendPkgHook (extensionsByPkgName: ExtensionsByPkgName, manifest: PackageManifest): PackageManifest {
   const extensions = extensionsByPkgName.get(manifest.name)
   if (extensions == null) return manifest
   extendPkg(manifest, extensions)
   return manifest
 }
 
-function extendPkg (manifest: PackageManifest, extensions: PackageExtensionMatch[]) {
+function extendPkg (manifest: PackageManifest, extensions: PackageExtensionMatch[]): void {
   for (const { range, packageExtension } of extensions) {
     if (range != null && !semver.satisfies(manifest.version, range)) continue
     for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'] as const) {

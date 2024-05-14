@@ -28,6 +28,7 @@ Config,
 | 'selectedProjectsGraph'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
+| 'virtualStoreDirMaxLength'
 > &
 Partial<Pick<Config, 'userConfig'>>
 
@@ -66,6 +67,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     lockfileDir: opts.lockfileDir ?? opts.dir,
     storeDir,
     virtualStoreDir: opts.virtualStoreDir ?? '.',
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
     registries: opts.registries,
     wantedLockfile: lockfile,

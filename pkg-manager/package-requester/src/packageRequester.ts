@@ -90,6 +90,7 @@ export function createPackageRequester (
     networkConcurrency?: number
     storeDir: string
     verifyStoreIntegrity: boolean
+    virtualStoreDirMaxLength: number
   }
 ): RequestPackageFunction & {
     fetchPackageToStore: FetchPackageToStoreFunction
@@ -120,6 +121,7 @@ export function createPackageRequester (
       concurrency: networkConcurrency,
     }),
     storeDir: opts.storeDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   })
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
@@ -137,6 +139,7 @@ export function createPackageRequester (
     getFilesIndexFilePath: getFilesIndexFilePath.bind(null, {
       getFilePathInCafs,
       storeDir: opts.storeDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }),
     requestPackage,
   })
@@ -235,7 +238,6 @@ async function resolveAndFetch (
             lockfileDir: options.lockfileDir,
             nodeVersion: ctx.nodeVersion,
             optional: wantedDependency.optional === true,
-            pnpmVersion: ctx.pnpmVersion,
             supportedArchitectures: options.supportedArchitectures,
           })
       )
@@ -259,7 +261,7 @@ async function resolveAndFetch (
     }
   }
 
-  const pkg: PkgNameVersion = pick(['name', 'version'], manifest ?? {})
+  const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
     force: forceFetch,
@@ -285,7 +287,7 @@ async function resolveAndFetch (
       isLocal: false as const,
       isInstallable: isInstallable ?? undefined,
       latest,
-      manifest: manifest ?? (await fetchResult.fetching()).bundledManifest,
+      manifest,
       normalizedPref,
       resolution,
       resolvedVia,
@@ -307,10 +309,11 @@ function getFilesIndexFilePath (
   ctx: {
     getFilePathInCafs: (integrity: string, fileType: FileType) => string
     storeDir: string
+    virtualStoreDirMaxLength: number
   },
   opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>
 ) {
-  const targetRelative = depPathToFilename(opts.pkg.id)
+  const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
   const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
     ? ctx.getFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, 'index')
@@ -338,6 +341,7 @@ function fetchToStore (
       concurrency: number
     }
     storeDir: string
+    virtualStoreDirMaxLength: number
   },
   opts: FetchPackageToStoreOptions
 ): {

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "23.0.0",
+  "version": "23.1.2",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -23,13 +23,13 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
-    "@pnpm/registry-mock": "3.29.0",
+    "@pnpm/registry-mock": "3.31.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/fs-extra": "^9.0.13",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "@types/rimraf": "^3.0.2",
     "@types/sinon": "^10.0.20",
     "concurrently": "8.2.1",
@@ -66,7 +66,7 @@
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
-    "@pnpm/builder.policy": "1.1.0",
+    "@pnpm/builder.policy": "3.0.0",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",

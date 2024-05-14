@@ -236,7 +236,7 @@ test('convertToLockfileObject() converts package IDs', () => {
       project1: {
         dependencies: {
           'is-positive': 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678(@babel/core@2.0.0)',
-          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          tarball: 'is-positive@https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
           'git-hosted': 'git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc(foo@1.0.0)',
           'is-odd': '1.0.0',
         },
@@ -249,16 +249,16 @@ test('convertToLockfileObject() converts package IDs', () => {
       },
     },
     packages: {
-      'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678(@babel/core@2.0.0)': {
+      'is-positive@https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678(@babel/core@2.0.0)': {
         name: 'is-positive',
         resolution: { tarball: 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678' },
       },
-      'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
+      'is-positive@https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
         name: 'is-positive',
         resolution: { tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz', integrity: '' },
       },
-      'git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc(foo@1.0.0)': {
-        id: 'git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
+      'git-hosted@git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc(foo@1.0.0)': {
+        id: 'git-hosted@git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
         name: 'git-hosted',
         resolution: {
           commit: '988c61e11dc8d9ca0b5580cb15291951812549dc',

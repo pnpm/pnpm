@@ -5,11 +5,11 @@ import { getShellFromParams } from './getShell'
 
 export const commandNames = ['completion']
 
-export const rcOptionsTypes = () => ({})
+export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
-export const cliOptionsTypes = () => ({})
+export const cliOptionsTypes = (): Record<string, unknown> => ({})
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Print shell completion code to stdout',
     url: docsUrl('completion'),
@@ -21,7 +21,9 @@ export interface Context {
   readonly log: (output: string) => void
 }
 
-export function createCompletionGenerator (ctx: Context) {
+export type CompletionGenerator = (_opts: unknown, params: string[]) => Promise<void>
+
+export function createCompletionGenerator (ctx: Context): CompletionGenerator {
   return async function handler (_opts: unknown, params: string[]): Promise<void> {
     const shell = getShellFromParams(params)
     const output = await getCompletionScript({ name: 'pnpm', completer: 'pnpm', shell })
@@ -29,6 +31,6 @@ export function createCompletionGenerator (ctx: Context) {
   }
 }
 
-export const handler = createCompletionGenerator({
+export const handler: CompletionGenerator = createCompletionGenerator({
   log: console.log,
 })

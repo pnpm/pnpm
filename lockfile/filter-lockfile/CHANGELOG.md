@@ -1,5 +1,35 @@
 # @pnpm/filter-lockfile
 
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/package-is-installable@9.0.1
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+
+## 9.0.2
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/lockfile-walker@8.0.1
+
+## 9.0.1
+
+### Patch Changes
+
+- b7d2ed4: The `engines.pnpm` field in the `package.json` files of dependencies should be ignored [#7965](https://github.com/pnpm/pnpm/issues/7965).
+
 ## 9.0.0
 
 ### Major Changes

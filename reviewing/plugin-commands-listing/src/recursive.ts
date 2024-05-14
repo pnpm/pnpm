@@ -8,7 +8,7 @@ import { render } from './list'
 export async function listRecursive (
   pkgs: Project[],
   params: string[],
-  opts: Pick<Config, 'lockfileDir'> & {
+  opts: Pick<Config, 'lockfileDir' | 'virtualStoreDirMaxLength'> & {
     depth?: number
     include: IncludedDependencies
     long?: boolean

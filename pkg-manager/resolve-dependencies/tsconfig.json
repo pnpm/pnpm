@@ -59,6 +59,9 @@
     },
     {
       "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../workspace/spec-parser"
     }
   ],
   "composite": true

@@ -1,5 +1,38 @@
 # @pnpm/default-reporter
 
+## 13.1.0
+
+### Minor Changes
+
+- 524990f: fix(default-reporter): replace deprecated right-pad with String.padEnd
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/config@21.2.1
+  - @pnpm/render-peer-issues@5.0.1
+
+## 13.0.3
+
+### Patch Changes
+
+- 43b6bb7: Print a better error message when `resolution-mode` is set to `time-based` and the registry fails to return the `"time"` field in the package's metadata.
+
+## 13.0.2
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/config@21.2.0
+
+## 13.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+
 ## 13.0.0
 
 ### Major Changes

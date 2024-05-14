@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-workspace-packages",
-  "version": "8.0.0",
+  "version": "8.0.6",
   "description": "Filters packages in a workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -43,8 +43,8 @@
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/micromatch": "^4.0.6",
-    "@types/ramda": "0.28.20",
+    "@types/micromatch": "^4.0.7",
+    "@types/ramda": "0.29.12",
     "@types/touch": "^3.1.5",
     "ci-info": "^3.9.0",
     "is-windows": "^1.0.2",

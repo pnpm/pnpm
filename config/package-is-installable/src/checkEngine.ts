@@ -18,7 +18,7 @@ export function checkEngine (
   packageId: string,
   wantedEngine: WantedEngine,
   currentEngine: Engine
-) {
+): UnsupportedEngineError | null {
   if (!wantedEngine) return null
   const unsatisfiedWanted: WantedEngine = {}
   if (wantedEngine.node && !semver.satisfies(currentEngine.node, wantedEngine.node, { includePrerelease: true })) {

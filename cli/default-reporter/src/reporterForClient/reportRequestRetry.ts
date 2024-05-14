@@ -6,7 +6,7 @@ import { formatWarn } from './utils/formatWarn'
 
 export function reportRequestRetry (
   requestRetry$: Rx.Observable<RequestRetryLog>
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return requestRetry$.pipe(
     map((log) => {
       const retriesLeft = log.maxRetries - log.attempt + 1

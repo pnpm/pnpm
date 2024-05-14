@@ -109,7 +109,10 @@ export interface BaseManifest {
   exports?: Record<string, string>
 }
 
-export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>
+export interface DependencyManifest extends BaseManifest {
+  name: string
+  version: string
+}
 
 export type PackageExtension = Pick<BaseManifest, 'dependencies' | 'optionalDependencies' | 'peerDependencies' | 'peerDependenciesMeta'>
 
@@ -121,7 +124,7 @@ export interface PeerDependencyRules {
 
 export type AllowedDeprecatedVersions = Record<string, string>
 
-export type ProjectManifest = BaseManifest & {
+export interface ProjectManifest extends BaseManifest {
   packageManager?: string
   workspaces?: string[]
   pnpm?: {
@@ -148,7 +151,7 @@ export type ProjectManifest = BaseManifest & {
   resolutions?: Record<string, string>
 }
 
-export type PackageManifest = DependencyManifest & {
+export interface PackageManifest extends DependencyManifest {
   deprecated?: string
 }
 

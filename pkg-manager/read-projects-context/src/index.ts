@@ -31,6 +31,7 @@ export async function readProjectsContext<T> (
     registries: Registries | null | undefined
     rootModulesDir: string
     skipped: Set<string>
+    virtualStoreDirMaxLength?: number
   }> {
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(path.join(opts.lockfileDir, relativeModulesDir))
@@ -58,5 +59,6 @@ export async function readProjectsContext<T> (
     registries: ((modules?.registries) != null) ? normalizeRegistries(modules.registries) : undefined,
     rootModulesDir,
     skipped: new Set(modules?.skipped ?? []),
+    virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength,
   }
 }

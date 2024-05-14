@@ -1,5 +1,12 @@
 # @pnpm/dedupe.check
 
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
 ## 2.0.0
 
 ### Major Changes

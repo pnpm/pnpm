@@ -11,7 +11,7 @@ test('hoist', async () => {
 
 test('hoist throws an error if the lockfile is broken', () => {
   expect(() => hoist({
-    lockfileVersion: 5,
+    lockfileVersion: '5',
     importers: {
       '.': {
         dependencies: {

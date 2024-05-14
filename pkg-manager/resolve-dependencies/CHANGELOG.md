@@ -1,5 +1,79 @@
 # @pnpm/resolve-dependencies
 
+## 32.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/npm-resolver@19.0.3
+  - @pnpm/lockfile.preferred-versions@1.0.3
+
+## 32.1.2
+
+### Patch Changes
+
+- 2cb67d7: Improve the performance of the peers resolution stage by utilizing more cache [#8058](https://github.com/pnpm/pnpm/pull/8058).
+- Updated dependencies [43b6bb7]
+  - @pnpm/npm-resolver@19.0.2
+
+## 32.1.1
+
+### Patch Changes
+
+- 7a0536e: Fix `Cannot read properties of undefined (reading 'missingPeersOfChildren')` exception that happens on install [#8041](https://github.com/pnpm/pnpm/issues/8041).
+- cb0f459: `pnpm update` should not fail when there's an aliased local workspace dependency [#7975](https://github.com/pnpm/pnpm/issues/7975).
+- Updated dependencies [cb0f459]
+- Updated dependencies [7a0536e]
+- Updated dependencies [cb0f459]
+  - @pnpm/workspace.spec-parser@1.0.0
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/npm-resolver@19.0.1
+  - @pnpm/lockfile.preferred-versions@1.0.2
+
+## 32.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- 1a6f7fb: A dependency is hoisted to resolve an optional peer dependency only if it satisfies the range provided for the optional peer dependency [#8028](https://github.com/pnpm/pnpm/pull/8028).
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/prune-lockfile@6.0.1
+  - @pnpm/lockfile.preferred-versions@1.0.1
+  - @pnpm/npm-resolver@19.0.0
+
+## 32.0.4
+
+### Patch Changes
+
+- abaf12e: Resolve peer dependencies correctly, when they have prerelease versions [#7977](https://github.com/pnpm/pnpm/issues/7977).
+- e9530a8: Fix aliased dependencies resolution on repeat install with existing lockfile, when the aliased dependency doesn't specify a version or range [#7957](https://github.com/pnpm/pnpm/issues/7957).
+
+## 32.0.3
+
+### Patch Changes
+
+- eb19475: Fix aliased dependencies resolution on repeat install with existing lockfile [#7957](https://github.com/pnpm/pnpm/issues/7957).
+
+## 32.0.2
+
+### Patch Changes
+
+- b3961cb: Fixed an issue where optional dependencies were not linked into the dependent's node_modules [#7943](https://github.com/pnpm/pnpm/issues/7943).
+
+## 32.0.1
+
+### Patch Changes
+
+- 253d50c: Optional peer dependencies should be resolved as optional dependencies [#7918](https://github.com/pnpm/pnpm/pull/7918).
+
 ## 32.0.0
 
 ### Major Changes

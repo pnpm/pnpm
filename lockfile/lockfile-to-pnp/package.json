@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-to-pnp",
-  "version": "4.0.0",
+  "version": "4.1.2",
   "description": "Creates a Plug'n'Play file from a pnpm-lock.yaml",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,7 +36,7 @@
   "devDependencies": {
     "@pnpm/lockfile-to-pnp": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "rimraf": "^3.0.2"
   },
   "dependencies": {

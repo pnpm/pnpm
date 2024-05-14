@@ -1,5 +1,21 @@
 # @pnpm/prepare-package
 
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/lifecycle@17.0.2
+  - @pnpm/read-package-json@9.0.1
+
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [bfadc0a]
+  - @pnpm/lifecycle@17.0.1
+
 ## 6.0.0
 
 ### Major Changes

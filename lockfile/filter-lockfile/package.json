@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-lockfile",
-  "version": "9.0.0",
+  "version": "9.0.4",
   "description": "Filters a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@pnpm/filter-lockfile": "workspace:*",
-    "@types/ramda": "0.28.20",
+    "@types/ramda": "0.29.12",
     "detect-libc": "^2.0.3",
     "tempy": "^1.0.1",
     "write-yaml-file": "^5.0.0",

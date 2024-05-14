@@ -26,7 +26,7 @@ export async function symlinkDirectRootDependency (
     }
     prefix: string
   }
-) {
+): Promise<void> {
   // `opts.destModulesDir` may be a non-existent `node_modules` dir
   // so `fs.realpath` would throw.
   // Even though `symlinkDir` creates the dir if it doesn't exist,

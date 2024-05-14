@@ -98,11 +98,15 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
   function findCycle (startNode: T): T[] {
     const queue: Array<[T, T[]]> = [[startNode, [startNode]]]
     const cycleVisited = new Set<T>()
+    const cycles: T[][] = []
+
     while (queue.length) {
       const [id, cycle] = queue.shift()!
       for (const to of graph.get(id)!) {
         if (to === startNode) {
-          return cycle
+          cycleVisited.add(to)
+          cycles.push([...cycle])
+          continue
         }
         if (visited.has(to) || cycleVisited.has(to)) {
           continue
@@ -111,6 +115,11 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
         queue.push([to, [...cycle, to]])
       }
     }
-    return []
+
+    if (!cycles.length) {
+      return []
+    }
+    cycles.sort((a, b) => b.length - a.length)
+    return cycles[0]
   }
 }
