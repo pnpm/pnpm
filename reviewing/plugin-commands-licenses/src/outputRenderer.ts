@@ -138,20 +138,27 @@ function renderLicensesTable (
     }
     detailsColumnMaxWidth = Math.max(detailsColumnMaxWidth, 40)
   }
-
-  return table(
-    data,
-    {
-      ...TABLE_OPTIONS,
-      columns: {
-        ...TABLE_OPTIONS.columns,
-        2: {
-          width: detailsColumnMaxWidth,
-          wrapWord: true,
+  try {
+    return table(
+      data,
+      {
+        ...TABLE_OPTIONS,
+        columns: {
+          ...TABLE_OPTIONS.columns,
+          2: {
+            width: detailsColumnMaxWidth,
+            wrapWord: true,
+          },
         },
-      },
-    }
-  )
+      }
+    )
+  } catch {
+    // Fallback to the default table if the details column width is too large, avoiding the error
+    return table(
+      data,
+      TABLE_OPTIONS
+    )
+  }
 }
 
 function deduplicateLicensesPackages (licensePackages: LicensePackage[]): LicensePackage[] {
