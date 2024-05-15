@@ -126,9 +126,9 @@ function renderLicensesTable (
     for (let i = 1; i < data.length; i++) {
       const row = data[i]
       const texts = row[2].split('\n')
-      const repeatCount = Math.max(0, texts.length - 1)
-      row[0] += '\n '.repeat(repeatCount) // Add extra spaces to the package column
-      row[1] += '\n '.repeat(repeatCount) // Add extra spaces to the license column
+      const linesNumber = Math.max(0, texts.length - 1)
+      row[0] += '\n '.repeat(linesNumber) // Add extra spaces to the package column
+      row[1] += '\n '.repeat(linesNumber) // Add extra spaces to the license column
       packageColumnMaxWidth = Math.max(packageColumnMaxWidth, row[0].length)
       licenseColumnMaxWidth = Math.max(licenseColumnMaxWidth, row[1].length)
     }
