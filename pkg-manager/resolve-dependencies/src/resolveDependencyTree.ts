@@ -206,7 +206,6 @@ export async function resolveDependencyTree<T> (
 
   ctx.pendingNodes.forEach((pendingNode) => {
     ctx.dependenciesTree.set(pendingNode.nodeId, {
-      parentNodeId: pendingNode.parentNodeId,
       children: () => buildTree(ctx, pendingNode.nodeId, pendingNode.resolvedPackage.id,
         pendingNode.parentDepPaths,
         ctx.childrenByParentDepPath[pendingNode.resolvedPackage.depPath], pendingNode.depth + 1, pendingNode.installable),
@@ -290,7 +289,6 @@ function buildTree (
     childrenNodeIds[child.alias] = childNodeId
     installable = installable || !ctx.skipped.has(child.depPath)
     ctx.dependenciesTree.set(childNodeId, {
-      parentNodeId,
       children: () => buildTree(ctx,
         childNodeId,
         child.depPath,

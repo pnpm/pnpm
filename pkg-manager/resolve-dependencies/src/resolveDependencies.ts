@@ -81,7 +81,6 @@ export interface ChildrenMap {
 }
 
 export type DependenciesTreeNode<T> = {
-  parentNodeId: string
   children: (() => ChildrenMap) | ChildrenMap
   installable: boolean
 } & ({
@@ -752,7 +751,6 @@ async function resolveDependenciesOfDependency (
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
   if (resolveDependencyResult.isLinkedDependency) {
     ctx.dependenciesTree.set(createNodeIdForLinkedLocalPkg(ctx.lockfileDir, resolveDependencyResult.resolution.directory), {
-      parentNodeId: options.parentPkg.nodeId,
       children: {},
       depth: -1,
       installable: true,
@@ -901,7 +899,6 @@ async function resolveChildren (
     depPath: child.depPath,
   }))
   ctx.dependenciesTree.set(parentPkg.nodeId, {
-    parentNodeId,
     children: pkgAddresses.reduce((chn, child) => {
       chn[child.alias] = (child as PkgAddress).nodeId ?? child.pkgId
       return chn

@@ -649,13 +649,11 @@ function parentPkgsHaveSingleOccurrence (parentPkgs: Record<string, ParentPkgInf
 // So we need to merge all the children of all the parent packages with same ID as the resolved package.
 // This way we get all the children that were removed, when ending cycles.
 function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (parentNodeIds: string[], parentDepPathsChain: string[], dependenciesTree: DependenciesTree<T>, ownDepPath: string): ChildrenMap {
-  const parentIds = [...parentNodeIds]
-  const parentDepPaths = [...parentDepPathsChain]
   const allChildren: ChildrenMap = {}
 
-  if (!ownDepPath || !parentDepPaths.includes(ownDepPath)) return allChildren
+  if (!ownDepPath || !parentDepPathsChain.includes(ownDepPath)) return allChildren
 
-  for (const parentNodeId of parentIds.reverse()) {
+  for (const parentNodeId of [...parentNodeIds].reverse()) {
     const parentNode = dependenciesTree.get(parentNodeId)!
     if ((parentNode.resolvedPackage as T).depPath === ownDepPath) {
       if (typeof parentNode.children === 'function') {
