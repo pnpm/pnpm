@@ -11,6 +11,7 @@ import {
 import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
 import { type WantedDependency } from './getNonDevWantedDependencies'
+import { nextNodeId } from './nextNodeId'
 import {
   nodeIdContainsSequence,
 } from './nodeIdUtils'
@@ -206,7 +207,7 @@ export async function resolveDependencyTree<T> (
 
   ctx.pendingNodes.forEach((pendingNode) => {
     ctx.dependenciesTree.set(pendingNode.nodeId, {
-      children: () => buildTree(ctx, pendingNode.nodeId, pendingNode.resolvedPackage.id,
+      children: () => buildTree(ctx, pendingNode.resolvedPackage.id,
         pendingNode.parentDepPaths,
         ctx.childrenByParentDepPath[pendingNode.resolvedPackage.depPath], pendingNode.depth + 1, pendingNode.installable),
       depth: pendingNode.depth,
@@ -259,8 +260,6 @@ export async function resolveDependencyTree<T> (
   }
 }
 
-let nodeId = 0
-
 function buildTree (
   ctx: {
     childrenByParentDepPath: ChildrenByParentDepPath
@@ -268,7 +267,6 @@ function buildTree (
     resolvedPackagesByDepPath: ResolvedPackagesByDepPath
     skipped: Set<string>
   },
-  parentNodeId: string,
   parentId: string,
   parentDepPaths: string[],
   children: Array<{ alias: string, depPath: string }>,
@@ -284,13 +282,11 @@ function buildTree (
     if (nodeIdContainsSequence(parentDepPaths, parentId, child.depPath) || parentId === child.depPath) {
       continue
     }
-    --nodeId
-    const childNodeId = nodeId.toString() // createNodeId(parentNodeId, child.depPath)
+    const childNodeId = nextNodeId()
     childrenNodeIds[child.alias] = childNodeId
     installable = installable || !ctx.skipped.has(child.depPath)
     ctx.dependenciesTree.set(childNodeId, {
       children: () => buildTree(ctx,
-        childNodeId,
         child.depPath,
         [...parentDepPaths, child.depPath],
         ctx.childrenByParentDepPath[child.depPath],

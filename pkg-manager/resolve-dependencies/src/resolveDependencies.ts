@@ -50,14 +50,13 @@ import semver from 'semver'
 import { encodePkgId } from './encodePkgId'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies'
 import { safeIntersect } from './mergePeers'
+import { nextNodeId } from './nextNodeId'
 import {
   nodeIdContainsSequence,
 } from './nodeIdUtils'
 import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
 import { replaceVersionInPref } from './replaceVersionInPref'
-
-let nodeIdCounter = 0
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
@@ -1354,7 +1353,7 @@ async function resolveDependency (
   // we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless.
   const nodeId = pkgIsLeaf(pkg)
     ? `>${depPath}>`
-    : (++nodeIdCounter).toString()
+    : nextNodeId()
 
   const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false
