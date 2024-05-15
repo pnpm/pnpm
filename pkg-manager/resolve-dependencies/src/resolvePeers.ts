@@ -110,6 +110,8 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       lockfileDir: opts.lockfileDir,
+      parentNodeIds: [],
+      parentDepPathsChain: [],
       pathsByNodeId,
       pathsByNodeIdPromises,
       depPathsByPkgId,
@@ -326,6 +328,8 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   ctx: ResolvePeersContext & {
     allPeerDepNames: Set<string>
     parentPkgsOfNode: ParentPkgsOfNode
+    parentNodeIds: string[]
+    parentDepPathsChain: string[]
     dependenciesTree: DependenciesTree<T>
     depGraph: GenericDependenciesGraph<T>
     virtualStoreDir: string
@@ -398,7 +402,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     resolvedPeers: unknownResolvedPeersOfChildren,
     missingPeers: missingPeersOfChildren,
     finishing,
-  } = await resolvePeersOfChildren(children, parentPkgs, ctx)
+  } = await resolvePeersOfChildren(children, parentPkgs, {
+    ...ctx,
+    parentNodeIds: [...ctx.parentNodeIds, nodeId],
+    parentDepPathsChain: ctx.parentDepPathsChain.includes(resolvedPackage.depPath) ? ctx.parentDepPathsChain : [...ctx.parentDepPathsChain, resolvedPackage.depPath],
+  })
 
   const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies).length === 0
     ? { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
@@ -539,7 +547,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ctx.depGraph[depPath] = {
         ...(node.resolvedPackage as T),
         children: Object.assign(
-          getPreviouslyResolvedChildren(nodeId, ctx.dependenciesTree),
+          getPreviouslyResolvedChildren(ctx.parentNodeIds, ctx.parentDepPathsChain, ctx.dependenciesTree, (node.resolvedPackage as T).depPath),
           children,
           Object.fromEntries(resolvedPeers.entries())
         ),
@@ -640,27 +648,25 @@ function parentPkgsHaveSingleOccurrence (parentPkgs: Record<string, ParentPkgInf
 // from the dependencies of the parent package.
 // So we need to merge all the children of all the parent packages with same ID as the resolved package.
 // This way we get all the children that were removed, when ending cycles.
-function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (nodeId: string, dependenciesTree: DependenciesTree<T>): ChildrenMap {
-  const parentIds = splitNodeId(nodeId)
-  const ownId = parentIds.pop()
+function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (parentNodeIds: string[], parentDepPathsChain: string[], dependenciesTree: DependenciesTree<T>, ownDepPath: string): ChildrenMap {
+  const parentIds = [...parentNodeIds]
+  const parentDepPaths = [...parentDepPathsChain]
   const allChildren: ChildrenMap = {}
 
-  if (!ownId || !parentIds.includes(ownId)) return allChildren
+  if (!ownDepPath || !parentDepPaths.includes(ownDepPath)) return allChildren
 
-  const nodeIdChunks = parentIds.join('>').split(`>${ownId}>`)
-  nodeIdChunks.pop()
-  nodeIdChunks.reduce((accNodeId, part) => {
-    accNodeId += `>${part}>${ownId}`
-    const parentNode = dependenciesTree.get(`${accNodeId}>`)!
-    if (typeof parentNode.children === 'function') {
-      parentNode.children = parentNode.children()
+  for (const parentNodeId of parentIds.reverse()) {
+    const parentNode = dependenciesTree.get(parentNodeId)!
+    if ((parentNode.resolvedPackage as T).depPath === ownDepPath) {
+      if (typeof parentNode.children === 'function') {
+        parentNode.children = parentNode.children()
+      }
+      Object.assign(
+        allChildren,
+        parentNode.children
+      )
     }
-    Object.assign(
-      allChildren,
-      parentNode.children
-    )
-    return accNodeId
-  }, '')
+  }
   return allChildren
 }
 
@@ -672,6 +678,8 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   ctx: ResolvePeersContext & {
     allPeerDepNames: Set<string>
     parentPkgsOfNode: ParentPkgsOfNode
+    parentNodeIds: string[]
+    parentDepPathsChain: string[]
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     virtualStoreDir: string

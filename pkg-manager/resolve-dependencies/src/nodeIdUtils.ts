@@ -3,13 +3,11 @@ export function nodeIdContains (nodeId: string, pkgId: string): boolean {
   return pkgIds.includes(pkgId)
 }
 
-export function nodeIdContainsSequence (nodeId: string, pkgId1: string, pkgId2: string): boolean {
-  const pkgIds = splitNodeId(nodeId)
-  pkgIds.pop()
+export function nodeIdContainsSequence (pkgIds: string[], pkgId1: string, pkgId2: string): boolean {
   const pkg1Index = pkgIds.indexOf(pkgId1)
-  if (pkg1Index === -1) return false
+  if (pkg1Index === -1 || pkg1Index === pkgIds.length - 1) return false
   const pkg2Index = pkgIds.lastIndexOf(pkgId2)
-  return pkg1Index < pkg2Index
+  return pkg1Index < pkg2Index && pkg2Index !== pkgIds.length - 1
 }
 
 export function createNodeId (parentNodeId: string, pkgId: string): string {

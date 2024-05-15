@@ -12,7 +12,6 @@ import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
 import { type WantedDependency } from './getNonDevWantedDependencies'
 import {
-  createNodeId,
   nodeIdContainsSequence,
 } from './nodeIdUtils'
 import {
@@ -179,6 +178,7 @@ export async function resolveDependencyTree<T> (
         depPath: importer.id,
         rootDir: importer.rootDir,
       },
+      parentDepPaths: [],
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,
@@ -206,7 +206,9 @@ export async function resolveDependencyTree<T> (
 
   ctx.pendingNodes.forEach((pendingNode) => {
     ctx.dependenciesTree.set(pendingNode.nodeId, {
+      parentNodeId: pendingNode.parentNodeId,
       children: () => buildTree(ctx, pendingNode.nodeId, pendingNode.resolvedPackage.id,
+        pendingNode.parentDepPaths,
         ctx.childrenByParentDepPath[pendingNode.resolvedPackage.depPath], pendingNode.depth + 1, pendingNode.installable),
       depth: pendingNode.depth,
       installable: pendingNode.installable,
@@ -258,6 +260,8 @@ export async function resolveDependencyTree<T> (
   }
 }
 
+let nodeId = 0
+
 function buildTree (
   ctx: {
     childrenByParentDepPath: ChildrenByParentDepPath
@@ -267,6 +271,7 @@ function buildTree (
   },
   parentNodeId: string,
   parentId: string,
+  parentDepPaths: string[],
   children: Array<{ alias: string, depPath: string }>,
   depth: number,
   installable: boolean
@@ -277,16 +282,19 @@ function buildTree (
       childrenNodeIds[child.alias] = child.depPath
       continue
     }
-    if (nodeIdContainsSequence(parentNodeId, parentId, child.depPath) || parentId === child.depPath) {
+    if (nodeIdContainsSequence(parentDepPaths, parentId, child.depPath) || parentId === child.depPath) {
       continue
     }
-    const childNodeId = createNodeId(parentNodeId, child.depPath)
+    --nodeId
+    const childNodeId = nodeId.toString() // createNodeId(parentNodeId, child.depPath)
     childrenNodeIds[child.alias] = childNodeId
     installable = installable || !ctx.skipped.has(child.depPath)
     ctx.dependenciesTree.set(childNodeId, {
+      parentNodeId,
       children: () => buildTree(ctx,
         childNodeId,
         child.depPath,
+        [...parentDepPaths, child.depPath],
         ctx.childrenByParentDepPath[child.depPath],
         depth + 1,
         installable
