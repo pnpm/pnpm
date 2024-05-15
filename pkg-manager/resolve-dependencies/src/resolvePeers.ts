@@ -13,7 +13,6 @@ import { depPathToFilename, createPeersDirSuffix, type PeerId } from '@pnpm/depe
 import mapValues from 'ramda/src/map'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
-import scan from 'ramda/src/scan'
 import {
   type ChildrenMap,
   type PeerDependencies,
@@ -23,7 +22,6 @@ import {
 } from './resolveDependencies'
 import { type ResolvedImporters } from './resolveDependencyTree'
 import { mergePeers } from './mergePeers'
-import { createNodeId, splitNodeId } from './nodeIdUtils'
 import { dedupeInjectedDeps } from './dedupeInjectedDeps'
 
 export interface GenericDependenciesGraphNode {
@@ -272,6 +270,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
         alias,
         node: dependenciesTree.get(directNodeIdsByAlias[alias])!,
         nodeId: directNodeIdsByAlias[alias],
+        parentNodeIds: [],
       }))
   )
   const _updateParentRefs = updateParentRefs.bind(null, parentRefs)
@@ -282,6 +281,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
       depth: 0,
       version,
       nodeId: linkedDir,
+      parentNodeIds: [],
     }
     _updateParentRefs(name, pkg)
     if (alias && alias !== name) {
@@ -369,6 +369,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           alias,
           node: ctx.dependenciesTree.get(nodeId)!,
           nodeId,
+          parentNodeIds: ctx.parentNodeIds,
         })
       }
     }
@@ -419,6 +420,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       peerDependencyIssues: ctx.peerDependencyIssues,
       resolvedPackage,
       rootDir: ctx.rootDir,
+      parentNodeIds: ctx.parentNodeIds,
     })
 
   const allResolvedPeers = unknownResolvedPeersOfChildren
@@ -768,6 +770,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
     lockfileDir: string
     nodeId: string
     parentPkgs: ParentRefs
+    parentNodeIds: string[]
     resolvedPackage: T
     dependenciesTree: DependenciesTree<T>
     rootDir: string
@@ -786,7 +789,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
       missingPeers.add(peerName)
       const location = getLocationFromNodeIdAndPkg({
         dependenciesTree: ctx.dependenciesTree,
-        nodeId: ctx.nodeId,
+        parentNodeIds: ctx.parentNodeIds,
         pkg: ctx.resolvedPackage,
       })
       if (!ctx.peerDependencyIssues.missing[peerName]) {
@@ -803,7 +806,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
     if (!semverUtils.satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
       const location = getLocationFromNodeIdAndPkg({
         dependenciesTree: ctx.dependenciesTree,
-        nodeId: ctx.nodeId,
+        parentNodeIds: ctx.parentNodeIds,
         pkg: ctx.resolvedPackage,
       })
       if (!ctx.peerDependencyIssues.bad[peerName]) {
@@ -811,9 +814,9 @@ function _resolvePeers<T extends PartialResolvedPackage> (
       }
       const peerLocation = resolved.nodeId == null
         ? []
-        : getLocationFromNodeId({
+        : getLocationFromParentNodeIds({
           dependenciesTree: ctx.dependenciesTree,
-          nodeId: resolved.nodeId,
+          parentNodeIds: resolved.parentNodeIds,
         }).parents
       ctx.peerDependencyIssues.bad[peerName].push({
         foundVersion: resolved.version,
@@ -837,15 +840,15 @@ interface Location {
 function getLocationFromNodeIdAndPkg<T> (
   {
     dependenciesTree,
-    nodeId,
+    parentNodeIds,
     pkg,
   }: {
     dependenciesTree: DependenciesTree<T>
-    nodeId: string
+    parentNodeIds: string[]
     pkg: { name: string, version: string }
   }
 ): Location {
-  const { projectId, parents } = getLocationFromNodeId({ dependenciesTree, nodeId })
+  const { projectId, parents } = getLocationFromParentNodeIds({ dependenciesTree, parentNodeIds })
   parents.push({ name: pkg.name, version: pkg.version })
   return {
     projectId,
@@ -853,22 +856,19 @@ function getLocationFromNodeIdAndPkg<T> (
   }
 }
 
-function getLocationFromNodeId<T> (
+function getLocationFromParentNodeIds<T> (
   {
     dependenciesTree,
-    nodeId,
+    parentNodeIds,
   }: {
     dependenciesTree: DependenciesTree<T>
-    nodeId: string
+    parentNodeIds: string[]
   }
 ): Location {
-  const parts = splitNodeId(nodeId).slice(0, -1)
-  const parents = scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
-    .slice(2)
-
+  const parents = parentNodeIds
     .map((nid) => pick(['name', 'version'], dependenciesTree.get(nid)!.resolvedPackage as ResolvedPackage))
   return {
-    projectId: parts[0],
+    projectId: '.',
     parents,
   }
 }
@@ -884,24 +884,27 @@ interface ParentRef {
   nodeId?: string
   alias?: string
   occurrence: number
+  parentNodeIds: string[]
 }
 
 interface ParentPkgNode<T> {
   alias: string
   nodeId: string
   node: DependenciesTreeNode<T>
+  parentNodeIds: string[]
 }
 
 function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<ParentPkgNode<T>>): ParentRefs {
   const pkgsByName: ParentRefs = {}
   const _updateParentRefs = updateParentRefs.bind(null, pkgsByName)
-  for (const { alias, node, nodeId } of nodes) {
+  for (const { alias, node, nodeId, parentNodeIds } of nodes) {
     const pkg = {
       alias,
       depth: node.depth,
       nodeId,
       version: node.resolvedPackage.version,
       occurrence: 0,
+      parentNodeIds,
     }
     _updateParentRefs(alias, pkg)
     if (alias !== node.resolvedPackage.name) {
