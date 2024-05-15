@@ -125,8 +125,8 @@ function renderLicensesTable (
     detailsColumnMaxWidth = licensePackages.reduce((max, pkg) => Math.max(max, pkg.homepage?.length ?? 0), 0)
     for (let i = 1; i < data.length; i++) {
       const row = data[i]
-      const texts = row[2].split('\n')
-      const linesNumber = Math.max(0, texts.length - 1)
+      const detailsLineCount = row[2].split('\n').length
+      const linesNumber = Math.max(0, detailsLineCount - 1)
       row[0] += '\n '.repeat(linesNumber) // Add extra spaces to the package column
       row[1] += '\n '.repeat(linesNumber) // Add extra spaces to the license column
       packageColumnMaxWidth = Math.max(packageColumnMaxWidth, row[0].length)
