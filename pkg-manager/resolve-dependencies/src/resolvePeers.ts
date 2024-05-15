@@ -356,6 +356,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (typeof node.children === 'function') {
     node.children = node.children()
   }
+  const parentNodeIds = [...ctx.parentNodeIds, nodeId]
   const children = node.children
   let parentPkgs: ParentRefs
   if (Object.keys(children).length === 0) {
@@ -369,7 +370,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           alias,
           node: ctx.dependenciesTree.get(nodeId)!,
           nodeId,
-          parentNodeIds: ctx.parentNodeIds,
+          parentNodeIds,
         })
       }
     }
@@ -405,7 +406,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     finishing,
   } = await resolvePeersOfChildren(children, parentPkgs, {
     ...ctx,
-    parentNodeIds: [...ctx.parentNodeIds, nodeId],
+    parentNodeIds,
     parentDepPathsChain: ctx.parentDepPathsChain.includes(resolvedPackage.depPath) ? ctx.parentDepPathsChain : [...ctx.parentDepPathsChain, resolvedPackage.depPath],
   })
 
@@ -420,7 +421,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       peerDependencyIssues: ctx.peerDependencyIssues,
       resolvedPackage,
       rootDir: ctx.rootDir,
-      parentNodeIds: ctx.parentNodeIds,
+      parentNodeIds,
     })
 
   const allResolvedPeers = unknownResolvedPeersOfChildren
@@ -549,7 +550,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ctx.depGraph[depPath] = {
         ...(node.resolvedPackage as T),
         children: Object.assign(
-          getPreviouslyResolvedChildren(ctx.parentNodeIds, ctx.parentDepPathsChain, ctx.dependenciesTree, (node.resolvedPackage as T).depPath),
+          getPreviouslyResolvedChildren(parentNodeIds, ctx.parentDepPathsChain, ctx.dependenciesTree, (node.resolvedPackage as T).depPath),
           children,
           Object.fromEntries(resolvedPeers.entries())
         ),
@@ -865,7 +866,7 @@ function getLocationFromParentNodeIds<T> (
     parentNodeIds: string[]
   }
 ): Location {
-  const parents = parentNodeIds
+  const parents = parentNodeIds.slice(0, -1)
     .map((nid) => pick(['name', 'version'], dependenciesTree.get(nid)!.resolvedPackage as ResolvedPackage))
   return {
     projectId: '.',
