@@ -120,7 +120,6 @@ export interface PendingNode {
   resolvedPackage: ResolvedPackage
   depth: number
   installable: boolean
-  parentNodeId: string
   parentDepPaths: string[]
 }
 
@@ -1429,7 +1428,6 @@ async function resolveDependency (
         installable,
         nodeId,
         resolvedPackage: ctx.resolvedPackagesByDepPath[depPath],
-        parentNodeId: options.parentPkg.nodeId,
       })
     }
   }
