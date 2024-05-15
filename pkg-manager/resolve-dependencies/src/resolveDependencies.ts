@@ -52,7 +52,6 @@ import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevW
 import { safeIntersect } from './mergePeers'
 import {
   nodeIdContainsSequence,
-  splitNodeId,
 } from './nodeIdUtils'
 import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
@@ -65,10 +64,10 @@ const dependencyResolvedLogger = logger('_dependency_resolved')
 const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'])
 
 export function nodeIdToParents (
-  nodeId: string,
+  depPaths: string[],
   resolvedPackagesByDepPath: ResolvedPackagesByDepPath
 ): Array<{ id: string, name: string, version: string }> {
-  return splitNodeId(nodeId).slice(1)
+  return depPaths
     .map((depPath) => {
       const { id, name, version } = resolvedPackagesByDepPath[depPath]
       return { id, name, version }
@@ -1177,7 +1176,7 @@ async function resolveDependency (
       supportedArchitectures: options.supportedArchitectures,
       onFetchError: (err: any) => { // eslint-disable-line
         err.prefix = options.prefix
-        err.pkgsStack = nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath)
+        err.pkgsStack = nodeIdToParents(options.parentDepPaths, ctx.resolvedPackagesByDepPath)
         return err
       },
       updateToLatest: options.updateToLatest,
@@ -1191,14 +1190,14 @@ async function resolveDependency (
           pref: wantedDependency.pref,
           version: wantedDependency.alias ? wantedDependency.pref : undefined,
         },
-        parents: nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath),
+        parents: nodeIdToParents(options.parentDepPaths, ctx.resolvedPackagesByDepPath),
         prefix: options.prefix,
         reason: 'resolution_failure',
       })
       return null
     }
     err.prefix = options.prefix
-    err.pkgsStack = nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath)
+    err.pkgsStack = nodeIdToParents(options.parentDepPaths, ctx.resolvedPackagesByDepPath)
     throw err
   }
 
