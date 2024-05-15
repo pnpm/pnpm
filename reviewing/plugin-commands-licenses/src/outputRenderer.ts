@@ -112,14 +112,53 @@ function renderLicensesTable (
   for (let i = 0; i < columnNames.length; i++)
     columnNames[i] = chalk.blueBright(columnNames[i])
 
-  return table(
-    [
-      columnNames,
-      ...deduplicateLicensesPackages(sortLicensesPackages(licensePackages))
-        .map((licensePkg) => columnFns.map((fn) => fn(licensePkg))),
-    ],
-    TABLE_OPTIONS
-  )
+  const data = [
+    columnNames,
+    ...deduplicateLicensesPackages(sortLicensesPackages(licensePackages))
+      .map((licensePkg) => columnFns.map((fn) => fn(licensePkg))),
+  ]
+  let detailsColumnMaxWidth = 40
+  let packageColumnMaxWidth = 0
+  let licenseColumnMaxWidth = 0
+  if (opts.long) {
+    // Use the package link to determine the width of the details column
+    detailsColumnMaxWidth = licensePackages.reduce((max, pkg) => Math.max(max, pkg.homepage?.length ?? 0), 0)
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i]
+      const detailsLineCount = row[2].split('\n').length
+      const linesNumber = Math.max(0, detailsLineCount - 1)
+      row[0] += '\n '.repeat(linesNumber) // Add extra spaces to the package column
+      row[1] += '\n '.repeat(linesNumber) // Add extra spaces to the license column
+      packageColumnMaxWidth = Math.max(packageColumnMaxWidth, row[0].length)
+      licenseColumnMaxWidth = Math.max(licenseColumnMaxWidth, row[1].length)
+    }
+    const remainColumnWidth = process.stdout.columns - packageColumnMaxWidth - licenseColumnMaxWidth - 20
+    if (detailsColumnMaxWidth > remainColumnWidth) {
+      detailsColumnMaxWidth = remainColumnWidth
+    }
+    detailsColumnMaxWidth = Math.max(detailsColumnMaxWidth, 40)
+  }
+  try {
+    return table(
+      data,
+      {
+        ...TABLE_OPTIONS,
+        columns: {
+          ...TABLE_OPTIONS.columns,
+          2: {
+            width: detailsColumnMaxWidth,
+            wrapWord: true,
+          },
+        },
+      }
+    )
+  } catch {
+    // Fallback to the default table if the details column width is too large, avoiding the error
+    return table(
+      data,
+      TABLE_OPTIONS
+    )
+  }
 }
 
 function deduplicateLicensesPackages (licensePackages: LicensePackage[]): LicensePackage[] {
