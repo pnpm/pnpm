@@ -656,8 +656,8 @@ function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (parent
 
   if (!ownDepPath || !parentDepPathsChain.includes(ownDepPath)) return allChildren
 
-  for (const parentNodeId of [...parentNodeIds].reverse()) {
-    const parentNode = dependenciesTree.get(parentNodeId)!
+  for (let i = parentNodeIds.length - 1; i >= 0; i--) {
+    const parentNode = dependenciesTree.get(parentNodeIds[i])!
     if ((parentNode.resolvedPackage as T).depPath === ownDepPath) {
       if (typeof parentNode.children === 'function') {
         parentNode.children = parentNode.children()
