@@ -1,4 +1,4 @@
-import { type TarballResolution, type GitResolution, type ResolveResult } from '@pnpm/resolver-base'
+import { type TarballResolution, type GitResolution, type ResolveResult, type PkgResolutionId } from '@pnpm/resolver-base'
 import git from 'graceful-git'
 import semver from 'semver'
 import { parsePref, type HostedPackageSpec } from './parsePref'
@@ -50,11 +50,11 @@ export function createGitResolver (
       resolution.path = parsedSpec.path
     }
 
-    let id: string
+    let id: PkgResolutionId
     if ('tarball' in resolution) {
-      id = resolution.tarball
+      id = resolution.tarball as PkgResolutionId
       if (resolution.path) {
-        id += `#path:${resolution.path}`
+        id = `${id}#path:${resolution.path}` as PkgResolutionId
       }
     } else {
       id = createGitHostedPkgId(resolution)

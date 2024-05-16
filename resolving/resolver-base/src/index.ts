@@ -31,8 +31,10 @@ export type Resolution =
   GitResolution |
   ({ type: string } & object)
 
+export type PkgResolutionId = string & { __brand: 'PkgResolutionId' }
+
 export interface ResolveResult {
-  id: string
+  id: PkgResolutionId
   latest?: string
   publishedAt?: string
   manifest?: DependencyManifest
