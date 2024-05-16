@@ -50,7 +50,7 @@ import semver from 'semver'
 import { encodePkgId } from './encodePkgId'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies'
 import { safeIntersect } from './mergePeers'
-import { nextNodeId } from './nextNodeId'
+import { type NodeId, nextNodeId } from './nextNodeId'
 import { parentIdsContainSequence } from './parentIdsContainSequence'
 import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
@@ -74,7 +74,7 @@ export function getPkgsInfoFromIds (
 
 // child nodeId by child alias name in case of non-linked deps
 export interface ChildrenMap {
-  [alias: string]: string
+  [alias: string]: NodeId
 }
 
 export type DependenciesTreeNode<T> = {
@@ -92,7 +92,7 @@ export type DependenciesTree<T> = Map<
 // a node ID is the join of the package's keypath with a colon
 // E.g., a subdeps node ID which parent is `foo` will be
 // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
-string,
+NodeId,
 DependenciesTreeNode<T>
 >
 
@@ -113,7 +113,7 @@ export interface LinkedDependency {
 
 export interface PendingNode {
   alias: string
-  nodeId: string
+  nodeId: NodeId
   resolvedPackage: ResolvedPackage
   depth: number
   installable: boolean
@@ -185,7 +185,7 @@ export type PkgAddress = {
   depPath: string
   isNew: boolean
   isLinkedDependency?: false
-  nodeId: string
+  nodeId: NodeId
   pkgId: string
   normalizedPref?: string // is returned only for root dependencies
   installable: boolean
@@ -795,8 +795,8 @@ async function resolveDependenciesOfDependency (
   }
 }
 
-export function createNodeIdForLinkedLocalPkg (lockfileDir: string, pkgDir: string): string {
-  return `link:${normalizePath(path.relative(lockfileDir, pkgDir))}`
+export function createNodeIdForLinkedLocalPkg (lockfileDir: string, pkgDir: string): NodeId {
+  return `link:${normalizePath(path.relative(lockfileDir, pkgDir))}` as NodeId
 }
 
 function filterMissingPeers (
@@ -895,9 +895,9 @@ async function resolveChildren (
   }))
   ctx.dependenciesTree.set(parentPkg.nodeId, {
     children: pkgAddresses.reduce((chn, child) => {
-      chn[child.alias] = (child as PkgAddress).nodeId ?? child.pkgId
+      chn[child.alias] = (child as PkgAddress).nodeId ?? (child.pkgId as NodeId)
       return chn
-    }, {} as Record<string, string>),
+    }, {} as Record<string, NodeId>),
     depth: parentDepth,
     installable: parentPkg.installable,
     resolvedPackage: ctx.resolvedPkgsById[parentPkg.pkgId],
@@ -1349,7 +1349,7 @@ async function resolveDependency (
   }
   // In case of leaf dependencies (dependencies that have no prod deps or peer deps),
   // we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless.
-  const nodeId = pkgIsLeaf(pkg) ? pkgResponse.body.id : nextNodeId()
+  const nodeId = pkgIsLeaf(pkg) ? pkgResponse.body.id as NodeId : nextNodeId()
 
   const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false

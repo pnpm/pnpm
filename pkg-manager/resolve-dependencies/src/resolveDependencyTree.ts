@@ -11,7 +11,7 @@ import {
 import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
 import { type WantedDependency } from './getNonDevWantedDependencies'
-import { nextNodeId } from './nextNodeId'
+import { type NodeId, nextNodeId } from './nextNodeId'
 import { parentIdsContainSequence } from './parentIdsContainSequence'
 import {
   type ChildrenByParentId,
@@ -34,7 +34,7 @@ export interface ResolvedImporters {
   [id: string]: {
     directDependencies: ResolvedDirectDependency[]
     directNodeIdsByAlias: {
-      [alias: string]: string
+      [alias: string]: NodeId
     }
     linkedDependencies: LinkedDependency[]
   }
@@ -172,7 +172,7 @@ export async function resolveDependencyTree<T> (
       currentDepth: 0,
       parentPkg: {
         installable: true,
-        nodeId: `>${importer.id}>`,
+        nodeId: `>${importer.id}>` as NodeId,
         optional: false,
         pkgId: importer.id,
         rootDir: importer.rootDir,
@@ -241,7 +241,7 @@ export async function resolveDependencyTree<T> (
         .reduce((acc, { alias, nodeId }) => {
           acc[alias] = nodeId
           return acc
-        }, {} as Record<string, string>),
+        }, {} as Record<string, NodeId>),
       linkedDependencies,
     }
   }
@@ -270,11 +270,11 @@ function buildTree (
   children: Array<{ alias: string, id: string }>,
   depth: number,
   installable: boolean
-): Record<string, string> {
-  const childrenNodeIds: Record<string, string> = {}
+): Record<string, NodeId> {
+  const childrenNodeIds: Record<string, NodeId> = {}
   for (const child of children) {
     if (child.id.startsWith('link:')) {
-      childrenNodeIds[child.alias] = child.id
+      childrenNodeIds[child.alias] = child.id as NodeId
       continue
     }
     if (parentIdsContainSequence(parentIds, parentId, child.id) || parentId === child.id) {
