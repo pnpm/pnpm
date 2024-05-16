@@ -209,7 +209,7 @@ async function resolveAndFetch (
     normalizedPref = resolveResult.normalizedPref
   }
 
-  const id = pkgId as string
+  const id = pkgId!
 
   if (resolution.type === 'directory' && !id.startsWith('file:')) {
     if (manifest == null) {

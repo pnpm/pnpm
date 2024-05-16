@@ -1,4 +1,5 @@
 import {
+  type PkgResolutionId,
   type DirectoryResolution,
   type PreferredVersions,
   type Resolution,
@@ -110,7 +111,7 @@ export type RequestPackageFunction = (
 export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
   currentPkg?: {
-    id?: string
+    id?: PkgResolutionId
     resolution?: Resolution
   }
   /**
@@ -147,7 +148,7 @@ export interface PackageResponse {
     isInstallable?: boolean
     resolution: Resolution
     manifest?: PackageManifest
-    id: string
+    id: PkgResolutionId
     normalizedPref?: string
     updated: boolean
     publishedAt?: string

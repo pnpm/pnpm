@@ -1,4 +1,6 @@
-import { type DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
+
+export { type PkgResolutionId }
 
 /**
  * tarball hosted remotely
@@ -30,8 +32,6 @@ export type Resolution =
   DirectoryResolution |
   GitResolution |
   ({ type: string } & object)
-
-export type PkgResolutionId = string & { __brand: 'PkgResolutionId' }
 
 export interface ResolveResult {
   id: PkgResolutionId

@@ -22,6 +22,7 @@ import {
   type PreferredVersions,
   type Resolution,
   type WorkspacePackages,
+  type PkgResolutionId,
 } from '@pnpm/resolver-base'
 import {
   type PkgRequestFetchResult,
@@ -47,7 +48,6 @@ import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
 import zipWith from 'ramda/src/zipWith'
 import semver from 'semver'
-import { encodePkgId } from './encodePkgId'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies'
 import { safeIntersect } from './mergePeers'
 import { type NodeId, nextNodeId } from './nextNodeId'
@@ -1007,7 +1007,7 @@ function referenceSatisfiesWantedSpec (
 
 type InfoFromLockfile = {
   depPath: string
-  pkgId: string
+  pkgId: PkgResolutionId
   dependencyLockfile?: PackageSnapshot
   name?: string
   version?: string
@@ -1059,7 +1059,7 @@ function getInfoFromLockfile (
       version,
       dependencyLockfile,
       depPath,
-      pkgId: nonSemverVersion ?? `${name}@${version}`,
+      pkgId: nonSemverVersion ?? (`${name}@${version}` as PkgResolutionId),
       // resolution may not exist if lockfile is broken, and an unexpected error will be thrown
       // if resolution does not exist, return undefined so it can be autofixed later
       resolution: dependencyLockfile.resolution && pkgSnapshotToResolution(depPath, dependencyLockfile, registries),
@@ -1068,7 +1068,7 @@ function getInfoFromLockfile (
     const parsed = dp.parse(depPath)
     return {
       depPath,
-      pkgId: parsed.nonSemverVersion ?? (parsed.name && parsed.version ? `${parsed.name}@${parsed.version}` : depPath), // Does it make sense to set pkgId when we're not sure?
+      pkgId: parsed.nonSemverVersion ?? (parsed.name && parsed.version ? `${parsed.name}@${parsed.version}` : depPath) as PkgResolutionId, // Does it make sense to set pkgId when we're not sure?
     }
   }
 }
@@ -1079,7 +1079,7 @@ interface ResolveDependencyOptions {
     depPath?: string
     name?: string
     version?: string
-    pkgId?: string
+    pkgId?: PkgResolutionId
     resolution?: Resolution
     dependencyLockfile?: PackageSnapshot
   }
@@ -1206,8 +1206,6 @@ async function resolveDependency (
       rawSpec: wantedDependency.pref,
     },
   })
-
-  pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
 
   if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
     if (!ctx.allPreferredVersions[pkgResponse.body.manifest.name]) {
@@ -1349,7 +1347,7 @@ async function resolveDependency (
   }
   // In case of leaf dependencies (dependencies that have no prod deps or peer deps),
   // we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless.
-  const nodeId = pkgIsLeaf(pkg) ? pkgResponse.body.id as NodeId : nextNodeId()
+  const nodeId = pkgIsLeaf(pkg) ? pkgResponse.body.id as unknown as NodeId : nextNodeId()
 
   const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false

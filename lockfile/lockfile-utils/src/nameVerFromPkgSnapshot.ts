@@ -1,11 +1,12 @@
 import { type PackageSnapshot } from '@pnpm/lockfile-types'
 import * as dp from '@pnpm/dependency-path'
+import { type PkgResolutionId } from '@pnpm/types'
 
 export interface NameVer {
   name: string
   peersSuffix: string | undefined
   version: string
-  nonSemverVersion?: string
+  nonSemverVersion?: PkgResolutionId
 }
 
 export function nameVerFromPkgSnapshot (

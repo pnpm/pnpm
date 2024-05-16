@@ -31,3 +31,5 @@ export interface PatchFile {
   path: string
   hash: string
 }
+
+export type PkgResolutionId = string & { __brand: 'PkgResolutionId' }
