@@ -788,11 +788,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
 
     if (!resolved) {
       missingPeers.add(peerName)
-      const location = getLocationFromNodeIdAndPkg({
-        dependenciesTree: ctx.dependenciesTree,
-        parentNodeIds: ctx.parentNodeIds,
-        pkg: ctx.resolvedPackage,
-      })
+      const location = getLocationFromParentNodeIds(ctx)
       if (!ctx.peerDependencyIssues.missing[peerName]) {
         ctx.peerDependencyIssues.missing[peerName] = []
       }
@@ -805,11 +801,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
     }
 
     if (!semverUtils.satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
-      const location = getLocationFromNodeIdAndPkg({
-        dependenciesTree: ctx.dependenciesTree,
-        parentNodeIds: ctx.parentNodeIds,
-        pkg: ctx.resolvedPackage,
-      })
+      const location = getLocationFromParentNodeIds(ctx)
       if (!ctx.peerDependencyIssues.bad[peerName]) {
         ctx.peerDependencyIssues.bad[peerName] = []
       }
@@ -838,25 +830,6 @@ interface Location {
   parents: ParentPackages
 }
 
-function getLocationFromNodeIdAndPkg<T> (
-  {
-    dependenciesTree,
-    parentNodeIds,
-    pkg,
-  }: {
-    dependenciesTree: DependenciesTree<T>
-    parentNodeIds: string[]
-    pkg: { name: string, version: string }
-  }
-): Location {
-  const { projectId, parents } = getLocationFromParentNodeIds({ dependenciesTree, parentNodeIds })
-  parents.push({ name: pkg.name, version: pkg.version })
-  return {
-    projectId,
-    parents,
-  }
-}
-
 function getLocationFromParentNodeIds<T> (
   {
     dependenciesTree,
@@ -866,7 +839,7 @@ function getLocationFromParentNodeIds<T> (
     parentNodeIds: string[]
   }
 ): Location {
-  const parents = parentNodeIds.slice(0, -1)
+  const parents = parentNodeIds
     .map((nid) => pick(['name', 'version'], dependenciesTree.get(nid)!.resolvedPackage as ResolvedPackage))
   return {
     projectId: '.',
