@@ -61,8 +61,7 @@ function toLockfileDependency (
   }
 ): PackageSnapshot {
   const lockfileResolution = toLockfileResolution(
-    { id: pkg.id, name: pkg.name, version: pkg.version },
-    opts.depPath,
+    { name: pkg.name, version: pkg.version },
     pkg.resolution,
     opts.registry,
     opts.lockfileIncludeTarballUrl
@@ -175,11 +174,9 @@ function updateResolvedDeps (
 
 function toLockfileResolution (
   pkg: {
-    id: string
     name: string
     version: string
   },
-  depPath: string,
   resolution: Resolution,
   registry: string,
   lockfileIncludeTarballUrl?: boolean

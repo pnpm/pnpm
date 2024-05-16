@@ -50,12 +50,8 @@ import semver from 'semver'
 import { encodePkgId } from './encodePkgId'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies'
 import { safeIntersect } from './mergePeers'
-import {
-  createNodeId,
-  nodeIdContainsSequence,
-  nodeIdContains,
-  splitNodeId,
-} from './nodeIdUtils'
+import { nextNodeId } from './nextNodeId'
+import { parentIdsContainSequence } from './parentIdsContainSequence'
 import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
 import { replaceVersionInPref } from './replaceVersionInPref'
@@ -64,13 +60,14 @@ const dependencyResolvedLogger = logger('_dependency_resolved')
 
 const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'])
 
-export function nodeIdToParents (
-  nodeId: string,
-  resolvedPackagesByDepPath: ResolvedPackagesByDepPath
+export function getPkgsInfoFromIds (
+  ids: string[],
+  resolvedPkgsById: ResolvedPkgsById
 ): Array<{ id: string, name: string, version: string }> {
-  return splitNodeId(nodeId).slice(1)
-    .map((depPath) => {
-      const { id, name, version } = resolvedPackagesByDepPath[depPath]
+  return ids
+    .slice(1)
+    .map((id) => {
+      const { name, version } = resolvedPkgsById[id]
       return { id, name, version }
     })
 }
@@ -99,7 +96,7 @@ string,
 DependenciesTreeNode<T>
 >
 
-export type ResolvedPackagesByDepPath = Record<string, ResolvedPackage>
+export type ResolvedPkgsById = Record<string, ResolvedPackage>
 
 export interface LinkedDependency {
   isLinkedDependency: true
@@ -120,12 +117,13 @@ export interface PendingNode {
   resolvedPackage: ResolvedPackage
   depth: number
   installable: boolean
+  parentIds: string[]
 }
 
-export interface ChildrenByParentDepPath {
-  [depPath: string]: Array<{
+export interface ChildrenByParentId {
+  [id: string]: Array<{
     alias: string
-    depPath: string
+    id: string
   }>
 }
 
@@ -142,9 +140,9 @@ export interface ResolutionContext {
   dryRun: boolean
   forceFullResolution: boolean
   ignoreScripts?: boolean
-  resolvedPackagesByDepPath: ResolvedPackagesByDepPath
+  resolvedPkgsById: ResolvedPkgsById
   outdatedDependencies: { [pkgId: string]: string }
-  childrenByParentDepPath: ChildrenByParentDepPath
+  childrenByParentId: ChildrenByParentId
   patchedDependencies?: Record<string, PatchFile>
   pendingNodes: PendingNode[]
   wantedLockfile: Lockfile
@@ -246,7 +244,7 @@ export interface ResolvedPackage {
   parentImporterIds: Set<string>
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDir' | 'optional'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId'>
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
@@ -254,6 +252,7 @@ export type UpdateMatchingFunction = (pkgName: string) => boolean
 
 interface ResolvedDependenciesOptions {
   currentDepth: number
+  parentIds: string[]
   parentPkg: ParentPkg
   parentPkgAliases: ParentPkgAliases
   // If the package has been updated, the dependencies
@@ -377,12 +376,14 @@ interface PkgAddressesByImportersWithoutPeers extends PeersResolutionResult {
   pkgAddresses: Array<PkgAddress | LinkedDependency>
 }
 
+export type ImporterToResolveOptions = Omit<ResolvedDependenciesOptions, 'parentPkgAliases' | 'publishedBy'>
+
 export interface ImporterToResolve {
   updatePackageManifest: boolean
   preferredVersions: PreferredVersions
   parentPkgAliases: ParentPkgAliases
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
-  options: Omit<ResolvedDependenciesOptions, 'parentPkgAliases' | 'publishedBy'>
+  options: ImporterToResolveOptions
 }
 
 interface ResolveDependenciesOfImportersResult {
@@ -456,7 +457,7 @@ async function resolveDependenciesOfImporters (
       if (pkgAddress.updated) {
         ctx.updatedSet.add(pkgAddress.alias)
       }
-      const resolvedPackage = ctx.resolvedPackagesByDepPath[pkgAddress.depPath]
+      const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
       if (!resolvedPackage) continue // This will happen only with linked dependencies
       if (!Object.prototype.hasOwnProperty.call(newPreferredVersions, resolvedPackage.name)) {
         newPreferredVersions[resolvedPackage.name] = { ...importer.preferredVersions[resolvedPackage.name] }
@@ -586,7 +587,7 @@ export async function resolveDependencies (
     if (pkgAddress.updated) {
       ctx.updatedSet.add(pkgAddress.alias)
     }
-    const resolvedPackage = ctx.resolvedPackagesByDepPath[pkgAddress.depPath]
+    const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
     if (!resolvedPackage) continue // This will happen only with linked dependencies
     if (!Object.prototype.hasOwnProperty.call(newPreferredVersions, resolvedPackage.name)) {
       newPreferredVersions[resolvedPackage.name] = { ...preferredVersions[resolvedPackage.name] }
@@ -741,6 +742,7 @@ async function resolveDependenciesOfDependency (
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
     updateToLatest: options.updateToLatest,
+    parentIds: options.parentIds,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
@@ -773,6 +775,7 @@ async function resolveDependenciesOfDependency (
     parentPkg: resolveDependencyResult,
     dependencyLockfile: extendedWantedDep.infoFromLockfile?.dependencyLockfile,
     parentDepth: options.currentDepth,
+    parentIds: [...options.parentIds, resolveDependencyResult.pkgId],
     updateDepth,
     prefix: options.prefix,
     updateMatching: options.updateMatching,
@@ -820,6 +823,7 @@ async function resolveChildren (
   ctx: ResolutionContext,
   {
     parentPkg,
+    parentIds,
     dependencyLockfile,
     parentDepth,
     updateDepth,
@@ -828,6 +832,7 @@ async function resolveChildren (
     supportedArchitectures,
   }: {
     parentPkg: PkgAddress
+    parentIds: string[]
     dependencyLockfile: PackageSnapshot | undefined
     parentDepth: number
     updateDepth: number
@@ -881,11 +886,12 @@ async function resolveChildren (
       updateDepth,
       updateMatching,
       supportedArchitectures,
+      parentIds,
     }
   )
-  ctx.childrenByParentDepPath[parentPkg.depPath] = pkgAddresses.map((child) => ({
+  ctx.childrenByParentId[parentPkg.pkgId] = pkgAddresses.map((child) => ({
     alias: child.alias,
-    depPath: child.depPath,
+    id: child.pkgId,
   }))
   ctx.dependenciesTree.set(parentPkg.nodeId, {
     children: pkgAddresses.reduce((chn, child) => {
@@ -894,7 +900,7 @@ async function resolveChildren (
     }, {} as Record<string, string>),
     depth: parentDepth,
     installable: parentPkg.installable,
-    resolvedPackage: ctx.resolvedPackagesByDepPath[parentPkg.depPath],
+    resolvedPackage: ctx.resolvedPkgsById[parentPkg.pkgId],
   })
   return resolvingPeers
 }
@@ -1078,6 +1084,7 @@ interface ResolveDependencyOptions {
     dependencyLockfile?: PackageSnapshot
   }
   parentPkg: ParentPkg
+  parentIds: string[]
   parentPkgAliases: ParentPkgAliases
   preferredVersions: PreferredVersions
   prefix: string
@@ -1166,7 +1173,7 @@ async function resolveDependency (
       supportedArchitectures: options.supportedArchitectures,
       onFetchError: (err: any) => { // eslint-disable-line
         err.prefix = options.prefix
-        err.pkgsStack = nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath)
+        err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
         return err
       },
       updateToLatest: options.updateToLatest,
@@ -1180,21 +1187,21 @@ async function resolveDependency (
           pref: wantedDependency.pref,
           version: wantedDependency.alias ? wantedDependency.pref : undefined,
         },
-        parents: nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath),
+        parents: getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById),
         prefix: options.prefix,
         reason: 'resolution_failure',
       })
       return null
     }
     err.prefix = options.prefix
-    err.pkgsStack = nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath)
+    err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
     throw err
   }
 
   dependencyResolvedLogger.debug({
     resolution: pkgResponse.body.id,
     wanted: {
-      dependentId: options.parentPkg.depPath,
+      dependentId: options.parentPkg.pkgId,
       name: wantedDependency.alias,
       rawSpec: wantedDependency.pref,
     },
@@ -1289,11 +1296,11 @@ async function resolveDependency (
   // because zoo is a new parent package:
   // foo > bar > qar > zoo > qar
   if (
-    nodeIdContainsSequence(
-      options.parentPkg.nodeId,
-      options.parentPkg.depPath,
-      depPath
-    ) || depPath === options.parentPkg.depPath
+    parentIdsContainSequence(
+      options.parentIds,
+      options.parentPkg.pkgId,
+      pkgResponse.body.id
+    ) || pkgResponse.body.id === options.parentPkg.pkgId
   ) {
     return null
   }
@@ -1342,14 +1349,12 @@ async function resolveDependency (
   }
   // In case of leaf dependencies (dependencies that have no prod deps or peer deps),
   // we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless.
-  const nodeId = pkgIsLeaf(pkg)
-    ? `>${depPath}>`
-    : createNodeId(options.parentPkg.nodeId, depPath)
+  const nodeId = pkgIsLeaf(pkg) ? pkgResponse.body.id : nextNodeId()
 
   const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false
-  const isNew = !ctx.resolvedPackagesByDepPath[depPath]
-  const parentImporterId = options.parentPkg.nodeId.substring(0, options.parentPkg.nodeId.indexOf('>', 1) + 1)
+  const isNew = !ctx.resolvedPkgsById[pkgResponse.body.id]
+  const parentImporterId = options.parentIds[0]
   let resolveChildren = false
   const currentIsOptional = wantedDependency.optional || options.parentPkg.optional
 
@@ -1379,7 +1384,7 @@ async function resolveDependency (
 
     // WARN: It is very important to keep this sync
     // Otherwise, deprecation messages for the same package might get written several times
-    ctx.resolvedPackagesByDepPath[depPath] = getResolvedPackage({
+    ctx.resolvedPkgsById[pkgResponse.body.id] = getResolvedPackage({
       allowBuild: ctx.allowBuild,
       dependencyLockfile: currentPkg.dependencyLockfile,
       depPath,
@@ -1394,17 +1399,17 @@ async function resolveDependency (
       optional: currentIsOptional,
     })
   } else {
-    ctx.resolvedPackagesByDepPath[depPath].prod = ctx.resolvedPackagesByDepPath[depPath].prod || !wantedDependency.dev && !wantedDependency.optional
-    ctx.resolvedPackagesByDepPath[depPath].dev = ctx.resolvedPackagesByDepPath[depPath].dev || wantedDependency.dev
-    ctx.resolvedPackagesByDepPath[depPath].optional = ctx.resolvedPackagesByDepPath[depPath].optional && currentIsOptional
+    ctx.resolvedPkgsById[pkgResponse.body.id].prod = ctx.resolvedPkgsById[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
+    ctx.resolvedPkgsById[pkgResponse.body.id].dev = ctx.resolvedPkgsById[pkgResponse.body.id].dev || wantedDependency.dev
+    ctx.resolvedPkgsById[pkgResponse.body.id].optional = ctx.resolvedPkgsById[pkgResponse.body.id].optional && currentIsOptional
     if (ctx.hoistPeers) {
       resolveChildren = !ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved &&
-        !ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.has(parentImporterId)
-      ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.add(parentImporterId)
+        !ctx.resolvedPkgsById[pkgResponse.body.id].parentImporterIds.has(parentImporterId)
+      ctx.resolvedPkgsById[pkgResponse.body.id].parentImporterIds.add(parentImporterId)
     }
-    if (ctx.resolvedPackagesByDepPath[depPath].fetching == null && pkgResponse.fetching != null) {
-      ctx.resolvedPackagesByDepPath[depPath].fetching = pkgResponse.fetching
-      ctx.resolvedPackagesByDepPath[depPath].filesIndexFile = pkgResponse.filesIndexFile!
+    if (ctx.resolvedPkgsById[pkgResponse.body.id].fetching == null && pkgResponse.fetching != null) {
+      ctx.resolvedPkgsById[pkgResponse.body.id].fetching = pkgResponse.fetching
+      ctx.resolvedPkgsById[pkgResponse.body.id].filesIndexFile = pkgResponse.filesIndexFile!
     }
 
     if (ctx.dependenciesTree.has(nodeId)) {
@@ -1413,9 +1418,10 @@ async function resolveDependency (
       ctx.pendingNodes.push({
         alias: wantedDependency.alias || pkg.name,
         depth: options.currentDepth,
+        parentIds: options.parentIds,
         installable,
         nodeId,
-        resolvedPackage: ctx.resolvedPackagesByDepPath[depPath],
+        resolvedPackage: ctx.resolvedPkgsById[pkgResponse.body.id],
       })
     }
   }
@@ -1424,9 +1430,9 @@ async function resolveDependency (
     ? path.resolve(ctx.lockfileDir, (pkgResponse.body.resolution as DirectoryResolution).directory)
     : options.prefix
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined
-  if (ctx.hoistPeers && !nodeIdContains(options.parentPkg.nodeId, depPath)) {
+  if (ctx.hoistPeers && !options.parentIds.includes(pkgResponse.body.id)) {
     if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
-      if (!options.parentPkg.nodeId.startsWith(ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].parentImporterId)) {
+      if (options.parentIds[0] !== ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].parentImporterId) {
         missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren
       }
     } else {
@@ -1453,7 +1459,7 @@ async function resolveDependency (
     pkgId: pkgResponse.body.id,
     rootDir,
     missingPeers: getMissingPeers(pkg),
-    optional: ctx.resolvedPackagesByDepPath[depPath].optional,
+    optional: ctx.resolvedPkgsById[pkgResponse.body.id].optional,
 
     // Next fields are actually only needed when isNew = true
     installable,
