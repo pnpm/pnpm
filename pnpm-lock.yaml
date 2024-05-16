@@ -5519,6 +5519,9 @@ importers:
       '@pnpm/outdated':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@types/ramda':
         specifier: 0.29.12
         version: 0.29.12
