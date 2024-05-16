@@ -550,7 +550,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ctx.depGraph[depPath] = {
         ...(node.resolvedPackage as T),
         children: Object.assign(
-          getPreviouslyResolvedChildren(parentNodeIds, ctx.parentDepPathsChain, ctx.dependenciesTree, (node.resolvedPackage as T).depPath),
+          getPreviouslyResolvedChildren(ctx, (node.resolvedPackage as T).depPath),
           children,
           Object.fromEntries(resolvedPeers.entries())
         ),
@@ -651,14 +651,25 @@ function parentPkgsHaveSingleOccurrence (parentPkgs: Record<string, ParentPkgInf
 // from the dependencies of the parent package.
 // So we need to merge all the children of all the parent packages with same ID as the resolved package.
 // This way we get all the children that were removed, when ending cycles.
-function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (parentNodeIds: string[], parentDepPathsChain: string[], dependenciesTree: DependenciesTree<T>, ownDepPath: string): ChildrenMap {
+function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (
+  {
+    parentNodeIds,
+    parentDepPathsChain,
+    dependenciesTree,
+  }: {
+    parentNodeIds: string[]
+    parentDepPathsChain: string[]
+    dependenciesTree: DependenciesTree<T>
+  },
+  currentDepPath: string
+): ChildrenMap {
   const allChildren: ChildrenMap = {}
 
-  if (!ownDepPath || !parentDepPathsChain.includes(ownDepPath)) return allChildren
+  if (!currentDepPath || !parentDepPathsChain.includes(currentDepPath)) return allChildren
 
   for (let i = parentNodeIds.length - 1; i >= 0; i--) {
     const parentNode = dependenciesTree.get(parentNodeIds[i])!
-    if ((parentNode.resolvedPackage as T).depPath === ownDepPath) {
+    if ((parentNode.resolvedPackage as T).depPath === currentDepPath) {
       if (typeof parentNode.children === 'function') {
         parentNode.children = parentNode.children()
       }
