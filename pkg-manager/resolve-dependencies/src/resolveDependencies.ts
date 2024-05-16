@@ -51,7 +51,7 @@ import { encodePkgId } from './encodePkgId'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies'
 import { safeIntersect } from './mergePeers'
 import { nextNodeId } from './nextNodeId'
-import { parentIdsContainsSequence } from './parentIdsContainsSequence'
+import { parentIdsContainSequence } from './parentIdsContainSequence'
 import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
 import { replaceVersionInPref } from './replaceVersionInPref'
@@ -243,7 +243,7 @@ export interface ResolvedPackage {
   parentImporterIds: Set<string>
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDir' | 'optional' | 'pkgId'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId'>
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
@@ -1200,7 +1200,7 @@ async function resolveDependency (
   dependencyResolvedLogger.debug({
     resolution: pkgResponse.body.id,
     wanted: {
-      dependentId: options.parentPkg.depPath,
+      dependentId: options.parentPkg.pkgId,
       name: wantedDependency.alias,
       rawSpec: wantedDependency.pref,
     },
@@ -1295,11 +1295,11 @@ async function resolveDependency (
   // because zoo is a new parent package:
   // foo > bar > qar > zoo > qar
   if (
-    parentIdsContainsSequence(
+    parentIdsContainSequence(
       options.parentIds,
       options.parentPkg.pkgId,
       pkgResponse.body.id
-    ) || depPath === options.parentPkg.depPath
+    ) || pkgResponse.body.id === options.parentPkg.pkgId
   ) {
     return null
   }
@@ -1348,7 +1348,7 @@ async function resolveDependency (
   }
   // In case of leaf dependencies (dependencies that have no prod deps or peer deps),
   // we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless.
-  const nodeId = pkgIsLeaf(pkg) ? depPath : nextNodeId()
+  const nodeId = pkgIsLeaf(pkg) ? pkgResponse.body.id : nextNodeId()
 
   const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false
