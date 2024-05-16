@@ -65,6 +65,7 @@ export function getPkgsInfoFromIds (
   resolvedPkgsById: ResolvedPkgsById
 ): Array<{ id: string, name: string, version: string }> {
   return ids
+    .slice(1)
     .map((id) => {
       const { name, version } = resolvedPkgsById[id]
       return { id, name, version }
