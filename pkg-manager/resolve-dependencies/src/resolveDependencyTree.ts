@@ -24,7 +24,7 @@ import {
   type PkgAddress,
   resolveRootDependencies,
   type ResolvedPackage,
-  type ResolvedPackagesByDepPath,
+  type ResolvedPkgsById,
   type ResolutionContext,
 } from './resolveDependencies'
 
@@ -111,7 +111,7 @@ export interface ResolveDependencyTreeResult {
     [pkgId: string]: string
   }
   resolvedImporters: ResolvedImporters
-  resolvedPackagesByDepPath: ResolvedPackagesByDepPath
+  resolvedPkgsById: ResolvedPkgsById
   wantedToBeSkippedPackageIds: Set<string>
   appliedPatches: Set<string>
   time?: Record<string, string>
@@ -147,7 +147,7 @@ export async function resolveDependencyTree<T> (
     preferWorkspacePackages: opts.preferWorkspacePackages,
     readPackageHook: opts.hooks.readPackage,
     registries: opts.registries,
-    resolvedPackagesByDepPath: {} as ResolvedPackagesByDepPath,
+    resolvedPkgsById: {} as ResolvedPkgsById,
     resolutionMode: opts.resolutionMode,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
@@ -208,7 +208,7 @@ export async function resolveDependencyTree<T> (
     ctx.dependenciesTree.set(pendingNode.nodeId, {
       children: () => buildTree(ctx, pendingNode.resolvedPackage.depPath,
         pendingNode.parentIds,
-        ctx.childrenByParentId[pendingNode.resolvedPackage.depPath], pendingNode.depth + 1, pendingNode.installable),
+        ctx.childrenByParentId[pendingNode.resolvedPackage.id], pendingNode.depth + 1, pendingNode.installable),
       depth: pendingNode.depth,
       installable: pendingNode.installable,
       resolvedPackage: pendingNode.resolvedPackage,
@@ -251,7 +251,7 @@ export async function resolveDependencyTree<T> (
     dependenciesTree: ctx.dependenciesTree,
     outdatedDependencies: ctx.outdatedDependencies,
     resolvedImporters,
-    resolvedPackagesByDepPath: ctx.resolvedPackagesByDepPath,
+    resolvedPkgsById: ctx.resolvedPkgsById,
     wantedToBeSkippedPackageIds,
     appliedPatches: ctx.appliedPatches,
     time,
@@ -263,7 +263,7 @@ function buildTree (
   ctx: {
     childrenByParentId: ChildrenByParentId
     dependenciesTree: DependenciesTree<ResolvedPackage>
-    resolvedPackagesByDepPath: ResolvedPackagesByDepPath
+    resolvedPkgsById: ResolvedPkgsById
     skipped: Set<string>
   },
   parentId: string,
@@ -294,7 +294,7 @@ function buildTree (
       ),
       depth,
       installable,
-      resolvedPackage: ctx.resolvedPackagesByDepPath[child.id],
+      resolvedPackage: ctx.resolvedPkgsById[child.id],
     })
   }
   return childrenNodeIds

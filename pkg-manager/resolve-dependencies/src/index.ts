@@ -129,7 +129,7 @@ export async function resolveDependencies (
     dependenciesTree,
     outdatedDependencies,
     resolvedImporters,
-    resolvedPackagesByDepPath,
+    resolvedPkgsById,
     wantedToBeSkippedPackageIds,
     appliedPatches,
     time,
@@ -301,7 +301,7 @@ export async function resolveDependencies (
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
-    await Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ fetching }) => {
+    await Promise.all(Object.values(resolvedPkgsById).map(async ({ fetching }) => {
       try {
         await fetching?.()
       } catch {}

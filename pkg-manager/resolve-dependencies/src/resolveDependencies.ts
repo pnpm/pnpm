@@ -60,13 +60,13 @@ const dependencyResolvedLogger = logger('_dependency_resolved')
 
 const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'])
 
-export function getPkgsInfoFromDepPaths (
-  depPaths: string[],
-  resolvedPackagesByDepPath: ResolvedPackagesByDepPath
+export function getPkgsInfoFromIds (
+  ids: string[],
+  resolvedPkgsById: ResolvedPkgsById
 ): Array<{ id: string, name: string, version: string }> {
-  return depPaths
-    .map((depPath) => {
-      const { id, name, version } = resolvedPackagesByDepPath[depPath]
+  return ids
+    .map((id) => {
+      const { name, version } = resolvedPkgsById[id]
       return { id, name, version }
     })
 }
@@ -95,7 +95,7 @@ string,
 DependenciesTreeNode<T>
 >
 
-export type ResolvedPackagesByDepPath = Record<string, ResolvedPackage>
+export type ResolvedPkgsById = Record<string, ResolvedPackage>
 
 export interface LinkedDependency {
   isLinkedDependency: true
@@ -139,7 +139,7 @@ export interface ResolutionContext {
   dryRun: boolean
   forceFullResolution: boolean
   ignoreScripts?: boolean
-  resolvedPackagesByDepPath: ResolvedPackagesByDepPath
+  resolvedPkgsById: ResolvedPkgsById
   outdatedDependencies: { [pkgId: string]: string }
   childrenByParentId: ChildrenByParentId
   patchedDependencies?: Record<string, PatchFile>
@@ -456,7 +456,7 @@ async function resolveDependenciesOfImporters (
       if (pkgAddress.updated) {
         ctx.updatedSet.add(pkgAddress.alias)
       }
-      const resolvedPackage = ctx.resolvedPackagesByDepPath[pkgAddress.depPath]
+      const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
       if (!resolvedPackage) continue // This will happen only with linked dependencies
       if (!Object.prototype.hasOwnProperty.call(newPreferredVersions, resolvedPackage.name)) {
         newPreferredVersions[resolvedPackage.name] = { ...importer.preferredVersions[resolvedPackage.name] }
@@ -586,7 +586,7 @@ export async function resolveDependencies (
     if (pkgAddress.updated) {
       ctx.updatedSet.add(pkgAddress.alias)
     }
-    const resolvedPackage = ctx.resolvedPackagesByDepPath[pkgAddress.depPath]
+    const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
     if (!resolvedPackage) continue // This will happen only with linked dependencies
     if (!Object.prototype.hasOwnProperty.call(newPreferredVersions, resolvedPackage.name)) {
       newPreferredVersions[resolvedPackage.name] = { ...preferredVersions[resolvedPackage.name] }
@@ -899,7 +899,7 @@ async function resolveChildren (
     }, {} as Record<string, string>),
     depth: parentDepth,
     installable: parentPkg.installable,
-    resolvedPackage: ctx.resolvedPackagesByDepPath[parentPkg.depPath],
+    resolvedPackage: ctx.resolvedPkgsById[parentPkg.pkgId],
   })
   return resolvingPeers
 }
@@ -1172,7 +1172,7 @@ async function resolveDependency (
       supportedArchitectures: options.supportedArchitectures,
       onFetchError: (err: any) => { // eslint-disable-line
         err.prefix = options.prefix
-        err.pkgsStack = getPkgsInfoFromDepPaths(options.parentIds, ctx.resolvedPackagesByDepPath)
+        err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
         return err
       },
       updateToLatest: options.updateToLatest,
@@ -1186,14 +1186,14 @@ async function resolveDependency (
           pref: wantedDependency.pref,
           version: wantedDependency.alias ? wantedDependency.pref : undefined,
         },
-        parents: getPkgsInfoFromDepPaths(options.parentIds, ctx.resolvedPackagesByDepPath),
+        parents: getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById),
         prefix: options.prefix,
         reason: 'resolution_failure',
       })
       return null
     }
     err.prefix = options.prefix
-    err.pkgsStack = getPkgsInfoFromDepPaths(options.parentIds, ctx.resolvedPackagesByDepPath)
+    err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
     throw err
   }
 
@@ -1352,7 +1352,7 @@ async function resolveDependency (
 
   const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false
-  const isNew = !ctx.resolvedPackagesByDepPath[depPath]
+  const isNew = !ctx.resolvedPkgsById[pkgResponse.body.id]
   const parentImporterId = options.parentPkg.nodeId.substring(0, options.parentPkg.nodeId.indexOf('>', 1) + 1)
   let resolveChildren = false
   const currentIsOptional = wantedDependency.optional || options.parentPkg.optional
@@ -1383,7 +1383,7 @@ async function resolveDependency (
 
     // WARN: It is very important to keep this sync
     // Otherwise, deprecation messages for the same package might get written several times
-    ctx.resolvedPackagesByDepPath[depPath] = getResolvedPackage({
+    ctx.resolvedPkgsById[pkgResponse.body.id] = getResolvedPackage({
       allowBuild: ctx.allowBuild,
       dependencyLockfile: currentPkg.dependencyLockfile,
       depPath,
@@ -1398,17 +1398,17 @@ async function resolveDependency (
       optional: currentIsOptional,
     })
   } else {
-    ctx.resolvedPackagesByDepPath[depPath].prod = ctx.resolvedPackagesByDepPath[depPath].prod || !wantedDependency.dev && !wantedDependency.optional
-    ctx.resolvedPackagesByDepPath[depPath].dev = ctx.resolvedPackagesByDepPath[depPath].dev || wantedDependency.dev
-    ctx.resolvedPackagesByDepPath[depPath].optional = ctx.resolvedPackagesByDepPath[depPath].optional && currentIsOptional
+    ctx.resolvedPkgsById[pkgResponse.body.id].prod = ctx.resolvedPkgsById[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
+    ctx.resolvedPkgsById[pkgResponse.body.id].dev = ctx.resolvedPkgsById[pkgResponse.body.id].dev || wantedDependency.dev
+    ctx.resolvedPkgsById[pkgResponse.body.id].optional = ctx.resolvedPkgsById[pkgResponse.body.id].optional && currentIsOptional
     if (ctx.hoistPeers) {
       resolveChildren = !ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved &&
-        !ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.has(parentImporterId)
-      ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.add(parentImporterId)
+        !ctx.resolvedPkgsById[pkgResponse.body.id].parentImporterIds.has(parentImporterId)
+      ctx.resolvedPkgsById[pkgResponse.body.id].parentImporterIds.add(parentImporterId)
     }
-    if (ctx.resolvedPackagesByDepPath[depPath].fetching == null && pkgResponse.fetching != null) {
-      ctx.resolvedPackagesByDepPath[depPath].fetching = pkgResponse.fetching
-      ctx.resolvedPackagesByDepPath[depPath].filesIndexFile = pkgResponse.filesIndexFile!
+    if (ctx.resolvedPkgsById[pkgResponse.body.id].fetching == null && pkgResponse.fetching != null) {
+      ctx.resolvedPkgsById[pkgResponse.body.id].fetching = pkgResponse.fetching
+      ctx.resolvedPkgsById[pkgResponse.body.id].filesIndexFile = pkgResponse.filesIndexFile!
     }
 
     if (ctx.dependenciesTree.has(nodeId)) {
@@ -1420,7 +1420,7 @@ async function resolveDependency (
         parentIds: options.parentIds,
         installable,
         nodeId,
-        resolvedPackage: ctx.resolvedPackagesByDepPath[depPath],
+        resolvedPackage: ctx.resolvedPkgsById[pkgResponse.body.id],
       })
     }
   }
@@ -1458,7 +1458,7 @@ async function resolveDependency (
     pkgId: pkgResponse.body.id,
     rootDir,
     missingPeers: getMissingPeers(pkg),
-    optional: ctx.resolvedPackagesByDepPath[depPath].optional,
+    optional: ctx.resolvedPkgsById[pkgResponse.body.id].optional,
 
     // Next fields are actually only needed when isNew = true
     installable,
