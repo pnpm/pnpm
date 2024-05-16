@@ -177,7 +177,7 @@ export async function resolveDependencyTree<T> (
         pkgId: importer.id,
         rootDir: importer.rootDir,
       },
-      parentIds: [],
+      parentIds: [importer.id],
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,

@@ -1353,7 +1353,7 @@ async function resolveDependency (
   const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false
   const isNew = !ctx.resolvedPkgsById[pkgResponse.body.id]
-  const parentImporterId = options.parentPkg.nodeId.substring(0, options.parentPkg.nodeId.indexOf('>', 1) + 1)
+  const parentImporterId = options.parentIds[0]
   let resolveChildren = false
   const currentIsOptional = wantedDependency.optional || options.parentPkg.optional
 
@@ -1431,7 +1431,7 @@ async function resolveDependency (
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined
   if (ctx.hoistPeers && !options.parentIds.includes(pkgResponse.body.id)) {
     if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
-      if (!options.parentPkg.nodeId.startsWith(ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].parentImporterId)) {
+      if (options.parentIds[0] !== ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].parentImporterId) {
         missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren
       }
     } else {
