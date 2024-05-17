@@ -141,6 +141,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     for (const [alias, childNodeId] of Object.entries<NodeId>(node.childrenNodeIds)) {
       node.children[alias] = pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)
     }
+    delete node.childrenNodeIds
   })
 
   const dependenciesByProjectId: DependenciesByProjectId = {}
@@ -161,7 +162,6 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     const duplicates = Array.from(depPathsByPkgId.values()).filter((item) => item.size > 1)
     const allDepPathsMap = deduplicateAll(depGraph, duplicates)
     for (const { id } of opts.projects) {
-      dependenciesByProjectId[id] = {}
       for (const [alias, depPath] of Object.entries(dependenciesByProjectId[id])) {
         dependenciesByProjectId[id][alias] = allDepPathsMap[depPath] ?? depPath
       }
