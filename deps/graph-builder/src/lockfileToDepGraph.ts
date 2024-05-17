@@ -63,7 +63,7 @@ export interface LockfileToDepGraphOptions {
   patchedDependencies?: Record<string, PatchFile>
   registries: Registries
   sideEffectsCacheRead: boolean
-  skipped: Set<string>
+  skipped: Set<DepPath>
   storeController: StoreController
   storeDir: string
   virtualStoreDir: string

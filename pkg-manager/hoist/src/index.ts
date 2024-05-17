@@ -217,7 +217,7 @@ function hoistGraph (
     })
     // build the alias map and the id map
     .forEach((depNode) => {
-      for (const [childAlias, childPath] of Object.entries<DepPath>(depNode.children)) {
+      for (const [childAlias, childPath] of Object.entries<DepPath | string>(depNode.children)) {
         const hoist = opts.getAliasHoistType(childAlias)
         if (!hoist) continue
         const childAliasNormalized = childAlias.toLowerCase()
@@ -225,7 +225,7 @@ function hoistGraph (
         if (hoistedAliases.has(childAliasNormalized)) {
           continue
         }
-        if (opts.lockfile.packages?.[childPath]?.hasBin) {
+        if (opts.lockfile.packages?.[childPath as DepPath]?.hasBin) {
           hoistedAliasesWithBins.add(childAlias)
         }
         hoistedAliases.add(childAliasNormalized)
