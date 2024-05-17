@@ -47,6 +47,9 @@
     },
     {
       "path": "../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../resolving/resolver-base"
     }
   ],
   "composite": true

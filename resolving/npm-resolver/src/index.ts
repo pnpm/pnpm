@@ -7,6 +7,7 @@ import {
 } from '@pnpm/fetching-types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
+  type PkgResolutionId,
   type PreferredVersions,
   type ResolveResult,
   type WantedDependency,
@@ -222,7 +223,7 @@ async function resolveNpm (
     }
   }
 
-  const id = `${pickedPackage.name}@${pickedPackage.version}`
+  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
     tarball: pickedPackage.dist.tarball,
@@ -336,15 +337,15 @@ function resolveFromLocalPackage (
     lockfileDir?: string
   }
 ): ResolveResult {
-  let id!: string
+  let id!: PkgResolutionId
   let directory!: string
   const localPackageDir = resolveLocalPackageDir(localPackage)
   if (opts.hardLinkLocalPackages) {
     directory = normalize(path.relative(opts.lockfileDir!, localPackageDir))
-    id = `file:${directory}`
+    id = `file:${directory}` as PkgResolutionId
   } else {
     directory = localPackageDir
-    id = `link:${normalize(path.relative(opts.projectDir, localPackageDir))}`
+    id = `link:${normalize(path.relative(opts.projectDir, localPackageDir))}` as PkgResolutionId
   }
   return {
     id,

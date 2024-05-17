@@ -1,5 +1,6 @@
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import { type DependenciesTreeNode } from '../lib/resolveDependencies'
+import { type NodeId } from '../lib/nextNodeId'
 
 test('packages are not deduplicated when versions do not match', async () => {
   const fooPkg: PartialResolvedPackage = {
@@ -36,8 +37,8 @@ test('packages are not deduplicated when versions do not match', async () => {
     projects: [
       {
         directNodeIdsByAlias: {
-          foo: '>project1>foo/1.0.0>',
-          bar: '>project1>bar/1.0.0>',
+          foo: '>project1>foo/1.0.0>' as NodeId,
+          bar: '>project1>bar/1.0.0>' as NodeId,
         },
         topParents: [],
         rootDir: '',
@@ -45,9 +46,9 @@ test('packages are not deduplicated when versions do not match', async () => {
       },
       {
         directNodeIdsByAlias: {
-          foo: '>project2>foo/1.0.0>',
-          bar: '>project2>bar/1.0.0>',
-          baz: '>project2>baz/1.0.0>',
+          foo: '>project2>foo/1.0.0>' as NodeId,
+          bar: '>project2>bar/1.0.0>' as NodeId,
+          baz: '>project2>baz/1.0.0>' as NodeId,
         },
         topParents: [],
         rootDir: '',
@@ -55,8 +56,8 @@ test('packages are not deduplicated when versions do not match', async () => {
       },
       {
         directNodeIdsByAlias: {
-          foo: '>project3>foo/1.0.0>',
-          bar: '>project3>bar/2.0.0>',
+          foo: '>project3>foo/1.0.0>' as NodeId,
+          bar: '>project3>bar/2.0.0>' as NodeId,
         },
         topParents: [],
         rootDir: '',
@@ -64,9 +65,9 @@ test('packages are not deduplicated when versions do not match', async () => {
       },
       {
         directNodeIdsByAlias: {
-          foo: '>project4>foo/1.0.0>',
-          bar: '>project4>bar/2.0.0>',
-          baz: '>project4>baz/2.0.0>',
+          foo: '>project4>foo/1.0.0>' as NodeId,
+          bar: '>project4>bar/2.0.0>' as NodeId,
+          baz: '>project4>baz/2.0.0>' as NodeId,
         },
         topParents: [],
         rootDir: '',
@@ -74,20 +75,20 @@ test('packages are not deduplicated when versions do not match', async () => {
       },
     ],
     resolvedImporters: {},
-    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>(([
-      ['>project1>foo/1.0.0>', fooPkg],
-      ['>project1>bar/1.0.0>', peers.bar_1_0_0],
+    dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>(([
+      ['>project1>foo/1.0.0>' as NodeId, fooPkg],
+      ['>project1>bar/1.0.0>' as NodeId, peers.bar_1_0_0],
 
-      ['>project2>foo/1.0.0>', fooPkg],
-      ['>project2>bar/1.0.0>', peers.bar_1_0_0],
-      ['>project2>baz/1.0.0>', peers.baz_1_0_0],
+      ['>project2>foo/1.0.0>' as NodeId, fooPkg],
+      ['>project2>bar/1.0.0>' as NodeId, peers.bar_1_0_0],
+      ['>project2>baz/1.0.0>' as NodeId, peers.baz_1_0_0],
 
-      ['>project3>foo/1.0.0>', fooPkg],
-      ['>project3>bar/2.0.0>', peers.bar_2_0_0],
+      ['>project3>foo/1.0.0>' as NodeId, fooPkg],
+      ['>project3>bar/2.0.0>' as NodeId, peers.bar_2_0_0],
 
-      ['>project4>foo/1.0.0>', fooPkg],
-      ['>project4>bar/2.0.0>', peers.bar_2_0_0],
-      ['>project4>baz/2.0.0>', peers.baz_2_0_0],
+      ['>project4>foo/1.0.0>' as NodeId, fooPkg],
+      ['>project4>bar/2.0.0>' as NodeId, peers.bar_2_0_0],
+      ['>project4>baz/2.0.0>' as NodeId, peers.baz_2_0_0],
 
     ] satisfies Array<[string, PartialResolvedPackage]>).map(([path, resolvedPackage]) => [path, {
       children: {},

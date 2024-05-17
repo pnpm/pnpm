@@ -1,5 +1,5 @@
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
-import { type Registries } from '@pnpm/types'
+import { type PkgResolutionId, type Registries } from '@pnpm/types'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string): boolean {
@@ -85,7 +85,7 @@ export interface DependencyPath {
   name?: string
   peersSuffix?: string
   version?: string
-  nonSemverVersion?: string
+  nonSemverVersion?: PkgResolutionId
 }
 
 export function parse (dependencyPath: string): DependencyPath {
@@ -121,7 +121,7 @@ export function parse (dependencyPath: string): DependencyPath {
     }
     return {
       name,
-      nonSemverVersion: version,
+      nonSemverVersion: version as PkgResolutionId,
       peersSuffix,
     }
   }

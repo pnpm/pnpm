@@ -52,6 +52,7 @@
   "devDependencies": {
     "@pnpm/outdated": "workspace:*",
     "@types/ramda": "0.29.12",
+    "@pnpm/resolver-base": "workspace:*",
     "@types/semver": "7.5.3"
   },
   "funding": "https://opencollective.com/pnpm",

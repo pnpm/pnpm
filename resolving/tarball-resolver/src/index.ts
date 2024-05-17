@@ -1,4 +1,4 @@
-import { type ResolveResult } from '@pnpm/resolver-base'
+import { type PkgResolutionId, type ResolveResult } from '@pnpm/resolver-base'
 
 export async function resolveFromTarball (
   wantedDependency: { pref: string }
@@ -10,7 +10,7 @@ export async function resolveFromTarball (
   if (isRepository(wantedDependency.pref)) return null
 
   return {
-    id: wantedDependency.pref,
+    id: wantedDependency.pref as PkgResolutionId,
     normalizedPref: wantedDependency.pref,
     resolution: {
       tarball: wantedDependency.pref,

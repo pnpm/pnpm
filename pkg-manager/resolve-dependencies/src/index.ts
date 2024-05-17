@@ -26,6 +26,7 @@ import zipWith from 'ramda/src/zipWith'
 import isSubdir from 'is-subdir'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
 import { depPathToRef } from './depPathToRef'
+import { type NodeId } from './nextNodeId'
 import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies'
 import {
   type Importer,
@@ -60,7 +61,7 @@ export {
 
 interface ProjectToLink {
   binsDir: string
-  directNodeIdsByAlias: { [alias: string]: string }
+  directNodeIdsByAlias: { [alias: string]: NodeId }
   id: string
   linkedDependencies: LinkedDependency[]
   manifest: ProjectManifest

@@ -15,7 +15,7 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import tempy from 'tempy'
-import { type PkgRequestFetchResult } from '@pnpm/store-controller-types'
+import { type PkgResolutionId, type PkgRequestFetchResult } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(__dirname)
@@ -128,7 +128,7 @@ test('request package but skip fetching, when resolution is already available', 
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     currentPkg: {
-      id: 'is-positive@1.0.0',
+      id: 'is-positive@1.0.0' as PkgResolutionId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -197,7 +197,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        id: pkgId,
+        id: pkgId as PkgResolutionId,
         resolution: {
           integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
           tarball,
@@ -229,7 +229,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        id: pkgId,
+        id: pkgId as PkgResolutionId,
         resolution: {
           integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
           tarball,
@@ -256,7 +256,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        id: pkgId,
+        id: pkgId as PkgResolutionId,
         resolution: {
           integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
           tarball,
@@ -588,7 +588,7 @@ test('always return a package manifest in the response', async () => {
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       currentPkg: {
-        id: 'is-positive@1.0.0',
+        id: 'is-positive@1.0.0' as PkgResolutionId,
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
