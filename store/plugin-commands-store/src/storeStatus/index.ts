@@ -4,9 +4,11 @@ import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
+  type PackageSnapshot,
 } from '@pnpm/lockfile-utils'
 import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
+import { type DepPath } from '@pnpm/types'
 import dint from 'dint'
 import loadJsonFile from 'load-json-file'
 import pFilter from 'p-filter'
@@ -33,7 +35,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
   })
   if (!wantedLockfile) return []
 
-  const pkgs = Object.entries(wantedLockfile.packages ?? {})
+  const pkgs = (Object.entries(wantedLockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>)
     .filter(([depPath]) => !skipped.has(depPath))
     .map(([depPath, pkgSnapshot]) => {
       const id = packageIdFromSnapshot(depPath, pkgSnapshot)

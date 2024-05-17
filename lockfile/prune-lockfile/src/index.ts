@@ -5,7 +5,7 @@ import {
   type ProjectSnapshot,
   type ResolvedDependencies,
 } from '@pnpm/lockfile-types'
-import { type PackageManifest } from '@pnpm/types'
+import { type DepPath, type PackageManifest } from '@pnpm/types'
 import { refToRelative } from '@pnpm/dependency-path'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
@@ -117,9 +117,9 @@ export function pruneLockfile (
 function copyPackageSnapshots (
   originalPackages: PackageSnapshots,
   opts: {
-    devDepPaths: string[]
-    optionalDepPaths: string[]
-    prodDepPaths: string[]
+    devDepPaths: DepPath[]
+    optionalDepPaths: DepPath[]
+    prodDepPaths: DepPath[]
     warn: (msg: string) => void
   }
 ): PackageSnapshots {
@@ -145,10 +145,10 @@ function copyPackageSnapshots (
   return copiedSnapshots
 }
 
-function resolvedDepsToDepPaths (deps: ResolvedDependencies) {
+function resolvedDepsToDepPaths (deps: ResolvedDependencies): DepPath[] {
   return Object.entries(deps)
     .map(([alias, ref]) => refToRelative(ref, alias))
-    .filter((depPath) => depPath !== null) as string[]
+    .filter((depPath) => depPath !== null) as DepPath[]
 }
 
 function copyDependencySubGraph (
@@ -159,7 +159,7 @@ function copyDependencySubGraph (
     walked: Set<string>
     warn: (msg: string) => void
   },
-  depPaths: string[],
+  depPaths: DepPath[],
   opts: {
     optional: boolean
   }

@@ -1,6 +1,8 @@
 import path from 'path'
 import normalize from 'normalize-path'
+import { type DepPath } from '@pnpm/types'
 import { type ResolvedDirectDependency, type ResolvedImporters } from './resolveDependencyTree'
+import { type NodeId } from './nextNodeId'
 import { type LinkedDependency } from './resolveDependencies'
 import {
   type DependenciesByProjectId,
@@ -13,7 +15,7 @@ export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {
   depGraph: GenericDependenciesGraph<T>
   dependenciesByProjectId: DependenciesByProjectId
   lockfileDir: string
-  pathsByNodeId: Map<string, string>
+  pathsByNodeId: Map<NodeId, DepPath>
   projects: ProjectToResolve[]
   resolvedImporters: ResolvedImporters
 }
@@ -26,12 +28,12 @@ export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
   applyDedupeMap(dedupeMap, opts)
 }
 
-type InjectedDepsByProjects = Map<string, Map<string, { depPath: string, id: string }>>
+type InjectedDepsByProjects = Map<string, Map<string, { depPath: DepPath, id: string }>>
 
 function getInjectedDepsByProjects<T extends PartialResolvedPackage> (
   opts: Pick<DedupeInjectedDepsOptions<T>, 'projects' | 'pathsByNodeId' | 'depGraph'>
 ): InjectedDepsByProjects {
-  const injectedDepsByProjects = new Map<string, Map<string, { depPath: string, id: string }>>()
+  const injectedDepsByProjects = new Map<string, Map<string, { depPath: DepPath, id: string }>>()
   for (const project of opts.projects) {
     for (const [alias, nodeId] of Object.entries(project.directNodeIdsByAlias)) {
       const depPath = opts.pathsByNodeId.get(nodeId)!
@@ -58,7 +60,7 @@ function getDedupeMap<T extends PartialResolvedPackage> (
     for (const [alias, dep] of deps.entries()) {
       // Check for subgroup not equal.
       // The injected project in the workspace may have dev deps
-      const isSubset = Object.entries(opts.depGraph[dep.depPath].children)
+      const isSubset = Object.entries(opts.depGraph[dep.depPath].children!)
         .every(([alias, depPath]) => opts.dependenciesByProjectId[dep.id][alias] === depPath)
       if (isSubset) {
         dedupedInjectedDeps.set(alias, dep.id)

@@ -1,5 +1,6 @@
 import { type Lockfile, type PackageSnapshots, type ResolvedDependencies } from '@pnpm/lockfile-types'
 import * as dp from '@pnpm/dependency-path'
+import { type DepPath } from '@pnpm/types'
 
 export enum DepType {
   DevOnly,
@@ -42,7 +43,7 @@ function detectDepTypesInSubGraph (
     walked: Set<string>
     dev: Record<string, DepType>
   },
-  depPaths: string[],
+  depPaths: DepPath[],
   opts: {
     dev: boolean
   }
@@ -70,8 +71,8 @@ function detectDepTypesInSubGraph (
   }
 }
 
-function resolvedDepsToDepPaths (deps: ResolvedDependencies): string[] {
+function resolvedDepsToDepPaths (deps: ResolvedDependencies): DepPath[] {
   return Object.entries(deps)
     .map(([alias, ref]) => dp.refToRelative(ref, alias))
-    .filter((depPath) => depPath !== null) as string[]
+    .filter((depPath) => depPath !== null) as DepPath[]
 }

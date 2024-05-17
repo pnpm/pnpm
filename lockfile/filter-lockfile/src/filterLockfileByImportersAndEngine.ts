@@ -7,7 +7,7 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type SupportedArchitectures, type DependenciesField } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type DependenciesField } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import mapValues from 'ramda/src/map'
 import pickBy from 'ramda/src/pickBy'
@@ -93,7 +93,7 @@ export function filterLockfileByImportersAndEngine (
 
 function pickPkgsWithAllDeps (
   lockfile: Lockfile,
-  depPaths: string[],
+  depPaths: DepPath[],
   importerIdSet: Set<string>,
   opts: {
     currentEngine: {
@@ -120,7 +120,7 @@ function pkgAllDeps (
     pickedPackages: PackageSnapshots
     importerIdSet: Set<string>
   },
-  depPaths: string[],
+  depPaths: DepPath[],
   parentIsInstallable: boolean,
   opts: {
     currentEngine: {
@@ -203,7 +203,7 @@ function toImporterDepPaths (
     include: { [dependenciesField in DependenciesField]: boolean }
     importerIdSet: Set<string>
   }
-): string[] {
+): DepPath[] {
   const importerDeps = importerIds
     .map(importerId => lockfile.importers[importerId])
     .map(importer => ({
@@ -230,7 +230,7 @@ function toImporterDepPaths (
 }
 
 interface ParsedDepRefs {
-  depPaths: string[]
+  depPaths: DepPath[]
   importerIds: string[]
 }
 

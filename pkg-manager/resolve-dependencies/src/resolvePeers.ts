@@ -5,6 +5,7 @@ import pDefer from 'p-defer'
 import semver from 'semver'
 import { semverUtils } from '@yarnpkg/core'
 import type {
+  DepPath,
   ParentPackages,
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
@@ -29,7 +30,8 @@ export interface GenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
   modules: string
   dir: string
-  children: Record<string, string>
+  childrenNodeIds?: Record<string, NodeId>
+  children?: Record<string, DepPath>
   depth: number
   peerDependencies?: PeerDependencies
   transitivePeerDependencies: Set<string>
@@ -49,7 +51,7 @@ export type PartialResolvedPackage = Pick<ResolvedPackage,
 >
 
 export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {
-  [depPath: string]: T & GenericDependenciesGraphNode
+  [depPath: DepPath]: T & GenericDependenciesGraphNode
 }
 
 export interface ProjectToResolve {
@@ -61,7 +63,7 @@ export interface ProjectToResolve {
   id: string
 }
 
-export type DependenciesByProjectId = Record<string, Record<string, string>>
+export type DependenciesByProjectId = Record<string, Record<string, DepPath>>
 
 export async function resolvePeers<T extends PartialResolvedPackage> (
   opts: {
@@ -82,9 +84,9 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   }> {
   const depGraph: GenericDependenciesGraph<T> = {}
-  const pathsByNodeId = new Map<string, string>()
-  const pathsByNodeIdPromises = new Map<string, pDefer.DeferredPromise<string>>()
-  const depPathsByPkgId = new Map<string, Set<string>>()
+  const pathsByNodeId = new Map<NodeId, DepPath>()
+  const pathsByNodeIdPromises = new Map<NodeId, pDefer.DeferredPromise<DepPath>>()
+  const depPathsByPkgId = new Map<string, Set<DepPath>>()
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
@@ -134,7 +136,10 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   await Promise.all(finishingList)
 
   Object.values(depGraph).forEach((node) => {
-    node.children = mapValues((childNodeId) => pathsByNodeId.get(childNodeId) ?? childNodeId, node.children)
+    node.children = {}
+    for (const [alias, childNodeId] of Object.entries<NodeId>(node.childrenNodeIds)) {
+      node.children[alias] = pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)
+    }
   })
 
   const dependenciesByProjectId: DependenciesByProjectId = {}
@@ -155,7 +160,10 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     const duplicates = Array.from(depPathsByPkgId.values()).filter((item) => item.size > 1)
     const allDepPathsMap = deduplicateAll(depGraph, duplicates)
     for (const { id } of opts.projects) {
-      dependenciesByProjectId[id] = mapValues((depPath) => allDepPathsMap[depPath] ?? depPath, dependenciesByProjectId[id])
+      dependenciesByProjectId[id] = {}
+      for (const [alias, depPath] of Object.entries(dependenciesByProjectId[id])) {
+        dependenciesByProjectId[id][alias] = allDepPathsMap[depPath] ?? depPath
+      }
     }
   }
   return {
@@ -166,19 +174,23 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
 }
 
 function nodeDepsCount (node: GenericDependenciesGraphNode): number {
-  return Object.keys(node.children).length + node.resolvedPeerNames.size
+  return Object.keys(node.children!).length + node.resolvedPeerNames.size
 }
 
 function deduplicateAll<T extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraph<T>,
-  duplicates: Array<Set<string>>
-): Record<string, string> {
+  duplicates: Array<Set<DepPath>>
+): Record<DepPath, DepPath> {
   const { depPathsMap, remainingDuplicates } = deduplicateDepPaths(duplicates, depGraph)
   if (remainingDuplicates.length === duplicates.length) {
     return depPathsMap
   }
   Object.values(depGraph).forEach((node) => {
-    node.children = mapValues((childDepPath) => depPathsMap[childDepPath] ?? childDepPath, node.children)
+    for (const [alias, childDepPath] of Object.entries<DepPath>(node.children)) {
+      if (depPathsMap[childDepPath]) {
+        node.children[alias] = depPathsMap[childDepPath]
+      }
+    }
   })
   if (Object.keys(depPathsMap).length > 0) {
     return {
@@ -190,17 +202,17 @@ function deduplicateAll<T extends PartialResolvedPackage> (
 }
 
 interface DeduplicateDepPathsResult {
-  depPathsMap: Record<string, string>
-  remainingDuplicates: Array<Set<string>>
+  depPathsMap: Record<DepPath, DepPath>
+  remainingDuplicates: Array<Set<DepPath>>
 }
 
 function deduplicateDepPaths<T extends PartialResolvedPackage> (
-  duplicates: Array<Set<string>>,
+  duplicates: Array<Set<DepPath>>,
   depGraph: GenericDependenciesGraph<T>
 ): DeduplicateDepPathsResult {
-  const depCountSorter = (depPath1: string, depPath2: string) => nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2])
-  const depPathsMap: Record<string, string> = {}
-  const remainingDuplicates: Array<Set<string>> = []
+  const depCountSorter = (depPath1: DepPath, depPath2: DepPath) => nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2])
+  const depPathsMap: Record<DepPath, DepPath> = {}
+  const remainingDuplicates: Array<Set<DepPath>> = []
 
   for (const depPaths of duplicates) {
     const unresolvedDepPaths = new Set(depPaths.values())
@@ -235,15 +247,15 @@ function deduplicateDepPaths<T extends PartialResolvedPackage> (
 
 function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraph<T>,
-  depPath1: string,
-  depPath2: string
+  depPath1: DepPath,
+  depPath2: DepPath
 ): boolean {
   const node1 = depGraph[depPath1]
   const node2 = depGraph[depPath2]
   if (nodeDepsCount(node1) < nodeDepsCount(node2)) return false
 
-  const node1DepPathsSet = new Set(Object.values(node1.children))
-  const node2DepPaths = Object.values(node2.children)
+  const node1DepPathsSet = new Set(Object.values(node1.children!))
+  const node2DepPaths = Object.values(node2.children!)
   if (!node2DepPaths.every((depPath) => node1DepPathsSet.has(depPath))) return false
 
   for (const depPath of node2.resolvedPeerNames) {
@@ -293,7 +305,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
 }
 
 interface PeersCacheItem {
-  depPath: pDefer.DeferredPromise<string>
+  depPath: pDefer.DeferredPromise<DepPath>
   resolvedPeers: Map<string, NodeId>
   missingPeers: Set<string>
 }
@@ -306,9 +318,9 @@ interface PeersResolution {
 }
 
 interface ResolvePeersContext {
-  pathsByNodeId: Map<string, string>
-  pathsByNodeIdPromises: Map<string, pDefer.DeferredPromise<string>>
-  depPathsByPkgId?: Map<string, Set<string>>
+  pathsByNodeId: Map<NodeId, DepPath>
+  pathsByNodeIdPromises: Map<NodeId, pDefer.DeferredPromise<DepPath>>
+  depPathsByPkgId?: Map<string, Set<DepPath>>
 }
 
 type CalculateDepPath = (cycles: string[][]) => Promise<void>
@@ -347,11 +359,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   const resolvedPackage = node.resolvedPackage as T
   if (
     ctx.purePkgs.has(resolvedPackage.depPath) &&
-    ctx.depGraph[resolvedPackage.depPath].depth <= node.depth &&
+    ctx.depGraph[resolvedPackage.depPath as DepPath].depth <= node.depth &&
     Object.keys(resolvedPackage.peerDependencies).length === 0
   ) {
-    ctx.pathsByNodeId.set(nodeId, resolvedPackage.depPath)
-    ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(resolvedPackage.depPath)
+    ctx.pathsByNodeId.set(nodeId, resolvedPackage.depPath as DepPath)
+    ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(resolvedPackage.depPath as DepPath)
     return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Set<string>() }
   }
   if (typeof node.children === 'function') {
@@ -458,7 +470,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   let calculateDepPathIfNeeded: CalculateDepPath | undefined
   if (allResolvedPeers.size === 0) {
-    addDepPathToGraph(resolvedPackage.depPath)
+    addDepPathToGraph(resolvedPackage.depPath as DepPath)
   } else {
     const peerIds: PeerId[] = []
     const pendingPeerNodeIds: NodeId[] = []
@@ -480,7 +492,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
     if (pendingPeerNodeIds.length === 0) {
       const peersDirSuffix = createPeersDirSuffix(peerIds)
-      addDepPathToGraph(`${resolvedPackage.depPath}${peersDirSuffix}`)
+      addDepPathToGraph(`${resolvedPackage.depPath}${peersDirSuffix}` as DepPath)
     } else {
       calculateDepPathIfNeeded = calculateDepPath.bind(null, peerIds, pendingPeerNodeIds)
     }
@@ -518,10 +530,10 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         })
       ),
     ])
-    addDepPathToGraph(`${resolvedPackage.depPath}${peersDirSuffix}`)
+    addDepPathToGraph(`${resolvedPackage.depPath}${peersDirSuffix}` as DepPath)
   }
 
-  function addDepPathToGraph (depPath: string): void {
+  function addDepPathToGraph (depPath: DepPath): void {
     cache?.depPath.resolve(depPath)
     ctx.pathsByNodeId.set(nodeId, depPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
@@ -550,12 +562,12 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
       ctx.depGraph[depPath] = {
         ...(node.resolvedPackage as T),
-        children: Object.assign(
+        childrenNodeIds: Object.assign(
           getPreviouslyResolvedChildren(ctx, (node.resolvedPackage as T).depPath),
           children,
           Object.fromEntries(resolvedPeers.entries())
         ),
-        depPath,
+        // depPath,
         depth: node.depth,
         dir,
         installable: node.installable,

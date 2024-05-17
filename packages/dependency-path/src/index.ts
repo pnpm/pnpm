@@ -1,5 +1,5 @@
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
-import { type PkgResolutionId, type Registries } from '@pnpm/types'
+import { type DepPath, type PkgResolutionId, type Registries } from '@pnpm/types'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string): boolean {
@@ -68,17 +68,17 @@ export function getRegistryByPackageName (registries: Registries, packageName: s
 export function refToRelative (
   reference: string,
   pkgName: string
-): string | null {
+): DepPath | null {
   if (reference.startsWith('link:')) {
     return null
   }
-  if (reference.startsWith('@')) return reference
+  if (reference.startsWith('@')) return reference as DepPath
   const atIndex = reference.indexOf('@')
-  if (atIndex === -1) return `${pkgName}@${reference}`
+  if (atIndex === -1) return `${pkgName}@${reference}` as DepPath
   const colonIndex = reference.indexOf(':')
   const bracketIndex = reference.indexOf('(')
-  if ((colonIndex === -1 || atIndex < colonIndex) && (bracketIndex === -1 || atIndex < bracketIndex)) return reference
-  return `${pkgName}@${reference}`
+  if ((colonIndex === -1 || atIndex < colonIndex) && (bracketIndex === -1 || atIndex < bracketIndex)) return reference as DepPath
+  return `${pkgName}@${reference}` as DepPath
 }
 
 export interface DependencyPath {

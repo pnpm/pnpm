@@ -2056,6 +2056,9 @@ importers:
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../lockfile-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
     devDependencies:
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
@@ -2324,6 +2327,9 @@ importers:
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../lockfile-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       comver-to-semver:
         specifier: ^1.0.0
         version: 1.0.0

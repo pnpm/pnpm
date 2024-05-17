@@ -26,7 +26,7 @@ import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
-import { type ProjectManifest } from '@pnpm/types'
+import { type DepPath, type ProjectManifest } from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import * as dp from '@pnpm/dependency-path'
 import { hardLinkDir } from '@pnpm/worker'
@@ -50,8 +50,8 @@ function findPackages (
   opts: {
     prefix: string
   }
-): string[] {
-  return Object.keys(packages)
+): DepPath[] {
+  return (Object.keys(packages) as DepPath[])
     .filter((relativeDepPath) => {
       const pkgLockfile = packages[relativeDepPath]
       const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgLockfile)
@@ -206,7 +206,7 @@ export async function rebuildProjects (
 
 function getSubgraphToBuild (
   step: LockfileWalkerStep,
-  nodesToBuildAndTransitive: Set<string>,
+  nodesToBuildAndTransitive: Set<DepPath>,
   opts: {
     pkgsToRebuild: Set<string>
   }
@@ -254,7 +254,7 @@ async function _rebuild (
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
 
-  const nodesToBuildAndTransitive = new Set<string>()
+  const nodesToBuildAndTransitive = new Set<DepPath>()
   getSubgraphToBuild(
     lockfileWalker(
       ctx.currentLockfile,
@@ -282,7 +282,7 @@ async function _rebuild (
     graph,
     nodesToBuildAndTransitiveArray
   )
-  const chunks = graphSequencerResult.chunks as string[][]
+  const chunks = graphSequencerResult.chunks as DepPath[][]
   const warn = (message: string) => {
     logger.info({ message, prefix: opts.dir })
   }
@@ -398,8 +398,8 @@ async function _rebuild (
   if (builtDepPaths.size > 0) {
     // It may be optimized because some bins were already linked before running lifecycle scripts
     await Promise.all(
-      Object
-        .keys(pkgSnapshots)
+      (Object
+        .keys(pkgSnapshots) as DepPath[])
         .filter((depPath) => !packageIsIndependent(pkgSnapshots[depPath]))
         .map(async (depPath) => limitLinking(async () => {
           const pkgSnapshot = pkgSnapshots[depPath]

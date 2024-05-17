@@ -30,6 +30,7 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import {
+  type DepPath,
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageManifest,
@@ -1006,7 +1007,7 @@ function referenceSatisfiesWantedSpec (
 }
 
 type InfoFromLockfile = {
-  depPath: string
+  depPath: DepPath
   pkgId: PkgResolutionId
   dependencyLockfile?: PackageSnapshot
   name?: string
@@ -1076,7 +1077,7 @@ function getInfoFromLockfile (
 interface ResolveDependencyOptions {
   currentDepth: number
   currentPkg?: {
-    depPath?: string
+    depPath?: DepPath
     name?: string
     version?: string
     pkgId?: PkgResolutionId

@@ -1,4 +1,4 @@
-import { type DependenciesMeta, type PatchFile } from '@pnpm/types'
+import { type DependenciesMeta, type DepPath, type PatchFile } from '@pnpm/types'
 
 export type { PatchFile }
 
@@ -48,7 +48,7 @@ export interface ProjectSnapshot {
 export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>
 
 export interface PackageSnapshots {
-  [packagePath: string]: PackageSnapshot
+  [packagePath: DepPath]: PackageSnapshot
 }
 
 /**
