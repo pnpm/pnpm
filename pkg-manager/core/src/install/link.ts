@@ -77,7 +77,7 @@ export interface LinkPackagesOptions {
 
 export interface LinkPackagesResult {
   currentLockfile: Lockfile
-  newDepPaths: string[]
+  newDepPaths: DepPath[]
   newHoistedDependencies: HoistedDependencies
   removedDepPaths: Set<string>
   stats: InstallationResultStats
@@ -327,7 +327,7 @@ interface LinkNewPackagesOptions {
 }
 
 interface LinkNewPackagesResult {
-  newDepPaths: string[]
+  newDepPaths: DepPath[]
   added: number
 }
 
@@ -482,7 +482,7 @@ async function linkAllPkgs (
       }
       depNode.isBuilt = isBuilt
 
-      const selfDep = depNode.children[depNode.name]
+      const selfDep = depNode.children![depNode.name]
       if (selfDep) {
         const pkg = opts.depGraph[selfDep]
         if (!pkg || !pkg.installable && pkg.optional) return

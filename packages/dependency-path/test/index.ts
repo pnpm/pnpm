@@ -90,4 +90,5 @@ test('tryGetPackageId', () => {
   expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/foo@1.0.0')
   expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))')).toEqual('/foo@1.0.0')
   expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/@(-.-)/foo@1.0.0')
+  expect(tryGetPackageId('foo@1.0.0(patch=xxxx)(@types/babel__core@7.1.14)')).toEqual('foo@1.0.0')
 })

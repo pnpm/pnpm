@@ -55,6 +55,7 @@ import {
   type PreferredVersions,
 } from '@pnpm/resolver-base'
 import {
+  type DepPath,
   type DependenciesField,
   type DependencyManifest,
   type PeerDependencyIssues,
@@ -1168,7 +1169,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
       if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
         // postinstall hooks
-        const depPaths = Object.keys(dependenciesGraph)
+        const depPaths = Object.keys(dependenciesGraph) as DepPath[]
         const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
 
         let extraEnv: Record<string, string> | undefined = opts.scriptsOpts.extraEnv
@@ -1207,6 +1208,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       logger.info({ message, prefix })
     }
     if (result.newDepPaths?.length) {
+      // @ts-expect-error
       const newPkgs = props<string, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
       await linkAllBins(newPkgs, dependenciesGraph, {
         extraNodePaths: ctx.extraNodePaths,
@@ -1237,6 +1239,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         const directPkgs = [
           ...props<string, DependenciesGraphNode>(
             Object.values(dependenciesByProjectId[project.id]).filter((depPath) => !ctx.skipped.has(depPath)),
+            // @ts-expect-error
             dependenciesGraph
           ),
           ...linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({

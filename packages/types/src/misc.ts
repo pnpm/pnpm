@@ -34,4 +34,6 @@ export interface PatchFile {
 
 export type PkgResolutionId = string & { __brand: 'PkgResolutionId' }
 
+export type PkgId = string & { __brand: 'PkgId' }
+
 export type DepPath = string & { __brand: 'DepPath' }

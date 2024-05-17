@@ -18,8 +18,8 @@ import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } fro
 
 export type { DepsStateCache }
 
-export async function buildModules (
-  depGraph: DependenciesGraph,
+export async function buildModules<T extends string> (
+  depGraph: DependenciesGraph<T>,
   rootDepPaths: string[],
   opts: {
     allowBuild?: (pkgName: string) => boolean
@@ -55,7 +55,7 @@ export async function buildModules (
     builtHoistedDeps: opts.hoistedLocations ? {} : undefined,
     warn,
   }
-  const chunks = buildSequence(depGraph, rootDepPaths)
+  const chunks = buildSequence<T>(depGraph, rootDepPaths)
   const ignoredPkgs = new Set<string>()
   const allowBuild = opts.allowBuild
     ? (pkgName: string) => {
@@ -73,7 +73,7 @@ export async function buildModules (
       chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
     }
 
-    return chunk.map((depPath: string) =>
+    return chunk.map((depPath) =>
       async () => {
         return buildDependency(depPath, depGraph, {
           ...buildDepOpts,
@@ -91,9 +91,9 @@ export async function buildModules (
   }
 }
 
-async function buildDependency (
-  depPath: string,
-  depGraph: DependenciesGraph,
+async function buildDependency<T extends string> (
+  depPath: T,
+  depGraph: DependenciesGraph<T>,
   opts: {
     extraBinPaths?: string[]
     extraNodePaths?: string[]
@@ -204,9 +204,9 @@ async function buildDependency (
   }
 }
 
-export async function linkBinsOfDependencies (
-  depNode: DependenciesGraphNode,
-  depGraph: DependenciesGraph,
+export async function linkBinsOfDependencies<T extends string> (
+  depNode: DependenciesGraphNode<T>,
+  depGraph: DependenciesGraph<T>,
   opts: {
     extraNodePaths?: string[]
     optional: boolean
@@ -214,7 +214,7 @@ export async function linkBinsOfDependencies (
     warn: (message: string) => void
   }
 ): Promise<void> {
-  const childrenToLink: Record<string, string> = opts.optional
+  const childrenToLink: Record<string, T> = opts.optional
     ? depNode.children
     : pickBy((child, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
 

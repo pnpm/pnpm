@@ -2,7 +2,7 @@ import path from 'path'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
-import { type DependenciesField, type HoistedDependencies, type Registries } from '@pnpm/types'
+import { type DepPath, type DependenciesField, type HoistedDependencies, type Registries } from '@pnpm/types'
 import realpathMissing from 'realpath-missing'
 
 export interface ProjectOptions {
@@ -30,7 +30,7 @@ export async function readProjectsContext<T> (
     pendingBuilds: string[]
     registries: Registries | null | undefined
     rootModulesDir: string
-    skipped: Set<string>
+    skipped: Set<DepPath>
     virtualStoreDirMaxLength?: number
   }> {
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
@@ -58,7 +58,7 @@ export async function readProjectsContext<T> (
       })),
     registries: ((modules?.registries) != null) ? normalizeRegistries(modules.registries) : undefined,
     rootModulesDir,
-    skipped: new Set(modules?.skipped ?? []),
+    skipped: new Set((modules?.skipped ?? []) as DepPath[]),
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength,
   }
 }

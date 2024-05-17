@@ -54,7 +54,7 @@ function createVirtualStoreDir (lockfile: Lockfile): Record<string, DirEntry> {
     for (const [depName, ref] of Object.entries({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })) {
       const symlink: DirEntry = {
         entryType: 'symlink',
-        target: normalize(path.relative(`${currentPath}/node_modules/`, `${dp.depPathToFilename(dp.refToRelative(ref, depName)!, 120)}/node_modules/${depName}`)),
+        target: normalize(path.relative(`${currentPath}/node_modules/`, `${dp.depPathToFilename(dp.refToRelative(ref as string, depName)!, 120)}/node_modules/${depName}`)),
       }
       addDirEntry(pkgNodeModules, depName, symlink)
     }

@@ -16,10 +16,16 @@
       "path": "../../lockfile/lockfile-types"
     },
     {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
       "path": "../constants"
     },
     {
       "path": "../dependency-path"
+    },
+    {
+      "path": "../types"
     }
   ],
   "composite": true

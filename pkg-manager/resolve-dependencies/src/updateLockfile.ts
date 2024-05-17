@@ -162,7 +162,7 @@ function updateResolvedDeps (
         const depNode = depGraph[depPath]
         return [
           alias,
-          depPathToRef(depNode.depPath, {
+          depPathToRef(depPath, {
             alias,
             realName: depNode.name,
             resolution: depNode.resolution,

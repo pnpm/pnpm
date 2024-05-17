@@ -5,6 +5,7 @@ import { type Lockfile, readWantedLockfile, type PackageSnapshot, type TarballRe
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
+import { type DepPath } from '@pnpm/types'
 import * as schemas from 'hyperdrive-schemas'
 import loadJsonFile from 'load-json-file'
 import Fuse from 'fuse-native'
@@ -177,7 +178,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
   }
   function getPkgInfo (depPath: string, cafsDir: string) {
     if (!pkgSnapshotCache.has(depPath)) {
-      const pkgSnapshot = lockfile.packages?.[depPath]
+      const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
       if (pkgSnapshot == null) return undefined
       const indexPath = getFilePathInCafs(cafsDir, (pkgSnapshot.resolution as TarballResolution).integrity!, 'index')
       pkgSnapshotCache.set(depPath, {

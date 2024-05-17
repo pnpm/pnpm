@@ -1,5 +1,5 @@
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
-import { type DepPath, type PkgResolutionId, type Registries } from '@pnpm/types'
+import { type DepPath, type PkgResolutionId, type Registries, type PkgId } from '@pnpm/types'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string): boolean {
@@ -15,6 +15,9 @@ export function indexOfPeersSuffix (depPath: string): number {
     } else if (depPath[i] === ')') {
       open++
     } else if (!open) {
+      if (depPath.substring(i + 1).startsWith('(patch_hash=')) {
+        return depPath.indexOf('(', i + 2)
+      }
       return i + 1
     }
   }
@@ -48,15 +51,16 @@ export function removePeersSuffix (relDepPath: string): string {
   return relDepPath
 }
 
-export function tryGetPackageId (relDepPath: string): string {
-  const sepIndex = indexOfPeersSuffix(relDepPath)
+export function tryGetPackageId (relDepPath: DepPath): PkgId {
+  let pkgId: string = relDepPath
+  const sepIndex = indexOfPeersSuffix(pkgId)
   if (sepIndex !== -1) {
-    relDepPath = relDepPath.substring(0, sepIndex)
+    pkgId = pkgId.substring(0, sepIndex)
   }
-  if (relDepPath.includes(':')) {
-    relDepPath = relDepPath.substring(relDepPath.indexOf('@', 1) + 1)
+  if (pkgId.includes(':')) {
+    pkgId = pkgId.substring(pkgId.indexOf('@', 1) + 1)
   }
-  return relDepPath
+  return pkgId as PkgId
 }
 
 export function getRegistryByPackageName (registries: Registries, packageName: string): string {

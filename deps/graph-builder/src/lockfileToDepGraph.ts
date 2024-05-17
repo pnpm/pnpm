@@ -15,7 +15,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries, type PkgId } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchPackageToStoreFunction,
@@ -38,7 +38,8 @@ export interface DependenciesGraphNode {
   children: Record<string, string>
   optionalDependencies: Set<string>
   optional: boolean
-  depPath: string // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
+  depPath: DepPath // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
+  packageId: PkgId
   isBuilt?: boolean
   requiresBuild?: boolean
   hasBin: boolean
@@ -183,6 +184,7 @@ export async function lockfileToDepGraph (
         }
         graph[dir] = {
           children: {},
+          packageId,
           depPath,
           dir,
           fetching: fetchResponse.fetching,

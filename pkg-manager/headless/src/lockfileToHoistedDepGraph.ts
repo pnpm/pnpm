@@ -237,6 +237,7 @@ async function fetchDeps (
       alias: dep.name,
       children: {},
       depPath,
+      packageId,
       dir,
       fetching: fetchResponse.fetching,
       filesIndexFile: fetchResponse.filesIndexFile,

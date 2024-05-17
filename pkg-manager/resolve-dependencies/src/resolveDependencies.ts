@@ -37,6 +37,7 @@ import {
   type PatchFile,
   type ReadPackageHook,
   type Registries,
+  type PkgId,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
@@ -228,7 +229,7 @@ export interface ResolvedPackage {
   hasBundledDependencies: boolean
   patchFile?: PatchFile
   prepare: boolean
-  depPath: string
+  packageId: PkgId
   requiresBuild?: boolean
   additionalInfo: {
     deprecated?: string
@@ -1271,12 +1272,12 @@ async function resolveDependency (
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
-  let depPath = pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`
+  let depPath = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgId
   const nameAndVersion = `${pkg.name}@${pkg.version}`
   const patchFile = ctx.patchedDependencies?.[nameAndVersion]
   if (patchFile) {
     ctx.appliedPatches.add(nameAndVersion)
-    depPath += `(patch_hash=${patchFile.hash})`
+    depPath = `${depPath}(patch_hash=${patchFile.hash})` as PkgId
   }
 
   // We are building the dependency tree only until there are new packages
@@ -1504,7 +1505,7 @@ function getResolvedPackage (
   options: {
     allowBuild?: (pkgName: string) => boolean
     dependencyLockfile?: PackageSnapshot
-    depPath: string
+    depPath: PkgId
     force: boolean
     hasBin: boolean
     parentImporterId: string
@@ -1529,7 +1530,7 @@ function getResolvedPackage (
       libc: options.pkg.libc,
     },
     parentImporterIds: new Set([options.parentImporterId]),
-    depPath: options.depPath,
+    packageId: options.depPath,
     dev: options.wantedDependency.dev,
     fetching: options.pkgResponse.fetching!,
     filesIndexFile: options.pkgResponse.filesIndexFile!,
