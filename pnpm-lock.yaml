@@ -622,6 +622,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-manifest
       better-path-resolve:
         specifier: 1.0.0
         version: 1.0.0

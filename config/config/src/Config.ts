@@ -133,6 +133,7 @@ export interface Config {
   useRunningStoreServer?: boolean
   workspaceConcurrency: number
   workspaceDir?: string
+  workspacePackagePatterns?: string[]
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
