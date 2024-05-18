@@ -6,6 +6,7 @@ import {
   refToRelative,
   tryGetPackageId,
 } from '@pnpm/dependency-path'
+import { type DepPath } from '@pnpm/types'
 
 test('isAbsolute()', () => {
   expect(isAbsolute('/foo/1.0.0')).toBeFalsy()
@@ -87,8 +88,8 @@ test('depPathToFilename()', () => {
 })
 
 test('tryGetPackageId', () => {
-  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/foo@1.0.0')
-  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))')).toEqual('/foo@1.0.0')
-  expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/@(-.-)/foo@1.0.0')
-  expect(tryGetPackageId('foo@1.0.0(patch=xxxx)(@types/babel__core@7.1.14)')).toEqual('foo@1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toEqual('/foo@1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))' as DepPath)).toEqual('/foo@1.0.0')
+  expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toEqual('/@(-.-)/foo@1.0.0')
+  expect(tryGetPackageId('foo@1.0.0(patch=xxxx)(@types/babel__core@7.1.14)' as DepPath)).toEqual('foo@1.0.0')
 })
