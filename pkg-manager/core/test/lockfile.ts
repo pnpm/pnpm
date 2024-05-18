@@ -9,7 +9,7 @@ import { type LockfileFileV9 } from '@pnpm/lockfile-types'
 import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type ProjectManifest } from '@pnpm/types'
+import { type DepPath, type ProjectManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -1380,8 +1380,8 @@ test('a broken lockfile should not break the store', async () => {
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], { ...opts, lockfileOnly: true })
 
   const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
-  lockfile.packages!['is-positive@1.0.0'].name = 'bad-name'
-  lockfile.packages!['is-positive@1.0.0'].version = '1.0.0'
+  lockfile.packages!['is-positive@1.0.0' as DepPath].name = 'bad-name'
+  lockfile.packages!['is-positive@1.0.0' as DepPath].version = '1.0.0'
 
   writeYamlFile(WANTED_LOCKFILE, lockfile)
 
@@ -1391,8 +1391,8 @@ test('a broken lockfile should not break the store', async () => {
     rootDir: process.cwd(),
   }, testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
 
-  delete lockfile.packages!['is-positive@1.0.0'].name
-  delete lockfile.packages!['is-positive@1.0.0'].version
+  delete lockfile.packages!['is-positive@1.0.0' as DepPath].name
+  delete lockfile.packages!['is-positive@1.0.0' as DepPath].version
 
   writeYamlFile(WANTED_LOCKFILE, lockfile)
   rimraf(path.resolve('node_modules'))
