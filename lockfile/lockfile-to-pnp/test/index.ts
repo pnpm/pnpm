@@ -1,6 +1,7 @@
 // cspell:ignore haspeer
 import path from 'path'
 import { lockfileToPackageRegistry } from '@pnpm/lockfile-to-pnp'
+import { type DepPath } from '@pnpm/types'
 
 test('lockfileToPackageRegistry', () => {
   const packageRegistry = lockfileToPackageRegistry({
@@ -24,7 +25,7 @@ test('lockfileToPackageRegistry', () => {
     },
     lockfileVersion: '5',
     packages: {
-      'dep1@1.0.0': {
+      ['dep1@1.0.0' as DepPath]: {
         dependencies: {
           dep2: 'foo@2.0.0',
         },
@@ -32,7 +33,7 @@ test('lockfileToPackageRegistry', () => {
           integrity: '',
         },
       },
-      'foo@2.0.0': {
+      ['foo@2.0.0' as DepPath]: {
         dependencies: {
           qar: '3.0.0',
         },
@@ -40,12 +41,12 @@ test('lockfileToPackageRegistry', () => {
           integrity: '',
         },
       },
-      'qar@2.0.0': {
+      ['qar@2.0.0' as DepPath]: {
         resolution: {
           integrity: '',
         },
       },
-      'qar@3.0.0': {
+      ['qar@3.0.0' as DepPath]: {
         resolution: {
           integrity: '',
         },
@@ -187,7 +188,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
     },
     lockfileVersion: '5',
     packages: {
-      'haspeer@2.0.0(peer@1.0.0)': {
+      ['haspeer@2.0.0(peer@1.0.0)' as DepPath]: {
         dependencies: {
           peer: '1.0.0',
         },
@@ -198,7 +199,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
           integrity: '',
         },
       },
-      'peer@1.0.0': {
+      ['peer@1.0.0' as DepPath]: {
         resolution: {
           integrity: '',
         },
