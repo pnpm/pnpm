@@ -129,7 +129,7 @@ export async function lockfileToDepGraph (
           return
         }
         const dir = path.join(modules, pkgName)
-        const depIsPresent = !('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) &&
+        const depIsPresent = !(pkgSnapshot.resolution != null && 'directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) &&
           currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies)
         let dirExists: boolean | undefined
         if (
