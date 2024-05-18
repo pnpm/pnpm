@@ -127,9 +127,9 @@ from the main (upstream) repository:
 
 ## Coding Style Guidelines
 
-[![js-standard-style](https://cdn.rawgit.com/feross/standard/main/badge.svg)](https://github.com/feross/standard)
+[![js-standard-style](https://raw.githubusercontent.com/standard/standard/master/badge.svg)](https://github.com/standard/standard)
 
-Use the [Standard Style](https://github.com/feross/standard).
+Use the [Standard Style](https://github.com/standard/standard).
 
 ## Commit Message Guidelines
 
