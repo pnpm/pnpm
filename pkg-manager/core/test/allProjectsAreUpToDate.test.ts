@@ -435,9 +435,8 @@ describe('local file dependency', () => {
         },
       },
       packages: {
-        'file:./local-dir': {
+        'local@file:./local-dir': {
           resolution: { directory: './local-dir', type: 'directory' },
-          name: 'local-dir',
           version: '1.0.0',
           dependencies: {
             'is-positive': '2.0.0',
