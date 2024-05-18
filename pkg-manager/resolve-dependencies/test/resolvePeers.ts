@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
+import { type PkgId, type PeerDependencyIssuesByProjects } from '@pnpm/types'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import { type DependenciesTreeNode, type PeerDependencies } from '../lib/resolveDependencies'
 import { type NodeId } from '../lib/nextNodeId'
@@ -7,7 +7,7 @@ import { type NodeId } from '../lib/nextNodeId'
 test('resolve peer dependencies of cyclic dependencies', async () => {
   const fooPkg = {
     name: 'foo',
-    depPath: 'foo/1.0.0',
+    packageId: 'foo/1.0.0' as PkgId,
     version: '1.0.0',
     peerDependencies: {
       qar: { version: '1.0.0' },
@@ -17,7 +17,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
   }
   const barPkg = {
     name: 'bar',
-    depPath: 'bar/1.0.0',
+    packageId: 'bar/1.0.0' as PkgId,
     version: '1.0.0',
     peerDependencies: {
       foo: { version: '1.0.0' },
@@ -62,7 +62,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
         installable: true,
         resolvedPackage: {
           name: 'qar',
-          depPath: 'qar/1.0.0',
+          packageId: 'qar/1.0.0' as PkgId,
           version: '1.0.0',
           peerDependencies: {
             foo: { version: '1.0.0' },
@@ -80,7 +80,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
         installable: true,
         resolvedPackage: {
           name: 'zoo',
-          depPath: 'zoo/1.0.0',
+          packageId: 'zoo/1.0.0' as PkgId,
           version: '1.0.0',
           peerDependencies: {
             qar: { version: '1.0.0' },
@@ -119,7 +119,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
 test('when a package is referenced twice in the dependencies graph and one of the times it cannot resolve its peers, still try to resolve it in the other occurrence', async () => {
   const fooPkg = {
     name: 'foo',
-    depPath: 'foo/1.0.0',
+    packageId: 'foo/1.0.0' as PkgId,
     version: '1.0.0',
     peerDependencies: {
       qar: { version: '1.0.0' },
@@ -128,14 +128,14 @@ test('when a package is referenced twice in the dependencies graph and one of th
   }
   const barPkg = {
     name: 'bar',
-    depPath: 'bar/1.0.0',
+    packageId: 'bar/1.0.0' as PkgId,
     version: '1.0.0',
     peerDependencies: {} as PeerDependencies,
     id: '',
   }
   const zooPkg = {
     name: 'zoo',
-    depPath: 'zoo/1.0.0',
+    packageId: 'zoo/1.0.0' as PkgId,
     version: '1.0.0',
     peerDependencies: {} as PeerDependencies,
     id: '',
@@ -197,7 +197,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
         installable: true,
         resolvedPackage: {
           name: 'qar',
-          depPath: 'qar/1.0.0',
+          packageId: 'qar/1.0.0' as PkgId,
           version: '1.0.0',
           peerDependencies: {},
           id: '',
@@ -224,7 +224,7 @@ describe('peer dependency issues', () => {
   beforeAll(async () => {
     const fooPkg = {
       name: 'foo',
-      depPath: 'foo/1.0.0',
+      packageId: 'foo/1.0.0' as PkgId,
       version: '1.0.0',
       peerDependencies: {
         peer: { version: '1' },
@@ -233,7 +233,7 @@ describe('peer dependency issues', () => {
     }
     const fooWithOptionalPeer = {
       name: 'foo',
-      depPath: 'foo/2.0.0',
+      packageId: 'foo/2.0.0' as PkgId,
       version: '2.0.0',
       peerDependencies: {
         peer: { version: '1', optional: true },
@@ -242,7 +242,7 @@ describe('peer dependency issues', () => {
     }
     const barPkg = {
       name: 'bar',
-      depPath: 'bar/1.0.0',
+      packageId: 'bar/1.0.0' as PkgId,
       version: '1.0.0',
       peerDependencies: {
         peer: { version: '2' },
@@ -251,7 +251,7 @@ describe('peer dependency issues', () => {
     }
     const barWithOptionalPeer = {
       name: 'bar',
-      depPath: 'bar/2.0.0',
+      packageId: 'bar/2.0.0' as PkgId,
       version: '2.0.0',
       peerDependencies: {
         peer: { version: '2', optional: true },
@@ -260,7 +260,7 @@ describe('peer dependency issues', () => {
     }
     const qarPkg = {
       name: 'qar',
-      depPath: 'qar/1.0.0',
+      packageId: 'qar/1.0.0' as PkgId,
       version: '1.0.0',
       peerDependencies: {
         peer: { version: '^2.2.0' },
@@ -437,7 +437,7 @@ describe('unmet peer dependency issues', () => {
           resolvedPackage: {
             name: 'foo',
             version: '1.0.0',
-            depPath: 'foo/1.0.0',
+            packageId: 'foo/1.0.0' as PkgId,
             peerDependencies: {
               peer1: { version: '*' },
               peer2: { version: '>=1' },
@@ -452,7 +452,7 @@ describe('unmet peer dependency issues', () => {
           resolvedPackage: {
             name: 'peer1',
             version: '1.0.0-rc.0',
-            depPath: 'peer/1.0.0-rc.0',
+            packageId: 'peer/1.0.0-rc.0' as PkgId,
             peerDependencies: {},
             id: '',
           },
@@ -464,7 +464,7 @@ describe('unmet peer dependency issues', () => {
           resolvedPackage: {
             name: 'peer2',
             version: '1.1.0-rc.0',
-            depPath: 'peer/1.1.0-rc.0',
+            packageId: 'peer/1.1.0-rc.0' as PkgId,
             peerDependencies: {},
             id: '',
           },
@@ -509,7 +509,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           installable: true,
           resolvedPackage: {
             name: 'foo',
-            depPath: 'foo/1.0.0',
+            packageId: 'foo/1.0.0' as PkgId,
             version: '1.0.0',
             peerDependencies: {},
             id: '',
@@ -521,7 +521,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           installable: true,
           resolvedPackage: {
             name: 'dep',
-            depPath: 'dep/1.0.0',
+            packageId: 'dep/1.0.0' as PkgId,
             version: '1.0.0',
             peerDependencies: {},
             id: '',
@@ -533,7 +533,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           installable: true,
           resolvedPackage: {
             name: 'bar',
-            depPath: 'bar/1.0.0',
+            packageId: 'bar/1.0.0' as PkgId,
             version: '1.0.0',
             peerDependencies: {
               dep: { version: '10' },
@@ -556,7 +556,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
 test('resolve peer dependencies with npm aliases', async () => {
   const fooPkg = {
     name: 'foo',
-    depPath: 'foo/1.0.0',
+    packageId: 'foo/1.0.0' as PkgId,
     version: '1.0.0',
     peerDependencies: {
       bar: { version: '1.0.0' },
@@ -565,7 +565,7 @@ test('resolve peer dependencies with npm aliases', async () => {
   }
   const fooAliasPkg = {
     name: 'foo',
-    depPath: 'foo/2.0.0',
+    packageId: 'foo/2.0.0' as PkgId,
     version: '2.0.0',
     peerDependencies: {
       bar: { version: '2.0.0' },
@@ -574,14 +574,14 @@ test('resolve peer dependencies with npm aliases', async () => {
   }
   const barPkg = {
     name: 'bar',
-    depPath: 'bar/1.0.0',
+    packageId: 'bar/1.0.0' as PkgId,
     version: '1.0.0',
     peerDependencies: {},
     id: '',
   }
   const barAliasPkg = {
     name: 'bar',
-    depPath: 'bar/2.0.0',
+    packageId: 'bar/2.0.0' as PkgId,
     version: '2.0.0',
     peerDependencies: {},
     id: '',

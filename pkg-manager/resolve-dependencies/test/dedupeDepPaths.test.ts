@@ -1,3 +1,4 @@
+import { type PkgId } from '@pnpm/types'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import { type DependenciesTreeNode } from '../lib/resolveDependencies'
 import { type NodeId } from '../lib/nextNodeId'
@@ -6,7 +7,7 @@ test('packages are not deduplicated when versions do not match', async () => {
   const fooPkg: PartialResolvedPackage = {
     name: 'foo',
     version: '1.0.0',
-    depPath: 'foo/1.0.0',
+    packageId: 'foo/1.0.0' as PkgId,
     id: '',
     peerDependencies: {
       bar: { version: '1.0.0 || 2.0.0' },
@@ -25,7 +26,7 @@ test('packages are not deduplicated when versions do not match', async () => {
       {
         name,
         version,
-        depPath: `${name}/${version}`,
+        packageId: `${name}/${version}` as PkgId,
         peerDependencies: {},
         id: '',
       } satisfies PartialResolvedPackage,
