@@ -136,8 +136,7 @@ Use the [Standard Style](https://github.com/standard/standard).
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 
 We have very precise rules over how our git commit messages can be formatted. This leads to **more
-readable messages** that are easy to follow when looking through the **project history**. Helper script `npm run commit`
-provides command line based wizard to format commit message easily.
+readable messages** that are easy to follow when looking through the **project history**.
 
 ### Commit Message Format
 
