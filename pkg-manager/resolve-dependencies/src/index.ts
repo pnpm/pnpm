@@ -61,7 +61,7 @@ export {
 
 interface ProjectToLink {
   binsDir: string
-  directNodeIdsByAlias: { [alias: string]: NodeId }
+  directNodeIdsByAlias: Map<string, NodeId>
   id: string
   linkedDependencies: LinkedDependency[]
   manifest: ProjectManifest
@@ -278,8 +278,8 @@ export async function resolveDependencies (
       for (const [id, deps] of Object.entries(dependenciesByProjectId)) {
         if (id === '.') continue
         for (const [alias, depPath] of Object.entries(deps)) {
-          if (depPath === rootDeps[alias]) {
-            delete deps[alias]
+          if (depPath === rootDeps.get(alias)) {
+            deps.delete(alias)
           }
         }
       }

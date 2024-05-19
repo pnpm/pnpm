@@ -11,7 +11,6 @@ import type {
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersDirSuffix, type PeerId } from '@pnpm/dependency-path'
-import mapValues from 'ramda/src/map'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import { type NodeId } from './nextNodeId'
@@ -56,7 +55,7 @@ export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {
 }
 
 export interface ProjectToResolve {
-  directNodeIdsByAlias: { [alias: string]: NodeId }
+  directNodeIdsByAlias: Map<string, NodeId>
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
   topParents: Array<{ name: string, version: string, alias?: string }>
@@ -64,7 +63,7 @@ export interface ProjectToResolve {
   id: string
 }
 
-export type DependenciesByProjectId = Record<string, Record<string, DepPath>>
+export type DependenciesByProjectId = Record<string, Map<string, DepPath>>
 
 export async function resolvePeers<T extends PartialResolvedPackage> (
   opts: {
@@ -106,7 +105,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     }
 
     // eslint-disable-next-line no-await-in-loop
-    const { finishing } = await resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
+    const { finishing } = await resolvePeersOfChildren(Object.fromEntries(directNodeIdsByAlias.entries()), pkgsByName, {
       allPeerDepNames: opts.allPeerDepNames,
       parentPkgsOfNode: new Map(),
       dependenciesTree: opts.dependenciesTree,
@@ -146,7 +145,10 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
 
   const dependenciesByProjectId: DependenciesByProjectId = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
-    dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
+    dependenciesByProjectId[id] = new Map()
+    for (const [alias, nodeId] of directNodeIdsByAlias.entries()) {
+      dependenciesByProjectId[id].set(alias, pathsByNodeId.get(nodeId)!)
+    }
   }
   if (opts.dedupeInjectedDeps) {
     dedupeInjectedDeps({
@@ -163,7 +165,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     const allDepPathsMap = deduplicateAll(depGraph, duplicates)
     for (const { id } of opts.projects) {
       for (const [alias, depPath] of Object.entries(dependenciesByProjectId[id])) {
-        dependenciesByProjectId[id][alias] = allDepPathsMap[depPath] ?? depPath
+        dependenciesByProjectId[id].set(alias, allDepPathsMap[depPath] ?? depPath)
       }
     }
   }
@@ -273,17 +275,16 @@ function getRootPkgsByName<T extends PartialResolvedPackage> (dependenciesTree: 
 function createPkgsByName<T extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<T>,
   { directNodeIdsByAlias, topParents }: {
-    directNodeIdsByAlias: { [alias: string]: NodeId }
+    directNodeIdsByAlias: Map<string, NodeId>
     topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }>
   }
 ): ParentRefs {
   const parentRefs = toPkgByName(
-    Object
-      .keys(directNodeIdsByAlias)
-      .map((alias) => ({
+    Array.from(directNodeIdsByAlias.entries())
+      .map(([alias, nodeId]) => ({
         alias,
-        node: dependenciesTree.get(directNodeIdsByAlias[alias])!,
-        nodeId: directNodeIdsByAlias[alias],
+        node: dependenciesTree.get(nodeId)!,
+        nodeId,
         parentNodeIds: [],
       }))
   )

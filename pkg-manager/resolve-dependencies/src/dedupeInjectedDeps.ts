@@ -61,7 +61,7 @@ function getDedupeMap<T extends PartialResolvedPackage> (
       // Check for subgroup not equal.
       // The injected project in the workspace may have dev deps
       const isSubset = Object.entries(opts.depGraph[dep.depPath].children!)
-        .every(([alias, depPath]) => opts.dependenciesByProjectId[dep.id][alias] === depPath)
+        .every(([alias, depPath]) => opts.dependenciesByProjectId[dep.id].get(alias) === depPath)
       if (isSubset) {
         dedupedInjectedDeps.set(alias, dep.id)
       }
@@ -77,7 +77,7 @@ function applyDedupeMap<T extends PartialResolvedPackage> (
 ): void {
   for (const [id, aliases] of dedupeMap.entries()) {
     for (const [alias, dedupedProjectId] of aliases.entries()) {
-      delete opts.dependenciesByProjectId[id][alias]
+      opts.dependenciesByProjectId[id].delete(alias)
       const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
       const prev = opts.resolvedImporters[id].directDependencies[index]
       const depPath = `link:${normalize(path.relative(id, dedupedProjectId))}`

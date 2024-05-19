@@ -45,7 +45,7 @@ const brokenModulesLogger = logger('_broken_node_modules')
 export interface LinkPackagesOptions {
   currentLockfile: Lockfile
   dedupeDirectDeps: boolean
-  dependenciesByProjectId: Record<string, Record<string, DepPath>>
+  dependenciesByProjectId: Record<string, Map<string, DepPath>>
   disableRelinkLocalDirDeps?: boolean
   force: boolean
   depsStateCache: DepsStateCache
