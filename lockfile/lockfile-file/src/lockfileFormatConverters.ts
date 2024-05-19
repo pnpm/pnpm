@@ -1,4 +1,4 @@
-import { parseDepPath, removePeersSuffix } from '@pnpm/dependency-path'
+import { parseDepPath, removeSuffix } from '@pnpm/dependency-path'
 import { createGitHostedPkgId } from '@pnpm/git-resolver'
 import {
   type Lockfile,
@@ -37,7 +37,7 @@ export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfi
       'optional',
       'id',
     ], pkg)
-    const pkgId = removePeersSuffix(depPath)
+    const pkgId = removeSuffix(depPath)
     if (!packages[pkgId]) {
       packages[pkgId] = pick([
         'bundledDependencies',
@@ -291,7 +291,7 @@ export function convertLockfileV9ToLockfileObject (lockfile: LockfileFileV9): Lo
 
   const packages: PackageSnapshots = {}
   for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
-    const pkgId = removePeersSuffix(depPath)
+    const pkgId = removeSuffix(depPath)
     packages[depPath as DepPath] = Object.assign(pkg, lockfile.packages?.[pkgId])
   }
   return {

@@ -6,8 +6,8 @@ export function isAbsolute (dependencyPath: string): boolean {
   return dependencyPath[0] !== '/'
 }
 
-export function indexOfPeersSuffix (depPath: string): number {
-  if (!depPath.endsWith(')')) return -1
+export function indexOfPeersSuffix (depPath: string): { peersIndex: number, patchHashIndex: number } {
+  if (!depPath.endsWith(')')) return { peersIndex: -1, patchHashIndex: -1 }
   let open = 1
   for (let i = depPath.length - 2; i >= 0; i--) {
     if (depPath[i] === '(') {
@@ -16,12 +16,18 @@ export function indexOfPeersSuffix (depPath: string): number {
       open++
     } else if (!open) {
       if (depPath.substring(i + 1).startsWith('(patch_hash=')) {
-        return depPath.indexOf('(', i + 2)
+        return {
+          patchHashIndex: i + 1,
+          peersIndex: depPath.indexOf('(', i + 2),
+        }
       }
-      return i + 1
+      return {
+        patchHashIndex: -1,
+        peersIndex: i + 1,
+      }
     }
   }
-  return -1
+  return { peersIndex: -1, patchHashIndex: -1 }
 }
 
 export interface ParsedDepPath {
@@ -30,11 +36,11 @@ export interface ParsedDepPath {
 }
 
 export function parseDepPath (relDepPath: string): ParsedDepPath {
-  const sepIndex = indexOfPeersSuffix(relDepPath)
-  if (sepIndex !== -1) {
+  const { peersIndex } = indexOfPeersSuffix(relDepPath)
+  if (peersIndex !== -1) {
     return {
-      id: relDepPath.substring(0, sepIndex),
-      peersSuffix: relDepPath.substring(sepIndex),
+      id: relDepPath.substring(0, peersIndex),
+      peersSuffix: relDepPath.substring(peersIndex),
     }
   }
   return {
@@ -43,17 +49,21 @@ export function parseDepPath (relDepPath: string): ParsedDepPath {
   }
 }
 
-export function removePeersSuffix (relDepPath: string): string {
-  const sepIndex = indexOfPeersSuffix(relDepPath)
-  if (sepIndex !== -1) {
-    return relDepPath.substring(0, sepIndex)
+export function removeSuffix (relDepPath: string): string {
+  const { peersIndex, patchHashIndex } = indexOfPeersSuffix(relDepPath)
+  if (patchHashIndex !== -1) {
+    return relDepPath.substring(0, patchHashIndex)
+  }
+  if (peersIndex !== -1) {
+    return relDepPath.substring(0, peersIndex)
   }
   return relDepPath
 }
 
 export function tryGetPackageId (relDepPath: DepPath): PkgId {
   let pkgId: string = relDepPath
-  const sepIndex = indexOfPeersSuffix(pkgId)
+  const { peersIndex, patchHashIndex } = indexOfPeersSuffix(pkgId)
+  const sepIndex = patchHashIndex === -1 ? peersIndex : patchHashIndex
   if (sepIndex !== -1) {
     pkgId = pkgId.substring(0, sepIndex)
   }
@@ -90,6 +100,7 @@ export interface DependencyPath {
   peersSuffix?: string
   version?: string
   nonSemverVersion?: PkgResolutionId
+  patchHash?: string
 }
 
 export function parse (dependencyPath: string): DependencyPath {
@@ -107,13 +118,20 @@ export function parse (dependencyPath: string): DependencyPath {
   const name = dependencyPath.substring(0, sepIndex)
   let version = dependencyPath.substring(sepIndex + 1)
   if (version) {
-    let peerSepIndex!: number
     let peersSuffix: string | undefined
-    if (version.includes('(') && version.endsWith(')')) {
-      peerSepIndex = version.indexOf('(')
-      if (peerSepIndex !== -1) {
-        peersSuffix = version.substring(peerSepIndex)
-        version = version.substring(0, peerSepIndex)
+    let patchHash: string | undefined
+    const { peersIndex, patchHashIndex } = indexOfPeersSuffix(version)
+    if (peersIndex !== -1 || patchHashIndex !== -1) {
+      if (peersIndex === -1) {
+        patchHash = version.substring(patchHashIndex)
+        version = version.substring(0, patchHashIndex)
+      } else if (patchHashIndex === -1) {
+        peersSuffix = version.substring(peersIndex)
+        version = version.substring(0, peersIndex)
+      } else {
+        patchHash = version.substring(patchHashIndex, peersIndex)
+        peersSuffix = version.substring(peersIndex)
+        version = version.substring(0, patchHashIndex)
       }
     }
     if (semver.valid(version)) {
@@ -121,12 +139,14 @@ export function parse (dependencyPath: string): DependencyPath {
         name,
         peersSuffix,
         version,
+        patchHash,
       }
     }
     return {
       name,
       nonSemverVersion: version as PkgResolutionId,
       peersSuffix,
+      patchHash,
     }
   }
   return {}
