@@ -1,5 +1,5 @@
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
-import { type DepPath, type PkgResolutionId, type Registries, type PkgId } from '@pnpm/types'
+import { type DepPath, type PkgResolutionId, type Registries, type PkgId, type PkgIdWithPatchHash } from '@pnpm/types'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string): boolean {
@@ -58,6 +58,18 @@ export function removeSuffix (relDepPath: string): string {
     return relDepPath.substring(0, peersIndex)
   }
   return relDepPath
+}
+
+export function getPackageIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
+  let pkgId: string = depPath
+  const { peersIndex: sepIndex } = indexOfPeersSuffix(pkgId)
+  if (sepIndex !== -1) {
+    pkgId = pkgId.substring(0, sepIndex)
+  }
+  if (pkgId.includes(':')) {
+    pkgId = pkgId.substring(pkgId.indexOf('@', 1) + 1)
+  }
+  return pkgId as PkgIdWithPatchHash
 }
 
 export function tryGetPackageId (relDepPath: DepPath): PkgId {

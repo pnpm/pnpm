@@ -36,4 +36,6 @@ export type PkgResolutionId = string & { __brand: 'PkgResolutionId' }
 
 export type PkgId = string & { __brand: 'PkgId' }
 
+export type PkgIdWithPatchHash = string & { __brand: 'PkgIdWithPatchHash' }
+
 export type DepPath = string & { __brand: 'DepPath' }

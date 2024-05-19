@@ -36,18 +36,18 @@ test('lockfileToDepGraph', () => {
       children: {
         qar: 'qar@1.0.0',
       },
-      packageId: 'bar@1.0.0',
+      packageIdWithPatchHash: 'bar@1.0.0',
     },
     'foo@1.0.0': {
       children: {
         bar: 'bar@1.0.0',
         qar: 'qar@1.0.0',
       },
-      packageId: 'foo@1.0.0',
+      packageIdWithPatchHash: 'foo@1.0.0',
     },
     'qar@1.0.0': {
       children: {},
-      packageId: 'qar@1.0.0',
+      packageIdWithPatchHash: 'qar@1.0.0',
     },
   })
 })

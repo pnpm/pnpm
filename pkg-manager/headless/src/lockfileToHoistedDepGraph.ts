@@ -170,6 +170,7 @@ async function fetchDeps (
     }
     const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
+    const packageIdWithPatchHash = dp.getPackageIdWithPatchHash(depPath)
 
     const pkg = {
       name: pkgName,
@@ -237,7 +238,7 @@ async function fetchDeps (
       alias: dep.name,
       children: {},
       depPath,
-      packageId,
+      packageIdWithPatchHash,
       dir,
       fetching: fetchResponse.fetching,
       filesIndexFile: fetchResponse.filesIndexFile,

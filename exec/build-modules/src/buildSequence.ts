@@ -1,11 +1,11 @@
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
-import { type DepPath, type PackageManifest, type PatchFile, type PkgId } from '@pnpm/types'
+import { type PkgIdWithPatchHash, type DepPath, type PackageManifest, type PatchFile } from '@pnpm/types'
 import filter from 'ramda/src/filter'
 
 export interface DependenciesGraphNode<T extends string> {
   children: Record<string, T>
   depPath: DepPath
-  packageId: PkgId
+  packageIdWithPatchHash: PkgIdWithPatchHash
   name: string
   dir: string
   fetchingBundledManifest?: () => Promise<PackageManifest | undefined>

@@ -15,7 +15,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries, type PkgId } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries, type PkgIdWithPatchHash } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchPackageToStoreFunction,
@@ -39,7 +39,7 @@ export interface DependenciesGraphNode {
   optionalDependencies: Set<string>
   optional: boolean
   depPath: DepPath // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
-  packageId: PkgId
+  packageIdWithPatchHash: PkgIdWithPatchHash
   isBuilt?: boolean
   requiresBuild?: boolean
   hasBin: boolean
@@ -107,6 +107,7 @@ export async function lockfileToDepGraph (
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
         const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
+        const packageIdWithPatchHash = dp.getPackageIdWithPatchHash(depPath)
 
         const pkg = {
           name: pkgName,
@@ -184,7 +185,7 @@ export async function lockfileToDepGraph (
         }
         graph[dir] = {
           children: {},
-          packageId,
+          packageIdWithPatchHash,
           depPath,
           dir,
           fetching: fetchResponse.fetching,

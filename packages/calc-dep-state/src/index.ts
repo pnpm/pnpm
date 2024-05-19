@@ -1,8 +1,7 @@
 import { ENGINE_NAME } from '@pnpm/constants'
-import { refToRelative } from '@pnpm/dependency-path'
+import { getPackageIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
 import { type Lockfile } from '@pnpm/lockfile-types'
-import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
-import { type DepPath, type PkgId } from '@pnpm/types'
+import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import sortKeys from 'sort-keys'
 
@@ -10,7 +9,7 @@ export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
 
 export interface DepsGraphNode<T extends string> {
   children: { [alias: string]: T }
-  packageId: PkgId
+  packageIdWithPatchHash: PkgIdWithPatchHash
 }
 
 export interface DepsStateCache {
@@ -45,21 +44,21 @@ function calcDepStateObj<T extends string> (
   depPath: T,
   depsGraph: DepsGraph<T>,
   cache: DepsStateCache,
-  parents: Set<PkgId>
+  parents: Set<PkgIdWithPatchHash>
 ): DepStateObj {
   if (cache[depPath]) return cache[depPath]
   const node = depsGraph[depPath]
   if (!node) return {}
-  const nextParents = new Set([...Array.from(parents), node.packageId])
+  const nextParents = new Set([...Array.from(parents), node.packageIdWithPatchHash])
   const state: DepStateObj = {}
   for (const childId of Object.values(node.children)) {
     const child = depsGraph[childId]
     if (!child) continue
-    if (parents.has(child.packageId)) {
-      state[child.packageId] = {}
+    if (parents.has(child.packageIdWithPatchHash)) {
+      state[child.packageIdWithPatchHash] = {}
       continue
     }
-    state[child.packageId] = calcDepStateObj(childId, depsGraph, cache, nextParents)
+    state[child.packageIdWithPatchHash] = calcDepStateObj(childId, depsGraph, cache, nextParents)
   }
   cache[depPath] = sortKeys(state)
   return cache[depPath]
@@ -75,7 +74,7 @@ export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph<DepPath> {
       })
       graph[depPath as DepPath] = {
         children,
-        packageId: packageIdFromSnapshot(depPath as DepPath, pkgSnapshot),
+        packageIdWithPatchHash: getPackageIdWithPatchHash(depPath as DepPath),
       }
     }
   }
