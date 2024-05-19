@@ -249,7 +249,7 @@ export async function resolveDependencies (
 
     importers[index].manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
 
-    for (const [alias, depPath] of Object.entries(dependenciesByProjectId[project.id])) {
+    for (const [alias, depPath] of dependenciesByProjectId[project.id].entries()) {
       const projectSnapshot = opts.wantedLockfile.importers[project.id]
       if (project.manifest.dependenciesMeta != null) {
         projectSnapshot.dependenciesMeta = project.manifest.dependenciesMeta
@@ -277,7 +277,7 @@ export async function resolveDependencies (
     if (rootDeps) {
       for (const [id, deps] of Object.entries(dependenciesByProjectId)) {
         if (id === '.') continue
-        for (const [alias, depPath] of Object.entries(deps)) {
+        for (const [alias, depPath] of deps.entries()) {
           if (depPath === rootDeps.get(alias)) {
             deps.delete(alias)
           }

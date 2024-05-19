@@ -254,7 +254,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
           dir: rootDir,
           modulesDir,
           dependencies: await Promise.all([
-            ...Object.entries(deps)
+            ...Array.from(deps.entries())
               .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])
               .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
               .filter(({ depGraphNode }) => depGraphNode)

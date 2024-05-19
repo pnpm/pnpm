@@ -164,7 +164,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     const duplicates = Array.from(depPathsByPkgId.values()).filter((item) => item.size > 1)
     const allDepPathsMap = deduplicateAll(depGraph, duplicates)
     for (const { id } of opts.projects) {
-      for (const [alias, depPath] of Object.entries(dependenciesByProjectId[id])) {
+      for (const [alias, depPath] of dependenciesByProjectId[id].entries()) {
         dependenciesByProjectId[id].set(alias, allDepPathsMap[depPath] ?? depPath)
       }
     }

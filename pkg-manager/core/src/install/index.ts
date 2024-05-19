@@ -72,7 +72,6 @@ import mapValues from 'ramda/src/map'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
-import pickBy from 'ramda/src/pickBy'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
 import sortKeys from 'sort-keys'
@@ -1072,17 +1071,24 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       linkedDependenciesByProjectId ?? {}
     )
     for (const { id, manifest } of projects) {
-      dependenciesByProjectId[id] = pickBy((depPath) => {
+      for (const [alias, depPath] of dependenciesByProjectId[id].entries()) {
+        let include = true
         const dep = dependenciesGraph[depPath]
-        if (!dep) return false
-        const isDev = Boolean(manifest.devDependencies?.[dep.name])
-        const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
-        return !(
-          isDev && !opts.include.devDependencies ||
-          isOptional && !opts.include.optionalDependencies ||
-          !isDev && !isOptional && !opts.include.dependencies
-        )
-      }, dependenciesByProjectId[id])
+        if (!dep) {
+          include = false
+        } else {
+          const isDev = Boolean(manifest.devDependencies?.[dep.name])
+          const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
+          include = !(
+            isDev && !opts.include.devDependencies ||
+            isOptional && !opts.include.optionalDependencies ||
+            !isDev && !isOptional && !opts.include.dependencies
+          )
+        }
+        if (!include) {
+          dependenciesByProjectId[id].delete(alias)
+        }
+      }
     }
   }
 
@@ -1238,7 +1244,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       } else {
         const directPkgs = [
           ...props<string, DependenciesGraphNode>(
-            Object.values(dependenciesByProjectId[project.id]).filter((depPath) => !ctx.skipped.has(depPath)),
+            Array.from(dependenciesByProjectId[project.id].values()).filter((depPath) => !ctx.skipped.has(depPath)),
             // @ts-expect-error
             dependenciesGraph
           ),
