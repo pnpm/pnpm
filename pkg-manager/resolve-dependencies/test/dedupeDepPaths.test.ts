@@ -37,39 +37,39 @@ test('packages are not deduplicated when versions do not match', async () => {
     allPeerDepNames: new Set(['bar', 'baz']),
     projects: [
       {
-        directNodeIdsByAlias: {
-          foo: '>project1>foo/1.0.0>' as NodeId,
-          bar: '>project1>bar/1.0.0>' as NodeId,
-        },
+        directNodeIdsByAlias: new Map([
+          ['foo', '>project1>foo/1.0.0>' as NodeId],
+          ['bar', '>project1>bar/1.0.0>' as NodeId],
+        ]),
         topParents: [],
         rootDir: '',
         id: 'project1',
       },
       {
-        directNodeIdsByAlias: {
-          foo: '>project2>foo/1.0.0>' as NodeId,
-          bar: '>project2>bar/1.0.0>' as NodeId,
-          baz: '>project2>baz/1.0.0>' as NodeId,
-        },
+        directNodeIdsByAlias: new Map([
+          ['foo', '>project2>foo/1.0.0>' as NodeId],
+          ['bar', '>project2>bar/1.0.0>' as NodeId],
+          ['baz', '>project2>baz/1.0.0>' as NodeId],
+        ]),
         topParents: [],
         rootDir: '',
         id: 'project2',
       },
       {
-        directNodeIdsByAlias: {
-          foo: '>project3>foo/1.0.0>' as NodeId,
-          bar: '>project3>bar/2.0.0>' as NodeId,
-        },
+        directNodeIdsByAlias: new Map([
+          ['foo', '>project3>foo/1.0.0>' as NodeId],
+          ['bar', '>project3>bar/2.0.0>' as NodeId],
+        ]),
         topParents: [],
         rootDir: '',
         id: 'project3',
       },
       {
-        directNodeIdsByAlias: {
-          foo: '>project4>foo/1.0.0>' as NodeId,
-          bar: '>project4>bar/2.0.0>' as NodeId,
-          baz: '>project4>baz/2.0.0>' as NodeId,
-        },
+        directNodeIdsByAlias: new Map([
+          ['foo', '>project4>foo/1.0.0>' as NodeId],
+          ['bar', '>project4>bar/2.0.0>' as NodeId],
+          ['baz', '>project4>baz/2.0.0>' as NodeId],
+        ]),
         topParents: [],
         rootDir: '',
         id: 'project4',
@@ -103,7 +103,7 @@ test('packages are not deduplicated when versions do not match', async () => {
     lockfileDir: '',
   })
 
-  expect(dependenciesByProjectId.project1.foo).toEqual(dependenciesByProjectId.project2.foo)
-  expect(dependenciesByProjectId.project1.foo).not.toEqual(dependenciesByProjectId.project3.foo)
-  expect(dependenciesByProjectId.project3.foo).toEqual(dependenciesByProjectId.project4.foo)
+  expect(dependenciesByProjectId.project1.get('foo')).toEqual(dependenciesByProjectId.project2.get('foo'))
+  expect(dependenciesByProjectId.project1.get('foo')).not.toEqual(dependenciesByProjectId.project3.get('foo'))
+  expect(dependenciesByProjectId.project3.get('foo')).toEqual(dependenciesByProjectId.project4.get('foo'))
 })

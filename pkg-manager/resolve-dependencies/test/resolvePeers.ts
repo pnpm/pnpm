@@ -29,9 +29,9 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
     allPeerDepNames: new Set(['foo', 'bar', 'qar', 'zoo']),
     projects: [
       {
-        directNodeIdsByAlias: {
-          foo: '>foo/1.0.0>' as NodeId,
-        },
+        directNodeIdsByAlias: new Map([
+          ['foo', '>foo/1.0.0>' as NodeId],
+        ]),
         topParents: [],
         rootDir: '',
         id: '',
@@ -144,10 +144,10 @@ test('when a package is referenced twice in the dependencies graph and one of th
     allPeerDepNames: new Set(['foo', 'bar', 'qar', 'zoo']),
     projects: [
       {
-        directNodeIdsByAlias: {
-          zoo: '>zoo/1.0.0>' as NodeId,
-          bar: '>bar/1.0.0>' as NodeId,
-        },
+        directNodeIdsByAlias: new Map([
+          ['zoo', '>zoo/1.0.0>' as NodeId],
+          ['bar', '>bar/1.0.0>' as NodeId],
+        ]),
         topParents: [],
         rootDir: '',
         id: '',
@@ -271,53 +271,53 @@ describe('peer dependency issues', () => {
       allPeerDepNames: new Set(),
       projects: [
         {
-          directNodeIdsByAlias: {
-            foo: '>project1>foo/1.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project1>foo/1.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project1',
         },
         {
-          directNodeIdsByAlias: {
-            bar: '>project2>bar/1.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['bar', '>project2>bar/1.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project2',
         },
         {
-          directNodeIdsByAlias: {
-            foo: '>project3>foo/1.0.0>' as NodeId,
-            bar: '>project3>bar/1.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project3>foo/1.0.0>' as NodeId],
+            ['bar', '>project3>bar/1.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project3',
         },
         {
-          directNodeIdsByAlias: {
-            bar: '>project4>bar/1.0.0>' as NodeId,
-            qar: '>project4>qar/1.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['bar', '>project4>bar/1.0.0>' as NodeId],
+            ['qar', '>project4>qar/1.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project4',
         },
         {
-          directNodeIdsByAlias: {
-            foo: '>project5>foo/1.0.0>' as NodeId,
-            bar: '>project5>bar/2.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project5>foo/1.0.0>' as NodeId],
+            ['bar', '>project5>bar/2.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project5',
         },
         {
-          directNodeIdsByAlias: {
-            foo: '>project6>foo/2.0.0>' as NodeId,
-            bar: '>project6>bar/2.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project6>foo/2.0.0>' as NodeId],
+            ['bar', '>project6>bar/2.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project6',
@@ -419,11 +419,11 @@ describe('unmet peer dependency issues', () => {
       allPeerDepNames: new Set(),
       projects: [
         {
-          directNodeIdsByAlias: {
-            foo: '>project1>foo/1.0.0>' as NodeId,
-            peer1: '>project1>peer1/1.0.0-rc.0>' as NodeId,
-            peer2: '>project1>peer2/1.1.0-rc.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project1>foo/1.0.0>' as NodeId],
+            ['peer1', '>project1>peer1/1.0.0-rc.0>' as NodeId],
+            ['peer2', '>project1>peer2/1.1.0-rc.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project1',
@@ -491,9 +491,9 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
       allPeerDepNames: new Set(['dep']),
       projects: [
         {
-          directNodeIdsByAlias: {
-            foo: '>project>foo/1.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project>foo/1.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project',
@@ -590,12 +590,12 @@ test('resolve peer dependencies with npm aliases', async () => {
     allPeerDepNames: new Set(['bar']),
     projects: [
       {
-        directNodeIdsByAlias: {
-          foo: '>foo/1.0.0>' as NodeId,
-          bar: '>bar/1.0.0>' as NodeId,
-          'foo-next': '>foo/2.0.0>' as NodeId,
-          'bar-next': '>bar/2.0.0>' as NodeId,
-        },
+        directNodeIdsByAlias: new Map([
+          ['foo', '>foo/1.0.0>' as NodeId],
+          ['bar', '>bar/1.0.0>' as NodeId],
+          ['foo-next', '>foo/2.0.0>' as NodeId],
+          ['bar-next', '>bar/2.0.0>' as NodeId],
+        ]),
         topParents: [],
         rootDir: '',
         id: '',
