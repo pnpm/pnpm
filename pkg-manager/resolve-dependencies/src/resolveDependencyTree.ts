@@ -4,6 +4,7 @@ import { type StoreController } from '@pnpm/store-controller-types'
 import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
+  type PkgResolutionId,
   type ProjectManifest,
   type ReadPackageHook,
   type Registries,
@@ -43,7 +44,7 @@ export interface ResolvedDirectDependency {
   optional: boolean
   dev: boolean
   resolution: Resolution
-  pkgId: string
+  pkgId: PkgResolutionId
   version: string
   name: string
   normalizedPref?: string
@@ -119,7 +120,7 @@ export async function resolveDependencyTree<T> (
   importers: Array<ImporterToResolveGeneric<T>>,
   opts: ResolveDependenciesOptions
 ): Promise<ResolveDependencyTreeResult> {
-  const wantedToBeSkippedPackageIds = new Set<string>()
+  const wantedToBeSkippedPackageIds = new Set<PkgResolutionId>()
   const autoInstallPeers = opts.autoInstallPeers === true
   const ctx: ResolutionContext = {
     autoInstallPeers,
@@ -170,12 +171,12 @@ export async function resolveDependencyTree<T> (
       currentDepth: 0,
       parentPkg: {
         installable: true,
-        nodeId: `>${importer.id}>` as NodeId,
+        nodeId: importer.id as NodeId,
         optional: false,
-        pkgId: importer.id,
+        pkgId: importer.id as PkgResolutionId,
         rootDir: importer.rootDir,
       },
-      parentIds: [importer.id],
+      parentIds: [importer.id as PkgResolutionId],
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,
@@ -257,18 +258,18 @@ function buildTree (
     childrenByParentId: ChildrenByParentId
     dependenciesTree: DependenciesTree<ResolvedPackage>
     resolvedPkgsById: ResolvedPkgsById
-    skipped: Set<string>
+    skipped: Set<PkgResolutionId>
   },
-  parentId: string,
-  parentIds: string[],
-  children: Array<{ alias: string, id: string }>,
+  parentId: PkgResolutionId,
+  parentIds: PkgResolutionId[],
+  children: Array<{ alias: string, id: PkgResolutionId }>,
   depth: number,
   installable: boolean
 ): Record<string, NodeId> {
   const childrenNodeIds: Record<string, NodeId> = {}
   for (const child of children) {
     if (child.id.startsWith('link:')) {
-      childrenNodeIds[child.alias] = child.id as NodeId
+      childrenNodeIds[child.alias] = child.id as unknown as NodeId
       continue
     }
     if (parentIdsContainSequence(parentIds, parentId, child.id) || parentId === child.id) {

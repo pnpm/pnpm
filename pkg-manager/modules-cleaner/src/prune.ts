@@ -48,7 +48,7 @@ export async function prune (
     currentLockfile: Lockfile
     pruneStore?: boolean
     pruneVirtualStore?: boolean
-    skipped: Set<string>
+    skipped: Set<DepPath>
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
     lockfileDir: string
@@ -176,7 +176,7 @@ export async function prune (
       )
       const neededPkgs = new Set<string>(['node_modules'])
       for (const depPath of Object.keys(opts.wantedLockfile.packages ?? {})) {
-        if (opts.skipped.has(depPath)) continue
+        if (opts.skipped.has(depPath as DepPath)) continue
         neededPkgs.add(depPathToFilename(depPath, opts.virtualStoreDirMaxLength))
       }
       const availablePkgs = await readVirtualStoreDir(opts.virtualStoreDir, opts.lockfileDir)
@@ -248,7 +248,7 @@ function getPkgsDepPathsOwnedOnlyByImporters (
   importerIds: string[],
   lockfile: Lockfile,
   include: { [dependenciesField in DependenciesField]: boolean },
-  skipped: Set<string>
+  skipped: Set<DepPath>
 ): Record<string, string> {
   const selected = filterLockfileByImporters(lockfile,
     importerIds,

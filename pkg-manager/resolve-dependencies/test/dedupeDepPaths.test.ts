@@ -1,4 +1,4 @@
-import { type PkgIdWithPatchHash } from '@pnpm/types'
+import { type PkgResolutionId, type PkgIdWithPatchHash } from '@pnpm/types'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import { type DependenciesTreeNode } from '../lib/resolveDependencies'
 import { type NodeId } from '../lib/nextNodeId'
@@ -8,7 +8,7 @@ test('packages are not deduplicated when versions do not match', async () => {
     name: 'foo',
     version: '1.0.0',
     pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
-    id: '',
+    id: '' as PkgResolutionId,
     peerDependencies: {
       bar: { version: '1.0.0 || 2.0.0' },
       baz: { version: '1.0.0 || 2.0.0', optional: true },
@@ -28,7 +28,7 @@ test('packages are not deduplicated when versions do not match', async () => {
         version,
         pkgIdWithPatchHash: `${name}/${version}` as PkgIdWithPatchHash,
         peerDependencies: {},
-        id: '',
+        id: '' as PkgResolutionId,
       } satisfies PartialResolvedPackage,
     ])
   )
@@ -43,7 +43,7 @@ test('packages are not deduplicated when versions do not match', async () => {
         ]),
         topParents: [],
         rootDir: '',
-        id: 'project1',
+        id: 'project1' as PkgResolutionId,
       },
       {
         directNodeIdsByAlias: new Map([
@@ -53,7 +53,7 @@ test('packages are not deduplicated when versions do not match', async () => {
         ]),
         topParents: [],
         rootDir: '',
-        id: 'project2',
+        id: 'project2' as PkgResolutionId,
       },
       {
         directNodeIdsByAlias: new Map([
@@ -62,7 +62,7 @@ test('packages are not deduplicated when versions do not match', async () => {
         ]),
         topParents: [],
         rootDir: '',
-        id: 'project3',
+        id: 'project3' as PkgResolutionId,
       },
       {
         directNodeIdsByAlias: new Map([
@@ -72,7 +72,7 @@ test('packages are not deduplicated when versions do not match', async () => {
         ]),
         topParents: [],
         rootDir: '',
-        id: 'project4',
+        id: 'project4' as PkgResolutionId,
       },
     ],
     resolvedImporters: {},

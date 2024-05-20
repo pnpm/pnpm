@@ -20,7 +20,7 @@ export type { DepsStateCache }
 
 export async function buildModules<T extends string> (
   depGraph: DependenciesGraph<T>,
-  rootDepPaths: string[],
+  rootDepPaths: T[],
   opts: {
     allowBuild?: (pkgName: string) => boolean
     childConcurrency?: number
