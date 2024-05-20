@@ -244,7 +244,7 @@ function getChildrenPaths (
     registries: Registries
     virtualStoreDir: string
     storeDir: string
-    skipped: Set<string>
+    skipped: Set<DepPath>
     pkgSnapshotsByDepPaths: Record<DepPath, PackageSnapshot>
     lockfileDir: string
     sideEffectsCacheRead: boolean

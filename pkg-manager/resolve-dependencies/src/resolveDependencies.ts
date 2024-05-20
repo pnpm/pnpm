@@ -106,7 +106,7 @@ export interface LinkedDependency {
   depPath: string
   dev: boolean
   resolution: DirectoryResolution
-  pkgId: string
+  pkgId: PkgResolutionId
   version: string
   name: string
   normalizedPref?: string
@@ -119,13 +119,13 @@ export interface PendingNode {
   resolvedPackage: ResolvedPackage
   depth: number
   installable: boolean
-  parentIds: string[]
+  parentIds: PkgResolutionId[]
 }
 
 export interface ChildrenByParentId {
   [id: string]: Array<{
     alias: string
-    id: string
+    id: PkgResolutionId
   }>
 }
 
@@ -153,7 +153,7 @@ export interface ResolutionContext {
   lockfileDir: string
   storeController: StoreController
   // the IDs of packages that are not installable
-  skipped: Set<string>
+  skipped: Set<PkgResolutionId>
   dependenciesTree: DependenciesTree<ResolvedPackage>
   force: boolean
   preferWorkspacePackages?: boolean
@@ -188,7 +188,7 @@ export type PkgAddress = {
   isNew: boolean
   isLinkedDependency?: false
   nodeId: NodeId
-  pkgId: string
+  pkgId: PkgResolutionId
   normalizedPref?: string // is returned only for root dependencies
   installable: boolean
   pkg: PackageManifest
@@ -214,7 +214,7 @@ export interface PeerDependency {
 export type PeerDependencies = Record<string, PeerDependency>
 
 export interface ResolvedPackage {
-  id: string
+  id: PkgResolutionId
   resolution: Resolution
   prod: boolean
   dev: boolean
@@ -254,7 +254,7 @@ export type UpdateMatchingFunction = (pkgName: string) => boolean
 
 interface ResolvedDependenciesOptions {
   currentDepth: number
-  parentIds: string[]
+  parentIds: PkgResolutionId[]
   parentPkg: ParentPkg
   parentPkgAliases: ParentPkgAliases
   // If the package has been updated, the dependencies
@@ -834,7 +834,7 @@ async function resolveChildren (
     supportedArchitectures,
   }: {
     parentPkg: PkgAddress
-    parentIds: string[]
+    parentIds: PkgResolutionId[]
     dependencyLockfile: PackageSnapshot | undefined
     parentDepth: number
     updateDepth: number
@@ -897,7 +897,7 @@ async function resolveChildren (
   }))
   ctx.dependenciesTree.set(parentPkg.nodeId, {
     children: pkgAddresses.reduce((chn, child) => {
-      chn[child.alias] = (child as PkgAddress).nodeId ?? (child.pkgId as NodeId)
+      chn[child.alias] = (child as PkgAddress).nodeId ?? (child.pkgId as unknown as NodeId)
       return chn
     }, {} as Record<string, NodeId>),
     depth: parentDepth,
@@ -1086,7 +1086,7 @@ interface ResolveDependencyOptions {
     dependencyLockfile?: PackageSnapshot
   }
   parentPkg: ParentPkg
-  parentIds: string[]
+  parentIds: PkgResolutionId[]
   parentPkgAliases: ParentPkgAliases
   preferredVersions: PreferredVersions
   prefix: string

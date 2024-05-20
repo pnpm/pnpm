@@ -1,6 +1,6 @@
 import path from 'path'
 import normalize from 'normalize-path'
-import { type DepPath } from '@pnpm/types'
+import { type PkgResolutionId, type DepPath } from '@pnpm/types'
 import { type ResolvedDirectDependency, type ResolvedImporters } from './resolveDependencyTree'
 import { type NodeId } from './nextNodeId'
 import { type LinkedDependency } from './resolveDependencies'
@@ -85,7 +85,7 @@ function applyDedupeMap<T extends PartialResolvedPackage> (
         ...prev,
         isLinkedDependency: true,
         depPath,
-        pkgId: depPath,
+        pkgId: depPath as PkgResolutionId,
         resolution: {
           type: 'directory',
           directory: path.join(opts.lockfileDir, dedupedProjectId),
