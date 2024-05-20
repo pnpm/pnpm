@@ -1266,12 +1266,12 @@ async function resolveDependency (
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
-  let depPath = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
+  let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
   const nameAndVersion = `${pkg.name}@${pkg.version}`
   const patchFile = ctx.patchedDependencies?.[nameAndVersion]
   if (patchFile) {
     ctx.appliedPatches.add(nameAndVersion)
-    depPath = `${depPath}(patch_hash=${patchFile.hash})` as PkgIdWithPatchHash
+    pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patchFile.hash})` as PkgIdWithPatchHash
   }
 
   // We are building the dependency tree only until there are new packages
@@ -1381,7 +1381,7 @@ async function resolveDependency (
     ctx.resolvedPkgsById[pkgResponse.body.id] = getResolvedPackage({
       allowBuild: ctx.allowBuild,
       dependencyLockfile: currentPkg.dependencyLockfile,
-      depPath,
+      pkgIdWithPatchHash,
       force: ctx.force,
       hasBin,
       patchFile,
@@ -1498,7 +1498,7 @@ function getResolvedPackage (
   options: {
     allowBuild?: (pkgName: string) => boolean
     dependencyLockfile?: PackageSnapshot
-    depPath: PkgIdWithPatchHash
+    pkgIdWithPatchHash: PkgIdWithPatchHash
     force: boolean
     hasBin: boolean
     parentImporterId: string
@@ -1523,7 +1523,7 @@ function getResolvedPackage (
       libc: options.pkg.libc,
     },
     parentImporterIds: new Set([options.parentImporterId]),
-    pkgIdWithPatchHash: options.depPath,
+    pkgIdWithPatchHash: options.pkgIdWithPatchHash,
     dev: options.wantedDependency.dev,
     fetching: options.pkgResponse.fetching!,
     filesIndexFile: options.pkgResponse.filesIndexFile!,
