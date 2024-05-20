@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
+import { type PeerDependencyIssuesByProjects, type PkgIdWithPatchHash } from '@pnpm/types'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import { type DependenciesTreeNode, type PeerDependencies } from '../lib/resolveDependencies'
 import { type NodeId } from '../lib/nextNodeId'
@@ -7,7 +7,7 @@ import { type NodeId } from '../lib/nextNodeId'
 test('resolve peer dependencies of cyclic dependencies', async () => {
   const fooPkg = {
     name: 'foo',
-    depPath: 'foo/1.0.0',
+    pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {
       qar: { version: '1.0.0' },
@@ -17,7 +17,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
   }
   const barPkg = {
     name: 'bar',
-    depPath: 'bar/1.0.0',
+    pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {
       foo: { version: '1.0.0' },
@@ -29,9 +29,9 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
     allPeerDepNames: new Set(['foo', 'bar', 'qar', 'zoo']),
     projects: [
       {
-        directNodeIdsByAlias: {
-          foo: '>foo/1.0.0>' as NodeId,
-        },
+        directNodeIdsByAlias: new Map([
+          ['foo', '>foo/1.0.0>' as NodeId],
+        ]),
         topParents: [],
         rootDir: '',
         id: '',
@@ -62,7 +62,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
         installable: true,
         resolvedPackage: {
           name: 'qar',
-          depPath: 'qar/1.0.0',
+          pkgIdWithPatchHash: 'qar/1.0.0' as PkgIdWithPatchHash,
           version: '1.0.0',
           peerDependencies: {
             foo: { version: '1.0.0' },
@@ -80,7 +80,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
         installable: true,
         resolvedPackage: {
           name: 'zoo',
-          depPath: 'zoo/1.0.0',
+          pkgIdWithPatchHash: 'zoo/1.0.0' as PkgIdWithPatchHash,
           version: '1.0.0',
           peerDependencies: {
             qar: { version: '1.0.0' },
@@ -119,7 +119,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
 test('when a package is referenced twice in the dependencies graph and one of the times it cannot resolve its peers, still try to resolve it in the other occurrence', async () => {
   const fooPkg = {
     name: 'foo',
-    depPath: 'foo/1.0.0',
+    pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {
       qar: { version: '1.0.0' },
@@ -128,14 +128,14 @@ test('when a package is referenced twice in the dependencies graph and one of th
   }
   const barPkg = {
     name: 'bar',
-    depPath: 'bar/1.0.0',
+    pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {} as PeerDependencies,
     id: '',
   }
   const zooPkg = {
     name: 'zoo',
-    depPath: 'zoo/1.0.0',
+    pkgIdWithPatchHash: 'zoo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {} as PeerDependencies,
     id: '',
@@ -144,10 +144,10 @@ test('when a package is referenced twice in the dependencies graph and one of th
     allPeerDepNames: new Set(['foo', 'bar', 'qar', 'zoo']),
     projects: [
       {
-        directNodeIdsByAlias: {
-          zoo: '>zoo/1.0.0>' as NodeId,
-          bar: '>bar/1.0.0>' as NodeId,
-        },
+        directNodeIdsByAlias: new Map([
+          ['zoo', '>zoo/1.0.0>' as NodeId],
+          ['bar', '>bar/1.0.0>' as NodeId],
+        ]),
         topParents: [],
         rootDir: '',
         id: '',
@@ -197,7 +197,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
         installable: true,
         resolvedPackage: {
           name: 'qar',
-          depPath: 'qar/1.0.0',
+          pkgIdWithPatchHash: 'qar/1.0.0' as PkgIdWithPatchHash,
           version: '1.0.0',
           peerDependencies: {},
           id: '',
@@ -224,7 +224,7 @@ describe('peer dependency issues', () => {
   beforeAll(async () => {
     const fooPkg = {
       name: 'foo',
-      depPath: 'foo/1.0.0',
+      pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
       peerDependencies: {
         peer: { version: '1' },
@@ -233,7 +233,7 @@ describe('peer dependency issues', () => {
     }
     const fooWithOptionalPeer = {
       name: 'foo',
-      depPath: 'foo/2.0.0',
+      pkgIdWithPatchHash: 'foo/2.0.0' as PkgIdWithPatchHash,
       version: '2.0.0',
       peerDependencies: {
         peer: { version: '1', optional: true },
@@ -242,7 +242,7 @@ describe('peer dependency issues', () => {
     }
     const barPkg = {
       name: 'bar',
-      depPath: 'bar/1.0.0',
+      pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
       peerDependencies: {
         peer: { version: '2' },
@@ -251,7 +251,7 @@ describe('peer dependency issues', () => {
     }
     const barWithOptionalPeer = {
       name: 'bar',
-      depPath: 'bar/2.0.0',
+      pkgIdWithPatchHash: 'bar/2.0.0' as PkgIdWithPatchHash,
       version: '2.0.0',
       peerDependencies: {
         peer: { version: '2', optional: true },
@@ -260,7 +260,7 @@ describe('peer dependency issues', () => {
     }
     const qarPkg = {
       name: 'qar',
-      depPath: 'qar/1.0.0',
+      pkgIdWithPatchHash: 'qar/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
       peerDependencies: {
         peer: { version: '^2.2.0' },
@@ -271,53 +271,53 @@ describe('peer dependency issues', () => {
       allPeerDepNames: new Set(),
       projects: [
         {
-          directNodeIdsByAlias: {
-            foo: '>project1>foo/1.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project1>foo/1.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project1',
         },
         {
-          directNodeIdsByAlias: {
-            bar: '>project2>bar/1.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['bar', '>project2>bar/1.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project2',
         },
         {
-          directNodeIdsByAlias: {
-            foo: '>project3>foo/1.0.0>' as NodeId,
-            bar: '>project3>bar/1.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project3>foo/1.0.0>' as NodeId],
+            ['bar', '>project3>bar/1.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project3',
         },
         {
-          directNodeIdsByAlias: {
-            bar: '>project4>bar/1.0.0>' as NodeId,
-            qar: '>project4>qar/1.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['bar', '>project4>bar/1.0.0>' as NodeId],
+            ['qar', '>project4>qar/1.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project4',
         },
         {
-          directNodeIdsByAlias: {
-            foo: '>project5>foo/1.0.0>' as NodeId,
-            bar: '>project5>bar/2.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project5>foo/1.0.0>' as NodeId],
+            ['bar', '>project5>bar/2.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project5',
         },
         {
-          directNodeIdsByAlias: {
-            foo: '>project6>foo/2.0.0>' as NodeId,
-            bar: '>project6>bar/2.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project6>foo/2.0.0>' as NodeId],
+            ['bar', '>project6>bar/2.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project6',
@@ -419,11 +419,11 @@ describe('unmet peer dependency issues', () => {
       allPeerDepNames: new Set(),
       projects: [
         {
-          directNodeIdsByAlias: {
-            foo: '>project1>foo/1.0.0>' as NodeId,
-            peer1: '>project1>peer1/1.0.0-rc.0>' as NodeId,
-            peer2: '>project1>peer2/1.1.0-rc.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project1>foo/1.0.0>' as NodeId],
+            ['peer1', '>project1>peer1/1.0.0-rc.0>' as NodeId],
+            ['peer2', '>project1>peer2/1.1.0-rc.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project1',
@@ -437,7 +437,7 @@ describe('unmet peer dependency issues', () => {
           resolvedPackage: {
             name: 'foo',
             version: '1.0.0',
-            depPath: 'foo/1.0.0',
+            pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
             peerDependencies: {
               peer1: { version: '*' },
               peer2: { version: '>=1' },
@@ -452,7 +452,7 @@ describe('unmet peer dependency issues', () => {
           resolvedPackage: {
             name: 'peer1',
             version: '1.0.0-rc.0',
-            depPath: 'peer/1.0.0-rc.0',
+            pkgIdWithPatchHash: 'peer/1.0.0-rc.0' as PkgIdWithPatchHash,
             peerDependencies: {},
             id: '',
           },
@@ -464,7 +464,7 @@ describe('unmet peer dependency issues', () => {
           resolvedPackage: {
             name: 'peer2',
             version: '1.1.0-rc.0',
-            depPath: 'peer/1.1.0-rc.0',
+            pkgIdWithPatchHash: 'peer/1.1.0-rc.0' as PkgIdWithPatchHash,
             peerDependencies: {},
             id: '',
           },
@@ -491,9 +491,9 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
       allPeerDepNames: new Set(['dep']),
       projects: [
         {
-          directNodeIdsByAlias: {
-            foo: '>project>foo/1.0.0>' as NodeId,
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project>foo/1.0.0>' as NodeId],
+          ]),
           topParents: [],
           rootDir: '',
           id: 'project',
@@ -509,7 +509,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           installable: true,
           resolvedPackage: {
             name: 'foo',
-            depPath: 'foo/1.0.0',
+            pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
             version: '1.0.0',
             peerDependencies: {},
             id: '',
@@ -521,7 +521,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           installable: true,
           resolvedPackage: {
             name: 'dep',
-            depPath: 'dep/1.0.0',
+            pkgIdWithPatchHash: 'dep/1.0.0' as PkgIdWithPatchHash,
             version: '1.0.0',
             peerDependencies: {},
             id: '',
@@ -533,7 +533,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           installable: true,
           resolvedPackage: {
             name: 'bar',
-            depPath: 'bar/1.0.0',
+            pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
             version: '1.0.0',
             peerDependencies: {
               dep: { version: '10' },
@@ -556,7 +556,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
 test('resolve peer dependencies with npm aliases', async () => {
   const fooPkg = {
     name: 'foo',
-    depPath: 'foo/1.0.0',
+    pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {
       bar: { version: '1.0.0' },
@@ -565,7 +565,7 @@ test('resolve peer dependencies with npm aliases', async () => {
   }
   const fooAliasPkg = {
     name: 'foo',
-    depPath: 'foo/2.0.0',
+    pkgIdWithPatchHash: 'foo/2.0.0' as PkgIdWithPatchHash,
     version: '2.0.0',
     peerDependencies: {
       bar: { version: '2.0.0' },
@@ -574,14 +574,14 @@ test('resolve peer dependencies with npm aliases', async () => {
   }
   const barPkg = {
     name: 'bar',
-    depPath: 'bar/1.0.0',
+    pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {},
     id: '',
   }
   const barAliasPkg = {
     name: 'bar',
-    depPath: 'bar/2.0.0',
+    pkgIdWithPatchHash: 'bar/2.0.0' as PkgIdWithPatchHash,
     version: '2.0.0',
     peerDependencies: {},
     id: '',
@@ -590,12 +590,12 @@ test('resolve peer dependencies with npm aliases', async () => {
     allPeerDepNames: new Set(['bar']),
     projects: [
       {
-        directNodeIdsByAlias: {
-          foo: '>foo/1.0.0>' as NodeId,
-          bar: '>bar/1.0.0>' as NodeId,
-          'foo-next': '>foo/2.0.0>' as NodeId,
-          'bar-next': '>bar/2.0.0>' as NodeId,
-        },
+        directNodeIdsByAlias: new Map([
+          ['foo', '>foo/1.0.0>' as NodeId],
+          ['bar', '>bar/1.0.0>' as NodeId],
+          ['foo-next', '>foo/2.0.0>' as NodeId],
+          ['bar-next', '>bar/2.0.0>' as NodeId],
+        ]),
         topParents: [],
         rootDir: '',
         id: '',

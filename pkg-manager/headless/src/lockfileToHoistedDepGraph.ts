@@ -13,7 +13,7 @@ import {
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type SupportedArchitectures, type PatchFile, type Registries } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries } from '@pnpm/types'
 import {
   type FetchPackageToStoreFunction,
   type StoreController,
@@ -161,7 +161,7 @@ async function fetchDeps (
 ): Promise<DepHierarchy> {
   const depHierarchy: Record<string, DepHierarchy> = {}
   await Promise.all(Array.from(deps).map(async (dep) => {
-    const depPath = Array.from(dep.references)[0]
+    const depPath = Array.from(dep.references)[0] as DepPath
     if (opts.skipped.has(depPath) || depPath.startsWith('workspace:')) return
     const pkgSnapshot = opts.lockfile.packages![depPath]
     if (!pkgSnapshot) {
@@ -170,6 +170,7 @@ async function fetchDeps (
     }
     const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
+    const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
 
     const pkg = {
       name: pkgName,
@@ -237,6 +238,7 @@ async function fetchDeps (
       alias: dep.name,
       children: {},
       depPath,
+      pkgIdWithPatchHash,
       dir,
       fetching: fetchResponse.fetching,
       filesIndexFile: fetchResponse.filesIndexFile,

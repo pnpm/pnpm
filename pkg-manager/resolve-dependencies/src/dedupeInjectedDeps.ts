@@ -1,19 +1,21 @@
 import path from 'path'
 import normalize from 'normalize-path'
+import { type DepPath } from '@pnpm/types'
 import { type ResolvedDirectDependency, type ResolvedImporters } from './resolveDependencyTree'
+import { type NodeId } from './nextNodeId'
 import { type LinkedDependency } from './resolveDependencies'
 import {
+  type GenericDependenciesGraphWithResolvedChildren,
   type DependenciesByProjectId,
-  type GenericDependenciesGraph,
   type PartialResolvedPackage,
   type ProjectToResolve,
 } from './resolvePeers'
 
 export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {
-  depGraph: GenericDependenciesGraph<T>
+  depGraph: GenericDependenciesGraphWithResolvedChildren<T>
   dependenciesByProjectId: DependenciesByProjectId
   lockfileDir: string
-  pathsByNodeId: Map<string, string>
+  pathsByNodeId: Map<NodeId, DepPath>
   projects: ProjectToResolve[]
   resolvedImporters: ResolvedImporters
 }
@@ -26,14 +28,14 @@ export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
   applyDedupeMap(dedupeMap, opts)
 }
 
-type InjectedDepsByProjects = Map<string, Map<string, { depPath: string, id: string }>>
+type InjectedDepsByProjects = Map<string, Map<string, { depPath: DepPath, id: string }>>
 
 function getInjectedDepsByProjects<T extends PartialResolvedPackage> (
   opts: Pick<DedupeInjectedDepsOptions<T>, 'projects' | 'pathsByNodeId' | 'depGraph'>
 ): InjectedDepsByProjects {
-  const injectedDepsByProjects = new Map<string, Map<string, { depPath: string, id: string }>>()
+  const injectedDepsByProjects = new Map<string, Map<string, { depPath: DepPath, id: string }>>()
   for (const project of opts.projects) {
-    for (const [alias, nodeId] of Object.entries(project.directNodeIdsByAlias)) {
+    for (const [alias, nodeId] of project.directNodeIdsByAlias.entries()) {
       const depPath = opts.pathsByNodeId.get(nodeId)!
       if (!opts.depGraph[depPath].id.startsWith('file:')) continue
       const id = opts.depGraph[depPath].id.substring(5)
@@ -59,7 +61,7 @@ function getDedupeMap<T extends PartialResolvedPackage> (
       // Check for subgroup not equal.
       // The injected project in the workspace may have dev deps
       const isSubset = Object.entries(opts.depGraph[dep.depPath].children)
-        .every(([alias, depPath]) => opts.dependenciesByProjectId[dep.id][alias] === depPath)
+        .every(([alias, depPath]) => opts.dependenciesByProjectId[dep.id].get(alias) === depPath)
       if (isSubset) {
         dedupedInjectedDeps.set(alias, dep.id)
       }
@@ -75,7 +77,7 @@ function applyDedupeMap<T extends PartialResolvedPackage> (
 ): void {
   for (const [id, aliases] of dedupeMap.entries()) {
     for (const [alias, dedupedProjectId] of aliases.entries()) {
-      delete opts.dependenciesByProjectId[id][alias]
+      opts.dependenciesByProjectId[id].delete(alias)
       const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
       const prev = opts.resolvedImporters[id].directDependencies[index]
       const depPath = `link:${normalize(path.relative(id, dedupedProjectId))}`

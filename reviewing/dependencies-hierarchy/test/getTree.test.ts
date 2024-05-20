@@ -1,6 +1,7 @@
 import { refToRelative } from '@pnpm/dependency-path'
 import { type PackageSnapshots } from '@pnpm/lockfile-file'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DepPath } from '@pnpm/types'
 import { getTree } from '../lib/getTree'
 import { type TreeNodeId } from '../lib/TreeNodeId'
 
@@ -44,7 +45,7 @@ function generateMockCurrentPackages (version: string, mockPackages: MockPackage
   return currentPackages
 }
 
-function refToRelativeOrThrow (reference: string, pkgName: string): string {
+function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {
   const relative = refToRelative(reference, pkgName)
   if (relative == null) {
     throw new Error(`Unable to create key for ${pkgName} with reference ${reference}`)

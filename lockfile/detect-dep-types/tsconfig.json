@@ -13,6 +13,9 @@
       "path": "../../packages/dependency-path"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../lockfile-types"
     }
   ],

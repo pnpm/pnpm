@@ -1,5 +1,6 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
+import { type DepPath } from '@pnpm/types'
 
 test('filterByImporters(): only prod dependencies of one importer', () => {
   const filteredLockfile = filterLockfileByImporters(
@@ -32,17 +33,17 @@ test('filterByImporters(): only prod dependencies of one importer', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'dev-dep@1.0.0': {
+        ['dev-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'optional-dep@1.0.0': {
+        ['optional-dep@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             'prod-dep-dep': '1.0.0',
           },
@@ -51,7 +52,7 @@ test('filterByImporters(): only prod dependencies of one importer', () => {
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
@@ -130,7 +131,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
         },
         lockfileVersion: LOCKFILE_VERSION,
         packages: {
-          'prod-dep@1.0.0': {
+          ['prod-dep@1.0.0' as DepPath]: {
             dependencies: {
               'prod-dep-dep': '1.0.0',
             },
@@ -176,7 +177,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             'prod-dep-dep': '1.0.0',
           },
@@ -257,17 +258,17 @@ test('filterByImporters(): do not include skipped packages', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'dev-dep@1.0.0': {
+        ['dev-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'optional-dep@1.0.0': {
+        ['optional-dep@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             'prod-dep-dep': '1.0.0',
           },
@@ -276,7 +277,7 @@ test('filterByImporters(): do not include skipped packages', () => {
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
@@ -364,19 +365,19 @@ test('filterByImporters(): exclude orphan packages', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'orphan@1.0.0': {
+        ['orphan@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             'prod-dep-dep': '1.0.0',
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },

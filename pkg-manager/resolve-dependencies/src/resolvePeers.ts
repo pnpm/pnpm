@@ -5,12 +5,12 @@ import pDefer from 'p-defer'
 import semver from 'semver'
 import { semverUtils } from '@yarnpkg/core'
 import type {
+  DepPath,
   ParentPackages,
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersDirSuffix, type PeerId } from '@pnpm/dependency-path'
-import mapValues from 'ramda/src/map'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import { type NodeId } from './nextNodeId'
@@ -25,11 +25,11 @@ import { type ResolvedImporters } from './resolveDependencyTree'
 import { mergePeers } from './mergePeers'
 import { dedupeInjectedDeps } from './dedupeInjectedDeps'
 
-export interface GenericDependenciesGraphNode {
+export interface BaseGenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
   modules: string
   dir: string
-  children: Record<string, string>
+  depPath: DepPath
   depth: number
   peerDependencies?: PeerDependencies
   transitivePeerDependencies: Set<string>
@@ -40,20 +40,32 @@ export interface GenericDependenciesGraphNode {
   requiresBuild?: boolean
 }
 
+export interface GenericDependenciesGraphNode extends BaseGenericDependenciesGraphNode {
+  childrenNodeIds: Record<string, NodeId>
+}
+
+export interface GenericDependenciesGraphNodeWithResolvedChildren extends BaseGenericDependenciesGraphNode {
+  children: Record<string, DepPath>
+}
+
 export type PartialResolvedPackage = Pick<ResolvedPackage,
 | 'id'
-| 'depPath'
+| 'pkgIdWithPatchHash'
 | 'name'
 | 'peerDependencies'
 | 'version'
 >
 
 export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {
-  [depPath: string]: T & GenericDependenciesGraphNode
+  [depPath: DepPath]: T & GenericDependenciesGraphNode
+}
+
+export interface GenericDependenciesGraphWithResolvedChildren<T extends PartialResolvedPackage> {
+  [depPath: DepPath]: T & GenericDependenciesGraphNodeWithResolvedChildren
 }
 
 export interface ProjectToResolve {
-  directNodeIdsByAlias: { [alias: string]: NodeId }
+  directNodeIdsByAlias: Map<string, NodeId>
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
   topParents: Array<{ name: string, version: string, alias?: string }>
@@ -61,7 +73,7 @@ export interface ProjectToResolve {
   id: string
 }
 
-export type DependenciesByProjectId = Record<string, Record<string, string>>
+export type DependenciesByProjectId = Record<string, Map<string, DepPath>>
 
 export async function resolvePeers<T extends PartialResolvedPackage> (
   opts: {
@@ -77,14 +89,14 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     resolvedImporters: ResolvedImporters
   }
 ): Promise<{
-    dependenciesGraph: GenericDependenciesGraph<T>
+    dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<T>
     dependenciesByProjectId: DependenciesByProjectId
     peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   }> {
   const depGraph: GenericDependenciesGraph<T> = {}
-  const pathsByNodeId = new Map<string, string>()
-  const pathsByNodeIdPromises = new Map<string, pDefer.DeferredPromise<string>>()
-  const depPathsByPkgId = new Map<string, Set<string>>()
+  const pathsByNodeId = new Map<NodeId, DepPath>()
+  const pathsByNodeIdPromises = new Map<NodeId, pDefer.DeferredPromise<DepPath>>()
+  const depPathsByPkgId = new Map<string, Set<DepPath>>()
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
@@ -103,7 +115,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     }
 
     // eslint-disable-next-line no-await-in-loop
-    const { finishing } = await resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
+    const { finishing } = await resolvePeersOfChildren(Object.fromEntries(directNodeIdsByAlias.entries()), pkgsByName, {
       allPeerDepNames: opts.allPeerDepNames,
       parentPkgsOfNode: new Map(),
       dependenciesTree: opts.dependenciesTree,
@@ -133,19 +145,31 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   }
   await Promise.all(finishingList)
 
-  Object.values(depGraph).forEach((node) => {
-    node.children = mapValues((childNodeId) => pathsByNodeId.get(childNodeId) ?? childNodeId, node.children)
-  })
+  const depGraphWithResolvedChildren = resolveChildren(depGraph)
+
+  function resolveChildren<T extends PartialResolvedPackage> (depGraph: GenericDependenciesGraph<T>): GenericDependenciesGraphWithResolvedChildren<T> {
+    Object.values(depGraph).forEach((node) => {
+      node.children = {}
+      for (const [alias, childNodeId] of Object.entries<NodeId>(node.childrenNodeIds)) {
+        node.children[alias] = pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)
+      }
+      delete node.childrenNodeIds
+    })
+    return depGraph as unknown as GenericDependenciesGraphWithResolvedChildren<T>
+  }
 
   const dependenciesByProjectId: DependenciesByProjectId = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
-    dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
+    dependenciesByProjectId[id] = new Map()
+    for (const [alias, nodeId] of directNodeIdsByAlias.entries()) {
+      dependenciesByProjectId[id].set(alias, pathsByNodeId.get(nodeId)!)
+    }
   }
   if (opts.dedupeInjectedDeps) {
     dedupeInjectedDeps({
       dependenciesByProjectId,
       projects: opts.projects,
-      depGraph,
+      depGraph: depGraphWithResolvedChildren,
       pathsByNodeId,
       lockfileDir: opts.lockfileDir,
       resolvedImporters: opts.resolvedImporters,
@@ -153,32 +177,38 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   }
   if (opts.dedupePeerDependents) {
     const duplicates = Array.from(depPathsByPkgId.values()).filter((item) => item.size > 1)
-    const allDepPathsMap = deduplicateAll(depGraph, duplicates)
+    const allDepPathsMap = deduplicateAll(depGraphWithResolvedChildren, duplicates)
     for (const { id } of opts.projects) {
-      dependenciesByProjectId[id] = mapValues((depPath) => allDepPathsMap[depPath] ?? depPath, dependenciesByProjectId[id])
+      for (const [alias, depPath] of dependenciesByProjectId[id].entries()) {
+        dependenciesByProjectId[id].set(alias, allDepPathsMap[depPath] ?? depPath)
+      }
     }
   }
   return {
-    dependenciesGraph: depGraph,
+    dependenciesGraph: depGraphWithResolvedChildren,
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
   }
 }
 
-function nodeDepsCount (node: GenericDependenciesGraphNode): number {
-  return Object.keys(node.children).length + node.resolvedPeerNames.size
+function nodeDepsCount (node: GenericDependenciesGraphNodeWithResolvedChildren): number {
+  return Object.keys(node.children!).length + node.resolvedPeerNames.size
 }
 
 function deduplicateAll<T extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraph<T>,
-  duplicates: Array<Set<string>>
-): Record<string, string> {
+  depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
+  duplicates: Array<Set<DepPath>>
+): Record<DepPath, DepPath> {
   const { depPathsMap, remainingDuplicates } = deduplicateDepPaths(duplicates, depGraph)
   if (remainingDuplicates.length === duplicates.length) {
     return depPathsMap
   }
   Object.values(depGraph).forEach((node) => {
-    node.children = mapValues((childDepPath) => depPathsMap[childDepPath] ?? childDepPath, node.children)
+    for (const [alias, childDepPath] of Object.entries<DepPath>(node.children)) {
+      if (depPathsMap[childDepPath]) {
+        node.children[alias] = depPathsMap[childDepPath]
+      }
+    }
   })
   if (Object.keys(depPathsMap).length > 0) {
     return {
@@ -190,17 +220,17 @@ function deduplicateAll<T extends PartialResolvedPackage> (
 }
 
 interface DeduplicateDepPathsResult {
-  depPathsMap: Record<string, string>
-  remainingDuplicates: Array<Set<string>>
+  depPathsMap: Record<DepPath, DepPath>
+  remainingDuplicates: Array<Set<DepPath>>
 }
 
 function deduplicateDepPaths<T extends PartialResolvedPackage> (
-  duplicates: Array<Set<string>>,
-  depGraph: GenericDependenciesGraph<T>
+  duplicates: Array<Set<DepPath>>,
+  depGraph: GenericDependenciesGraphWithResolvedChildren<T>
 ): DeduplicateDepPathsResult {
-  const depCountSorter = (depPath1: string, depPath2: string) => nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2])
-  const depPathsMap: Record<string, string> = {}
-  const remainingDuplicates: Array<Set<string>> = []
+  const depCountSorter = (depPath1: DepPath, depPath2: DepPath) => nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2])
+  const depPathsMap: Record<DepPath, DepPath> = {}
+  const remainingDuplicates: Array<Set<DepPath>> = []
 
   for (const depPaths of duplicates) {
     const unresolvedDepPaths = new Set(depPaths.values())
@@ -234,16 +264,16 @@ function deduplicateDepPaths<T extends PartialResolvedPackage> (
 }
 
 function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraph<T>,
-  depPath1: string,
-  depPath2: string
+  depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
+  depPath1: DepPath,
+  depPath2: DepPath
 ): boolean {
   const node1 = depGraph[depPath1]
   const node2 = depGraph[depPath2]
   if (nodeDepsCount(node1) < nodeDepsCount(node2)) return false
 
-  const node1DepPathsSet = new Set(Object.values(node1.children))
-  const node2DepPaths = Object.values(node2.children)
+  const node1DepPathsSet = new Set(Object.values(node1.children!))
+  const node2DepPaths = Object.values(node2.children!)
   if (!node2DepPaths.every((depPath) => node1DepPathsSet.has(depPath))) return false
 
   for (const depPath of node2.resolvedPeerNames) {
@@ -260,17 +290,16 @@ function getRootPkgsByName<T extends PartialResolvedPackage> (dependenciesTree: 
 function createPkgsByName<T extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<T>,
   { directNodeIdsByAlias, topParents }: {
-    directNodeIdsByAlias: { [alias: string]: NodeId }
+    directNodeIdsByAlias: Map<string, NodeId>
     topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }>
   }
 ): ParentRefs {
   const parentRefs = toPkgByName(
-    Object
-      .keys(directNodeIdsByAlias)
-      .map((alias) => ({
+    Array.from(directNodeIdsByAlias.entries())
+      .map(([alias, nodeId]) => ({
         alias,
-        node: dependenciesTree.get(directNodeIdsByAlias[alias])!,
-        nodeId: directNodeIdsByAlias[alias],
+        node: dependenciesTree.get(nodeId)!,
+        nodeId,
         parentNodeIds: [],
       }))
   )
@@ -293,7 +322,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
 }
 
 interface PeersCacheItem {
-  depPath: pDefer.DeferredPromise<string>
+  depPath: pDefer.DeferredPromise<DepPath>
   resolvedPeers: Map<string, NodeId>
   missingPeers: Set<string>
 }
@@ -306,9 +335,9 @@ interface PeersResolution {
 }
 
 interface ResolvePeersContext {
-  pathsByNodeId: Map<string, string>
-  pathsByNodeIdPromises: Map<string, pDefer.DeferredPromise<string>>
-  depPathsByPkgId?: Map<string, Set<string>>
+  pathsByNodeId: Map<NodeId, DepPath>
+  pathsByNodeIdPromises: Map<NodeId, pDefer.DeferredPromise<DepPath>>
+  depPathsByPkgId?: Map<string, Set<DepPath>>
 }
 
 type CalculateDepPath = (cycles: string[][]) => Promise<void>
@@ -346,12 +375,12 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (node.depth === -1) return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Set<string>() }
   const resolvedPackage = node.resolvedPackage as T
   if (
-    ctx.purePkgs.has(resolvedPackage.depPath) &&
-    ctx.depGraph[resolvedPackage.depPath].depth <= node.depth &&
+    ctx.purePkgs.has(resolvedPackage.pkgIdWithPatchHash) &&
+    ctx.depGraph[resolvedPackage.pkgIdWithPatchHash as unknown as DepPath].depth <= node.depth &&
     Object.keys(resolvedPackage.peerDependencies).length === 0
   ) {
-    ctx.pathsByNodeId.set(nodeId, resolvedPackage.depPath)
-    ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(resolvedPackage.depPath)
+    ctx.pathsByNodeId.set(nodeId, resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
+    ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
     return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Set<string>() }
   }
   if (typeof node.children === 'function') {
@@ -387,7 +416,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
     }
   }
-  const hit = findHit(ctx, parentPkgs, resolvedPackage.depPath)
+  const hit = findHit(ctx, parentPkgs, resolvedPackage.pkgIdWithPatchHash)
   if (hit != null) {
     return {
       missingPeers: hit.missingPeers,
@@ -408,7 +437,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   } = await resolvePeersOfChildren(children, parentPkgs, {
     ...ctx,
     parentNodeIds,
-    parentDepPathsChain: ctx.parentDepPathsChain.includes(resolvedPackage.depPath) ? ctx.parentDepPathsChain : [...ctx.parentDepPathsChain, resolvedPackage.depPath],
+    parentDepPathsChain: ctx.parentDepPathsChain.includes(resolvedPackage.pkgIdWithPatchHash) ? ctx.parentDepPathsChain : [...ctx.parentDepPathsChain, resolvedPackage.pkgIdWithPatchHash],
   })
 
   const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies).length === 0
@@ -442,23 +471,23 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   let cache: PeersCacheItem
   const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
   if (isPure) {
-    ctx.purePkgs.add(resolvedPackage.depPath)
+    ctx.purePkgs.add(resolvedPackage.pkgIdWithPatchHash)
   } else {
     cache = {
       missingPeers: allMissingPeers,
       depPath: pDefer(),
       resolvedPeers: allResolvedPeers,
     }
-    if (ctx.peersCache.has(resolvedPackage.depPath)) {
-      ctx.peersCache.get(resolvedPackage.depPath)!.push(cache)
+    if (ctx.peersCache.has(resolvedPackage.pkgIdWithPatchHash)) {
+      ctx.peersCache.get(resolvedPackage.pkgIdWithPatchHash)!.push(cache)
     } else {
-      ctx.peersCache.set(resolvedPackage.depPath, [cache])
+      ctx.peersCache.set(resolvedPackage.pkgIdWithPatchHash, [cache])
     }
   }
 
   let calculateDepPathIfNeeded: CalculateDepPath | undefined
   if (allResolvedPeers.size === 0) {
-    addDepPathToGraph(resolvedPackage.depPath)
+    addDepPathToGraph(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
   } else {
     const peerIds: PeerId[] = []
     const pendingPeerNodeIds: NodeId[] = []
@@ -480,7 +509,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
     if (pendingPeerNodeIds.length === 0) {
       const peersDirSuffix = createPeersDirSuffix(peerIds)
-      addDepPathToGraph(`${resolvedPackage.depPath}${peersDirSuffix}`)
+      addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peersDirSuffix}` as DepPath)
     } else {
       calculateDepPathIfNeeded = calculateDepPath.bind(null, peerIds, pendingPeerNodeIds)
     }
@@ -518,18 +547,18 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         })
       ),
     ])
-    addDepPathToGraph(`${resolvedPackage.depPath}${peersDirSuffix}`)
+    addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peersDirSuffix}` as DepPath)
   }
 
-  function addDepPathToGraph (depPath: string): void {
+  function addDepPathToGraph (depPath: DepPath): void {
     cache?.depPath.resolve(depPath)
     ctx.pathsByNodeId.set(nodeId, depPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
     if (ctx.depPathsByPkgId != null) {
-      if (!ctx.depPathsByPkgId.has(resolvedPackage.depPath)) {
-        ctx.depPathsByPkgId.set(resolvedPackage.depPath, new Set([depPath]))
+      if (!ctx.depPathsByPkgId.has(resolvedPackage.pkgIdWithPatchHash)) {
+        ctx.depPathsByPkgId.set(resolvedPackage.pkgIdWithPatchHash, new Set([depPath]))
       } else {
-        ctx.depPathsByPkgId.get(resolvedPackage.depPath)!.add(depPath)
+        ctx.depPathsByPkgId.get(resolvedPackage.pkgIdWithPatchHash)!.add(depPath)
       }
     }
     const peerDependencies = { ...resolvedPackage.peerDependencies }
@@ -550,8 +579,8 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
       ctx.depGraph[depPath] = {
         ...(node.resolvedPackage as T),
-        children: Object.assign(
-          getPreviouslyResolvedChildren(ctx, (node.resolvedPackage as T).depPath),
+        childrenNodeIds: Object.assign(
+          getPreviouslyResolvedChildren(ctx, (node.resolvedPackage as T).pkgIdWithPatchHash),
           children,
           Object.fromEntries(resolvedPeers.entries())
         ),
@@ -591,8 +620,8 @@ function findHit<T extends PartialResolvedPackage> (ctx: {
       if (!ctx.dependenciesTree.has(parentPkgNodeId) && parentPkgNodeId.startsWith('link:')) {
         return false
       }
-      const parentDepPath = (ctx.dependenciesTree.get(parentPkgNodeId)!.resolvedPackage as T).depPath
-      const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).depPath
+      const parentDepPath = (ctx.dependenciesTree.get(parentPkgNodeId)!.resolvedPackage as T).pkgIdWithPatchHash
+      const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).pkgIdWithPatchHash
       if (parentDepPath !== cachedDepPath) {
         return false
       }
@@ -670,7 +699,7 @@ function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (
 
   for (let i = parentNodeIds.length - 1; i >= 0; i--) {
     const parentNode = dependenciesTree.get(parentNodeIds[i])!
-    if ((parentNode.resolvedPackage as T).depPath === currentDepPath) {
+    if ((parentNode.resolvedPackage as T).pkgIdWithPatchHash === currentDepPath) {
       if (typeof parentNode.children === 'function') {
         parentNode.children = parentNode.children()
       }
@@ -727,7 +756,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     if (!ctx.allPeerDepNames.has(name)) continue
     if (parentPkg.nodeId && !parentPkg.nodeId.startsWith('link:')) {
       parentDepPaths[name] = {
-        depPath: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).depPath,
+        depPath: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).pkgIdWithPatchHash,
         depth: parentPkg.depth,
         occurrence: parentPkg.occurrence,
       }

@@ -55,6 +55,7 @@ import {
   type PreferredVersions,
 } from '@pnpm/resolver-base'
 import {
+  type DepPath,
   type DependenciesField,
   type DependencyManifest,
   type PeerDependencyIssues,
@@ -71,7 +72,6 @@ import mapValues from 'ramda/src/map'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
-import pickBy from 'ramda/src/pickBy'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
 import sortKeys from 'sort-keys'
@@ -1071,17 +1071,24 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       linkedDependenciesByProjectId ?? {}
     )
     for (const { id, manifest } of projects) {
-      dependenciesByProjectId[id] = pickBy((depPath) => {
+      for (const [alias, depPath] of dependenciesByProjectId[id].entries()) {
+        let include!: boolean
         const dep = dependenciesGraph[depPath]
-        if (!dep) return false
-        const isDev = Boolean(manifest.devDependencies?.[dep.name])
-        const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
-        return !(
-          isDev && !opts.include.devDependencies ||
-          isOptional && !opts.include.optionalDependencies ||
-          !isDev && !isOptional && !opts.include.dependencies
-        )
-      }, dependenciesByProjectId[id])
+        if (!dep) {
+          include = false
+        } else {
+          const isDev = Boolean(manifest.devDependencies?.[dep.name])
+          const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
+          include = !(
+            isDev && !opts.include.devDependencies ||
+            isOptional && !opts.include.optionalDependencies ||
+            !isDev && !isOptional && !opts.include.dependencies
+          )
+        }
+        if (!include) {
+          dependenciesByProjectId[id].delete(alias)
+        }
+      }
     }
   }
 
@@ -1168,7 +1175,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
       if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
         // postinstall hooks
-        const depPaths = Object.keys(dependenciesGraph)
+        const depPaths = Object.keys(dependenciesGraph) as DepPath[]
         const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
 
         let extraEnv: Record<string, string> | undefined = opts.scriptsOpts.extraEnv
@@ -1207,7 +1214,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       logger.info({ message, prefix })
     }
     if (result.newDepPaths?.length) {
-      const newPkgs = props<string, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
+      const newPkgs = props<DepPath, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
       await linkAllBins(newPkgs, dependenciesGraph, {
         extraNodePaths: ctx.extraNodePaths,
         optional: opts.include.optionalDependencies,
@@ -1235,8 +1242,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         })
       } else {
         const directPkgs = [
-          ...props<string, DependenciesGraphNode>(
-            Object.values(dependenciesByProjectId[project.id]).filter((depPath) => !ctx.skipped.has(depPath)),
+          ...props<DepPath, DependenciesGraphNode>(
+            Array.from(dependenciesByProjectId[project.id].values()).filter((depPath) => !ctx.skipped.has(depPath)),
             dependenciesGraph
           ),
           ...linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({

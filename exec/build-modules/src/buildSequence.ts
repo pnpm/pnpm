@@ -1,10 +1,11 @@
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
-import { type PackageManifest, type PatchFile } from '@pnpm/types'
+import { type PkgIdWithPatchHash, type DepPath, type PackageManifest, type PatchFile } from '@pnpm/types'
 import filter from 'ramda/src/filter'
 
-export interface DependenciesGraphNode {
-  children: Record<string, string>
-  depPath: string
+export interface DependenciesGraphNode<T extends string> {
+  children: Record<string, T>
+  depPath: DepPath
+  pkgIdWithPatchHash: PkgIdWithPatchHash
   name: string
   dir: string
   fetchingBundledManifest?: () => Promise<PackageManifest | undefined>
@@ -20,14 +21,12 @@ export interface DependenciesGraphNode {
   patchFile?: PatchFile
 }
 
-export interface DependenciesGraph {
-  [depPath: string]: DependenciesGraphNode
-}
+export type DependenciesGraph<T extends string> = Record<T, DependenciesGraphNode<T>>
 
-export function buildSequence (
-  depGraph: Record<string, Pick<DependenciesGraphNode, 'children' | 'requiresBuild'>>,
+export function buildSequence<T extends string> (
+  depGraph: Record<string, Pick<DependenciesGraphNode<T>, 'children' | 'requiresBuild'>>,
   rootDepPaths: string[]
-): string[][] {
+): T[][] {
   const nodesToBuild = new Set<string>()
   getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<string>())
   const onlyFromBuildGraph = filter((depPath: string) => nodesToBuild.has(depPath))
@@ -37,12 +36,12 @@ export function buildSequence (
       .map((depPath) => [depPath, onlyFromBuildGraph(Object.values(depGraph[depPath].children))])
   )
   const graphSequencerResult = graphSequencer(graph, nodesToBuildArray)
-  const chunks = graphSequencerResult.chunks as string[][]
+  const chunks = graphSequencerResult.chunks as T[][]
   return chunks
 }
 
-function getSubgraphToBuild (
-  graph: Record<string, Pick<DependenciesGraphNode, 'children' | 'requiresBuild' | 'patchFile'>>,
+function getSubgraphToBuild<T extends string> (
+  graph: Record<string, Pick<DependenciesGraphNode<T>, 'children' | 'requiresBuild' | 'patchFile'>>,
   entryNodes: string[],
   nodesToBuild: Set<string>,
   walked: Set<string>

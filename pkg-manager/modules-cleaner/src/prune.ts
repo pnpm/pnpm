@@ -15,6 +15,7 @@ import { logger } from '@pnpm/logger'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { type StoreController } from '@pnpm/store-controller-types'
 import {
+  type DepPath,
   type DependenciesField,
   DEPENDENCIES_FIELDS,
   type HoistedDependencies,
@@ -130,7 +131,7 @@ export async function prune (
     : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.currentLockfile, opts.include, opts.skipped)
   const wantedPkgIdsByDepPaths = getPkgsDepPaths(wantedLockfile.packages ?? {}, opts.skipped)
 
-  const orphanDepPaths = Object.keys(currentPkgIdsByDepPaths).filter(path => !wantedPkgIdsByDepPaths[path])
+  const orphanDepPaths = (Object.keys(currentPkgIdsByDepPaths) as DepPath[]).filter((path: DepPath) => !wantedPkgIdsByDepPaths[path])
   const orphanPkgIds = new Set(orphanDepPaths.map(path => currentPkgIdsByDepPaths[path]))
 
   statsLogger.debug({
@@ -235,12 +236,12 @@ function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: strin
 function getPkgsDepPaths (
   packages: PackageSnapshots,
   skipped: Set<string>
-): Record<string, string> {
+): Record<DepPath, string> {
   return Object.entries(packages).reduce((acc, [depPath, pkg]) => {
     if (skipped.has(depPath)) return acc
-    acc[depPath] = packageIdFromSnapshot(depPath, pkg)
+    acc[depPath as DepPath] = packageIdFromSnapshot(depPath as DepPath, pkg)
     return acc
-  }, {} as Record<string, string>)
+  }, {} as Record<DepPath, string>)
 }
 
 function getPkgsDepPathsOwnedOnlyByImporters (

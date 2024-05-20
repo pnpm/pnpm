@@ -33,9 +33,7 @@ export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesT
 export interface ResolvedImporters {
   [id: string]: {
     directDependencies: ResolvedDirectDependency[]
-    directNodeIdsByAlias: {
-      [alias: string]: NodeId
-    }
+    directNodeIdsByAlias: Map<string, NodeId>
     linkedDependencies: LinkedDependency[]
   }
 }
@@ -237,11 +235,7 @@ export async function resolveDependencyTree<T> (
             version: resolvedPackage.version,
           }
         }),
-      directNodeIdsByAlias: directNonLinkedDeps
-        .reduce((acc, { alias, nodeId }) => {
-          acc[alias] = nodeId
-          return acc
-        }, {} as Record<string, NodeId>),
+      directNodeIdsByAlias: new Map(directNonLinkedDeps.map(({ alias, nodeId }) => [alias, nodeId])),
       linkedDependencies,
     }
   }

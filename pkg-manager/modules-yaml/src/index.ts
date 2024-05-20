@@ -1,5 +1,5 @@
 import path from 'path'
-import { type DependenciesField, type HoistedDependencies, type Registries } from '@pnpm/types'
+import { type DepPath, type DependenciesField, type HoistedDependencies, type Registries } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import mapValues from 'ramda/src/map'
 import isWindows from 'is-windows'
@@ -14,7 +14,7 @@ export type IncludedDependencies = {
 }
 
 export interface Modules {
-  hoistedAliases?: { [depPath: string]: string[] } // for backward compatibility
+  hoistedAliases?: { [depPath: DepPath]: string[] } // for backward compatibility
   hoistedDependencies: HoistedDependencies
   hoistPattern?: string[]
   included: IncludedDependencies
@@ -70,9 +70,9 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
     if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
       modules.hoistedDependencies = {}
       for (const depPath of Object.keys(modules.hoistedAliases)) {
-        modules.hoistedDependencies[depPath] = {}
-        for (const alias of modules.hoistedAliases[depPath]) {
-          modules.hoistedDependencies[depPath][alias] = 'private'
+        modules.hoistedDependencies[depPath as DepPath] = {}
+        for (const alias of modules.hoistedAliases[depPath as DepPath]) {
+          modules.hoistedDependencies[depPath as DepPath][alias] = 'private'
         }
       }
     }

@@ -24,6 +24,7 @@ import {
 import { type StoreController, type TarballResolution } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
+  type DepPath,
   type HoistedDependencies,
   type Registries,
 } from '@pnpm/types'
@@ -44,7 +45,7 @@ const brokenModulesLogger = logger('_broken_node_modules')
 export interface LinkPackagesOptions {
   currentLockfile: Lockfile
   dedupeDirectDeps: boolean
-  dependenciesByProjectId: Record<string, Record<string, string>>
+  dependenciesByProjectId: Record<string, Map<string, DepPath>>
   disableRelinkLocalDirDeps?: boolean
   force: boolean
   depsStateCache: DepsStateCache
@@ -65,7 +66,7 @@ export interface LinkPackagesOptions {
   rootModulesDir: string
   sideEffectsCacheRead: boolean
   symlink: boolean
-  skipped: Set<string>
+  skipped: Set<DepPath>
   storeController: StoreController
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
@@ -76,7 +77,7 @@ export interface LinkPackagesOptions {
 
 export interface LinkPackagesResult {
   currentLockfile: Lockfile
-  newDepPaths: string[]
+  newDepPaths: DepPath[]
   newHoistedDependencies: HoistedDependencies
   removedDepPaths: Set<string>
   stats: InstallationResultStats
@@ -174,8 +175,8 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     const packages = opts.currentLockfile.packages ?? {}
     if (opts.wantedLockfile.packages != null) {
       for (const depPath in opts.wantedLockfile.packages) { // eslint-disable-line:forin
-        if (depGraph[depPath]) {
-          packages[depPath] = opts.wantedLockfile.packages[depPath]
+        if (depGraph[depPath as DepPath]) {
+          packages[depPath as DepPath] = opts.wantedLockfile.packages[depPath as DepPath]
         }
       }
     }
@@ -253,7 +254,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
           dir: rootDir,
           modulesDir,
           dependencies: await Promise.all([
-            ...Object.entries(deps)
+            ...Array.from(deps.entries())
               .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])
               .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
               .filter(({ depGraphNode }) => depGraphNode)
@@ -320,13 +321,13 @@ interface LinkNewPackagesOptions {
   lockfileDir: string
   sideEffectsCacheRead: boolean
   symlink: boolean
-  skipped: Set<string>
+  skipped: Set<DepPath>
   storeController: StoreController
   virtualStoreDir: string
 }
 
 interface LinkNewPackagesResult {
-  newDepPaths: string[]
+  newDepPaths: DepPath[]
   added: number
 }
 
@@ -336,9 +337,9 @@ async function linkNewPackages (
   depGraph: DependenciesGraph,
   opts: LinkNewPackagesOptions
 ): Promise<LinkNewPackagesResult> {
-  const wantedRelDepPaths = difference(Object.keys(wantedLockfile.packages ?? {}), Array.from(opts.skipped))
+  const wantedRelDepPaths = difference(Object.keys(wantedLockfile.packages ?? {}) as DepPath[], Array.from(opts.skipped))
 
-  let newDepPathsSet: Set<string>
+  let newDepPathsSet: Set<DepPath>
   if (opts.force) {
     newDepPathsSet = new Set(
       wantedRelDepPaths
@@ -379,7 +380,7 @@ async function linkNewPackages (
 
   const newDepPaths = Array.from(newDepPathsSet)
 
-  const newPkgs = props<string, DependenciesGraphNode>(newDepPaths, depGraph)
+  const newPkgs = props<DepPath, DependenciesGraphNode>(newDepPaths, depGraph)
 
   await Promise.all(newPkgs.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   await Promise.all([
@@ -404,15 +405,15 @@ async function linkNewPackages (
 }
 
 async function selectNewFromWantedDeps (
-  wantedRelDepPaths: string[],
+  wantedRelDepPaths: DepPath[],
   currentLockfile: Lockfile,
   depGraph: DependenciesGraph
-): Promise<Set<string>> {
-  const newDeps = new Set<string>()
+): Promise<Set<DepPath>> {
+  const newDeps = new Set<DepPath>()
   const prevDeps = currentLockfile.packages ?? {}
   await Promise.all(
     wantedRelDepPaths.map(
-      async (depPath: string) => {
+      async (depPath) => {
         const depNode = depGraph[depPath]
         if (!depNode) return
         const prevDep = prevDeps[depPath]
