@@ -25,11 +25,11 @@ export type DependenciesGraph<T extends string> = Record<T, DependenciesGraphNod
 
 export function buildSequence<T extends string> (
   depGraph: Record<string, Pick<DependenciesGraphNode<T>, 'children' | 'requiresBuild'>>,
-  rootDepPaths: string[]
+  rootDepPaths: T[]
 ): T[][] {
   const nodesToBuild = new Set<string>()
-  getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<string>())
-  const onlyFromBuildGraph = filter((depPath: string) => nodesToBuild.has(depPath))
+  getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<T>())
+  const onlyFromBuildGraph = filter((depPath: T) => nodesToBuild.has(depPath))
   const nodesToBuildArray = Array.from(nodesToBuild)
   const graph = new Map(
     nodesToBuildArray
@@ -42,9 +42,9 @@ export function buildSequence<T extends string> (
 
 function getSubgraphToBuild<T extends string> (
   graph: Record<string, Pick<DependenciesGraphNode<T>, 'children' | 'requiresBuild' | 'patchFile'>>,
-  entryNodes: string[],
-  nodesToBuild: Set<string>,
-  walked: Set<string>
+  entryNodes: T[],
+  nodesToBuild: Set<T>,
+  walked: Set<T>
 ): boolean {
   let currentShouldBeBuilt = false
   for (const depPath of entryNodes) {
