@@ -229,7 +229,7 @@ export interface ResolvedPackage {
   hasBundledDependencies: boolean
   patchFile?: PatchFile
   prepare: boolean
-  packageIdWithPatchHash: PkgIdWithPatchHash
+  pkgIdWithPatchHash: PkgIdWithPatchHash
   requiresBuild?: boolean
   additionalInfo: {
     deprecated?: string
@@ -1530,7 +1530,7 @@ function getResolvedPackage (
       libc: options.pkg.libc,
     },
     parentImporterIds: new Set([options.parentImporterId]),
-    packageIdWithPatchHash: options.depPath,
+    pkgIdWithPatchHash: options.depPath,
     dev: options.wantedDependency.dev,
     fetching: options.pkgResponse.fetching!,
     filesIndexFile: options.pkgResponse.filesIndexFile!,

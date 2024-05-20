@@ -39,7 +39,7 @@ export interface DependenciesGraphNode {
   optionalDependencies: Set<string>
   optional: boolean
   depPath: DepPath // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
-  packageIdWithPatchHash: PkgIdWithPatchHash
+  pkgIdWithPatchHash: PkgIdWithPatchHash
   isBuilt?: boolean
   requiresBuild?: boolean
   hasBin: boolean
@@ -107,7 +107,7 @@ export async function lockfileToDepGraph (
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
         const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
-        const packageIdWithPatchHash = dp.getPackageIdWithPatchHash(depPath)
+        const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
 
         const pkg = {
           name: pkgName,
@@ -185,7 +185,7 @@ export async function lockfileToDepGraph (
         }
         graph[dir] = {
           children: {},
-          packageIdWithPatchHash,
+          pkgIdWithPatchHash,
           depPath,
           dir,
           fetching: fetchResponse.fetching,

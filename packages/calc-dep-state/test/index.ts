@@ -5,13 +5,13 @@ import { type PkgIdWithPatchHash } from '@pnpm/types'
 
 const depsGraph = {
   'registry/foo@1.0.0': {
-    packageIdWithPatchHash: 'foo@1.0.0' as PkgIdWithPatchHash,
+    pkgIdWithPatchHash: 'foo@1.0.0' as PkgIdWithPatchHash,
     children: {
       bar: 'registry/bar@1.0.0',
     },
   },
   'registry/bar@1.0.0': {
-    packageIdWithPatchHash: 'bar@1.0.0' as PkgIdWithPatchHash,
+    pkgIdWithPatchHash: 'bar@1.0.0' as PkgIdWithPatchHash,
     children: {
       foo: 'registry/foo@1.0.0',
     },

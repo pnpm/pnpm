@@ -7,7 +7,7 @@ test('packages are not deduplicated when versions do not match', async () => {
   const fooPkg: PartialResolvedPackage = {
     name: 'foo',
     version: '1.0.0',
-    packageIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
+    pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     id: '',
     peerDependencies: {
       bar: { version: '1.0.0 || 2.0.0' },
@@ -26,7 +26,7 @@ test('packages are not deduplicated when versions do not match', async () => {
       {
         name,
         version,
-        packageIdWithPatchHash: `${name}/${version}` as PkgIdWithPatchHash,
+        pkgIdWithPatchHash: `${name}/${version}` as PkgIdWithPatchHash,
         peerDependencies: {},
         id: '',
       } satisfies PartialResolvedPackage,

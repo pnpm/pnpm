@@ -5,7 +5,7 @@ import filter from 'ramda/src/filter'
 export interface DependenciesGraphNode<T extends string> {
   children: Record<string, T>
   depPath: DepPath
-  packageIdWithPatchHash: PkgIdWithPatchHash
+  pkgIdWithPatchHash: PkgIdWithPatchHash
   name: string
   dir: string
   fetchingBundledManifest?: () => Promise<PackageManifest | undefined>

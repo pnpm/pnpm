@@ -60,7 +60,7 @@ export function removeSuffix (relDepPath: string): string {
   return relDepPath
 }
 
-export function getPackageIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
+export function getPkgIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
   let pkgId: string = depPath
   const { peersIndex: sepIndex } = indexOfPeersSuffix(pkgId)
   if (sepIndex !== -1) {

@@ -1,5 +1,5 @@
 import { ENGINE_NAME } from '@pnpm/constants'
-import { getPackageIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
+import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
@@ -9,7 +9,7 @@ export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
 
 export interface DepsGraphNode<T extends string> {
   children: { [alias: string]: T }
-  packageIdWithPatchHash: PkgIdWithPatchHash
+  pkgIdWithPatchHash: PkgIdWithPatchHash
 }
 
 export interface DepsStateCache {
@@ -49,16 +49,16 @@ function calcDepStateObj<T extends string> (
   if (cache[depPath]) return cache[depPath]
   const node = depsGraph[depPath]
   if (!node) return {}
-  const nextParents = new Set([...Array.from(parents), node.packageIdWithPatchHash])
+  const nextParents = new Set([...Array.from(parents), node.pkgIdWithPatchHash])
   const state: DepStateObj = {}
   for (const childId of Object.values(node.children)) {
     const child = depsGraph[childId]
     if (!child) continue
-    if (parents.has(child.packageIdWithPatchHash)) {
-      state[child.packageIdWithPatchHash] = {}
+    if (parents.has(child.pkgIdWithPatchHash)) {
+      state[child.pkgIdWithPatchHash] = {}
       continue
     }
-    state[child.packageIdWithPatchHash] = calcDepStateObj(childId, depsGraph, cache, nextParents)
+    state[child.pkgIdWithPatchHash] = calcDepStateObj(childId, depsGraph, cache, nextParents)
   }
   cache[depPath] = sortKeys(state)
   return cache[depPath]
@@ -74,7 +74,7 @@ export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph<DepPath> {
       })
       graph[depPath as DepPath] = {
         children,
-        packageIdWithPatchHash: getPackageIdWithPatchHash(depPath as DepPath),
+        pkgIdWithPatchHash: getPkgIdWithPatchHash(depPath as DepPath),
       }
     }
   }
