@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { type PeerDependencyIssuesByProjects, type PkgIdWithPatchHash } from '@pnpm/types'
+import { type PkgResolutionId, type PeerDependencyIssuesByProjects, type PkgIdWithPatchHash } from '@pnpm/types'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import { type DependenciesTreeNode, type PeerDependencies } from '../lib/resolveDependencies'
 import { type NodeId } from '../lib/nextNodeId'
@@ -13,7 +13,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
       qar: { version: '1.0.0' },
       zoo: { version: '1.0.0' },
     },
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const barPkg = {
     name: 'bar',
@@ -23,7 +23,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
       foo: { version: '1.0.0' },
       zoo: { version: '1.0.0' },
     },
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const { dependenciesGraph } = await resolvePeers({
     allPeerDepNames: new Set(['foo', 'bar', 'qar', 'zoo']),
@@ -68,7 +68,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
             foo: { version: '1.0.0' },
             bar: { version: '1.0.0' },
           },
-          id: '',
+          id: '' as PkgResolutionId,
         },
         depth: 2,
       }],
@@ -85,7 +85,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
           peerDependencies: {
             qar: { version: '1.0.0' },
           },
-          id: '',
+          id: '' as PkgResolutionId,
         },
         depth: 3,
       }],
@@ -124,21 +124,21 @@ test('when a package is referenced twice in the dependencies graph and one of th
     peerDependencies: {
       qar: { version: '1.0.0' },
     },
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const barPkg = {
     name: 'bar',
     pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {} as PeerDependencies,
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const zooPkg = {
     name: 'zoo',
     pkgIdWithPatchHash: 'zoo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {} as PeerDependencies,
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const { dependenciesGraph } = await resolvePeers({
     allPeerDepNames: new Set(['foo', 'bar', 'qar', 'zoo']),
@@ -200,7 +200,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
           pkgIdWithPatchHash: 'qar/1.0.0' as PkgIdWithPatchHash,
           version: '1.0.0',
           peerDependencies: {},
-          id: '',
+          id: '' as PkgResolutionId,
         },
         depth: 1,
       }],
@@ -229,7 +229,7 @@ describe('peer dependency issues', () => {
       peerDependencies: {
         peer: { version: '1' },
       },
-      id: '',
+      id: '' as PkgResolutionId,
     }
     const fooWithOptionalPeer = {
       name: 'foo',
@@ -238,7 +238,7 @@ describe('peer dependency issues', () => {
       peerDependencies: {
         peer: { version: '1', optional: true },
       },
-      id: '',
+      id: '' as PkgResolutionId,
     }
     const barPkg = {
       name: 'bar',
@@ -247,7 +247,7 @@ describe('peer dependency issues', () => {
       peerDependencies: {
         peer: { version: '2' },
       },
-      id: '',
+      id: '' as PkgResolutionId,
     }
     const barWithOptionalPeer = {
       name: 'bar',
@@ -256,7 +256,7 @@ describe('peer dependency issues', () => {
       peerDependencies: {
         peer: { version: '2', optional: true },
       },
-      id: '',
+      id: '' as PkgResolutionId,
     }
     const qarPkg = {
       name: 'qar',
@@ -265,7 +265,7 @@ describe('peer dependency issues', () => {
       peerDependencies: {
         peer: { version: '^2.2.0' },
       },
-      id: '',
+      id: '' as PkgResolutionId,
     }
     peerDependencyIssuesByProjects = (await resolvePeers({
       allPeerDepNames: new Set(),
@@ -276,7 +276,7 @@ describe('peer dependency issues', () => {
           ]),
           topParents: [],
           rootDir: '',
-          id: 'project1',
+          id: 'project1' as PkgResolutionId,
         },
         {
           directNodeIdsByAlias: new Map([
@@ -284,7 +284,7 @@ describe('peer dependency issues', () => {
           ]),
           topParents: [],
           rootDir: '',
-          id: 'project2',
+          id: 'project2' as PkgResolutionId,
         },
         {
           directNodeIdsByAlias: new Map([
@@ -293,7 +293,7 @@ describe('peer dependency issues', () => {
           ]),
           topParents: [],
           rootDir: '',
-          id: 'project3',
+          id: 'project3' as PkgResolutionId,
         },
         {
           directNodeIdsByAlias: new Map([
@@ -302,7 +302,7 @@ describe('peer dependency issues', () => {
           ]),
           topParents: [],
           rootDir: '',
-          id: 'project4',
+          id: 'project4' as PkgResolutionId,
         },
         {
           directNodeIdsByAlias: new Map([
@@ -311,7 +311,7 @@ describe('peer dependency issues', () => {
           ]),
           topParents: [],
           rootDir: '',
-          id: 'project5',
+          id: 'project5' as PkgResolutionId,
         },
         {
           directNodeIdsByAlias: new Map([
@@ -320,7 +320,7 @@ describe('peer dependency issues', () => {
           ]),
           topParents: [],
           rootDir: '',
-          id: 'project6',
+          id: 'project6' as PkgResolutionId,
         },
       ],
       resolvedImporters: {},
@@ -426,7 +426,7 @@ describe('unmet peer dependency issues', () => {
           ]),
           topParents: [],
           rootDir: '',
-          id: 'project1',
+          id: 'project1' as PkgResolutionId,
         },
       ],
       resolvedImporters: {},
@@ -442,7 +442,7 @@ describe('unmet peer dependency issues', () => {
               peer1: { version: '*' },
               peer2: { version: '>=1' },
             },
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 0,
         }],
@@ -454,7 +454,7 @@ describe('unmet peer dependency issues', () => {
             version: '1.0.0-rc.0',
             pkgIdWithPatchHash: 'peer/1.0.0-rc.0' as PkgIdWithPatchHash,
             peerDependencies: {},
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 0,
         }],
@@ -466,7 +466,7 @@ describe('unmet peer dependency issues', () => {
             version: '1.1.0-rc.0',
             pkgIdWithPatchHash: 'peer/1.1.0-rc.0' as PkgIdWithPatchHash,
             peerDependencies: {},
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 0,
         }],
@@ -496,7 +496,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           ]),
           topParents: [],
           rootDir: '',
-          id: 'project',
+          id: 'project' as PkgResolutionId,
         },
       ],
       resolvedImporters: {},
@@ -512,7 +512,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
             pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
             version: '1.0.0',
             peerDependencies: {},
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 0,
         }],
@@ -524,7 +524,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
             pkgIdWithPatchHash: 'dep/1.0.0' as PkgIdWithPatchHash,
             version: '1.0.0',
             peerDependencies: {},
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 1,
         }],
@@ -538,7 +538,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
             peerDependencies: {
               dep: { version: '10' },
             },
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 1,
         }],
@@ -561,7 +561,7 @@ test('resolve peer dependencies with npm aliases', async () => {
     peerDependencies: {
       bar: { version: '1.0.0' },
     },
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const fooAliasPkg = {
     name: 'foo',
@@ -570,21 +570,21 @@ test('resolve peer dependencies with npm aliases', async () => {
     peerDependencies: {
       bar: { version: '2.0.0' },
     },
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const barPkg = {
     name: 'bar',
     pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {},
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const barAliasPkg = {
     name: 'bar',
     pkgIdWithPatchHash: 'bar/2.0.0' as PkgIdWithPatchHash,
     version: '2.0.0',
     peerDependencies: {},
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const { dependenciesGraph } = await resolvePeers({
     allPeerDepNames: new Set(['bar']),
@@ -598,7 +598,7 @@ test('resolve peer dependencies with npm aliases', async () => {
         ]),
         topParents: [],
         rootDir: '',
-        id: '',
+        id: '' as PkgResolutionId,
       },
     ],
     resolvedImporters: {},
