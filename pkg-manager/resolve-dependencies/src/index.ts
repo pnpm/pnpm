@@ -38,17 +38,17 @@ import {
 } from './resolveDependencyTree'
 import {
   type DependenciesByProjectId,
-  type GenericDependenciesGraph,
-  type GenericDependenciesGraphNode,
   resolvePeers,
+  type GenericDependenciesGraphWithResolvedChildren,
+  type GenericDependenciesGraphNodeWithResolvedChildren,
 } from './resolvePeers'
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
 import { updateProjectManifest } from './updateProjectManifest'
 
-export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
+export type DependenciesGraph = GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
 
-export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPackage
+export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChildren & ResolvedPackage
 
 export {
   getWantedDependencies,
@@ -91,7 +91,7 @@ export interface ImporterToResolve extends Importer<{
 
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
-  dependenciesGraph: GenericDependenciesGraph<ResolvedPackage>
+  dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
   outdatedDependencies: {
     [pkgId: string]: string
   }

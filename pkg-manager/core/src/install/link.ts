@@ -482,7 +482,7 @@ async function linkAllPkgs (
       }
       depNode.isBuilt = isBuilt
 
-      const selfDep = depNode.children![depNode.name]
+      const selfDep = depNode.children[depNode.name]
       if (selfDep) {
         const pkg = opts.depGraph[selfDep]
         if (!pkg || !pkg.installable && pkg.optional) return

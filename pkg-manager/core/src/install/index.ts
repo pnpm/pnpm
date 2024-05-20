@@ -1214,8 +1214,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       logger.info({ message, prefix })
     }
     if (result.newDepPaths?.length) {
-      // @ts-expect-error
-      const newPkgs = props<string, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
+      const newPkgs = props<DepPath, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
       await linkAllBins(newPkgs, dependenciesGraph, {
         extraNodePaths: ctx.extraNodePaths,
         optional: opts.include.optionalDependencies,
@@ -1243,9 +1242,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         })
       } else {
         const directPkgs = [
-          ...props<string, DependenciesGraphNode>(
+          ...props<DepPath, DependenciesGraphNode>(
             Array.from(dependenciesByProjectId[project.id].values()).filter((depPath) => !ctx.skipped.has(depPath)),
-            // @ts-expect-error
             dependenciesGraph
           ),
           ...linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({

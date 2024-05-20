@@ -25,13 +25,11 @@ import { type ResolvedImporters } from './resolveDependencyTree'
 import { mergePeers } from './mergePeers'
 import { dedupeInjectedDeps } from './dedupeInjectedDeps'
 
-export interface GenericDependenciesGraphNode {
+export interface BaseGenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
   modules: string
   dir: string
   depPath: DepPath
-  childrenNodeIds?: Record<string, NodeId>
-  children: Record<string, DepPath>
   depth: number
   peerDependencies?: PeerDependencies
   transitivePeerDependencies: Set<string>
@@ -40,6 +38,14 @@ export interface GenericDependenciesGraphNode {
   isPure: boolean
   resolvedPeerNames: Set<string>
   requiresBuild?: boolean
+}
+
+export interface GenericDependenciesGraphNode extends BaseGenericDependenciesGraphNode {
+  childrenNodeIds: Record<string, NodeId>
+}
+
+export interface GenericDependenciesGraphNodeWithResolvedChildren extends BaseGenericDependenciesGraphNode {
+  children: Record<string, DepPath>
 }
 
 export type PartialResolvedPackage = Pick<ResolvedPackage,
@@ -52,6 +58,10 @@ export type PartialResolvedPackage = Pick<ResolvedPackage,
 
 export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {
   [depPath: DepPath]: T & GenericDependenciesGraphNode
+}
+
+export interface GenericDependenciesGraphWithResolvedChildren<T extends PartialResolvedPackage> {
+  [depPath: DepPath]: T & GenericDependenciesGraphNodeWithResolvedChildren
 }
 
 export interface ProjectToResolve {
@@ -79,7 +89,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     resolvedImporters: ResolvedImporters
   }
 ): Promise<{
-    dependenciesGraph: GenericDependenciesGraph<T>
+    dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<T>
     dependenciesByProjectId: DependenciesByProjectId
     peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   }> {
@@ -135,13 +145,18 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   }
   await Promise.all(finishingList)
 
-  Object.values(depGraph).forEach((node) => {
-    node.children = {}
-    for (const [alias, childNodeId] of Object.entries<NodeId>(node.childrenNodeIds)) {
-      node.children[alias] = pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)
-    }
-    delete node.childrenNodeIds
-  })
+  const depGraphWithResolvedChildren = resolveChildren(depGraph)
+
+  function resolveChildren<T extends PartialResolvedPackage> (depGraph: GenericDependenciesGraph<T>): GenericDependenciesGraphWithResolvedChildren<T> {
+    Object.values(depGraph).forEach((node) => {
+      node.children = {}
+      for (const [alias, childNodeId] of Object.entries<NodeId>(node.childrenNodeIds)) {
+        node.children[alias] = pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)
+      }
+      delete node.childrenNodeIds
+    })
+    return depGraph as unknown as GenericDependenciesGraphWithResolvedChildren<T>
+  }
 
   const dependenciesByProjectId: DependenciesByProjectId = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
@@ -154,7 +169,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     dedupeInjectedDeps({
       dependenciesByProjectId,
       projects: opts.projects,
-      depGraph,
+      depGraph: depGraphWithResolvedChildren,
       pathsByNodeId,
       lockfileDir: opts.lockfileDir,
       resolvedImporters: opts.resolvedImporters,
@@ -162,7 +177,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   }
   if (opts.dedupePeerDependents) {
     const duplicates = Array.from(depPathsByPkgId.values()).filter((item) => item.size > 1)
-    const allDepPathsMap = deduplicateAll(depGraph, duplicates)
+    const allDepPathsMap = deduplicateAll(depGraphWithResolvedChildren, duplicates)
     for (const { id } of opts.projects) {
       for (const [alias, depPath] of dependenciesByProjectId[id].entries()) {
         dependenciesByProjectId[id].set(alias, allDepPathsMap[depPath] ?? depPath)
@@ -170,18 +185,18 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     }
   }
   return {
-    dependenciesGraph: depGraph,
+    dependenciesGraph: depGraphWithResolvedChildren,
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
   }
 }
 
-function nodeDepsCount (node: GenericDependenciesGraphNode): number {
+function nodeDepsCount (node: GenericDependenciesGraphNodeWithResolvedChildren): number {
   return Object.keys(node.children!).length + node.resolvedPeerNames.size
 }
 
 function deduplicateAll<T extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraph<T>,
+  depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
   duplicates: Array<Set<DepPath>>
 ): Record<DepPath, DepPath> {
   const { depPathsMap, remainingDuplicates } = deduplicateDepPaths(duplicates, depGraph)
@@ -211,7 +226,7 @@ interface DeduplicateDepPathsResult {
 
 function deduplicateDepPaths<T extends PartialResolvedPackage> (
   duplicates: Array<Set<DepPath>>,
-  depGraph: GenericDependenciesGraph<T>
+  depGraph: GenericDependenciesGraphWithResolvedChildren<T>
 ): DeduplicateDepPathsResult {
   const depCountSorter = (depPath1: DepPath, depPath2: DepPath) => nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2])
   const depPathsMap: Record<DepPath, DepPath> = {}
@@ -249,7 +264,7 @@ function deduplicateDepPaths<T extends PartialResolvedPackage> (
 }
 
 function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraph<T>,
+  depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
   depPath1: DepPath,
   depPath2: DepPath
 ): boolean {
@@ -562,7 +577,6 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           transitivePeerDependencies.add(unknownPeer)
         }
       }
-      // @ts-expect-error
       ctx.depGraph[depPath] = {
         ...(node.resolvedPackage as T),
         childrenNodeIds: Object.assign(

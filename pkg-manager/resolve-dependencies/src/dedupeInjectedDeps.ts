@@ -5,14 +5,14 @@ import { type ResolvedDirectDependency, type ResolvedImporters } from './resolve
 import { type NodeId } from './nextNodeId'
 import { type LinkedDependency } from './resolveDependencies'
 import {
+  type GenericDependenciesGraphWithResolvedChildren,
   type DependenciesByProjectId,
-  type GenericDependenciesGraph,
   type PartialResolvedPackage,
   type ProjectToResolve,
 } from './resolvePeers'
 
 export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {
-  depGraph: GenericDependenciesGraph<T>
+  depGraph: GenericDependenciesGraphWithResolvedChildren<T>
   dependenciesByProjectId: DependenciesByProjectId
   lockfileDir: string
   pathsByNodeId: Map<NodeId, DepPath>
@@ -60,7 +60,7 @@ function getDedupeMap<T extends PartialResolvedPackage> (
     for (const [alias, dep] of deps.entries()) {
       // Check for subgroup not equal.
       // The injected project in the workspace may have dev deps
-      const isSubset = Object.entries(opts.depGraph[dep.depPath].children!)
+      const isSubset = Object.entries(opts.depGraph[dep.depPath].children)
         .every(([alias, depPath]) => opts.dependenciesByProjectId[dep.id].get(alias) === depPath)
       if (isSubset) {
         dedupedInjectedDeps.set(alias, dep.id)
