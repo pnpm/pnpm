@@ -65,7 +65,7 @@ test('filterByImporters(): only prod dependencies of one importer', () => {
         devDependencies: false,
         optionalDependencies: false,
       },
-      skipped: new Set<string>(),
+      skipped: new Set<DepPath>(),
     }
   )
 
@@ -149,7 +149,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
           devDependencies: false,
           optionalDependencies: false,
         },
-        skipped: new Set<string>(),
+        skipped: new Set<DepPath>(),
       }
     )
   } catch (_: any) { // eslint-disable-line
@@ -195,7 +195,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         devDependencies: false,
         optionalDependencies: false,
       },
-      skipped: new Set<string>(),
+      skipped: new Set<DepPath>(),
     }
   )
 
@@ -290,7 +290,7 @@ test('filterByImporters(): do not include skipped packages', () => {
         devDependencies: true,
         optionalDependencies: true,
       },
-      skipped: new Set<string>(['optional-dep@1.0.0']),
+      skipped: new Set<DepPath>(['optional-dep@1.0.0' as DepPath]),
     }
   )
 
@@ -390,7 +390,7 @@ test('filterByImporters(): exclude orphan packages', () => {
         devDependencies: true,
         optionalDependencies: true,
       },
-      skipped: new Set<string>(),
+      skipped: new Set<DepPath>(),
     }
   )
 
