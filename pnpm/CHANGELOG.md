@@ -1,5 +1,12 @@
 # pnpm
 
+## 9.1.2
+
+### Patch Changes
+
+- Reduced memory usage during peer dependencies resolution [#8084](https://github.com/pnpm/pnpm/pull/8084).
+- Details in the `pnpm licenses` output are not misplaced anymore [#8071](https://github.com/pnpm/pnpm/pull/8071).
+
 ## 9.1.1
 
 ### Patch Changes
