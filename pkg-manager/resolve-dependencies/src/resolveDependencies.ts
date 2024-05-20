@@ -103,7 +103,6 @@ export type ResolvedPkgsById = Record<string, ResolvedPackage>
 export interface LinkedDependency {
   isLinkedDependency: true
   optional: boolean
-  depPath: string
   dev: boolean
   resolution: DirectoryResolution
   pkgId: PkgResolutionId
@@ -184,7 +183,6 @@ interface MissingPeersOfChildren {
 export type PkgAddress = {
   alias: string
   depIsLinked: boolean
-  depPath: string
   isNew: boolean
   isLinkedDependency?: false
   nodeId: NodeId
@@ -535,9 +533,9 @@ function getPublishedByDate (pkgAddresses: PkgAddress[], timeFromLockfile: Recor
   const newTime: Record<string, string> = {}
   for (const pkgAddress of pkgAddresses) {
     if (pkgAddress.publishedAt) {
-      newTime[pkgAddress.depPath] = pkgAddress.publishedAt
-    } else if (timeFromLockfile[pkgAddress.depPath]) {
-      newTime[pkgAddress.depPath] = timeFromLockfile[pkgAddress.depPath]
+      newTime[pkgAddress.pkgId] = pkgAddress.publishedAt
+    } else if (timeFromLockfile[pkgAddress.pkgId]) {
+      newTime[pkgAddress.pkgId] = timeFromLockfile[pkgAddress.pkgId]
     }
   }
   const sortedDates = Object.values(newTime)
@@ -1232,7 +1230,6 @@ async function resolveDependency (
     }
     return {
       alias: wantedDependency.alias || pkgResponse.body.manifest.name || path.basename(pkgResponse.body.resolution.directory),
-      depPath: pkgResponse.body.id,
       dev: wantedDependency.dev,
       isLinkedDependency: true,
       name: pkgResponse.body.manifest.name,
@@ -1451,7 +1448,6 @@ async function resolveDependency (
   return {
     alias: wantedDependency.alias || pkg.name,
     depIsLinked,
-    depPath,
     isNew: isNew || resolveChildren,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,

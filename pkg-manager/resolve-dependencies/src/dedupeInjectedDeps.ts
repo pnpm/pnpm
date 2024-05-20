@@ -84,7 +84,6 @@ function applyDedupeMap<T extends PartialResolvedPackage> (
       const linkedDep: LinkedDependency & ResolvedDirectDependency = {
         ...prev,
         isLinkedDependency: true,
-        depPath,
         pkgId: depPath as PkgResolutionId,
         resolution: {
           type: 'directory',
