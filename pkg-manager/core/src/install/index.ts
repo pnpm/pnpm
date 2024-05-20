@@ -1072,7 +1072,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     )
     for (const { id, manifest } of projects) {
       for (const [alias, depPath] of dependenciesByProjectId[id].entries()) {
-        let include = true
+        let include!: boolean
         const dep = dependenciesGraph[depPath]
         if (!dep) {
           include = false

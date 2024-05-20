@@ -13,12 +13,9 @@ export function pkgSnapshotToResolution (
   registries: Registries
 ): Resolution {
   if (
-    pkgSnapshot.resolution != null &&
-    (
-      Boolean((pkgSnapshot.resolution as TarballResolution).type) ||
-      (pkgSnapshot.resolution as TarballResolution).tarball?.startsWith('file:') ||
-      isGitHostedPkgUrl((pkgSnapshot.resolution as TarballResolution).tarball ?? '')
-    )
+    Boolean((pkgSnapshot.resolution as TarballResolution).type) ||
+    (pkgSnapshot.resolution as TarballResolution).tarball?.startsWith('file:') ||
+    isGitHostedPkgUrl((pkgSnapshot.resolution as TarballResolution).tarball ?? '')
   ) {
     return pkgSnapshot.resolution as Resolution
   }
@@ -33,7 +30,7 @@ export function pkgSnapshotToResolution (
     registry = registries.default
   }
   let tarball!: string
-  if (!(pkgSnapshot.resolution as TarballResolution)?.tarball) {
+  if (!(pkgSnapshot.resolution as TarballResolution).tarball) {
     tarball = getTarball(registry)
   } else {
     tarball = new url.URL((pkgSnapshot.resolution as TarballResolution).tarball,
