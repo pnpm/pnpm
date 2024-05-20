@@ -1006,7 +1006,6 @@ function referenceSatisfiesWantedSpec (
 }
 
 type InfoFromLockfile = {
-  depPath: DepPath
   pkgId: PkgResolutionId
   dependencyLockfile?: PackageSnapshot
   name?: string
@@ -1058,7 +1057,6 @@ function getInfoFromLockfile (
       name,
       version,
       dependencyLockfile,
-      depPath,
       pkgId: nonSemverVersion ?? (`${name}@${version}` as PkgResolutionId),
       // resolution may not exist if lockfile is broken, and an unexpected error will be thrown
       // if resolution does not exist, return undefined so it can be autofixed later
@@ -1067,7 +1065,6 @@ function getInfoFromLockfile (
   } else {
     const parsed = dp.parse(depPath)
     return {
-      depPath,
       pkgId: parsed.nonSemverVersion ?? (parsed.name && parsed.version ? `${parsed.name}@${parsed.version}` : depPath) as PkgResolutionId, // Does it make sense to set pkgId when we're not sure?
     }
   }

@@ -80,11 +80,10 @@ function applyDedupeMap<T extends PartialResolvedPackage> (
       opts.dependenciesByProjectId[id].delete(alias)
       const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
       const prev = opts.resolvedImporters[id].directDependencies[index]
-      const depPath = `link:${normalize(path.relative(id, dedupedProjectId))}`
       const linkedDep: LinkedDependency & ResolvedDirectDependency = {
         ...prev,
         isLinkedDependency: true,
-        pkgId: depPath as PkgResolutionId,
+        pkgId: `link:${normalize(path.relative(id, dedupedProjectId))}` as PkgResolutionId,
         resolution: {
           type: 'directory',
           directory: path.join(opts.lockfileDir, dedupedProjectId),
