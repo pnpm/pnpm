@@ -1,6 +1,6 @@
 import { packageIsInstallable } from '@pnpm/cli-utils'
 import { type ProjectManifest, type Project, type SupportedArchitectures } from '@pnpm/types'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
 import { logger } from '@pnpm/logger'
@@ -14,6 +14,12 @@ export interface FindWorkspacePackagesOptions {
   patterns?: string[]
   sharedWorkspaceLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
+  /**
+   * Use an existing parsed workspace manifest if it's already been read into
+   * memory. If this is empty and no patterns were provided, the
+   * pnpm-workspace.yaml file will be read.
+   */
+  workspaceManifest?: WorkspaceManifest
 }
 
 export async function findWorkspacePackages (
@@ -40,14 +46,17 @@ export async function findWorkspacePackages (
 
 export interface FindWorkspacePackagesNoCheckOptions {
   patterns?: string[]
+  workspaceManifest?: WorkspaceManifest
 }
 
-export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?: FindWorkspacePackagesNoCheckOptions): Promise<Project[]> {
-  let patterns = opts?.patterns
-  if (patterns == null) {
-    const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
-    patterns = workspaceManifest?.packages
-  }
+export async function findWorkspacePackagesNoCheck (
+  workspaceRoot: string,
+  opts?: FindWorkspacePackagesNoCheckOptions
+): Promise<Project[]> {
+  const patterns = opts?.patterns ??
+    opts?.workspaceManifest?.packages ??
+    (await readWorkspaceManifest(workspaceRoot))?.packages
+
   const pkgs = await findPackages(workspaceRoot, {
     ignore: [
       '**/node_modules/**',
