@@ -1,5 +1,16 @@
 # @pnpm/server
 
+## 18.2.0
+
+### Minor Changes
+
+- 0c08e1c: Added a new function for clearing resolution cache.
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+
 ## 18.1.1
 
 ### Patch Changes

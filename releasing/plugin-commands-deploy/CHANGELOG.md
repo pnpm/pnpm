@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-deploy
 
+## 5.1.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.5
+- @pnpm/fs.indexed-pkg-importer@6.0.2
+- @pnpm/cli-utils@3.0.7
+- @pnpm/directory-fetcher@8.0.2
+
 ## 5.1.4
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/mount-modules
 
+## 0.6.4
+
+### Patch Changes
+
+- @pnpm/store.cafs@3.0.2
+- @pnpm/config@21.2.3
+
 ## 0.6.3
 
 ### Patch Changes

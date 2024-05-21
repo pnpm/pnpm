@@ -1,5 +1,19 @@
 # @pnpm/client
 
+## 11.1.0
+
+### Minor Changes
+
+- 0c08e1c: Added a new function for clearing resolution cache.
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/default-resolver@20.0.0
+  - @pnpm/git-fetcher@13.0.4
+  - @pnpm/tarball-fetcher@19.0.4
+  - @pnpm/directory-fetcher@8.0.2
+
 ## 11.0.6
 
 ### Patch Changes

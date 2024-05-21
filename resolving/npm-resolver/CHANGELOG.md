@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 20.0.0
+
+### Major Changes
+
+- 0c08e1c: Breaking change.
+
 ## 19.0.4
 
 ### Patch Changes

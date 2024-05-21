@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 17.0.4
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/directory-fetcher@8.0.2
+  - @pnpm/link-bins@10.0.2
+
 ## 17.0.3
 
 ### Patch Changes

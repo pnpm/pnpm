@@ -1,5 +1,13 @@
 # @pnpm/pnpmfile
 
+## 6.0.3
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/crypto.base32-hash@3.0.0
+
 ## 6.0.2
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @pnpm/store-connection-manager
 
+## 8.2.0
+
+### Minor Changes
+
+- 0c08e1c: Added a new function for clearing resolution cache.
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/package-store@20.2.0
+  - @pnpm/client@11.1.0
+  - @pnpm/server@18.2.0
+  - @pnpm/config@21.2.3
+
 ## 8.1.4
 
 ### Patch Changes

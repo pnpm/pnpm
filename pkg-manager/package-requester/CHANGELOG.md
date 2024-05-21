@@ -1,5 +1,14 @@
 # @pnpm/package-requester
 
+## 25.1.3
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/store.cafs@3.0.2
+  - @pnpm/worker@1.0.3
+
 ## 25.1.2
 
 ### Patch Changes
