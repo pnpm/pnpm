@@ -738,9 +738,10 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const allMissingPeers = new Set<string>()
 
   // Partition children based on whether they're repeated in parentPkgs.
-  // This impacts the efficiency of graph traversal and prevents potential out-of-memory errors.mes can even lead to out-of-memory exceptions.
+  // This impacts the efficiency of graph traversal and prevents potential out-of-memory errors.
+  // We check repeated first as the peers resolution of those probably are cached already.
   const [repeated, notRepeated] = partition(([alias]) => parentPkgs[alias] != null, Object.entries(children))
-  const nodeIds = Array.from(new Set([...notRepeated, ...repeated].map(([, nodeId]) => nodeId)))
+  const nodeIds = Array.from(new Set([...repeated, ...notRepeated].map(([, nodeId]) => nodeId)))
 
   for (const nodeId of nodeIds) {
     if (!ctx.pathsByNodeIdPromises.has(nodeId)) {
