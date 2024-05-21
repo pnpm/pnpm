@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-publishing
 
+## 8.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/lifecycle@17.0.3
+  - @pnpm/client@11.0.6
+  - @pnpm/package-bins@9.0.1
+  - @pnpm/exportable-manifest@6.0.2
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/sort-packages@6.0.2
+
 ## 8.1.3
 
 ### Patch Changes

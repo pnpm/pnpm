@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/config@21.2.2
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/client@11.0.6
+  - @pnpm/store.cafs@3.0.1
+
 ## 0.2.7
 
 ### Patch Changes

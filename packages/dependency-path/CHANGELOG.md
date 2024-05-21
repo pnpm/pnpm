@@ -1,5 +1,17 @@
 # @pnpm/dependency-path
 
+## 5.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/crypto.base32-hash@3.0.0
+
 ## 4.0.0
 
 ### Major Changes

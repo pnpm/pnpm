@@ -1,5 +1,14 @@
 # @pnpm/server
 
+## 18.1.1
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/fetch@8.0.1
+  - @pnpm/store-controller-types@18.0.1
+
 ## 18.1.0
 
 ### Minor Changes

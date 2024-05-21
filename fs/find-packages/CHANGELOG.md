@@ -1,5 +1,13 @@
 # @pnpm/fs.find-packages
 
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/read-project-manifest@6.0.2
+
 ## 3.0.1
 
 ### Patch Changes

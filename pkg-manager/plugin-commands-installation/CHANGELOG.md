@@ -1,5 +1,30 @@
 # @pnpm/plugin-commands-installation
 
+## 15.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/core@14.1.4
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/dedupe.check@2.0.2
+  - @pnpm/plugin-commands-rebuild@11.1.4
+  - @pnpm/pnpmfile@6.0.2
+  - @pnpm/manifest-utils@6.0.2
+  - @pnpm/read-project-manifest@6.0.2
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/outdated@14.0.8
+  - @pnpm/package-store@20.1.2
+  - @pnpm/filter-workspace-packages@8.0.7
+  - @pnpm/workspace.find-packages@2.0.6
+  - @pnpm/workspace.pkgs-graph@3.0.4
+  - @pnpm/sort-packages@6.0.2
+  - @pnpm/store-connection-manager@8.1.4
+
 ## 15.1.3
 
 ### Patch Changes

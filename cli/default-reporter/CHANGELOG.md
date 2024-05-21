@@ -1,5 +1,15 @@
 # @pnpm/default-reporter
 
+## 13.1.1
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/config@21.2.2
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/render-peer-issues@5.0.2
+
 ## 13.1.0
 
 ### Minor Changes

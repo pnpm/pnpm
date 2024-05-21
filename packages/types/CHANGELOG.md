@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 10.1.0
+
+### Minor Changes
+
+- 45f4262: Add PkgResolutionId.
+
 ## 10.0.0
 
 ### Major Changes
