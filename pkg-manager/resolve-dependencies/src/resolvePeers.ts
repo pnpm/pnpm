@@ -9,6 +9,7 @@ import type {
   ParentPackages,
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
+  PkgIdWithPatchHash,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersDirSuffix, type PeerId } from '@pnpm/dependency-path'
 import partition from 'ramda/src/partition'
@@ -96,7 +97,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = new Map<NodeId, DepPath>()
   const pathsByNodeIdPromises = new Map<NodeId, pDefer.DeferredPromise<DepPath>>()
-  const depPathsByPkgId = new Map<string, Set<DepPath>>()
+  const depPathsByPkgId = new Map<PkgIdWithPatchHash, Set<DepPath>>()
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
@@ -327,7 +328,7 @@ interface PeersCacheItem {
   missingPeers: Set<string>
 }
 
-type PeersCache = Map<string, PeersCacheItem[]>
+type PeersCache = Map<PkgIdWithPatchHash, PeersCacheItem[]>
 
 interface PeersResolution {
   missingPeers: Set<string>
@@ -337,20 +338,20 @@ interface PeersResolution {
 interface ResolvePeersContext {
   pathsByNodeId: Map<NodeId, DepPath>
   pathsByNodeIdPromises: Map<NodeId, pDefer.DeferredPromise<DepPath>>
-  depPathsByPkgId?: Map<string, Set<DepPath>>
+  depPathsByPkgId?: Map<PkgIdWithPatchHash, Set<DepPath>>
 }
 
 type CalculateDepPath = (cycles: string[][]) => Promise<void>
 type FinishingResolutionPromise = Promise<void>
 
 interface ParentPkgInfo {
-  depPath?: string
+  pkgIdWithPatchHash?: PkgIdWithPatchHash
   version?: string
   depth?: number
   occurrence?: number
 }
 
-type ParentPkgsOfNode = Map<string, Record<string, ParentPkgInfo>>
+type ParentPkgsOfNode = Map<NodeId, Record<string, ParentPkgInfo>>
 
 async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   nodeId: NodeId,
@@ -359,14 +360,14 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     allPeerDepNames: Set<string>
     parentPkgsOfNode: ParentPkgsOfNode
     parentNodeIds: NodeId[]
-    parentDepPathsChain: string[]
+    parentDepPathsChain: PkgIdWithPatchHash[]
     dependenciesTree: DependenciesTree<T>
     depGraph: GenericDependenciesGraph<T>
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
-    purePkgs: Set<string> // pure packages are those that don't rely on externally resolved peers
+    purePkgs: Set<PkgIdWithPatchHash> // pure packages are those that don't rely on externally resolved peers
     rootDir: string
     lockfileDir: string
   }
@@ -601,11 +602,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 function findHit<T extends PartialResolvedPackage> (ctx: {
   parentPkgsOfNode: ParentPkgsOfNode
   peersCache: PeersCache
-  purePkgs: Set<string>
-  pathsByNodeId: Map<string, string>
+  purePkgs: Set<PkgIdWithPatchHash>
+  pathsByNodeId: Map<NodeId, DepPath>
   dependenciesTree: DependenciesTree<T>
-}, parentPkgs: ParentRefs, depPath: string) {
-  const cacheItems = ctx.peersCache.get(depPath)
+}, parentPkgs: ParentRefs, pkgIdWithPatchHash: PkgIdWithPatchHash) {
+  const cacheItems = ctx.peersCache.get(pkgIdWithPatchHash)
   if (!cacheItems) return undefined
   return cacheItems.find((cache) => {
     for (const [name, cachedNodeId] of cache.resolvedPeers) {
@@ -620,13 +621,13 @@ function findHit<T extends PartialResolvedPackage> (ctx: {
       if (!ctx.dependenciesTree.has(parentPkgNodeId) && parentPkgNodeId.startsWith('link:')) {
         return false
       }
-      const parentDepPath = (ctx.dependenciesTree.get(parentPkgNodeId)!.resolvedPackage as T).pkgIdWithPatchHash
-      const cachedDepPath = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).pkgIdWithPatchHash
-      if (parentDepPath !== cachedDepPath) {
+      const parentPkgId = (ctx.dependenciesTree.get(parentPkgNodeId)!.resolvedPackage as T).pkgIdWithPatchHash
+      const cachedPkgId = (ctx.dependenciesTree.get(cachedNodeId)!.resolvedPackage as T).pkgIdWithPatchHash
+      if (parentPkgId !== cachedPkgId) {
         return false
       }
       if (
-        !ctx.purePkgs.has(parentDepPath) &&
+        !ctx.purePkgs.has(parentPkgId) &&
         !parentPackagesMatch(ctx, cachedNodeId, parentPkgNodeId)
       ) {
         return false
@@ -641,8 +642,8 @@ function findHit<T extends PartialResolvedPackage> (ctx: {
 
 function parentPackagesMatch (ctx: {
   parentPkgsOfNode: ParentPkgsOfNode
-  purePkgs: Set<string>
-}, cachedNodeId: string, checkedNodeId: string): boolean {
+  purePkgs: Set<PkgIdWithPatchHash>
+}, cachedNodeId: NodeId, checkedNodeId: NodeId): boolean {
   const cachedParentPkgs = ctx.parentPkgsOfNode.get(cachedNodeId)
   if (!cachedParentPkgs) return false
   const checkedParentPkgs = ctx.parentPkgsOfNode.get(checkedNodeId)
@@ -653,19 +654,19 @@ function parentPackagesMatch (ctx: {
   const peerDepsAreNotShadowed = parentPkgsHaveSingleOccurrence(cachedParentPkgs) &&
     parentPkgsHaveSingleOccurrence(checkedParentPkgs)
   return (
-    Object.entries(cachedParentPkgs).every(([name, { version, depPath }]) => {
+    Object.entries(cachedParentPkgs).every(([name, { version, pkgIdWithPatchHash }]) => {
       if (checkedParentPkgs[name] == null) return false
       if (version && checkedParentPkgs[name].version) {
         return version === checkedParentPkgs[name].version
       }
-      return depPath != null &&
-        (depPath === checkedParentPkgs[name].depPath) &&
+      return pkgIdWithPatchHash != null &&
+        (pkgIdWithPatchHash === checkedParentPkgs[name].pkgIdWithPatchHash) &&
         (
           peerDepsAreNotShadowed ||
           // Peer dependencies that appear last we can consider valid.
           // If they do depend on other peer dependencies then they must be those that we will check further.
           checkedParentPkgs[name].depth === maxDepth ||
-          ctx.purePkgs.has(depPath)
+          ctx.purePkgs.has(pkgIdWithPatchHash)
         )
     })
   )
@@ -688,10 +689,10 @@ function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (
     dependenciesTree,
   }: {
     parentNodeIds: NodeId[]
-    parentDepPathsChain: string[]
+    parentDepPathsChain: PkgIdWithPatchHash[]
     dependenciesTree: DependenciesTree<T>
   },
-  currentDepPath: string
+  currentDepPath: PkgIdWithPatchHash
 ): ChildrenMap {
   const allChildren: ChildrenMap = {}
 
@@ -721,12 +722,12 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     allPeerDepNames: Set<string>
     parentPkgsOfNode: ParentPkgsOfNode
     parentNodeIds: NodeId[]
-    parentDepPathsChain: string[]
+    parentDepPathsChain: PkgIdWithPatchHash[]
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
-    purePkgs: Set<string>
+    purePkgs: Set<PkgIdWithPatchHash>
     depGraph: GenericDependenciesGraph<T>
     dependenciesTree: DependenciesTree<T>
     rootDir: string
@@ -756,7 +757,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     if (!ctx.allPeerDepNames.has(name)) continue
     if (parentPkg.nodeId && !parentPkg.nodeId.startsWith('link:')) {
       parentDepPaths[name] = {
-        depPath: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).pkgIdWithPatchHash,
+        pkgIdWithPatchHash: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).pkgIdWithPatchHash,
         depth: parentPkg.depth,
         occurrence: parentPkg.occurrence,
       }
