@@ -34,7 +34,7 @@ export function testDefaults<T> (
   T {
   const authConfig = { registry }
   const cacheDir = path.resolve('cache')
-  const { resolve, fetchers, clearCache } = createClient({
+  const { resolve, fetchers, clearResolutionCache } = createClient({
     authConfig,
     rawConfig: {},
     retry: retryOpts,
@@ -50,7 +50,7 @@ export function testDefaults<T> (
       ignoreFile: opts?.fastUnpack === false ? undefined : (filename) => filename !== 'package.json',
       storeDir,
       verifyStoreIntegrity: true,
-      clearResolutionCache: clearCache,
+      clearResolutionCache,
       ...storeOpts,
     }
   )

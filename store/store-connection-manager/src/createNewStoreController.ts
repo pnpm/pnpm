@@ -51,7 +51,7 @@ export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
 ): Promise<{ ctrl: StoreController, dir: string }> {
   const fullMetadata = opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
-  const { resolve, fetchers, clearCache } = createClient({
+  const { resolve, fetchers, clearResolutionCache } = createClient({
     customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
     unsafePerm: opts.unsafePerm,
@@ -107,7 +107,7 @@ export async function createNewStoreController (
         ? opts.verifyStoreIntegrity
         : true,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      clearResolutionCache: clearCache,
+      clearResolutionCache,
     }),
     dir: opts.storeDir,
   }

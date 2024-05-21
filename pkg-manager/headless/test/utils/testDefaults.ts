@@ -43,7 +43,7 @@ export async function testDefaults (
     pnpmHomeDir: '',
   })
   const authConfig = { registry }
-  const { resolve, fetchers } = createClient({
+  const { resolve, fetchers, clearResolutionCache } = createClient({
     authConfig,
     rawConfig: {},
     retry: retryOpts,
@@ -56,6 +56,7 @@ export async function testDefaults (
     fetchers,
     {
       storeDir,
+      clearResolutionCache,
       ...storeOpts,
     }
   )

@@ -34,15 +34,17 @@ export type ClientOptions = {
 export interface Client {
   fetchers: Fetchers
   resolve: ResolveFunction
-  clearCache: () => void
+  clearResolutionCache: () => void
 }
 
 export function createClient (opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
+  const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, opts)
   return {
-    ..._createResolver(fetchFromRegistry, getAuthHeader, opts),
     fetchers: createFetchers(fetchFromRegistry, getAuthHeader, opts, opts.customFetchers),
+    resolve,
+    clearResolutionCache,
   }
 }
 
