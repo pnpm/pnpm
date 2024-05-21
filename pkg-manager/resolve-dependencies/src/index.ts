@@ -188,6 +188,7 @@ export async function resolveDependencies (
     }
   }))
 
+  opts.storeController.clearResolutionCache()
   const {
     dependenciesGraph,
     dependenciesByProjectId,

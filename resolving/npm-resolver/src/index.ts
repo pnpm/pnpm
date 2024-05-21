@@ -77,7 +77,7 @@ export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-): NpmResolver {
+): { resolveFromNpm: NpmResolver, clearCache: () => void } {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
@@ -93,18 +93,23 @@ export function createNpmResolver (
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })
-  return resolveNpm.bind(null, {
-    getAuthHeaderValueByURI: getAuthHeader,
-    pickPackage: pickPackage.bind(null, {
-      fetch,
-      filterMetadata: opts.filterMetadata,
-      metaCache,
-      metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : META_DIR,
-      offline: opts.offline,
-      preferOffline: opts.preferOffline,
-      cacheDir: opts.cacheDir,
+  return {
+    resolveFromNpm: resolveNpm.bind(null, {
+      getAuthHeaderValueByURI: getAuthHeader,
+      pickPackage: pickPackage.bind(null, {
+        fetch,
+        filterMetadata: opts.filterMetadata,
+        metaCache,
+        metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : META_DIR,
+        offline: opts.offline,
+        preferOffline: opts.preferOffline,
+        cacheDir: opts.cacheDir,
+      }),
     }),
-  })
+    clearCache: () => {
+      metaCache.clear()
+    },
+  }
 }
 
 export type ResolveFromNpmOptions = {

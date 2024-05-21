@@ -20,7 +20,7 @@ export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
 export function createManifestGetter (
   opts: ManifestGetterOptions
 ): (packageName: string, pref: string) => Promise<DependencyManifest | null> {
-  const resolve = createResolver({ ...opts, authConfig: opts.rawConfig })
+  const { resolve } = createResolver({ ...opts, authConfig: opts.rawConfig })
   return getManifest.bind(null, resolve, opts)
 }
 
