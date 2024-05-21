@@ -20,7 +20,7 @@ async function createStoreController (storeDir?: string) {
   }
   const authConfig = { registry }
   const cacheDir = path.join(tmp, 'cache')
-  const { resolve, fetchers } = createClient({
+  const { resolve, fetchers, clearResolutionCache } = createClient({
     authConfig,
     cacheDir,
     rawConfig: {},
@@ -31,6 +31,7 @@ async function createStoreController (storeDir?: string) {
     storeDir,
     verifyStoreIntegrity: true,
     virtualStoreDirMaxLength: 120,
+    clearResolutionCache,
   })
 }
 
