@@ -164,7 +164,7 @@ test('interactively update', async () => {
           name: 'is-positive',
         },
         {
-          message: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.5}                 `,
+          message: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.6}                 `,
           value: 'micromatch',
           name: 'micromatch',
         },
