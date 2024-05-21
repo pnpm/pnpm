@@ -59,7 +59,7 @@ export async function recursivePublish (
   opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph'>>
 ): Promise<{ exitCode: number }> {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-  const resolve = createResolver({
+  const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
     userConfig: opts.userConfig,
@@ -70,7 +70,7 @@ export async function recursivePublish (
       retries: opts.fetchRetries,
     },
     timeout: opts.fetchTimeout,
-  }) as unknown as ResolveFunction
+  })
   const pkgsToPublish = await pFilter(pkgs, async (pkg) => {
     if (!pkg.manifest.name || !pkg.manifest.version || pkg.manifest.private) return false
     if (opts.force) return true

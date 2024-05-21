@@ -54,6 +54,7 @@ export interface StoreController {
   close: () => Promise<void>
   prune: (removeAlienFiles?: boolean) => Promise<void>
   upload: UploadPkgToStore
+  clearResolutionCache: () => void
 }
 
 export interface PkgRequestFetchResult {

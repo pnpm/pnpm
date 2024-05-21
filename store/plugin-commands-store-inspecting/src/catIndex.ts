@@ -69,7 +69,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     pnpmHomeDir: opts.pnpmHomeDir,
   })
   const cafsDir = path.join(storeDir, 'files')
-  const resolve = createResolver({
+  const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
   })

@@ -137,6 +137,8 @@ export async function resolveDependencies (
     allPeerDepNames,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
+  opts.storeController.clearResolutionCache()
+
   // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
   if (
     opts.patchedDependencies &&
