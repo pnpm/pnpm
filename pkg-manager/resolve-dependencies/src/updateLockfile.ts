@@ -44,7 +44,7 @@ export function updateLockfile (
   const warn = (message: string) => {
     logger.warn({ message, prefix })
   }
-  return pruneSharedLockfile(lockfile, { warn })
+  return pruneSharedLockfile(lockfile, { warn, dependenciesGraph })
 }
 
 function toLockfileDependency (
@@ -91,6 +91,9 @@ function toLockfileDependency (
     result['optionalDependencies'] = newResolvedOptionalDeps
   }
   if (pkg.optional) {
+    if (opts.depPath.includes('fill-range')) {
+      console.log('!!', pkg)
+    }
     result['optional'] = true
   }
   if (pkg.transitivePeerDependencies.size) {
