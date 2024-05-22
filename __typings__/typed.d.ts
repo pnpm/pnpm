@@ -129,9 +129,9 @@ declare module '@pnpm/npm-conf/lib/types' {
       'init-author-name': StringConstructor
       'init-author-email': StringConstructor
       // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-      'init-author-url': Array<string | typeof import('url')>
+      'init-author-url': StringConstructor | typeof import('url')
       'init-license': StringConstructor
-      'init-version': () => void
+      'init-version': StringConstructor
       json: BooleanConstructor
       key: Array<StringConstructor | null>
       'legacy-bundling': BooleanConstructor

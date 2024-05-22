@@ -25,6 +25,12 @@
       "path": "../../pkg-manifest/write-project-manifest"
     },
     {
+      "path": "../../workspace/find-workspace-dir"
+    },
+    {
+      "path": "../../workspace/read-manifest"
+    },
+    {
       "path": "../error"
     }
   ],

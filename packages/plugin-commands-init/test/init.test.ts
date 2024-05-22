@@ -18,6 +18,14 @@ test('throws an error if a package.json exists in the current directory', async 
   ).rejects.toThrow('package.json already exists')
 })
 
+test('doesn\'t throw an error if a package.json exists with force option', async () => {
+  prepare({})
+
+  await init.handler({ rawConfig: { force: true } })
+  const manifest = loadJsonFile(path.resolve('package.json'))
+  expect(manifest).toBeTruthy()
+})
+
 test('init a new package.json with npmrc', async () => {
   const rawConfig = {
     'init-author-email': 'xxxxxx@pnpm.com',
