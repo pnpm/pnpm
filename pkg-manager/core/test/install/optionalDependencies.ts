@@ -698,3 +698,18 @@ test('complex scenario with same optional dependencies appearing in many places 
   expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.18.20/node_modules/@esbuild').length).toEqual(1)
   expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.20.2/node_modules/@esbuild').length).toEqual(1)
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/8066
+test('dependency that is both optional and non-optional is installed, when optional dependencies should be skipped', async () => {
+  prepareEmpty()
+  await addDependenciesToPackage({}, ['@babel/cli@7.24.5', 'del@6.1.1'], testDefaults({
+    include: {
+      dependencies: true,
+      optionalDependencies: false,
+      devDependencies: true,
+    },
+  }))
+
+  const dirs = fs.readdirSync('node_modules/.pnpm')
+  expect(dirs.find(dir => dir.startsWith('fill-range@'))).toBeDefined()
+})

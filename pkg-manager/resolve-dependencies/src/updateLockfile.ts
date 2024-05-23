@@ -44,7 +44,7 @@ export function updateLockfile (
   const warn = (message: string) => {
     logger.warn({ message, prefix })
   }
-  return pruneSharedLockfile(lockfile, { warn })
+  return pruneSharedLockfile(lockfile, { warn, dependenciesGraph })
 }
 
 function toLockfileDependency (
