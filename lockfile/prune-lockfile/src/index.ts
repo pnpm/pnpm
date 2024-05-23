@@ -49,7 +49,7 @@ export function pruneLockfile (
   importerId: string,
   opts: {
     warn?: (msg: string) => void
-    dependenciesGraph: DependenciesGraph
+    dependenciesGraph?: DependenciesGraph
   }
 ): Lockfile {
   const importer = lockfile.importers[importerId]
