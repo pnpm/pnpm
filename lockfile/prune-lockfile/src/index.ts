@@ -10,16 +10,16 @@ import { refToRelative } from '@pnpm/dependency-path'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
 import unnest from 'ramda/src/unnest'
-// import { type DependenciesGraph } from '@pnpm/resolve-dependencies'
-
-type  DependenciesGraph = any
 
 export * from '@pnpm/lockfile-types'
 
+// cannot import DependenciesGraph from @pnpm/resolve-dependencies due to circular dependency
+type DependenciesGraph = Record<DepPath, { optional?: boolean }>
+
 export function pruneSharedLockfile (
   lockfile: Lockfile,
-  opts: {
-    dependenciesGraph: DependenciesGraph
+  opts?: {
+    dependenciesGraph?: DependenciesGraph
     warn?: (msg: string) => void
   }
 ): Lockfile {
@@ -49,7 +49,7 @@ export function pruneLockfile (
   importerId: string,
   opts: {
     warn?: (msg: string) => void
-    dependenciesGraph: DependenciesGraph,
+    dependenciesGraph: DependenciesGraph
   }
 ): Lockfile {
   const importer = lockfile.importers[importerId]
@@ -127,7 +127,7 @@ function copyPackageSnapshots (
     optionalDepPaths: DepPath[]
     prodDepPaths: DepPath[]
     warn: (msg: string) => void
-    dependenciesGraph: DependenciesGraph
+    dependenciesGraph?: DependenciesGraph
   }
 ): PackageSnapshots {
   const copiedSnapshots: PackageSnapshots = {}
@@ -166,7 +166,7 @@ function copyDependencySubGraph (
     originalPackages: PackageSnapshots
     walked: Set<string>
     warn: (msg: string) => void
-    dependenciesGraph: DependenciesGraph
+    dependenciesGraph?: DependenciesGraph
   },
   depPaths: DepPath[],
   opts: {
@@ -189,13 +189,13 @@ function copyDependencySubGraph (
     ctx.copiedSnapshots[depPath] = depLockfile
     if (opts.optional && !ctx.nonOptional.has(depPath)) {
       depLockfile.optional = true
-      if (ctx.dependenciesGraph[depPath]) {
+      if (ctx.dependenciesGraph?.[depPath]) {
         ctx.dependenciesGraph[depPath].optional = true
       }
     } else {
       ctx.nonOptional.add(depPath)
       delete depLockfile.optional
-      if (ctx.dependenciesGraph[depPath]) {
+      if (ctx.dependenciesGraph?.[depPath]) {
         ctx.dependenciesGraph[depPath].optional = false
       }
     }
