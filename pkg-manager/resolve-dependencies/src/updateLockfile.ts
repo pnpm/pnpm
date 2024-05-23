@@ -91,9 +91,6 @@ function toLockfileDependency (
     result['optionalDependencies'] = newResolvedOptionalDeps
   }
   if (pkg.optional) {
-    if (opts.depPath.includes('fill-range')) {
-      console.log('!!', pkg)
-    }
     result['optional'] = true
   }
   if (pkg.transitivePeerDependencies.size) {
