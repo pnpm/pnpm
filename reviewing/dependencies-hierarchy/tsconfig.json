@@ -45,6 +45,5 @@
     {
       "path": "../../pkg-manifest/read-package-json"
     }
-  ],
-  "composite": true
+  ]
 }

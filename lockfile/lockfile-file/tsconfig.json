@@ -36,6 +36,5 @@
     {
       "path": "../merge-lockfile-changes"
     }
-  ],
-  "composite": true
+  ]
 }

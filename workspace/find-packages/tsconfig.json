@@ -21,6 +21,5 @@
     {
       "path": "../read-manifest"
     }
-  ],
-  "composite": true
+  ]
 }

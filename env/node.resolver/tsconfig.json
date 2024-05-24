@@ -18,6 +18,5 @@
     {
       "path": "../node.fetcher"
     }
-  ],
-  "composite": true
+  ]
 }

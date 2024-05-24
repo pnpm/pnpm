@@ -21,6 +21,5 @@
     {
       "path": "../package-bins"
     }
-  ],
-  "composite": true
+  ]
 }

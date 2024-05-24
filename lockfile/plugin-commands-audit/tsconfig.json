@@ -44,6 +44,5 @@
     {
       "path": "../lockfile-file"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -36,6 +36,5 @@
     {
       "path": "../remove-bins"
     }
-  ],
-  "composite": true
+  ]
 }

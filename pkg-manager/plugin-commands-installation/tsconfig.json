@@ -102,6 +102,5 @@
     {
       "path": "../modules-yaml"
     }
-  ],
-  "composite": true
+  ]
 }

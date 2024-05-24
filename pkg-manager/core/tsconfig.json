@@ -168,6 +168,5 @@
     {
       "path": "../resolve-dependencies"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -39,6 +39,5 @@
     {
       "path": "../store-controller-types"
     }
-  ],
-  "composite": true
+  ]
 }

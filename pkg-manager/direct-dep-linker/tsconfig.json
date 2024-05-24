@@ -18,6 +18,5 @@
     {
       "path": "../../packages/core-loggers"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -21,6 +21,5 @@
     {
       "path": "../read-project-manifest"
     }
-  ],
-  "composite": true
+  ]
 }
