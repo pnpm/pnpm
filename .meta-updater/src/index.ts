@@ -107,7 +107,7 @@ async function updateTSConfig (
     }
     linkValues.push(relativePath)
   }
-  linkValues.sort((a, b) => a.localeCompare(b))
+  linkValues.sort()
 
   await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
     extends: './tsconfig.json',
