@@ -87,7 +87,7 @@ async function updateTSConfig (
     ...importer.dependencies,
     ...importer.devDependencies,
   }
-  const references = [] as Array<{ path: string }>
+  const linkValues: string[] = []
   for (const [depName, spec] of Object.entries(deps)) {
     if (!spec.startsWith('link:') || spec.length === 5) continue
     const relativePath = spec.slice(5)
@@ -105,8 +105,10 @@ async function updateTSConfig (
       // This is to avoid a circular graph (which TypeScript references do not support.
       continue
     }
-    references.push({ path: relativePath })
+    linkValues.push(relativePath)
   }
+  linkValues.sort((a, b) => a.localeCompare(b))
+
   await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
     extends: './tsconfig.json',
     include: [
@@ -123,7 +125,7 @@ async function updateTSConfig (
       ...(tsConfig as any)['compilerOptions'],
       rootDir: 'src',
     },
-    references: references.sort((r1, r2) => r1.path.localeCompare(r2.path)),
+    references: linkValues.map(path => ({ path })),
   }
 }
 
