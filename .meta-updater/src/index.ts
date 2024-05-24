@@ -109,14 +109,80 @@ async function updateTSConfig (
   }
   linkValues.sort()
 
-  await writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
-    extends: './tsconfig.json',
-    include: [
-      'src/**/*.ts',
-      'test/**/*.ts',
-      '../../__typings__/**/*.d.ts',
-    ],
-  }, { indent: 2 })
+  async function writeTestTsconfig () {
+    const testDir = path.join(dir, 'test')
+    if (!await exists(testDir)) {
+      return
+    }
+
+    await writeJsonFile(path.join(dir, 'test/tsconfig.json'), {
+      extends: '../tsconfig.json',
+      compilerOptions: {
+        // The composite flag allows projects to be specified as references in
+        // other projects. Test projects should not be dependencies of other
+        // files and don't need composite set.
+        //
+        // Some tests perform a relative import into the "src" directory to test
+        // non-publicly exported idenfiers.
+        //
+        //   import { foo } from "../src/foo"
+        //
+        // Instead of:
+        //
+        //   import { foo } from "@pnpm/example"
+        //
+        // The relative "../src" imports would error if composite is enabled
+        // since composite would require files in "src" to be part of the test
+        // project.
+        composite: false,
+        noEmit: true,
+
+        rootDir: '.'
+      },
+      include: [
+        '**/*.ts',
+        '../../../__typings__/**/*.d.ts',
+      ],
+      references: (tsConfig as any)?.compilerOptions?.composite === false
+        // If composite is explicitly set to false, we can't add the main
+        // tsconfig.json as a project reference. Only composite enabled projects
+        // can be referenced by definition. Instead, we have to add all the
+        // project references directly. Note that this check is approximate. The
+        // main tsconfig.json could inherit another conifg that sets composite
+        // to be false.
+        //
+        // The link values are relative to the current packages root. We'll need
+        // to re-compute them based off of the "test" directory, which is one
+        // directory deeper. In practice the path.relative(...) call below just
+        // prepends another "../" to the relPath, but let's use the correct
+        // methods to be defensive against future changes to testDir, dir, or
+        // relPath.
+        ? linkValues.map(relPath => ({
+          path: path.relative(testDir, path.join(dir, relPath))
+        }))
+
+        // If the main project is composite (the more common case), we can
+        // simply reference that. The main project will have more project
+        // references that will apply to the tests too.
+        //
+        // The project reference allows editor features like Go to Definition
+        // jump to files in src for imports using the current package's name
+        // (ex: @pnpm/config).
+        : [{ path: ".." }]
+    }, { indent: 2 })
+  }
+
+  await Promise.all([
+    writeTestTsconfig(),
+    writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
+      extends: './tsconfig.json',
+      include: [
+        'src/**/*.ts',
+        'test/**/*.ts',
+        '../../__typings__/**/*.d.ts',
+      ],
+    }, { indent: 2 })
+  ])
   return {
     ...tsConfig,
     extends: '@pnpm/tsconfig',
