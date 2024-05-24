@@ -135,6 +135,9 @@ async function _linkBins (
 ): Promise<string[]> {
   if (allCmds.length === 0) return [] as string[]
 
+  // deduplicate bin names to prevent race conditions (multiple writers for the same file)
+  allCmds = allCmds.filter((cmd, idx) => allCmds.findIndex(x => x.name === cmd.name) === idx)
+
   await fs.mkdir(binsDir, { recursive: true })
 
   const [cmdsWithOwnName, cmdsWithOtherNames] = partition(({ ownName }) => ownName, allCmds)
