@@ -141,7 +141,7 @@ async function updateTSConfig (
       },
       include: [
         '**/*.ts',
-        '../../../__typings__/**/*.d.ts',
+        path.relative(testDir, path.join(context.workspaceDir, '__typings__/**/*.d.ts')),
       ],
       references: (tsConfig as any)?.compilerOptions?.composite === false
         // If composite is explicitly set to false, we can't add the main
@@ -179,7 +179,7 @@ async function updateTSConfig (
       include: [
         'src/**/*.ts',
         'test/**/*.ts',
-        '../../__typings__/**/*.d.ts',
+        path.relative(dir, path.join(context.workspaceDir, '__typings__/**/*.d.ts')),
       ],
     }, { indent: 2 })
   ])
