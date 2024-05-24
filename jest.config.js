@@ -2,6 +2,14 @@ const path = require("path")
 
 const config = {
   preset: "ts-jest",
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', {
+      // For most projects, the tsconfig.json and test/tsconfig.json are almost
+      // exactly the same. But it's more correct to point to test/tsconfig.json
+      // to prevent surprises in the future.
+      tsconfig: 'test/tsconfig.json'
+    }]
+  },
   testMatch: ["**/test/**/*.[jt]s?(x)", "**/src/**/*.test.ts"],
   testEnvironment: "node",
   collectCoverage: true,
