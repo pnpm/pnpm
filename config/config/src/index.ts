@@ -109,6 +109,7 @@ export const types = Object.assign({
   'prefer-offline': Boolean,
   'prefer-symlinked-executables': Boolean,
   'prefer-workspace-packages': Boolean,
+  private: Boolean,
   production: [null, true],
   'public-hoist-pattern': Array,
   'publish-branch': String,
@@ -246,6 +247,7 @@ export async function getConfig (
     pending: false,
     'package-manager-strict': process.env.COREPACK_ENABLE_STRICT !== '0',
     'prefer-workspace-packages': false,
+    private: undefined,
     'public-hoist-pattern': [
       '*eslint*',
       '*prettier*',

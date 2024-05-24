@@ -41,6 +41,7 @@ export const GLOBAL_OPTIONS = pick([
   'dir',
   'filter',
   'filter-prod',
+  'private',
   'loglevel',
   'parseable',
   'prefix',

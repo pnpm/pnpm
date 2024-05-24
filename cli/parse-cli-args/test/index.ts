@@ -74,6 +74,36 @@ test('when running with --ignore-workspace option inside a workspace, the worksp
   expect(workspaceDir).toBeFalsy()
 })
 
+describe('--private / --no-private', () => {
+  test.each(['--private', '--no-private'])('Option "%s" throws when used without a recursive command', async (cliPrivateOption) => {
+    await expect(() =>
+      parseCliArgs(
+        {
+          ...DEFAULT_OPTS,
+          universalOptionsTypes: { private: Boolean },
+        },
+        [cliPrivateOption, 'exec', 'pwd']
+      )
+    ).rejects.toThrow(/can only be used with recursive commands/)
+  })
+
+  describe.each(['--private', '--no-private'])('Option "%s" does not throw', (cliPrivateOption) => {
+    test.each(['-r', '--filter=packages'])('when used with recursive option "%s"', async (cliRecursiveOption) => {
+      const { options } = await parseCliArgs(
+        {
+          ...DEFAULT_OPTS,
+          universalOptionsTypes: { private: Boolean },
+        },
+        [cliRecursiveOption, cliPrivateOption, 'exec', 'pwd']
+      )
+
+      expect(options).toMatchObject({
+        private: !cliPrivateOption.includes('--no'),
+      })
+    })
+  })
+})
+
 test('command is used recursively', async () => {
   const { cmd, options } = await parseCliArgs({
     ...DEFAULT_OPTS,

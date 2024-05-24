@@ -9,6 +9,7 @@ export interface PackageSelector {
   namePattern?: string
   parentDir?: string
   followProdDepsOnly?: boolean
+  private?: boolean
 }
 
 export function parsePackageSelector (rawSelector: string, prefix: string): PackageSelector {

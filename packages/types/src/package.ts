@@ -69,6 +69,7 @@ export interface TypesVersions {
 
 export interface BaseManifest {
   name?: string
+  private?: boolean
   version?: string
   bin?: PackageBin
   description?: string
@@ -147,7 +148,6 @@ export interface ProjectManifest extends BaseManifest {
     requiredScripts?: string[]
     supportedArchitectures?: SupportedArchitectures
   }
-  private?: boolean
   resolutions?: Record<string, string>
 }
 

@@ -120,6 +120,14 @@ export const FILTERING = {
       description: 'If no projects are matched by the command, exit with exit code 1 (fail)',
       name: '--fail-if-no-match',
     },
+    {
+      description: 'Restricts the scope to packages which are not marked `"private": true`. Package privacy is not considered when traversing dependencies. For example, `--filter="{apps/**}..." --no-private` will include `packages/my-public-package` if `apps/my-private-app` depends on it.',
+      name: '--no-private',
+    },
+    {
+      description: 'Restricts the scope to packages which are marked `"private": true`. Package privacy is not considered when traversing dependencies. For example, `--filter="{packages/**}..." --private` will include `tools/my-private-build-tool` if `packages/my-public-package` depends on it.',
+      name: '--private',
+    },
   ],
   title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
 }

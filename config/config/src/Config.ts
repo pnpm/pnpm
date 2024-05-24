@@ -26,6 +26,7 @@ export interface Config {
   failIfNoMatch: boolean
   filter: string[]
   filterProd: string[]
+  private?: boolean
   rawLocalConfig: Record<string, any>, // eslint-disable-line
   rawConfig: Record<string, any>, // eslint-disable-line
   dryRun?: boolean // This option might be not supported ever

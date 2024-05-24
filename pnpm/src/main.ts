@@ -9,7 +9,7 @@ import {
   type Config,
 } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
-import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
+import { type WorkspaceFilter, filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { node } from '@pnpm/plugin-commands-env'
@@ -186,7 +186,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     config.filter = config.filter ?? []
     config.filterProd = config.filterProd ?? []
 
-    const filters = [
+    const filters: WorkspaceFilter[] = [
       ...config.filter.map((filter) => ({ filter, followProdDepsOnly: false })),
       ...config.filterProd.map((filter) => ({ filter, followProdDepsOnly: true })),
     ]
@@ -195,6 +195,15 @@ export async function main (inputArgv: string[]): Promise<void> {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
     } else if (workspaceDir && !config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
+    }
+    if (config.private !== undefined) {
+      filters.push({
+        filter: '!',
+        private:
+          // negated because this is an exclusion
+          !config.private,
+        followProdDepsOnly: false,
+      })
     }
 
     const filterResults = await filterPackagesFromDir(wsDir, filters, {

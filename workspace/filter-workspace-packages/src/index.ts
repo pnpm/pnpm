@@ -15,6 +15,7 @@ export { parsePackageSelector, type PackageSelector }
 export interface WorkspaceFilter {
   filter: string
   followProdDepsOnly: boolean
+  private?: boolean
 }
 
 export interface PackageGraph<Pkg extends Package> {
@@ -107,7 +108,7 @@ export async function filterPackages<Pkg extends Package> (
   filter: WorkspaceFilter[],
   opts: FilterPackagesOptions
 ): Promise<FilterPackagesResult<Pkg>> {
-  const packageSelectors = filter.map(({ filter: f, followProdDepsOnly }) => ({ ...parsePackageSelector(f, opts.prefix), followProdDepsOnly }))
+  const packageSelectors = filter.map(({ filter: f, ...rest }) => ({ ...parsePackageSelector(f, opts.prefix), ...rest }))
 
   return filterPkgsBySelectorObjects(pkgs, packageSelectors, opts)
 }
@@ -253,6 +254,9 @@ async function _filterGraph<Pkg extends Package> (
         entryPackages = matchPackages(pick(entryPackages, pkgGraph), selector.namePattern)
       }
     }
+    if (selector.private !== undefined) {
+      entryPackages = matchPackagesByPrivacy(pkgGraph, selector.private)
+    }
 
     if (entryPackages == null) {
       throw new Error(`Unsupported package selector: ${JSON.stringify(selector)}`)
@@ -264,6 +268,9 @@ async function _filterGraph<Pkg extends Package> (
       }
       if (selector.parentDir) {
         unmatchedFilters.push(selector.parentDir)
+      }
+      if (selector.private !== undefined) {
+        unmatchedFilters.push('--private / --no-private')
       }
     }
 
@@ -346,6 +353,20 @@ function matchPackagesByGlob<Pkg extends Package> (
   const format = (str: string) => str.replace(/\/$/, '')
   const formattedFilter = pathStartsWith.replace(/\\/g, '/').replace(/\/$/, '')
   return Object.keys(graph).filter((parentDir) => micromatch.isMatch(parentDir, formattedFilter, { format }))
+}
+
+function matchPackagesByPrivacy<Pkg extends Package> (
+  graph: PackageGraph<Pkg>,
+  _private?: boolean
+): string[] {
+  if (_private === undefined) {
+    return []
+  }
+  const [privatePackages, publicPackages]: Array<PackageGraph<Pkg>> = partition(
+    ([, { package: { manifest } }]) => manifest.private === true,
+    Object.entries(graph)
+  ).map((packageGraphEntry) => Object.fromEntries(packageGraphEntry))
+  return Object.keys(_private ? privatePackages : publicPackages)
 }
 
 function pickSubgraph (

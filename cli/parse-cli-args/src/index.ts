@@ -150,6 +150,11 @@ export async function parseCliArgs (
       cmd = subCmd
     }
   }
+
+  if (!options['recursive'] && options['private'] !== undefined) {
+    throw new PnpmError('BAD_OPTIONS', '--private / --no-private can only be used with recursive commands.')
+  }
+
   const dir = options['dir'] ?? process.cwd()
   const workspaceDir = options['global'] || options['ignore-workspace']
     ? undefined
