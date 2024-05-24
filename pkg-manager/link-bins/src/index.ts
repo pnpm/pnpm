@@ -15,9 +15,9 @@ import isSubdir from 'is-subdir'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
 import pSettle from 'p-settle'
-import { type KeyValuePair } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
 import unnest from 'ramda/src/unnest'
+import groupBy from 'ramda/src/groupBy'
 import partition from 'ramda/src/partition'
 import symlinkDir from 'symlink-dir'
 import fixBin from 'bin-links/lib/fix-bin'
@@ -136,37 +136,49 @@ async function _linkBins (
   if (allCmds.length === 0) return [] as string[]
 
   // deduplicate bin names to prevent race conditions (multiple writers for the same file)
-  allCmds = allCmds.filter((cmd, idx) => allCmds.findIndex(x => x.name === cmd.name) === idx)
+  allCmds = deduplicateCommands(allCmds, binsDir)
 
   await fs.mkdir(binsDir, { recursive: true })
 
-  const [cmdsWithOwnName, cmdsWithOtherNames] = partition(({ ownName }) => ownName, allCmds)
-
-  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir, opts)))
-
-  const usedNames = Object.fromEntries(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as KeyValuePair<string, string>))
-  const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd) => {
-    if (usedNames[cmd.name]) {
-      binsConflictLogger.debug({
-        binaryName: cmd.name,
-        binsDir,
-        linkedPkgName: usedNames[cmd.name],
-        skippedPkgName: cmd.pkgName,
-      })
-      return Promise.resolve(undefined)
-    }
-    usedNames[cmd.name] = cmd.pkgName
-    return linkBin(cmd, binsDir, opts)
-  }))
+  const results = await pSettle(allCmds.map(async cmd => linkBin(cmd, binsDir, opts)))
 
   // We want to create all commands that we can create before throwing an exception
-  for (const result of [...results1, ...results2]) {
+  for (const result of results) {
     if (result.isRejected) {
       throw result.reason
     }
   }
 
   return allCmds.map(cmd => cmd.pkgName)
+}
+
+function deduplicateCommands (commands: CommandInfo[], binsDir: string): CommandInfo[] {
+  const cmdGroups = groupBy(cmd => cmd.name, commands)
+  const result: CommandInfo[] = []
+  for (const group of Object.values(cmdGroups)) {
+    if (!group || group.length === 0) continue
+    if (group.length === 1) {
+      result.push(group[0])
+      continue
+    }
+    const withOwnName = group.find(cmd => cmd.ownName) // prefer bin with own name if exist
+    const chosen = withOwnName ?? group[0] // otherwise, just pick the first item
+    logCommandConflicts(chosen, group, binsDir)
+    result.push(chosen)
+  }
+  return result
+}
+
+function logCommandConflicts (chosen: CommandInfo, group: CommandInfo[], binsDir: string): void {
+  for (const skipped of group) {
+    if (skipped === chosen) continue
+    binsConflictLogger.debug({
+      binaryName: skipped.name,
+      binsDir,
+      linkedPkgName: chosen.pkgName,
+      skippedPkgName: skipped.pkgName,
+    })
+  }
 }
 
 async function isFromModules (filename: string): Promise<boolean> {
