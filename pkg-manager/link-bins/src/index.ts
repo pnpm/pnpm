@@ -175,6 +175,7 @@ function resolveCommandConflicts (group: CommandInfo[], binsDir: string): Comman
 function compareCommand (a: CommandInfo, b: CommandInfo): -1 | 0 | 1 {
   if (a.ownName && !b.ownName) return 1
   if (!a.ownName && b.ownName) return -1
+  if (a.pkgName !== b.pkgName) return 0 // it's pointless to compare versions of 2 different package
   return semver.compare(a.pkgVersion, b.pkgVersion)
 }
 
