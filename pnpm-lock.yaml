@@ -5109,6 +5109,9 @@ importers:
         specifier: ^4.3.0
         version: 4.3.0
     devDependencies:
+      '@pnpm/catalogs.config':
+        specifier: workspace:*
+        version: link:../../catalogs/config
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
         version: 'link:'

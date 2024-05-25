@@ -32,6 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing#readme",
   "devDependencies": {
+    "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/prepare": "workspace:*",
