@@ -18,6 +18,7 @@ import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries, type PkgIdWithPatchHash } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
+  type FetchResponse,
   type FetchPackageToStoreFunction,
   type StoreController,
 } from '@pnpm/store-controller-types'
@@ -146,7 +147,7 @@ export async function lockfileToDepGraph (
             missing: dir,
           })
         }
-        let fetchResponse!: Partial<ReturnType<FetchPackageToStoreFunction>>
+        let fetchResponse!: Partial<FetchResponse>
         if (depIsPresent && equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)) {
           if (dirExists ?? await pathExists(dir)) {
             fetchResponse = {}
