@@ -11,7 +11,8 @@
       {
         "devDependencies": [
           "**/pnpm/src/**",
-          "**/test/**"
+          "**/test/**",
+          "**/src/**/*.test.ts"
         ]
       }
     ],
