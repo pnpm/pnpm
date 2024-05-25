@@ -19,7 +19,6 @@ import { type DepPath, type SupportedArchitectures, type PatchFile, type Registr
 import {
   type PkgRequestFetchResult,
   type FetchResponse,
-  type FetchPackageToStoreFunction,
   type StoreController,
 } from '@pnpm/store-controller-types'
 import * as dp from '@pnpm/dependency-path'
