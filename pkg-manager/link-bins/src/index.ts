@@ -166,13 +166,13 @@ function deduplicateCommands (commands: CommandInfo[], binsDir: string): Command
 
 function resolveCommandConflicts (group: CommandInfo[], binsDir: string): CommandInfo {
   return group.reduce((a, b) => {
-    const [chosen, skipped] = compareCommand(a, b) >= 0 ? [a, b] : [b, a]
+    const [chosen, skipped] = compareCommandsInConflict(a, b) >= 0 ? [a, b] : [b, a]
     logCommandConflict(chosen, skipped, binsDir)
     return chosen
   })
 }
 
-function compareCommand (a: CommandInfo, b: CommandInfo): -1 | 0 | 1 {
+function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): -1 | 0 | 1 {
   if (a.ownName && !b.ownName) return 1
   if (!a.ownName && b.ownName) return -1
   if (a.pkgName !== b.pkgName) return 0 // it's pointless to compare versions of 2 different package
