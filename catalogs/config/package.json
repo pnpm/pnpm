@@ -1,0 +1,44 @@
+{
+  "name": "@pnpm/catalogs.config",
+  "version": "0.1.0",
+  "description": "Create a normalized catalogs config from pnpm-workspace.yaml contents.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "engines": {
+    "node": ">=18.12"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/blob/main/catalogs/config",
+  "keywords": [
+    "pnpm9",
+    "pnpm",
+    "types"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/catalogs/config#readme",
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "prepublishOnly": "pnpm run compile",
+    "test": "pnpm run compile && pnpm run _test",
+    "_test": "jest"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "dependencies": {
+    "@pnpm/error": "workspace:*"
+  },
+  "devDependencies": {
+    "@pnpm/catalogs.config": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/workspace.read-manifest": "workspace:*"
+  }
+}
