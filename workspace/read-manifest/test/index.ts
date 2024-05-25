@@ -152,10 +152,4 @@ describe('readWorkspaceManifest() reads default catalog defined alongside named 
       },
     })
   })
-
-  test('throws if both catalog and catalogs.default are defined', async () => {
-    await expect(
-      readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-conflicting-defaults'))
-    ).rejects.toThrow('The \'default\' catalog was defined multiple times. Use the \'catalog\' field or \'catalogs.default\', but not both')
-  })
 })

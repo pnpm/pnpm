@@ -57,9 +57,3 @@ export function assertValidWorkspaceManifestCatalogs (manifest: { packages?: rea
     }
   }
 }
-
-export function checkDefaultCatalogIsDefinedOnce (manifest: { catalog?: WorkspaceCatalog, catalogs?: WorkspaceNamedCatalogs }): void {
-  if (manifest.catalog != null && manifest.catalogs?.default != null) {
-    throw new InvalidWorkspaceManifestError('The \'default\' catalog was defined multiple times. Use the \'catalog\' field or \'catalogs.default\', but not both')
-  }
-}
