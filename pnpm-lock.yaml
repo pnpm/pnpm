@@ -371,6 +371,22 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  catalogs/resolver:
+    dependencies:
+      '@pnpm/catalogs.protocol-parser':
+        specifier: workspace:^
+        version: link:../protocol-parser
+      '@pnpm/error':
+        specifier: workspace:^
+        version: link:../../packages/error
+    devDependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../types
+
   catalogs/types:
     devDependencies:
       '@pnpm/catalogs.types':
