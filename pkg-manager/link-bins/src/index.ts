@@ -156,12 +156,9 @@ async function _linkBins (
 
 function deduplicateCommands (commands: CommandInfo[], binsDir: string): CommandInfo[] {
   const cmdGroups = groupBy(cmd => cmd.name, commands)
-  const result: CommandInfo[] = []
-  for (const group of Object.values(cmdGroups)) {
-    if (!group || group.length === 0) continue
-    result.push(resolveCommandConflicts(group, binsDir))
-  }
-  return result
+  return Object.values(cmdGroups)
+    .filter((group): group is CommandInfo[] => group !== undefined && group.length !== 0)
+    .map(group => resolveCommandConflicts(group, binsDir))
 }
 
 function resolveCommandConflicts (group: CommandInfo[], binsDir: string): CommandInfo {
