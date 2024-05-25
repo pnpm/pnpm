@@ -3698,6 +3698,9 @@ importers:
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: '@pnpm/ramda@0.28.1'
+      semver:
+        specifier: ^7.6.0
+        version: 7.6.2
       symlink-dir:
         specifier: ^6.0.0
         version: 6.0.0
@@ -3720,6 +3723,9 @@ importers:
       '@types/ramda':
         specifier: 0.29.12
         version: 0.29.12
+      '@types/semver':
+        specifier: 7.5.3
+        version: 7.5.3
       cmd-extension:
         specifier: ^1.0.2
         version: 1.0.2

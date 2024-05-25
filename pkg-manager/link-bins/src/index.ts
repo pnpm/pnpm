@@ -19,6 +19,7 @@ import isEmpty from 'ramda/src/isEmpty'
 import unnest from 'ramda/src/unnest'
 import groupBy from 'ramda/src/groupBy'
 import partition from 'ramda/src/partition'
+import semver from 'semver'
 import symlinkDir from 'symlink-dir'
 import fixBin from 'bin-links/lib/fix-bin'
 
@@ -124,6 +125,7 @@ export async function linkBinsOfPackages (
 type CommandInfo = Command & {
   ownName: boolean
   pkgName: string
+  pkgVersion: string
   makePowerShellShim: boolean
   nodeExecPath?: string
 }
@@ -157,28 +159,32 @@ function deduplicateCommands (commands: CommandInfo[], binsDir: string): Command
   const result: CommandInfo[] = []
   for (const group of Object.values(cmdGroups)) {
     if (!group || group.length === 0) continue
-    if (group.length === 1) {
-      result.push(group[0])
-      continue
-    }
-    const withOwnName = group.find(cmd => cmd.ownName) // prefer bin with own name if exist
-    const chosen = withOwnName ?? group[0] // otherwise, just pick the first item
-    logCommandConflicts(chosen, group, binsDir)
-    result.push(chosen)
+    result.push(resolveCommandConflicts(group, binsDir))
   }
   return result
 }
 
-function logCommandConflicts (chosen: CommandInfo, group: CommandInfo[], binsDir: string): void {
-  for (const skipped of group) {
-    if (skipped === chosen) continue
-    binsConflictLogger.debug({
-      binaryName: skipped.name,
-      binsDir,
-      linkedPkgName: chosen.pkgName,
-      skippedPkgName: skipped.pkgName,
-    })
-  }
+function resolveCommandConflicts (group: CommandInfo[], binsDir: string): CommandInfo {
+  return group.reduce((a, b) => {
+    const [chosen, skipped] = compareCommand(a, b) >= 0 ? [a, b] : [b, a]
+    logCommandConflict(chosen, skipped, binsDir)
+    return chosen
+  })
+}
+
+function compareCommand (a: CommandInfo, b: CommandInfo): -1 | 0 | 1 {
+  if (a.ownName && !b.ownName) return 1
+  if (!a.ownName && b.ownName) return -1
+  return semver.compare(a.pkgVersion, b.pkgVersion)
+}
+
+function logCommandConflict (chosen: CommandInfo, skipped: CommandInfo, binsDir: string): void {
+  binsConflictLogger.debug({
+    binaryName: skipped.name,
+    binsDir,
+    linkedPkgName: chosen.pkgName,
+    skippedPkgName: skipped.pkgName,
+  })
 }
 
 async function isFromModules (filename: string): Promise<boolean> {
@@ -221,6 +227,7 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
     ...cmd,
     ownName: cmd.name === manifest.name,
     pkgName: manifest.name,
+    pkgVersion: manifest.version,
     makePowerShellShim: POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm',
     nodeExecPath,
   }))
