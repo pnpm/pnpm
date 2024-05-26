@@ -170,7 +170,7 @@ export async function resolveDependencies (
       const target = !opts.excludeLinksFromLockfile || isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)
         ? linkedDependency.resolution.directory
         : path.join(project.modulesDir, linkedDependency.alias)
-      const linkedDir = createNodeIdForLinkedLocalPkg(opts.lockfileDir, target)
+      const linkedDir = createNodeIdForLinkedLocalPkg(opts.lockfileDir, target) as string
       topParents.push({
         name: linkedDependency.alias,
         version: linkedDependency.version,
