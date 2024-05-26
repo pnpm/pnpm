@@ -1,7 +1,4 @@
 ---
-"@pnpm/prune-lockfile": minor
-"@pnpm/resolve-dependencies": patch
-"@pnpm/core": patch
 "pnpm": patch
 ---
 
