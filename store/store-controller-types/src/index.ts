@@ -62,19 +62,14 @@ export interface PkgRequestFetchResult {
   files: PackageFilesResponse
 }
 
-export type FetchPackageToStoreFunction = (
-  opts: FetchPackageToStoreOptions
-) => {
+export interface FetchResponse {
   filesIndexFile: string
   fetching: () => Promise<PkgRequestFetchResult>
 }
 
-export type FetchPackageToStoreFunctionAsync = (
-  opts: FetchPackageToStoreOptions
-) => Promise<{
-  filesIndexFile: string
-  fetching: () => Promise<PkgRequestFetchResult>
-}>
+export type FetchPackageToStoreFunction = (opts: FetchPackageToStoreOptions) => FetchResponse
+
+export type FetchPackageToStoreFunctionAsync = (opts: FetchPackageToStoreOptions) => Promise<FetchResponse>
 
 export type GetFilesIndexFilePath = (opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>) => {
   filesIndexFile: string

@@ -3,12 +3,12 @@ import path from 'path'
 jest.mock('fuse-native', () => ({ ENOENT: -2 }))
 
 // eslint-disable-next-line
-import { createFuseHandlers, createFuseHandlersFromLockfile } from '../src/createFuseHandlers'
+import { type FuseHandlers, createFuseHandlers } from '../src/createFuseHandlers'
 // eslint-disable-next-line
 import Fuse from 'fuse-native'
 
 describe('FUSE handlers', () => {
-  let handlers: ReturnType<typeof createFuseHandlersFromLockfile>
+  let handlers: FuseHandlers
   beforeAll(async () => {
     const fixture = path.join(__dirname, '__fixtures__/simple')
     handlers = await createFuseHandlers(fixture, path.join(fixture, 'store/v3/files'))
