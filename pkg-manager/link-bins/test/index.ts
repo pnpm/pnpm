@@ -231,6 +231,40 @@ test('linkBins() resolves conflicts. Prefer packages that use their name as bin 
   }
 })
 
+test('linkBins() resolves conflicts. Prefer packages whose alias matches the bin name to whose name matches the bin name', async () => {
+  const binTarget = tempy.directory()
+  const binNameConflictsFixture = f.prepare('matching-alias-vs-matching-name')
+  const warn = jest.fn()
+
+  await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, { warn })
+
+  expect(binsConflictLogger.debug).toHaveBeenCalledWith({
+    binaryName: 'my-command',
+    binsDir: binTarget,
+    linkedPkgAlias: 'my-command',
+    linkedPkgName: 'aliased-to-my-command',
+    linkedPkgVersion: expect.any(String),
+    skippedPkgAlias: 'original-my-command',
+    skippedPkgName: 'my-command',
+    skippedPkgVersion: expect.any(String),
+  })
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['my-command', 'unaltered']))
+
+  {
+    const binLocation = path.join(binTarget, 'my-command')
+    expect(fs.existsSync(binLocation)).toBe(true)
+    const content = fs.readFileSync(binLocation, 'utf8')
+    expect(content).toMatch('node_modules/my-command/index.js')
+  }
+
+  {
+    const binLocation = path.join(binTarget, 'unaltered')
+    expect(fs.existsSync(binLocation)).toBe(true)
+    const content = fs.readFileSync(binLocation, 'utf8')
+    expect(content).toMatch('node_modules/original-my-command/index.js')
+  }
+})
+
 test('linkBins() resolves conflicts. Prefer the latest version of the same package', async () => {
   const binTarget = tempy.directory()
   const binNameConflictsFixture = f.prepare('different-versions')
