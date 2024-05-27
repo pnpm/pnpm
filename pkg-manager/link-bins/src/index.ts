@@ -185,7 +185,9 @@ function logCommandConflict (chosen: CommandInfo, skipped: CommandInfo, binsDir:
     binaryName: skipped.name,
     binsDir,
     linkedPkgName: chosen.pkgName,
+    linkedPkgVersion: chosen.pkgVersion,
     skippedPkgName: skipped.pkgName,
+    skippedPkgVersion: skipped.pkgVersion,
   })
 }
 
