@@ -73,16 +73,16 @@ export async function linkBinsOfPkgsByAliases (
     (await Promise.all(
       depsAliases
         .map((alias) => ({
-          alias,
+          pkgAlias: alias,
           depDir: path.resolve(opts.modulesDir, alias),
           isDirectDependency: directDependencies?.has(alias),
           nodeExecPath: opts.nodeExecPathByAlias?.[alias],
         }))
         .filter(({ depDir }) => !isSubdir(depDir, binsDir)) // Don't link own bins
-        .map(async ({ alias, depDir, isDirectDependency, nodeExecPath }) => {
+        .map(async ({ pkgAlias, depDir, isDirectDependency, nodeExecPath }) => {
           const target = normalizePath(depDir)
           const cmds = await getPackageBins(pkgBinOpts, target, nodeExecPath)
-          return cmds.map((cmd) => ({ ...cmd, isDirectDependency, ownAlias: cmd.name === alias }))
+          return cmds.map((cmd) => ({ ...cmd, isDirectDependency, ownAlias: cmd.name === pkgAlias, pkgAlias }))
         })
     ))
       .filter((cmds: Command[]) => cmds.length)
@@ -127,6 +127,7 @@ interface CommandInfo extends Command {
   ownName: boolean
   ownAlias?: boolean
   pkgName: string
+  pkgAlias?: string
   pkgVersion: string
   makePowerShellShim: boolean
   nodeExecPath?: string
@@ -184,8 +185,10 @@ function logCommandConflict (chosen: CommandInfo, skipped: CommandInfo, binsDir:
   binsConflictLogger.debug({
     binaryName: skipped.name,
     binsDir,
+    linkedPkgAlias: chosen.pkgAlias,
     linkedPkgName: chosen.pkgName,
     linkedPkgVersion: chosen.pkgVersion,
+    skippedPkgAlias: skipped.pkgAlias,
     skippedPkgName: skipped.pkgName,
     skippedPkgVersion: skipped.pkgVersion,
   })
