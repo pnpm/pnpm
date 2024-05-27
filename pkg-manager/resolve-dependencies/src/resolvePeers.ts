@@ -341,7 +341,7 @@ interface ResolvePeersContext {
   depPathsByPkgId?: Map<PkgIdWithPatchHash, Set<DepPath>>
 }
 
-type CalculateDepPath = (cycles: string[][]) => Promise<void>
+type CalculateDepPath = (cycles: NodeId[][]) => Promise<void>
 type FinishingResolutionPromise = Promise<void>
 
 interface ParentPkgInfo {
@@ -493,7 +493,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     const peerIds: PeerId[] = []
     const pendingPeerNodeIds: NodeId[] = []
     for (const [alias, peerNodeId] of allResolvedPeers.entries()) {
-      if (peerNodeId.startsWith('link:')) {
+      if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
         const linkedDir = peerNodeId.slice(5)
         peerIds.push({
           name: alias,
@@ -526,7 +526,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   async function calculateDepPath (
     peerIds: PeerId[],
     pendingPeerNodeIds: NodeId[],
-    cycles: string[][]
+    cycles: NodeId[][]
   ): Promise<void> {
     const cyclicPeerNodeIds = new Set()
     for (const cycle of cycles) {
@@ -618,7 +618,7 @@ function findHit<T extends PartialResolvedPackage> (ctx: {
         ctx.pathsByNodeId.has(cachedNodeId) &&
         ctx.pathsByNodeId.get(cachedNodeId) === ctx.pathsByNodeId.get(parentPkgNodeId)
       ) continue
-      if (!ctx.dependenciesTree.has(parentPkgNodeId) && parentPkgNodeId.startsWith('link:')) {
+      if (!ctx.dependenciesTree.has(parentPkgNodeId) && typeof parentPkgNodeId === 'string' && parentPkgNodeId.startsWith('link:')) {
         return false
       }
       const parentPkgId = (ctx.dependenciesTree.get(parentPkgNodeId)!.resolvedPackage as T).pkgIdWithPatchHash
@@ -756,7 +756,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const parentDepPaths: Record<string, ParentPkgInfo> = {}
   for (const [name, parentPkg] of Object.entries(parentPkgs)) {
     if (!ctx.allPeerDepNames.has(name)) continue
-    if (parentPkg.nodeId && !parentPkg.nodeId.startsWith('link:')) {
+    if (parentPkg.nodeId && (typeof parentPkg.nodeId === 'number' || !parentPkg.nodeId.startsWith('link:'))) {
       parentDepPaths[name] = {
         pkgIdWithPatchHash: (ctx.dependenciesTree.get(parentPkg.nodeId)!.resolvedPackage as T).pkgIdWithPatchHash,
         depth: parentPkg.depth,
@@ -793,7 +793,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     }
   }
   if (calculateDepPaths.length) {
-    const { cycles } = analyzeGraph(graph as unknown as Graph)
+    const { cycles } = analyzeGraph(graph as unknown as Graph) as unknown as { cycles: NodeId[][] }
     finishingList.push(...calculateDepPaths.map((calculateDepPath) => calculateDepPath(cycles)))
   }
   const finishing = Promise.all(finishingList).then(() => {})
@@ -812,7 +812,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
   ctx: {
     currentDepth: number
     lockfileDir: string
-    nodeId: string
+    nodeId: NodeId
     parentPkgs: ParentRefs
     parentNodeIds: NodeId[]
     resolvedPackage: T

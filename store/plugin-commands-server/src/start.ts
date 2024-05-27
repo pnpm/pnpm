@@ -12,7 +12,7 @@ import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { createServer } from '@pnpm/server'
+import { type StoreServerHandle, createServer } from '@pnpm/server'
 import {
   createNewStoreController,
   type CreateStoreControllerOptions,
@@ -65,7 +65,7 @@ export async function start (
     }
     throw new PnpmError('SERVER_MANIFEST_LOCKED', `Canceling startup of server (pid ${process.pid}) because another process got exclusive access to server.json`)
   }
-  let server: null | ReturnType<typeof createServer> = null
+  let server: null | StoreServerHandle = null
   onExit(() => {
     if (server !== null) {
       // Note that server.close returns a Promise, but we cannot wait for it because we may be

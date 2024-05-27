@@ -230,7 +230,9 @@ Benchmarks on an app with lots of dependencies:
 
 [Usage Trend of pnpm](https://npm-compare.com/pnpm/#timeRange=THREE_YEARS)
 
-![image](https://github.com/pnpm/pnpm/assets/3455798/ee2513db-7a98-43dc-8561-7f4d62635912)
+<a href="https://npm-compare.com/pnpm#timeRange=THREE_YEARS" target="_blank">
+  <img src="https://npm-compare.com/img/npm-trend/THREE_YEARS/pnpm.png" width="100%" alt="NPM Usage Trend of pnpm" />
+</a>
 
 ## Backers
 

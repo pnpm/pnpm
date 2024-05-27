@@ -122,7 +122,7 @@ export async function linkBinsOfPackages (
   return _linkBins(allCmds, binsTarget, opts)
 }
 
-type CommandInfo = Command & {
+interface CommandInfo extends Command {
   ownName: boolean
   pkgName: string
   pkgVersion: string

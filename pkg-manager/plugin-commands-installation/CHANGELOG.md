@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 15.1.6
+
+### Patch Changes
+
+- Updated dependencies [27c33f0]
+  - @pnpm/core@14.1.6
+
 ## 15.1.5
 
 ### Patch Changes

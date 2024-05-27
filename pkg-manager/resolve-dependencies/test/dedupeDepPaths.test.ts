@@ -91,7 +91,7 @@ test('packages are not deduplicated when versions do not match', async () => {
       ['>project4>bar/2.0.0>' as NodeId, peers.bar_2_0_0],
       ['>project4>baz/2.0.0>' as NodeId, peers.baz_2_0_0],
 
-    ] satisfies Array<[string, PartialResolvedPackage]>).map(([path, resolvedPackage]) => [path, {
+    ] satisfies Array<[NodeId, PartialResolvedPackage]>).map(([path, resolvedPackage]) => [path, {
       children: {},
       installable: {},
       resolvedPackage,
