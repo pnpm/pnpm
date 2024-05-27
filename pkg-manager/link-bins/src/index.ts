@@ -82,7 +82,7 @@ export async function linkBinsOfPkgsByAliases (
         .map(async ({ alias, depDir, isDirectDependency, nodeExecPath }) => {
           const target = normalizePath(depDir)
           const cmds = await getPackageBins(pkgBinOpts, target, nodeExecPath)
-          return cmds.map((cmd) => ({ ...cmd, isDirectDependency, ownAlias: cmd.pkgName === alias }))
+          return cmds.map((cmd) => ({ ...cmd, isDirectDependency, ownAlias: cmd.name === alias }))
         })
     ))
       .filter((cmds: Command[]) => cmds.length)
