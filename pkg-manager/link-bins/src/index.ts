@@ -73,15 +73,16 @@ export async function linkBinsOfPkgsByAliases (
     (await Promise.all(
       depsAliases
         .map((alias) => ({
+          alias,
           depDir: path.resolve(opts.modulesDir, alias),
           isDirectDependency: directDependencies?.has(alias),
           nodeExecPath: opts.nodeExecPathByAlias?.[alias],
         }))
         .filter(({ depDir }) => !isSubdir(depDir, binsDir)) // Don't link own bins
-        .map(async ({ depDir, isDirectDependency, nodeExecPath }) => {
+        .map(async ({ alias, depDir, isDirectDependency, nodeExecPath }) => {
           const target = normalizePath(depDir)
           const cmds = await getPackageBins(pkgBinOpts, target, nodeExecPath)
-          return cmds.map((cmd) => ({ ...cmd, isDirectDependency }))
+          return cmds.map((cmd) => ({ ...cmd, isDirectDependency, ownAlias: cmd.pkgName === alias }))
         })
     ))
       .filter((cmds: Command[]) => cmds.length)
@@ -124,6 +125,7 @@ export async function linkBinsOfPackages (
 
 interface CommandInfo extends Command {
   ownName: boolean
+  ownAlias?: boolean
   pkgName: string
   pkgVersion: string
   makePowerShellShim: boolean
@@ -170,6 +172,8 @@ function resolveCommandConflicts (group: CommandInfo[], binsDir: string): Comman
 }
 
 function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): -1 | 0 | 1 {
+  if (a.ownAlias && b.ownAlias === false) return 1
+  if (a.ownAlias === false && b.ownAlias) return -1
   if (a.ownName && !b.ownName) return 1
   if (!a.ownName && b.ownName) return -1
   if (a.pkgName !== b.pkgName) return 0 // it's pointless to compare versions of 2 different package
