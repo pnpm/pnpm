@@ -63,9 +63,9 @@ const dependencyResolvedLogger = logger('_dependency_resolved')
 const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'])
 
 export function getPkgsInfoFromIds (
-  ids: string[],
+  ids: PkgResolutionId[],
   resolvedPkgsById: ResolvedPkgsById
-): Array<{ id: string, name: string, version: string }> {
+): Array<{ id: PkgResolutionId, name: string, version: string }> {
   return ids
     .slice(1)
     .map((id) => {
@@ -98,7 +98,7 @@ NodeId,
 DependenciesTreeNode<T>
 >
 
-export type ResolvedPkgsById = Record<string, ResolvedPackage>
+export type ResolvedPkgsById = Record<PkgResolutionId, ResolvedPackage>
 
 export interface LinkedDependency {
   isLinkedDependency: true
@@ -122,7 +122,7 @@ export interface PendingNode {
 }
 
 export interface ChildrenByParentId {
-  [id: string]: Array<{
+  [id: PkgResolutionId]: Array<{
     alias: string
     id: PkgResolutionId
   }>
@@ -142,7 +142,7 @@ export interface ResolutionContext {
   forceFullResolution: boolean
   ignoreScripts?: boolean
   resolvedPkgsById: ResolvedPkgsById
-  outdatedDependencies: { [pkgId: string]: string }
+  outdatedDependencies: Record<PkgResolutionId, string>
   childrenByParentId: ChildrenByParentId
   patchedDependencies?: Record<string, PatchFile>
   pendingNodes: PendingNode[]
@@ -165,7 +165,7 @@ export interface ResolutionContext {
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   workspacePackages?: WorkspacePackages
-  missingPeersOfChildrenByPkgId: Record<string, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
+  missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
 }
 
@@ -470,7 +470,7 @@ async function resolveDependenciesOfImporters (
       }
     }
     const newParentPkgAliases = { ...importer.parentPkgAliases, ...currentParentPkgAliases }
-    const postponedResolutionOpts = {
+    const postponedResolutionOpts: PostponedResolutionOpts = {
       preferredVersions: newPreferredVersions,
       parentPkgAliases: newParentPkgAliases,
       publishedBy,
@@ -600,7 +600,7 @@ export async function resolveDependencies (
     ...options.parentPkgAliases,
     ...currentParentPkgAliases,
   }
-  const postponedResolutionOpts = {
+  const postponedResolutionOpts: PostponedResolutionOpts = {
     preferredVersions: newPreferredVersions,
     parentPkgAliases: newParentPkgAliases,
     publishedBy: options.publishedBy,
