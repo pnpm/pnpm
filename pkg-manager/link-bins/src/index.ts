@@ -172,7 +172,7 @@ function resolveCommandConflicts (group: CommandInfo[], binsDir: string): Comman
   })
 }
 
-function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): -1 | 0 | 1 {
+function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): number {
   if (a.ownAlias && b.ownAlias === false) return 1
   if (a.ownAlias === false && b.ownAlias) return -1
   if (a.ownName && !b.ownName) return 1
