@@ -177,7 +177,7 @@ function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): -1 | 0 | 1 
   if (a.ownAlias === false && b.ownAlias) return -1
   if (a.ownName && !b.ownName) return 1
   if (!a.ownName && b.ownName) return -1
-  if (a.pkgName !== b.pkgName) return 0 // it's pointless to compare versions of 2 different package
+  if (a.pkgName !== b.pkgName) return a.pkgName.localeCompare(b.pkgName) // it's pointless to compare versions of 2 different package
   return semver.compare(a.pkgVersion, b.pkgVersion)
 }
 
