@@ -10,8 +10,9 @@
       "error",
       {
         "devDependencies": [
-          "**/pnpm/**",
-          "**/test/**"
+          "**/pnpm/src/**",
+          "**/test/**",
+          "**/src/**/*.test.ts"
         ]
       }
     ],
