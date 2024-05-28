@@ -99,6 +99,5 @@
     {
       "path": "../lifecycle"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -1,5 +1,12 @@
 # @pnpm/normalize-registries
 
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+
 ## 6.0.0
 
 ### Major Changes

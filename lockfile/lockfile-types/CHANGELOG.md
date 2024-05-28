@@ -1,5 +1,16 @@
 # @pnpm/lockfile-types
 
+## 7.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+
 ## 6.0.0
 
 ### Major Changes

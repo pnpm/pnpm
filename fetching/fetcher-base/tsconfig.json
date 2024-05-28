@@ -18,6 +18,5 @@
     {
       "path": "../../store/cafs-types"
     }
-  ],
-  "composite": true
+  ]
 }

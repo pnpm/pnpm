@@ -1,4 +1,6 @@
-import { type DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
+
+export { type PkgResolutionId }
 
 /**
  * tarball hosted remotely
@@ -32,7 +34,7 @@ export type Resolution =
   ({ type: string } & object)
 
 export interface ResolveResult {
-  id: string
+  id: PkgResolutionId
   latest?: string
   publishedAt?: string
   manifest?: DependencyManifest

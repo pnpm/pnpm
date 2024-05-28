@@ -1,6 +1,6 @@
 import { findDependencyLicenses } from '@pnpm/license-scanner'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type ProjectManifest, type Registries } from '@pnpm/types'
+import { type DepPath, type ProjectManifest, type Registries } from '@pnpm/types'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { type LicensePackage } from '../lib/licenses'
 import { type GetPackageInfoOptions, type PackageInfo } from '../lib/getPkgInfo'
@@ -48,12 +48,12 @@ describe('licences', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: {
             integrity: 'bar-integrity',
           },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
           },
@@ -132,17 +132,17 @@ describe('licences', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'baz@1.0.0': {
+        ['baz@1.0.0' as DepPath]: {
           resolution: {
             integrity: 'baz-integrity',
           },
         },
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: {
             integrity: 'bar-integrity',
           },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           resolution: {
             integrity: 'foo-integrity',
           },
@@ -195,27 +195,27 @@ describe('licences', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.1': {
+        ['bar@1.0.1' as DepPath]: {
           resolution: {
             integrity: 'bar1-integrity',
           },
         },
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: {
             integrity: 'bar2-integrity',
           },
         },
-        'baz@2.0.1': {
+        ['baz@2.0.1' as DepPath]: {
           resolution: {
             integrity: 'baz1-integrity',
           },
         },
-        'baz@2.0.0': {
+        ['baz@2.0.0' as DepPath]: {
           resolution: {
             integrity: 'baz2-integrity',
           },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             baz: '2.0.1',

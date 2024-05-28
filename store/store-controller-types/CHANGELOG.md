@@ -1,5 +1,20 @@
 # @pnpm/store-controller-types
 
+## 18.1.0
+
+### Minor Changes
+
+- 0c08e1c: Added a new function for clearing resolution cache.
+
+## 18.0.1
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/fetcher-base@16.0.1
+  - @pnpm/resolver-base@12.0.1
+
 ## 18.0.0
 
 ### Major Changes

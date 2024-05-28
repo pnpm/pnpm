@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-setup
 
+## 5.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.7
+
+## 5.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.6
+
 ## 5.0.5
 
 ### Patch Changes

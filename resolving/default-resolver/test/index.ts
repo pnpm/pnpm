@@ -4,7 +4,7 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 
 test('createResolver()', () => {
   const getAuthHeader = () => undefined
-  const resolve = createResolver(createFetchFromRegistry({}), getAuthHeader, {
+  const { resolve } = createResolver(createFetchFromRegistry({}), getAuthHeader, {
     cacheDir: '.cache',
   })
   expect(typeof resolve).toEqual('function')

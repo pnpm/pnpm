@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { type Lockfile, type LockfileFile } from '@pnpm/lockfile-types'
+import { type LockfileFileV9, type Lockfile, type LockfileFile } from '@pnpm/lockfile-types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import yaml from 'js-yaml'
@@ -69,7 +69,7 @@ async function writeLockfile (
 }
 
 function yamlStringify (lockfile: LockfileFile) {
-  const sortedLockfile = sortLockfileKeys(lockfile)
+  const sortedLockfile = sortLockfileKeys(lockfile as LockfileFileV9)
   return yaml.dump(sortedLockfile, LOCKFILE_YAML_FORMAT)
 }
 

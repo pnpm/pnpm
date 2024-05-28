@@ -1,5 +1,30 @@
 # pnpm
 
+## 9.1.3
+
+### Patch Changes
+
+- Fix a bug in which a dependency that is both optional for one package but non-optional for another is omitted when `optional=false` [#8066](https://github.com/pnpm/pnpm/issues/8066).
+- Clear resolution cache before starting peer dependencies resolution [#8109](https://github.com/pnpm/pnpm/pull/8109).
+- Reduce memory usage by peer dependencies resolution [#8072](https://github.com/pnpm/pnpm/issues/8072).
+
+## 9.1.2
+
+### Patch Changes
+
+- Reduced memory usage during peer dependencies resolution [#8084](https://github.com/pnpm/pnpm/pull/8084).
+- Details in the `pnpm licenses` output are not misplaced anymore [#8071](https://github.com/pnpm/pnpm/pull/8071).
+
+## 9.1.1
+
+### Patch Changes
+
+- Improve the performance of the peers resolution stage by utilizing more cache [#8058](https://github.com/pnpm/pnpm/pull/8058).
+- Overrides with `link:` now preserve absolute path [#8053](https://github.com/pnpm/pnpm/issues/8053).
+- Fix incorrect path when resolving relative `file:` overrides for workspace package [#8053](https://github.com/pnpm/pnpm/issues/8053).
+- Print a better error message when `resolution-mode` is set to `time-based` and the registry fails to return the `"time"` field in the package's metadata.
+- Fix shell completion on MinGW-w64 environment.
+
 ## 9.1.0
 
 ### Minor Changes

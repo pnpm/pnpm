@@ -4,9 +4,14 @@
     "outDir": "lib",
     "rootDir": "src"
   },
-  "include": ["src/**/*.ts", "../../__typings__/**/*.d.ts"],
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
   "references": [
-    { "path": "../../__utils__/prepare" },
+    {
+      "path": "../../__utils__/prepare"
+    },
     {
       "path": "../../config/config"
     },
@@ -19,7 +24,6 @@
     {
       "path": "../../lockfile/lockfile-types"
     },
-
     {
       "path": "../../packages/error"
     },
@@ -38,6 +42,5 @@
     {
       "path": "../store-path"
     }
-  ],
-  "composite": true
+  ]
 }

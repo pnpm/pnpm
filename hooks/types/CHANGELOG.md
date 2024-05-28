@@ -1,5 +1,14 @@
 # @pnpm/hooks.types
 
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+
 ## 2.0.0
 
 ### Major Changes

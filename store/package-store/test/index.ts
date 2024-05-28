@@ -12,7 +12,7 @@ describe('store.importPackage()', () => {
     const cacheDir = path.join(tmp, 'cache')
     const registry = 'https://registry.npmjs.org/'
     const authConfig = { registry }
-    const { resolve, fetchers } = createClient({
+    const { resolve, fetchers, clearResolutionCache } = createClient({
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
       rawConfig: {},
@@ -22,6 +22,7 @@ describe('store.importPackage()', () => {
       cacheDir,
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
+      clearResolutionCache,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
     const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({
@@ -50,7 +51,7 @@ describe('store.importPackage()', () => {
     const cacheDir = path.join(tmp, 'cache')
     const registry = 'https://registry.npmjs.org/'
     const authConfig = { registry }
-    const { resolve, fetchers } = createClient({
+    const { resolve, fetchers, clearResolutionCache } = createClient({
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
       rawConfig: {},
@@ -61,6 +62,7 @@ describe('store.importPackage()', () => {
       cacheDir,
       verifyStoreIntegrity: true,
       virtualStoreDirMaxLength: 120,
+      clearResolutionCache,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
     const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({

@@ -10,6 +10,7 @@ import {
 } from '@pnpm/modules-yaml'
 import { readProjectsContext } from '@pnpm/read-projects-context'
 import {
+  type DepPath,
   DEPENDENCIES_FIELDS,
   type HoistedDependencies,
   type ProjectManifest,
@@ -53,7 +54,7 @@ export interface PnpmContext {
   lockfileDir: string
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
-  skipped: Set<string>
+  skipped: Set<DepPath>
   storeDir: string
   wantedLockfile: Lockfile
   wantedLockfileIsModified: boolean

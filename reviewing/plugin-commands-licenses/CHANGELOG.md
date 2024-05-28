@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-licenses
 
+## 4.1.5
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/license-scanner@3.1.4
+- @pnpm/cli-utils@3.0.7
+
+## 4.1.4
+
+### Patch Changes
+
+- 34bc8f4: Details in the `pnpm licenses` output are misplaced [#8071](https://github.com/pnpm/pnpm/pull/8071).
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/license-scanner@3.1.3
+
 ## 4.1.3
 
 ### Patch Changes

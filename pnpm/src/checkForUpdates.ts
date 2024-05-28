@@ -25,7 +25,7 @@ export async function checkForUpdates (config: Config): Promise<void> {
     (Date.now() - new Date(state.lastUpdateCheck).valueOf()) < UPDATE_CHECK_FREQUENCY
   ) return
 
-  const resolve = createResolver({
+  const { resolve } = createResolver({
     ...config,
     authConfig: config.rawConfig,
     retry: {

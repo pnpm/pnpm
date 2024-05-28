@@ -15,6 +15,5 @@
     {
       "path": "../../packages/error"
     }
-  ],
-  "composite": true
+  ]
 }

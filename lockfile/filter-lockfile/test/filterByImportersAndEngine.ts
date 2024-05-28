@@ -1,5 +1,6 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { filterLockfileByImportersAndEngine } from '@pnpm/filter-lockfile'
+import { type DepPath } from '@pnpm/types'
 
 const REGIONAL_ARCH = Object.assign({}, process.arch)
 const REGIONAL_CPU = Object.assign({}, process.platform)
@@ -57,21 +58,21 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'dev-dep@1.0.0': {
+        ['dev-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'not-skipped-optional@1.0.0': {
+        ['not-skipped-optional@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'optional-dep@1.0.0': {
+        ['optional-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             foo: '1.0.0',
@@ -82,10 +83,10 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
           optional: true,
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             'prod-dep-dep': '1.0.0',
@@ -95,7 +96,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
@@ -242,21 +243,21 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'dev-dep@1.0.0': {
+        ['dev-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'not-skipped-optional@1.0.0': {
+        ['not-skipped-optional@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'optional-dep@1.0.0': {
+        ['optional-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             foo: '1.0.0',
@@ -266,10 +267,10 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
           optional: true,
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             'prod-dep-dep': '1.0.0',
@@ -279,7 +280,7 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
@@ -416,21 +417,21 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'dev-dep@1.0.0': {
+        ['dev-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'not-skipped-optional@1.0.0': {
+        ['not-skipped-optional@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'optional-dep@1.0.0': {
+        ['optional-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             foo: '1.0.0',
@@ -439,10 +440,10 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
           optional: true,
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             'prod-dep-dep': '1.0.0',
@@ -452,7 +453,7 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
@@ -588,10 +589,10 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },

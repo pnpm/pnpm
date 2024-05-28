@@ -8,6 +8,7 @@ import {
 } from '@pnpm/lockfile-file'
 import { refIsLocalDirectory, refIsLocalTarball, satisfiesPackageManifest } from '@pnpm/lockfile-utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { refToRelative } from '@pnpm/dependency-path'
 import { type DirectoryResolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import {
   DEPENDENCIES_FIELDS,
@@ -99,7 +100,8 @@ async function linkedPackagesAreUpToDate (
           if (!currentSpec) return true
           const lockfileRef = lockfileDeps[depName]
           if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
-            return isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[lockfileRef])
+            const depPath = refToRelative(lockfileRef, depName)
+            return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath])
           }
           const isLinked = lockfileRef.startsWith('link:')
           if (

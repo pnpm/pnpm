@@ -1,5 +1,54 @@
 # @pnpm/plugin-commands-installation
 
+## 15.1.6
+
+### Patch Changes
+
+- Updated dependencies [27c33f0]
+  - @pnpm/core@14.1.6
+
+## 15.1.5
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-connection-manager@8.2.0
+  - @pnpm/package-store@20.2.0
+  - @pnpm/outdated@14.0.9
+  - @pnpm/workspace.pkgs-graph@3.0.5
+  - @pnpm/plugin-commands-rebuild@11.1.5
+  - @pnpm/pnpmfile@6.0.3
+  - @pnpm/core@14.1.5
+  - @pnpm/filter-workspace-packages@8.0.8
+  - @pnpm/config@21.2.3
+  - @pnpm/cli-utils@3.0.7
+  - @pnpm/workspace.find-packages@2.0.7
+
+## 15.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/core@14.1.4
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/dedupe.check@2.0.2
+  - @pnpm/plugin-commands-rebuild@11.1.4
+  - @pnpm/pnpmfile@6.0.2
+  - @pnpm/manifest-utils@6.0.2
+  - @pnpm/read-project-manifest@6.0.2
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/outdated@14.0.8
+  - @pnpm/package-store@20.1.2
+  - @pnpm/filter-workspace-packages@8.0.7
+  - @pnpm/workspace.find-packages@2.0.6
+  - @pnpm/workspace.pkgs-graph@3.0.4
+  - @pnpm/sort-packages@6.0.2
+  - @pnpm/store-connection-manager@8.1.4
+
 ## 15.1.3
 
 ### Patch Changes

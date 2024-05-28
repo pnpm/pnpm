@@ -1,5 +1,20 @@
 # @pnpm/npm-resolver
 
+## 20.0.0
+
+### Major Changes
+
+- 0c08e1c: Breaking change.
+
+## 19.0.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/resolver-base@12.0.1
+
 ## 19.0.3
 
 ### Patch Changes

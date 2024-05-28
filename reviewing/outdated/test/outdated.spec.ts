@@ -1,4 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { type DepPath } from '@pnpm/types'
 import { outdated } from '../lib/outdated'
 
 async function getLatestManifest (packageName: string) {
@@ -48,17 +49,17 @@ test('outdated()', async () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'is-negative@2.1.0': {
+        ['is-negative@2.1.0' as DepPath]: {
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        'is-positive@1.0.0': {
+        ['is-positive@1.0.0' as DepPath]: {
           resolution: {
             integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
         },
-        'from-github@https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
+        ['from-github@https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b4' as DepPath]: {
           version: '1.1.0',
 
           resolution: {
@@ -107,24 +108,24 @@ test('outdated()', async () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'is-negative@1.1.0': {
+        ['is-negative@1.1.0' as DepPath]: {
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        'is-positive@3.1.0': {
+        ['is-positive@3.1.0' as DepPath]: {
           resolution: {
             integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
-        'from-github-2@https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+        ['from-github-2@https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
           version: '1.0.0',
 
           resolution: {
             tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
           },
         },
-        'from-github@https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+        ['from-github@https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
           version: '1.0.0',
 
           resolution: {
@@ -259,17 +260,17 @@ test('using a matcher', async () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'is-negative@2.1.0': {
+        ['is-negative@2.1.0' as DepPath]: {
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        'is-positive@1.0.0': {
+        ['is-positive@1.0.0' as DepPath]: {
           resolution: {
             integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
         },
-        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
+        ['github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4' as DepPath]: {
           name: 'from-github',
           version: '1.1.0',
 
@@ -311,17 +312,17 @@ test('using a matcher', async () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'is-negative@1.1.0': {
+        ['is-negative@1.1.0' as DepPath]: {
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        'is-positive@3.1.0': {
+        ['is-positive@3.1.0' as DepPath]: {
           resolution: {
             integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
-        'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+        ['github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
           name: 'from-github-2',
           version: '1.0.0',
 
@@ -329,7 +330,7 @@ test('using a matcher', async () => {
             tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
           },
         },
-        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+        ['github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
           name: 'from-github',
           version: '1.0.0',
 
@@ -374,7 +375,7 @@ test('outdated() aliased dependency', async () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'is-positive@1.0.0': {
+        ['is-positive@1.0.0' as DepPath]: {
           resolution: {
             integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
@@ -405,7 +406,7 @@ test('outdated() aliased dependency', async () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'is-positive@3.1.0': {
+        ['is-positive@3.1.0' as DepPath]: {
           resolution: {
             integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
@@ -554,17 +555,17 @@ test('should ignore dependencies as expected', async () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'is-negative@2.1.0': {
+        ['is-negative@2.1.0' as DepPath]: {
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        'is-positive@1.0.0': {
+        ['is-positive@1.0.0' as DepPath]: {
           resolution: {
             integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
         },
-        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
+        ['github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4' as DepPath]: {
           name: 'from-github',
           version: '1.1.0',
 
@@ -614,24 +615,24 @@ test('should ignore dependencies as expected', async () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'is-negative@1.1.0': {
+        ['is-negative@1.1.0' as DepPath]: {
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        'is-positive@3.1.0': {
+        ['is-positive@3.1.0' as DepPath]: {
           resolution: {
             integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
-        'from-github-2@https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+        ['from-github-2@https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
           version: '1.0.0',
 
           resolution: {
             tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
           },
         },
-        'from-github@https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+        ['from-github@https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3' as DepPath]: {
           version: '1.0.0',
 
           resolution: {

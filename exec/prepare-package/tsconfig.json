@@ -30,6 +30,5 @@
     {
       "path": "../lifecycle"
     }
-  ],
-  "composite": true
+  ]
 }

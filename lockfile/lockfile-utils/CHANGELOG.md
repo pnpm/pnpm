@@ -1,5 +1,21 @@
 # @pnpm/lockfile-utils
 
+## 11.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/pick-fetcher@3.0.0
+
 ## 10.1.1
 
 ### Patch Changes

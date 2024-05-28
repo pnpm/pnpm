@@ -6,6 +6,7 @@ import {
   refToRelative,
   tryGetPackageId,
 } from '@pnpm/dependency-path'
+import { type DepPath } from '@pnpm/types'
 
 test('isAbsolute()', () => {
   expect(isAbsolute('/foo/1.0.0')).toBeFalsy()
@@ -22,36 +23,49 @@ test('parse()', () => {
     name: 'foo',
     peersSuffix: undefined,
     version: '1.0.0',
+    patchHash: undefined,
   })
 
   expect(parse('@foo/bar@1.0.0')).toStrictEqual({
     name: '@foo/bar',
     peersSuffix: undefined,
     version: '1.0.0',
+    patchHash: undefined,
   })
 
   expect(parse('foo@1.0.0(@types/babel__core@7.1.14)')).toStrictEqual({
     name: 'foo',
     peersSuffix: '(@types/babel__core@7.1.14)',
     version: '1.0.0',
+    patchHash: undefined,
   })
 
   expect(parse('foo@1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)')).toStrictEqual({
     name: 'foo',
     peersSuffix: '(@types/babel__core@7.1.14)(foo@1.0.0)',
     version: '1.0.0',
+    patchHash: undefined,
   })
 
   expect(parse('@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)')).toStrictEqual({
     name: '@(-.-)/foo',
     peersSuffix: '(@types/babel__core@7.1.14)(foo@1.0.0)',
     version: '1.0.0',
+    patchHash: undefined,
   })
 
   expect(parse('tar-pkg@file:../tar-pkg-1.0.0.tgz')).toStrictEqual({
     name: 'tar-pkg',
     nonSemverVersion: 'file:../tar-pkg-1.0.0.tgz',
     peersSuffix: undefined,
+    patchHash: undefined,
+  })
+
+  expect(parse('foo@1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)')).toStrictEqual({
+    name: 'foo',
+    peersSuffix: '(@types/babel__core@7.1.14)',
+    version: '1.0.0',
+    patchHash: '(patch_hash=0000)',
   })
 })
 
@@ -87,7 +101,8 @@ test('depPathToFilename()', () => {
 })
 
 test('tryGetPackageId', () => {
-  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/foo@1.0.0')
-  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))')).toEqual('/foo@1.0.0')
-  expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/@(-.-)/foo@1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toEqual('/foo@1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))' as DepPath)).toEqual('/foo@1.0.0')
+  expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toEqual('/@(-.-)/foo@1.0.0')
+  expect(tryGetPackageId('foo@1.0.0(patch_hash=xxxx)(@types/babel__core@7.1.14)' as DepPath)).toEqual('foo@1.0.0')
 })

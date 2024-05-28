@@ -157,6 +157,5 @@
     {
       "path": "../workspace/pkgs-graph"
     }
-  ],
-  "composite": true
+  ]
 }

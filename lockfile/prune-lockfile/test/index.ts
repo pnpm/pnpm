@@ -4,6 +4,7 @@ import {
   pruneLockfile,
   pruneSharedLockfile,
 } from '@pnpm/prune-lockfile'
+import { type DepPath } from '@pnpm/types'
 import yaml from 'yaml-tag'
 
 const DEFAULT_OPTS = {
@@ -26,12 +27,12 @@ test('remove one redundant package', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@2.0.0': {
+      ['is-positive@2.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -111,7 +112,7 @@ test('keep all', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-negative@1.0.0': {
+      ['is-negative@1.0.0' as DepPath]: {
         dependencies: {
           'is-positive': '2.0.0',
         },
@@ -119,12 +120,12 @@ test('keep all', () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@2.0.0': {
+      ['is-positive@2.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -195,13 +196,13 @@ test('optional dependency should have optional = true', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'foo-child@1.0.0': {
+      ['foo-child@1.0.0' as DepPath]: {
         optional: true,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'foo@1.0.0': {
+      ['foo@1.0.0' as DepPath]: {
         dependencies: {
           'foo-child': '1.0.0',
         },
@@ -210,12 +211,12 @@ test('optional dependency should have optional = true', () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'parent-of-foo@1.0.0': {
+      ['parent-of-foo@1.0.0' as DepPath]: {
         dependencies: {
           foo: '1.0.0',
         },
@@ -223,7 +224,7 @@ test('optional dependency should have optional = true', () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'pkg-with-good-optional@1.0.0': {
+      ['pkg-with-good-optional@1.0.0' as DepPath]: {
         optionalDependencies: {
           foo: '1.0.0',
           'is-positive': '1.0.0',
@@ -319,12 +320,12 @@ test('optional dependency should not have optional = true if used not only as op
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'pkg-with-good-optional@1.0.0': {
+      ['pkg-with-good-optional@1.0.0' as DepPath]: {
         optionalDependencies: {
           'is-positive': '1.0.0',
         },
@@ -537,17 +538,17 @@ test('remove dependencies that are not in the package', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'fsevents@1.0.0': {
+      ['fsevents@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-negative@1.0.0': {
+      ['is-negative@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -580,7 +581,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -631,7 +632,7 @@ test('keep lockfileMinorVersion, if present', () => {
     },
     lockfileVersion: '5.2',
     packages: {
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -681,7 +682,7 @@ test('keep linked package even if it is not in package.json', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-negative@1.0.0': {
+      ['is-negative@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -739,17 +740,17 @@ test("prune: don't remove package used by another importer", () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-negative@1.0.0': {
+      ['is-negative@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@2.0.0': {
+      ['is-positive@2.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -809,12 +810,12 @@ test('pruneSharedLockfile: remove one redundant package', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@2.0.0': {
+      ['is-positive@2.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },

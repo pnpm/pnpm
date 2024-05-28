@@ -7,6 +7,7 @@ import {
 } from '@pnpm/fetching-types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
+  type PkgResolutionId,
   type PreferredVersions,
   type ResolveResult,
   type WantedDependency,
@@ -76,7 +77,7 @@ export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-): NpmResolver {
+): { resolveFromNpm: NpmResolver, clearCache: () => void } {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
@@ -92,18 +93,23 @@ export function createNpmResolver (
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })
-  return resolveNpm.bind(null, {
-    getAuthHeaderValueByURI: getAuthHeader,
-    pickPackage: pickPackage.bind(null, {
-      fetch,
-      filterMetadata: opts.filterMetadata,
-      metaCache,
-      metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : META_DIR,
-      offline: opts.offline,
-      preferOffline: opts.preferOffline,
-      cacheDir: opts.cacheDir,
+  return {
+    resolveFromNpm: resolveNpm.bind(null, {
+      getAuthHeaderValueByURI: getAuthHeader,
+      pickPackage: pickPackage.bind(null, {
+        fetch,
+        filterMetadata: opts.filterMetadata,
+        metaCache,
+        metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : META_DIR,
+        offline: opts.offline,
+        preferOffline: opts.preferOffline,
+        cacheDir: opts.cacheDir,
+      }),
     }),
-  })
+    clearCache: () => {
+      metaCache.clear()
+    },
+  }
 }
 
 export type ResolveFromNpmOptions = {
@@ -222,7 +228,7 @@ async function resolveNpm (
     }
   }
 
-  const id = `${pickedPackage.name}@${pickedPackage.version}`
+  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
     tarball: pickedPackage.dist.tarball,
@@ -336,15 +342,15 @@ function resolveFromLocalPackage (
     lockfileDir?: string
   }
 ): ResolveResult {
-  let id!: string
+  let id!: PkgResolutionId
   let directory!: string
   const localPackageDir = resolveLocalPackageDir(localPackage)
   if (opts.hardLinkLocalPackages) {
     directory = normalize(path.relative(opts.lockfileDir!, localPackageDir))
-    id = `file:${directory}`
+    id = `file:${directory}` as PkgResolutionId
   } else {
     directory = localPackageDir
-    id = `link:${normalize(path.relative(opts.projectDir, localPackageDir))}`
+    id = `link:${normalize(path.relative(opts.projectDir, localPackageDir))}` as PkgResolutionId
   }
   return {
     id,

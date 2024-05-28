@@ -1,5 +1,50 @@
 # @pnpm/resolve-dependencies
 
+## 33.0.2
+
+### Patch Changes
+
+- 81d90c9: Reduce memory usage during peer dependency resolution by using numbers for Node IDs.
+- 27c33f0: Fix a bug in which a dependency that is both optional for one package but non-optional for another is omitted when `optional=false` [#8066](https://github.com/pnpm/pnpm/issues/8066).
+- Updated dependencies [27c33f0]
+  - @pnpm/prune-lockfile@6.1.0
+
+## 33.0.1
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+- Updated dependencies [0c08e1c]
+  - @pnpm/npm-resolver@20.0.0
+  - @pnpm/store-controller-types@18.1.0
+
+## 33.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- ef73c19: Decrease memory consumption [#8084](https://github.com/pnpm/pnpm/pull/8084).
+- 471ee65: Reduce memory usage by peer dependencies resolution [#8072](https://github.com/pnpm/pnpm/issues/8072).
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/lockfile.preferred-versions@1.0.4
+  - @pnpm/prune-lockfile@6.0.2
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/manifest-utils@6.0.2
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/npm-resolver@19.0.4
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/pick-fetcher@3.0.0
+
 ## 32.1.3
 
 ### Patch Changes

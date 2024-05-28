@@ -1,5 +1,31 @@
 # @pnpm/outdated
 
+## 14.0.9
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+- Updated dependencies [0c08e1c]
+  - @pnpm/npm-resolver@20.0.0
+  - @pnpm/client@11.1.0
+
+## 14.0.8
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/hooks.read-package-hook@4.0.3
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/client@11.0.6
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/manifest-utils@6.0.2
+  - @pnpm/npm-resolver@19.0.4
+
 ## 14.0.7
 
 ### Patch Changes

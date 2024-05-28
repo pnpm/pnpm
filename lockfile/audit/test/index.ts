@@ -2,6 +2,7 @@ import { audit } from '@pnpm/audit'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { type PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
+import { type DepPath } from '@pnpm/types'
 import nock from 'nock'
 import { lockfileToAuditTree } from '../lib/lockfileToAuditTree'
 
@@ -22,12 +23,12 @@ describe('audit', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: {
             integrity: 'bar-integrity',
           },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
           },
@@ -89,12 +90,12 @@ describe('audit', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: {
             integrity: 'bar-integrity',
           },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
           },

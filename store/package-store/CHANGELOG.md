@@ -1,5 +1,34 @@
 # @pnpm/package-store
 
+## 20.2.0
+
+### Minor Changes
+
+- 0c08e1c: Added a new function for clearing resolution cache.
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/package-requester@25.1.3
+  - @pnpm/store.cafs@3.0.2
+  - @pnpm/create-cafs-store@7.0.2
+  - @pnpm/worker@1.0.3
+
+## 20.1.2
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/fetcher-base@16.0.1
+  - @pnpm/package-requester@25.1.2
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/store.cafs@3.0.1
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/worker@1.0.2
+  - @pnpm/create-cafs-store@7.0.1
+
 ## 20.1.1
 
 ### Patch Changes

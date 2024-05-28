@@ -1,5 +1,26 @@
 # @pnpm/default-resolver
 
+## 20.0.0
+
+### Major Changes
+
+- 0c08e1c: Breaking change.
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/npm-resolver@20.0.0
+
+## 19.0.5
+
+### Patch Changes
+
+- @pnpm/local-resolver@12.0.2
+- @pnpm/npm-resolver@19.0.4
+- @pnpm/resolver-base@12.0.1
+- @pnpm/git-resolver@9.0.2
+- @pnpm/tarball-resolver@9.0.1
+
 ## 19.0.4
 
 ### Patch Changes

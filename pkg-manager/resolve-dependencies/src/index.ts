@@ -26,6 +26,7 @@ import zipWith from 'ramda/src/zipWith'
 import isSubdir from 'is-subdir'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
 import { depPathToRef } from './depPathToRef'
+import { type NodeId } from './nextNodeId'
 import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies'
 import {
   type Importer,
@@ -37,17 +38,17 @@ import {
 } from './resolveDependencyTree'
 import {
   type DependenciesByProjectId,
-  type GenericDependenciesGraph,
-  type GenericDependenciesGraphNode,
   resolvePeers,
+  type GenericDependenciesGraphWithResolvedChildren,
+  type GenericDependenciesGraphNodeWithResolvedChildren,
 } from './resolvePeers'
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
 import { updateProjectManifest } from './updateProjectManifest'
 
-export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
+export type DependenciesGraph = GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
 
-export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPackage
+export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChildren & ResolvedPackage
 
 export {
   getWantedDependencies,
@@ -60,7 +61,7 @@ export {
 
 interface ProjectToLink {
   binsDir: string
-  directNodeIdsByAlias: { [alias: string]: string }
+  directNodeIdsByAlias: Map<string, NodeId>
   id: string
   linkedDependencies: LinkedDependency[]
   manifest: ProjectManifest
@@ -90,7 +91,7 @@ export interface ImporterToResolve extends Importer<{
 
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
-  dependenciesGraph: GenericDependenciesGraph<ResolvedPackage>
+  dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -129,12 +130,14 @@ export async function resolveDependencies (
     dependenciesTree,
     outdatedDependencies,
     resolvedImporters,
-    resolvedPackagesByDepPath,
+    resolvedPkgsById,
     wantedToBeSkippedPackageIds,
     appliedPatches,
     time,
     allPeerDepNames,
   } = await resolveDependencyTree(projectsToResolve, opts)
+
+  opts.storeController.clearResolutionCache()
 
   // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
   if (
@@ -167,7 +170,7 @@ export async function resolveDependencies (
       const target = !opts.excludeLinksFromLockfile || isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)
         ? linkedDependency.resolution.directory
         : path.join(project.modulesDir, linkedDependency.alias)
-      const linkedDir = createNodeIdForLinkedLocalPkg(opts.lockfileDir, target)
+      const linkedDir = createNodeIdForLinkedLocalPkg(opts.lockfileDir, target) as string
       topParents.push({
         name: linkedDependency.alias,
         version: linkedDependency.version,
@@ -248,7 +251,7 @@ export async function resolveDependencies (
 
     importers[index].manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
 
-    for (const [alias, depPath] of Object.entries(dependenciesByProjectId[project.id])) {
+    for (const [alias, depPath] of dependenciesByProjectId[project.id].entries()) {
       const projectSnapshot = opts.wantedLockfile.importers[project.id]
       if (project.manifest.dependenciesMeta != null) {
         projectSnapshot.dependenciesMeta = project.manifest.dependenciesMeta
@@ -276,9 +279,9 @@ export async function resolveDependencies (
     if (rootDeps) {
       for (const [id, deps] of Object.entries(dependenciesByProjectId)) {
         if (id === '.') continue
-        for (const [alias, depPath] of Object.entries(deps)) {
-          if (depPath === rootDeps[alias]) {
-            delete deps[alias]
+        for (const [alias, depPath] of deps.entries()) {
+          if (depPath === rootDeps.get(alias)) {
+            deps.delete(alias)
           }
         }
       }
@@ -301,7 +304,7 @@ export async function resolveDependencies (
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
-    await Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ fetching }) => {
+    await Promise.all(Object.values(resolvedPkgsById).map(async ({ fetching }) => {
       try {
         await fetching?.()
       } catch {}

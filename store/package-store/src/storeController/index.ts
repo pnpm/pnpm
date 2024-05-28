@@ -28,6 +28,7 @@ export function createPackageStore (
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     verifyStoreIntegrity: boolean
     virtualStoreDirMaxLength: number
+    clearResolutionCache: () => void
   }
 ): StoreController {
   const storeDir = initOpts.storeDir
@@ -65,6 +66,7 @@ export function createPackageStore (
     prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
     requestPackage: packageRequester.requestPackage,
     upload,
+    clearResolutionCache: initOpts.clearResolutionCache,
   }
 
   async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }): Promise<void> {

@@ -56,7 +56,15 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
-import { type DependencyManifest, type HoistedDependencies, type ProjectManifest, type Registries, DEPENDENCIES_FIELDS, type SupportedArchitectures } from '@pnpm/types'
+import {
+  type DepPath,
+  type DependencyManifest,
+  type HoistedDependencies,
+  type ProjectManifest,
+  type Registries,
+  DEPENDENCIES_FIELDS,
+  type SupportedArchitectures,
+} from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
@@ -156,7 +164,7 @@ export interface HeadlessOptions {
   ownLifecycleHooksStdio?: 'inherit' | 'pipe'
   pendingBuilds: string[]
   resolveSymlinksInInjectedDirs?: boolean
-  skipped: Set<string>
+  skipped: Set<DepPath>
   enableModulesDir?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
   useGitBranchLockfile?: boolean
@@ -218,7 +226,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     unsafePerm: opts.unsafePerm || false,
   }
 
-  const skipped = opts.skipped || new Set<string>()
+  const skipped = opts.skipped || new Set<DepPath>()
   const filterOpts = {
     include: opts.include,
     registries: opts.registries,

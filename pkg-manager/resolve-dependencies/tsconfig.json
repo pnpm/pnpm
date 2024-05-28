@@ -63,6 +63,5 @@
     {
       "path": "../../workspace/spec-parser"
     }
-  ],
-  "composite": true
+  ]
 }
