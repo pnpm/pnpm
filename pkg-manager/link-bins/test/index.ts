@@ -207,10 +207,8 @@ test('linkBins() resolves conflicts. Prefer packages that use their name as bin 
   expect(binsConflictLogger.debug).toHaveBeenCalledWith({
     binaryName: 'bar',
     binsDir: binTarget,
-    linkedPkgAlias: 'bar',
     linkedPkgName: 'bar',
     linkedPkgVersion: expect.any(String),
-    skippedPkgAlias: 'foo',
     skippedPkgName: 'foo',
     skippedPkgVersion: expect.any(String),
   })
@@ -241,10 +239,8 @@ test('linkBins() resolves conflicts. Prefer packages whose name is greater in lo
   expect(binsConflictLogger.debug).toHaveBeenCalledWith({
     binaryName: 'my-command',
     binsDir: binTarget,
-    linkedPkgAlias: 'foo',
     linkedPkgName: 'foo',
     linkedPkgVersion: expect.any(String),
-    skippedPkgAlias: 'bar',
     skippedPkgName: 'bar',
     skippedPkgVersion: expect.any(String),
   })
@@ -258,40 +254,6 @@ test('linkBins() resolves conflicts. Prefer packages whose name is greater in lo
   }
 })
 
-test('linkBins() resolves conflicts. Prefer packages whose alias matches the bin name to whose name matches the bin name', async () => {
-  const binTarget = tempy.directory()
-  const binNameConflictsFixture = f.prepare('matching-alias-vs-matching-name')
-  const warn = jest.fn()
-
-  await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, { warn })
-
-  expect(binsConflictLogger.debug).toHaveBeenCalledWith({
-    binaryName: 'my-command',
-    binsDir: binTarget,
-    linkedPkgAlias: 'my-command',
-    linkedPkgName: 'aliased-to-my-command',
-    linkedPkgVersion: expect.any(String),
-    skippedPkgAlias: 'original-my-command',
-    skippedPkgName: 'my-command',
-    skippedPkgVersion: expect.any(String),
-  })
-  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['my-command', 'unaltered']))
-
-  {
-    const binLocation = path.join(binTarget, 'my-command')
-    expect(fs.existsSync(binLocation)).toBe(true)
-    const content = fs.readFileSync(binLocation, 'utf8')
-    expect(content).toMatch('node_modules/my-command/index.js')
-  }
-
-  {
-    const binLocation = path.join(binTarget, 'unaltered')
-    expect(fs.existsSync(binLocation)).toBe(true)
-    const content = fs.readFileSync(binLocation, 'utf8')
-    expect(content).toMatch('node_modules/original-my-command/index.js')
-  }
-})
-
 test('linkBins() resolves conflicts. Prefer the latest version of the same package', async () => {
   const binTarget = tempy.directory()
   const binNameConflictsFixture = f.prepare('different-versions')
@@ -302,20 +264,16 @@ test('linkBins() resolves conflicts. Prefer the latest version of the same packa
   expect(binsConflictLogger.debug).toHaveBeenCalledWith({
     binaryName: 'my-command',
     binsDir: binTarget,
-    linkedPkgAlias: expect.any(String),
     linkedPkgName: 'my-command',
     linkedPkgVersion: expect.any(String),
-    skippedPkgAlias: 'my-command-lesser',
     skippedPkgName: 'my-command',
     skippedPkgVersion: '1.0.0',
   })
   expect(binsConflictLogger.debug).toHaveBeenCalledWith({
     binaryName: 'my-command',
     binsDir: binTarget,
-    linkedPkgAlias: expect.any(String),
     linkedPkgName: 'my-command',
     linkedPkgVersion: expect.any(String),
-    skippedPkgAlias: 'my-command-middle',
     skippedPkgName: 'my-command',
     skippedPkgVersion: '1.1.0',
   })

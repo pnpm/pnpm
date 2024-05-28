@@ -73,16 +73,15 @@ export async function linkBinsOfPkgsByAliases (
     (await Promise.all(
       depsAliases
         .map((alias) => ({
-          pkgAlias: alias,
           depDir: path.resolve(opts.modulesDir, alias),
           isDirectDependency: directDependencies?.has(alias),
           nodeExecPath: opts.nodeExecPathByAlias?.[alias],
         }))
         .filter(({ depDir }) => !isSubdir(depDir, binsDir)) // Don't link own bins
-        .map(async ({ pkgAlias, depDir, isDirectDependency, nodeExecPath }) => {
+        .map(async ({ depDir, isDirectDependency, nodeExecPath }) => {
           const target = normalizePath(depDir)
           const cmds = await getPackageBins(pkgBinOpts, target, nodeExecPath)
-          return cmds.map((cmd) => ({ ...cmd, isDirectDependency, ownAlias: cmd.name === pkgAlias, pkgAlias }))
+          return cmds.map((cmd) => ({ ...cmd, isDirectDependency }))
         })
     ))
       .filter((cmds: Command[]) => cmds.length)
@@ -125,9 +124,7 @@ export async function linkBinsOfPackages (
 
 interface CommandInfo extends Command {
   ownName: boolean
-  ownAlias?: boolean
   pkgName: string
-  pkgAlias?: string
   pkgVersion: string
   makePowerShellShim: boolean
   nodeExecPath?: string
@@ -173,8 +170,6 @@ function resolveCommandConflicts (group: CommandInfo[], binsDir: string): Comman
 }
 
 function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): number {
-  if (a.ownAlias && b.ownAlias === false) return 1
-  if (a.ownAlias === false && b.ownAlias) return -1
   if (a.ownName && !b.ownName) return 1
   if (!a.ownName && b.ownName) return -1
   if (a.pkgName !== b.pkgName) return a.pkgName.localeCompare(b.pkgName) // it's pointless to compare versions of 2 different package
@@ -185,10 +180,8 @@ function logCommandConflict (chosen: CommandInfo, skipped: CommandInfo, binsDir:
   binsConflictLogger.debug({
     binaryName: skipped.name,
     binsDir,
-    linkedPkgAlias: chosen.pkgAlias,
     linkedPkgName: chosen.pkgName,
     linkedPkgVersion: chosen.pkgVersion,
-    skippedPkgAlias: skipped.pkgAlias,
     skippedPkgName: skipped.pkgName,
     skippedPkgVersion: skipped.pkgVersion,
   })
