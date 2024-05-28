@@ -118,7 +118,6 @@ async function updateTSConfig (
   return {
     ...tsConfig,
     extends: '@pnpm/tsconfig',
-    composite: true,
     compilerOptions: {
       ...(tsConfig as any)['compilerOptions'],
       rootDir: 'src',

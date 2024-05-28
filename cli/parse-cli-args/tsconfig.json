@@ -15,6 +15,5 @@
     {
       "path": "../../workspace/find-workspace-dir"
     }
-  ],
-  "composite": true
+  ]
 }

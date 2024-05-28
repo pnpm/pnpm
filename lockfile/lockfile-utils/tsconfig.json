@@ -24,6 +24,5 @@
     {
       "path": "../lockfile-types"
     }
-  ],
-  "composite": true
+  ]
 }

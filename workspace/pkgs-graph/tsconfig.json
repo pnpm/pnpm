@@ -18,6 +18,5 @@
     {
       "path": "../resolve-workspace-range"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -24,6 +24,5 @@
     {
       "path": "../pkgs-graph"
     }
-  ],
-  "composite": true
+  ]
 }

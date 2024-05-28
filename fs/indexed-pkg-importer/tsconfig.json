@@ -21,6 +21,5 @@
     {
       "path": "../graceful-fs"
     }
-  ],
-  "composite": true
+  ]
 }

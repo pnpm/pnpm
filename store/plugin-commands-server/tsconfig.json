@@ -33,6 +33,5 @@
     {
       "path": "../store-path"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -33,6 +33,5 @@
     {
       "path": "../../store/create-cafs-store"
     }
-  ],
-  "composite": true
+  ]
 }

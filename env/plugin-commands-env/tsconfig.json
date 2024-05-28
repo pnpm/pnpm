@@ -36,6 +36,5 @@
     {
       "path": "../node.resolver"
     }
-  ],
-  "composite": true
+  ]
 }

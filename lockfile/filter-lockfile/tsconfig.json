@@ -33,6 +33,5 @@
     {
       "path": "../lockfile-walker"
     }
-  ],
-  "composite": true
+  ]
 }

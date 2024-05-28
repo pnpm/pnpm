@@ -51,6 +51,5 @@
     {
       "path": "../license-scanner"
     }
-  ],
-  "composite": true
+  ]
 }
