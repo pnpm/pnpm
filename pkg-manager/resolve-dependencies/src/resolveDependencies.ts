@@ -769,7 +769,8 @@ async function resolveDependenciesOfDependency (
       resolveDependencyResult,
       postponedPeersResolution: resolveDependencyResult.missingPeersOfChildren != null
         ? async (parentPkgAliases) => {
-          const missingPeers = await resolveDependencyResult.missingPeersOfChildren!.get()
+          await new Promise<void>((resolve) => setTimeout(resolve, 0))
+          const missingPeers = resolveDependencyResult.missingPeersOfChildren!.resolved ? await resolveDependencyResult.missingPeersOfChildren!.get() : {}
           return filterMissingPeers({ missingPeers, resolvedPeers: {} }, parentPkgAliases)
         }
         : undefined,
@@ -1424,7 +1425,12 @@ async function resolveDependency (
     : options.prefix
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined
   if (ctx.hoistPeers && !options.parentIds.includes(pkgResponse.body.id)) {
-    if (!ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
+    if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
+      if (!ctx.resolvedPkgsById[pkgResponse.body.id].parentImporterIds.has(parentImporterId)) {
+        missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren
+        ctx.resolvedPkgsById[pkgResponse.body.id].parentImporterIds.add(parentImporterId)
+      }
+    } else {
       const p = pDefer<MissingPeers>()
       missingPeersOfChildren = {
         resolve: p.resolve,
