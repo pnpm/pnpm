@@ -1384,7 +1384,7 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   expect(depPaths).toContain(`@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
 
-test.skip('resolve peer dependencies from aliased subdependencies if they are dependencies of a parent package', async () => {
+test('resolve peer dependencies from aliased subdependencies if they are dependencies of a parent package', async () => {
   prepareEmpty()
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
@@ -1452,7 +1452,7 @@ test('when there is an aliases dependency and a non-aliased one, prefer the non-
   expect(lockfile.snapshots['@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@1.0.0)']).toBeTruthy()
 })
 
-test.skip('in a subdependency, when there are several aliased dependencies of the same package, pick the one with the highest version to resolve peers', async () => {
+test('in a subdependency, when there are several aliased dependencies of the same package, pick the one with the highest version to resolve peers', async () => {
   prepareEmpty()
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/abc-parent-with-aliases-of-same-pkg@1.0.0'], testDefaults({ autoInstallPeers: false, strictPeerDependencies: false }))
@@ -1703,7 +1703,7 @@ test('3 circular peers', async () => {
   expect(lockfile.importers?.['.'].dependencies?.['@pnpm.e2e/circular-peers-3-of-3'].version).toBe('1.0.0(@pnpm.e2e/circular-peers-1-of-3@1.0.0)')
 })
 
-test.skip('3 circular peers in workspace root', async () => {
+test('3 circular peers in workspace root', async () => {
   const projects = preparePackages([
     {
       location: '.',
@@ -1798,7 +1798,7 @@ test('optional peer dependency is resolved if it is installed anywhere in the de
   expect(lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeDefined()
 })
 
-test.skip('optional peer dependency is resolved if it is installed anywhere in the dependency graph and auto install peers is false', async () => {
+test('optional peer dependency is resolved if it is installed anywhere in the dependency graph and auto install peers is false', async () => {
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
