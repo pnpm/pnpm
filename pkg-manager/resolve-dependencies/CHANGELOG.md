@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 33.0.3
+
+### Patch Changes
+
+- 4b65113: Temporary fix. Don't hoist peer dependencies, when peers deduplication is on.
+
 ## 33.0.2
 
 ### Patch Changes
