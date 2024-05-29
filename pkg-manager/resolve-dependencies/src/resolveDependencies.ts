@@ -165,7 +165,7 @@ export interface ResolutionContext {
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   workspacePackages?: WorkspacePackages
-  missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
+  missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
 }
 
@@ -241,7 +241,6 @@ export interface ResolvedPackage {
     os?: string[]
     libc?: string[]
   }
-  parentImporterIds: Set<string>
 }
 
 type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId'>
@@ -769,8 +768,7 @@ async function resolveDependenciesOfDependency (
       resolveDependencyResult,
       postponedPeersResolution: resolveDependencyResult.missingPeersOfChildren != null
         ? async (parentPkgAliases) => {
-          await new Promise<void>((resolve) => setTimeout(resolve, 0))
-          const missingPeers = resolveDependencyResult.missingPeersOfChildren!.resolved ? await resolveDependencyResult.missingPeersOfChildren!.get() : {}
+          const missingPeers = await resolveDependencyResult.missingPeersOfChildren!.get()
           return filterMissingPeers({ missingPeers, resolvedPeers: {} }, parentPkgAliases)
         }
         : undefined,
@@ -1426,9 +1424,10 @@ async function resolveDependency (
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined
   if (ctx.hoistPeers && !options.parentIds.includes(pkgResponse.body.id)) {
     if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
-      if (!ctx.resolvedPkgsById[pkgResponse.body.id].parentImporterIds.has(parentImporterId)) {
+      if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].depth >= options.currentDepth ||
+        ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved
+      ) {
         missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren
-        ctx.resolvedPkgsById[pkgResponse.body.id].parentImporterIds.add(parentImporterId)
       }
     } else {
       const p = pDefer<MissingPeers>()
@@ -1438,7 +1437,7 @@ async function resolveDependency (
         get: pShare(p.promise),
       }
       ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id] = {
-        parentImporterId,
+        depth: options.currentDepth,
         missingPeersOfChildren,
       }
     }
@@ -1446,7 +1445,7 @@ async function resolveDependency (
   return {
     alias: wantedDependency.alias || pkg.name,
     depIsLinked,
-    isNew: isNew, // || resolveChildren,
+    isNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     missingPeersOfChildren,
@@ -1523,7 +1522,6 @@ function getResolvedPackage (
       os: options.pkg.os,
       libc: options.pkg.libc,
     },
-    parentImporterIds: new Set([options.parentImporterId]),
     pkgIdWithPatchHash: options.pkgIdWithPatchHash,
     dev: options.wantedDependency.dev,
     fetching: options.pkgResponse.fetching!,
