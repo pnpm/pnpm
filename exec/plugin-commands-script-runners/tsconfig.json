@@ -28,6 +28,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../packages/core-loggers"
+    },
+    {
       "path": "../../packages/crypto.base32-hash"
     },
     {
