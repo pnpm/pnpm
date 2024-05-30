@@ -323,15 +323,16 @@ test('automatically install peer dependency when it is a dev dependency in anoth
 
 // Covers https://github.com/pnpm/pnpm/issues/4820
 test('auto install peer deps in a workspace. test #1', async () => {
-  prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: path.resolve('project1'),
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project'),
+      rootDir: path.resolve('project2'),
     },
   ], testDefaults({
     autoInstallPeers: true,
@@ -344,7 +345,7 @@ test('auto install peer deps in a workspace. test #1', async () => {
             '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
           },
         },
-        rootDir: process.cwd(),
+        rootDir: path.resolve('project1'),
       },
       {
         buildIndex: 0,
@@ -354,10 +355,14 @@ test('auto install peer deps in a workspace. test #1', async () => {
             '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
           },
         },
-        rootDir: path.resolve('project'),
+        rootDir: path.resolve('project2'),
       },
     ],
+    dedupePeerDependents: false,
   }))
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['project1'].devDependencies?.['@pnpm.e2e/abc-parent-with-ab']?.version).toBe('1.0.0(@pnpm.e2e/peer-c@1.0.0)')
+  expect(lockfile.importers['project2'].dependencies?.['@pnpm.e2e/abc-parent-with-ab']?.version).toBe('1.0.0(@pnpm.e2e/peer-c@1.0.0)')
 })
 
 test('auto install peer deps in a workspace. test #2', async () => {

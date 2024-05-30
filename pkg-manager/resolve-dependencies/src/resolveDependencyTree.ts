@@ -157,7 +157,7 @@ export async function resolveDependencyTree<T> (
     updatedSet: new Set<string>(),
     workspacePackages: opts.workspacePackages,
     missingPeersOfChildrenByPkgId: {},
-    hoistPeers: autoInstallPeers,
+    hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
     allPeerDepNames: new Set(),
   }
 

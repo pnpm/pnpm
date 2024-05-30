@@ -165,7 +165,7 @@ export interface ResolutionContext {
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   workspacePackages?: WorkspacePackages
-  missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
+  missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
 }
 
@@ -241,7 +241,6 @@ export interface ResolvedPackage {
     os?: string[]
     libc?: string[]
   }
-  parentImporterIds: Set<string>
 }
 
 type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId'>
@@ -519,7 +518,7 @@ function filterMissingPeersFromPkgAddresses (
 ): PkgAddress[] {
   return pkgAddresses.map((pkgAddress) => ({
     ...pkgAddress,
-    missingPeers: pickBy((peer, peerName) => {
+    missingPeers: pickBy((_, peerName) => {
       if (!currentParentPkgAliases[peerName]) return true
       if (currentParentPkgAliases[peerName] !== true) {
         resolvedPeers[peerName] = currentParentPkgAliases[peerName] as PkgAddress
@@ -561,23 +560,28 @@ export async function resolveDependencies (
   const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] = []
   const pkgAddresses: PkgAddress[] = []
   ;(await Promise.all(
-    extendedWantedDeps.map((extendedWantedDep) => resolveDependenciesOfDependency(
-      ctx,
-      preferredVersions,
-      options,
-      extendedWantedDep
-    ))
-  )).forEach(({ resolveDependencyResult, postponedResolution, postponedPeersResolution }) => {
-    if (resolveDependencyResult) {
-      pkgAddresses.push(resolveDependencyResult as PkgAddress)
-    }
-    if (postponedResolution) {
-      postponedResolutionsQueue.push(postponedResolution)
-    }
-    if (postponedPeersResolution) {
-      postponedPeersResolutionQueue.push(postponedPeersResolution)
-    }
-  })
+    extendedWantedDeps.map(async (extendedWantedDep) => {
+      const {
+        resolveDependencyResult,
+        postponedResolution,
+        postponedPeersResolution,
+      } = await resolveDependenciesOfDependency(
+        ctx,
+        preferredVersions,
+        options,
+        extendedWantedDep
+      )
+      if (resolveDependencyResult) {
+        pkgAddresses.push(resolveDependencyResult as PkgAddress)
+      }
+      if (postponedResolution) {
+        postponedResolutionsQueue.push(postponedResolution)
+      }
+      if (postponedPeersResolution) {
+        postponedPeersResolutionQueue.push(postponedPeersResolution)
+      }
+    })
+  ))
   const newPreferredVersions = Object.create(preferredVersions) as PreferredVersions
   const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
   for (const pkgAddress of pkgAddresses) {
@@ -1349,7 +1353,6 @@ async function resolveDependency (
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false
   const isNew = !ctx.resolvedPkgsById[pkgResponse.body.id]
   const parentImporterId = options.parentIds[0]
-  let resolveChildren = false
   const currentIsOptional = wantedDependency.optional || options.parentPkg.optional
 
   if (isNew) {
@@ -1396,11 +1399,6 @@ async function resolveDependency (
     ctx.resolvedPkgsById[pkgResponse.body.id].prod = ctx.resolvedPkgsById[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
     ctx.resolvedPkgsById[pkgResponse.body.id].dev = ctx.resolvedPkgsById[pkgResponse.body.id].dev || wantedDependency.dev
     ctx.resolvedPkgsById[pkgResponse.body.id].optional = ctx.resolvedPkgsById[pkgResponse.body.id].optional && currentIsOptional
-    if (ctx.hoistPeers) {
-      resolveChildren = !ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved &&
-        !ctx.resolvedPkgsById[pkgResponse.body.id].parentImporterIds.has(parentImporterId)
-      ctx.resolvedPkgsById[pkgResponse.body.id].parentImporterIds.add(parentImporterId)
-    }
     if (ctx.resolvedPkgsById[pkgResponse.body.id].fetching == null && pkgResponse.fetching != null) {
       ctx.resolvedPkgsById[pkgResponse.body.id].fetching = pkgResponse.fetching
       ctx.resolvedPkgsById[pkgResponse.body.id].filesIndexFile = pkgResponse.filesIndexFile!
@@ -1426,7 +1424,13 @@ async function resolveDependency (
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined
   if (ctx.hoistPeers && !options.parentIds.includes(pkgResponse.body.id)) {
     if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
-      if (options.parentIds[0] !== ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].parentImporterId) {
+      // This if condition is used to avoid a dead lock.
+      // There might be a better way to hoist peer dependencies during resolution
+      // but it would probably require a big rewrite of the resolution algorithm.
+      if (
+        ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].depth >= options.currentDepth ||
+        ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved
+      ) {
         missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren
       }
     } else {
@@ -1437,7 +1441,7 @@ async function resolveDependency (
         get: pShare(p.promise),
       }
       ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id] = {
-        parentImporterId,
+        depth: options.currentDepth,
         missingPeersOfChildren,
       }
     }
@@ -1445,7 +1449,7 @@ async function resolveDependency (
   return {
     alias: wantedDependency.alias || pkg.name,
     depIsLinked,
-    isNew: isNew || resolveChildren,
+    isNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     missingPeersOfChildren,
@@ -1522,7 +1526,6 @@ function getResolvedPackage (
       os: options.pkg.os,
       libc: options.pkg.libc,
     },
-    parentImporterIds: new Set([options.parentImporterId]),
     pkgIdWithPatchHash: options.pkgIdWithPatchHash,
     dev: options.wantedDependency.dev,
     fetching: options.pkgResponse.fetching!,
