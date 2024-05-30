@@ -1,5 +1,11 @@
 # pnpm
 
+## 9.1.4
+
+### Patch Changes
+
+- Improved the performance of the resolution stage by changing how missing peer dependencies are detected [#8144](https://github.com/pnpm/pnpm/pull/8144).
+
 ## 9.1.3
 
 ### Patch Changes

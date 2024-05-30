@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 33.0.4
+
+### Patch Changes
+
+- 74c1057: Improved the performance of the resolution stage by changing how missing peer dependencies are detected [#8144](https://github.com/pnpm/pnpm/pull/8144).
+
 ## 33.0.3
 
 ### Patch Changes
