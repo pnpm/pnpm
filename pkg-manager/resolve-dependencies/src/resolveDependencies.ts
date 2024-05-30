@@ -1424,7 +1424,11 @@ async function resolveDependency (
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined
   if (ctx.hoistPeers && !options.parentIds.includes(pkgResponse.body.id)) {
     if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
-      if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].depth >= options.currentDepth ||
+      // This if condition is used to avoid a dead lock.
+      // There might be a better way to hoist peer dependencies during resolution
+      // but it would probably require a big rewrite of the resolution algorithm.
+      if (
+        ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].depth >= options.currentDepth ||
         ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved
       ) {
         missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren
