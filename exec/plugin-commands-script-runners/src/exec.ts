@@ -222,7 +222,7 @@ export async function handler (
               depPath: manifest.name ?? prefix,
               stage: '(exec)',
             } satisfies Partial<LifecycleMessage>
-            function logLines (stdio: 'stdout' | 'stderr', data: unknown): void {
+            const logFn = (stdio: 'stdout' | 'stderr') => (data: unknown): void => {
               for (const line of String(data).split('\n')) {
                 lifecycleLogger.debug({
                   ...lifecycleOpts,
@@ -231,13 +231,15 @@ export async function handler (
                 })
               }
             }
-            child.stdout?.on('data', data => logLines('stdout', data))
-            child.stderr?.on('data', data => logLines('stderr', data))
-            child.once('close', exitCode => lifecycleLogger.debug({
-              ...lifecycleOpts,
-              exitCode: exitCode ?? 1,
-              optional: false,
-            }))
+            child.stdout?.on('data', logFn('stdout'))
+            child.stderr?.on('data', logFn('stderr'))
+            void child.once('close', exitCode => {
+              lifecycleLogger.debug({
+                ...lifecycleOpts,
+                exitCode: exitCode ?? 1,
+                optional: false,
+              })
+            })
             await child
           } else {
             await execa(cmd, args, {
