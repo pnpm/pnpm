@@ -231,8 +231,8 @@ export async function handler (
                 })
               }
             }
-            child.stdout?.on('data', logFn('stdout'))
-            child.stderr?.on('data', logFn('stderr'))
+            child.stdout!.on('data', logFn('stdout'))
+            child.stderr!.on('data', logFn('stderr'))
             void child.once('close', exitCode => {
               lifecycleLogger.debug({
                 ...lifecycleOpts,
