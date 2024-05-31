@@ -1,0 +1,7 @@
+packages:
+  - "packages/**"
+  - "types"
+
+catalogs:
+  foo:
+    - bar
