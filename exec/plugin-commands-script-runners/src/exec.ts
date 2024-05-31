@@ -219,7 +219,7 @@ export async function handler (
             })
             const lifecycleOpts = {
               wd: prefix,
-              depPath: manifest.name ?? prefix,
+              depPath: manifest.name ?? path.relative(opts.dir, prefix),
               stage: '(exec)',
             } satisfies Partial<LifecycleMessage>
             const logFn = (stdio: 'stdout' | 'stderr') => (data: unknown): void => {
