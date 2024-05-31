@@ -15,10 +15,11 @@ import isSubdir from 'is-subdir'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
 import pSettle from 'p-settle'
-import { type KeyValuePair } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
 import unnest from 'ramda/src/unnest'
+import groupBy from 'ramda/src/groupBy'
 import partition from 'ramda/src/partition'
+import semver from 'semver'
 import symlinkDir from 'symlink-dir'
 import fixBin from 'bin-links/lib/fix-bin'
 
@@ -124,6 +125,7 @@ export async function linkBinsOfPackages (
 interface CommandInfo extends Command {
   ownName: boolean
   pkgName: string
+  pkgVersion: string
   makePowerShellShim: boolean
   nodeExecPath?: string
 }
@@ -135,35 +137,54 @@ async function _linkBins (
 ): Promise<string[]> {
   if (allCmds.length === 0) return [] as string[]
 
+  // deduplicate bin names to prevent race conditions (multiple writers for the same file)
+  allCmds = deduplicateCommands(allCmds, binsDir)
+
   await fs.mkdir(binsDir, { recursive: true })
 
-  const [cmdsWithOwnName, cmdsWithOtherNames] = partition(({ ownName }) => ownName, allCmds)
-
-  const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir, opts)))
-
-  const usedNames = Object.fromEntries(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as KeyValuePair<string, string>))
-  const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd) => {
-    if (usedNames[cmd.name]) {
-      binsConflictLogger.debug({
-        binaryName: cmd.name,
-        binsDir,
-        linkedPkgName: usedNames[cmd.name],
-        skippedPkgName: cmd.pkgName,
-      })
-      return Promise.resolve(undefined)
-    }
-    usedNames[cmd.name] = cmd.pkgName
-    return linkBin(cmd, binsDir, opts)
-  }))
+  const results = await pSettle(allCmds.map(async cmd => linkBin(cmd, binsDir, opts)))
 
   // We want to create all commands that we can create before throwing an exception
-  for (const result of [...results1, ...results2]) {
+  for (const result of results) {
     if (result.isRejected) {
       throw result.reason
     }
   }
 
   return allCmds.map(cmd => cmd.pkgName)
+}
+
+function deduplicateCommands (commands: CommandInfo[], binsDir: string): CommandInfo[] {
+  const cmdGroups = groupBy(cmd => cmd.name, commands)
+  return Object.values(cmdGroups)
+    .filter((group): group is CommandInfo[] => group !== undefined && group.length !== 0)
+    .map(group => resolveCommandConflicts(group, binsDir))
+}
+
+function resolveCommandConflicts (group: CommandInfo[], binsDir: string): CommandInfo {
+  return group.reduce((a, b) => {
+    const [chosen, skipped] = compareCommandsInConflict(a, b) >= 0 ? [a, b] : [b, a]
+    logCommandConflict(chosen, skipped, binsDir)
+    return chosen
+  })
+}
+
+function compareCommandsInConflict (a: CommandInfo, b: CommandInfo): number {
+  if (a.ownName && !b.ownName) return 1
+  if (!a.ownName && b.ownName) return -1
+  if (a.pkgName !== b.pkgName) return a.pkgName.localeCompare(b.pkgName) // it's pointless to compare versions of 2 different package
+  return semver.compare(a.pkgVersion, b.pkgVersion)
+}
+
+function logCommandConflict (chosen: CommandInfo, skipped: CommandInfo, binsDir: string): void {
+  binsConflictLogger.debug({
+    binaryName: skipped.name,
+    binsDir,
+    linkedPkgName: chosen.pkgName,
+    linkedPkgVersion: chosen.pkgVersion,
+    skippedPkgName: skipped.pkgName,
+    skippedPkgVersion: skipped.pkgVersion,
+  })
 }
 
 async function isFromModules (filename: string): Promise<boolean> {
@@ -206,6 +227,7 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
     ...cmd,
     ownName: cmd.name === manifest.name,
     pkgName: manifest.name,
+    pkgVersion: manifest.version,
     makePowerShellShim: POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm',
     nodeExecPath,
   }))
