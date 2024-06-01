@@ -8,7 +8,7 @@ exports[`print update notification for Corepack if the latest version is greater
    │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.0.0   │
    │         Run "corepack install -g pnpm@11.0.0" to update.         │
    │                                                                  │
-   │      Follow @pnpmjs for updates: https://twitter.com/pnpmjs      │
+   │         Follow @pnpmjs for updates: https://x.com/pnpmjs         │
    │                                                                  │
    ╰──────────────────────────────────────────────────────────────────╯
 "
@@ -22,7 +22,7 @@ exports[`print update notification if the latest version is greater than the cur
    │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.0.0   │
    │                Run "pnpm add -g pnpm" to update.                 │
    │                                                                  │
-   │      Follow @pnpmjs for updates: https://twitter.com/pnpmjs      │
+   │         Follow @pnpmjs for updates: https://x.com/pnpmjs         │
    │                                                                  │
    ╰──────────────────────────────────────────────────────────────────╯
 "
@@ -36,7 +36,7 @@ exports[`print update notification that suggests to use the standalone scripts f
    │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.0.0   │
    │         Run a script from: https://pnpm.io/installation          │
    │                                                                  │
-   │      Follow @pnpmjs for updates: https://twitter.com/pnpmjs      │
+   │         Follow @pnpmjs for updates: https://x.com/pnpmjs         │
    │                                                                  │
    ╰──────────────────────────────────────────────────────────────────╯
 "
