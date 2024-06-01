@@ -54,7 +54,7 @@ function renderUpdateMessage (opts: UpdateMessageOptions): string {
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
   if (opts.env.COREPACK_ROOT) {
-    return `corepack prepare pnpm@${opts.latestVersion} --activate`
+    return `corepack install -g pnpm@${opts.latestVersion}`
   }
   const pkgName = opts.currentPkgIsExecutable ? '@pnpm/exe' : 'pnpm'
   return `pnpm add -g ${pkgName}`
