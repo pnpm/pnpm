@@ -1,5 +1,6 @@
 import path from 'path'
 import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
+import { type LifecycleMessage, lifecycleLogger } from '@pnpm/core-loggers'
 import { type Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
@@ -39,6 +40,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'use-node-version',
       'unsafe-perm',
       'workspace-concurrency',
+      'reporter-hide-prefix',
     ], types),
     'shell-mode': Boolean,
     'resume-from': String,
@@ -134,7 +136,7 @@ export async function handler (
     resumeFrom?: string
     reportSummary?: boolean
     implicitlyFellbackFromRun?: boolean
-  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir' | 'nodeOptions'>,
+  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'reporterHidePrefix' | 'workspaceDir' | 'nodeOptions'>,
   params: string[]
 ): Promise<{ exitCode: number }> {
   // For backward compatibility
@@ -184,6 +186,7 @@ export async function handler (
     './node_modules/.bin',
     ...opts.extraBinPaths,
   ]
+  const reporterShowPrefix = opts.recursive && !opts.reporterHidePrefix
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(chunk.map(async (prefix: string) =>
@@ -205,12 +208,47 @@ export async function handler (
             prependPaths,
             userAgent: opts.userAgent,
           })
-          await execa(params[0], params.slice(1), {
-            cwd: prefix,
-            env,
-            stdio: 'inherit',
-            shell: opts.shellMode ?? false,
-          })
+          const [cmd, ...args] = params
+          if (reporterShowPrefix) {
+            const manifest = await readProjectManifestOnly(prefix)
+            const child = execa(cmd, args, {
+              cwd: prefix,
+              env,
+              stdio: 'pipe',
+              shell: opts.shellMode ?? false,
+            })
+            const lifecycleOpts = {
+              wd: prefix,
+              depPath: manifest.name ?? path.relative(opts.dir, prefix),
+              stage: '(exec)',
+            } satisfies Partial<LifecycleMessage>
+            const logFn = (stdio: 'stdout' | 'stderr') => (data: unknown): void => {
+              for (const line of String(data).split('\n')) {
+                lifecycleLogger.debug({
+                  ...lifecycleOpts,
+                  stdio,
+                  line,
+                })
+              }
+            }
+            child.stdout!.on('data', logFn('stdout'))
+            child.stderr!.on('data', logFn('stderr'))
+            void child.once('close', exitCode => {
+              lifecycleLogger.debug({
+                ...lifecycleOpts,
+                exitCode: exitCode ?? 1,
+                optional: false,
+              })
+            })
+            await child
+          } else {
+            await execa(cmd, args, {
+              cwd: prefix,
+              env,
+              stdio: 'inherit',
+              shell: opts.shellMode ?? false,
+            })
+          }
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
