@@ -365,6 +365,12 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  catalogs/protocol-parser:
+    devDependencies:
+      '@pnpm/catalogs.protocol-parser':
+        specifier: workspace:*
+        version: 'link:'
+
   catalogs/types:
     devDependencies:
       '@pnpm/catalogs.types':
