@@ -22,7 +22,6 @@ export async function writePnpFile (
   const packageRegistry = lockfileToPackageRegistry(lockfile, opts)
 
   const loaderFile = generateInlinedScript({
-    blacklistedLocations: undefined,
     dependencyTreeRoots: [],
     ignorePattern: undefined,
     packageRegistry,
