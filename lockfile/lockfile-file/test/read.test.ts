@@ -7,7 +7,7 @@ import {
   writeCurrentLockfile,
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
-import { type DepPath } from '@pnpm/types'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 import tempy from 'tempy'
 
 jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
@@ -165,7 +165,7 @@ test('existsNonEmptyWantedLockfile()', async () => {
   expect(await existsNonEmptyWantedLockfile(projectPath)).toBe(false)
   await writeWantedLockfile(projectPath, {
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           'is-negative': '1.0.0',
           'is-positive': '1.0.0',
