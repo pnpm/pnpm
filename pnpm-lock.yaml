@@ -2231,8 +2231,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@yarnpkg/pnp':
-        specifier: ^2.3.2
-        version: 2.3.2
+        specifier: ^4.0.5
+        version: 4.0.5
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -7929,9 +7929,6 @@ packages:
   '@types/node@12.20.55':
     resolution: {integrity: sha512-J8xLz7q2OFulZ2cyGTLE1TbbZcjpno7FaN6zdJNrgAdrJ+DZzh/uFR6YrTb4C+nXakvud8Q4+rbhoIWlYQbUFQ==}
 
-  '@types/node@13.13.52':
-    resolution: {integrity: sha512-s3nugnZumCC//n4moGGe6tkNMyYEdaDBitVjwPxXmR5lnMG5dHePinH2EdxkG3Rh1ghFHHixAG4NJhpJW1rthQ==}
-
   '@types/node@18.19.32':
     resolution: {integrity: sha512-2bkg93YBSDKk8DLmmHnmj/Rwr18TLx7/n+I23BigFwgexUJoMHZOd8X1OFxuF/W3NN0S2W2E5sVabI5CPinNvA==}
 
@@ -8152,6 +8149,10 @@ packages:
     resolution: {integrity: sha512-dqSpZCj9ZeqMZzITHvpi5qKS9MCLWZYCl6NHCSl3a+BqiyLApehWAy60zjv9F1fxKZ6RKDgHLhBWhx8RwPm6Dw==}
     engines: {node: '>=18.12.0'}
 
+  '@yarnpkg/fslib@3.1.0':
+    resolution: {integrity: sha512-wsj7/sUVSdXOIX/qwaON/Ky5GsP5gs9ry9DKwgLbWT7k3qw4/EcHAtfTtPhBYu33UibzBFI+fgB4wBRVH2XVaw==}
+    engines: {node: '>=18.12.0'}
+
   '@yarnpkg/libzip@3.0.1':
     resolution: {integrity: sha512-fiqRLk2fyd2r34/Qc7HlP8fKIo1CK5CZpLNObJwnbFmZQN2hVanovFlG++3oH3qYJymEmjPl5EGsygcEJZl4Pg==}
     engines: {node: '>=18.12.0'}
@@ -8173,12 +8174,8 @@ packages:
     resolution: {integrity: sha512-/HcYgtUSiJiot/XWGLOlGxPYUG65+/31V8oqk17vZLW1xlCoR4PampyePljOxY2n8/3jz9+tIFzICsyGujJZoA==}
     engines: {node: '>=18.12.0'}
 
-  '@yarnpkg/pnp@2.3.2':
-    resolution: {integrity: sha512-JdwHu1WBCISqJEhIwx6Hbpe8MYsYbkGMxoxolkDiAeJ9IGEe08mQcbX1YmUDV1ozSWlm9JZE90nMylcDsXRFpA==}
-    engines: {node: '>=10.19.0'}
-
-  '@yarnpkg/pnp@4.0.4':
-    resolution: {integrity: sha512-oVUPaTuPNlpM11jDc4YJrnvrUzFEHwXTbNICexDE/VhhEtSm7QLYOvKQPvJCG4ImFYqJ/ed1P0t3dhX6rHRPrA==}
+  '@yarnpkg/pnp@4.0.5':
+    resolution: {integrity: sha512-VjTdDJGi+XO3YK+RHKnZnUGjRnmXOdlSSG+/mRb6+k9m8hm5m7nUGUMzAkB/Lxwp7ERsIsnr4XqniRdCpoS0zg==}
     engines: {node: '>=18.12.0'}
 
   '@yarnpkg/shell@4.0.0':
@@ -14726,8 +14723,6 @@ snapshots:
 
   '@types/node@12.20.55': {}
 
-  '@types/node@13.13.52': {}
-
   '@types/node@18.19.32':
     dependencies:
       undici-types: 5.26.5
@@ -15056,6 +15051,10 @@ snapshots:
     dependencies:
       tslib: 2.6.2
 
+  '@yarnpkg/fslib@3.1.0':
+    dependencies:
+      tslib: 2.6.2
+
   '@yarnpkg/libzip@3.0.1(@yarnpkg/fslib@3.0.2)':
     dependencies:
       '@types/emscripten': 1.39.11
@@ -15068,7 +15067,7 @@ snapshots:
     dependencies:
       '@yarnpkg/core': 4.0.5(typanion@3.14.0)
       '@yarnpkg/fslib': 3.0.2
-      '@yarnpkg/pnp': 4.0.4
+      '@yarnpkg/pnp': 4.0.5
     transitivePeerDependencies:
       - typanion
 
@@ -15082,16 +15081,10 @@ snapshots:
       js-yaml: 3.14.1
       tslib: 2.6.2
 
-  '@yarnpkg/pnp@2.3.2':
-    dependencies:
-      '@types/node': 13.13.52
-      '@yarnpkg/fslib': 3.0.2
-      tslib: 1.14.1
-
-  '@yarnpkg/pnp@4.0.4':
+  '@yarnpkg/pnp@4.0.5':
     dependencies:
       '@types/node': 18.19.32
-      '@yarnpkg/fslib': 3.0.2
+      '@yarnpkg/fslib': 3.1.0
 
   '@yarnpkg/shell@4.0.0(typanion@3.14.0)':
     dependencies:

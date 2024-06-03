@@ -44,7 +44,7 @@
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@yarnpkg/pnp": "^2.3.2",
+    "@yarnpkg/pnp": "^4.0.5",
     "normalize-path": "^3.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
