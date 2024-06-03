@@ -1,6 +1,6 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { filterLockfileByImportersAndEngine } from '@pnpm/filter-lockfile'
-import { type DepPath } from '@pnpm/types'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 
 const REGIONAL_ARCH = Object.assign({}, process.arch)
 const REGIONAL_CPU = Object.assign({}, process.platform)
@@ -29,7 +29,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -47,7 +47,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -101,7 +101,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       currentEngine: {
         nodeVersion: '10.0.0',
@@ -214,7 +214,7 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -232,7 +232,7 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -285,7 +285,7 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       currentEngine: {
         nodeVersion: '10.0.0',
@@ -388,7 +388,7 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -406,7 +406,7 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -458,7 +458,7 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       currentEngine: {
         nodeVersion: '10.0.0',
@@ -559,7 +559,7 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'project-2': 'link:project-2',
           },
@@ -569,7 +569,7 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
             'project-2': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-3': 'link:project-3',
             foo: '1.0.0',
@@ -578,7 +578,7 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
             foo: '^1.0.0',
           },
         },
-        'project-3': {
+        ['project-3' as ProjectId]: {
           dependencies: {
             bar: '1.0.0',
           },
@@ -597,7 +597,7 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       currentEngine: {
         nodeVersion: '10.0.0',

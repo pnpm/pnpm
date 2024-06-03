@@ -1,12 +1,12 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
-import { type DepPath } from '@pnpm/types'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 
 test('filterByImporters(): only prod dependencies of one importer', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -22,7 +22,7 @@ test('filterByImporters(): only prod dependencies of one importer', () => {
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -57,7 +57,7 @@ test('filterByImporters(): only prod dependencies of one importer', () => {
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       failOnMissingDependencies: true,
       include: {
@@ -117,7 +117,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
     filterLockfileByImporters(
       {
         importers: {
-          'project-1': {
+          ['project-1' as ProjectId]: {
             dependencies: {
               'prod-dep': '1.0.0',
             },
@@ -125,7 +125,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
               'prod-dep': '^1.0.0',
             },
           },
-          'project-2': {
+          ['project-2' as ProjectId]: {
             specifiers: {},
           },
         },
@@ -141,7 +141,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
           },
         },
       },
-      ['project-1'],
+      ['project-1' as ProjectId],
       {
         failOnMissingDependencies: true,
         include: {
@@ -163,7 +163,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -171,7 +171,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           specifiers: {},
         },
       },
@@ -187,7 +187,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       failOnMissingDependencies: false,
       include: {
@@ -231,7 +231,7 @@ test('filterByImporters(): do not include skipped packages', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -247,7 +247,7 @@ test('filterByImporters(): do not include skipped packages', () => {
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -282,7 +282,7 @@ test('filterByImporters(): do not include skipped packages', () => {
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       failOnMissingDependencies: true,
       include: {
@@ -346,7 +346,7 @@ test('filterByImporters(): exclude orphan packages', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -354,7 +354,7 @@ test('filterByImporters(): exclude orphan packages', () => {
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -382,7 +382,7 @@ test('filterByImporters(): exclude orphan packages', () => {
         },
       },
     },
-    ['project-1', 'project-2'],
+    ['project-1', 'project-2'] as ProjectId[],
     {
       failOnMissingDependencies: true,
       include: {
