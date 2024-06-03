@@ -59,6 +59,7 @@ import {
   type DependenciesField,
   type DependencyManifest,
   type PeerDependencyIssues,
+  type ProjectId,
   type ProjectManifest,
   type ReadPackageHook,
 } from '@pnpm/types'
@@ -878,7 +879,7 @@ export async function addDependenciesToPackage (
 export type ImporterToUpdate = {
   buildIndex: number
   binsDir: string
-  id: string
+  id: ProjectId
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
   modulesDir: string
@@ -943,7 +944,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
   if (opts.pruneLockfileImporters) {
     const projectIds = new Set(projects.map(({ id }) => id))
-    for (const wantedImporter of Object.keys(ctx.wantedLockfile.importers)) {
+    for (const wantedImporter of Object.keys(ctx.wantedLockfile.importers) as ProjectId[]) {
       if (!projectIds.has(wantedImporter)) {
         delete ctx.wantedLockfile.importers[wantedImporter]
       }

@@ -1,6 +1,6 @@
-import { type DependenciesMeta, type DepPath, type PatchFile } from '@pnpm/types'
+import { type DependenciesMeta, type DepPath, type PatchFile, type ProjectId } from '@pnpm/types'
 
-export type { PatchFile }
+export type { PatchFile, ProjectId }
 
 export * from './lockfileFileTypes'
 
@@ -10,7 +10,7 @@ export interface LockfileSettings {
 }
 
 export interface Lockfile {
-  importers: Record<string, ProjectSnapshot>
+  importers: Record<ProjectId, ProjectSnapshot>
   lockfileVersion: string
   time?: Record<string, string>
   packages?: PackageSnapshots

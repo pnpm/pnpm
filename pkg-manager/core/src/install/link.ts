@@ -27,6 +27,7 @@ import {
   type DepPath,
   type HoistedDependencies,
   type Registries,
+  type ProjectId,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
@@ -190,7 +191,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
         importers: projects,
         packages,
       },
-      Object.keys(projects), {
+      Object.keys(projects) as ProjectId[], {
         ...filterOpts,
         failOnMissingDependencies: false,
         skipped: new Set(),

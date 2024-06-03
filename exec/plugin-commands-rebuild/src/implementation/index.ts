@@ -26,7 +26,7 @@ import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
-import { type DepPath, type ProjectManifest } from '@pnpm/types'
+import { type DepPath, type ProjectManifest, type ProjectId } from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import * as dp from '@pnpm/dependency-path'
 import { hardLinkDir } from '@pnpm/worker'
@@ -241,7 +241,7 @@ async function _rebuild (
     virtualStoreDir: string
     rootModulesDir: string
     currentLockfile: Lockfile
-    projects: Record<string, { id: string, rootDir: string }>
+    projects: Record<string, { id: ProjectId, rootDir: string }>
     extraBinPaths: string[]
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,

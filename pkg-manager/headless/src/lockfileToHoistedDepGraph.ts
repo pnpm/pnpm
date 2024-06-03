@@ -13,7 +13,7 @@ import {
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type PatchFile, type ProjectId, type Registries } from '@pnpm/types'
 import {
   type FetchPackageToStoreFunction,
   type StoreController,
@@ -100,7 +100,7 @@ async function _lockfileToHoistedDepGraph (
     Array.from(tree.dependencies).map(async (rootDep) => {
       const reference = Array.from(rootDep.references)[0]
       if (reference.startsWith('workspace:')) {
-        const importerId = reference.replace('workspace:', '')
+        const importerId = reference.replace('workspace:', '') as ProjectId
         const projectDir = path.join(opts.lockfileDir, importerId)
         const modulesDir = path.join(projectDir, 'node_modules')
         const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))

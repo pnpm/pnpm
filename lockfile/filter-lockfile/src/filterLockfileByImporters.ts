@@ -6,14 +6,14 @@ import {
 } from '@pnpm/lockfile-types'
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger } from '@pnpm/logger'
-import { type DependenciesField, type DepPath } from '@pnpm/types'
+import { type DependenciesField, type DepPath, type ProjectId } from '@pnpm/types'
 import { filterImporter } from './filterImporter'
 
 const lockfileLogger = logger('lockfile')
 
 export function filterLockfileByImporters (
   lockfile: Lockfile,
-  importerIds: string[],
+  importerIds: ProjectId[],
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean }
     skipped: Set<DepPath>

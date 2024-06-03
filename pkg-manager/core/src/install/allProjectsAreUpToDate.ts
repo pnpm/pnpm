@@ -15,6 +15,7 @@ import {
   DEPENDENCIES_OR_PEER_FIELDS,
   type DependencyManifest,
   type ProjectManifest,
+  type ProjectId,
 } from '@pnpm/types'
 import pEvery from 'p-every'
 import any from 'ramda/src/any'
@@ -22,7 +23,7 @@ import semver from 'semver'
 import getVersionSelectorType from 'version-selector-type'
 
 export async function allProjectsAreUpToDate (
-  projects: Array<ProjectOptions & { id: string }>,
+  projects: Array<ProjectOptions & { id: ProjectId }>,
   opts: {
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean

@@ -13,6 +13,7 @@ import {
   type DepPath,
   DEPENDENCIES_FIELDS,
   type HoistedDependencies,
+  type ProjectId,
   type ProjectManifest,
   type ReadPackageHook,
   type Registries,
@@ -45,7 +46,7 @@ export interface PnpmContext {
   pendingBuilds: string[]
   projects: Record<string, {
     modulesDir: string
-    id: string
+    id: ProjectId
   } & HookOptions & Required<ProjectOptions>>
   rootModulesDir: string
   hoistPattern: string[] | undefined

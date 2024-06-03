@@ -1,6 +1,6 @@
 import path from 'path'
 import { type Lockfile } from '@pnpm/lockfile-file'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import * as dp from '@pnpm/dependency-path'
 import normalize from 'normalize-path'
@@ -26,7 +26,7 @@ export function makeVirtualNodeModules (lockfile: Lockfile): DirEntry {
     },
   }
   for (const depType of DEPENDENCIES_FIELDS) {
-    for (const [depName, ref] of Object.entries(lockfile.importers['.'][depType] ?? {})) {
+    for (const [depName, ref] of Object.entries(lockfile.importers['.' as ProjectId][depType] ?? {})) {
       const symlink: DirEntry = {
         entryType: 'symlink',
         target: `./.pnpm/${dp.depPathToFilename(dp.refToRelative(ref, depName)!, 120)}/node_modules/${depName}`,
