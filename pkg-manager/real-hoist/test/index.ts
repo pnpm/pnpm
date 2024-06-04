@@ -1,6 +1,7 @@
 import { hoist } from '@pnpm/real-hoist'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { fixtures } from '@pnpm/test-fixtures'
+import { type ProjectId } from '@pnpm/types'
 
 const f = fixtures(__dirname)
 
@@ -13,7 +14,7 @@ test('hoist throws an error if the lockfile is broken', () => {
   expect(() => hoist({
     lockfileVersion: '5',
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           foo: '1.0.0',
         },

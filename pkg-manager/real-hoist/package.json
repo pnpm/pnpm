@@ -39,7 +39,8 @@
   "devDependencies": {
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/real-hoist": "workspace:*",
-    "@pnpm/test-fixtures": "workspace:*"
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"
