@@ -9,6 +9,7 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
+import { type DepPath } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
@@ -159,7 +160,7 @@ test('should rehoist when uninstalling a package', async () => {
 
   const modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.hoistedDependencies['debug@2.6.9']).toStrictEqual({ debug: 'private' })
+  expect(modules!.hoistedDependencies['debug@2.6.9' as DepPath]).toStrictEqual({ debug: 'private' })
 })
 
 test('should rehoist after running a general install', async () => {
