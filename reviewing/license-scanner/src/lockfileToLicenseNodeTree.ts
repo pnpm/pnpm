@@ -6,7 +6,7 @@ import {
   type LockfileWalkerStep,
 } from '@pnpm/lockfile-walker'
 import { type DepTypes, DepType, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import { type SupportedArchitectures, type DependenciesField, type Registries } from '@pnpm/types'
+import { type SupportedArchitectures, type DependenciesField, type ProjectId, type Registries } from '@pnpm/types'
 import { getPkgInfo } from './getPkgInfo'
 import mapValues from 'ramda/src/map'
 
@@ -127,12 +127,12 @@ export async function lockfileToLicenseNodeTree (
   lockfile: Lockfile,
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
-    includedImporterIds?: string[]
+    includedImporterIds?: ProjectId[]
   } & LicenseExtractOptions
 ): Promise<LicenseNodeTree> {
   const importerWalkers = lockfileWalkerGroupImporterSteps(
     lockfile,
-    opts.includedImporterIds ?? Object.keys(lockfile.importers),
+    opts.includedImporterIds ?? Object.keys(lockfile.importers) as ProjectId[],
     { include: opts?.include }
   )
   const depTypes = detectDepTypes(lockfile)

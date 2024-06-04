@@ -19,6 +19,7 @@ import {
   type DependenciesField,
   DEPENDENCIES_FIELDS,
   type HoistedDependencies,
+  type ProjectId,
 } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import rimraf from '@zkochan/rimraf'
@@ -31,7 +32,7 @@ import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency'
 export async function prune (
   importers: Array<{
     binsDir: string
-    id: string
+    id: ProjectId
     modulesDir: string
     pruneDirectDependencies?: boolean
     removePackages?: string[]
@@ -59,7 +60,7 @@ export async function prune (
     include: opts.include,
     skipped: opts.skipped,
   })
-  const rootImporter = wantedLockfile.importers['.'] ?? {} as ProjectSnapshot
+  const rootImporter = wantedLockfile.importers['.' as ProjectId] ?? {} as ProjectSnapshot
   const wantedRootPkgs = mergeDependencies(rootImporter)
   await Promise.all(importers.map(async ({ binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir }) => {
     const currentImporter = opts.currentLockfile.importers[id] || {} as ProjectSnapshot
@@ -245,7 +246,7 @@ function getPkgsDepPaths (
 }
 
 function getPkgsDepPathsOwnedOnlyByImporters (
-  importerIds: string[],
+  importerIds: ProjectId[],
   lockfile: Lockfile,
   include: { [dependenciesField in DependenciesField]: boolean },
   skipped: Set<DepPath>
@@ -258,7 +259,7 @@ function getPkgsDepPathsOwnedOnlyByImporters (
       skipped,
     })
   const other = filterLockfileByImporters(lockfile,
-    difference(Object.keys(lockfile.importers), importerIds),
+    difference(Object.keys(lockfile.importers) as ProjectId[], importerIds),
     {
       failOnMissingDependencies: false,
       include,

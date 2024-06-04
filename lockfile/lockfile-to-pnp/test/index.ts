@@ -1,12 +1,12 @@
 // cspell:ignore haspeer
 import path from 'path'
 import { lockfileToPackageRegistry } from '@pnpm/lockfile-to-pnp'
-import { type DepPath } from '@pnpm/types'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 
 test('lockfileToPackageRegistry', () => {
   const packageRegistry = lockfileToPackageRegistry({
     importers: {
-      importer1: {
+      ['importer1' as ProjectId]: {
         dependencies: {
           dep1: '1.0.0',
           dep2: 'foo@2.0.0',
@@ -16,7 +16,7 @@ test('lockfileToPackageRegistry', () => {
         },
         specifiers: {},
       },
-      importer2: {
+      ['importer2' as ProjectId]: {
         devDependencies: {
           importer1: 'link:../importer1',
         },
@@ -178,7 +178,7 @@ test('lockfileToPackageRegistry', () => {
 test('lockfileToPackageRegistry packages that have peer deps', () => {
   const packageRegistry = lockfileToPackageRegistry({
     importers: {
-      importer: {
+      ['importer' as ProjectId]: {
         dependencies: {
           haspeer: '2.0.0(peer@1.0.0)',
           peer: '1.0.0',

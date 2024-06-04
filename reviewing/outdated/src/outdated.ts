@@ -1,4 +1,4 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   getLockfileImporterId,
@@ -72,7 +72,7 @@ export async function outdated (
 
   const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest())
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
-  const currentLockfile = opts.currentLockfile ?? { importers: { [importerId]: {} } }
+  const currentLockfile: Lockfile = opts.currentLockfile ?? { lockfileVersion: LOCKFILE_VERSION, importers: { [importerId]: { specifiers: {} } } }
 
   const outdated: OutdatedPackage[] = []
 

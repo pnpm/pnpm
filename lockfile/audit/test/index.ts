@@ -2,7 +2,7 @@ import { audit } from '@pnpm/audit'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { type PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type DepPath } from '@pnpm/types'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 import nock from 'nock'
 import { lockfileToAuditTree } from '../lib/lockfileToAuditTree'
 
@@ -12,7 +12,7 @@ describe('audit', () => {
   test('lockfileToAuditTree()', async () => {
     expect(await lockfileToAuditTree({
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           dependencies: {
             foo: '1.0.0',
           },
@@ -79,7 +79,7 @@ describe('audit', () => {
   test('lockfileToAuditTree() without specified version should use default version 0.0.0', async () => {
     expect(await lockfileToAuditTree({
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           dependencies: {
             foo: '1.0.0',
           },

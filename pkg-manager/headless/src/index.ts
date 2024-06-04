@@ -60,6 +60,7 @@ import {
   type DepPath,
   type DependencyManifest,
   type HoistedDependencies,
+  type ProjectId,
   type ProjectManifest,
   type Registries,
   DEPENDENCIES_FIELDS,
@@ -97,7 +98,7 @@ export interface Project {
   buildIndex: number
   manifest: ProjectManifest
   modulesDir: string
-  id: string
+  id: ProjectId
   pruneDirectDependencies?: boolean
   rootDir: string
 }
@@ -276,7 +277,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   })
 
   const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
-    ? Object.keys(wantedLockfile.importers)
+    ? Object.keys(wantedLockfile.importers) as ProjectId[]
     : selectedProjects.map(({ id }) => id)
   const { lockfile: filteredLockfile, selectedImporterIds: importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, filterOpts)
   if (opts.excludeLinksFromLockfile) {
@@ -743,7 +744,7 @@ async function getRootPackagesToLink (
   opts: {
     registries: Registries
     projectDir: string
-    importerId: string
+    importerId: ProjectId
     importerModulesDir: string
     importerManifestsByImporterId: { [id: string]: ProjectManifest }
     lockfileDir: string

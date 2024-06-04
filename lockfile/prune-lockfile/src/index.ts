@@ -5,7 +5,7 @@ import {
   type ProjectSnapshot,
   type ResolvedDependencies,
 } from '@pnpm/lockfile-types'
-import { type DepPath, type PackageManifest } from '@pnpm/types'
+import { type DepPath, type PackageManifest, type ProjectId } from '@pnpm/types'
 import { refToRelative } from '@pnpm/dependency-path'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
@@ -46,7 +46,7 @@ export function pruneSharedLockfile (
 export function pruneLockfile (
   lockfile: Lockfile,
   pkg: PackageManifest,
-  importerId: string,
+  importerId: ProjectId,
   opts: {
     warn?: (msg: string) => void
     dependenciesGraph?: DependenciesGraph

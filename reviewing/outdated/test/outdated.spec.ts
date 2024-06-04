@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type DepPath } from '@pnpm/types'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 import { outdated } from '../lib/outdated'
 
 async function getLatestManifest (packageName: string) {
@@ -28,7 +28,7 @@ test('outdated()', async () => {
   const outdatedPkgs = await outdated({
     currentLockfile: {
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           dependencies: {
             'from-github': 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
           },
@@ -85,7 +85,7 @@ test('outdated()', async () => {
     prefix: 'project',
     wantedLockfile: {
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           dependencies: {
             'from-github': 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
             'from-github-2': 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
@@ -244,7 +244,7 @@ test('using a matcher', async () => {
   const outdatedPkgs = await outdated({
     currentLockfile: {
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           dependencies: {
             'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
             'is-negative': '1.0.0',
@@ -295,7 +295,7 @@ test('using a matcher', async () => {
     prefix: 'wanted-shrinkwrap',
     wantedLockfile: {
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           dependencies: {
             'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
             'from-github-2': 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
@@ -364,7 +364,7 @@ test('outdated() aliased dependency', async () => {
   const outdatedPkgs = await outdated({
     currentLockfile: {
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           dependencies: {
             positive: 'is-positive@1.0.0',
           },
@@ -395,7 +395,7 @@ test('outdated() aliased dependency', async () => {
     prefix: 'project',
     wantedLockfile: {
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           dependencies: {
             positive: 'is-positive@3.1.0',
           },
@@ -436,7 +436,7 @@ test('outdated() aliased dependency', async () => {
 test('a dependency is not outdated if it is newer than the latest version', async () => {
   const lockfile = {
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           foo: '1.0.0',
           foo2: '2.0.0-0',
@@ -534,7 +534,7 @@ test('should ignore dependencies as expected', async () => {
   const outdatedPkgs = await outdated({
     currentLockfile: {
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           dependencies: {
             'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
           },
@@ -592,7 +592,7 @@ test('should ignore dependencies as expected', async () => {
     prefix: 'project',
     wantedLockfile: {
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           dependencies: {
             'from-github': 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
             'from-github-2': 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',

@@ -1,6 +1,7 @@
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
   type Lockfile,
+  type ProjectId,
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import * as dp from '@pnpm/dependency-path'
@@ -35,9 +36,9 @@ export function hoist (
     peerNames: new Set<string>([]),
     dependencyKind: HoisterDependencyKind.WORKSPACE,
     dependencies: _toTree({
-      ...lockfile.importers['.']?.dependencies,
-      ...lockfile.importers['.']?.devDependencies,
-      ...lockfile.importers['.']?.optionalDependencies,
+      ...lockfile.importers['.' as ProjectId]?.dependencies,
+      ...lockfile.importers['.' as ProjectId]?.devDependencies,
+      ...lockfile.importers['.' as ProjectId]?.optionalDependencies,
       ...(Array.from(opts?.externalDependencies ?? [])).reduce((acc, dep) => {
         // It doesn't matter what version spec is used here.
         // This dependency will be removed from the tree anyway.

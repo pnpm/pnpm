@@ -23,6 +23,9 @@
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
     }
   ]
 }

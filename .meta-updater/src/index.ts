@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile-file'
-import { type ProjectManifest } from '@pnpm/types'
+import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import isSubdir from 'is-subdir'
 import loadJsonFile from 'load-json-file'
@@ -80,7 +80,7 @@ async function updateTSConfig (
 ): Promise<object | null> {
   if (tsConfig == null) return tsConfig
   if (manifest.name === '@pnpm/tsconfig') return tsConfig
-  const relative = normalizePath(path.relative(context.workspaceDir, dir))
+  const relative = normalizePath(path.relative(context.workspaceDir, dir)) as ProjectId
   const importer = context.lockfile.importers[relative]
   if (!importer) return tsConfig
   const deps = {

@@ -6,6 +6,7 @@ import {
   type AllowedDeprecatedVersions,
   type PkgResolutionId,
   type ProjectManifest,
+  type ProjectId,
   type ReadPackageHook,
   type Registries,
 } from '@pnpm/types'
@@ -51,7 +52,7 @@ export interface ResolvedDirectDependency {
 }
 
 export interface Importer<WantedDepExtraProps> {
-  id: string
+  id: ProjectId
   manifest: ProjectManifest
   modulesDir: string
   removePackages?: string[]
@@ -171,12 +172,12 @@ export async function resolveDependencyTree<T> (
       currentDepth: 0,
       parentPkg: {
         installable: true,
-        nodeId: importer.id as NodeId,
+        nodeId: importer.id as unknown as NodeId,
         optional: false,
-        pkgId: importer.id as PkgResolutionId,
+        pkgId: importer.id as unknown as PkgResolutionId,
         rootDir: importer.rootDir,
       },
-      parentIds: [importer.id as PkgResolutionId],
+      parentIds: [importer.id as unknown as PkgResolutionId],
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,

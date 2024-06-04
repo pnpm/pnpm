@@ -15,7 +15,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries, type PkgIdWithPatchHash } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchResponse,
@@ -55,7 +55,7 @@ export interface LockfileToDepGraphOptions {
   autoInstallPeers: boolean
   engineStrict: boolean
   force: boolean
-  importerIds: string[]
+  importerIds: ProjectId[]
   include: IncludedDependencies
   ignoreScripts: boolean
   lockfileDir: string

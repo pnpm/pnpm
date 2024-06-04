@@ -9,7 +9,7 @@ import {
 } from '@pnpm/lockfile-file'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import pickBy from 'ramda/src/pickBy'
 import renameOverwrite from 'rename-overwrite'
 
@@ -23,12 +23,12 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   const baseImporterId = getLockfileImporterId(lockfileDir, projectDir)
   for (const [importerId, importer] of Object.entries(allImporters)) {
     if (importerId.startsWith(`${baseImporterId}/`)) {
-      const newImporterId = importerId.slice(baseImporterId.length + 1)
+      const newImporterId = importerId.slice(baseImporterId.length + 1) as ProjectId
       lockfile.importers[newImporterId] = projectSnapshotWithoutLinkedDeps(importer)
       continue
     }
     if (importerId === baseImporterId) {
-      lockfile.importers['.'] = projectSnapshotWithoutLinkedDeps(importer)
+      lockfile.importers['.' as ProjectId] = projectSnapshotWithoutLinkedDeps(importer)
     }
   }
   const dedicatedLockfile = pruneSharedLockfile(lockfile)

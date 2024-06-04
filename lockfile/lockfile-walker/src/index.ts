@@ -1,5 +1,5 @@
 import { type Lockfile, type PackageSnapshot } from '@pnpm/lockfile-types'
-import { type DependenciesField, type DepPath } from '@pnpm/types'
+import { type DependenciesField, type DepPath, type ProjectId } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 
 export interface LockedDependency {
@@ -16,7 +16,7 @@ export interface LockfileWalkerStep {
 
 export function lockfileWalkerGroupImporterSteps (
   lockfile: Lockfile,
-  importerIds: string[],
+  importerIds: ProjectId[],
   opts?: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     skipped?: Set<DepPath>
@@ -54,7 +54,7 @@ export interface LockfileWalker {
 
 export function lockfileWalker (
   lockfile: Lockfile,
-  importerIds: string[],
+  importerIds: ProjectId[],
   opts?: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     skipped?: Set<DepPath>

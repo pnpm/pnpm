@@ -1,5 +1,5 @@
 import { type Lockfile } from '@pnpm/lockfile-types'
-import { type DependenciesField, type DepPath } from '@pnpm/types'
+import { type DependenciesField, type DepPath, type ProjectId } from '@pnpm/types'
 import { filterLockfileByImporters } from './filterLockfileByImporters'
 
 export function filterLockfile (
@@ -9,7 +9,7 @@ export function filterLockfile (
     skipped: Set<DepPath>
   }
 ): Lockfile {
-  return filterLockfileByImporters(lockfile, Object.keys(lockfile.importers), {
+  return filterLockfileByImporters(lockfile, Object.keys(lockfile.importers) as ProjectId[], {
     ...opts,
     failOnMissingDependencies: false,
   })

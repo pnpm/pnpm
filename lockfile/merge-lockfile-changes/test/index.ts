@@ -1,5 +1,5 @@
 import { type Lockfile } from '@pnpm/lockfile-types'
-import { type DepPath } from '@pnpm/types'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 import { mergeLockfileChanges } from '../src'
 
 const simpleLockfile = {
@@ -28,7 +28,7 @@ test('picks the newer version when dependencies differ inside importer', () => {
     {
       ...simpleLockfile,
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           ...simpleLockfile.importers['.'],
           dependencies: {
             foo: '1.2.0',
@@ -41,7 +41,7 @@ test('picks the newer version when dependencies differ inside importer', () => {
     {
       ...simpleLockfile,
       importers: {
-        '.': {
+        ['.' as ProjectId]: {
           ...simpleLockfile.importers['.'],
           dependencies: {
             foo: '1.1.0',
@@ -52,15 +52,15 @@ test('picks the newer version when dependencies differ inside importer', () => {
       },
     }
   )
-  expect(mergedLockfile.importers['.'].dependencies?.foo).toBe('1.2.0')
-  expect(mergedLockfile.importers['.'].dependencies?.bar).toBe('4.0.0(qar@1.0.0)')
-  expect(mergedLockfile.importers['.'].dependencies?.zoo).toBe('4.0.0(qar@1.0.0)')
+  expect(mergedLockfile.importers['.' as ProjectId].dependencies?.foo).toBe('1.2.0')
+  expect(mergedLockfile.importers['.' as ProjectId].dependencies?.bar).toBe('4.0.0(qar@1.0.0)')
+  expect(mergedLockfile.importers['.' as ProjectId].dependencies?.zoo).toBe('4.0.0(qar@1.0.0)')
 })
 
 test('picks the newer version when dependencies differ inside package', () => {
   const base: Lockfile = {
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           a: '1.0.0',
         },

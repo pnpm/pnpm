@@ -10,7 +10,7 @@ import {
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
-import { type DepPath, type HoistedDependencies } from '@pnpm/types'
+import { type DepPath, type HoistedDependencies, type ProjectId } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as dp from '@pnpm/dependency-path'
 import isSubdir from 'is-subdir'
@@ -57,12 +57,12 @@ export async function hoist (opts: HoistOpts): Promise<HoistedDependencies> {
 
 export interface GetHoistedDependenciesOpts {
   lockfile: Lockfile
-  importerIds?: string[]
+  importerIds?: ProjectId[]
   privateHoistPattern: string[]
   privateHoistedModulesDir: string
   publicHoistPattern: string[]
   publicHoistedModulesDir: string
-  hoistedWorkspacePackages?: Record<string, HoistedWorkspaceProject>
+  hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
 }
 
 export interface HoistedWorkspaceProject {
@@ -75,15 +75,15 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
 
   const { directDeps, step } = lockfileWalker(
     opts.lockfile,
-    opts.importerIds ?? Object.keys(opts.lockfile.importers)
+    opts.importerIds ?? Object.keys(opts.lockfile.importers) as ProjectId[]
   )
   // We want to hoist all the workspace packages, not only those that are in the dependencies
   // of any other workspace packages.
   // That is why we can't just simply use the lockfile walker to include links to local workspace packages too.
   // We have to explicitly include all the workspace packages.
-  const hoistedWorkspaceDeps = Object.fromEntries(
+  const hoistedWorkspaceDeps: Record<string, ProjectId> = Object.fromEntries(
     Object.entries(opts.hoistedWorkspacePackages ?? {})
-      .map(([id, { name }]) => [name, id])
+      .map(([id, { name }]) => [name, id as ProjectId])
   )
   const deps: Dependency[] = [
     {
@@ -105,7 +105,7 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
-  return hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
+  return hoistGraph(deps, opts.lockfile.importers['.' as ProjectId]?.specifiers ?? {}, {
     getAliasHoistType,
     lockfile: opts.lockfile,
   })
@@ -187,7 +187,7 @@ function getDependencies (
 }
 
 export interface Dependency {
-  children: Record<string, DepPath | string>
+  children: Record<string, DepPath | ProjectId>
   depPath: string
   depth: number
 }
@@ -217,7 +217,7 @@ function hoistGraph (
     })
     // build the alias map and the id map
     .forEach((depNode) => {
-      for (const [childAlias, childPath] of Object.entries<DepPath | string>(depNode.children)) {
+      for (const [childAlias, childPath] of Object.entries<DepPath | ProjectId>(depNode.children)) {
         const hoist = opts.getAliasHoistType(childAlias)
         if (!hoist) continue
         const childAliasNormalized = childAlias.toLowerCase()
@@ -261,7 +261,7 @@ async function symlinkHoistedDependencies (
           const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(hoistedDepId, opts.virtualStoreDirMaxLength), 'node_modules')
           depLocation = path.join(modules, pkgName as string)
         } else {
-          if (!opts.lockfile.importers[hoistedDepId]) {
+          if (!opts.lockfile.importers[hoistedDepId as ProjectId]) {
             // This dependency is probably a skipped optional dependency.
             hoistLogger.debug({ hoistFailedFor: hoistedDepId })
             return

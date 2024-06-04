@@ -8,6 +8,7 @@ import {
 import { PnpmError } from '@pnpm/error'
 import { mergeLockfileChanges } from '@pnpm/merge-lockfile-changes'
 import { type Lockfile } from '@pnpm/lockfile-types'
+import { type ProjectId } from '@pnpm/types'
 import comverToSemver from 'comver-to-semver'
 import yaml from 'js-yaml'
 import semver from 'semver'
@@ -132,7 +133,7 @@ async function _read (
 }
 
 export function createLockfileObject (
-  importerIds: string[],
+  importerIds: ProjectId[],
   opts: {
     lockfileVersion: string
     autoInstallPeers: boolean
