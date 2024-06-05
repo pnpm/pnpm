@@ -5,6 +5,7 @@ import { packageIsInstallable } from './packageIsInstallable'
 export interface ReadProjectManifestOpts {
   engineStrict?: boolean
   packageManagerStrict?: boolean
+  packageManagerStrictVersion?: boolean
   nodeVersion?: string
   supportedArchitectures?: SupportedArchitectures
 }

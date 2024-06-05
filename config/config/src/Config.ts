@@ -192,6 +192,7 @@ export interface Config {
   dedupeInjectedDeps?: boolean
   nodeOptions?: string
   packageManagerStrict?: boolean
+  packageManagerStrictVersion?: boolean
   virtualStoreDirMaxLength: number
 }
 

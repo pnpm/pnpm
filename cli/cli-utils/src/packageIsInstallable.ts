@@ -15,12 +15,13 @@ export function packageIsInstallable (
   },
   opts: {
     packageManagerStrict?: boolean
+    packageManagerStrictVersion?: boolean
     engineStrict?: boolean
     nodeVersion?: string
     supportedArchitectures?: SupportedArchitectures
   }
 ): void {
-  const pnpmVersion = packageManager.name === 'pnpm'
+  const currentPnpmVersion = packageManager.name === 'pnpm'
     ? packageManager.version
     : undefined
   if (pkg.packageManager && !process.env.COREPACK_ROOT) {
@@ -32,11 +33,11 @@ export function packageIsInstallable (
       } else {
         globalWarn(msg)
       }
-    } else if (!pmReference.includes(':')) {
+    } else if (opts.packageManagerStrictVersion && !pmReference.includes(':')) {
       // pmReference is semantic versioning, not URL
-      const [pmVersion] = pmReference.split('+')
-      if (pmVersion && pnpmVersion && pmVersion !== pnpmVersion) {
-        const msg = `This project is configured to use v${pmVersion} of pnpm. Your current pnpm is v${pnpmVersion}`
+      const [requiredPnpmVersion] = pmReference.split('+')
+      if (requiredPnpmVersion && currentPnpmVersion && requiredPnpmVersion !== currentPnpmVersion) {
+        const msg = `This project is configured to use v${requiredPnpmVersion} of pnpm. Your current pnpm is v${currentPnpmVersion}`
         if (opts.packageManagerStrict) {
           throw new PnpmError('BAD_PM_VERSION', msg, {
             hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
@@ -49,7 +50,7 @@ export function packageIsInstallable (
   }
   const err = checkPackage(pkgPath, pkg, {
     nodeVersion: opts.nodeVersion,
-    pnpmVersion,
+    pnpmVersion: currentPnpmVersion,
     supportedArchitectures: opts.supportedArchitectures ?? {
       os: ['current'],
       cpu: ['current'],
