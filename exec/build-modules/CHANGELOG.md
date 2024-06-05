@@ -1,5 +1,13 @@
 # @pnpm/build-modules
 
+## 13.0.2
+
+### Patch Changes
+
+- Updated dependencies [80aaa9f]
+  - @pnpm/link-bins@10.0.3
+  - @pnpm/lifecycle@17.0.5
+
 ## 13.0.1
 
 ### Patch Changes

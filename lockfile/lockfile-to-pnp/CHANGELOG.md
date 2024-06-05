@@ -1,5 +1,11 @@
 # @pnpm/lockfile-to-pnp
 
+## 4.1.4
+
+### Patch Changes
+
+- b3a2f9c: Update `@yarnpkg/pnp` to the latest version, fixing issue with `node:` imports [#8161](https://github.com/pnpm/pnpm/issues/8161).
+
 ## 4.1.3
 
 ### Patch Changes

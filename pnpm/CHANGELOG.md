@@ -1,5 +1,18 @@
 # pnpm
 
+## 9.2.0
+
+### Minor Changes
+
+- If `package-manager-strict-version` is set to `true`, pnpm will fail if its version doesn't exactly match the version in the "packageManager" field of `package.json`.
+
+### Patch Changes
+
+- Update `@yarnpkg/pnp` to the latest version, fixing issue with `node:` imports [#8161](https://github.com/pnpm/pnpm/issues/8161).
+- Deduplicate bin names to prevent race condition and corrupted bin scripts [#7833](https://github.com/pnpm/pnpm/issues/7833).
+- pnpm doesn't fail if its version doesn't match the one specified in the "packageManager" field of `package.json` [#8087](https://github.com/pnpm/pnpm/issues/8087).
+- `exec` now also streams prefixed output when `--recursive` or `--parallel` is specified just as `run` does [#8065](https://github.com/pnpm/pnpm/issues/8065).
+
 ## 9.1.4
 
 ### Patch Changes

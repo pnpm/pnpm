@@ -1,5 +1,11 @@
 # @pnpm/prepare-package
 
+## 6.0.5
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.5
+
 ## 6.0.4
 
 ### Patch Changes

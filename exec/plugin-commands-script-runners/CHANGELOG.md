@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 9.1.9
+
+### Patch Changes
+
+- bc0618c: `exec` now also streams prefixed output when `--recursive` or `--parallel` is specified just as `run` does [#8065](https://github.com/pnpm/pnpm/issues/8065).
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/lifecycle@17.0.5
+  - @pnpm/plugin-commands-installation@15.1.9
+
 ## 9.1.8
 
 ### Patch Changes

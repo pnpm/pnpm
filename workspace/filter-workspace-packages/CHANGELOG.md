@@ -1,5 +1,12 @@
 # @pnpm/filter-workspace-packages
 
+## 8.0.9
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+  - @pnpm/workspace.find-packages@2.1.0
+
 ## 8.0.8
 
 ### Patch Changes

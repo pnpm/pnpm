@@ -1,5 +1,18 @@
 # @pnpm/cli-utils
 
+## 3.1.0
+
+### Minor Changes
+
+- b7ca13f: If `package-manager-strict-version` is set to `true` pnpm will fail if its version will not exactly match the version in the `packageManager` field of `package.json`.
+
+### Patch Changes
+
+- b7ca13f: pnpm doesn't fail if its version doesn't match the one specified in the "packageManager" field of `package.json` [#8087](https://github.com/pnpm/pnpm/issues/8087).
+- Updated dependencies [b7ca13f]
+  - @pnpm/config@21.3.0
+  - @pnpm/default-reporter@13.1.3
+
 ## 3.0.7
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-licenses
 
+## 4.1.6
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+
 ## 4.1.5
 
 ### Patch Changes
