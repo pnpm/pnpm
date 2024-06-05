@@ -245,6 +245,7 @@ export async function getConfig (
     'package-lock': npmDefaults['package-lock'],
     pending: false,
     'package-manager-strict': process.env.COREPACK_ENABLE_STRICT !== '0',
+    'package-manager-strict-version': false,
     'prefer-workspace-packages': false,
     'public-hoist-pattern': [
       '*eslint*',
