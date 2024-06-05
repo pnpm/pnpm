@@ -629,6 +629,10 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     /* eslint-enable no-await-in-loop */
 
+    function isWantedDepPrefSame (_alias: string, prevPref: string | undefined, nextPref: string): boolean {
+      return prevPref === nextPref
+    }
+
     async function installCase (project: any) { // eslint-disable-line
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
@@ -639,7 +643,7 @@ Note that in CI environments, this setting is enabled by default.`,
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
 
       if (ctx.wantedLockfile?.importers) {
-        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies)
+        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, isWantedDepPrefSame)
       }
       if (opts.ignoreScripts && project.manifest?.scripts &&
         (project.manifest.scripts.preinstall ||
@@ -808,13 +812,17 @@ function pkgHasDependencies (manifest: ProjectManifest): boolean {
 
 // If the specifier is new, the old resolution probably does not satisfy it anymore.
 // By removing these resolutions we ensure that they are resolved again using the new specs.
-function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDeps: WantedDependency[]): void {
+function forgetResolutionsOfPrevWantedDeps (
+  importer: ProjectSnapshot,
+  wantedDeps: WantedDependency[],
+  isWantedDepPrefSame: (alias: string, prevPref: string | undefined, nextPref: string) => boolean
+): void {
   if (!importer.specifiers) return
   importer.dependencies = importer.dependencies ?? {}
   importer.devDependencies = importer.devDependencies ?? {}
   importer.optionalDependencies = importer.optionalDependencies ?? {}
   for (const { alias, pref } of wantedDeps) {
-    if (alias && importer.specifiers[alias] !== pref) {
+    if (alias && !isWantedDepPrefSame(alias, importer.specifiers[alias], pref)) {
       if (!importer.dependencies[alias]?.startsWith('link:')) {
         delete importer.dependencies[alias]
       }
