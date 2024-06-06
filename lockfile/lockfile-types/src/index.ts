@@ -7,6 +7,7 @@ export * from './lockfileFileTypes'
 export interface LockfileSettings {
   autoInstallPeers?: boolean
   excludeLinksFromLockfile?: boolean
+  peersSuffixMaxLength?: number
 }
 
 export interface Lockfile {

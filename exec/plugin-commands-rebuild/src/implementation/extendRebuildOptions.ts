@@ -48,6 +48,7 @@ export type StrictRebuildOptions = {
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   virtualStoreDirMaxLength: number
+  peersSuffixMaxLength: number
 } & Pick<Config, 'sslConfigs'>
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &

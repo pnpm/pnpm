@@ -88,6 +88,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     dedupePeerDependents?: boolean
     dedupeInjectedDeps?: boolean
     resolvedImporters: ResolvedImporters
+    peersSuffixMaxLength: number
   }
 ): Promise<{
     dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<T>
@@ -130,6 +131,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       peersCache: new Map(),
       peerDependencyIssues,
       purePkgs: new Set(),
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
@@ -370,6 +372,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     purePkgs: Set<PkgIdWithPatchHash> // pure packages are those that don't rely on externally resolved peers
     rootDir: string
     lockfileDir: string
+    peersSuffixMaxLength: number
   }
 ): Promise<PeersResolution & { finishing?: FinishingResolutionPromise, calculateDepPath?: CalculateDepPath }> {
   const node = ctx.dependenciesTree.get(nodeId)!
@@ -509,7 +512,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       pendingPeerNodeIds.push(peerNodeId)
     }
     if (pendingPeerNodeIds.length === 0) {
-      const peersDirSuffix = createPeersDirSuffix(peerIds)
+      const peersDirSuffix = createPeersDirSuffix(peerIds, ctx.peersSuffixMaxLength)
       addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peersDirSuffix}` as DepPath)
     } else {
       calculateDepPathIfNeeded = calculateDepPath.bind(null, peerIds, pendingPeerNodeIds)
@@ -547,7 +550,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           return ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
         })
       ),
-    ])
+    ], ctx.peersSuffixMaxLength)
     addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peersDirSuffix}` as DepPath)
   }
 
@@ -732,6 +735,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     dependenciesTree: DependenciesTree<T>
     rootDir: string
     lockfileDir: string
+    peersSuffixMaxLength: number
   }
 ): Promise<PeersResolution & { finishing: Promise<void> }> {
   const allResolvedPeers = new Map<string, NodeId>()
