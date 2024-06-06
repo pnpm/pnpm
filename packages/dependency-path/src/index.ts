@@ -192,7 +192,7 @@ function depPathToFilenameUnescaped (depPath: string): string {
 export type PeerId = { name: string, version: string } | string
 
 export function createPeersDirSuffix (peerIds: PeerId[]): string {
-  const dirName = peerIds.map(
+  let dirName = peerIds.map(
     (peerId) => {
       if (typeof peerId !== 'string') {
         return `${peerId.name}@${peerId.version}`
@@ -203,5 +203,8 @@ export function createPeersDirSuffix (peerIds: PeerId[]): string {
       return peerId
     }
   ).sort().join(')(')
+  if (dirName.length > 200) {
+    dirName = createBase32Hash(dirName)
+  }
   return `(${dirName})`
 }
