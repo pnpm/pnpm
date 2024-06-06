@@ -111,7 +111,7 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
   let stderr!: string
 
   try {
-    const result = await execa('git', ['-c', 'core.safecrlf=false', 'diff', '--src-prefix=a/', '--dst-prefix=b/', '--ignore-cr-at-eol', '--irreversible-delete', '--full-index', '--no-index', '--text', folderAN, folderBN], {
+    const result = await execa('git', ['-c', 'core.safecrlf=false', 'diff', '--src-prefix=a/', '--dst-prefix=b/', '--ignore-cr-at-eol', '--irreversible-delete', '--full-index', '--no-index', '--text', '--no-ext-diff', folderAN, folderBN], {
       cwd: process.cwd(),
       env: {
         ...process.env,
