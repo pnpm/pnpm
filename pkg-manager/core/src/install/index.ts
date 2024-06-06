@@ -362,6 +362,7 @@ export async function mutateModules (
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        peersSuffixMaxLength: opts.peersSuffixMaxLength,
       }
       ctx.wantedLockfile.overrides = opts.overrides
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
@@ -372,6 +373,7 @@ export async function mutateModules (
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        peersSuffixMaxLength: opts.peersSuffixMaxLength,
       }
     }
     if (
@@ -768,7 +770,10 @@ function getOutdatedLockfileSetting (
   if (lockfile.settings?.excludeLinksFromLockfile != null && lockfile.settings.excludeLinksFromLockfile !== excludeLinksFromLockfile) {
     return 'settings.excludeLinksFromLockfile'
   }
-  if (lockfile.settings?.peersSuffixMaxLength != null && lockfile.settings.peersSuffixMaxLength !== peersSuffixMaxLength) {
+  if (
+    lockfile.settings?.peersSuffixMaxLength != null && lockfile.settings.peersSuffixMaxLength !== peersSuffixMaxLength ||
+    lockfile.settings?.peersSuffixMaxLength == null && peersSuffixMaxLength !== 1000
+  ) {
     return 'settings.peersSuffixMaxLength'
   }
   if (lockfile.pnpmfileChecksum !== pnpmfileChecksum) {
