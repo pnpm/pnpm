@@ -191,7 +191,7 @@ function depPathToFilenameUnescaped (depPath: string): string {
 
 export type PeerId = { name: string, version: string } | string
 
-export function createPeersDirSuffix (peerIds: PeerId[], maxLength: number): string {
+export function createPeersDirSuffix (peerIds: PeerId[], maxLength: number = 1000): string {
   let dirName = peerIds.map(
     (peerId) => {
       if (typeof peerId !== 'string') {
