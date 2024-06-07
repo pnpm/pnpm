@@ -21,10 +21,11 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 | 'storeController'
 | 'useGitBranchLockfile'
 | 'workspacePackages'
+| 'peersSuffixMaxLength'
 >
 & Partial<Pick<InstallOptions, 'supportedArchitectures'>>
 & Pick<GetContextOptions, 'autoInstallPeers' | 'excludeLinksFromLockfile' | 'storeDir'>
-& Required<Pick<InstallOptions, 'virtualStoreDirMaxLength'>>
+& Required<Pick<InstallOptions, 'virtualStoreDirMaxLength' | 'peersSuffixMaxLength'>>
 
 export async function getPeerDependencyIssues (
   projects: ProjectOptions[],
@@ -91,6 +92,7 @@ export async function getPeerDependencyIssues (
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages ?? {},
       supportedArchitectures: opts.supportedArchitectures,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
     }
   )
 

@@ -138,6 +138,7 @@ export function createLockfileObject (
     lockfileVersion: string
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
+    peersSuffixMaxLength: number
   }
 ): Lockfile {
   const importers = importerIds.reduce((acc, importerId) => {
@@ -153,6 +154,7 @@ export function createLockfileObject (
     settings: {
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
     },
   }
 }

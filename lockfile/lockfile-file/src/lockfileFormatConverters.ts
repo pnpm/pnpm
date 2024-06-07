@@ -62,6 +62,9 @@ export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfi
     lockfileVersion: LOCKFILE_VERSION,
     importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
   }
+  if (newLockfile.settings?.peersSuffixMaxLength === 1000) {
+    newLockfile.settings = omit(['peersSuffixMaxLength'], newLockfile.settings)
+  }
   return normalizeLockfile(newLockfile, opts)
 }
 

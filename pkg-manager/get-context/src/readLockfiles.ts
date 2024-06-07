@@ -30,6 +30,7 @@ export async function readLockfiles (
   opts: {
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
+    peersSuffixMaxLength: number
     force: boolean
     frozenLockfile: boolean
     projects: Array<{
@@ -111,6 +112,7 @@ export async function readLockfiles (
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     lockfileVersion: wantedLockfileVersion,
+    peersSuffixMaxLength: opts.peersSuffixMaxLength,
   }
   const importerIds = opts.projects.map((importer) => importer.id)
   const currentLockfile = files[1] ?? createLockfileObject(importerIds, sopts)

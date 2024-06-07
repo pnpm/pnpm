@@ -1566,3 +1566,13 @@ test('installation should work with packages that have () in the scope name', as
   const manifest = await addDependenciesToPackage({}, ['@(-.-)/env@0.3.1'], opts)
   await install(manifest, opts)
 })
+
+test('setting a custom peersSuffixMaxLength', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/abc@1.0.0'], testDefaults({ peersSuffixMaxLength: 10 }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.settings.peersSuffixMaxLength).toBe(10)
+  expect(lockfile.importers['.']?.dependencies?.['@pnpm.e2e/abc']?.version?.length).toBe(33)
+})

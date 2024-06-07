@@ -21,6 +21,7 @@ export interface StrictStoreStatusOptions {
   optional: boolean
   binsDir: string
   virtualStoreDirMaxLength: number
+  peersSuffixMaxLength: number
 }
 
 export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &

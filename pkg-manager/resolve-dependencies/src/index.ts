@@ -206,6 +206,7 @@ export async function resolveDependencies (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
     resolvedImporters,
+    peersSuffixMaxLength: opts.peersSuffixMaxLength,
   })
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}

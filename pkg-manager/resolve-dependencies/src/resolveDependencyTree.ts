@@ -102,6 +102,7 @@ export interface ResolveDependenciesOptions {
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
   updateToLatest?: boolean
+  peersSuffixMaxLength: number
 }
 
 export interface ResolveDependencyTreeResult {

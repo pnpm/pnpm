@@ -77,6 +77,7 @@ interface HookOptions {
 export interface GetContextOptions {
   autoInstallPeers: boolean
   excludeLinksFromLockfile: boolean
+  peersSuffixMaxLength: number
   allProjects: Array<ProjectOptions & HookOptions>
   confirmModulesPurge?: boolean
   force: boolean
@@ -189,6 +190,7 @@ export async function getContext (
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
       force: opts.force,
       frozenLockfile: opts.frozenLockfile === true,
       lockfileDir: opts.lockfileDir,
@@ -423,6 +425,7 @@ export async function getContextForSingleImporter (
   opts: {
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
+    peersSuffixMaxLength: number
     force: boolean
     forceNewModules?: boolean
     confirmModulesPurge?: boolean
@@ -540,6 +543,7 @@ export async function getContextForSingleImporter (
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
       force: opts.force,
       frozenLockfile: false,
       lockfileDir: opts.lockfileDir,

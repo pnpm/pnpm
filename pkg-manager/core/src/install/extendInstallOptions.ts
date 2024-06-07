@@ -145,6 +145,7 @@ export interface StrictInstallOptions {
   supportedArchitectures?: SupportedArchitectures
   hoistWorkspacePackages?: boolean
   virtualStoreDirMaxLength: number
+  peersSuffixMaxLength: number
 }
 
 export type InstallOptions =
@@ -239,6 +240,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     disallowWorkspaceCycles: false,
     excludeLinksFromLockfile: false,
     virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
   } as StrictInstallOptions
 }
 

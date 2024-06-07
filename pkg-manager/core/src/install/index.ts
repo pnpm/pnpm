@@ -341,6 +341,7 @@ export async function mutateModules (
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        peersSuffixMaxLength: opts.peersSuffixMaxLength,
         overrides: opts.overrides,
         ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
         packageExtensionsChecksum,
@@ -361,6 +362,7 @@ export async function mutateModules (
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        peersSuffixMaxLength: opts.peersSuffixMaxLength,
       }
       ctx.wantedLockfile.overrides = opts.overrides
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
@@ -371,6 +373,7 @@ export async function mutateModules (
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        peersSuffixMaxLength: opts.peersSuffixMaxLength,
       }
     }
     if (
@@ -724,27 +727,28 @@ type ChangedField =
   | 'ignoredOptionalDependencies'
   | 'settings.autoInstallPeers'
   | 'settings.excludeLinksFromLockfile'
+  | 'settings.peersSuffixMaxLength'
   | 'pnpmfileChecksum'
 
 function getOutdatedLockfileSetting (
   lockfile: Lockfile,
   {
-    onlyBuiltDependencies,
     overrides,
     packageExtensionsChecksum,
     ignoredOptionalDependencies,
     patchedDependencies,
     autoInstallPeers,
     excludeLinksFromLockfile,
+    peersSuffixMaxLength,
     pnpmfileChecksum,
   }: {
-    onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
     patchedDependencies?: Record<string, PatchFile>
     ignoredOptionalDependencies?: string[]
     autoInstallPeers?: boolean
     excludeLinksFromLockfile?: boolean
+    peersSuffixMaxLength?: number
     pnpmfileChecksum?: string
   }
 ): ChangedField | null {
@@ -765,6 +769,12 @@ function getOutdatedLockfileSetting (
   }
   if (lockfile.settings?.excludeLinksFromLockfile != null && lockfile.settings.excludeLinksFromLockfile !== excludeLinksFromLockfile) {
     return 'settings.excludeLinksFromLockfile'
+  }
+  if (
+    lockfile.settings?.peersSuffixMaxLength != null && lockfile.settings.peersSuffixMaxLength !== peersSuffixMaxLength ||
+    lockfile.settings?.peersSuffixMaxLength == null && peersSuffixMaxLength !== 1000
+  ) {
+    return 'settings.peersSuffixMaxLength'
   }
   if (lockfile.pnpmfileChecksum !== pnpmfileChecksum) {
     return 'pnpmfileChecksum'
@@ -1059,6 +1069,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       supportedArchitectures: opts.supportedArchitectures,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
