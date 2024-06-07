@@ -54,4 +54,5 @@ export const DEFAULT_OPTS = {
     libc: ['current'],
   },
   virtualStoreDirMaxLength: 120,
+  peersSuffixMaxLength: 1000,
 }
