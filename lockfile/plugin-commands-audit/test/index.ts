@@ -61,6 +61,7 @@ export const DEFAULT_OPTS = {
   useStoreServer: false,
   workspaceConcurrency: 4,
   virtualStoreDirMaxLength: 120,
+  peersSuffixMaxLength: 1000,
 }
 
 describe('plugin-commands-audit', () => {
