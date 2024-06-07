@@ -240,7 +240,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     disallowWorkspaceCycles: false,
     excludeLinksFromLockfile: false,
     virtualStoreDirMaxLength: 120,
-    peersSuffixMaxLength: Infinity,
+    peersSuffixMaxLength: 1000,
   } as StrictInstallOptions
 }
 
