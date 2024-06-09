@@ -393,7 +393,7 @@ export async function mutateModules (
           ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6 ||
           ctx.wantedLockfile.lockfileVersion === '6.1'
         ) &&
-        await allProjectsAreUpToDate(Object.values(ctx.projects), {
+        await allProjectsAreUpToDate(opts.allProjects, {
           autoInstallPeers: opts.autoInstallPeers,
           excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
@@ -1427,6 +1427,69 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       return {
         ...result,
         stats,
+      }
+    }
+    if (opts.allProjects.length !== projects.length) {
+      if (
+        await allProjectsAreUpToDate(opts.allProjects, {
+          autoInstallPeers: opts.autoInstallPeers,
+          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+          linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+          wantedLockfile: ctx.wantedLockfile,
+          workspacePackages: opts.workspacePackages,
+          lockfileDir: opts.lockfileDir,
+        })
+      ) {
+        return await _installInContext(projects, ctx, {
+          ...opts,
+          frozenLockfile: true,
+        })
+      } else {
+        const newProjects = [...projects]
+        for (const proj of opts.allProjects) {
+          if (!newProjects.some(({ rootDir }) => rootDir === proj.rootDir)) {
+            const wantedDependencies = getWantedDependencies(proj.manifest, {
+              autoInstallPeers: opts.autoInstallPeers,
+              includeDirect: opts.includeDirect,
+              updateWorkspaceDependencies: false,
+              nodeExecPath: opts.nodeExecPath,
+            })
+              .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
+            newProjects.push({
+              mutation: 'install',
+              ...proj,
+              binsDir: proj.binsDir ?? path.join(proj.rootDir, 'node_modules/.bin'),
+              modulesDir: proj.modulesDir ?? path.join(proj.rootDir, 'node_modules'),
+              wantedDependencies,
+              id: path.relative(ctx.lockfileDir, proj.rootDir) as ProjectId,
+              pruneDirectDependencies: false,
+              updatePackageManifest: false,
+            })
+          }
+        }
+        const result = await _installInContext(newProjects, ctx, {
+          ...opts,
+          lockfileOnly: true,
+        })
+        const { stats } = await headlessInstall({
+          ...ctx,
+          ...opts,
+          currentEngine: {
+            nodeVersion: opts.nodeVersion,
+            pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+          },
+          currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
+          selectedProjectDirs: projects.map((project) => project.rootDir),
+          allProjects: ctx.projects,
+          prunedAt: ctx.modulesFile?.prunedAt,
+          wantedLockfile: result.newLockfile,
+          useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+          hoistWorkspacePackages: opts.hoistWorkspacePackages,
+        })
+        return {
+          ...result,
+          stats,
+        }
       }
     }
     if (opts.lockfileOnly && ctx.existsCurrentLockfile) {

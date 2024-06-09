@@ -1,6 +1,7 @@
 import path from 'path'
 import { type ProjectOptions } from '@pnpm/get-context'
 import {
+  getLockfileImporterId,
   type PackageSnapshot,
   type Lockfile,
   type ProjectSnapshot,
@@ -15,7 +16,6 @@ import {
   DEPENDENCIES_OR_PEER_FIELDS,
   type DependencyManifest,
   type ProjectManifest,
-  type ProjectId,
 } from '@pnpm/types'
 import pEvery from 'p-every'
 import any from 'ramda/src/any'
@@ -23,7 +23,7 @@ import semver from 'semver'
 import getVersionSelectorType from 'version-selector-type'
 
 export async function allProjectsAreUpToDate (
-  projects: Array<ProjectOptions & { id: ProjectId }>,
+  projects: Array<Pick<ProjectOptions, 'manifest' | 'rootDir'>>,
   opts: {
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
@@ -46,7 +46,8 @@ export async function allProjectsAreUpToDate (
     lockfileDir: opts.lockfileDir,
   })
   return pEvery(projects, (project) => {
-    const importer = opts.wantedLockfile.importers[project.id]
+    const importerId = getLockfileImporterId(opts.lockfileDir, project.rootDir)
+    const importer = opts.wantedLockfile.importers[importerId]
     return !hasLocalTarballDepsInRoot(importer) &&
       _satisfiesPackageManifest(importer, project.manifest).satisfies &&
       _linkedPackagesAreUpToDate({
