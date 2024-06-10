@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import {
@@ -1404,35 +1405,21 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 }
 
+function realpathSync (path: string): string {
+  try {
+    return fs.realpathSync(path)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return path
+    }
+    throw err
+  }
+}
+
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
-    if (opts.nodeLinker === 'hoisted' && !opts.lockfileOnly) {
-      const result = await _installInContext(projects, ctx, {
-        ...opts,
-        lockfileOnly: true,
-      })
-      const { stats } = await headlessInstall({
-        ...ctx,
-        ...opts,
-        currentEngine: {
-          nodeVersion: opts.nodeVersion,
-          pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-        },
-        currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
-        selectedProjectDirs: projects.map((project) => project.rootDir),
-        allProjects: ctx.projects,
-        prunedAt: ctx.modulesFile?.prunedAt,
-        wantedLockfile: result.newLockfile,
-        useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
-        hoistWorkspacePackages: opts.hoistWorkspacePackages,
-      })
-      return {
-        ...result,
-        stats,
-      }
-    }
-    const allProjectsLocatedInsideWorkspace = opts.allProjects.filter(({ rootDir }) => isSubdir(opts.lockfileDir, fs.realpathSync(rootDir)))
-    if (allProjectsLocatedInsideWorkspace.length > projects.length) {
+    const allProjectsLocatedInsideWorkspace = opts.allProjects.filter(({ rootDir }) => isSubdir(opts.lockfileDir, realpathSync(rootDir)))
+    if (allProjectsLocatedInsideWorkspace.length > projects.length && !opts.frozenLockfile) {
       if (
         await allProjectsAreUpToDate(allProjectsLocatedInsideWorkspace, {
           autoInstallPeers: opts.autoInstallPeers,
@@ -1443,7 +1430,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           lockfileDir: opts.lockfileDir,
         })
       ) {
-        return await _installInContext(projects, ctx, {
+        return installInContext(projects, ctx, {
           ...opts,
           frozenLockfile: true,
         })
@@ -1470,7 +1457,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             })
           }
         }
-        const result = await _installInContext(newProjects, ctx, {
+        const result = await installInContext(newProjects, ctx, {
           ...opts,
           lockfileOnly: true,
         })
@@ -1493,6 +1480,31 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           ...result,
           stats,
         }
+      }
+    }
+    if (opts.nodeLinker === 'hoisted' && !opts.lockfileOnly) {
+      const result = await _installInContext(projects, ctx, {
+        ...opts,
+        lockfileOnly: true,
+      })
+      const { stats } = await headlessInstall({
+        ...ctx,
+        ...opts,
+        currentEngine: {
+          nodeVersion: opts.nodeVersion,
+          pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+        },
+        currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
+        selectedProjectDirs: projects.map((project) => project.rootDir),
+        allProjects: ctx.projects,
+        prunedAt: ctx.modulesFile?.prunedAt,
+        wantedLockfile: result.newLockfile,
+        useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+        hoistWorkspacePackages: opts.hoistWorkspacePackages,
+      })
+      return {
+        ...result,
+        stats,
       }
     }
     if (opts.lockfileOnly && ctx.existsCurrentLockfile) {

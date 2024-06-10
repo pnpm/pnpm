@@ -83,6 +83,65 @@ test('install only the dependencies of the specified importer', async () => {
   expect(lockfile.importers?.['project-2' as ProjectId].dependencies?.['is-negative'].version).toBe('1.0.0')
 })
 
+test('install only the dependencies of the specified importer, when node-linker is hoisted', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+
+  await mutateModules(importers.slice(0, 1), testDefaults({ allProjects, nodeLinker: 'hoisted' }))
+
+  const rootModules = assertProject(process.cwd())
+  rootModules.has('is-positive')
+  // rootModules.hasNot('is-negative') // TODO: fix
+
+  const lockfile: any = readYamlFile(WANTED_LOCKFILE) // eslint-disable-line
+  expect(lockfile.importers?.['project-2' as ProjectId].dependencies?.['is-negative'].version).toBe('1.0.0')
+})
+
 test('install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore', async () => {
   preparePackages([
     {
