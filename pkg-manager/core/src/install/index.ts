@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import fs from 'fs'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
@@ -65,6 +66,7 @@ import {
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
+import isSubdir from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import pMapValues from 'p-map-values'
@@ -1429,9 +1431,10 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         stats,
       }
     }
-    if (opts.allProjects.length !== projects.length) {
+    const allProjectsLocatedInsideWorkspace = opts.allProjects.filter(({ rootDir }) => isSubdir(opts.lockfileDir, fs.realpathSync(rootDir)))
+    if (allProjectsLocatedInsideWorkspace.length > projects.length) {
       if (
-        await allProjectsAreUpToDate(opts.allProjects, {
+        await allProjectsAreUpToDate(allProjectsLocatedInsideWorkspace, {
           autoInstallPeers: opts.autoInstallPeers,
           excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
@@ -1446,7 +1449,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         })
       } else {
         const newProjects = [...projects]
-        for (const proj of opts.allProjects) {
+        for (const proj of allProjectsLocatedInsideWorkspace) {
           if (!newProjects.some(({ rootDir }) => rootDir === proj.rootDir)) {
             const wantedDependencies = getWantedDependencies(proj.manifest, {
               autoInstallPeers: opts.autoInstallPeers,
