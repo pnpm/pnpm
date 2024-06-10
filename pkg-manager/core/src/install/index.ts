@@ -1,7 +1,5 @@
 import crypto from 'crypto'
-import fs from 'fs'
 import path from 'path'
-import util from 'util'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import {
@@ -1405,20 +1403,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 }
 
-function realpathSync (path: string): string {
-  try {
-    return fs.realpathSync(path)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return path
-    }
-    throw err
-  }
-}
-
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
-    const allProjectsLocatedInsideWorkspace = opts.allProjects.filter(({ rootDir }) => isSubdir(opts.lockfileDir, realpathSync(rootDir)))
+    const allProjectsLocatedInsideWorkspace = opts.allProjects.filter((project) => isSubdir(opts.lockfileDir, project.rootDirRealPath ?? project.rootDir))
     if (allProjectsLocatedInsideWorkspace.length > projects.length && !opts.frozenLockfile) {
       if (
         await allProjectsAreUpToDate(allProjectsLocatedInsideWorkspace, {

@@ -169,7 +169,7 @@ export async function recursive (
     let importers = getImporters(opts)
     const calculatedRepositoryRoot = await fs.realpath(calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
-    importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
+    importers = await pFilter(importers, async ({ rootDirRealPath }) => isFromWorkspace(rootDirRealPath))
     if (importers.length === 0) return true
     let mutation!: string
     switch (cmdFullName) {
@@ -519,22 +519,23 @@ function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: Pro
     buildIndex,
     manifest: manifestsByPath[rootDir].manifest,
     rootDir,
+    rootDirRealPath: allProjectsGraph[rootDir].package.dirRealPath,
   }))).flat()
 }
 
-interface ManifestsByPath { [dir: string]: Omit<Project, 'dir'> }
+interface ManifestsByPath { [dir: string]: Omit<Project, 'dir' | 'dirRealPath'> }
 
-function getManifestsByPath (projects: Project[]): Record<string, Omit<Project, 'dir'>> {
+function getManifestsByPath (projects: Project[]): Record<string, Omit<Project, 'dir' | 'dirRealPath'>> {
   return projects.reduce((manifestsByPath, { dir, manifest, writeProjectManifest }) => {
     manifestsByPath[dir] = { manifest, writeProjectManifest }
     return manifestsByPath
-  }, {} as Record<string, Omit<Project, 'dir'>>)
+  }, {} as Record<string, Omit<Project, 'dir' | 'dirRealPath'>>)
 }
 
-function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'ignoredPackages'>): Array<{ rootDir: string }> {
+function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'ignoredPackages'>): Array<{ rootDir: string, rootDirRealPath: string }> {
   let rootDirs = Object.keys(opts.selectedProjectsGraph)
   if (opts.ignoredPackages != null) {
     rootDirs = rootDirs.filter((rootDir) => !opts.ignoredPackages!.has(rootDir))
   }
-  return rootDirs.map((rootDir) => ({ rootDir }))
+  return rootDirs.map((rootDir) => ({ rootDir, rootDirRealPath: opts.selectedProjectsGraph[rootDir].package.dirRealPath }))
 }

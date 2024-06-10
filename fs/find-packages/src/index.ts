@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs'
 import path from 'path'
 import util from 'util'
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
@@ -21,6 +22,7 @@ export interface Options {
 
 export interface Project {
   dir: string
+  dirRealPath: string
   manifest: ProjectManifest
 
   writeProjectManifest: (manifest: ProjectManifest, force?: boolean | undefined) => Promise<void>
@@ -55,8 +57,10 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
       ),
       async manifestPath => {
         try {
+          const dir = path.dirname(manifestPath)
           return {
-            dir: path.dirname(manifestPath),
+            dir,
+            dirRealPath: await fs.realpath(dir),
             ...await readExactProjectManifest(manifestPath),
           } as Project
         } catch (err: unknown) {
