@@ -69,7 +69,7 @@ export async function readProjectsContext<T> (
 
 async function realpath (path: string): Promise<string> {
   try {
-    return fs.realpath(path)
+    return await fs.realpath(path)
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return path
