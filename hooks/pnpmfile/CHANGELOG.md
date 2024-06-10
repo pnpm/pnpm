@@ -1,5 +1,14 @@
 # @pnpm/pnpmfile
 
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/hooks.types@2.0.2
+  - @pnpm/crypto.base32-hash@3.0.0
+
 ## 6.0.3
 
 ### Patch Changes

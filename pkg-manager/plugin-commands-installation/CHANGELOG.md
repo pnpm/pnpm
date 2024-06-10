@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 15.1.10
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/plugin-commands-rebuild@11.2.0
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/core@14.2.0
+  - @pnpm/config@21.4.0
+  - @pnpm/outdated@14.0.11
+  - @pnpm/dedupe.check@2.0.3
+  - @pnpm/pnpmfile@6.0.4
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/store-connection-manager@8.2.2
+  - @pnpm/package-store@20.2.1
+  - @pnpm/workspace.find-packages@2.1.1
+  - @pnpm/filter-workspace-packages@8.0.10
+
 ## 15.1.9
 
 ### Patch Changes

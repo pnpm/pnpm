@@ -1,5 +1,15 @@
 # @pnpm/build-modules
 
+## 13.0.3
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@7.0.1
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/patching.apply-patch@3.0.1
+- @pnpm/lifecycle@17.0.5
+- @pnpm/link-bins@10.0.3
+
 ## 13.0.2
 
 ### Patch Changes

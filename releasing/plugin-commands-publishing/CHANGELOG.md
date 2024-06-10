@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 8.1.7
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/exportable-manifest@6.0.2
+  - @pnpm/lifecycle@17.0.5
+
 ## 8.1.6
 
 ### Patch Changes
