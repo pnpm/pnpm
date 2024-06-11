@@ -1,5 +1,12 @@
 # @pnpm/merge-lockfile-changes
 
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-types@7.1.0
+
 ## 6.0.1
 
 ### Patch Changes

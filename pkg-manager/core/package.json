@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "14.1.9",
+  "version": "14.2.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -70,7 +70,7 @@
     "path-exists": "^4.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "run-groups": "^3.0.1",
-    "semver": "^7.6.0",
+    "semver": "^7.6.2",
     "sort-keys": "^4.2.0",
     "version-selector-type": "^3.0.0"
   },

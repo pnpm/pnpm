@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-patching",
-  "version": "6.1.9",
+  "version": "6.2.0",
   "description": "Commands for creating patches",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -66,7 +66,7 @@
     "realpath-missing": "^1.1.0",
     "render-help": "^1.0.3",
     "safe-execa": "^0.1.4",
-    "semver": "^7.6.0",
+    "semver": "^7.6.2",
     "tempy": "^1.0.1"
   },
   "peerDependencies": {

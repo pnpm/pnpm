@@ -46,14 +46,14 @@
     "normalize-path": "^3.0.0",
     "p-settle": "^4.1.1",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.6.0",
+    "semver": "^7.6.2",
     "symlink-dir": "^6.0.0"
   },
   "devDependencies": {
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/node": "^18.19.32",
+    "@types/node": "^18.19.34",
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.29.12",
     "@types/semver": "7.5.3",

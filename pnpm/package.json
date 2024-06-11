@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "9.2.0",
+  "version": "9.3.0",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -105,7 +105,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "read-yaml-file": "^2.1.0",
     "render-help": "^1.0.3",
-    "semver": "^7.6.0",
+    "semver": "^7.6.2",
     "split-cmd": "^1.1.0",
     "strip-ansi": "^6.0.1",
     "symlink-dir": "^6.0.0",

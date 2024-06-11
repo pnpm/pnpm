@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/dependency-path",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "description": "Utilities for working with symlinked node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "semver": "^7.6.0"
+    "semver": "^7.6.2"
   },
   "devDependencies": {
     "@pnpm/dependency-path": "workspace:*",

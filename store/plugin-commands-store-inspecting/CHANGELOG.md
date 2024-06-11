@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/config@21.4.0
+
 ## 0.2.10
 
 ### Patch Changes

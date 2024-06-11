@@ -53,7 +53,7 @@
     "path-temp": "^2.1.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "rename-overwrite": "^5.0.0",
-    "semver": "^7.6.0",
+    "semver": "^7.6.2",
     "ssri": "10.0.5",
     "version-selector-type": "^3.0.0"
   },

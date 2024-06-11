@@ -1,5 +1,17 @@
 # @pnpm/get-context
 
+## 11.2.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/read-projects-context@9.1.4
+
 ## 11.1.3
 
 ### Patch Changes

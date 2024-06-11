@@ -1,5 +1,36 @@
 # @pnpm/core
 
+## 14.2.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/resolve-dependencies@33.1.0
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/get-context@11.2.0
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/filter-lockfile@9.0.6
+  - @pnpm/lockfile-to-pnp@4.1.5
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/lockfile-walker@9.0.1
+  - @pnpm/prune-lockfile@6.1.1
+  - @pnpm/calc-dep-state@7.0.1
+  - @pnpm/headless@23.1.6
+  - @pnpm/hoist@9.1.5
+  - @pnpm/modules-cleaner@15.1.5
+  - @pnpm/package-requester@25.1.4
+  - @pnpm/hooks.types@2.0.2
+  - @pnpm/lockfile.preferred-versions@1.0.5
+  - @pnpm/build-modules@13.0.3
+  - @pnpm/symlink-dependency@8.0.1
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/lifecycle@17.0.5
+  - @pnpm/link-bins@10.0.3
+
 ## 14.1.9
 
 ### Patch Changes

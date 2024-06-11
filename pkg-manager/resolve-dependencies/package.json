@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "33.0.4",
+  "version": "33.1.0",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -60,7 +60,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "rename-overwrite": "^5.0.0",
     "safe-promise-defer": "^1.0.1",
-    "semver": "^7.6.0",
+    "semver": "^7.6.2",
     "semver-range-intersect": "^0.3.1",
     "version-selector-type": "^3.0.0"
   },

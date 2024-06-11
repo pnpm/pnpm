@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 14.0.11
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/npm-resolver@20.0.0
+
 ## 14.0.10
 
 ### Patch Changes

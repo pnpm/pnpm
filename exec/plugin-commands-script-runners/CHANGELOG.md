@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 9.1.10
+
+### Patch Changes
+
+- 271386f: Set `reporter-hide-prefix` to `true` by default for `pnpm exec`. In order to show prefix, the user now has to explicitly set `reporter-hide-prefix=false` [#8174](https://github.com/pnpm/pnpm/issues/8174).
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/plugin-commands-installation@15.1.10
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/lifecycle@17.0.5
+
 ## 9.1.9
 
 ### Patch Changes

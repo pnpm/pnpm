@@ -36,7 +36,7 @@
     "archy": "^1.0.0",
     "chalk": "^4.1.2",
     "cli-columns": "^4.0.0",
-    "semver": "^7.6.0"
+    "semver": "^7.6.2"
   },
   "devDependencies": {
     "@pnpm/render-peer-issues": "workspace:*",
