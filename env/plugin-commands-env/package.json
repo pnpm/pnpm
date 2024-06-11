@@ -45,7 +45,7 @@
     "is-windows": "^1.0.2",
     "load-json-file": "^6.2.0",
     "render-help": "^1.0.3",
-    "semver": "^7.6.0",
+    "semver": "^7.6.2",
     "symlink-dir": "^6.0.0",
     "write-json-file": "^4.3.0"
   },
@@ -57,7 +57,7 @@
     "@types/graceful-fs": "^4.1.9",
     "@types/is-windows": "^1.0.2",
     "@types/semver": "7.5.3",
-    "adm-zip": "^0.5.12",
+    "adm-zip": "^0.5.14",
     "execa": "npm:safe-execa@0.1.2",
     "nock": "13.3.4",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0",

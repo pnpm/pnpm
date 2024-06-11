@@ -49,7 +49,7 @@
     "p-limit": "^3.1.0",
     "path-absolute": "^1.0.1",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.6.0"
+    "semver": "^7.6.2"
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",

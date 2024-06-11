@@ -36,7 +36,7 @@
     "execa": "npm:safe-execa@0.1.2",
     "find-up": "^5.0.0",
     "is-subdir": "^1.2.0",
-    "micromatch": "^4.0.5",
+    "micromatch": "^4.0.7",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {

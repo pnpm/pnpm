@@ -66,7 +66,7 @@
     "realpath-missing": "^1.1.0",
     "render-help": "^1.0.3",
     "safe-execa": "^0.1.4",
-    "semver": "^7.6.0",
+    "semver": "^7.6.2",
     "tempy": "^1.0.1"
   },
   "peerDependencies": {

@@ -53,7 +53,7 @@
     "p-queue": "^6.6.2",
     "promise-share": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.6.0",
+    "semver": "^7.6.2",
     "ssri": "10.0.5"
   },
   "devDependencies": {

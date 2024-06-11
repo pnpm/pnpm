@@ -79,7 +79,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "render-help": "^1.0.3",
     "run-groups": "^3.0.1",
-    "semver": "^7.6.0"
+    "semver": "^7.6.2"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

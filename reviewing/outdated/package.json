@@ -47,12 +47,12 @@
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.6.0"
+    "semver": "^7.6.2"
   },
   "devDependencies": {
     "@pnpm/outdated": "workspace:*",
-    "@types/ramda": "0.29.12",
     "@pnpm/resolver-base": "workspace:*",
+    "@types/ramda": "0.29.12",
     "@types/semver": "7.5.3"
   },
   "funding": "https://opencollective.com/pnpm",
