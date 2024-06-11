@@ -1435,10 +1435,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             newProjects.push({
               mutation: 'install',
               ...proj,
-              binsDir: proj.binsDir ?? path.join(proj.rootDir, 'node_modules/.bin'),
-              modulesDir: proj.modulesDir ?? path.join(proj.rootDir, 'node_modules'),
               wantedDependencies,
-              id: path.relative(ctx.lockfileDir, proj.rootDir) as ProjectId,
               pruneDirectDependencies: false,
               updatePackageManifest: false,
             })
