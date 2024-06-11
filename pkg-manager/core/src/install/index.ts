@@ -394,7 +394,7 @@ export async function mutateModules (
           ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6 ||
           ctx.wantedLockfile.lockfileVersion === '6.1'
         ) &&
-        await allProjectsAreUpToDate(opts.allProjects, {
+        await allProjectsAreUpToDate(Object.values(ctx.projects), {
           autoInstallPeers: opts.autoInstallPeers,
           excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
@@ -1405,7 +1405,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
-    const allProjectsLocatedInsideWorkspace = opts.allProjects.filter((project) => isSubdir(opts.lockfileDir, project.rootDirRealPath ?? project.rootDir))
+    const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects).filter((project) => isSubdir(opts.lockfileDir, project.rootDirRealPath ?? project.rootDir))
     if (allProjectsLocatedInsideWorkspace.length > projects.length && !opts.frozenLockfile) {
       if (
         await allProjectsAreUpToDate(allProjectsLocatedInsideWorkspace, {

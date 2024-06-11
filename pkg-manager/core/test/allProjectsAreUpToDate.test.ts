@@ -21,6 +21,7 @@ const workspacePackages = {
 test('allProjectsAreUpToDate(): works with packages linked through the workspace protocol using relative path', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      id: 'bar' as ProjectId,
       manifest: {
         dependencies: {
           foo: 'workspace:../foo',
@@ -29,6 +30,7 @@ test('allProjectsAreUpToDate(): works with packages linked through the workspace
       rootDir: 'bar',
     },
     {
+      id: 'foo' as ProjectId,
       manifest: fooManifest,
       rootDir: 'foo',
     },
@@ -60,6 +62,7 @@ test('allProjectsAreUpToDate(): works with packages linked through the workspace
 test('allProjectsAreUpToDate(): works with aliased local dependencies', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      id: 'bar' as ProjectId,
       manifest: {
         dependencies: {
           alias: 'npm:foo',
@@ -68,6 +71,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async ()
       rootDir: 'bar',
     },
     {
+      id: 'foo' as ProjectId,
       manifest: fooManifest,
       rootDir: 'foo',
     },
@@ -99,6 +103,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async ()
 test('allProjectsAreUpToDate(): works with aliased local dependencies that specify versions', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      id: 'bar' as ProjectId,
       manifest: {
         dependencies: {
           alias: 'npm:foo@1',
@@ -107,6 +112,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
       rootDir: 'bar',
     },
     {
+      id: 'foo' as ProjectId,
       manifest: fooManifest,
       rootDir: 'foo',
     },
@@ -138,6 +144,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
 test('allProjectsAreUpToDate(): returns false if the aliased dependency version is out of date', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      id: 'bar' as ProjectId,
       manifest: {
         dependencies: {
           alias: 'npm:foo@0',
@@ -146,6 +153,7 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
       rootDir: 'bar',
     },
     {
+      id: 'foo' as ProjectId,
       manifest: fooManifest,
       rootDir: 'foo',
     },
@@ -179,6 +187,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
     await allProjectsAreUpToDate(
       [
         {
+          id: 'bar' as ProjectId,
           manifest: {
             dependencies: {
               foo: 'workspace:*',
@@ -189,6 +198,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
           rootDir: 'bar',
         },
         {
+          id: 'bar2' as ProjectId,
           manifest: {
             dependencies: {
               foo: '1.0.0',
@@ -197,10 +207,12 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
           rootDir: 'bar2',
         },
         {
+          id: 'foo' as ProjectId,
           manifest: fooManifest,
           rootDir: 'foo',
         },
         {
+          id: 'foo2' as ProjectId,
           manifest: {
             name: 'foo2',
             version: '1.0.0',
@@ -208,6 +220,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
           rootDir: 'foo2',
         },
         {
+          id: 'foo3' as ProjectId,
           manifest: {
             name: 'foo3',
             version: '1.0.0',
@@ -263,6 +276,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
 test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      id: 'bar' as ProjectId,
       manifest: {
         dependencies: {
           foo: 'workspace:../foo',
@@ -276,6 +290,7 @@ test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', asyn
       rootDir: 'bar',
     },
     {
+      id: 'foo' as ProjectId,
       manifest: fooManifest,
       rootDir: 'foo',
     },
@@ -307,6 +322,7 @@ test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', asyn
 test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      id: 'bar' as ProjectId,
       manifest: {
         dependencies: {
           foo: 'workspace:../foo',
@@ -320,6 +336,7 @@ test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async
       rootDir: 'bar',
     },
     {
+      id: 'foo' as ProjectId,
       manifest: fooManifest,
       rootDir: 'foo',
     },
@@ -367,6 +384,7 @@ describe('local file dependency', () => {
   })
   const projects = [
     {
+      id: 'bar' as ProjectId,
       manifest: {
         dependencies: {
           local: 'file:./local-dir',
@@ -375,6 +393,7 @@ describe('local file dependency', () => {
       rootDir: 'bar',
     },
     {
+      id: 'foo' as ProjectId,
       manifest: fooManifest,
       rootDir: 'foo',
     },
@@ -464,6 +483,7 @@ describe('local file dependency', () => {
 test('allProjectsAreUpToDate(): returns true if workspace dependency\'s version type is tag', async () => {
   const projects = [
     {
+      id: 'bar' as ProjectId,
       manifest: {
         dependencies: {
           foo: 'unpublished-tag',
@@ -472,6 +492,7 @@ test('allProjectsAreUpToDate(): returns true if workspace dependency\'s version 
       rootDir: 'bar',
     },
     {
+      id: 'foo' as ProjectId,
       manifest: fooManifest,
       rootDir: 'foo',
     },

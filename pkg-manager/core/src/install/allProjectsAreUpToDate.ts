@@ -1,7 +1,6 @@
 import path from 'path'
 import { type ProjectOptions } from '@pnpm/get-context'
 import {
-  getLockfileImporterId,
   type PackageSnapshot,
   type Lockfile,
   type ProjectSnapshot,
@@ -15,6 +14,7 @@ import {
   DEPENDENCIES_FIELDS,
   DEPENDENCIES_OR_PEER_FIELDS,
   type DependencyManifest,
+  type ProjectId,
   type ProjectManifest,
 } from '@pnpm/types'
 import pEvery from 'p-every'
@@ -23,7 +23,7 @@ import semver from 'semver'
 import getVersionSelectorType from 'version-selector-type'
 
 export async function allProjectsAreUpToDate (
-  projects: Array<Pick<ProjectOptions, 'manifest' | 'rootDir'>>,
+  projects: Array<Pick<ProjectOptions, 'manifest' | 'rootDir'> & { id: ProjectId }>,
   opts: {
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
@@ -46,8 +46,7 @@ export async function allProjectsAreUpToDate (
     lockfileDir: opts.lockfileDir,
   })
   return pEvery(projects, (project) => {
-    const importerId = getLockfileImporterId(opts.lockfileDir, project.rootDir)
-    const importer = opts.wantedLockfile.importers[importerId]
+    const importer = opts.wantedLockfile.importers[project.id]
     return !hasLocalTarballDepsInRoot(importer) &&
       _satisfiesPackageManifest(importer, project.manifest).satisfies &&
       _linkedPackagesAreUpToDate({
