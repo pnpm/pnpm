@@ -105,6 +105,7 @@ export const types = Object.assign({
   'patches-dir': String,
   pnpmfile: String,
   'package-manager-strict': Boolean,
+  'package-manager-strict-version': Boolean,
   'prefer-frozen-lockfile': Boolean,
   'prefer-offline': Boolean,
   'prefer-symlinked-executables': Boolean,
