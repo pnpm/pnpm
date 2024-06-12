@@ -151,7 +151,7 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, r
   const requiresBuild = writeFilesIndexFile(filesIndexFile, {
     // If the package name inside package.json doesn't match the real package name (registered in the registry),
     // then we don't store the package name in the index file for future validation.
-    manifest: pkg?.name == null || manifest?.name === pkg.name ? manifest ?? {} : {},
+    manifest: pkg?.name == null || manifest != null && manifest.name === pkg.name && manifest.version === pkg.version ? manifest ?? {} : {},
     files: filesIntegrity,
   })
   return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
