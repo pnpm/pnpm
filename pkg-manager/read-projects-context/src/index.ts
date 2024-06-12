@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+import util from 'util'
 import path from 'path'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
@@ -9,6 +11,7 @@ export interface ProjectOptions {
   binsDir?: string
   modulesDir?: string
   rootDir: string
+  rootDirRealPath?: string
 }
 
 export async function readProjectsContext<T> (
@@ -54,11 +57,23 @@ export async function readProjectsContext<T> (
           binsDir: project.binsDir ?? path.join(project.rootDir, relativeModulesDir, '.bin'),
           id: importerId,
           modulesDir,
+          rootDirRealPath: project.rootDirRealPath ?? await realpath(project.rootDir),
         }
       })),
     registries: ((modules?.registries) != null) ? normalizeRegistries(modules.registries) : undefined,
     rootModulesDir,
     skipped: new Set((modules?.skipped ?? []) as DepPath[]),
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength,
+  }
+}
+
+async function realpath (path: string): Promise<string> {
+  try {
+    return await fs.realpath(path)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return path
+    }
+    throw err
   }
 }

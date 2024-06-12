@@ -163,6 +163,7 @@ export async function handler (
           package: {
             ...project,
             dir: opts.dir,
+            dirRealPath: opts.dir,
           } as Project,
         },
       }

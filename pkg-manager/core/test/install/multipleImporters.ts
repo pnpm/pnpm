@@ -1,11 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest, type ProjectId } from '@pnpm/types'
 import {
   addDependenciesToPackage,
   type MutatedProject,
@@ -16,6 +16,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import loadJsonFile from 'load-json-file'
 import pick from 'ramda/src/pick'
+import { sync as readYamlFile } from 'read-yaml-file'
 import sinon from 'sinon'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils'
@@ -68,7 +69,6 @@ test('install only the dependencies of the specified importer', async () => {
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
 
   await mutateModules(importers.slice(0, 1), testDefaults({ allProjects }))
 
@@ -78,6 +78,130 @@ test('install only the dependencies of the specified importer', async () => {
   const rootModules = assertProject(process.cwd())
   rootModules.has('.pnpm/is-positive@1.0.0')
   rootModules.hasNot('.pnpm/is-negative@1.0.0')
+
+  const lockfile: any = readYamlFile(WANTED_LOCKFILE) // eslint-disable-line
+  expect(lockfile.importers?.['project-2' as ProjectId].dependencies?.['is-negative'].version).toBe('1.0.0')
+})
+
+test('install only the dependencies of the specified importer, when node-linker is hoisted', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+
+  await mutateModules(importers.slice(0, 1), testDefaults({ allProjects, nodeLinker: 'hoisted' }))
+
+  const rootModules = assertProject(process.cwd())
+  rootModules.has('is-positive')
+  // rootModules.hasNot('is-negative') // TODO: fix
+
+  const lockfile: any = readYamlFile(WANTED_LOCKFILE) // eslint-disable-line
+  expect(lockfile.importers?.['project-2' as ProjectId].dependencies?.['is-negative'].version).toBe('1.0.0')
+})
+
+test('install only the dependencies of the specified importer, when no lockfile is used', async () => {
+  const projects = preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+
+  await mutateModules(importers.slice(0, 1), testDefaults({ allProjects, useLockfile: false }))
+
+  projects['project-1'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
+
+  const rootModules = assertProject(process.cwd())
+  rootModules.has('.pnpm/is-positive@1.0.0')
+  rootModules.hasNot('.pnpm/is-negative@1.0.0')
+
+  const lockfile: any = readYamlFile(path.resolve('node_modules/.pnpm/lock.yaml')) // eslint-disable-line
+  expect(lockfile.importers?.['project-2' as ProjectId]).toStrictEqual({})
 })
 
 test('install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore', async () => {

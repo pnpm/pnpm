@@ -68,6 +68,7 @@ export interface ProjectOptions {
   manifest: ProjectManifest
   modulesDir?: string
   rootDir: string
+  rootDirRealPath?: string
 }
 
 interface HookOptions {

@@ -65,6 +65,7 @@ import {
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
+import isSubdir from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import pMapValues from 'p-map-values'
@@ -1404,6 +1405,72 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
+    const isPathInsideWorkspace = isSubdir.bind(null, opts.lockfileDir)
+    if (!opts.frozenLockfile && opts.useLockfile) {
+      const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects)
+        .filter((project) => isPathInsideWorkspace(project.rootDirRealPath ?? project.rootDir))
+      if (allProjectsLocatedInsideWorkspace.length > projects.length) {
+        if (
+          await allProjectsAreUpToDate(allProjectsLocatedInsideWorkspace, {
+            autoInstallPeers: opts.autoInstallPeers,
+            excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+            linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+            wantedLockfile: ctx.wantedLockfile,
+            workspacePackages: opts.workspacePackages,
+            lockfileDir: opts.lockfileDir,
+          })
+        ) {
+          return installInContext(projects, ctx, {
+            ...opts,
+            frozenLockfile: true,
+          })
+        } else {
+          const newProjects = [...projects]
+          const getWantedDepsOpts = {
+            autoInstallPeers: opts.autoInstallPeers,
+            includeDirect: opts.includeDirect,
+            updateWorkspaceDependencies: false,
+            nodeExecPath: opts.nodeExecPath,
+          }
+          for (const project of allProjectsLocatedInsideWorkspace) {
+            if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
+              const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
+                .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
+              newProjects.push({
+                mutation: 'install',
+                ...project,
+                wantedDependencies,
+                pruneDirectDependencies: false,
+                updatePackageManifest: false,
+              })
+            }
+          }
+          const result = await installInContext(newProjects, ctx, {
+            ...opts,
+            lockfileOnly: true,
+          })
+          const { stats } = await headlessInstall({
+            ...ctx,
+            ...opts,
+            currentEngine: {
+              nodeVersion: opts.nodeVersion,
+              pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+            },
+            currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
+            selectedProjectDirs: projects.map((project) => project.rootDir),
+            allProjects: ctx.projects,
+            prunedAt: ctx.modulesFile?.prunedAt,
+            wantedLockfile: result.newLockfile,
+            useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+            hoistWorkspacePackages: opts.hoistWorkspacePackages,
+          })
+          return {
+            ...result,
+            stats,
+          }
+        }
+      }
+    }
     if (opts.nodeLinker === 'hoisted' && !opts.lockfileOnly) {
       const result = await _installInContext(projects, ctx, {
         ...opts,

@@ -51,7 +51,7 @@ export async function recursiveRebuild (
   if (pkgs.length === 0) {
     return
   }
-  const manifestsByPath: { [dir: string]: Omit<Project, 'dir'> } = {}
+  const manifestsByPath: { [dir: string]: Omit<Project, 'dir' | 'dirRealPath'> } = {}
   for (const { dir, manifest, writeProjectManifest } of pkgs) {
     manifestsByPath[dir] = { manifest, writeProjectManifest }
   }
