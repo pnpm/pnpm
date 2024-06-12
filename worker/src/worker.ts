@@ -148,7 +148,12 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, r
   const cafs = cafsCache.get(cafsDir)!
   const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
+  const requiresBuild = writeFilesIndexFile(filesIndexFile, {
+    // If the package name inside package.json doesn't match the real package name (registered in the registry),
+    // then we don't store the package name in the index file for future validation.
+    manifest: pkg?.name == null || manifest?.name === pkg.name ? manifest ?? {} : {},
+    files: filesIntegrity,
+  })
   return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
 }
 
