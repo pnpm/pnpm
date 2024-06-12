@@ -1405,7 +1405,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
-    const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects).filter((project) => isSubdir(opts.lockfileDir, project.rootDirRealPath ?? project.rootDir))
+    const isPathInsideWorkspace = isSubdir.bind(null, opts.lockfileDir)
+    const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects)
+      .filter((project) => isPathInsideWorkspace(project.rootDirRealPath ?? project.rootDir))
     if (allProjectsLocatedInsideWorkspace.length > projects.length && !opts.frozenLockfile) {
       if (
         await allProjectsAreUpToDate(allProjectsLocatedInsideWorkspace, {
@@ -1423,18 +1425,19 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         })
       } else {
         const newProjects = [...projects]
-        for (const proj of allProjectsLocatedInsideWorkspace) {
-          if (!newProjects.some(({ rootDir }) => rootDir === proj.rootDir)) {
-            const wantedDependencies = getWantedDependencies(proj.manifest, {
-              autoInstallPeers: opts.autoInstallPeers,
-              includeDirect: opts.includeDirect,
-              updateWorkspaceDependencies: false,
-              nodeExecPath: opts.nodeExecPath,
-            })
+        const getWantedDepsOpts = {
+          autoInstallPeers: opts.autoInstallPeers,
+          includeDirect: opts.includeDirect,
+          updateWorkspaceDependencies: false,
+          nodeExecPath: opts.nodeExecPath,
+        }
+        for (const project of allProjectsLocatedInsideWorkspace) {
+          if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
+            const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
               .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
             newProjects.push({
               mutation: 'install',
-              ...proj,
+              ...project,
               wantedDependencies,
               pruneDirectDependencies: false,
               updatePackageManifest: false,
