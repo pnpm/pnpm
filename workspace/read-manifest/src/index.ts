@@ -5,7 +5,7 @@ import path from 'node:path'
 import readYamlFile from 'read-yaml-file'
 
 export interface WorkspaceManifest {
-  packages?: string[]
+  packages: string[]
 }
 
 export async function readWorkspaceManifest (dir: string): Promise<WorkspaceManifest | undefined> {
