@@ -6434,6 +6434,9 @@ importers:
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../pkgs-graph
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../read-manifest
       execa:
         specifier: npm:safe-execa@0.1.2
         version: safe-execa@0.1.2

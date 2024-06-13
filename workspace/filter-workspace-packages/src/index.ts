@@ -2,6 +2,7 @@ import { createMatcher } from '@pnpm/matcher'
 import { type SupportedArchitectures } from '@pnpm/types'
 import { findWorkspacePackages, type Project } from '@pnpm/workspace.find-packages'
 import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.pkgs-graph'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
 import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'
@@ -46,7 +47,16 @@ export async function readProjects (
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<ReadProjectsResult> {
-  const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict, supportedArchitectures: opts?.supportedArchitectures ?? { os: ['current'], cpu: ['current'], libc: ['current'] } })
+  const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+  const allProjects = await findWorkspacePackages(workspaceDir, {
+    patterns: workspaceManifest?.packages ?? ['.', '**'],
+    engineStrict: opts?.engineStrict,
+    supportedArchitectures: opts?.supportedArchitectures ?? {
+      os: ['current'],
+      cpu: ['current'],
+      libc: ['current'],
+    },
+  })
   const { allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjects(
     allProjects,
     pkgSelectors,

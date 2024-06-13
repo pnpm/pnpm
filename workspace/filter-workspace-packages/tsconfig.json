@@ -23,6 +23,9 @@
     },
     {
       "path": "../pkgs-graph"
+    },
+    {
+      "path": "../read-manifest"
     }
   ]
 }
