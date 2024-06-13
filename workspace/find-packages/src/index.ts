@@ -7,17 +7,19 @@ import { logger } from '@pnpm/logger'
 
 export type { Project }
 
+export interface FindWorkspacePackagesOpts {
+  engineStrict?: boolean
+  packageManagerStrict?: boolean
+  packageManagerStrictVersion?: boolean
+  nodeVersion?: string
+  patterns?: string[]
+  sharedWorkspaceLockfile?: boolean
+  supportedArchitectures?: SupportedArchitectures
+}
+
 export async function findWorkspacePackages (
   workspaceRoot: string,
-  opts?: {
-    engineStrict?: boolean
-    packageManagerStrict?: boolean
-    packageManagerStrictVersion?: boolean
-    nodeVersion?: string
-    patterns?: string[]
-    sharedWorkspaceLockfile?: boolean
-    supportedArchitectures?: SupportedArchitectures
-  }
+  opts?: FindWorkspacePackagesOpts
 ): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
   for (const pkg of pkgs) {
