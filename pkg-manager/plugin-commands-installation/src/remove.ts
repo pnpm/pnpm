@@ -147,6 +147,7 @@ export async function handler (
   | 'saveProd'
   | 'selectedProjectsGraph'
   | 'workspaceDir'
+  | 'workspacePackagePatterns'
   | 'sharedWorkspaceLockfile'
   > & {
     recursive?: boolean
@@ -178,7 +179,7 @@ export async function handler (
   })
   // @ts-expect-error
   removeOpts['workspacePackages'] = opts.workspaceDir
-    ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
+    ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns }))
     : undefined
   const targetDependenciesField = getSaveType(opts)
   const {
