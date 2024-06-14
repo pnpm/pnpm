@@ -29,12 +29,17 @@ export async function createExportableManifest (
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
-  await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const).map(async (depsField) => {
-    const deps = await makePublishDependencies(dir, originalManifest[depsField], opts?.modulesDir)
+  await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies'] as const).map(async (depsField) => {
+    const deps = await makePublishDependencies(dir, originalManifest[depsField], { modulesDir: opts?.modulesDir })
     if (deps != null) {
       publishManifest[depsField] = deps
     }
   }))
+
+  const peerDependencies = originalManifest.peerDependencies
+  if (peerDependencies) {
+    publishManifest.peerDependencies = await makePublishDependencies(dir, peerDependencies, { modulesDir: opts?.modulesDir, convertDependencyForPublish: makePublishPeerDependency })
+  }
 
   overridePublishConfig(publishManifest)
 
@@ -48,14 +53,30 @@ export async function createExportableManifest (
 async function makePublishDependencies (
   dir: string,
   dependencies: Dependencies | undefined,
-  modulesDir?: string
+  { modulesDir, convertDependencyForPublish = makePublishDependency }: {
+    modulesDir?: string
+    convertDependencyForPublish?: (depName: string, depSpec: string, dir: string, modulesDir?: string) => Promise<string>
+  } = {}
 ): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
   const publishDependencies = await pMapValues(
-    (depSpec, depName) => makePublishDependency(depName, depSpec, dir, modulesDir),
+    (depSpec, depName) => convertDependencyForPublish(depName, depSpec, dir, modulesDir),
     dependencies
   )
   return publishDependencies
+}
+
+async function resolveManifest (depName: string, modulesDir: string): Promise<ProjectManifest> {
+  const { manifest } = await tryReadProjectManifest(path.join(modulesDir, depName))
+  if (!manifest?.name || !manifest?.version) {
+    throw new PnpmError(
+      'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+      `Cannot resolve workspace protocol of dependency "${depName}" ` +
+        'because this dependency is not installed. Try running "pnpm install".'
+    )
+  }
+
+  return manifest
 }
 
 async function makePublishDependency (depName: string, depSpec: string, dir: string, modulesDir?: string): Promise<string> {
@@ -67,14 +88,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   const versionAliasSpecParts = /^workspace:(.*?)@?([\^~*])$/.exec(depSpec)
   if (versionAliasSpecParts != null) {
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
-    const { manifest } = await tryReadProjectManifest(path.join(modulesDir, depName))
-    if (!manifest?.version) {
-      throw new PnpmError(
-        'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
-        `Cannot resolve workspace protocol of dependency "${depName}" ` +
-          'because this dependency is not installed. Try running "pnpm install".'
-      )
-    }
+    const manifest = await resolveManifest(depName, modulesDir)
 
     const semverRangeToken = versionAliasSpecParts[2] !== '*' ? versionAliasSpecParts[2] : ''
     if (depName !== manifest.name) {
@@ -83,14 +97,8 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
     return `${semverRangeToken}${manifest.version}`
   }
   if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
-    const { manifest } = await tryReadProjectManifest(path.join(dir, depSpec.slice(10)))
-    if (!manifest?.name || !manifest?.version) {
-      throw new PnpmError(
-        'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
-        `Cannot resolve workspace protocol of dependency "${depName}" ` +
-          'because this dependency is not installed. Try running "pnpm install".'
-      )
-    }
+    const manifest = await resolveManifest(depName, path.join(dir, depSpec.slice(10)))
+
     if (manifest.name === depName) return `${manifest.version}`
     return `npm:${manifest.name}@${manifest.version}`
   }
@@ -98,5 +106,30 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   if (depSpec.includes('@')) {
     return `npm:${depSpec}`
   }
+  return depSpec
+}
+
+async function makePublishPeerDependency (depName: string, depSpec: string, dir: string, modulesDir?: string) {
+  if (!depSpec.includes('workspace:')) {
+    return depSpec
+  }
+
+  // Dependencies with bare "*", "^", "~",">=",">","<=",< versions
+  const workspaceSemverRegex = /workspace:([\^~*]|>=|>|<=|<)/
+  const versionAliasSpecParts = workspaceSemverRegex.exec(depSpec)
+
+  if (versionAliasSpecParts != null) {
+    modulesDir = modulesDir ?? path.join(dir, 'node_modules')
+    const manifest = await resolveManifest(depName, modulesDir)
+
+    const [,semverRangGroup] = versionAliasSpecParts
+
+    const semverRangeToken = semverRangGroup !== '*' ? semverRangGroup : ''
+
+    return depSpec.replace(workspaceSemverRegex, `${semverRangeToken}${manifest.version}`)
+  }
+
+  depSpec = depSpec.replace('workspace:', '')
+
   return depSpec
 }
