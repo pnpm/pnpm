@@ -91,13 +91,27 @@ export async function main (inputArgv: string[]): Promise<void> {
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
     const isDlxCommand = cmd === 'dlx'
-    config = await getConfig(isDlxCommand ? { ...cliOptions, dir: os.homedir() } : cliOptions, {
+    const currentDirConfig = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
     }) as typeof config
+    if (isDlxCommand) {
+      config = await getConfig({ ...cliOptions, dir: os.homedir() }, {
+        excludeReporter: false,
+        globalDirShouldAllowWrite,
+        rcOptionsTypes,
+        workspaceDir,
+        checkUnknownSetting: false,
+      }) as typeof config
+      if (currentDirConfig.registry) {
+        config.registry = currentDirConfig.registry
+      }
+    } else {
+      config = currentDirConfig
+    }
     if (isDlxCommand) {
       config.useStderr = true
     }
