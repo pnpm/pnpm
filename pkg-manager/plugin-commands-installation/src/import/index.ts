@@ -132,7 +132,7 @@ export async function handler (
   preferredVersions = getPreferredVersions(versionsByPackageNames)
 
   // For a workspace with shared lockfile
-  if (opts.workspaceDir) {
+  if (opts.workspaceDir && opts.workspacePackagePatterns) {
     const allProjects = opts.allProjects ?? await findWorkspacePackages(opts.workspaceDir, {
       ...opts,
       patterns: opts.workspacePackagePatterns,
