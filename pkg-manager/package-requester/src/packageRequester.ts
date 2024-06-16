@@ -91,7 +91,7 @@ export function createPackageRequester (
     storeDir: string
     verifyStoreIntegrity: boolean
     virtualStoreDirMaxLength: number
-    strictPkgContentCheckInStore: boolean
+    strictPkgContentCheckInStore?: boolean
   }
 ): RequestPackageFunction & {
     fetchPackageToStore: FetchPackageToStoreFunction
@@ -344,7 +344,7 @@ function fetchToStore (
     }
     storeDir: string
     virtualStoreDirMaxLength: number
-    strictPkgContentCheckInStore: boolean
+    strictPkgContentCheckInStore?: boolean
   },
   opts: FetchPackageToStoreOptions
 ): {
@@ -491,7 +491,7 @@ function fetchToStore (
   Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store. \
   This means that the lockfile is broken. Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
   Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
-            if (ctx.strictPkgContentCheckInStore) {
+            if (ctx.strictPkgContentCheckInStore ?? true) {
               throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
                 hint: 'If you want to ignore this issue, set the strict-pkg-content-check-in-store to false',
               })
