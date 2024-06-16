@@ -67,6 +67,7 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/registry-mock": "3.31.0",
     "@pnpm/run-npm": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/tabtab": "^0.5.3",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",

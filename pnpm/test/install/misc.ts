@@ -5,12 +5,15 @@ import { type Lockfile } from '@pnpm/lockfile-types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { getIntegrity } from '@pnpm/registry-mock'
+import { getFilePathInCafs } from '@pnpm/store.cafs'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'
+import writeJsonFile from 'write-json-file'
 import crossSpawn from 'cross-spawn'
 import {
   execPnpm,
@@ -506,4 +509,28 @@ test('installation fails with a timeout error', async () => {
   await expect(
     execPnpm(['add', 'typescript@2.4.2', '--fetch-timeout=1', '--fetch-retries=0'])
   ).rejects.toThrow()
+})
+
+test('installation fails when the stored package name and version do not match the meta of the installed package', async () => {
+  prepare()
+  const storeDir = path.resolve('store')
+  const settings = [`--config.store-dir=${storeDir}`]
+
+  await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
+
+  const cafsDir = path.join(storeDir, 'v3/files')
+  const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), 'index')
+  const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  cacheIntegrity.name = 'foo'
+  writeJsonFile.sync(cacheIntegrityPath, {
+    ...cacheIntegrity,
+    name: 'foo',
+  })
+
+  rimraf('node_modules')
+  await expect(
+    execPnpm(['install', ...settings])
+  ).rejects.toThrow()
+
+  await execPnpm(['install', '--config.strict-store-pkg-content-check=false', ...settings])
 })
