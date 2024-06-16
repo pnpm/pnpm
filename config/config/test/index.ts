@@ -601,6 +601,21 @@ test('local prefix search stops on pnpm-workspace.yaml', async () => {
   expect(config.dir).toEqual(workspaceDir)
 })
 
+test('reads workspacePackagePatterns', async () => {
+  const workspaceDir = path.join(__dirname, 'fixtures/pkg-with-valid-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir,
+  })
+
+  expect(config.workspacePackagePatterns).toEqual(['packages/*'])
+})
+
 test('respects test-pattern', async () => {
   {
     const { config } = await getConfig({
