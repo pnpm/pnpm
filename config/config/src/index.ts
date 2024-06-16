@@ -583,14 +583,14 @@ export async function getConfig (
     warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
   }
 
-  async function readWorkspacePackagePatterns () {
-    return pnpmConfig.workspaceDir != null
-      ? (await readWorkspaceManifest(pnpmConfig.workspaceDir))?.packages
-      : undefined
+  if (pnpmConfig.workspaceDir != null) {
+    if (cliOptions['workspace-packages']) {
+      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[]
+    } else {
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+      pnpmConfig.workspacePackagePatterns = workspaceManifest?.packages
+    }
   }
-
-  pnpmConfig.workspacePackagePatterns = (cliOptions['workspace-packages'] as string[]) ??
-    await readWorkspacePackagePatterns()
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
 
