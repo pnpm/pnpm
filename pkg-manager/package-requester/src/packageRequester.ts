@@ -487,16 +487,16 @@ function fetchToStore (
               !equalOrSemverEqual(pkgFilesIndex.version, opts.expectedPkg.version)
             )
           ) {
-            const msg = `\
-  Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store. \
-  This means that the lockfile is broken. Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
-  Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+            const msg = `Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store.`
+            const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. \
+Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
+Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
             if (ctx.strictStorePkgContentCheck ?? true) {
               throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
-                hint: 'If you want to ignore this issue, set the strict-store-pkg-content-check to false',
+                hint: `${hint}\n\nIf you want to ignore this issue, set the strict-store-pkg-content-check to false.`,
               })
             } else {
-              globalWarn(msg)
+              globalWarn(`${msg} ${hint}`)
             }
           }
           fetching.resolve({
