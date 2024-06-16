@@ -18,7 +18,7 @@ import {
 } from '@pnpm/fetcher-base'
 import { type Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
@@ -91,6 +91,7 @@ export function createPackageRequester (
     storeDir: string
     verifyStoreIntegrity: boolean
     virtualStoreDirMaxLength: number
+    strictPkgContentCheckInStore: boolean
   }
 ): RequestPackageFunction & {
     fetchPackageToStore: FetchPackageToStoreFunction
@@ -122,6 +123,7 @@ export function createPackageRequester (
     }),
     storeDir: opts.storeDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    strictPkgContentCheckInStore: opts.strictPkgContentCheckInStore,
   })
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
@@ -342,6 +344,7 @@ function fetchToStore (
     }
     storeDir: string
     virtualStoreDirMaxLength: number
+    strictPkgContentCheckInStore: boolean
   },
   opts: FetchPackageToStoreOptions
 ): {
@@ -484,10 +487,17 @@ function fetchToStore (
               !equalOrSemverEqual(pkgFilesIndex.version, opts.expectedPkg.version)
             )
           ) {
-            throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', `\
-Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store. \
-This means that the lockfile is broken. Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
-Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`)
+            const msg = `\
+  Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store. \
+  This means that the lockfile is broken. Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
+  Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+            if (ctx.strictPkgContentCheckInStore) {
+              throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
+                hint: 'If you want to ignore this issue, set the strict-pkg-content-check-in-store to false',
+              })
+            } else {
+              globalWarn(msg)
+            }
           }
           fetching.resolve({
             files: {

@@ -28,6 +28,7 @@ export function createPackageStore (
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     verifyStoreIntegrity: boolean
     virtualStoreDirMaxLength: number
+    strictPkgContentCheckInStore: boolean
     clearResolutionCache: () => void
   }
 ): StoreController {
@@ -49,6 +50,7 @@ export function createPackageStore (
     storeDir: initOpts.storeDir,
     verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
     virtualStoreDirMaxLength: initOpts.virtualStoreDirMaxLength,
+    strictPkgContentCheckInStore: initOpts.strictPkgContentCheckInStore,
   })
 
   return {

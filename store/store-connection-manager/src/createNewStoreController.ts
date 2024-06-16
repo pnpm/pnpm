@@ -38,6 +38,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'registrySupportsTimeField'
 | 'resolutionMode'
 | 'strictSsl'
+| 'strictPkgContentCheckInStore'
 | 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
@@ -107,6 +108,7 @@ export async function createNewStoreController (
         ? opts.verifyStoreIntegrity
         : true,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      strictPkgContentCheckInStore: opts.strictPkgContentCheckInStore,
       clearResolutionCache,
     }),
     dir: opts.storeDir,
