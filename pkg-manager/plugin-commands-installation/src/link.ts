@@ -124,7 +124,7 @@ export async function handler (
   const storeControllerCache = new Map<string, Promise<{ dir: string, ctrl: StoreController }>>()
   let workspacePackagesArr
   let workspacePackages!: WorkspacePackages
-  if (opts.workspaceDir && opts.workspacePackagePatterns) {
+  if (opts.workspaceDir) {
     workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
       ...opts,
       patterns: opts.workspacePackagePatterns,
@@ -194,7 +194,7 @@ export async function handler (
 
   if (pkgNames.length > 0) {
     let globalPkgNames!: string[]
-    if (opts.workspaceDir && opts.workspacePackagePatterns) {
+    if (opts.workspaceDir) {
       workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
         ...opts,
         patterns: opts.workspacePackagePatterns,

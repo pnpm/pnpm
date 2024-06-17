@@ -58,7 +58,6 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     linkWorkspacePackages: false,
     saveWorkspaceProtocol: false,
     workspaceDir: process.cwd(),
-    workspacePackagePatterns: ['project-1', 'project-2'],
   }, ['project-2@workspace:*'])
 
   const pkg = await import(path.resolve('project-1/package.json'))
@@ -86,7 +85,6 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     linkWorkspacePackages: false,
     saveWorkspaceProtocol: 'rolling',
     workspaceDir: process.cwd(),
-    workspacePackagePatterns: ['project-1', 'project-2'],
   }, ['project-2@workspace:*'])
 
   const pkg = await import(path.resolve('project-1/package.json'))
@@ -115,7 +113,6 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     saveWorkspaceProtocol: false,
     workspace: true,
     workspaceDir: process.cwd(),
-    workspacePackagePatterns: ['project-1', 'project-2'],
   }, ['project-2'])
 
   const pkg = await import(path.resolve('project-1/package.json'))
@@ -205,7 +202,6 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
     saveWorkspaceProtocol: false,
     workspace: true,
     workspaceDir: process.cwd(),
-    workspacePackagePatterns: ['project-1', 'project-2'],
   }, ['project-2'])
 
   const pkg = await import(path.resolve('project-1/package.json'))

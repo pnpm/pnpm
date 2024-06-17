@@ -178,7 +178,7 @@ export async function handler (
     include,
   })
   // @ts-expect-error
-  removeOpts['workspacePackages'] = (opts.workspaceDir && opts.workspacePackagePatterns)
+  removeOpts['workspacePackages'] = opts.workspaceDir
     ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns }))
     : undefined
   const targetDependenciesField = getSaveType(opts)

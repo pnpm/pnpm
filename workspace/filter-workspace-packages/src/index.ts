@@ -49,7 +49,7 @@ export async function readProjects (
 ): Promise<ReadProjectsResult> {
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)
   const allProjects = await findWorkspacePackages(workspaceDir, {
-    patterns: workspaceManifest?.packages ?? ['.', '**'],
+    patterns: workspaceManifest?.packages,
     engineStrict: opts?.engineStrict,
     supportedArchitectures: opts?.supportedArchitectures ?? {
       os: ['current'],

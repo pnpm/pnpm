@@ -94,9 +94,6 @@
       "path": "../../workspace/pkgs-graph"
     },
     {
-      "path": "../../workspace/read-manifest"
-    },
-    {
       "path": "../../workspace/sort-packages"
     },
     {

@@ -16,7 +16,7 @@ export interface FindWorkspacePackagesOpts {
    * In most cases, callers should read the pnpm-workspace.yml and pass the
    * "packages" field.
    */
-  patterns: string[]
+  patterns?: string[]
 
   engineStrict?: boolean
   packageManagerStrict?: boolean
@@ -28,20 +28,20 @@ export interface FindWorkspacePackagesOpts {
 
 export async function findWorkspacePackages (
   workspaceRoot: string,
-  opts: FindWorkspacePackagesOpts
+  opts?: FindWorkspacePackagesOpts
 ): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
   for (const pkg of pkgs) {
     packageIsInstallable(pkg.dir, pkg.manifest, {
       ...opts,
-      supportedArchitectures: opts.supportedArchitectures ?? {
+      supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
         cpu: ['current'],
         libc: ['current'],
       },
     })
     // When setting shared-workspace-lockfile=false, `pnpm` can be set in sub-project's package.json.
-    if (opts.sharedWorkspaceLockfile && pkg.dir !== workspaceRoot) {
+    if (opts?.sharedWorkspaceLockfile && pkg.dir !== workspaceRoot) {
       checkNonRootProjectManifest(pkg)
     }
   }
@@ -49,14 +49,14 @@ export async function findWorkspacePackages (
   return pkgs
 }
 
-export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts: { patterns: string[] }): Promise<Project[]> {
+export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
   const pkgs = await findPackages(workspaceRoot, {
     ignore: [
       '**/node_modules/**',
       '**/bower_components/**',
     ],
     includeRoot: true,
-    patterns: opts.patterns,
+    patterns: opts?.patterns,
   })
   pkgs.sort((pkg1: { dir: string }, pkg2: { dir: string }) => lexCompare(pkg1.dir, pkg2.dir))
   return pkgs
