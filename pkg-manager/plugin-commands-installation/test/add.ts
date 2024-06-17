@@ -5,7 +5,6 @@ import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import loadJsonFile from 'load-json-file'
 import tempy from 'tempy'
-import writeYamlFile from 'write-yaml-file'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const tmp = tempy.directory()
@@ -53,16 +52,13 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     },
   ])
 
-  const workspaceManifest = { packages: ['project-1', 'project-2'] }
-  await writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
-
   await add.handler({
     ...DEFAULT_OPTIONS,
     dir: path.resolve('project-1'),
     linkWorkspacePackages: false,
     saveWorkspaceProtocol: false,
     workspaceDir: process.cwd(),
-    workspaceManifest: { dir: process.cwd(), contents: workspaceManifest },
+    workspacePackagePatterns: ['project-1', 'project-2'],
   }, ['project-2@workspace:*'])
 
   const pkg = await import(path.resolve('project-1/package.json'))
@@ -84,16 +80,13 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     },
   ])
 
-  const workspaceManifest = { packages: ['project-1', 'project-2'] }
-  await writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
-
   await add.handler({
     ...DEFAULT_OPTIONS,
     dir: path.resolve('project-1'),
     linkWorkspacePackages: false,
     saveWorkspaceProtocol: 'rolling',
     workspaceDir: process.cwd(),
-    workspaceManifest: { dir: process.cwd(), contents: workspaceManifest },
+    workspacePackagePatterns: ['project-1', 'project-2'],
   }, ['project-2@workspace:*'])
 
   const pkg = await import(path.resolve('project-1/package.json'))
@@ -115,9 +108,6 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     },
   ])
 
-  const workspaceManifest = { packages: ['project-1', 'project-2'] }
-  await writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
-
   await add.handler({
     ...DEFAULT_OPTIONS,
     dir: path.resolve('project-1'),
@@ -125,7 +115,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     saveWorkspaceProtocol: false,
     workspace: true,
     workspaceDir: process.cwd(),
-    workspaceManifest: { dir: process.cwd(), contents: workspaceManifest },
+    workspacePackagePatterns: ['project-1', 'project-2'],
   }, ['project-2'])
 
   const pkg = await import(path.resolve('project-1/package.json'))
@@ -207,8 +197,6 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
       version: '2.0.0',
     },
   ])
-  const workspaceManifest = { packages: ['project-1', 'project-2'] }
-  await writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
 
   await add.handler({
     ...DEFAULT_OPTIONS,
@@ -217,7 +205,7 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
     saveWorkspaceProtocol: false,
     workspace: true,
     workspaceDir: process.cwd(),
-    workspaceManifest: { dir: process.cwd(), contents: workspaceManifest },
+    workspacePackagePatterns: ['project-1', 'project-2'],
   }, ['project-2'])
 
   const pkg = await import(path.resolve('project-1/package.json'))

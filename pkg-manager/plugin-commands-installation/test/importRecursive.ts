@@ -6,7 +6,6 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { fixtures } from '@pnpm/test-fixtures'
 import tempy from 'tempy'
-import { readWorkspaceManifest } from '../../../workspace/read-manifest/src'
 
 const f = fixtures(__dirname)
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -45,20 +44,16 @@ const DEFAULT_OPTS = {
 test('import from shared yarn.lock of monorepo', async () => {
   f.prepare('workspace-has-shared-yarn-lock')
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  const workspaceManifest = await readWorkspaceManifest(process.cwd())
-  if (workspaceManifest == null) {
-    throw new Error(`Error in test setup. Fixture does not have pnpm-workspace.yaml: ${process.cwd()}`)
-  }
   await importCommand.handler({
     ...DEFAULT_OPTS,
     allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-    workspaceManifest: { dir: process.cwd(), contents: workspaceManifest },
     lockfileDir: process.cwd(),
     dir: process.cwd(),
     resolutionMode: 'highest', // TODO: this should work with the default resolution mode (TODOv8)
+    workspacePackagePatterns: ['.', '**'],
   }, [])
 
   const project = assertProject(process.cwd())
@@ -74,20 +69,16 @@ test('import from shared yarn.lock of monorepo', async () => {
 test('import from shared package-lock.json of monorepo', async () => {
   f.prepare('workspace-has-shared-package-lock-json')
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  const workspaceManifest = await readWorkspaceManifest(process.cwd())
-  if (workspaceManifest == null) {
-    throw new Error(`Error in test setup. Fixture does not have pnpm-workspace.yaml: ${process.cwd()}`)
-  }
   await importCommand.handler({
     ...DEFAULT_OPTS,
     allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-    workspaceManifest: { dir: process.cwd(), contents: workspaceManifest },
     lockfileDir: process.cwd(),
     dir: process.cwd(),
     resolutionMode: 'highest', // TODO: this should work with the default resolution mode (TODOv8)
+    workspacePackagePatterns: ['.', '**'],
   }, [])
 
   const project = assertProject(process.cwd())
@@ -103,20 +94,16 @@ test('import from shared package-lock.json of monorepo', async () => {
 test('import from shared npm-shrinkwrap.json of monorepo', async () => {
   f.prepare('workspace-has-shared-npm-shrinkwrap-json')
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  const workspaceManifest = await readWorkspaceManifest(process.cwd())
-  if (workspaceManifest == null) {
-    throw new Error(`Error in test setup. Fixture does not have pnpm-workspace.yaml: ${process.cwd()}`)
-  }
   await importCommand.handler({
     ...DEFAULT_OPTS,
     allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-    workspaceManifest: { dir: process.cwd(), contents: workspaceManifest },
     lockfileDir: process.cwd(),
     dir: process.cwd(),
     resolutionMode: 'highest', // TODO: this should work with the default resolution mode (TODOv8)
+    workspacePackagePatterns: ['.', '**'],
   }, [])
 
   const project = assertProject(process.cwd())
