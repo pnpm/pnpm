@@ -5,7 +5,6 @@ import readYamlFile from 'read-yaml-file'
 import {
   assertValidWorkspaceManifestCatalog,
   assertValidWorkspaceManifestCatalogs,
-  checkDefaultCatalogIsDefinedOnce,
   type WorkspaceCatalog,
   type WorkspaceNamedCatalogs,
 } from './catalogs'
@@ -70,7 +69,6 @@ function validateWorkspaceManifest (manifest: unknown): asserts manifest is Work
   assertValidWorkspaceManifestPackages(manifest)
   assertValidWorkspaceManifestCatalog(manifest)
   assertValidWorkspaceManifestCatalogs(manifest)
-  checkDefaultCatalogIsDefinedOnce(manifest)
 
   checkWorkspaceManifestAssignability(manifest)
 }
