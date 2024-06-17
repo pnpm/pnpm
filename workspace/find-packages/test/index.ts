@@ -4,6 +4,7 @@ import {
   arrayOfWorkspacePackagesToMap,
   findWorkspacePackages,
 } from '@pnpm/workspace.find-packages'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { logger } from '@pnpm/logger'
 
 beforeEach(() => {
@@ -30,7 +31,16 @@ test('arrayOfWorkspacePackagesToMap() treats private packages with no version as
 })
 
 test('findWorkspacePackagesNoCheck() skips engine checks', async () => {
-  const pkgs = await findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-engine'))
+  const fixturePath = path.join(__dirname, '__fixtures__/bad-engine')
+
+  const workspaceManifest = await readWorkspaceManifest(fixturePath)
+  if (workspaceManifest?.packages == null) {
+    throw new Error(`Unexpected test setup failure. No pnpm-workspace.yaml packages were defined at ${fixturePath}`)
+  }
+
+  const pkgs = await findWorkspacePackagesNoCheck(fixturePath, {
+    patterns: workspaceManifest.packages,
+  })
   expect(pkgs.length).toBe(1)
   expect(pkgs[0].manifest.name).toBe('pkg')
 })
@@ -38,7 +48,13 @@ test('findWorkspacePackagesNoCheck() skips engine checks', async () => {
 test('findWorkspacePackages() output warnings for non-root workspace project', async () => {
   const fixturePath = path.join(__dirname, '__fixtures__/warning-for-non-root-project')
 
+  const workspaceManifest = await readWorkspaceManifest(fixturePath)
+  if (workspaceManifest?.packages == null) {
+    throw new Error(`Unexpected test setup failure. No pnpm-workspace.yaml packages were defined at ${fixturePath}`)
+  }
+
   const pkgs = await findWorkspacePackages(fixturePath, {
+    patterns: workspaceManifest.packages,
     sharedWorkspaceLockfile: true,
   })
   expect(pkgs.length).toBe(3)
