@@ -6524,6 +6524,9 @@ importers:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../read-manifest
 
   workspace/find-workspace-dir:
     dependencies:
