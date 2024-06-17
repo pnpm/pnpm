@@ -2,7 +2,6 @@ import { createMatcher } from '@pnpm/matcher'
 import { type SupportedArchitectures } from '@pnpm/types'
 import { findWorkspacePackages, type Project } from '@pnpm/workspace.find-packages'
 import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.pkgs-graph'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
 import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'
@@ -35,38 +34,6 @@ export interface ReadProjectsResult {
   allProjects: Project[]
   allProjectsGraph: PackageGraph<Project>
   selectedProjectsGraph: PackageGraph<Project>
-}
-
-export async function readProjects (
-  workspaceDir: string,
-  pkgSelectors: PackageSelector[],
-  opts?: {
-    engineStrict?: boolean
-    linkWorkspacePackages?: boolean
-    changedFilesIgnorePattern?: string[]
-    supportedArchitectures?: SupportedArchitectures
-  }
-): Promise<ReadProjectsResult> {
-  const workspaceManifest = await readWorkspaceManifest(workspaceDir)
-  const allProjects = await findWorkspacePackages(workspaceDir, {
-    patterns: workspaceManifest?.packages,
-    engineStrict: opts?.engineStrict,
-    supportedArchitectures: opts?.supportedArchitectures ?? {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
-  })
-  const { allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjects(
-    allProjects,
-    pkgSelectors,
-    {
-      linkWorkspacePackages: opts?.linkWorkspacePackages,
-      workspaceDir,
-      changedFilesIgnorePattern: opts?.changedFilesIgnorePattern,
-    }
-  )
-  return { allProjects, allProjectsGraph, selectedProjectsGraph }
 }
 
 export interface FilterPackagesOptions {

@@ -1,0 +1,43 @@
+{
+  "name": "@pnpm/workspace.filter-packages-from-dir",
+  "version": "0.0.0",
+  "description": "Filters packages in a directory",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=18.12"
+  },
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/filter-packages-from-dir",
+  "keywords": [
+    "pnpm9",
+    "pnpm"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/filter-packages-from-dir#readme",
+  "dependencies": {
+    "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/workspace.find-packages": "workspace:*",
+    "@pnpm/workspace.read-manifest": "workspace:*"
+  },
+  "devDependencies": {
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

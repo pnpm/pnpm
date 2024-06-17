@@ -19,10 +19,16 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../filter-workspace-packages"
+    },
+    {
       "path": "../find-packages"
     },
     {
       "path": "../pkgs-graph"
+    },
+    {
+      "path": "../read-manifest"
     }
   ]
 }

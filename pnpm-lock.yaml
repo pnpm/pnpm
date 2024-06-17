@@ -6420,6 +6420,25 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  workspace/filter-packages-from-dir:
+    dependencies:
+      '@pnpm/filter-workspace-packages':
+        specifier: workspace:*
+        version: link:../filter-workspace-packages
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../find-packages
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../read-manifest
+    devDependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: 'link:'
+
   workspace/filter-workspace-packages:
     dependencies:
       '@pnpm/error':
@@ -6434,9 +6453,6 @@ importers:
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../pkgs-graph
-      '@pnpm/workspace.read-manifest':
-        specifier: workspace:*
-        version: link:../read-manifest
       execa:
         specifier: npm:safe-execa@0.1.2
         version: safe-execa@0.1.2

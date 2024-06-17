@@ -33,7 +33,6 @@
     "@pnpm/matcher": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.pkgs-graph": "workspace:*",
-    "@pnpm/workspace.read-manifest": "workspace:*",
     "execa": "npm:safe-execa@0.1.2",
     "find-up": "^5.0.0",
     "is-subdir": "^1.2.0",
