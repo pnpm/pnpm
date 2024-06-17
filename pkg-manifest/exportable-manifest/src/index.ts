@@ -50,13 +50,15 @@ export async function createExportableManifest (
   return publishManifest
 }
 
+export interface MakePublishDependenciesOpts {
+  readonly modulesDir?: string
+  readonly convertDependencyForPublish?: (depName: string, depSpec: string, dir: string, modulesDir?: string) => Promise<string>
+}
+
 async function makePublishDependencies (
   dir: string,
   dependencies: Dependencies | undefined,
-  { modulesDir, convertDependencyForPublish = makePublishDependency }: {
-    modulesDir?: string
-    convertDependencyForPublish?: (depName: string, depSpec: string, dir: string, modulesDir?: string) => Promise<string>
-  } = {}
+  { modulesDir, convertDependencyForPublish = makePublishDependency }: MakePublishDependenciesOpts
 ): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
   const publishDependencies = await pMapValues(
