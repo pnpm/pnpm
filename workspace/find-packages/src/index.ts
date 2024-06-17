@@ -1,6 +1,5 @@
 import { packageIsInstallable } from '@pnpm/cli-utils'
 import { type ProjectManifest, type Project, type SupportedArchitectures } from '@pnpm/types'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
 import { logger } from '@pnpm/logger'
@@ -60,18 +59,6 @@ export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?
   })
   pkgs.sort((pkg1: { dir: string }, pkg2: { dir: string }) => lexCompare(pkg1.dir, pkg2.dir))
   return pkgs
-}
-
-export async function findWorkspacePackagesUsingManifest (
-  workspaceRoot: string,
-  opts?: Omit<FindWorkspacePackagesOpts, 'workspacePackagePatterns'>
-): Promise<Project[]> {
-  const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
-  if (workspaceManifest == null) {
-    return []
-  }
-
-  return findWorkspacePackages(workspaceRoot, { ...opts, patterns: workspaceManifest.packages })
 }
 
 type ArrayOfWorkspacePackagesToMapResult = Record<string, Record<string, Pick<Project, 'manifest'>>>

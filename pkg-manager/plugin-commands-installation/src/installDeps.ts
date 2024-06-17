@@ -150,7 +150,7 @@ when running add/update with the --workspace option')
   const forcePublicHoistPattern = typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined' ||
     typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined'
   const allProjects = opts.allProjects ?? (
-    (opts.workspaceDir)
+    opts.workspaceDir
       ? await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
       : []
   )

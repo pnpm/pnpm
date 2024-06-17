@@ -1397,9 +1397,9 @@ test('root package is included when not specified', async () => {
       { tempDir: `${tempDir}/project` }
     )
   )
-  const workspaceManifest = { packages: ['project-', '!store/**'] }
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
-  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false, patterns: workspaceManifest.packages })
+  const workspacePackagePatterns = ['project-', '!store/**']
+  writeYamlFile('pnpm-workspace.yaml', { packages: workspacePackagePatterns })
+  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
 
   expect(workspacePackages.some(project => {
     const relativePath = path.join('.', path.relative(tempDir, project.dir))
@@ -1435,9 +1435,9 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
       { tempDir: `${tempDir}/project` }
     )
   )
-  const workspaceManifest = { packages: ['project-', '!.', '!./', '!store/**'] }
-  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
-  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false, patterns: workspaceManifest.packages })
+  const workspacePackagePatterns = ['project-', '!.', '!./', '!store/**']
+  writeYamlFile('pnpm-workspace.yaml', { packages: workspacePackagePatterns })
+  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false, patterns: workspacePackagePatterns })
 
   expect(workspacePackages.some(project => {
     const relativePath = path.join('.', path.relative(tempDir, project.dir))

@@ -6501,9 +6501,6 @@ importers:
       '@pnpm/util.lex-comparator':
         specifier: 3.0.0
         version: 3.0.0
-      '@pnpm/workspace.read-manifest':
-        specifier: workspace:*
-        version: link:../read-manifest
     devDependencies:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
