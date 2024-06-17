@@ -5698,6 +5698,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.31.0
         version: 3.31.0(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: link:../../workspace/filter-packages-from-dir
       '@types/ramda':
         specifier: 0.29.12
         version: 0.29.12
