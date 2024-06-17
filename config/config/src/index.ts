@@ -1,5 +1,6 @@
 import path from 'path'
 import fs from 'fs'
+import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
@@ -584,12 +585,10 @@ export async function getConfig (
   }
 
   if (pnpmConfig.workspaceDir != null) {
-    if (cliOptions['workspace-packages']) {
-      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[]
-    } else {
-      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
-      pnpmConfig.workspacePackagePatterns = workspaceManifest?.packages
-    }
+    const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+
+    pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages
+    pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
   }
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig

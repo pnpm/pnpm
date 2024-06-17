@@ -642,6 +642,12 @@ importers:
 
   config/config:
     dependencies:
+      '@pnpm/catalogs.config':
+        specifier: workspace:*
+        version: link:../../catalogs/config
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/config.env-replace':
         specifier: 3.0.0
         version: 3.0.0
