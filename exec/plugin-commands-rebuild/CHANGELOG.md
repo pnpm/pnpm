@@ -1,5 +1,41 @@
 # @pnpm/plugin-commands-rebuild
 
+## 11.3.0
+
+### Minor Changes
+
+- 7c6c923: Some registries allow the exact same content to be published under different package names and/or versions. This breaks the validity checks of packages in the store. To avoid errors when verifying the names and versions of such packages in the store, you may now set the `strict-store-pkg-content-check` setting to `false` [#4724](https://github.com/pnpm/pnpm/issues/4724).
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies
+- Updated dependencies [04b8363]
+  - @pnpm/store-connection-manager@8.3.0
+  - @pnpm/config@21.5.0
+  - @pnpm/get-context@11.2.1
+  - @pnpm/types@10.1.1
+  - @pnpm/workspace.find-packages@3.0.0
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/normalize-registries@6.0.2
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/lockfile-walker@9.0.2
+  - @pnpm/calc-dep-state@7.0.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/link-bins@10.0.4
+  - @pnpm/modules-yaml@13.1.2
+  - @pnpm/store.cafs@3.0.3
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/worker@1.0.4
+  - @pnpm/sort-packages@6.0.3
+
 ## 11.2.0
 
 ### Minor Changes

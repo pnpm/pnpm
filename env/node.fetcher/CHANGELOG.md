@@ -1,5 +1,14 @@
 # @pnpm/node.fetcher
 
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.2
+- @pnpm/tarball-fetcher@19.0.6
+- @pnpm/create-cafs-store@7.0.3
+- @pnpm/pick-fetcher@3.0.0
+
 ## 4.0.5
 
 ### Patch Changes

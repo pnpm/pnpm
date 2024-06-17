@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-script-runners
 
+## 9.1.11
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/plugin-commands-installation@15.1.11
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/package-bins@9.0.2
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/sort-packages@6.0.3
+  - @pnpm/crypto.base32-hash@3.0.0
+
 ## 9.1.10
 
 ### Patch Changes

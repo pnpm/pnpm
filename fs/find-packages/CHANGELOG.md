@@ -1,5 +1,14 @@
 # @pnpm/fs.find-packages
 
+## 3.0.3
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/read-project-manifest@6.0.3
+
 ## 3.0.2
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/find-workspace-packages
 
+## 3.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/fs.find-packages@3.0.3
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+
 ## 2.1.1
 
 ### Patch Changes

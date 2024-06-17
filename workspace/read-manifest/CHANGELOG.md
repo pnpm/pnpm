@@ -1,5 +1,11 @@
 # @pnpm/workspace.read-manifest
 
+## 2.1.0
+
+### Minor Changes
+
+- 5d1ed94: The type definition for the `packages` field of the `WorkspaceManifest` is now non-null. The `readWorkspaceManifest` function expects this field to be present and throws an error otherwise.
+
 ## 2.0.1
 
 ### Patch Changes

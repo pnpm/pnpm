@@ -1,5 +1,36 @@
 # @pnpm/plugin-commands-installation
 
+## 15.1.11
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- 04b8363: The `getConfig` function from `@pnpm/config` now reads the `pnpm-workspace.yaml` file and stores `workspacePackagePatterns` in the `Config` object. An internal refactor was made in pnpm to reuse this value instead of re-reading `pnpm-workspace.yaml` multiple times.
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies
+- Updated dependencies [04b8363]
+  - @pnpm/store-connection-manager@8.3.0
+  - @pnpm/plugin-commands-rebuild@11.3.0
+  - @pnpm/package-store@20.3.0
+  - @pnpm/config@21.5.0
+  - @pnpm/core@14.2.1
+  - @pnpm/types@10.1.1
+  - @pnpm/filter-workspace-packages@9.0.0
+  - @pnpm/workspace.find-packages@3.0.0
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/dedupe.check@2.0.4
+  - @pnpm/pnpmfile@6.0.5
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/manifest-utils@6.0.3
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/outdated@14.0.12
+  - @pnpm/workspace.pkgs-graph@3.0.6
+  - @pnpm/sort-packages@6.0.3
+
 ## 15.1.10
 
 ### Patch Changes

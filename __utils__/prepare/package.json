@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prepare",
-  "version": "0.0.94",
+  "version": "0.0.95",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "dependencies": {

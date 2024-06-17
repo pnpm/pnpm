@@ -1,5 +1,23 @@
 # @pnpm/config
 
+## 21.5.0
+
+### Minor Changes
+
+- 7c6c923: Some registries allow the exact same content to be published under different package names and/or versions. This breaks the validity checks of packages in the store. To avoid errors when verifying the names and versions of such packages in the store, you may now set the `strict-store-pkg-content-check` setting to `false` [#4724](https://github.com/pnpm/pnpm/issues/4724).
+- 04b8363: The `getConfig` function from `@pnpm/config` now reads the `pnpm-workspace.yaml` file and stores `workspacePackagePatterns` in the `Config` object. An internal refactor was made in pnpm to reuse this value instead of re-reading `pnpm-workspace.yaml` multiple times.
+
+### Patch Changes
+
+- 7d10394: Fix parsing of config variables in Turkish locale. Example: recursive-install parameter has problems on parsing.
+- d8eab39: Fix `package-manager-strict-version` missing in config [#8195](https://github.com/pnpm/pnpm/issues/8195).
+- Updated dependencies [13e55b2]
+- Updated dependencies [5d1ed94]
+  - @pnpm/types@10.1.1
+  - @pnpm/workspace.read-manifest@2.1.0
+  - @pnpm/pnpmfile@6.0.5
+  - @pnpm/read-project-manifest@6.0.3
+
 ## 21.4.0
 
 ### Minor Changes

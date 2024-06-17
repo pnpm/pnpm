@@ -1,5 +1,26 @@
 # @pnpm/package-requester
 
+## 25.2.0
+
+### Minor Changes
+
+- 7c6c923: Some registries allow the exact same content to be published under different package names and/or versions. This breaks the validity checks of packages in the store. To avoid errors when verifying the names and versions of such packages in the store, you may now set the `strict-store-pkg-content-check` setting to `false` [#4724](https://github.com/pnpm/pnpm/issues/4724).
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/package-is-installable@9.0.3
+  - @pnpm/fetcher-base@16.0.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/store.cafs@3.0.3
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/worker@1.0.4
+  - @pnpm/pick-fetcher@3.0.0
+
 ## 25.1.4
 
 ### Patch Changes
