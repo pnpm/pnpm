@@ -79,7 +79,7 @@ export async function filterPackagesFromDir (
   opts: FilterPackagesOptions & {
     engineStrict?: boolean
     nodeVersion?: string
-    patterns: string[]
+    patterns?: string[]
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<FilterPackagesFromDirResult> {

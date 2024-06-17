@@ -584,8 +584,12 @@ export async function getConfig (
   }
 
   if (pnpmConfig.workspaceDir != null) {
-    const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
-    pnpmConfig.workspacePackagePatterns = workspaceManifest?.packages
+    if (cliOptions['workspace-packages']) {
+      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[]
+    } else {
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+      pnpmConfig.workspacePackagePatterns = workspaceManifest?.packages
+    }
   }
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
