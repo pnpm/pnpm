@@ -31,6 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/plugin-commands-script-runners#readme",
   "devDependencies": {
+    "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.31.0",
