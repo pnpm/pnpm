@@ -38,7 +38,10 @@ export async function createExportableManifest (
 
   const peerDependencies = originalManifest.peerDependencies
   if (peerDependencies) {
-    publishManifest.peerDependencies = await makePublishDependencies(dir, peerDependencies, { modulesDir: opts?.modulesDir, convertDependencyForPublish: makePublishPeerDependency })
+    publishManifest.peerDependencies = await makePublishDependencies(dir, peerDependencies, {
+      modulesDir: opts?.modulesDir,
+      convertDependencyForPublish: replaceWorkspaceProtocolPeerDependency,
+    })
   }
 
   overridePublishConfig(publishManifest)
@@ -58,7 +61,7 @@ export interface MakePublishDependenciesOpts {
 async function makePublishDependencies (
   dir: string,
   dependencies: Dependencies | undefined,
-  { modulesDir, convertDependencyForPublish = makePublishDependency }: MakePublishDependenciesOpts
+  { modulesDir, convertDependencyForPublish = replaceWorkspaceProtocol }: MakePublishDependenciesOpts
 ): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
   const publishDependencies = await pMapValues(
@@ -81,7 +84,7 @@ async function resolveManifest (depName: string, modulesDir: string): Promise<Pr
   return manifest
 }
 
-async function makePublishDependency (depName: string, depSpec: string, dir: string, modulesDir?: string): Promise<string> {
+async function replaceWorkspaceProtocol (depName: string, depSpec: string, dir: string, modulesDir?: string): Promise<string> {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
@@ -111,7 +114,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   return depSpec
 }
 
-async function makePublishPeerDependency (depName: string, depSpec: string, dir: string, modulesDir?: string) {
+async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec: string, dir: string, modulesDir?: string) {
   if (!depSpec.includes('workspace:')) {
     return depSpec
   }
