@@ -1,28 +1,39 @@
 import { packageIsInstallable } from '@pnpm/cli-utils'
 import { type ProjectManifest, type Project, type SupportedArchitectures } from '@pnpm/types'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
 import { logger } from '@pnpm/logger'
 
 export type { Project }
 
+export type WorkspacePackagesPatterns = 'all-packages' | string[]
+
+export interface FindWorkspacePackagesOpts {
+  /**
+   * An array of globs for the packages included in the workspace.
+   *
+   * In most cases, callers should read the pnpm-workspace.yml and pass the
+   * "packages" field.
+   */
+  patterns?: string[]
+
+  engineStrict?: boolean
+  packageManagerStrict?: boolean
+  packageManagerStrictVersion?: boolean
+  nodeVersion?: string
+  sharedWorkspaceLockfile?: boolean
+  supportedArchitectures?: SupportedArchitectures
+}
+
 export async function findWorkspacePackages (
   workspaceRoot: string,
-  opts?: {
-    engineStrict?: boolean
-    packageManagerStrict?: boolean
-    packageManagerStrictVersion?: boolean
-    nodeVersion?: string
-    patterns?: string[]
-    sharedWorkspaceLockfile?: boolean
-    supportedArchitectures?: SupportedArchitectures
-  }
+  opts?: FindWorkspacePackagesOpts
 ): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
   for (const pkg of pkgs) {
-    packageIsInstallable(pkg.dir, pkg.manifest, opts ?? {
-      supportedArchitectures: {
+    packageIsInstallable(pkg.dir, pkg.manifest, {
+      ...opts,
+      supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
         cpu: ['current'],
         libc: ['current'],
@@ -38,18 +49,13 @@ export async function findWorkspacePackages (
 }
 
 export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
-  let patterns = opts?.patterns
-  if (patterns == null) {
-    const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
-    patterns = workspaceManifest?.packages
-  }
   const pkgs = await findPackages(workspaceRoot, {
     ignore: [
       '**/node_modules/**',
       '**/bower_components/**',
     ],
     includeRoot: true,
-    patterns,
+    patterns: opts?.patterns,
   })
   pkgs.sort((pkg1: { dir: string }, pkg2: { dir: string }) => lexCompare(pkg1.dir, pkg2.dir))
   return pkgs

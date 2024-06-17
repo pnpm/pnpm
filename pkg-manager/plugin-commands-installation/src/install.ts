@@ -295,6 +295,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'virtualStoreDir'
 | 'workspaceConcurrency'
 | 'workspaceDir'
+| 'workspacePackagePatterns'
 | 'extraEnv'
 | 'resolutionMode'
 | 'ignoreWorkspaceCycles'

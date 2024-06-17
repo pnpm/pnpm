@@ -34,6 +34,9 @@
       "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
+      "path": "../../workspace/filter-packages-from-dir"
+    },
+    {
       "path": "../../workspace/filter-workspace-packages"
     },
     {

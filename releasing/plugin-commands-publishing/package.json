@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.31.0",

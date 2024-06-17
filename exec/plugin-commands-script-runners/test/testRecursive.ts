@@ -1,5 +1,6 @@
 import path from 'path'
-import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { test as testCommand } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
@@ -51,7 +52,7 @@ test('pnpm recursive test', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa('node', [
     pnpmBin,
     'install',
@@ -104,7 +105,7 @@ test('`pnpm recursive test` does not fail if none of the packages has a test com
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa('node', [
     pnpmBin,
     'install',
@@ -150,7 +151,7 @@ test('pnpm recursive test with filtering', async () => {
     },
   ])
 
-  const { allProjects } = await readProjects(process.cwd(), [])
+  const { allProjects } = await filterPackagesFromDir(process.cwd(), [])
   const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
     allProjects,
     [{ namePattern: 'project-1' }],

@@ -35,7 +35,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-deploy#readme",
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/prepare": "workspace:*",

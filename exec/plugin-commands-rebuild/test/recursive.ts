@@ -1,6 +1,6 @@
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
@@ -31,7 +31,7 @@ test('pnpm recursive rebuild', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa('node', [
     pnpmBin,
     'install',
@@ -101,7 +101,7 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
   await execa('node', [
     pnpmBin,
@@ -193,7 +193,7 @@ test('rebuild multiple packages in correct order', async () => {
   preparePackages(pkgs)
   writeYamlFile('pnpm-workspace.yaml', { packages: pkgs.map(pkg => pkg.name) })
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa('node', [
     pnpmBin,
     'install',
@@ -240,7 +240,7 @@ test('never build neverBuiltDependencies', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(
     process.cwd(),
     []
   )
@@ -334,7 +334,7 @@ test('only build onlyBuiltDependencies', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(
     process.cwd(),
     []
   )

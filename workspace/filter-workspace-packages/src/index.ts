@@ -36,29 +36,6 @@ export interface ReadProjectsResult {
   selectedProjectsGraph: PackageGraph<Project>
 }
 
-export async function readProjects (
-  workspaceDir: string,
-  pkgSelectors: PackageSelector[],
-  opts?: {
-    engineStrict?: boolean
-    linkWorkspacePackages?: boolean
-    changedFilesIgnorePattern?: string[]
-    supportedArchitectures?: SupportedArchitectures
-  }
-): Promise<ReadProjectsResult> {
-  const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict, supportedArchitectures: opts?.supportedArchitectures ?? { os: ['current'], cpu: ['current'], libc: ['current'] } })
-  const { allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjects(
-    allProjects,
-    pkgSelectors,
-    {
-      linkWorkspacePackages: opts?.linkWorkspacePackages,
-      workspaceDir,
-      changedFilesIgnorePattern: opts?.changedFilesIgnorePattern,
-    }
-  )
-  return { allProjects, allProjectsGraph, selectedProjectsGraph }
-}
-
 export interface FilterPackagesOptions {
   linkWorkspacePackages?: boolean
   prefix: string

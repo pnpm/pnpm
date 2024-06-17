@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-outdated#readme",
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
-    "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-outdated": "workspace:*",
     "@pnpm/prepare": "workspace:*",
