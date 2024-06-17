@@ -31,11 +31,11 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/plugin-commands-patching#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-patching": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.31.0",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.29.12",
     "@types/semver": "7.5.3",

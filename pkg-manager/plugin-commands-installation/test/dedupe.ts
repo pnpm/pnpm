@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { DedupeCheckIssuesError } from '@pnpm/dedupe.check'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { dedupe, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
@@ -144,7 +144,7 @@ async function testFixture (fixtureName: string) {
   const project = prepare(undefined)
   f.copy(fixtureName, project.dir())
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(project.dir(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(project.dir(), [])
 
   const opts = {
     ...DEFAULT_OPTS,

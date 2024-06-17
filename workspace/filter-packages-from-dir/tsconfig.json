@@ -10,12 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../config/matcher"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
       "path": "../../packages/types"
     },
     {
@@ -23,9 +17,6 @@
     },
     {
       "path": "../find-packages"
-    },
-    {
-      "path": "../pkgs-graph"
     },
     {
       "path": "../read-manifest"

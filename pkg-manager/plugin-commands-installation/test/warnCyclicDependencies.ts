@@ -1,5 +1,5 @@
 import { install } from '@pnpm/plugin-commands-installation'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { preparePackages } from '@pnpm/prepare'
 import { logger } from '@pnpm/logger'
 import { DEFAULT_OPTS } from './utils'
@@ -26,7 +26,7 @@ test('should warn about cyclic dependencies', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -57,7 +57,7 @@ test('should not warn about cyclic dependencies if ignore-workspace-cycles is se
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -84,7 +84,7 @@ test('should not warn about cyclic dependencies if there are not', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,

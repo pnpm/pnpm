@@ -1,5 +1,5 @@
 import path from 'path'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { add, install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
@@ -223,7 +223,7 @@ test('interactive update of dev dependencies only', async () => {
     ],
   })
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(
     process.cwd(),
     []
   )

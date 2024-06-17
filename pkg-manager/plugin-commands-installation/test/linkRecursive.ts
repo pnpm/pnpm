@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { install, unlink } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { DEFAULT_OPTS } from './utils'
@@ -26,7 +26,7 @@ test('recursive linking/unlinking', async () => {
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -91,7 +91,7 @@ test('recursive unlink specific package', async () => {
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,

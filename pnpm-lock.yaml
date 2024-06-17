@@ -1333,9 +1333,6 @@ importers:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
-      '@pnpm/filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
       '@pnpm/plugin-commands-rebuild':
         specifier: workspace:*
         version: 'link:'
@@ -1351,6 +1348,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: link:../../workspace/filter-packages-from-dir
       '@types/ramda':
         specifier: 0.29.12
         version: 0.29.12
@@ -1463,9 +1463,6 @@ importers:
         specifier: ^4.3.0
         version: 4.3.0
     devDependencies:
-      '@pnpm/filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
       '@pnpm/plugin-commands-script-runners':
         specifier: workspace:*
         version: 'link:'
@@ -1478,6 +1475,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: link:../../workspace/filter-packages-from-dir
       '@types/is-windows':
         specifier: ^1.0.2
         version: 1.0.2
@@ -2999,9 +2999,6 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
     devDependencies:
-      '@pnpm/filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
       '@pnpm/plugin-commands-patching':
         specifier: workspace:*
         version: 'link:'
@@ -3014,6 +3011,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: link:../../workspace/filter-packages-from-dir
       '@types/normalize-path':
         specifier: ^3.0.2
         version: 3.0.2
@@ -4124,6 +4124,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: link:../../workspace/filter-packages-from-dir
       '@types/proxyquire':
         specifier: ^1.3.31
         version: 1.3.31
@@ -4938,9 +4941,6 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
-      '@pnpm/filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types
@@ -4953,6 +4953,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.31.0
         version: 3.31.0(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: link:../../workspace/filter-packages-from-dir
 
   releasing/plugin-commands-publishing:
     dependencies:
@@ -5041,9 +5044,6 @@ importers:
         specifier: ^4.3.0
         version: 4.3.0
     devDependencies:
-      '@pnpm/filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
         version: 'link:'
@@ -5056,6 +5056,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: link:../../workspace/filter-packages-from-dir
       '@types/cross-spawn':
         specifier: ^6.0.6
         version: 6.0.6
@@ -5610,9 +5613,6 @@ importers:
         specifier: ^7.6.2
         version: 7.6.2
     devDependencies:
-      '@pnpm/filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
@@ -5631,6 +5631,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: link:../../workspace/filter-packages-from-dir
       '@types/ramda':
         specifier: 0.29.12
         version: 0.29.12
@@ -5768,9 +5771,6 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
@@ -5786,6 +5786,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: link:../../workspace/filter-packages-from-dir
       '@types/ramda':
         specifier: 0.29.12
         version: 0.29.12

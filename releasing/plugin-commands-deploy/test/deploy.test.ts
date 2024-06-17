@@ -4,7 +4,7 @@ import { deploy } from '@pnpm/plugin-commands-deploy'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
 import { logger } from '@pnpm/logger'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { DEFAULT_OPTS } from './utils'
 
 test('deploy', async () => {
@@ -47,7 +47,7 @@ test('deploy', async () => {
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   })
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -92,7 +92,7 @@ test('deploy fails when the destination directory exists and is not empty', asyn
   fs.writeFileSync(deployPath, 'aaa', 'utf8')
   const deployFullPath = path.resolve(deployPath)
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project' }])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project' }])
 
   await expect(() =>
     deploy.handler({
@@ -134,7 +134,7 @@ test('forced deploy succeeds with a warning when destination directory exists an
   fs.writeFileSync(deployPath, 'aaa', 'utf8')
   const deployFullPath = path.resolve(deployPath)
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project' }])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -193,7 +193,7 @@ test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDepen
     },
   ])
 
-  const { allProjects, selectedProjectsGraph, allProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph, allProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,

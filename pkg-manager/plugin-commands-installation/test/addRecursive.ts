@@ -1,5 +1,5 @@
 import path from 'path'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { add } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
@@ -19,7 +19,7 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
 
   await add.handler({
     ...DEFAULT_OPTS,
@@ -109,7 +109,7 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
 
   await add.handler({
     ...DEFAULT_OPTS,

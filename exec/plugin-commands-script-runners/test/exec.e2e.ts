@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { exec, run } from '@pnpm/plugin-commands-script-runners'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
@@ -50,7 +50,7 @@ test('pnpm recursive exec', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -90,7 +90,7 @@ test('pnpm recursive exec finds bin files of workspace projects', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -175,7 +175,7 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await exec.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -222,7 +222,7 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -293,7 +293,7 @@ test('pnpm recursive exec --no-sort', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -350,7 +350,7 @@ test('pnpm recursive exec --reverse', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -501,7 +501,7 @@ testOnPosixOnly('pnpm recursive exec works with PnP', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -566,7 +566,7 @@ test('pnpm recursive exec --resume-from should work', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -599,7 +599,7 @@ test('should throw error when the package specified by resume-from does not exis
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -634,7 +634,7 @@ test('pnpm exec in directory with path delimiter', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -689,7 +689,7 @@ test('pnpm recursive exec report summary', async () => {
       },
     },
   ])
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   let error
   try {
     await exec.handler({
@@ -747,7 +747,7 @@ test('pnpm recursive exec report summary with --bail', async () => {
       },
     },
   ])
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   let error
   try {
     await exec.handler({
@@ -780,7 +780,7 @@ test('pnpm exec command not found (implicit fallback)', async () => {
     },
   })
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   let error!: Error & { hint?: string }
   try {
     await exec.handler({
@@ -805,7 +805,7 @@ test('pnpm exec command not found (explicit call, without near name packages)', 
     },
   })
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   let error!: Error & { hint?: string }
   try {
     await exec.handler({
@@ -830,7 +830,7 @@ test('pnpm exec command not found (explicit call, with a near name package)', as
     },
   })
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
 
   await execa(pnpmBin, [
     'install',
