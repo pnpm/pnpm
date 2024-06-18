@@ -63,6 +63,9 @@ test('dlx inherits certain keys from local config', () => {
       '//example.com/global-registry/:_auth': 'MY_SECRET_GLOBAL_AUTH',
     },
     rawLocalConfig: {
+      bin: 'bar',
+      'cache-dir': '/path/to/another/cache/dir',
+      'store-dir': '/path/to/custom/store/dir',
       registry: 'https://example.com/local-registry/',
       '//example.com/local-registry/:_authToken': 'MY_SECRET_LOCAL_AUTH',
     },
