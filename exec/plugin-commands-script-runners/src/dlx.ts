@@ -102,7 +102,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'use-node-version',
-      'registry',
     ], types),
     'shell-mode': Boolean,
   }
@@ -141,7 +140,7 @@ export function help (): string {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'registry' > & add.AddCommandOptions
+} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' > & add.AddCommandOptions
 
 export async function handler (
   opts: DlxCommandOptions,
