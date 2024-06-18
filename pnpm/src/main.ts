@@ -107,7 +107,7 @@ export async function main (inputArgv: string[]): Promise<void> {
         workspaceDir,
         checkUnknownSetting: false,
       }) as typeof config
-      dlx.inheritLocalCfg(config, currentDirConfig)
+      dlx.inheritLocalConfig(config, currentDirConfig)
     } else {
       config = currentDirConfig
     }

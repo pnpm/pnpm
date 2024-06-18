@@ -51,7 +51,7 @@ function pickRawLocalConfig<RawLocalCfg extends Record<string, unknown>> (rawLoc
   return result
 }
 
-function pickLocalCfg (localCfg: Partial<Config>): Partial<Config> {
+function pickLocalConfig (localCfg: Partial<Config>): Partial<Config> {
   const result: Record<string, unknown> = {}
   for (const key in localCfg) {
     if (shouldCfgKeyInheritFromLocal(key as keyof Config)) {
@@ -63,8 +63,8 @@ function pickLocalCfg (localCfg: Partial<Config>): Partial<Config> {
 
 export type InheritConfig = Partial<Config> & Pick<Config, 'rawConfig' | 'rawLocalConfig'>
 
-export function inheritLocalCfg (targetCfg: InheritConfig, localCfg: InheritConfig): void {
-  Object.assign(targetCfg, pickLocalCfg(localCfg))
+export function inheritLocalConfig (targetCfg: InheritConfig, localCfg: InheritConfig): void {
+  Object.assign(targetCfg, pickLocalConfig(localCfg))
   Object.assign(targetCfg.rawConfig, pickRawLocalConfig(localCfg.rawConfig))
   Object.assign(targetCfg.rawLocalConfig, pickRawLocalConfig(localCfg.rawLocalConfig))
 }
