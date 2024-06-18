@@ -37,3 +37,50 @@ test('dlx should work with versioned packages', async () => {
 
   expect(execa).toHaveBeenCalledWith('touch-file-one-bin', [], expect.anything())
 })
+
+test('dlx inherits certain keys from local config', () => {
+  const config: dlx.InheritConfig = {
+    bin: 'foo',
+    cacheDir: '/path/to/cache/dir',
+    registry: 'https://npmjs.com/registry/',
+    rawConfig: {
+      'cache-dir': '/path/to/cache/dir',
+      'registry': 'https://npmjs.com/registry/',
+    },
+    rawLocalConfig: {
+      'bin': 'foo',
+      'registry': 'https://npmjs.com/registry/',
+    },
+  }
+
+  dlx.inheritLocalConfig(config, {
+    bin: 'bar',
+    cacheDir: '/path/to/another/cache/dir',
+    storeDir: '/path/to/custom/store/dir',
+    registry: 'https://example.com/local-registry/',
+    rawConfig: {
+      'registry': 'https://example.com/global-registry/',
+      '//example.com/global-registry/:_auth': 'MY_SECRET_GLOBAL_AUTH',
+    },
+    rawLocalConfig: {
+      'registry': 'https://example.com/local-registry/',
+      '//example.com/local-registry/:_authToken': 'MY_SECRET_LOCAL_AUTH',
+    },
+  })
+
+  expect(config).toStrictEqual({
+    bin: 'foo',
+    cacheDir: '/path/to/cache/dir',
+    registry: 'https://example.com/local-registry/',
+    rawConfig: {
+      'cache-dir': '/path/to/cache/dir',
+      'registry': 'https://example.com/global-registry/',
+      '//example.com/global-registry/:_auth': 'MY_SECRET_GLOBAL_AUTH',
+    },
+    rawLocalConfig: {
+      'bin': 'foo',
+      'registry': 'https://example.com/local-registry/',
+      '//example.com/local-registry/:_authToken': 'MY_SECRET_LOCAL_AUTH',
+    },
+  })
+})
