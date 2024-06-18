@@ -40,6 +40,8 @@ const INHERITED_RAW_LOCAL_CFG_KEY_SUFFIXES = [
   ':cafile',
   ':certfile',
   ':keyfile',
+  ':registry',
+  ':tokenHelper',
   ':_auth',
   ':_authToken',
 ]
