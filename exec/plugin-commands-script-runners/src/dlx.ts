@@ -41,7 +41,7 @@ function shouldCfgKeyInheritFromLocal (cfgKey: keyof Config): cfgKey is typeof I
   return (INHERITED_LOCAL_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
 }
 
-export function inheritRawLocalConfig<RawLocalCfg extends Record<string, unknown>> (rawLocalCfg: RawLocalCfg): Partial<RawLocalCfg> {
+export function pickRawLocalConfig<RawLocalCfg extends Record<string, unknown>> (rawLocalCfg: RawLocalCfg): Partial<RawLocalCfg> {
   const result: Partial<RawLocalCfg> = {}
   for (const key in rawLocalCfg) {
     if (shouldRawCfgKeyInheritFromLocal(key)) {
@@ -51,7 +51,7 @@ export function inheritRawLocalConfig<RawLocalCfg extends Record<string, unknown
   return result
 }
 
-export function inheritLocalCfg (localCfg: Config): Partial<Config> {
+export function pickLocalCfg (localCfg: Config): Partial<Config> {
   const result: Record<string, unknown> = {}
   for (const key in localCfg) {
     if (shouldCfgKeyInheritFromLocal(key as keyof Config)) {

@@ -107,9 +107,9 @@ export async function main (inputArgv: string[]): Promise<void> {
         workspaceDir,
         checkUnknownSetting: false,
       }) as typeof config
-      Object.assign(config, dlx.inheritLocalCfg(currentDirConfig))
-      Object.assign(config.rawConfig, dlx.inheritRawLocalConfig(currentDirConfig.rawConfig))
-      Object.assign(config.rawLocalConfig, dlx.inheritRawLocalConfig(currentDirConfig.rawLocalConfig))
+      Object.assign(config, dlx.pickLocalCfg(currentDirConfig))
+      Object.assign(config.rawConfig, dlx.pickRawLocalConfig(currentDirConfig.rawConfig))
+      Object.assign(config.rawLocalConfig, dlx.pickRawLocalConfig(currentDirConfig.rawLocalConfig))
     } else {
       config = currentDirConfig
     }
