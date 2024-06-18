@@ -35,11 +35,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-deploy#readme",
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.31.0"
+    "@pnpm/registry-mock": "3.32.1",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
