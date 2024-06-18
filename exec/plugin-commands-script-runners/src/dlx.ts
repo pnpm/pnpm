@@ -41,7 +41,7 @@ function shouldCfgKeyInheritFromLocal (cfgKey: keyof Config): cfgKey is typeof I
   return (INHERITED_LOCAL_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
 }
 
-export function pickRawLocalConfig<RawLocalCfg extends Record<string, unknown>> (rawLocalCfg: RawLocalCfg): Partial<RawLocalCfg> {
+function pickRawLocalConfig<RawLocalCfg extends Record<string, unknown>> (rawLocalCfg: RawLocalCfg): Partial<RawLocalCfg> {
   const result: Partial<RawLocalCfg> = {}
   for (const key in rawLocalCfg) {
     if (shouldRawCfgKeyInheritFromLocal(key)) {
@@ -51,7 +51,7 @@ export function pickRawLocalConfig<RawLocalCfg extends Record<string, unknown>> 
   return result
 }
 
-export function pickLocalCfg (localCfg: Config): Partial<Config> {
+function pickLocalCfg (localCfg: Partial<Config>): Partial<Config> {
   const result: Record<string, unknown> = {}
   for (const key in localCfg) {
     if (shouldCfgKeyInheritFromLocal(key as keyof Config)) {
@@ -59,6 +59,14 @@ export function pickLocalCfg (localCfg: Config): Partial<Config> {
     }
   }
   return result as Partial<Config>
+}
+
+export type InheritConfig = Partial<Config> & Pick<Config, 'rawConfig' | 'rawLocalConfig'>
+
+export function inheritLocalCfg (targetCfg: InheritConfig, localCfg: InheritConfig): void {
+  Object.assign(targetCfg, pickLocalCfg(localCfg))
+  Object.assign(targetCfg.rawConfig, pickRawLocalConfig(localCfg.rawConfig))
+  Object.assign(targetCfg.rawLocalConfig, pickRawLocalConfig(localCfg.rawLocalConfig))
 }
 
 export function rcOptionsTypes (): Record<string, unknown> {
