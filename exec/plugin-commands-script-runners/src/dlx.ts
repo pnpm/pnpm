@@ -26,6 +26,11 @@ const INHERITED_RAW_LOCAL_CFG_KEYS = [
   'registry',
 ] satisfies Array<keyof typeof types>
 
+const INHERITED_RAW_LOCAL_CFG_KEY_SUFFIXES = [
+  ':_auth',
+  ':_authToken',
+]
+
 const INHERITED_LOCAL_CFG_KEYS = [
   'registry',
   'registries',
@@ -33,7 +38,7 @@ const INHERITED_LOCAL_CFG_KEYS = [
 
 function shouldRawCfgKeyInheritFromLocal (rawCfgKey: string): boolean {
   if ((INHERITED_RAW_LOCAL_CFG_KEYS as string[]).includes(rawCfgKey)) return true
-  if (rawCfgKey.endsWith(':_authToken')) return true
+  if (INHERITED_RAW_LOCAL_CFG_KEY_SUFFIXES.some(suffix => rawCfgKey.endsWith(suffix))) return true
   return false
 }
 
