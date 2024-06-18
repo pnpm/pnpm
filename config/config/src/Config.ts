@@ -133,6 +133,7 @@ export interface Config {
   useRunningStoreServer?: boolean
   workspaceConcurrency: number
   workspaceDir?: string
+  workspacePackagePatterns?: string[]
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
@@ -195,6 +196,7 @@ export interface Config {
   packageManagerStrictVersion?: boolean
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength?: number
+  strictStorePkgContentCheck: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

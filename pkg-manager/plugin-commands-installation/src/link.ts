@@ -43,6 +43,7 @@ type LinkOpts = CreateStoreControllerOptions & Pick<Config,
 | 'saveOptional'
 | 'saveProd'
 | 'workspaceDir'
+| 'workspacePackagePatterns'
 | 'sharedWorkspaceLockfile'
 > & Partial<Pick<Config, 'linkWorkspacePackages'>>
 
@@ -124,7 +125,10 @@ export async function handler (
   let workspacePackagesArr
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
-    workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
+    workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
+      ...opts,
+      patterns: opts.workspacePackagePatterns,
+    })
     workspacePackages = arrayOfWorkspacePackagesToMap(workspacePackagesArr) as WorkspacePackages
   } else {
     workspacePackages = {}
@@ -191,7 +195,10 @@ export async function handler (
   if (pkgNames.length > 0) {
     let globalPkgNames!: string[]
     if (opts.workspaceDir) {
-      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
+      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
+        ...opts,
+        patterns: opts.workspacePackagePatterns,
+      })
 
       const pkgsFoundInWorkspace = workspacePackagesArr
         .filter(({ manifest }) => manifest.name && pkgNames.includes(manifest.name))

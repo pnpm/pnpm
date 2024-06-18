@@ -1,5 +1,19 @@
 # @pnpm/audit
 
+## 8.1.5
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile.detect-dep-types@2.0.2
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/lockfile-walker@9.0.2
+  - @pnpm/fetch@8.0.2
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/list@10.1.5
+
 ## 8.1.4
 
 ### Patch Changes

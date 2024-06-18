@@ -2,6 +2,7 @@ import { type CompletionItem } from '@pnpm/tabtab'
 import { type CompletionFunc } from '@pnpm/command'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { getOptionCompletions } from './getOptionType'
 import { optionTypesToCompletions } from './optionTypesToCompletions'
 
@@ -32,7 +33,9 @@ export async function complete (
   if (input.currentTypedWordType !== 'option') {
     if (input.lastOption === '--filter') {
       const workspaceDir = await findWorkspaceDir(process.cwd()) ?? process.cwd()
+      const workspaceManifest = await readWorkspaceManifest(workspaceDir)
       const allProjects = await findWorkspacePackages(workspaceDir, {
+        patterns: workspaceManifest?.packages,
         supportedArchitectures: {
           os: ['current'],
           cpu: ['current'],

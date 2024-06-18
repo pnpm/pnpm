@@ -1,5 +1,5 @@
 import { type PnpmError } from '@pnpm/error'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { install, update } from '@pnpm/plugin-commands-installation'
@@ -29,7 +29,7 @@ test('recursive update', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -75,7 +75,7 @@ test('recursive update prod dependencies only', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -144,7 +144,7 @@ test('recursive update with pattern', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -202,7 +202,7 @@ test('recursive update with pattern and name in project', async () => {
 
   const lockfileDir = process.cwd()
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -289,7 +289,7 @@ test('recursive update --latest foo should only update projects that have foo', 
 
   const lockfileDir = process.cwd()
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -349,7 +349,7 @@ test('recursive update --latest foo should only update packages that have foo', 
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -401,7 +401,7 @@ test('recursive update in workspace should not add new dependencies', async () =
   try {
     await update.handler({
       ...DEFAULT_OPTS,
-      ...await readProjects(process.cwd(), []),
+      ...await filterPackagesFromDir(process.cwd(), []),
       depth: 0,
       dir: process.cwd(),
       recursive: true,
@@ -434,7 +434,7 @@ test('recursive update with aliased workspace dependency (#7975)', async () => {
 
   await update.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     depth: 0,
     dir: process.cwd(),
     recursive: true,

@@ -1,5 +1,5 @@
 import { install } from '@pnpm/plugin-commands-installation'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { preparePackages } from '@pnpm/prepare'
 import { DEFAULT_OPTS } from './utils'
 import type { PnpmError } from '@pnpm/error'
@@ -18,7 +18,7 @@ test('should error if disallow-workspace-cycles is set', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
 
   let err!: PnpmError
   try {
@@ -51,7 +51,7 @@ test('should not error if disallow-workspace-cycles is not set', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
 
   let err!: PnpmError
   try {
@@ -82,7 +82,7 @@ test('should not error if there are no cyclic dependencies', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
 
   let err!: PnpmError
   try {

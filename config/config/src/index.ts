@@ -24,6 +24,7 @@ import {
   type UniversalOptions,
 } from './Config'
 import { getWorkspaceConcurrency } from './concurrency'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 export { getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 export * from './readLocalConfig'
@@ -133,6 +134,7 @@ export const types = Object.assign({
   'state-dir': String,
   'store-dir': String,
   stream: Boolean,
+  'strict-store-pkg-content-check': Boolean,
   'strict-peer-dependencies': Boolean,
   'use-beta-cli': Boolean,
   'use-node-version': String,
@@ -264,6 +266,7 @@ export async function getConfig (
     symlink: true,
     'shared-workspace-lockfile': true,
     'shell-emulator': false,
+    'strict-store-pkg-content-check': true,
     reverse: false,
     sort: true,
     'strict-peer-dependencies': false,
@@ -578,6 +581,15 @@ export async function getConfig (
   pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
   if (pnpmConfig.rootProjectManifest?.workspaces?.length && !pnpmConfig.workspaceDir) {
     warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+  }
+
+  if (pnpmConfig.workspaceDir != null) {
+    if (cliOptions['workspace-packages']) {
+      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[]
+    } else {
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+      pnpmConfig.workspacePackagePatterns = workspaceManifest?.packages
+    }
   }
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig

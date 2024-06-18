@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { streamParser } from '@pnpm/logger'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
@@ -74,7 +74,7 @@ test('recursive publish', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     dryRun: true,
     recursive: true,
@@ -92,7 +92,7 @@ test('recursive publish', async () => {
   process.env.npm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
   }, [])
@@ -110,7 +110,7 @@ test('recursive publish', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     tag: 'next',
@@ -161,7 +161,7 @@ test('print info when no packages are published', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     dryRun: true,
     recursive: true,
@@ -193,7 +193,7 @@ test('packages are released even if their current version is published, when for
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     force: true,
     dir: process.cwd(),
     dryRun: true,
@@ -257,7 +257,7 @@ test('recursive publish writes publish summary', async () => {
   process.env.npm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     reportSummary: true,
@@ -271,7 +271,7 @@ test('recursive publish writes publish summary', async () => {
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     reportSummary: true,
@@ -302,7 +302,7 @@ test('when publish some package throws an error, exit code should be non-zero', 
 
   const result = await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     force: true,

@@ -26,6 +26,9 @@
     },
     {
       "path": "../../workspace/find-workspace-dir"
+    },
+    {
+      "path": "../../workspace/read-manifest"
     }
   ]
 }

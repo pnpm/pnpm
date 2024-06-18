@@ -2,7 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import {
   restart,
   run,
@@ -304,7 +304,7 @@ test('"pnpm run" prints the list of available commands, including commands of th
   writeYamlFile('pnpm-workspace.yaml', {})
   const workspaceDir = process.cwd()
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
 
   {
     process.chdir('foo')
@@ -393,7 +393,7 @@ test('if a script is not found but is present in the root, print an info message
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
 
   let err!: PnpmError
   try {

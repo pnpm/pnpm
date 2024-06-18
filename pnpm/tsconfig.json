@@ -134,6 +134,9 @@
       "path": "../reviewing/plugin-commands-outdated"
     },
     {
+      "path": "../store/cafs"
+    },
+    {
       "path": "../store/plugin-commands-server"
     },
     {

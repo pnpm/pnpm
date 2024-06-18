@@ -1,5 +1,17 @@
 # @pnpm/exportable-manifest
 
+## 6.1.0
+
+### Minor Changes
+
+- 398472c: Handle workspace protocol with any semver range specifier, when used in peer dependencies [#7578](https://github.com/pnpm/pnpm/issues/7578).
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/read-project-manifest@6.0.3
+
 ## 6.0.2
 
 ### Patch Changes

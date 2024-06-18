@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 10.1.1
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+
 ## 10.1.0
 
 ### Minor Changes

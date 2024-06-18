@@ -214,7 +214,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     const filterResults = await filterPackagesFromDir(wsDir, filters, {
       engineStrict: config.engineStrict,
       nodeVersion: config.nodeVersion ?? config.useNodeVersion,
-      patterns: cliOptions['workspace-packages'],
+      patterns: config.workspacePackagePatterns,
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
       workspaceDir: wsDir,

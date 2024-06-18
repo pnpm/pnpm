@@ -61,7 +61,7 @@
       "path": "../../store/store-connection-manager"
     },
     {
-      "path": "../../workspace/filter-workspace-packages"
+      "path": "../../workspace/filter-packages-from-dir"
     },
     {
       "path": "../apply-patch"
