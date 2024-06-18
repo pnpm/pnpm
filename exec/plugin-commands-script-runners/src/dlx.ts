@@ -23,17 +23,39 @@ export const shorthands: Record<string, string> = {
 }
 
 const INHERITED_RAW_LOCAL_CFG_KEYS = [
+  'ca',
+  'cafile',
+  'cert',
+  'key',
+  'local-address',
+  'git-shallow-hosts',
+  'https-proxy',
+  'proxy',
+  'no-proxy',
   'registry',
+  'strict-ssl',
 ] satisfies Array<keyof typeof types>
 
 const INHERITED_RAW_LOCAL_CFG_KEY_SUFFIXES = [
+  ':cafile',
+  ':certfile',
+  ':keyfile',
   ':_auth',
   ':_authToken',
 ]
 
 const INHERITED_LOCAL_CFG_KEYS = [
+  'ca',
+  'cert',
+  'key',
+  'localAddress',
+  'gitShallowHosts',
+  'httpsProxy',
+  'httpProxy',
+  'noProxy',
   'registry',
   'registries',
+  'strictSsl',
 ] satisfies Array<keyof Config>
 
 function shouldRawCfgKeyInheritFromLocal (rawCfgKey: string): boolean {
