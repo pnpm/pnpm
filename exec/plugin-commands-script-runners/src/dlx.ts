@@ -22,6 +22,45 @@ export const shorthands: Record<string, string> = {
   c: '--shell-mode',
 }
 
+const INHERITED_RAW_LOCAL_CFG_KEYS = [
+  'registry',
+] satisfies Array<keyof typeof types>
+
+const INHERITED_LOCAL_CFG_KEYS = [
+  'registry',
+  'registries',
+] satisfies Array<keyof Config>
+
+function shouldRawCfgKeyInheritFromLocal (rawCfgKey: string): boolean {
+  if ((INHERITED_RAW_LOCAL_CFG_KEYS as string[]).includes(rawCfgKey)) return true
+  if (rawCfgKey.endsWith(':_authToken')) return true
+  return false
+}
+
+function shouldCfgKeyInheritFromLocal (cfgKey: keyof Config): cfgKey is typeof INHERITED_LOCAL_CFG_KEYS[number] {
+  return (INHERITED_LOCAL_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
+}
+
+export function inheritRawLocalConfig<RawLocalCfg extends Record<string, unknown>> (rawLocalCfg: RawLocalCfg): Partial<RawLocalCfg> {
+  const result: Partial<RawLocalCfg> = {}
+  for (const key in rawLocalCfg) {
+    if (shouldRawCfgKeyInheritFromLocal(key)) {
+      result[key] = rawLocalCfg[key]
+    }
+  }
+  return result
+}
+
+export function inheritLocalCfg (localCfg: Config): Partial<Config> {
+  const result: Record<string, unknown> = {}
+  for (const key in localCfg) {
+    if (shouldCfgKeyInheritFromLocal(key as keyof Config)) {
+      result[key] = localCfg[key as keyof Config]
+    }
+  }
+  return result as Partial<Config>
+}
+
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([

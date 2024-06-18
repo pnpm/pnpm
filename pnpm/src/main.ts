@@ -12,6 +12,7 @@ import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
+import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { node } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
@@ -106,9 +107,9 @@ export async function main (inputArgv: string[]): Promise<void> {
         workspaceDir,
         checkUnknownSetting: false,
       }) as typeof config
-      if (currentDirConfig.registry) {
-        config.registry = currentDirConfig.registry
-      }
+      Object.assign(config, dlx.inheritLocalCfg(currentDirConfig))
+      Object.assign(config.rawConfig, dlx.inheritRawLocalConfig(currentDirConfig.rawConfig))
+      Object.assign(config.rawLocalConfig, dlx.inheritRawLocalConfig(currentDirConfig.rawLocalConfig))
     } else {
       config = currentDirConfig
     }
