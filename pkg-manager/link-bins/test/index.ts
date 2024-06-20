@@ -245,12 +245,12 @@ test('linkBins() resolves conflicts. Prefer packages whose name is greater in lo
     skippedPkgName: 'bar',
     skippedPkgVersion: expect.any(String),
   })
-  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['my-command']))
+  expect(readdirSync(binTarget)).toEqual(getExpectedBins(['my-command']))
 
   {
     const binLocation = path.join(binTarget, 'my-command')
-    expect(fs.existsSync(binLocation)).toBe(true)
-    const content = fs.readFileSync(binLocation, 'utf8')
+    expect(existsSync(binLocation)).toBe(true)
+    const content = readFileSync(binLocation, 'utf8')
     expect(content).toMatch('node_modules/foo/index.js')
   }
 })
@@ -278,12 +278,12 @@ test('linkBins() resolves conflicts. Prefer the latest version of the same packa
     skippedPkgName: 'my-command',
     skippedPkgVersion: '1.1.0',
   })
-  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['my-command']))
+  expect(readdirSync(binTarget)).toEqual(getExpectedBins(['my-command']))
 
   {
     const binLocation = path.join(binTarget, 'my-command')
-    expect(fs.existsSync(binLocation)).toBe(true)
-    const content = fs.readFileSync(binLocation, 'utf8')
+    expect(existsSync(binLocation)).toBe(true)
+    const content = readFileSync(binLocation, 'utf8')
     expect(content).toMatch('node_modules/my-command-greater/index.js')
   }
 })
@@ -379,12 +379,12 @@ test('linkBinsOfPackages() resolves conflicts. Prefer the latest version', async
     skippedPkgName: 'my-command',
     skippedPkgVersion: '1.1.0',
   })
-  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['my-command']))
+  expect(readdirSync(binTarget)).toEqual(getExpectedBins(['my-command']))
 
   {
     const binLocation = path.join(binTarget, 'my-command')
-    expect(fs.existsSync(binLocation)).toBe(true)
-    const content = fs.readFileSync(binLocation, 'utf8')
+    expect(existsSync(binLocation)).toBe(true)
+    const content = readFileSync(binLocation, 'utf8')
     expect(content).toMatch('node_modules/my-command-greater/index.js')
   }
 })
