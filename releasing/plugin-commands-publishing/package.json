@@ -53,6 +53,7 @@
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",

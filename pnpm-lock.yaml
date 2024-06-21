@@ -5021,6 +5021,9 @@ importers:
 
   releasing/plugin-commands-publishing:
     dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
