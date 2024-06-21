@@ -36,7 +36,12 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   await writeWantedLockfile(projectDir, dedicatedLockfile)
 
   const { manifest, writeProjectManifest } = await readProjectManifest(projectDir)
-  const publishManifest = await createExportableManifest(projectDir, manifest)
+  const publishManifest = await createExportableManifest(projectDir, manifest, {
+    // Since @pnpm/make-dedicated-lockfile is deprecated, avoid supporting new
+    // features like pnpm catalogs. Passing in an empty catalog object
+    // intentionally.
+    catalogs: {},
+  })
   await writeProjectManifest(publishManifest)
 
   const modulesDir = path.join(projectDir, 'node_modules')
