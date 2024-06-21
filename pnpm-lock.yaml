@@ -4442,6 +4442,9 @@ importers:
 
   pkg-manifest/exportable-manifest:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -4458,6 +4461,12 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@pnpm/catalogs.config':
+        specifier: workspace:*
+        version: link:../../catalogs/config
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/exportable-manifest':
         specifier: workspace:*
         version: 'link:'
