@@ -15,6 +15,7 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
+import { inheritAuthConfig } from './auth'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
 import { getNetworkConfigs } from './getNetworkConfigs'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
@@ -31,8 +32,6 @@ export { types }
 
 export { getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 export * from './readLocalConfig'
-export { type InheritableConfig } from './inheritPickedConfig'
-export { inheritAuthConfig } from './auth'
 
 export type { Config, UniversalOptions }
 
@@ -48,20 +47,34 @@ const npmDefaults = loadNpmConf.defaults
 
 export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
 
-export async function getConfig (
-  opts: {
-    globalDirShouldAllowWrite?: boolean
-    cliOptions: CliOptions
-    packageManager: {
-      name: string
-      version: string
-    }
-    rcOptionsTypes?: Record<string, unknown>
-    workspaceDir?: string | undefined
-    checkUnknownSetting?: boolean
-    env?: Record<string, string | undefined>
+export async function getConfig (opts: {
+  globalDirShouldAllowWrite?: boolean
+  cliOptions: CliOptions
+  packageManager: {
+    name: string
+    version: string
   }
-): Promise<{ config: Config, warnings: string[] }> {
+  rcOptionsTypes?: Record<string, unknown>
+  workspaceDir?: string | undefined
+  checkUnknownSetting?: boolean
+  env?: Record<string, string | undefined>
+  inheritNonAuthFromDir?: string
+}): Promise<{ config: Config, warnings: string[] }> {
+  if (opts.inheritNonAuthFromDir) {
+    const { inheritNonAuthFromDir, ...authOpts } = opts
+    const nonAuthOpts: typeof authOpts = {
+      ...authOpts,
+      cliOptions: {
+        ...authOpts.cliOptions,
+        dir: inheritNonAuthFromDir,
+      },
+    }
+    const [nonAuth, auth] = await Promise.all([getConfig(nonAuthOpts), getConfig(authOpts)])
+    inheritAuthConfig(nonAuth.config, auth.config)
+    nonAuth.warnings?.push(...auth.warnings)
+    return nonAuth
+  }
+
   const env = opts.env ?? process.env
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
   const cliOptions = opts.cliOptions ?? {}

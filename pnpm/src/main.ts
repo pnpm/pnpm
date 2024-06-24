@@ -7,7 +7,6 @@ import { packageManager } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
 import {
   type Config,
-  inheritAuthConfig,
 } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
@@ -92,25 +91,14 @@ export async function main (inputArgv: string[]): Promise<void> {
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
     const isDlxCommand = cmd === 'dlx'
-    const currentDirConfig = await getConfig(cliOptions, {
+    config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
+      inheritNonAuthFromDir: isDlxCommand ? os.homedir() : undefined,
     }) as typeof config
-    if (isDlxCommand) {
-      config = await getConfig({ ...cliOptions, dir: os.homedir() }, {
-        excludeReporter: false,
-        globalDirShouldAllowWrite,
-        rcOptionsTypes,
-        workspaceDir,
-        checkUnknownSetting: false,
-      }) as typeof config
-      inheritAuthConfig(config, currentDirConfig)
-    } else {
-      config = currentDirConfig
-    }
     if (isDlxCommand) {
       config.useStderr = true
     }

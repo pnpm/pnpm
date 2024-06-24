@@ -10,6 +10,7 @@ export async function getConfig (
     rcOptionsTypes: Record<string, unknown>
     workspaceDir: string | undefined
     checkUnknownSetting?: boolean
+    inheritNonAuthFromDir?: string
   }
 ): Promise<Config> {
   const { config, warnings } = await _getConfig({
@@ -19,6 +20,7 @@ export async function getConfig (
     rcOptionsTypes: opts.rcOptionsTypes,
     workspaceDir: opts.workspaceDir,
     checkUnknownSetting: opts.checkUnknownSetting,
+    inheritNonAuthFromDir: opts.inheritNonAuthFromDir,
   })
   config.cliOptions = cliOptions
 

@@ -1,4 +1,5 @@
-import { type InheritableConfig, inheritAuthConfig } from './index'
+import { inheritAuthConfig } from './auth'
+import { type InheritableConfig } from './inheritPickedConfig'
 
 test('inheritAuthConfig copies only auth keys from source to target', () => {
   const target: InheritableConfig = {
