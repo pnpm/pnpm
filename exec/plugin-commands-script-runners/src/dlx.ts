@@ -3,7 +3,7 @@ import path from 'path'
 import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, inheritAuthConfig, types } from '@pnpm/config'
+import { type Config, types } from '@pnpm/config'
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
@@ -21,8 +21,6 @@ export const commandNames = ['dlx']
 export const shorthands: Record<string, string> = {
   c: '--shell-mode',
 }
-
-export const inheritLocalConfig = inheritAuthConfig
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
