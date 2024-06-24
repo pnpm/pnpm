@@ -68,7 +68,7 @@
     "@pnpm/registry-mock": "3.32.1",
     "@pnpm/run-npm": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/tabtab": "^0.5.3",
+    "@pnpm/tabtab": "^0.5.4",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/types": "workspace:*",

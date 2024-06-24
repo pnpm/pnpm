@@ -35,7 +35,7 @@
     "@pnpm/find-workspace-dir": "workspace:^",
     "@pnpm/nopt": "^0.2.1",
     "@pnpm/parse-cli-args": "workspace:^",
-    "@pnpm/tabtab": "^0.5.3",
+    "@pnpm/tabtab": "^0.5.4",
     "@pnpm/workspace.find-packages": "workspace:^",
     "@pnpm/workspace.read-manifest": "workspace:^",
     "ramda": "npm:@pnpm/ramda@0.28.1",
