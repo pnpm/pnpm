@@ -3,7 +3,7 @@ import path from 'path'
 import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types } from '@pnpm/config'
+import { type Config, inheritAuthConfig, types } from '@pnpm/config'
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
@@ -22,81 +22,7 @@ export const shorthands: Record<string, string> = {
   c: '--shell-mode',
 }
 
-const INHERITED_RAW_LOCAL_CFG_KEYS = [
-  'ca',
-  'cafile',
-  'cert',
-  'key',
-  'local-address',
-  'git-shallow-hosts',
-  'https-proxy',
-  'proxy',
-  'no-proxy',
-  'registry',
-  'strict-ssl',
-] satisfies Array<keyof typeof types>
-
-const INHERITED_RAW_LOCAL_CFG_KEY_SUFFIXES = [
-  ':cafile',
-  ':certfile',
-  ':keyfile',
-  ':registry',
-  ':tokenHelper',
-  ':_auth',
-  ':_authToken',
-]
-
-const INHERITED_LOCAL_CFG_KEYS = [
-  'ca',
-  'cert',
-  'key',
-  'localAddress',
-  'gitShallowHosts',
-  'httpsProxy',
-  'httpProxy',
-  'noProxy',
-  'registry',
-  'registries',
-  'strictSsl',
-] satisfies Array<keyof Config>
-
-function shouldRawCfgKeyInheritFromLocal (rawCfgKey: string): boolean {
-  if ((INHERITED_RAW_LOCAL_CFG_KEYS as string[]).includes(rawCfgKey)) return true
-  if (INHERITED_RAW_LOCAL_CFG_KEY_SUFFIXES.some(suffix => rawCfgKey.endsWith(suffix))) return true
-  return false
-}
-
-function shouldCfgKeyInheritFromLocal (cfgKey: keyof Config): cfgKey is typeof INHERITED_LOCAL_CFG_KEYS[number] {
-  return (INHERITED_LOCAL_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
-}
-
-function pickRawLocalConfig<RawLocalCfg extends Record<string, unknown>> (rawLocalCfg: RawLocalCfg): Partial<RawLocalCfg> {
-  const result: Partial<RawLocalCfg> = {}
-  for (const key in rawLocalCfg) {
-    if (shouldRawCfgKeyInheritFromLocal(key)) {
-      result[key] = rawLocalCfg[key]
-    }
-  }
-  return result
-}
-
-function pickLocalConfig (localCfg: Partial<Config>): Partial<Config> {
-  const result: Record<string, unknown> = {}
-  for (const key in localCfg) {
-    if (shouldCfgKeyInheritFromLocal(key as keyof Config)) {
-      result[key] = localCfg[key as keyof Config]
-    }
-  }
-  return result as Partial<Config>
-}
-
-export type InheritConfig = Partial<Config> & Pick<Config, 'rawConfig' | 'rawLocalConfig'>
-
-export function inheritLocalConfig (targetCfg: InheritConfig, localCfg: InheritConfig): void {
-  Object.assign(targetCfg, pickLocalConfig(localCfg))
-  Object.assign(targetCfg.rawConfig, pickRawLocalConfig(localCfg.rawConfig))
-  Object.assign(targetCfg.rawLocalConfig, pickRawLocalConfig(localCfg.rawLocalConfig))
-}
+export const inheritLocalConfig = inheritAuthConfig
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {

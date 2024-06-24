@@ -1,5 +1,6 @@
 import path from 'path'
 import execa from 'execa'
+import { type InheritableConfig } from '@pnpm/config'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
@@ -39,7 +40,7 @@ test('dlx should work with versioned packages', async () => {
 })
 
 test('dlx inherits certain keys from local config', () => {
-  const config: dlx.InheritConfig = {
+  const config: InheritableConfig = {
     bin: 'foo',
     cacheDir: '/path/to/cache/dir',
     registry: 'https://npmjs.com/registry/',
