@@ -71,10 +71,10 @@ export async function getConfig (opts: {
         dir: nonAuthConfigDir,
       },
     }
-    const [nonAuth, auth] = await Promise.all([getConfig(nonAuthOpts), getConfig(authOpts)])
-    inheritAuthConfig(nonAuth.config, auth.config)
-    nonAuth.warnings?.push(...auth.warnings)
-    return nonAuth
+    const [finalCfg, authSrcCfg] = await Promise.all([getConfig(nonAuthOpts), getConfig(authOpts)])
+    inheritAuthConfig(finalCfg.config, authSrcCfg.config)
+    finalCfg.warnings?.push(...authSrcCfg.warnings)
+    return finalCfg
   }
 
   const env = opts.env ?? process.env
