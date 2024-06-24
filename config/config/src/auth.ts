@@ -70,6 +70,6 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
   return result as Partial<Config>
 }
 
-export const inheritAuthConfig =
-  (targetCfg: InheritableConfig, srcCfg: InheritableConfig): void =>
-    inheritPickedConfig(targetCfg, srcCfg, pickAuthConfig, pickRawAuthConfig)
+export function inheritAuthConfig (targetCfg: InheritableConfig, srcCfg: InheritableConfig): void {
+  inheritPickedConfig(targetCfg, srcCfg, pickAuthConfig, pickRawAuthConfig)
+}
