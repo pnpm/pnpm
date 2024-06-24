@@ -7,12 +7,12 @@ import { packageManager } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
 import {
   type Config,
+  inheritAuthConfig,
 } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
-import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { node } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
@@ -107,7 +107,7 @@ export async function main (inputArgv: string[]): Promise<void> {
         workspaceDir,
         checkUnknownSetting: false,
       }) as typeof config
-      dlx.inheritLocalConfig(config, currentDirConfig)
+      inheritAuthConfig(config, currentDirConfig)
     } else {
       config = currentDirConfig
     }
