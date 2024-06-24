@@ -1,5 +1,5 @@
 import { packageManager } from '@pnpm/cli-meta'
-import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
+import { getConfig as _getConfig, type CliOptions, type Config, type IgnoreNonAuthFromCurrentConfig } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 
 export async function getConfig (
@@ -10,7 +10,7 @@ export async function getConfig (
     rcOptionsTypes: Record<string, unknown>
     workspaceDir: string | undefined
     checkUnknownSetting?: boolean
-    inheritNonAuthFromDir?: string
+    ignoreNonAuthFromCurrentConfig?: IgnoreNonAuthFromCurrentConfig
   }
 ): Promise<Config> {
   const { config, warnings } = await _getConfig({
@@ -20,7 +20,7 @@ export async function getConfig (
     rcOptionsTypes: opts.rcOptionsTypes,
     workspaceDir: opts.workspaceDir,
     checkUnknownSetting: opts.checkUnknownSetting,
-    inheritNonAuthFromDir: opts.inheritNonAuthFromDir,
+    ignoreNonAuthFromCurrentConfig: opts.ignoreNonAuthFromCurrentConfig,
   })
   config.cliOptions = cliOptions
 

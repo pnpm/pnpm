@@ -97,7 +97,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
-      inheritNonAuthFromDir: isDlxCommand ? os.homedir() : undefined,
+      ignoreNonAuthFromCurrentConfig: isDlxCommand && { nonAuthConfigDir: os.homedir() },
     }) as typeof config
     if (isDlxCommand) {
       config.useStderr = true

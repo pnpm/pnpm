@@ -47,6 +47,8 @@ const npmDefaults = loadNpmConf.defaults
 
 export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
 
+export type IgnoreNonAuthFromCurrentConfig = false | { nonAuthConfigDir: string }
+
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
   cliOptions: CliOptions
@@ -58,15 +60,15 @@ export async function getConfig (opts: {
   workspaceDir?: string | undefined
   checkUnknownSetting?: boolean
   env?: Record<string, string | undefined>
-  inheritNonAuthFromDir?: string
+  ignoreNonAuthFromCurrentConfig?: IgnoreNonAuthFromCurrentConfig
 }): Promise<{ config: Config, warnings: string[] }> {
-  if (opts.inheritNonAuthFromDir) {
-    const { inheritNonAuthFromDir, ...authOpts } = opts
+  if (opts.ignoreNonAuthFromCurrentConfig) {
+    const { ignoreNonAuthFromCurrentConfig: { nonAuthConfigDir }, ...authOpts } = opts
     const nonAuthOpts: typeof authOpts = {
       ...authOpts,
       cliOptions: {
         ...authOpts.cliOptions,
-        dir: inheritNonAuthFromDir,
+        dir: nonAuthConfigDir,
       },
     }
     const [nonAuth, auth] = await Promise.all([getConfig(nonAuthOpts), getConfig(authOpts)])
