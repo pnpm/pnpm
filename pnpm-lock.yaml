@@ -427,8 +427,8 @@ importers:
   cli/command:
     dependencies:
       '@pnpm/tabtab':
-        specifier: ^0.5.3
-        version: 0.5.3
+        specifier: ^0.5.4
+        version: 0.5.4
     devDependencies:
       '@pnpm/command':
         specifier: workspace:*
@@ -571,8 +571,8 @@ importers:
         specifier: workspace:^
         version: link:../../cli/parse-cli-args
       '@pnpm/tabtab':
-        specifier: ^0.5.3
-        version: 0.5.3
+        specifier: ^0.5.4
+        version: 0.5.4
       '@pnpm/workspace.find-packages':
         specifier: workspace:^
         version: link:../../workspace/find-packages
@@ -4703,8 +4703,8 @@ importers:
         specifier: workspace:*
         version: link:../store/cafs
       '@pnpm/tabtab':
-        specifier: ^0.5.3
-        version: 0.5.3
+        specifier: ^0.5.4
+        version: 0.5.4
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../__utils__/test-fixtures
@@ -6417,7 +6417,7 @@ importers:
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
         specifier: 0.4.9
-        version: 0.4.9(@types/node@20.14.4)
+        version: 0.4.9(@types/node@20.14.8)
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -7742,8 +7742,8 @@ packages:
     resolution: {integrity: sha512-S88sR6xhQ1ZDhMRIjhaRBA11N2OIDU2W+60szQLU8e2bw+KgGU60LbcXMunTdRnJskuB9UfDyoN6YuRtETBqYA==}
     engines: {node: '>=16.14'}
 
-  '@pnpm/tabtab@0.5.3':
-    resolution: {integrity: sha512-GAe759m0Bk1kQUPvetdi5l6z/wS//Xfg5VQFC92J2LI0LNA/9V9ZVdbzk4RhXSsJIK+BDu2T/JpqFUymnPxjaw==}
+  '@pnpm/tabtab@0.5.4':
+    resolution: {integrity: sha512-bWLDlHsBlgKY/05wDN/V3ETcn5G2SV/SiA2ZmNvKGGlmVX4G5li7GRDhHcgYvHJHyJ8TUStqg2xtHmCs0UbAbg==}
     engines: {node: '>=18'}
 
   '@pnpm/text.comments-parser@2.0.0':
@@ -7976,8 +7976,8 @@ packages:
   '@types/node@18.19.34':
     resolution: {integrity: sha512-eXF4pfBNV5DAMKGbI02NnDtWrQ40hAN558/2vvS4gMpMIxaf6JmD7YjnZbq0Q9TDSSkKBamime8ewRoomHdt4g==}
 
-  '@types/node@20.14.4':
-    resolution: {integrity: sha512-1ChboN+57suCT2t/f8lwtPY/k3qTpuD/qnqQuYoBg6OQOcPyaw7PiZVdGpaZYAvhDDtqrt0oAaM8+oSu1xsUGw==}
+  '@types/node@20.14.8':
+    resolution: {integrity: sha512-DO+2/jZinXfROG7j7WKFn/3C6nFwxy2lLpgLjEXJz+0XKphZlTLJ14mo8Vfg8X5BWN6XjyESXq+LcYdT7tR3bA==}
 
   '@types/node@20.5.1':
     resolution: {integrity: sha512-4tT2UrL5LBqDwoed9wZ6N3umC4Yhz3W3FloMmiiG4JwmUJWpie0c7lcnUNd4gtMKuDEO4wRVS8B6Xa0uMRsMKg==}
@@ -14572,7 +14572,7 @@ snapshots:
       '@pnpm/resolver-base': 10.0.1
       '@pnpm/types': 9.1.0
 
-  '@pnpm/tabtab@0.5.3':
+  '@pnpm/tabtab@0.5.4':
     dependencies:
       debug: 4.3.5
       enquirer: 2.4.1
@@ -14624,9 +14624,9 @@ snapshots:
       '@reflink/reflink-win32-arm64-msvc': 0.1.16
       '@reflink/reflink-win32-x64-msvc': 0.1.16
 
-  '@rushstack/worker-pool@0.4.9(@types/node@20.14.4)':
+  '@rushstack/worker-pool@0.4.9(@types/node@20.14.8)':
     optionalDependencies:
-      '@types/node': 20.14.4
+      '@types/node': 20.14.8
 
   '@sinclair/typebox@0.27.8': {}
 
@@ -14806,7 +14806,7 @@ snapshots:
     dependencies:
       undici-types: 5.26.5
 
-  '@types/node@20.14.4':
+  '@types/node@20.14.8':
     dependencies:
       undici-types: 5.26.5
     optional: true
