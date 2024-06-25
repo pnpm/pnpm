@@ -70,10 +70,10 @@ export async function getConfig (opts: {
         dir: os.homedir(),
       },
     }
-    const [finalCfg, authSrcCfg] = await Promise.all([getConfig(globalCfgOpts), getConfig(authOpts)])
-    inheritAuthConfig(finalCfg.config, authSrcCfg.config)
-    finalCfg.warnings?.push(...authSrcCfg.warnings)
-    return finalCfg
+    const [final, authSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(authOpts)])
+    inheritAuthConfig(final.config, authSrc.config)
+    final.warnings?.push(...authSrc.warnings)
+    return final
   }
 
   const env = opts.env ?? process.env
