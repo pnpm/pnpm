@@ -72,7 +72,11 @@ export async function getConfig (opts: {
     }
     const [final, authSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(authOpts)])
     inheritAuthConfig(final.config, authSrc.config)
-    final.warnings?.push(...authSrc.warnings)
+    if (final.warnings) {
+      final.warnings.push(...authSrc.warnings)
+    } else {
+      final.warnings = authSrc.warnings
+    }
     return final
   }
 
