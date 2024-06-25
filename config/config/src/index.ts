@@ -63,14 +63,14 @@ export async function getConfig (opts: {
 }): Promise<{ config: Config, warnings: string[] }> {
   if (opts.ignoreNonAuthSettingsFromLocal) {
     const { ignoreNonAuthSettingsFromLocal: _, ...authOpts } = opts
-    const nonAuthOpts: typeof authOpts = {
+    const globalCfgOpts: typeof authOpts = {
       ...authOpts,
       cliOptions: {
         ...authOpts.cliOptions,
         dir: os.homedir(),
       },
     }
-    const [finalCfg, authSrcCfg] = await Promise.all([getConfig(nonAuthOpts), getConfig(authOpts)])
+    const [finalCfg, authSrcCfg] = await Promise.all([getConfig(globalCfgOpts), getConfig(authOpts)])
     inheritAuthConfig(finalCfg.config, authSrcCfg.config)
     finalCfg.warnings?.push(...authSrcCfg.warnings)
     return finalCfg
