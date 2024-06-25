@@ -1,9 +1,10 @@
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
-import npmTypes from '@pnpm/npm-conf/lib/types'
+import type npmTypes from '@pnpm/npm-conf/lib/types'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
@@ -15,6 +16,7 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
+import { inheritAuthConfig } from './auth'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
 import { getNetworkConfigs } from './getNetworkConfigs'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
@@ -25,6 +27,9 @@ import {
 } from './Config'
 import { getWorkspaceConcurrency } from './concurrency'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+
+import { types } from './types'
+export { types }
 
 export { getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 export * from './readLocalConfig'
@@ -41,138 +46,40 @@ type KebabCaseConfig = {
 
 const npmDefaults = loadNpmConf.defaults
 
-export const types = Object.assign({
-  'auto-install-peers': Boolean,
-  bail: Boolean,
-  'cache-dir': String,
-  'child-concurrency': Number,
-  'merge-git-branch-lockfiles': Boolean,
-  'merge-git-branch-lockfiles-branch-pattern': Array,
-  color: ['always', 'auto', 'never'],
-  'config-dir': String,
-  'deploy-all-files': Boolean,
-  'dedupe-peer-dependents': Boolean,
-  'dedupe-direct-deps': Boolean,
-  'dedupe-injected-deps': Boolean,
-  dev: [null, true],
-  dir: String,
-  'disallow-workspace-cycles': Boolean,
-  'enable-modules-dir': Boolean,
-  'enable-pre-post-scripts': Boolean,
-  'exclude-links-from-lockfile': Boolean,
-  'extend-node-path': Boolean,
-  'fetch-timeout': Number,
-  'fetching-concurrency': Number,
-  filter: [String, Array],
-  'filter-prod': [String, Array],
-  'frozen-lockfile': Boolean,
-  'git-checks': Boolean,
-  'git-shallow-hosts': Array,
-  'global-bin-dir': String,
-  'global-dir': String,
-  'global-path': String,
-  'global-pnpmfile': String,
-  'git-branch-lockfile': Boolean,
-  hoist: Boolean,
-  'hoist-pattern': Array,
-  'hoist-workspace-packages': Boolean,
-  'ignore-compatibility-db': Boolean,
-  'ignore-dep-scripts': Boolean,
-  'ignore-pnpmfile': Boolean,
-  'ignore-workspace': Boolean,
-  'ignore-workspace-cycles': Boolean,
-  'ignore-workspace-root-check': Boolean,
-  'include-workspace-root': Boolean,
-  'legacy-dir-filtering': Boolean,
-  'link-workspace-packages': [Boolean, 'deep'],
-  lockfile: Boolean,
-  'lockfile-dir': String,
-  'lockfile-directory': String, // TODO: deprecate
-  'lockfile-include-tarball-url': Boolean,
-  'lockfile-only': Boolean,
-  loglevel: ['silent', 'error', 'warn', 'info', 'debug'],
-  maxsockets: Number,
-  'modules-cache-max-age': Number,
-  'dlx-cache-max-age': Number,
-  'modules-dir': String,
-  'network-concurrency': Number,
-  'node-linker': ['pnp', 'isolated', 'hoisted'],
-  noproxy: String,
-  'npm-path': String,
-  offline: Boolean,
-  'only-built-dependencies': [String],
-  'pack-gzip-level': Number,
-  'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
-  'patches-dir': String,
-  pnpmfile: String,
-  'package-manager-strict': Boolean,
-  'package-manager-strict-version': Boolean,
-  'prefer-frozen-lockfile': Boolean,
-  'prefer-offline': Boolean,
-  'prefer-symlinked-executables': Boolean,
-  'prefer-workspace-packages': Boolean,
-  production: [null, true],
-  'public-hoist-pattern': Array,
-  'publish-branch': String,
-  'recursive-install': Boolean,
-  reporter: String,
-  'resolution-mode': ['highest', 'time-based', 'lowest-direct'],
-  'resolve-peers-from-workspace-root': Boolean,
-  'aggregate-output': Boolean,
-  'reporter-hide-prefix': Boolean,
-  'save-peer': Boolean,
-  'save-workspace-protocol': Boolean,
-  'script-shell': String,
-  'shamefully-flatten': Boolean,
-  'shamefully-hoist': Boolean,
-  'shared-workspace-lockfile': Boolean,
-  'shell-emulator': Boolean,
-  'side-effects-cache': Boolean,
-  'side-effects-cache-readonly': Boolean,
-  symlink: Boolean,
-  sort: Boolean,
-  'state-dir': String,
-  'store-dir': String,
-  stream: Boolean,
-  'strict-store-pkg-content-check': Boolean,
-  'strict-peer-dependencies': Boolean,
-  'use-beta-cli': Boolean,
-  'use-node-version': String,
-  'use-running-store-server': Boolean,
-  'use-store-server': Boolean,
-  'use-stderr': Boolean,
-  'verify-store-integrity': Boolean,
-  'virtual-store-dir': String,
-  'virtual-store-dir-max-length': Number,
-  'peers-suffix-max-length': Number,
-  'workspace-concurrency': Number,
-  'workspace-packages': [String, Array],
-  'workspace-root': Boolean,
-  'test-pattern': [String, Array],
-  'changed-files-ignore-pattern': [String, Array],
-  'embed-readme': Boolean,
-  'update-notifier': Boolean,
-  'registry-supports-time-field': Boolean,
-  'fail-if-no-match': Boolean,
-
-}, npmTypes.types)
-
 export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
 
-export async function getConfig (
-  opts: {
-    globalDirShouldAllowWrite?: boolean
-    cliOptions: CliOptions
-    packageManager: {
-      name: string
-      version: string
-    }
-    rcOptionsTypes?: Record<string, unknown>
-    workspaceDir?: string | undefined
-    checkUnknownSetting?: boolean
-    env?: Record<string, string | undefined>
+export async function getConfig (opts: {
+  globalDirShouldAllowWrite?: boolean
+  cliOptions: CliOptions
+  packageManager: {
+    name: string
+    version: string
   }
-): Promise<{ config: Config, warnings: string[] }> {
+  rcOptionsTypes?: Record<string, unknown>
+  workspaceDir?: string | undefined
+  checkUnknownSetting?: boolean
+  env?: Record<string, string | undefined>
+  ignoreNonAuthSettingsFromLocal?: boolean
+}): Promise<{ config: Config, warnings: string[] }> {
+  if (opts.ignoreNonAuthSettingsFromLocal) {
+    const { ignoreNonAuthSettingsFromLocal: _, ...authOpts } = opts
+    const globalCfgOpts: typeof authOpts = {
+      ...authOpts,
+      cliOptions: {
+        ...authOpts.cliOptions,
+        dir: os.homedir(),
+      },
+    }
+    const [final, authSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(authOpts)])
+    inheritAuthConfig(final.config, authSrc.config)
+    if (final.warnings) {
+      final.warnings.push(...authSrc.warnings)
+    } else {
+      final.warnings = authSrc.warnings
+    }
+    return final
+  }
+
   const env = opts.env ?? process.env
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
   const cliOptions = opts.cliOptions ?? {}
