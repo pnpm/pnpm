@@ -1,5 +1,6 @@
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
@@ -47,8 +48,6 @@ const npmDefaults = loadNpmConf.defaults
 
 export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
 
-export type IgnoreNonAuthSettingsFromLocal = false | { nonAuthConfigDir: string }
-
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
   cliOptions: CliOptions
@@ -60,15 +59,15 @@ export async function getConfig (opts: {
   workspaceDir?: string | undefined
   checkUnknownSetting?: boolean
   env?: Record<string, string | undefined>
-  ignoreNonAuthSettingsFromLocal?: IgnoreNonAuthSettingsFromLocal
+  ignoreNonAuthSettingsFromLocal?: boolean
 }): Promise<{ config: Config, warnings: string[] }> {
   if (opts.ignoreNonAuthSettingsFromLocal) {
-    const { ignoreNonAuthSettingsFromLocal: { nonAuthConfigDir }, ...authOpts } = opts
+    const { ignoreNonAuthSettingsFromLocal: _, ...authOpts } = opts
     const nonAuthOpts: typeof authOpts = {
       ...authOpts,
       cliOptions: {
         ...authOpts.cliOptions,
-        dir: nonAuthConfigDir,
+        dir: os.homedir(),
       },
     }
     const [finalCfg, authSrcCfg] = await Promise.all([getConfig(nonAuthOpts), getConfig(authOpts)])

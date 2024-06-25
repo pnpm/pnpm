@@ -21,7 +21,6 @@ import { formatUnknownOptionsError } from './formatError'
 import { parseCliArgs } from './parseCliArgs'
 import { initReporter, type ReporterType } from './reporter'
 import { isCI } from 'ci-info'
-import os from 'os'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
 import stripAnsi from 'strip-ansi'
@@ -97,7 +96,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
-      ignoreNonAuthSettingsFromLocal: isDlxCommand && { nonAuthConfigDir: os.homedir() },
+      ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
     if (isDlxCommand) {
       config.useStderr = true
