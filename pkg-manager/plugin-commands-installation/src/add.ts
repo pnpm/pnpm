@@ -80,6 +80,10 @@ export function cliOptionsTypes (): Record<string, unknown> {
   }
 }
 
+export const shorthands: Record<string, string> = {
+  'package-lock-only': '--lockfile-only',
+}
+
 export const commandNames = ['add']
 
 export function help (): string {

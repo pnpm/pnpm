@@ -114,6 +114,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   })
 }
 
+export const shorthands: Record<string, string> = {
+  'package-lock-only': '--lockfile-only',
+}
+
 // Unlike npm, pnpm does not treat "r" as an alias of "remove".
 // This way we avoid the confusion about whether "pnpm r" means remove, run, or recursive.
 export const commandNames = ['remove', 'uninstall', 'rm', 'un', 'uni']
