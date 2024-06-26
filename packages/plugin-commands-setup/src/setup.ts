@@ -63,6 +63,13 @@ function copyCli (currentLocation: string, targetDir: string): void {
 }
 
 function createPnpxScripts (targetDir: string): void {
+  // Why script files instead of aliases?
+  // 1. Aliases wouldn't work on all platform, such as Windows Command Prompt or POSIX `sh`.
+  // 2. Aliases wouldn't work on all environments, such as non-interactive shells and CI environments.
+  // 3. Aliases must be set for different shells while script files are limited to only 2 types: POSIX and Windows.
+  // 4. Aliases cannot be located with the `which` or `where` command.
+  // 5. Editing rc files is more error-prone than just write new files to the filesystem.
+
   fs.mkdirSync(targetDir, { recursive: true })
 
   const shellScript = [
