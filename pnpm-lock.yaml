@@ -3134,6 +3134,12 @@ importers:
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
+      '@pnpm/catalogs.protocol-parser':
+        specifier: workspace:*
+        version: link:../../catalogs/protocol-parser
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -3345,6 +3351,12 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/workspace.filter-packages-from-dir':
+        specifier: workspace:*
+        version: link:../../workspace/filter-packages-from-dir
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../../workspace/find-packages
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
@@ -4321,6 +4333,12 @@ importers:
 
   pkg-manager/resolve-dependencies:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants

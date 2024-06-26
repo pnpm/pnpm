@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -395,6 +396,7 @@ export async function mutateModules (
           ctx.wantedLockfile.lockfileVersion === '6.1'
         ) &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
+          catalogs: opts.catalogs,
           autoInstallPeers: opts.autoInstallPeers,
           excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
@@ -629,8 +631,26 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     /* eslint-enable no-await-in-loop */
 
-    function isWantedDepPrefSame (_alias: string, prevPref: string | undefined, nextPref: string): boolean {
-      return prevPref === nextPref
+    function isWantedDepPrefSame (alias: string, prevPref: string | undefined, nextPref: string): boolean {
+      if (prevPref !== nextPref) {
+        return false
+      }
+
+      // When pnpm catalogs are used, the specifiers can be the same (e.g.
+      // "catalog:default"), but the wanted versions for the dependency can be
+      // different after resolution if the catalog config was just edited.
+      const catalogName = parseCatalogProtocol(prevPref)
+
+      // If there's no catalog name, the catalog protocol was not used and we
+      // can assume the pref is the same since prevPref and nextPref match.
+      if (catalogName === null) {
+        return true
+      }
+
+      const prevCatalogEntrySpec = ctx.wantedLockfile.catalogs?.[catalogName]?.[alias]?.specifier
+      const nextCatalogEntrySpec = opts.catalogs[catalogName]?.[alias]
+
+      return prevCatalogEntrySpec === nextCatalogEntrySpec
     }
 
     async function installCase (project: any) { // eslint-disable-line
@@ -1043,6 +1063,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       allowNonAppliedPatches: opts.allowNonAppliedPatches,
       autoInstallPeers: opts.autoInstallPeers,
       autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
+      catalogs: opts.catalogs,
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: opts.depth,
       dedupeDirectDeps: opts.dedupeDirectDeps,
@@ -1420,6 +1441,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       if (allProjectsLocatedInsideWorkspace.length > projects.length) {
         if (
           await allProjectsAreUpToDate(allProjectsLocatedInsideWorkspace, {
+            catalogs: opts.catalogs,
             autoInstallPeers: opts.autoInstallPeers,
             excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
             linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,

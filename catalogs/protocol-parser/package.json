@@ -27,8 +27,7 @@
     "compile": "tsc --build && pnpm run lint --fix",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile && pnpm run _test",
-    "pretest": "pnpm run compile",
-    "_test": "pnpm pretest && jest"
+    "_test": "jest"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

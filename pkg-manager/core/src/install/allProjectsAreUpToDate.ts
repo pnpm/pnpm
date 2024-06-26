@@ -1,4 +1,5 @@
 import path from 'path'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { type ProjectOptions } from '@pnpm/get-context'
 import {
   type PackageSnapshot,
@@ -21,10 +22,12 @@ import pEvery from 'p-every'
 import any from 'ramda/src/any'
 import semver from 'semver'
 import getVersionSelectorType from 'version-selector-type'
+import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate'
 
 export async function allProjectsAreUpToDate (
   projects: Array<Pick<ProjectOptions, 'manifest' | 'rootDir'> & { id: ProjectId }>,
   opts: {
+    catalogs: Catalogs
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
     linkWorkspacePackages: boolean
@@ -33,6 +36,13 @@ export async function allProjectsAreUpToDate (
     lockfileDir: string
   }
 ): Promise<boolean> {
+  // Projects may declare dependencies using catalog protocol specifiers. If the
+  // catalog config definitions are edited by users, projects using them are out
+  // of date.
+  if (!allCatalogsAreUpToDate(opts.catalogs, opts.wantedLockfile.catalogs)) {
+    return false
+  }
+
   const manifestsByDir = opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {}
   const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
     autoInstallPeers: opts.autoInstallPeers,
