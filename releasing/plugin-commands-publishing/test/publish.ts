@@ -3,6 +3,7 @@ import path from 'path'
 import execa from 'execa'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
+import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -610,6 +611,127 @@ test.skip('convert specs with relative workspace protocols to regular version ra
   })
   expect(publishedManifest.peerDependencies).toStrictEqual({
     'random-package': '1.2.3',
+  })
+})
+
+describe('catalog protocol converted when publishing', () => {
+  test('default catalog', async () => {
+    const testPackageName = 'workspace-package-with-default-catalog'
+    preparePackages([
+      {
+        name: testPackageName,
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': 'catalog:',
+        },
+        devDependencies: {
+          'is-positive': 'catalog:',
+        },
+        optionalDependencies: {
+          'is-positive': 'catalog:',
+        },
+        peerDependencies: {
+          'is-positive': 'catalog:',
+        },
+      },
+      {
+        name: 'target',
+        private: true,
+      },
+    ])
+
+    const workspaceManifest = {
+      packages: ['**', '!store/**'],
+      catalog: { 'is-positive': '1.0.0' },
+    }
+    writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+
+    process.chdir(testPackageName)
+
+    await publish.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', ...CREDENTIALS] },
+      catalogs: getCatalogsFromWorkspaceManifest(workspaceManifest),
+      dir: process.cwd(),
+    }, [])
+
+    process.chdir('../target')
+
+    crossSpawn.sync(pnpmBin, [
+      'add',
+      '--store-dir=../store',
+      testPackageName,
+      '--no-link-workspace-packages',
+      `--registry=http://localhost:${REGISTRY_MOCK_PORT}`,
+    ])
+
+    const { default: publishedManifest } = await import(path.resolve(`node_modules/${testPackageName}/package.json`))
+    expect(publishedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.devDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.optionalDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.peerDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+  })
+
+  test('named catalog', async () => {
+    const testPackageName = 'workspace-package-with-named-catalog'
+    preparePackages([
+      {
+        name: testPackageName,
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': 'catalog:foo',
+        },
+        devDependencies: {
+          'is-positive': 'catalog:bar',
+        },
+        optionalDependencies: {
+          'is-positive': 'catalog:baz',
+        },
+        peerDependencies: {
+          'is-positive': 'catalog:qux',
+        },
+      },
+      {
+        name: 'target',
+        private: true,
+      },
+    ])
+
+    const workspaceManifest = {
+      packages: ['**', '!store/**'],
+      catalogs: {
+        foo: { 'is-positive': '1.0.0' },
+        bar: { 'is-positive': '1.0.0' },
+        baz: { 'is-positive': '1.0.0' },
+        qux: { 'is-positive': '1.0.0' },
+      },
+    }
+    writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+
+    process.chdir(testPackageName)
+
+    await publish.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', ...CREDENTIALS] },
+      catalogs: getCatalogsFromWorkspaceManifest(workspaceManifest),
+      dir: process.cwd(),
+    }, [])
+
+    process.chdir('../target')
+
+    crossSpawn.sync(pnpmBin, [
+      'add',
+      '--store-dir=../store',
+      testPackageName,
+      '--no-link-workspace-packages',
+      `--registry=http://localhost:${REGISTRY_MOCK_PORT}`,
+    ])
+
+    const { default: publishedManifest } = await import(path.resolve(`node_modules/${testPackageName}/package.json`))
+    expect(publishedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.devDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.optionalDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.peerDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
   })
 })
 

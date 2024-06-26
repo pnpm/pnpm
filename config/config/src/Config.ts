@@ -1,3 +1,4 @@
+import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   type Project,
   type ProjectManifest,
@@ -134,6 +135,7 @@ export interface Config {
   workspaceConcurrency: number
   workspaceDir?: string
   workspacePackagePatterns?: string[]
+  catalogs?: Catalogs
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'

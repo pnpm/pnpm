@@ -32,6 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing#readme",
   "devDependencies": {
+    "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.32.1",
@@ -53,6 +54,7 @@
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",

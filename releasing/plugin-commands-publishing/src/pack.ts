@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { createGzip } from 'zlib'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import { types as allTypes, type UniversalOptions, type Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
@@ -58,7 +59,7 @@ export function help (): string {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel' | 'nodeLinker'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
+  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs' | 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel' | 'nodeLinker'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
     argv: {
       original: string[]
     }
@@ -103,6 +104,7 @@ export async function handler (
     modulesDir: path.join(opts.dir, 'node_modules'),
     manifest,
     embedReadme: opts.embedReadme,
+    catalogs: opts.catalogs ?? {},
   })
   const files = await packlist(dir, {
     packageJsonCache: {
@@ -202,8 +204,13 @@ async function createPublishManifest (opts: {
   embedReadme?: boolean
   modulesDir: string
   manifest: ProjectManifest
+  catalogs: Catalogs
 }): Promise<ProjectManifest> {
-  const { projectDir, embedReadme, modulesDir, manifest } = opts
+  const { projectDir, embedReadme, modulesDir, manifest, catalogs } = opts
   const readmeFile = embedReadme ? await readReadmeFile(projectDir) : undefined
-  return createExportableManifest(projectDir, manifest, { readmeFile, modulesDir })
+  return createExportableManifest(projectDir, manifest, {
+    catalogs,
+    readmeFile,
+    modulesDir,
+  })
 }
