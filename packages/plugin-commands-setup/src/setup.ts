@@ -62,6 +62,25 @@ function copyCli (currentLocation: string, targetDir: string): void {
   fs.copyFileSync(currentLocation, newExecPath)
 }
 
+function createPnpxScripts (targetDir: string): void {
+  fs.mkdirSync(targetDir, { recursive: true })
+
+  const shellScript = [
+    '#!/bin/sh',
+    'exec pnpm dlx "$@"',
+  ].join('\n')
+  fs.writeFileSync(path.join(targetDir, 'pnpx'), shellScript, { mode: 0o755 })
+
+  const batchScript = [
+    '@echo off',
+    'pnpm dlx %*',
+  ].join('\n')
+  fs.writeFileSync(path.join(targetDir, 'pnpx.cmd'), batchScript)
+
+  const powershellScript = 'pnpm dlx $args'
+  fs.writeFileSync(path.join(targetDir, 'pnpx.ps1'), powershellScript)
+}
+
 export async function handler (
   opts: {
     force?: boolean
@@ -71,6 +90,7 @@ export async function handler (
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
     copyCli(execPath, opts.pnpmHomeDir)
+    createPnpxScripts(opts.pnpmHomeDir)
   }
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {
