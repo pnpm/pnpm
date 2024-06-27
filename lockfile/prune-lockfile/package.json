@@ -32,15 +32,15 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/prune-lockfile#readme",
   "devDependencies": {
     "@pnpm/prune-lockfile": "workspace:*",
-    "@types/ramda": "0.29.12",
-    "yaml-tag": "1.1.0"
+    "@types/ramda": "catalog:",
+    "yaml-tag": "catalog:"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

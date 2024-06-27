@@ -29,19 +29,22 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/exportable-manifest#readme",
   "devDependencies": {
+    "@pnpm/catalogs.config": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/exportable-manifest": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/cross-spawn": "^6.0.6",
-    "@types/ramda": "0.29.12",
-    "cross-spawn": "^7.0.3",
-    "write-yaml-file": "^5.0.0"
+    "@types/cross-spawn": "catalog:",
+    "@types/ramda": "catalog:",
+    "cross-spawn": "catalog:",
+    "write-yaml-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "p-map-values": "^1.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "p-map-values": "catalog:",
+    "ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -37,13 +37,13 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "normalize-path": "^3.0.0",
-    "ssri": "10.0.5"
+    "normalize-path": "catalog:",
+    "ssri": "catalog:"
   },
   "devDependencies": {
     "@pnpm/local-resolver": "workspace:*",
-    "@types/normalize-path": "^3.0.2",
-    "@types/ssri": "^7.1.5"
+    "@types/normalize-path": "catalog:",
+    "@types/ssri": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

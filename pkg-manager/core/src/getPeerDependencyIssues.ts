@@ -8,6 +8,7 @@ import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 
 export type ListMissingPeersOptions = Partial<GetContextOptions>
 & Pick<InstallOptions, 'hooks'
+| 'catalogs'
 | 'dedupePeerDependents'
 | 'ignoreCompatibilityDb'
 | 'linkWorkspacePackagesDepth'
@@ -60,6 +61,7 @@ export async function getPeerDependencyIssues (
       currentLockfile: ctx.currentLockfile,
       allowedDeprecatedVersions: {},
       allowNonAppliedPatches: false,
+      catalogs: opts.catalogs,
       defaultUpdateDepth: -1,
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: true,

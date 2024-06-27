@@ -37,8 +37,8 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "0.29.12",
-    "nock": "13.3.4"
+    "@types/ramda": "catalog:",
+    "nock": "catalog:"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
@@ -51,7 +51,7 @@
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

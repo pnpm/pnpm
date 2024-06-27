@@ -28,12 +28,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/graceful-fs#readme",
   "dependencies": {
-    "graceful-fs": "^4.2.11"
+    "graceful-fs": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/graceful-fs": "workspace:*",
-    "@types/graceful-fs": "^4.1.9"
+    "@types/graceful-fs": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

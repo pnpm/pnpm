@@ -14,6 +14,7 @@ export interface Lockfile {
   importers: Record<ProjectId, ProjectSnapshot>
   lockfileVersion: string
   time?: Record<string, string>
+  catalogs?: CatalogSnapshots
   packages?: PackageSnapshots
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
@@ -136,3 +137,24 @@ export type PackageBin = string | { [name: string]: string }
  * }
  */
 export type ResolvedDependencies = Record<string, string>
+
+export interface CatalogSnapshots {
+  [catalogName: string]: { [dependencyName: string]: ResolvedCatalogEntry }
+}
+
+export interface ResolvedCatalogEntry {
+  /**
+   * The real specifier that should be used for this dependency's catalog entry.
+   * This would be the ^1.2.3 portion of:
+   *
+   * @example
+   * catalog:
+   *   foo: ^1.2.3
+   */
+  readonly specifier: string
+
+  /**
+   * The concrete version that the requested specifier resolved to. Ex: 1.2.3
+   */
+  readonly version: string
+}

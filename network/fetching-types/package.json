@@ -30,8 +30,8 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@zkochan/retry": "^0.2.0",
-    "node-fetch": "npm:@pnpm/node-fetch@1.0.0"
+    "@zkochan/retry": "catalog:",
+    "node-fetch": "catalog:"
   },
   "devDependencies": {
     "@pnpm/fetching-types": "workspace:*"

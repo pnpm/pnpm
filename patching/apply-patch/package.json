@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/apply-patch#readme",
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/patch-package": "0.0.0"
+    "@pnpm/patch-package": "catalog:"
   },
   "devDependencies": {
     "@pnpm/patching.apply-patch": "workspace:*",

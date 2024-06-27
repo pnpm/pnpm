@@ -32,7 +32,7 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "realpath-missing": "^1.1.0"
+    "realpath-missing": "catalog:"
   },
   "devDependencies": {
     "@pnpm/read-projects-context": "workspace:*"

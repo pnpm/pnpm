@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
-    "render-help": "^1.0.3"
+    "render-help": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

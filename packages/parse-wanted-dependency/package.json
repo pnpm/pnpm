@@ -13,7 +13,7 @@
   ],
   "devDependencies": {
     "@pnpm/parse-wanted-dependency": "workspace:*",
-    "@types/validate-npm-package-name": "^4.0.2"
+    "@types/validate-npm-package-name": "catalog:"
   },
   "keywords": [
     "pnpm9"
@@ -30,7 +30,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "validate-npm-package-name": "5.0.0"
+    "validate-npm-package-name": "catalog:"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/parse-wanted-dependency#readme",
   "funding": "https://opencollective.com/pnpm",

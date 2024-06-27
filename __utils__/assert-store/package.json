@@ -40,9 +40,9 @@
     "test": "pnpm pretest && pnpm run compile && jest"
   },
   "dependencies": {
-    "@pnpm/registry-mock": "3.32.1",
+    "@pnpm/registry-mock": "catalog:",
     "@pnpm/store.cafs": "workspace:*",
-    "path-exists": "^4.0.0"
+    "path-exists": "catalog:"
   },
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*"

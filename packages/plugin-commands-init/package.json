@@ -34,15 +34,15 @@
     "@pnpm/plugin-commands-init": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "load-json-file": "^6.2.0"
+    "load-json-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
-    "camelcase-keys": "^6.2.2",
-    "render-help": "^1.0.3"
+    "camelcase-keys": "catalog:",
+    "render-help": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

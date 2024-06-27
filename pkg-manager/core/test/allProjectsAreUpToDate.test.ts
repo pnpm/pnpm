@@ -36,6 +36,7 @@ test('allProjectsAreUpToDate(): works with packages linked through the workspace
     },
   ], {
     autoInstallPeers: false,
+    catalogs: {},
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
@@ -77,6 +78,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async ()
     },
   ], {
     autoInstallPeers: false,
+    catalogs: {},
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
@@ -118,6 +120,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
     },
   ], {
     autoInstallPeers: false,
+    catalogs: {},
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
@@ -159,6 +162,7 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
     },
   ], {
     autoInstallPeers: false,
+    catalogs: {},
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
@@ -230,6 +234,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
       ],
       {
         autoInstallPeers: false,
+        catalogs: {},
         excludeLinksFromLockfile: false,
         linkWorkspacePackages: false,
         wantedLockfile: {
@@ -296,6 +301,7 @@ test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', asyn
     },
   ], {
     autoInstallPeers: false,
+    catalogs: {},
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
@@ -342,6 +348,7 @@ test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async
     },
   ], {
     autoInstallPeers: false,
+    catalogs: {},
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
@@ -400,6 +407,7 @@ describe('local file dependency', () => {
   ]
   const options = {
     autoInstallPeers: false,
+    catalogs: {},
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
@@ -499,6 +507,7 @@ test('allProjectsAreUpToDate(): returns true if workspace dependency\'s version 
   ]
   const options = {
     autoInstallPeers: false,
+    catalogs: {},
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {

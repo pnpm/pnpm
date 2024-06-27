@@ -40,8 +40,8 @@
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
-    "@rushstack/worker-pool": "0.4.9",
-    "load-json-file": "^6.2.0"
+    "@rushstack/worker-pool": "catalog:",
+    "load-json-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm/types": "workspace:*",

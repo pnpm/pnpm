@@ -16,6 +16,12 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../catalogs/config"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
