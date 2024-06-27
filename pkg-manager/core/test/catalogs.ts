@@ -5,8 +5,6 @@ import { type Lockfile } from '@pnpm/lockfile-types'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { preparePackages } from '@pnpm/prepare'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
-import { getLockfileImporterId } from '@pnpm/lockfile-file'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/workspace.find-packages'
 import readYamlFile from 'read-yaml-file'
 import path from 'path'
@@ -17,37 +15,40 @@ import { testDefaults } from './utils'
  */
 class CatalogTestsController {
   private readonly workspaceDir: string
+  private projects: Record<ProjectId, ProjectManifest>
   private catalogs: Catalogs = {}
 
-  constructor (readonly pkgs: Array<{ location: string, package: ProjectManifest }>) {
+  constructor (pkgs: Array<{ location: string, package: ProjectManifest }>) {
     preparePackages(pkgs)
     this.workspaceDir = process.cwd()
+
+    this.projects = {}
+    for (const { location, package: manifest } of pkgs) {
+      this.projects[location as ProjectId] = manifest
+    }
   }
 
   setCatalogs (catalogs: Catalogs) {
     this.catalogs = catalogs
   }
 
-  async install (opts?: { frozenLockfile?: boolean, filter?: readonly string[] }) {
-    const { allProjects } = await filterPackagesFromDir(
-      this.workspaceDir,
-      opts?.filter?.map(parentDir => ({ parentDir })) ?? [])
+  async install (opts?: { filter?: readonly string[] }) {
+    const importers: MutatedProject[] = Object.entries(this.projects)
+      .filter(([id]) => opts?.filter?.includes(id) ?? true)
+      .map(([id, manifest]) => ({
+        mutation: 'install',
+        id,
+        manifest,
+        rootDir: path.join(this.workspaceDir, id),
+      }))
 
-    const importers: MutatedProject[] = allProjects.map(project => ({
-      mutation: 'install',
-      id: getLockfileImporterId(this.workspaceDir, project.dir),
-      manifest: project.manifest,
-      rootDir: project.dirRealPath,
-    }))
-
-    // The mutateModules function expects a different interface (ProjectOptions)
-    // than the filterPackages returns (Project). Adding a few required fields
-    // to get tests to pass.
-    const mutateModulesAllProjects: ProjectOptions[] = allProjects.map(project => ({
-      ...project,
-      buildIndex: 0,
-      rootDir: project.dirRealPath,
-    }))
+    const mutateModulesAllProjects: ProjectOptions[] = Object.entries(this.projects)
+      .map(([id, manifest]) => ({
+        buildIndex: 0,
+        manifest,
+        dir: path.join(this.workspaceDir, id),
+        rootDir: path.join(this.workspaceDir, id),
+      }))
 
     await mutateModules(importers, testDefaults({
       allProjects: mutateModulesAllProjects,
@@ -61,9 +62,11 @@ class CatalogTestsController {
     return readYamlFile(path.join(this.workspaceDir, WANTED_LOCKFILE))
   }
 
-  async updateProjectManifest (location: string, manifest: ProjectManifest): Promise<void> {
-    const { selectedProjectsGraph } = await filterPackagesFromDir(this.workspaceDir, [{ parentDir: location }])
-    await selectedProjectsGraph[path.join(this.workspaceDir, location)].package.writeProjectManifest(manifest)
+  updateProjectManifest (location: ProjectId, manifest: ProjectManifest): void {
+    this.projects = {
+      ...this.projects,
+      [location]: manifest,
+    }
   }
 }
 
@@ -373,7 +376,7 @@ test('lockfile catalog snapshots should remove unused entries', async () => {
   }
 
   // Update package.json to no longer depend on is-positive.
-  await ctrl.updateProjectManifest('packages/project1', {
+  ctrl.updateProjectManifest('packages/project1' as ProjectId, {
     dependencies: {
       'is-negative': 'catalog:',
     },

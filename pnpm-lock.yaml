@@ -3351,9 +3351,6 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
-      '@pnpm/workspace.filter-packages-from-dir':
-        specifier: workspace:*
-        version: link:../../workspace/filter-packages-from-dir
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../../workspace/find-packages
