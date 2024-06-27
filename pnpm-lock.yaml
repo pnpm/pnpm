@@ -3654,6 +3654,9 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../../store/store-connection-manager
+      chalk:
+        specifier: 'catalog:'
+        version: 4.1.2
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
