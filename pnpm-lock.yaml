@@ -5133,6 +5133,9 @@ importers:
       '@pnpm/macos-x64':
         specifier: workspace:*
         version: link:../macos-x64
+      '@pnpm/win-arm64':
+        specifier: workspace:*
+        version: link:../win-arm64
       '@pnpm/win-x64':
         specifier: workspace:*
         version: link:../win-x64
@@ -5168,6 +5171,12 @@ importers:
   pnpm/artifacts/macos-x64:
     devDependencies:
       '@pnpm/macos-x64':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm/artifacts/win-arm64:
+    devDependencies:
+      '@pnpm/win-arm64':
         specifier: workspace:*
         version: 'link:'
 
