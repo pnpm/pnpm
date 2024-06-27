@@ -25,6 +25,12 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../catalogs/protocol-parser"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/matcher"
     },
     {
@@ -134,6 +140,9 @@
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/find-packages"
     },
     {
       "path": "../client"

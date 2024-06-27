@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -395,6 +396,7 @@ export async function mutateModules (
           ctx.wantedLockfile.lockfileVersion === '6.1'
         ) &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
+          catalogs: opts.catalogs,
           autoInstallPeers: opts.autoInstallPeers,
           excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
@@ -629,6 +631,28 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     /* eslint-enable no-await-in-loop */
 
+    function isWantedDepPrefSame (alias: string, prevPref: string | undefined, nextPref: string): boolean {
+      if (prevPref !== nextPref) {
+        return false
+      }
+
+      // When pnpm catalogs are used, the specifiers can be the same (e.g.
+      // "catalog:default"), but the wanted versions for the dependency can be
+      // different after resolution if the catalog config was just edited.
+      const catalogName = parseCatalogProtocol(prevPref)
+
+      // If there's no catalog name, the catalog protocol was not used and we
+      // can assume the pref is the same since prevPref and nextPref match.
+      if (catalogName === null) {
+        return true
+      }
+
+      const prevCatalogEntrySpec = ctx.wantedLockfile.catalogs?.[catalogName]?.[alias]?.specifier
+      const nextCatalogEntrySpec = opts.catalogs[catalogName]?.[alias]
+
+      return prevCatalogEntrySpec === nextCatalogEntrySpec
+    }
+
     async function installCase (project: any) { // eslint-disable-line
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
@@ -639,7 +663,7 @@ Note that in CI environments, this setting is enabled by default.`,
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
 
       if (ctx.wantedLockfile?.importers) {
-        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies)
+        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, isWantedDepPrefSame)
       }
       if (opts.ignoreScripts && project.manifest?.scripts &&
         (project.manifest.scripts.preinstall ||
@@ -808,13 +832,17 @@ function pkgHasDependencies (manifest: ProjectManifest): boolean {
 
 // If the specifier is new, the old resolution probably does not satisfy it anymore.
 // By removing these resolutions we ensure that they are resolved again using the new specs.
-function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDeps: WantedDependency[]): void {
+function forgetResolutionsOfPrevWantedDeps (
+  importer: ProjectSnapshot,
+  wantedDeps: WantedDependency[],
+  isWantedDepPrefSame: (alias: string, prevPref: string | undefined, nextPref: string) => boolean
+): void {
   if (!importer.specifiers) return
   importer.dependencies = importer.dependencies ?? {}
   importer.devDependencies = importer.devDependencies ?? {}
   importer.optionalDependencies = importer.optionalDependencies ?? {}
   for (const { alias, pref } of wantedDeps) {
-    if (alias && importer.specifiers[alias] !== pref) {
+    if (alias && !isWantedDepPrefSame(alias, importer.specifiers[alias], pref)) {
       if (!importer.dependencies[alias]?.startsWith('link:')) {
         delete importer.dependencies[alias]
       }
@@ -1035,6 +1063,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       allowNonAppliedPatches: opts.allowNonAppliedPatches,
       autoInstallPeers: opts.autoInstallPeers,
       autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
+      catalogs: opts.catalogs,
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: opts.depth,
       dedupeDirectDeps: opts.dedupeDirectDeps,
@@ -1412,6 +1441,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       if (allProjectsLocatedInsideWorkspace.length > projects.length) {
         if (
           await allProjectsAreUpToDate(allProjectsLocatedInsideWorkspace, {
+            catalogs: opts.catalogs,
             autoInstallPeers: opts.autoInstallPeers,
             excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
             linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,

@@ -1,4 +1,6 @@
 import path from 'path'
+import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
@@ -16,6 +18,7 @@ const PREPUBLISH_SCRIPTS = [
 ]
 
 export interface MakePublishManifestOptions {
+  catalogs: Catalogs
   modulesDir?: string
   readmeFile?: string
 }
@@ -23,14 +26,22 @@ export interface MakePublishManifestOptions {
 export async function createExportableManifest (
   dir: string,
   originalManifest: ProjectManifest,
-  opts?: MakePublishManifestOptions
+  opts: MakePublishManifestOptions
 ): Promise<ProjectManifest> {
   const publishManifest: ProjectManifest = omit(['pnpm', 'scripts', 'packageManager'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
+
+  const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs)
+  const replaceCatalogProtocol = resolveCatalogProtocol.bind(null, catalogResolver)
+
+  const convertDependencyForPublish = combineConverters(replaceWorkspaceProtocol, replaceCatalogProtocol)
   await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies'] as const).map(async (depsField) => {
-    const deps = await makePublishDependencies(dir, originalManifest[depsField], { modulesDir: opts?.modulesDir })
+    const deps = await makePublishDependencies(dir, originalManifest[depsField], {
+      modulesDir: opts?.modulesDir,
+      convertDependencyForPublish,
+    })
     if (deps != null) {
       publishManifest[depsField] = deps
     }
@@ -38,7 +49,11 @@ export async function createExportableManifest (
 
   const peerDependencies = originalManifest.peerDependencies
   if (peerDependencies) {
-    publishManifest.peerDependencies = await makePublishDependencies(dir, peerDependencies, { modulesDir: opts?.modulesDir, convertDependencyForPublish: makePublishPeerDependency })
+    const convertPeersForPublish = combineConverters(replaceWorkspaceProtocolPeerDependency, replaceCatalogProtocol)
+    publishManifest.peerDependencies = await makePublishDependencies(dir, peerDependencies, {
+      modulesDir: opts?.modulesDir,
+      convertDependencyForPublish: convertPeersForPublish,
+    })
   }
 
   overridePublishConfig(publishManifest)
@@ -50,17 +65,37 @@ export async function createExportableManifest (
   return publishManifest
 }
 
+export type PublishDependencyConverter = (
+  depName: string,
+  depSpec: string,
+  dir: string,
+  modulesDir?: string
+) => Promise<string> | string
+
+function combineConverters (...converters: readonly PublishDependencyConverter[]): PublishDependencyConverter {
+  return async (depName, depSpec, dir, modulesDir) => {
+    let pref = depSpec
+    for (const converter of converters) {
+      // eslint-disable-next-line no-await-in-loop
+      pref = await converter(depName, pref, dir, modulesDir)
+    }
+    return pref
+  }
+}
+
+export interface MakePublishDependenciesOpts {
+  readonly modulesDir?: string
+  readonly convertDependencyForPublish: PublishDependencyConverter
+}
+
 async function makePublishDependencies (
   dir: string,
   dependencies: Dependencies | undefined,
-  { modulesDir, convertDependencyForPublish = makePublishDependency }: {
-    modulesDir?: string
-    convertDependencyForPublish?: (depName: string, depSpec: string, dir: string, modulesDir?: string) => Promise<string>
-  } = {}
+  { modulesDir, convertDependencyForPublish }: MakePublishDependenciesOpts
 ): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
   const publishDependencies = await pMapValues(
-    (depSpec, depName) => convertDependencyForPublish(depName, depSpec, dir, modulesDir),
+    async (depSpec, depName) => convertDependencyForPublish(depName, depSpec, dir, modulesDir),
     dependencies
   )
   return publishDependencies
@@ -79,7 +114,17 @@ async function resolveManifest (depName: string, modulesDir: string): Promise<Pr
   return manifest
 }
 
-async function makePublishDependency (depName: string, depSpec: string, dir: string, modulesDir?: string): Promise<string> {
+function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string, pref: string): string {
+  const result = catalogResolver({ alias, pref })
+
+  switch (result.type) {
+  case 'found': return result.resolution.specifier
+  case 'unused': return pref
+  case 'misconfiguration': throw result.error
+  }
+}
+
+async function replaceWorkspaceProtocol (depName: string, depSpec: string, dir: string, modulesDir?: string): Promise<string> {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
@@ -109,7 +154,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   return depSpec
 }
 
-async function makePublishPeerDependency (depName: string, depSpec: string, dir: string, modulesDir?: string) {
+async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec: string, dir: string, modulesDir?: string) {
   if (!depSpec.includes('workspace:')) {
     return depSpec
   }

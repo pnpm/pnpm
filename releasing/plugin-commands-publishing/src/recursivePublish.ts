@@ -22,6 +22,7 @@ export type PublishRecursiveOpts = Required<Pick<Config,
 Partial<Pick<Config,
 | 'tag'
 | 'ca'
+| 'catalogs'
 | 'cert'
 | 'fetchTimeout'
 | 'force'

@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import { type ProjectOptions } from '@pnpm/get-context'
 import { type HoistingLimits } from '@pnpm/headless'
@@ -22,6 +23,7 @@ import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
+  catalogs: Catalogs
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enablePnp: boolean

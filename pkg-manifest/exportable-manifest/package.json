@@ -29,6 +29,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/exportable-manifest#readme",
   "devDependencies": {
+    "@pnpm/catalogs.config": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/exportable-manifest": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/cross-spawn": "^6.0.6",
@@ -39,6 +41,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-map-values": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1"

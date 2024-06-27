@@ -365,6 +365,50 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  catalogs/config:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+    devDependencies:
+      '@pnpm/catalogs.config':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-manifest
+
+  catalogs/protocol-parser:
+    devDependencies:
+      '@pnpm/catalogs.protocol-parser':
+        specifier: workspace:*
+        version: 'link:'
+
+  catalogs/resolver:
+    dependencies:
+      '@pnpm/catalogs.protocol-parser':
+        specifier: workspace:^
+        version: link:../protocol-parser
+      '@pnpm/error':
+        specifier: workspace:^
+        version: link:../../packages/error
+    devDependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../types
+
+  catalogs/types:
+    devDependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: 'link:'
+
   cli/cli-meta:
     dependencies:
       '@pnpm/types':
@@ -598,6 +642,12 @@ importers:
 
   config/config:
     dependencies:
+      '@pnpm/catalogs.config':
+        specifier: workspace:*
+        version: link:../../catalogs/config
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/config.env-replace':
         specifier: 3.0.0
         version: 3.0.0
@@ -3084,6 +3134,12 @@ importers:
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
+      '@pnpm/catalogs.protocol-parser':
+        specifier: workspace:*
+        version: link:../../catalogs/protocol-parser
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -3295,6 +3351,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../../workspace/find-packages
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
@@ -4271,6 +4330,12 @@ importers:
 
   pkg-manager/resolve-dependencies:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -4392,6 +4457,9 @@ importers:
 
   pkg-manifest/exportable-manifest:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -4408,6 +4476,12 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@pnpm/catalogs.config':
+        specifier: workspace:*
+        version: link:../../catalogs/config
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/exportable-manifest':
         specifier: workspace:*
         version: 'link:'
@@ -4962,6 +5036,9 @@ importers:
 
   releasing/plugin-commands-publishing:
     dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
@@ -5047,6 +5124,9 @@ importers:
         specifier: ^4.3.0
         version: 4.3.0
     devDependencies:
+      '@pnpm/catalogs.config':
+        specifier: workspace:*
+        version: link:../../catalogs/config
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
         version: 'link:'
