@@ -54,7 +54,7 @@ export default async (workspaceDir: string) => {
       if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
-          for (const depName of ['@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
+          for (const depName of ['@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/win-arm64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
             manifest.optionalDependencies![depName] = `workspace:*`
           }
         }

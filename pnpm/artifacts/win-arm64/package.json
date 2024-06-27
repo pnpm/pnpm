@@ -1,0 +1,28 @@
+{
+  "name": "@pnpm/win-arm64",
+  "version": "9.5.0-beta.0",
+  "license": "MIT",
+  "publishConfig": {
+    "bin": {
+      "pnpm": "pnpm.exe"
+    },
+    "os": [
+      "win32"
+    ],
+    "cpu": [
+      "arm64"
+    ]
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/pnpm/artifacts/win-arm64",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/pnpm/artifacts/win-arm64#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "keywords": [
+    "pnpm9"
+  ],
+  "devDependencies": {
+    "@pnpm/win-arm64": "workspace:*"
+  }
+}

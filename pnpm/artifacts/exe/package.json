@@ -16,6 +16,7 @@
     "@pnpm/linux-x64": "workspace:*",
     "@pnpm/macos-arm64": "workspace:*",
     "@pnpm/macos-x64": "workspace:*",
+    "@pnpm/win-arm64": "workspace:*",
     "@pnpm/win-x64": "workspace:*"
   },
   "devDependencies": {
