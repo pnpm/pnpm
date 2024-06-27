@@ -32,16 +32,16 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/modules-yaml#readme",
   "dependencies": {
     "@pnpm/types": "workspace:*",
-    "is-windows": "^1.0.2",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "read-yaml-file": "^2.1.0",
-    "write-yaml-file": "^5.0.0"
+    "is-windows": "catalog:",
+    "ramda": "catalog:",
+    "read-yaml-file": "catalog:",
+    "write-yaml-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm/modules-yaml": "workspace:*",
-    "@types/is-windows": "^1.0.2",
-    "@types/ramda": "0.29.12",
-    "tempy": "^1.0.1"
+    "@types/is-windows": "catalog:",
+    "@types/ramda": "catalog:",
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

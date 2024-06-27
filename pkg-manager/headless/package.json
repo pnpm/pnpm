@@ -23,21 +23,21 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
-    "@pnpm/registry-mock": "3.32.1",
+    "@pnpm/registry-mock": "catalog:",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
-    "@types/fs-extra": "^9.0.13",
-    "@types/ramda": "0.29.12",
+    "@types/fs-extra": "catalog:",
+    "@types/ramda": "catalog:",
     "@types/rimraf": "^3.0.2",
-    "@types/sinon": "^10.0.20",
+    "@types/sinon": "catalog:",
     "concurrently": "8.2.1",
     "isexe": "2.0.0",
-    "load-json-file": "^6.2.0",
-    "sinon": "^16.1.3",
-    "tempy": "^1.0.1",
-    "write-json-file": "^4.3.0"
+    "load-json-file": "catalog:",
+    "sinon": "catalog:",
+    "tempy": "catalog:",
+    "write-json-file": "catalog:"
   },
   "directories": {
     "test": "test"
@@ -66,7 +66,7 @@
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
-    "@pnpm/builder.policy": "3.0.0",
+    "@pnpm/builder.policy": "catalog:",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
@@ -91,12 +91,12 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@zkochan/rimraf": "^2.1.3",
-    "p-limit": "^3.1.0",
-    "path-absolute": "^1.0.1",
-    "path-exists": "^4.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "realpath-missing": "^1.1.0"
+    "@zkochan/rimraf": "catalog:",
+    "p-limit": "catalog:",
+    "path-absolute": "catalog:",
+    "path-exists": "catalog:",
+    "ramda": "catalog:",
+    "realpath-missing": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -39,11 +39,11 @@
     "@commitlint/prompt-cli": "^17.8.1",
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/meta-updater": "1.0.0",
-    "@pnpm/registry-mock": "3.32.1",
+    "@pnpm/registry-mock": "catalog:",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@types/jest": "^29.5.12",
-    "@types/node": "^18.19.34",
+    "@types/node": "catalog:",
     "c8": "^7.14.0",
     "concurrently": "8.2.1",
     "cross-env": "^7.0.3",
@@ -63,7 +63,7 @@
     "verdaccio": "5.20.1"
   },
   "engines": {
-    "pnpm": ">=9"
+    "pnpm": ">=9.5.0-beta.0"
   },
   "pnpm": {
     "overrides": {

@@ -29,25 +29,27 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/env/plugin-commands-env#readme",
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
-    "@pnpm/logger": "^5.0.0",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@pnpm/store-path": "workspace:*",
-    "@zkochan/cmd-shim": "^6.0.0",
-    "@zkochan/rimraf": "^2.1.3",
-    "graceful-fs": "^4.2.11",
-    "is-windows": "^1.0.2",
-    "load-json-file": "^6.2.0",
-    "render-help": "^1.0.3",
-    "semver": "^7.6.2",
-    "symlink-dir": "^6.0.0",
-    "write-json-file": "^4.3.0"
+    "@zkochan/cmd-shim": "catalog:",
+    "@zkochan/rimraf": "catalog:",
+    "graceful-fs": "catalog:",
+    "is-windows": "catalog:",
+    "load-json-file": "catalog:",
+    "render-help": "catalog:",
+    "semver": "catalog:",
+    "symlink-dir": "catalog:",
+    "write-json-file": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
@@ -55,13 +57,13 @@
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.5.5",
     "@types/graceful-fs": "^4.1.9",
-    "@types/is-windows": "^1.0.2",
-    "@types/semver": "7.5.3",
-    "adm-zip": "^0.5.14",
-    "execa": "npm:safe-execa@0.1.2",
-    "nock": "13.3.4",
-    "node-fetch": "npm:@pnpm/node-fetch@1.0.0",
-    "path-name": "^1.0.0"
+    "@types/is-windows": "catalog:",
+    "@types/semver": "catalog:",
+    "adm-zip": "catalog:",
+    "execa": "catalog:",
+    "nock": "catalog:",
+    "node-fetch": "catalog:",
+    "path-name": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

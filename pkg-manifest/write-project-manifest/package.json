@@ -32,13 +32,13 @@
     "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "json5": "^2.2.3",
-    "write-file-atomic": "^5.0.1",
-    "write-yaml-file": "^5.0.0"
+    "write-file-atomic": "catalog:",
+    "write-yaml-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm/write-project-manifest": "workspace:*",
     "@types/write-file-atomic": "^4.0.3",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

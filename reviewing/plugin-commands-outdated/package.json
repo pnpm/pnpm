@@ -34,11 +34,11 @@
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-outdated": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.32.1",
+    "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
-    "@types/ramda": "0.29.12",
-    "@types/zkochan__table": "npm:@types/table@6.0.0"
+    "@types/ramda": "catalog:",
+    "@types/zkochan__table": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
@@ -55,11 +55,11 @@
     "@pnpm/semver-diff": "^1.1.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@zkochan/table": "^2.0.1",
-    "chalk": "^4.1.2",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "render-help": "^1.0.3",
-    "strip-ansi": "^6.0.1"
+    "@zkochan/table": "catalog:",
+    "chalk": "catalog:",
+    "ramda": "catalog:",
+    "render-help": "catalog:",
+    "strip-ansi": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

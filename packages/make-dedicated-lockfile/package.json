@@ -41,15 +41,15 @@
     "@pnpm/prune-lockfile": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "rename-overwrite": "^5.0.0"
+    "ramda": "catalog:",
+    "rename-overwrite": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/make-dedicated-lockfile": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "0.29.12",
-    "execa": "npm:safe-execa@0.1.2",
+    "@types/ramda": "catalog:",
+    "execa": "catalog:",
     "pnpm": "workspace:^"
   },
   "exports": {

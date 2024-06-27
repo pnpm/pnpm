@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@pnpm/hoist": "workspace:*",
-    "@types/ramda": "0.29.12"
+    "@types/ramda": "catalog:"
   },
   "directories": {
     "test": "test"
@@ -49,10 +49,10 @@
     "@pnpm/matcher": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "3.0.0",
-    "is-subdir": "^1.2.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "is-subdir": "catalog:",
+    "ramda": "catalog:",
     "resolve-link-target": "^2.0.0",
-    "symlink-dir": "^6.0.0"
+    "symlink-dir": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

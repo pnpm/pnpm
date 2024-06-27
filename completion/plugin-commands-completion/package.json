@@ -26,7 +26,7 @@
   },
   "devDependencies": {
     "@pnpm/plugin-commands-completion": "workspace:*",
-    "@types/ramda": "0.29.12"
+    "@types/ramda": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:^",
@@ -38,8 +38,8 @@
     "@pnpm/tabtab": "^0.5.4",
     "@pnpm/workspace.find-packages": "workspace:^",
     "@pnpm/workspace.read-manifest": "workspace:^",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "render-help": "^1.0.3",
+    "ramda": "catalog:",
+    "render-help": "catalog:",
     "split-cmd": "^1.1.0"
   },
   "funding": "https://opencollective.com/pnpm",

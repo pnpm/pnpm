@@ -41,7 +41,7 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@rushstack/worker-pool": "0.4.9",
-    "load-json-file": "^6.2.0"
+    "load-json-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm/types": "workspace:*",

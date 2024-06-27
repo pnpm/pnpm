@@ -33,10 +33,10 @@
   "devDependencies": {
     "@pnpm/lockfile-utils": "workspace:*",
     "@types/js-yaml": "^4.0.9",
-    "@types/ramda": "0.29.12",
-    "tempy": "^1.0.1",
-    "write-yaml-file": "^5.0.0",
-    "yaml-tag": "1.1.0"
+    "@types/ramda": "catalog:",
+    "tempy": "catalog:",
+    "write-yaml-file": "catalog:",
+    "yaml-tag": "catalog:"
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
@@ -45,7 +45,7 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "get-npm-tarball-url": "^2.1.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

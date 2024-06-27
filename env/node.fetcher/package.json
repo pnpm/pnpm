@@ -41,16 +41,16 @@
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
-    "adm-zip": "^0.5.14",
+    "adm-zip": "catalog:",
     "detect-libc": "^2.0.3",
-    "rename-overwrite": "^5.0.0",
-    "tempy": "^1.0.1"
+    "rename-overwrite": "catalog:",
+    "tempy": "catalog:"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.5.5",
-    "node-fetch": "npm:@pnpm/node-fetch@1.0.0"
+    "node-fetch": "catalog:"
   }
 }

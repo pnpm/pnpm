@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/os.env.path-extender": "^2.0.0",
-    "render-help": "^1.0.3"
+    "render-help": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "peerDependencies": {

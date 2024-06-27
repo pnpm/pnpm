@@ -33,11 +33,11 @@
   "dependencies": {
     "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "semver": "^7.6.2"
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/dependency-path": "workspace:*",
-    "@types/semver": "7.5.3"
+    "@types/semver": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

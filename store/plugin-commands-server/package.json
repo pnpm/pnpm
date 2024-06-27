@@ -30,8 +30,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-server#readme",
   "devDependencies": {
     "@pnpm/plugin-commands-server": "workspace:*",
-    "@types/is-windows": "^1.0.2",
-    "@types/ramda": "0.29.12",
+    "@types/is-windows": "catalog:",
+    "@types/ramda": "catalog:",
     "@types/signal-exit": "^3.0.4"
   },
   "dependencies": {
@@ -46,10 +46,10 @@
     "@zkochan/diable": "^1.0.2",
     "delay": "^5.0.0",
     "get-port": "^5.1.1",
-    "is-windows": "^1.0.2",
+    "is-windows": "catalog:",
     "process-exists": "^4.1.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "render-help": "^1.0.3",
+    "ramda": "catalog:",
+    "render-help": "catalog:",
     "signal-exit": "^3.0.7",
     "tree-kill": "^1.2.2"
   },

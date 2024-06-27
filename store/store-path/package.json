@@ -31,20 +31,20 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/store-path#readme",
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@zkochan/rimraf": "^2.1.3",
+    "@zkochan/rimraf": "catalog:",
     "can-link": "^2.0.0",
-    "path-absolute": "^1.0.1",
+    "path-absolute": "catalog:",
     "path-temp": "^2.1.0",
     "root-link-target": "^3.1.0",
     "touch": "3.1.0"
   },
   "devDependencies": {
     "@pnpm/store-path": "workspace:*",
-    "@types/is-windows": "^1.0.2",
-    "@types/node": "^18.19.34",
+    "@types/is-windows": "catalog:",
+    "@types/node": "catalog:",
     "@types/rimraf": "^3.0.2",
     "@types/touch": "^3.1.5",
-    "is-windows": "^1.0.2",
+    "is-windows": "catalog:",
     "rimraf": "^3.0.2"
   },
   "funding": "https://opencollective.com/pnpm",

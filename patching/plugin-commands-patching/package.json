@@ -33,13 +33,13 @@
   "devDependencies": {
     "@pnpm/plugin-commands-patching": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.32.1",
+    "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
-    "@types/normalize-path": "^3.0.2",
-    "@types/ramda": "0.29.12",
-    "@types/semver": "7.5.3",
-    "write-yaml-file": "^5.0.0"
+    "@types/normalize-path": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
+    "write-yaml-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
@@ -58,16 +58,16 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
-    "enquirer": "^2.4.1",
+    "enquirer": "catalog:",
     "escape-string-regexp": "^4.0.0",
-    "fast-glob": "^3.3.2",
-    "normalize-path": "^3.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "realpath-missing": "^1.1.0",
-    "render-help": "^1.0.3",
+    "fast-glob": "catalog:",
+    "normalize-path": "catalog:",
+    "ramda": "catalog:",
+    "realpath-missing": "catalog:",
+    "render-help": "catalog:",
     "safe-execa": "^0.1.4",
-    "semver": "^7.6.2",
-    "tempy": "^1.0.1"
+    "semver": "catalog:",
+    "tempy": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

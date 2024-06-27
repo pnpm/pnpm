@@ -35,11 +35,11 @@
   },
   "devDependencies": {
     "@pnpm/filter-lockfile": "workspace:*",
-    "@types/ramda": "0.29.12",
+    "@types/ramda": "catalog:",
     "detect-libc": "^2.0.3",
-    "tempy": "^1.0.1",
-    "write-yaml-file": "^5.0.0",
-    "yaml-tag": "1.1.0"
+    "tempy": "catalog:",
+    "write-yaml-file": "catalog:",
+    "yaml-tag": "catalog:"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",
@@ -50,7 +50,7 @@
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

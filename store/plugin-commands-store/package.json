@@ -35,15 +35,15 @@
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/plugin-commands-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.32.1",
+    "@pnpm/registry-mock": "catalog:",
     "@types/archy": "0.0.33",
-    "@types/ramda": "0.29.12",
-    "@types/ssri": "^7.1.5",
-    "@zkochan/rimraf": "^2.1.3",
-    "execa": "npm:safe-execa@0.1.2",
-    "path-exists": "^4.0.0",
-    "ssri": "10.0.5",
-    "tempy": "^1.0.1"
+    "@types/ramda": "catalog:",
+    "@types/ssri": "catalog:",
+    "@zkochan/rimraf": "catalog:",
+    "execa": "catalog:",
+    "path-exists": "catalog:",
+    "ssri": "catalog:",
+    "tempy": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
@@ -62,10 +62,10 @@
     "@pnpm/types": "workspace:*",
     "archy": "^1.0.0",
     "dint": "^5.1.0",
-    "load-json-file": "^6.2.0",
-    "p-filter": "^2.1.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "render-help": "^1.0.3"
+    "load-json-file": "catalog:",
+    "p-filter": "catalog:",
+    "ramda": "catalog:",
+    "render-help": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

@@ -37,13 +37,13 @@
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/network.agent": "^2.0.0",
     "@pnpm/types": "workspace:*",
-    "@zkochan/retry": "^0.2.0",
-    "node-fetch": "npm:@pnpm/node-fetch@1.0.0"
+    "@zkochan/retry": "catalog:",
+    "node-fetch": "catalog:"
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
     "https-proxy-server-express": "0.1.2",
-    "nock": "13.3.4"
+    "nock": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
