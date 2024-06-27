@@ -34,7 +34,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "3.0.0",
     "fast-glob": "^3.3.2",
-    "p-filter": "^2.1.0"
+    "p-filter": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

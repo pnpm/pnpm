@@ -41,7 +41,7 @@
     "archy": "^1.0.0",
     "chalk": "^4.1.2",
     "cli-columns": "^4.0.0",
-    "p-limit": "^3.1.0",
+    "p-limit": "catalog:",
     "ramda": "catalog:"
   },
   "devDependencies": {

@@ -9,18 +9,78 @@ catalogs:
     '@pnpm/registry-mock':
       specifier: 3.32.1
       version: 3.32.1
+    '@types/is-windows':
+      specifier: ^1.0.2
+      version: 1.0.2
     '@types/ramda':
       specifier: 0.29.12
       version: 0.29.12
     '@types/semver':
       specifier: 7.5.3
       version: 7.5.3
+    '@zkochan/rimraf':
+      specifier: ^2.1.3
+      version: 2.1.3
+    execa:
+      specifier: npm:safe-execa@0.1.2
+      version: 0.1.2
+    is-subdir:
+      specifier: ^1.2.0
+      version: 1.2.0
+    is-windows:
+      specifier: ^1.0.2
+      version: 1.0.2
+    load-json-file:
+      specifier: ^6.2.0
+      version: 6.2.0
+    nock:
+      specifier: 13.3.4
+      version: 13.3.4
+    normalize-path:
+      specifier: ^3.0.0
+      version: 3.0.0
+    p-filter:
+      specifier: ^2.1.0
+      version: 2.1.0
+    p-limit:
+      specifier: ^3.1.0
+      version: 3.1.0
     ramda:
       specifier: npm:@pnpm/ramda@0.28.1
       version: 0.28.1
+    read-yaml-file:
+      specifier: ^2.1.0
+      version: 2.1.0
+    render-help:
+      specifier: ^1.0.3
+      version: 1.0.3
+    run-groups:
+      specifier: ^3.0.1
+      version: 3.0.1
     semver:
       specifier: ^7.6.2
       version: 7.6.2
+    sinon:
+      specifier: ^16.1.3
+      version: 16.1.3
+    sort-keys:
+      specifier: ^4.2.0
+      version: 4.2.0
+    symlink-dir:
+      specifier: ^6.0.0
+      version: 6.0.0
+    version-selector-type:
+      specifier: ^3.0.0
+      version: 3.0.0
+    which:
+      specifier: npm:@pnpm/which@^3.0.1
+      version: 3.0.1
+    write-json-file:
+      specifier: ^4.3.0
+      version: 4.3.0
+    write-yaml-file:
+      specifier: ^5.0.0
+      version: 5.0.0
 
 overrides:
   clipanion: 3.2.0-rc.6
@@ -168,19 +228,19 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       is-subdir:
-        specifier: ^1.2.0
+        specifier: 'catalog:'
         version: 1.2.0
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
       write-json-file:
-        specifier: ^4.3.0
+        specifier: 'catalog:'
         version: 4.3.0
     devDependencies:
       '@pnpm-private/updater':
@@ -214,13 +274,13 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       isexe:
         specifier: 2.0.0
         version: 2.0.0
       read-yaml-file:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       write-pkg:
         specifier: 4.0.0
@@ -230,7 +290,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/isexe':
         specifier: 2.0.2
@@ -323,7 +383,7 @@ importers:
         specifier: 4.0.0
         version: 4.0.0
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
       '@pnpm/prepare':
@@ -336,7 +396,7 @@ importers:
   __utils__/scripts:
     dependencies:
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       make-empty-dir:
         specifier: ^2.1.0
@@ -374,7 +434,7 @@ importers:
         specifier: ^18.19.34
         version: 18.19.34
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
 
   __utils__/tsconfig:
@@ -433,7 +493,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
     devDependencies:
       '@pnpm/cli-meta':
@@ -473,7 +533,7 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
     devDependencies:
       '@pnpm/cli-utils':
@@ -541,7 +601,7 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       pretty-bytes:
         specifier: ^5.6.0
@@ -581,7 +641,7 @@ importers:
         specifier: 2.0.4
         version: 2.0.4
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       normalize-newline:
         specifier: 3.0.0
@@ -645,7 +705,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       split-cmd:
         specifier: ^1.1.0
@@ -709,10 +769,10 @@ importers:
         specifier: ^1.1.1
         version: 1.1.1
       is-subdir:
-        specifier: ^1.2.0
+        specifier: 'catalog:'
         version: 1.2.0
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       normalize-registry-url:
         specifier: 2.0.0
@@ -746,7 +806,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -755,7 +815,7 @@ importers:
         specifier: ^2.0.2
         version: 2.0.2
       symlink-dir:
-        specifier: ^6.0.0
+        specifier: 'catalog:'
         version: 6.0.0
 
   config/matcher:
@@ -805,7 +865,7 @@ importers:
         specifier: ^2.0.3
         version: 2.0.3
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       mem:
         specifier: ^8.1.1
@@ -865,10 +925,10 @@ importers:
         specifier: 4.0.0
         version: 4.0.0
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       sort-keys:
-        specifier: ^4.2.0
+        specifier: 'catalog:'
         version: 4.2.0
       write-ini-file:
         specifier: 4.0.1
@@ -1060,7 +1120,7 @@ importers:
         specifier: 'catalog:'
         version: 7.6.2
       version-selector-type:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
       '@pnpm/fetch':
@@ -1106,28 +1166,28 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       graceful-fs:
         specifier: ^4.2.11
         version: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       semver:
         specifier: 'catalog:'
         version: 7.6.2
       symlink-dir:
-        specifier: ^6.0.0
+        specifier: 'catalog:'
         version: 6.0.0
       write-json-file:
-        specifier: ^4.3.0
+        specifier: 'catalog:'
         version: 4.3.0
     devDependencies:
       '@pnpm/plugin-commands-env':
@@ -1143,7 +1203,7 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/semver':
         specifier: 'catalog:'
@@ -1152,10 +1212,10 @@ importers:
         specifier: ^0.5.14
         version: 0.5.14
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       nock:
-        specifier: 13.3.4
+        specifier: 'catalog:'
         version: 13.3.4
       node-fetch:
         specifier: npm:@pnpm/node-fetch@1.0.0
@@ -1209,7 +1269,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       run-groups:
-        specifier: ^3.0.1
+        specifier: 'catalog:'
         version: 3.0.1
     devDependencies:
       '@pnpm/build-modules':
@@ -1249,13 +1309,13 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
       run-groups:
-        specifier: ^3.0.1
+        specifier: 'catalog:'
         version: 3.0.1
     devDependencies:
       '@pnpm/lifecycle':
@@ -1268,16 +1328,16 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/rimraf':
         specifier: ^3.0.2
         version: 3.0.2
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
 
   exec/pkg-requires-build:
@@ -1374,22 +1434,22 @@ importers:
         specifier: workspace:*
         version: link:../../workspace/find-packages
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       mem:
         specifier: ^8.1.1
         version: 8.1.1
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       run-groups:
-        specifier: ^3.0.1
+        specifier: 'catalog:'
         version: 3.0.1
       semver:
         specifier: 'catalog:'
@@ -1429,16 +1489,16 @@ importers:
         specifier: ^10.0.20
         version: 10.0.20
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
       sinon:
-        specifier: ^16.1.3
+        specifier: 'catalog:'
         version: 16.1.3
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
 
   exec/plugin-commands-script-runners:
@@ -1495,16 +1555,16 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       didyoumean2:
         specifier: ^6.0.1
         version: 6.0.1
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       path-exists:
         specifier: ^4.0.0
@@ -1519,16 +1579,16 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       symlink-dir:
-        specifier: ^6.0.0
+        specifier: 'catalog:'
         version: 6.0.0
       which:
-        specifier: npm:@pnpm/which@^3.0.1
+        specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'
       write-json-file:
-        specifier: ^4.3.0
+        specifier: 'catalog:'
         version: 4.3.0
     devDependencies:
       '@pnpm/filter-workspace-packages':
@@ -1550,7 +1610,7 @@ importers:
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -1559,10 +1619,10 @@ importers:
         specifier: ^2.0.2
         version: 2.0.2
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
 
   exec/prepare-package:
@@ -1580,10 +1640,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       preferred-pm:
         specifier: ^3.1.3
@@ -1608,7 +1668,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
 
   exec/run-npm:
@@ -1658,7 +1718,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
 
   fetching/fetcher-base:
@@ -1698,10 +1758,10 @@ importers:
         specifier: workspace:^
         version: link:../../worker
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
     devDependencies:
       '@pnpm/create-cafs-store':
@@ -1811,7 +1871,7 @@ importers:
         specifier: ^7.1.5
         version: 7.1.5
       nock:
-        specifier: 13.3.4
+        specifier: 'catalog:'
         version: 13.3.4
       ssri:
         specifier: 10.0.5
@@ -1835,7 +1895,7 @@ importers:
         specifier: ^3.3.2
         version: 3.3.2
       p-filter:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
     devDependencies:
       '@pnpm/fs.find-packages':
@@ -1886,7 +1946,7 @@ importers:
         specifier: 0.1.16
         version: 0.1.16
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       fs-extra:
         specifier: ^11.2.0
@@ -1895,7 +1955,7 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       path-exists:
         specifier: ^4.0.0
@@ -1961,7 +2021,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       symlink-dir:
-        specifier: ^6.0.0
+        specifier: 'catalog:'
         version: 6.0.0
     devDependencies:
       '@pnpm/prepare':
@@ -2032,7 +2092,7 @@ importers:
         specifier: 2.0.1
         version: 2.0.1(@yarnpkg/core@4.0.3(typanion@3.14.0))
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       ramda:
         specifier: 'catalog:'
@@ -2125,7 +2185,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       nock:
-        specifier: 13.3.4
+        specifier: 'catalog:'
         version: 13.3.4
 
   lockfile/detect-dep-types:
@@ -2193,7 +2253,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
       yaml-tag:
         specifier: 1.1.0
@@ -2235,7 +2295,7 @@ importers:
         specifier: 3.0.0
         version: 3.0.0
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       comver-to-semver:
         specifier: ^1.0.0
@@ -2244,7 +2304,7 @@ importers:
         specifier: npm:@zkochan/js-yaml@0.0.7
         version: '@zkochan/js-yaml@0.0.7'
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       ramda:
         specifier: 'catalog:'
@@ -2253,7 +2313,7 @@ importers:
         specifier: 'catalog:'
         version: 7.6.2
       sort-keys:
-        specifier: ^4.2.0
+        specifier: 'catalog:'
         version: 4.2.0
       strip-bom:
         specifier: ^4.0.0
@@ -2284,7 +2344,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
       yaml-tag:
         specifier: 1.1.0
@@ -2311,7 +2371,7 @@ importers:
         specifier: ^4.0.6
         version: 4.0.6
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       ramda:
         specifier: 'catalog:'
@@ -2377,7 +2437,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
       yaml-tag:
         specifier: 1.1.0
@@ -2472,7 +2532,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
     devDependencies:
       '@pnpm/plugin-commands-audit':
@@ -2491,10 +2551,10 @@ importers:
         specifier: npm:@types/table@6.0.0
         version: '@types/table@6.0.0'
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       nock:
-        specifier: 13.3.4
+        specifier: 'catalog:'
         version: 13.3.4
       strip-ansi:
         specifier: ^6.0.1
@@ -2518,7 +2578,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       version-selector-type:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
       '@pnpm/lockfile.preferred-versions':
@@ -2583,10 +2643,10 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
     optionalDependencies:
       fuse-native:
@@ -2650,7 +2710,7 @@ importers:
         specifier: 0.1.2
         version: 0.1.2
       nock:
-        specifier: 13.3.4
+        specifier: 'catalog:'
         version: 13.3.4
 
   network/fetching-types:
@@ -2687,7 +2747,7 @@ importers:
         specifier: workspace:*
         version: link:../types
       sort-keys:
-        specifier: ^4.2.0
+        specifier: 'catalog:'
         version: 4.2.0
     devDependencies:
       '@pnpm/calc-dep-state':
@@ -2758,7 +2818,7 @@ importers:
   packages/git-utils:
     dependencies:
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
     devDependencies:
       '@pnpm/git-utils':
@@ -2814,7 +2874,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       pnpm:
         specifier: workspace:^
@@ -2845,7 +2905,7 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
     devDependencies:
       '@pnpm/plugin-commands-doctor':
@@ -2870,7 +2930,7 @@ importers:
         specifier: ^6.2.2
         version: 6.2.2
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
     devDependencies:
       '@pnpm/plugin-commands-init':
@@ -2883,7 +2943,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
 
   packages/plugin-commands-setup:
@@ -2898,7 +2958,7 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
     devDependencies:
       '@pnpm/error':
@@ -3049,7 +3109,7 @@ importers:
         specifier: ^3.3.2
         version: 3.3.2
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       ramda:
         specifier: 'catalog:'
@@ -3058,7 +3118,7 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       safe-execa:
         specifier: ^0.1.4
@@ -3095,7 +3155,7 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
 
   pkg-manager/client:
@@ -3282,28 +3342,28 @@ importers:
         specifier: workspace:^
         version: link:../../worker
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       is-inner-link:
         specifier: ^4.0.0
         version: 4.0.0
       is-subdir:
-        specifier: ^1.2.0
+        specifier: 'catalog:'
         version: 1.2.0
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       p-every:
         specifier: ^2.0.0
         version: 2.0.0
       p-filter:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       p-map-values:
         specifier: ^1.0.0
@@ -3315,16 +3375,16 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       run-groups:
-        specifier: ^3.0.1
+        specifier: 'catalog:'
         version: 3.0.1
       semver:
         specifier: 'catalog:'
         version: 7.6.2
       sort-keys:
-        specifier: ^4.2.0
+        specifier: 'catalog:'
         version: 4.2.0
       version-selector-type:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
       '@pnpm/assert-project':
@@ -3376,7 +3436,7 @@ importers:
         specifier: ^9.0.13
         version: 9.0.13
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/normalize-path':
         specifier: ^3.0.2
@@ -3400,37 +3460,37 @@ importers:
         specifier: 1.0.0
         version: 1.0.0
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       exists-link:
         specifier: 2.0.0
         version: 2.0.0
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       nock:
-        specifier: 13.3.4
+        specifier: 'catalog:'
         version: 13.3.4
       path-name:
         specifier: ^1.0.0
         version: 1.0.0
       read-yaml-file:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       resolve-link-target:
         specifier: ^2.0.0
         version: 2.0.0
       sinon:
-        specifier: ^16.1.3
+        specifier: 'catalog:'
         version: 16.1.3
       symlink-dir:
-        specifier: ^6.0.0
+        specifier: 'catalog:'
         version: 6.0.0
       write-json-file:
-        specifier: ^4.3.0
+        specifier: 'catalog:'
         version: 4.3.0
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
 
   pkg-manager/direct-dep-linker:
@@ -3448,7 +3508,7 @@ importers:
         specifier: workspace:*
         version: link:../../fs/symlink-dependency
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       ramda:
         specifier: 'catalog:'
@@ -3491,7 +3551,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       ci-info:
         specifier: ^3.9.0
@@ -3600,10 +3660,10 @@ importers:
         specifier: workspace:^
         version: link:../../worker
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       path-absolute:
         specifier: ^1.0.1
@@ -3673,16 +3733,16 @@ importers:
         specifier: 2.0.0
         version: 2.0.0
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       sinon:
-        specifier: ^16.1.3
+        specifier: 'catalog:'
         version: 16.1.3
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
       write-json-file:
-        specifier: ^4.3.0
+        specifier: 'catalog:'
         version: 4.3.0
 
   pkg-manager/hoist:
@@ -3721,7 +3781,7 @@ importers:
         specifier: 3.0.0
         version: 3.0.0
       is-subdir:
-        specifier: ^1.2.0
+        specifier: 'catalog:'
         version: 1.2.0
       ramda:
         specifier: 'catalog:'
@@ -3730,7 +3790,7 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       symlink-dir:
-        specifier: ^6.0.0
+        specifier: 'catalog:'
         version: 6.0.0
     devDependencies:
       '@pnpm/hoist':
@@ -3770,19 +3830,19 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       bin-links:
         specifier: ^4.0.4
         version: 4.0.4
       is-subdir:
-        specifier: ^1.2.0
+        specifier: 'catalog:'
         version: 1.2.0
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       p-settle:
         specifier: ^4.1.1
@@ -3794,7 +3854,7 @@ importers:
         specifier: 'catalog:'
         version: 7.6.2
       symlink-dir:
-        specifier: ^6.0.0
+        specifier: 'catalog:'
         version: 6.0.0
     devDependencies:
       '@pnpm/link-bins':
@@ -3804,7 +3864,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/node':
         specifier: ^18.19.34
@@ -3861,7 +3921,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       ramda:
         specifier: 'catalog:'
@@ -3880,23 +3940,23 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       read-yaml-file:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: 'link:'
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -3914,7 +3974,7 @@ importers:
         specifier: ^3.3.2
         version: 3.3.2
       is-subdir:
-        specifier: ^1.2.0
+        specifier: 'catalog:'
         version: 1.2.0
     devDependencies:
       '@pnpm/package-bins':
@@ -3972,7 +4032,7 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       p-queue:
         specifier: ^6.6.2
@@ -4024,13 +4084,13 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       nock:
-        specifier: 13.3.4
+        specifier: 'catalog:'
         version: 13.3.4
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       tempy:
         specifier: ^1.0.1
@@ -4138,7 +4198,7 @@ importers:
         specifier: 3.0.0
         version: 3.0.0
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       '@zkochan/table':
         specifier: ^2.0.1
@@ -4153,19 +4213,19 @@ importers:
         specifier: ^2.4.1
         version: 2.4.1
       is-subdir:
-        specifier: ^1.2.0
+        specifier: 'catalog:'
         version: 1.2.0
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       mem:
         specifier: ^8.1.1
         version: 8.1.1
       p-filter:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       path-absolute:
         specifier: ^1.0.1
@@ -4177,10 +4237,10 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       version-selector-type:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
       '@pnpm/assert-project':
@@ -4235,25 +4295,25 @@ importers:
         specifier: ^2.1.3
         version: 2.1.3
       read-yaml-file:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       sinon:
-        specifier: ^16.1.3
+        specifier: 'catalog:'
         version: 16.1.3
       symlink-dir:
-        specifier: ^6.0.0
+        specifier: 'catalog:'
         version: 6.0.0
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
       write-json-file:
-        specifier: ^4.3.0
+        specifier: 'catalog:'
         version: 4.3.0
       write-pkg:
         specifier: 4.0.0
         version: 4.0.0
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
 
   pkg-manager/read-projects-context:
@@ -4327,20 +4387,20 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       cmd-extension:
         specifier: ^1.0.2
         version: 1.0.2
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
     devDependencies:
       '@pnpm/remove-bins':
         specifier: workspace:*
         version: 'link:'
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -4427,10 +4487,10 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       is-subdir:
-        specifier: ^1.2.0
+        specifier: 'catalog:'
         version: 1.2.0
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       p-defer:
         specifier: ^3.0.0
@@ -4457,7 +4517,7 @@ importers:
         specifier: ^0.3.1
         version: 0.3.1
       version-selector-type:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
       '@pnpm/resolve-dependencies':
@@ -4516,7 +4576,7 @@ importers:
         specifier: ^7.0.3
         version: 7.0.3
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
 
   pkg-manifest/manifest-utils:
@@ -4544,7 +4604,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       normalize-package-data:
         specifier: ^5.0.0
@@ -4581,7 +4641,7 @@ importers:
         specifier: ^3.1.3
         version: 3.1.3
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       json5:
         specifier: ^2.2.3
@@ -4593,10 +4653,10 @@ importers:
         specifier: ^5.2.0
         version: 5.2.0
       read-yaml-file:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       sort-keys:
-        specifier: ^4.2.0
+        specifier: 'catalog:'
         version: 4.2.0
       strip-bom:
         specifier: ^4.0.0
@@ -4606,7 +4666,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/lodash.clonedeep':
         specifier: ^4.5.9
@@ -4633,7 +4693,7 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
       '@pnpm/write-project-manifest':
@@ -4822,7 +4882,7 @@ importers:
         specifier: ^6.0.6
         version: 6.0.6
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/pnpm__byline':
         specifier: npm:@types/byline@^4.2.36
@@ -4840,7 +4900,7 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       chalk:
         specifier: ^4.1.2
@@ -4864,16 +4924,16 @@ importers:
         specifier: ^0.19.12
         version: 0.19.12
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       exists-link:
         specifier: 2.0.0
         version: 2.0.0
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       loud-rejection:
         specifier: ^2.2.0
@@ -4903,10 +4963,10 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       read-yaml-file:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       semver:
         specifier: 'catalog:'
@@ -4918,7 +4978,7 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1
       symlink-dir:
-        specifier: ^6.0.0
+        specifier: 'catalog:'
         version: 6.0.0
       tempy:
         specifier: ^1.0.1
@@ -4930,13 +4990,13 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       write-json-file:
-        specifier: ^4.3.0
+        specifier: 'catalog:'
         version: 4.3.0
       write-pkg:
         specifier: 4.0.0
         version: 4.0.0
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
 
   pnpm/artifacts/exe:
@@ -4961,7 +5021,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       pkg:
         specifier: 5.8.1
@@ -5027,10 +5087,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
     devDependencies:
       '@pnpm/assert-project':
@@ -5109,19 +5169,19 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       enquirer:
         specifier: ^2.4.1
         version: 2.4.1
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       fast-glob:
         specifier: ^3.3.2
         version: 3.3.2
       p-filter:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       ramda:
         specifier: 'catalog:'
@@ -5130,7 +5190,7 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       tar-stream:
         specifier: ^2.2.0
@@ -5139,7 +5199,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       write-json-file:
-        specifier: ^4.3.0
+        specifier: 'catalog:'
         version: 4.3.0
     devDependencies:
       '@pnpm/catalogs.config':
@@ -5164,7 +5224,7 @@ importers:
         specifier: ^6.0.6
         version: 6.0.6
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/proxyquire':
         specifier: ^1.3.31
@@ -5188,10 +5248,10 @@ importers:
         specifier: ^7.0.3
         version: 7.0.3
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       path-exists:
         specifier: ^4.0.0
@@ -5200,7 +5260,7 @@ importers:
         specifier: ^6.2.1
         version: 6.2.1
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
 
   resolving/default-resolver:
@@ -5259,13 +5319,13 @@ importers:
         specifier: ^3.0.5
         version: 3.0.5
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
 
   resolving/local-resolver:
@@ -5289,7 +5349,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       ssri:
         specifier: 10.0.5
@@ -5341,16 +5401,16 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       lru-cache:
         specifier: ^10.2.2
         version: 10.2.2
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       p-memoize:
         specifier: 4.0.1
@@ -5374,7 +5434,7 @@ importers:
         specifier: 10.0.5
         version: 10.0.5
       version-selector-type:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
       '@pnpm/fetch':
@@ -5399,7 +5459,7 @@ importers:
         specifier: ^7.1.5
         version: 7.1.5
       nock:
-        specifier: 13.3.4
+        specifier: 'catalog:'
         version: 13.3.4
       path-exists:
         specifier: ^4.0.0
@@ -5464,7 +5524,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       normalize-path:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       realpath-missing:
         specifier: ^1.1.0
@@ -5534,10 +5594,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       path-absolute:
         specifier: ^1.0.1
@@ -5586,7 +5646,7 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       ramda:
         specifier: 'catalog:'
@@ -5708,7 +5768,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       semver:
         specifier: 'catalog:'
@@ -5775,7 +5835,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
     devDependencies:
       '@pnpm/constants':
@@ -5803,13 +5863,13 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
       write-yaml-file:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
 
   reviewing/plugin-commands-outdated:
@@ -5866,7 +5926,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       strip-ansi:
         specifier: ^6.0.1
@@ -5912,13 +5972,13 @@ importers:
         specifier: workspace:*
         version: link:../store-controller-types
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       is-gzip:
         specifier: 2.0.0
         version: 2.0.0
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       rename-overwrite:
         specifier: ^5.0.0
@@ -5949,7 +6009,7 @@ importers:
         specifier: ^7.1.5
         version: 7.1.5
       symlink-dir:
-        specifier: ^6.0.0
+        specifier: 'catalog:'
         version: 6.0.0
       tempy:
         specifier: ^1.0.1
@@ -6040,10 +6100,10 @@ importers:
         specifier: workspace:^
         version: link:../../worker
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       ramda:
         specifier: 'catalog:'
@@ -6110,7 +6170,7 @@ importers:
         specifier: ^5.1.1
         version: 5.1.1
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       process-exists:
         specifier: ^4.1.0
@@ -6119,7 +6179,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       signal-exit:
         specifier: ^3.0.7
@@ -6132,7 +6192,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -6195,16 +6255,16 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       p-filter:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
     devDependencies:
       '@pnpm/assert-store':
@@ -6235,10 +6295,10 @@ importers:
         specifier: ^7.1.5
         version: 7.1.5
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       path-exists:
         specifier: ^4.0.0
@@ -6286,13 +6346,13 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       render-help:
-        specifier: ^1.0.3
+        specifier: 'catalog:'
         version: 1.0.3
       sort-keys:
-        specifier: ^4.2.0
+        specifier: 'catalog:'
         version: 4.2.0
     devDependencies:
       '@pnpm/plugin-commands-store-inspecting':
@@ -6302,7 +6362,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       tempy:
         specifier: ^1.0.1
@@ -6323,7 +6383,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       p-limit:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       promise-share:
         specifier: ^1.0.0
@@ -6351,7 +6411,7 @@ importers:
         specifier: ^8.3.4
         version: 8.3.4
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       get-port:
         specifier: ^5.1.1
@@ -6360,7 +6420,7 @@ importers:
         specifier: 3.0.0
         version: 3.0.0
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
       node-fetch:
         specifier: npm:@pnpm/node-fetch@1.0.0
@@ -6434,7 +6494,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@zkochan/rimraf':
-        specifier: ^2.1.3
+        specifier: 'catalog:'
         version: 2.1.3
       can-link:
         specifier: ^2.0.0
@@ -6456,7 +6516,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/node':
         specifier: ^18.19.34
@@ -6468,7 +6528,7 @@ importers:
         specifier: ^3.1.5
         version: 3.1.5
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       rimraf:
         specifier: ^3.0.2
@@ -6517,7 +6577,7 @@ importers:
         specifier: 0.4.9
         version: 0.4.9(@types/node@20.14.8)
       load-json-file:
-        specifier: ^6.2.0
+        specifier: 'catalog:'
         version: 6.2.0
     devDependencies:
       '@pnpm/types':
@@ -6561,13 +6621,13 @@ importers:
         specifier: workspace:*
         version: link:../pkgs-graph
       execa:
-        specifier: npm:safe-execa@0.1.2
+        specifier: 'catalog:'
         version: safe-execa@0.1.2
       find-up:
         specifier: ^5.0.0
         version: 5.0.0
       is-subdir:
-        specifier: ^1.2.0
+        specifier: 'catalog:'
         version: 1.2.0
       micromatch:
         specifier: ^4.0.7
@@ -6583,7 +6643,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@types/is-windows':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       '@types/micromatch':
         specifier: ^4.0.7
@@ -6598,7 +6658,7 @@ importers:
         specifier: ^3.9.0
         version: 3.9.0
       is-windows:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       tempy:
         specifier: ^1.0.1
@@ -6682,7 +6742,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       read-yaml-file:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
     devDependencies:
       '@pnpm/workspace.read-manifest':
@@ -20804,3 +20864,4 @@ snapshots:
 
 time:
   '@pnpm/ramda@0.28.1': '2022-08-03T13:56:59.597Z'
+  '@pnpm/which@3.0.1': '2023-05-14T22:08:27.551Z'

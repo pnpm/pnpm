@@ -54,8 +54,8 @@
     "get-npm-tarball-url": "^2.1.0",
     "graph-cycles": "1.2.1",
     "is-inner-link": "^4.0.0",
-    "is-subdir": "^1.2.0",
-    "normalize-path": "^3.0.0",
+    "is-subdir": "catalog:",
+    "normalize-path": "catalog:",
     "p-defer": "^3.0.0",
     "path-exists": "^4.0.0",
     "promise-share": "^1.0.0",
@@ -64,7 +64,7 @@
     "safe-promise-defer": "^1.0.1",
     "semver": "catalog:",
     "semver-range-intersect": "^0.3.1",
-    "version-selector-type": "^3.0.0"
+    "version-selector-type": "catalog:"
   },
   "devDependencies": {
     "@pnpm/resolve-dependencies": "workspace:*",

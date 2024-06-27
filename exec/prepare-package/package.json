@@ -33,8 +33,8 @@
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@zkochan/rimraf": "^2.1.3",
-    "execa": "npm:safe-execa@0.1.2",
+    "@zkochan/rimraf": "catalog:",
+    "execa": "catalog:",
     "preferred-pm": "^3.1.3",
     "ramda": "catalog:"
   },
@@ -45,7 +45,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/ramda": "catalog:",
-    "load-json-file": "^6.2.0"
+    "load-json-file": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

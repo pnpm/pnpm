@@ -36,8 +36,8 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/zkochan__table": "npm:@types/table@6.0.0",
-    "load-json-file": "^6.2.0",
-    "nock": "13.3.4",
+    "load-json-file": "catalog:",
+    "nock": "catalog:",
     "strip-ansi": "^6.0.1",
     "tempy": "^1.0.1"
   },
@@ -55,7 +55,7 @@
     "chalk": "^4.1.2",
     "mem": "^8.1.1",
     "ramda": "catalog:",
-    "render-help": "^1.0.3"
+    "render-help": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

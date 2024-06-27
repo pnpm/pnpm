@@ -37,7 +37,7 @@
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "version-selector-type": "^3.0.0"
+    "version-selector-type": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

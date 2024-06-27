@@ -38,7 +38,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
-    "@zkochan/rimraf": "^2.1.3",
+    "@zkochan/rimraf": "catalog:",
     "ramda": "catalog:",
     "resolve-link-target": "^2.0.0"
   },

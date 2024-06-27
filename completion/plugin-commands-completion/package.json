@@ -39,7 +39,7 @@
     "@pnpm/workspace.find-packages": "workspace:^",
     "@pnpm/workspace.read-manifest": "workspace:^",
     "ramda": "catalog:",
-    "render-help": "^1.0.3",
+    "render-help": "catalog:",
     "split-cmd": "^1.1.0"
   },
   "funding": "https://opencollective.com/pnpm",

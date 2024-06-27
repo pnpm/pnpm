@@ -48,8 +48,8 @@
     "camelcase": "^6.3.0",
     "camelcase-keys": "^6.2.2",
     "can-write-to-dir": "^1.1.1",
-    "is-subdir": "^1.2.0",
-    "is-windows": "^1.0.2",
+    "is-subdir": "catalog:",
+    "is-windows": "catalog:",
     "normalize-registry-url": "2.0.0",
     "path-absolute": "^1.0.1",
     "path-name": "^1.0.0",
@@ -62,10 +62,10 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/is-windows": "^1.0.2",
+    "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:",
     "@types/which": "^2.0.2",
-    "symlink-dir": "^6.0.0"
+    "symlink-dir": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

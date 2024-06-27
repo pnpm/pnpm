@@ -41,9 +41,9 @@
   "devDependencies": {
     "@pnpm/git-resolver": "workspace:*",
     "@types/hosted-git-info": "^3.0.5",
-    "@types/is-windows": "^1.0.2",
+    "@types/is-windows": "catalog:",
     "@types/semver": "catalog:",
-    "is-windows": "^1.0.2"
+    "is-windows": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

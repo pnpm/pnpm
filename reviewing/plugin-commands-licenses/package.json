@@ -56,7 +56,7 @@
     "@zkochan/table": "^2.0.1",
     "chalk": "^4.1.2",
     "ramda": "catalog:",
-    "render-help": "^1.0.3",
+    "render-help": "catalog:",
     "semver": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

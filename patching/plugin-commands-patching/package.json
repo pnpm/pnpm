@@ -39,7 +39,7 @@
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "write-yaml-file": "^5.0.0"
+    "write-yaml-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
@@ -61,10 +61,10 @@
     "enquirer": "^2.4.1",
     "escape-string-regexp": "^4.0.0",
     "fast-glob": "^3.3.2",
-    "normalize-path": "^3.0.0",
+    "normalize-path": "catalog:",
     "ramda": "catalog:",
     "realpath-missing": "^1.1.0",
-    "render-help": "^1.0.3",
+    "render-help": "catalog:",
     "safe-execa": "^0.1.4",
     "semver": "catalog:",
     "tempy": "^1.0.1"

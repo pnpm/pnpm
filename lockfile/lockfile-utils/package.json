@@ -35,7 +35,7 @@
     "@types/js-yaml": "^4.0.9",
     "@types/ramda": "catalog:",
     "tempy": "^1.0.1",
-    "write-yaml-file": "^5.0.0",
+    "write-yaml-file": "catalog:",
     "yaml-tag": "1.1.0"
   },
   "dependencies": {

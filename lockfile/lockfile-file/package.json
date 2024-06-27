@@ -42,7 +42,7 @@
     "@types/semver": "catalog:",
     "@types/write-file-atomic": "^4.0.3",
     "tempy": "^1.0.1",
-    "write-yaml-file": "^5.0.0",
+    "write-yaml-file": "catalog:",
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
@@ -56,13 +56,13 @@
     "@pnpm/merge-lockfile-changes": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "3.0.0",
-    "@zkochan/rimraf": "^2.1.3",
+    "@zkochan/rimraf": "catalog:",
     "comver-to-semver": "^1.0.0",
     "js-yaml": "npm:@zkochan/js-yaml@0.0.7",
-    "normalize-path": "^3.0.0",
+    "normalize-path": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:",
-    "sort-keys": "^4.2.0",
+    "sort-keys": "catalog:",
     "strip-bom": "^4.0.0",
     "write-file-atomic": "^5.0.1"
   },

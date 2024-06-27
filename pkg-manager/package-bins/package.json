@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/types": "workspace:*",
     "fast-glob": "^3.3.2",
-    "is-subdir": "^1.2.0"
+    "is-subdir": "catalog:"
   },
   "devDependencies": {
     "@pnpm/package-bins": "workspace:*",

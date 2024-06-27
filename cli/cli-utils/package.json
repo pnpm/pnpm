@@ -43,7 +43,7 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "^4.1.2",
-    "load-json-file": "^6.2.0"
+    "load-json-file": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

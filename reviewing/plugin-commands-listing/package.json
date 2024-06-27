@@ -37,9 +37,9 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@types/ramda": "catalog:",
-    "execa": "npm:safe-execa@0.1.2",
+    "execa": "catalog:",
     "strip-ansi": "^6.0.1",
-    "write-yaml-file": "^5.0.0"
+    "write-yaml-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
@@ -49,7 +49,7 @@
     "@pnpm/list": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:",
-    "render-help": "^1.0.3"
+    "render-help": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

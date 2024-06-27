@@ -45,8 +45,8 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "load-json-file": "^6.2.0",
-    "p-limit": "^3.1.0",
+    "load-json-file": "catalog:",
+    "p-limit": "catalog:",
     "path-absolute": "^1.0.1",
     "ramda": "catalog:",
     "semver": "catalog:"

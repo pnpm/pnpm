@@ -10,11 +10,11 @@
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "is-subdir": "^1.2.0",
-    "load-json-file": "^6.2.0",
-    "normalize-path": "^3.0.0",
+    "is-subdir": "catalog:",
+    "load-json-file": "catalog:",
+    "normalize-path": "catalog:",
     "path-exists": "^4.0.0",
-    "write-json-file": "^4.3.0"
+    "write-json-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm-private/updater": "workspace:*"

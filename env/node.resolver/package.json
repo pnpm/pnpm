@@ -38,7 +38,7 @@
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "semver": "catalog:",
-    "version-selector-type": "^3.0.0"
+    "version-selector-type": "catalog:"
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "execa": "npm:safe-execa@0.1.2",
+    "execa": "catalog:",
     "make-empty-dir": "^2.1.0"
   },
   "devDependencies": {

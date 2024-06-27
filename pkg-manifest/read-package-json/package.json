@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "load-json-file": "^6.2.0",
+    "load-json-file": "catalog:",
     "normalize-package-data": "^5.0.0"
   },
   "funding": "https://opencollective.com/pnpm",

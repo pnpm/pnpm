@@ -17,7 +17,7 @@
   ],
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@types/is-windows": "^1.0.2",
+    "@types/is-windows": "catalog:",
     "@types/isexe": "2.0.2",
     "@types/node": "^18.19.34"
   },
@@ -46,9 +46,9 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/types": "workspace:*",
-    "is-windows": "^1.0.2",
+    "is-windows": "catalog:",
     "isexe": "2.0.0",
-    "read-yaml-file": "^2.1.0",
+    "read-yaml-file": "catalog:",
     "write-pkg": "4.0.0"
   }
 }

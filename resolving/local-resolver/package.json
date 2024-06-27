@@ -37,7 +37,7 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "normalize-path": "^3.0.0",
+    "normalize-path": "catalog:",
     "ssri": "10.0.5"
   },
   "devDependencies": {

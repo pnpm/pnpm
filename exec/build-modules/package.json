@@ -47,7 +47,7 @@
     "@pnpm/worker": "workspace:*",
     "p-defer": "^3.0.0",
     "ramda": "catalog:",
-    "run-groups": "^3.0.1"
+    "run-groups": "catalog:"
   },
   "devDependencies": {
     "@pnpm/build-modules": "workspace:*",

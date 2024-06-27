@@ -47,13 +47,13 @@
     "jest-diff": "^29.7.0",
     "path-name": "^1.0.0",
     "proxyquire": "^2.1.3",
-    "read-yaml-file": "^2.1.0",
-    "sinon": "^16.1.3",
-    "symlink-dir": "^6.0.0",
+    "read-yaml-file": "catalog:",
+    "sinon": "catalog:",
+    "symlink-dir": "catalog:",
     "tempy": "^1.0.1",
-    "write-json-file": "^4.3.0",
+    "write-json-file": "catalog:",
     "write-pkg": "4.0.0",
-    "write-yaml-file": "^5.0.0"
+    "write-yaml-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
@@ -88,21 +88,21 @@
     "@yarnpkg/core": "4.0.3",
     "@yarnpkg/lockfile": "^1.1.0",
     "@yarnpkg/parsers": "3.0.0",
-    "@zkochan/rimraf": "^2.1.3",
+    "@zkochan/rimraf": "catalog:",
     "@zkochan/table": "^2.0.1",
     "chalk": "^4.1.2",
     "ci-info": "^3.9.0",
     "enquirer": "^2.4.1",
-    "is-subdir": "^1.2.0",
-    "load-json-file": "^6.2.0",
+    "is-subdir": "catalog:",
+    "load-json-file": "catalog:",
     "mem": "^8.1.1",
-    "p-filter": "^2.1.0",
-    "p-limit": "^3.1.0",
+    "p-filter": "catalog:",
+    "p-limit": "catalog:",
     "path-absolute": "^1.0.1",
     "path-exists": "^4.0.0",
     "ramda": "catalog:",
-    "render-help": "^1.0.3",
-    "version-selector-type": "^3.0.0"
+    "render-help": "catalog:",
+    "version-selector-type": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

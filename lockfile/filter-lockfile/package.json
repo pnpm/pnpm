@@ -38,7 +38,7 @@
     "@types/ramda": "catalog:",
     "detect-libc": "^2.0.3",
     "tempy": "^1.0.1",
-    "write-yaml-file": "^5.0.0",
+    "write-yaml-file": "catalog:",
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
