@@ -22,7 +22,7 @@
     "@zkochan/rimraf": "catalog:",
     "is-gzip": "2.0.0",
     "p-limit": "catalog:",
-    "rename-overwrite": "^5.0.0",
+    "rename-overwrite": "catalog:",
     "ssri": "catalog:",
     "strip-bom": "^4.0.0"
   },
@@ -31,7 +31,7 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/is-gzip": "2.0.0",
-    "@types/node": "^18.19.34",
+    "@types/node": "catalog:",
     "@types/ssri": "catalog:",
     "symlink-dir": "catalog:",
     "tempy": "catalog:"

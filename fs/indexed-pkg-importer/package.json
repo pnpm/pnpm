@@ -25,7 +25,7 @@
     "p-limit": "catalog:",
     "path-exists": "catalog:",
     "path-temp": "^2.1.0",
-    "rename-overwrite": "^5.0.0",
+    "rename-overwrite": "catalog:",
     "sanitize-filename": "^1.6.3"
   },
   "devDependencies": {

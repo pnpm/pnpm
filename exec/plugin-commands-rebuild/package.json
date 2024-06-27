@@ -47,7 +47,7 @@
     "write-yaml-file": "catalog:"
   },
   "dependencies": {
-    "@pnpm/builder.policy": "3.0.0",
+    "@pnpm/builder.policy": "catalog:",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",

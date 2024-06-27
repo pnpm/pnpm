@@ -60,7 +60,7 @@
     "path-exists": "catalog:",
     "promise-share": "^1.0.0",
     "ramda": "catalog:",
-    "rename-overwrite": "^5.0.0",
+    "rename-overwrite": "catalog:",
     "safe-promise-defer": "^1.0.1",
     "semver": "catalog:",
     "semver-range-intersect": "^0.3.1",

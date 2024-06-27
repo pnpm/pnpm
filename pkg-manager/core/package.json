@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
-    "@pnpm/builder.policy": "3.0.0",
+    "@pnpm/builder.policy": "catalog:",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
@@ -65,7 +65,7 @@
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
-    "p-every": "^2.0.0",
+    "p-every": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
     "p-map-values": "^1.0.0",

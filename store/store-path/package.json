@@ -41,7 +41,7 @@
   "devDependencies": {
     "@pnpm/store-path": "workspace:*",
     "@types/is-windows": "catalog:",
-    "@types/node": "^18.19.34",
+    "@types/node": "catalog:",
     "@types/rimraf": "^3.0.2",
     "@types/touch": "^3.1.5",
     "is-windows": "catalog:",

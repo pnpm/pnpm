@@ -29,19 +29,21 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/env/plugin-commands-env#readme",
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
-    "@pnpm/logger": "^5.0.0",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@pnpm/store-path": "workspace:*",
-    "@zkochan/cmd-shim": "^6.0.0",
+    "@zkochan/cmd-shim": "catalog:",
     "@zkochan/rimraf": "catalog:",
-    "graceful-fs": "^4.2.11",
+    "graceful-fs": "catalog:",
     "is-windows": "catalog:",
     "load-json-file": "catalog:",
     "render-help": "catalog:",
@@ -57,10 +59,10 @@
     "@types/graceful-fs": "^4.1.9",
     "@types/is-windows": "catalog:",
     "@types/semver": "catalog:",
-    "adm-zip": "^0.5.14",
+    "adm-zip": "catalog:",
     "execa": "catalog:",
     "nock": "catalog:",
-    "node-fetch": "npm:@pnpm/node-fetch@1.0.0",
+    "node-fetch": "catalog:",
     "path-name": "catalog:"
   },
   "exports": {

@@ -52,7 +52,7 @@
     "parse-npm-tarball-url": "^3.0.0",
     "path-temp": "^2.1.0",
     "ramda": "catalog:",
-    "rename-overwrite": "^5.0.0",
+    "rename-overwrite": "catalog:",
     "semver": "catalog:",
     "ssri": "catalog:",
     "version-selector-type": "catalog:"

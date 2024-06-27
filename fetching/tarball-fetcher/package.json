@@ -47,7 +47,7 @@
     "p-map-values": "^1.0.0",
     "path-temp": "^2.1.0",
     "ramda": "catalog:",
-    "rename-overwrite": "^5.0.0"
+    "rename-overwrite": "catalog:"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
