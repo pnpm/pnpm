@@ -33,11 +33,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/make-dedicated-lockfile#readme",
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/exec": "^2.0.0",
+    "@pnpm/exec": "catalog:",
     "@pnpm/exportable-manifest": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/logger": "^5.0.0",
+    "@pnpm/logger": "catalog:",
     "@pnpm/prune-lockfile": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",

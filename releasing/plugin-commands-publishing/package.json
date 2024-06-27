@@ -43,14 +43,14 @@
     "@types/proxyquire": "catalog:",
     "@types/ramda": "catalog:",
     "@types/sinon": "catalog:",
-    "@types/tar": "^6.1.13",
-    "@types/tar-stream": "^2.2.3",
+    "@types/tar": "catalog:",
+    "@types/tar-stream": "catalog:",
     "ci-info": "catalog:",
     "cross-spawn": "catalog:",
     "is-windows": "catalog:",
     "load-json-file": "catalog:",
     "path-exists": "catalog:",
-    "tar": "^6.2.1",
+    "tar": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "dependencies": {
@@ -79,7 +79,7 @@
     "ramda": "catalog:",
     "realpath-missing": "catalog:",
     "render-help": "catalog:",
-    "tar-stream": "^2.2.0",
+    "tar-stream": "catalog:",
     "tempy": "catalog:",
     "write-json-file": "catalog:"
   },

@@ -43,6 +43,14 @@ export default async (workspaceDir: string) => {
         pnpmMajorKeyword,
         ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
       ]
+      for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+        if (!manifest[depType]) continue
+        for (const depName of Object.keys(manifest[depType] ?? {})) {
+          if (!manifest[depType]?.[depName].startsWith('workspace:')) {
+            manifest[depType]![depName] = 'catalog:'
+          }
+        }
+      }
       if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {

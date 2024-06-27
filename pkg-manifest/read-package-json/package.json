@@ -33,12 +33,12 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
     "load-json-file": "catalog:",
-    "normalize-package-data": "^5.0.0"
+    "normalize-package-data": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/read-package-json": "workspace:*",
-    "@types/normalize-package-data": "^2.4.4"
+    "@types/normalize-package-data": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

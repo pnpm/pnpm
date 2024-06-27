@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@gwhitney/detect-indent':
+      specifier: 7.0.1
+      version: 7.0.1
     '@pnpm/builder.policy':
       specifier: 3.0.0
       version: 3.0.0
@@ -18,6 +21,9 @@ catalogs:
     '@pnpm/config.env-replace':
       specifier: 3.0.0
       version: 3.0.0
+    '@pnpm/exec':
+      specifier: ^2.0.0
+      version: 2.0.0
     '@pnpm/fs.packlist':
       specifier: 2.0.0
       version: 2.0.0
@@ -27,6 +33,9 @@ catalogs:
     '@pnpm/logger':
       specifier: ^5.0.0
       version: 5.0.0
+    '@pnpm/network.agent':
+      specifier: ^2.0.0
+      version: 2.0.0
     '@pnpm/nopt':
       specifier: ^0.2.1
       version: 0.2.1
@@ -39,6 +48,12 @@ catalogs:
     '@pnpm/npm-package-arg':
       specifier: ^1.0.0
       version: 1.0.0
+    '@pnpm/os.env.path-extender':
+      specifier: ^2.0.0
+      version: 2.0.0
+    '@pnpm/patch-package':
+      specifier: 0.0.0
+      version: 0.0.0
     '@pnpm/registry-mock':
       specifier: 3.32.1
       version: 3.32.1
@@ -54,6 +69,9 @@ catalogs:
     '@reflink/reflink':
       specifier: 0.1.16
       version: 0.1.16
+    '@rushstack/worker-pool':
+      specifier: 0.4.9
+      version: 0.4.9
     '@types/adm-zip':
       specifier: ^0.5.5
       version: 0.5.5
@@ -69,27 +87,45 @@ catalogs:
     '@types/graceful-fs':
       specifier: ^4.1.9
       version: 4.1.9
+    '@types/hosted-git-info':
+      specifier: ^3.0.5
+      version: 3.0.5
     '@types/ini':
       specifier: 1.3.31
       version: 1.3.31
+    '@types/is-gzip':
+      specifier: 2.0.0
+      version: 2.0.0
     '@types/is-windows':
       specifier: ^1.0.2
       version: 1.0.2
     '@types/js-yaml':
       specifier: ^4.0.9
       version: 4.0.9
+    '@types/lodash.clonedeep':
+      specifier: ^4.5.9
+      version: 4.5.9
     '@types/lodash.throttle':
       specifier: 4.1.7
       version: 4.1.7
+    '@types/micromatch':
+      specifier: ^4.0.7
+      version: 4.0.7
     '@types/node':
       specifier: ^18.19.34
       version: 18.19.34
+    '@types/normalize-package-data':
+      specifier: ^2.4.4
+      version: 2.4.4
     '@types/normalize-path':
       specifier: ^3.0.2
       version: 3.0.2
     '@types/object-hash':
       specifier: 3.0.6
       version: 3.0.6
+    '@types/parse-json':
+      specifier: ^4.0.2
+      version: 4.0.2
     '@types/pnpm__byline':
       specifier: npm:@types/byline@^4.2.36
       version: 4.2.36
@@ -117,9 +153,21 @@ catalogs:
     '@types/ssri':
       specifier: ^7.1.5
       version: 7.1.5
+    '@types/tar':
+      specifier: ^6.1.13
+      version: 6.1.13
+    '@types/tar-stream':
+      specifier: ^2.2.3
+      version: 2.2.3
+    '@types/touch':
+      specifier: ^3.1.5
+      version: 3.1.5
     '@types/uuid':
       specifier: ^8.3.4
       version: 8.3.4
+    '@types/validate-npm-package-name':
+      specifier: ^4.0.2
+      version: 4.0.2
     '@types/which':
       specifier: ^2.0.2
       version: 2.0.2
@@ -141,6 +189,9 @@ catalogs:
     '@yarnpkg/lockfile':
       specifier: ^1.1.0
       version: 1.1.0
+    '@yarnpkg/nm':
+      specifier: 4.0.2
+      version: 4.0.2
     '@yarnpkg/parsers':
       specifier: 3.0.0
       version: 3.0.0
@@ -150,6 +201,9 @@ catalogs:
     '@zkochan/cmd-shim':
       specifier: ^6.0.0
       version: 6.0.0
+    '@zkochan/diable':
+      specifier: ^1.0.2
+      version: 1.0.2
     '@zkochan/retry':
       specifier: ^0.2.0
       version: 0.2.0
@@ -171,6 +225,9 @@ catalogs:
     better-path-resolve:
       specifier: 1.0.0
       version: 1.0.0
+    bin-links:
+      specifier: ^4.0.4
+      version: 4.0.4
     boxen:
       specifier: ^5.1.2
       version: 5.1.2
@@ -180,6 +237,9 @@ catalogs:
     camelcase-keys:
       specifier: ^6.2.2
       version: 6.2.2
+    can-link:
+      specifier: ^2.0.0
+      version: 2.0.0
     can-write-to-dir:
       specifier: ^1.1.1
       version: 1.1.1
@@ -195,9 +255,15 @@ catalogs:
     cli-truncate:
       specifier: ^2.1.0
       version: 2.1.0
+    cmd-extension:
+      specifier: ^1.0.2
+      version: 1.0.2
     comver-to-semver:
       specifier: ^1.0.0
       version: 1.0.0
+    concurrently:
+      specifier: 8.2.1
+      version: 8.2.1
     cross-spawn:
       specifier: ^7.0.3
       version: 7.0.3
@@ -213,9 +279,15 @@ catalogs:
     didyoumean2:
       specifier: ^6.0.1
       version: 6.0.1
+    dint:
+      specifier: ^5.1.0
+      version: 5.1.0
     dir-is-case-sensitive:
       specifier: ^2.0.0
       version: 2.0.0
+    encode-registry:
+      specifier: ^3.0.1
+      version: 3.0.1
     enquirer:
       specifier: ^2.4.1
       version: 2.4.1
@@ -231,12 +303,24 @@ catalogs:
     exists-link:
       specifier: 2.0.0
       version: 2.0.0
+    fast-deep-equal:
+      specifier: ^3.1.3
+      version: 3.1.3
     fast-glob:
       specifier: ^3.3.2
       version: 3.3.2
+    filenamify:
+      specifier: ^4.3.0
+      version: 4.3.0
+    find-up:
+      specifier: ^5.0.0
+      version: 5.0.0
     fs-extra:
       specifier: ^11.2.0
       version: 11.2.0
+    fuse-native:
+      specifier: ^2.2.6
+      version: 2.2.6
     get-npm-tarball-url:
       specifier: ^2.1.0
       version: 2.1.0
@@ -249,9 +333,27 @@ catalogs:
     graceful-fs:
       specifier: ^4.2.11
       version: 4.2.11
+    graceful-git:
+      specifier: ^3.1.2
+      version: 3.1.2
+    graph-cycles:
+      specifier: 1.2.1
+      version: 1.2.1
+    hosted-git-info:
+      specifier: npm:@pnpm/hosted-git-info@1.0.0
+      version: 1.0.0
+    https-proxy-server-express:
+      specifier: 0.1.2
+      version: 0.1.2
+    hyperdrive-schemas:
+      specifier: ^2.0.0
+      version: 2.0.0
     ini:
       specifier: 4.1.1
       version: 4.1.1
+    is-gzip:
+      specifier: 2.0.0
+      version: 2.0.0
     is-inner-link:
       specifier: ^4.0.0
       version: 4.0.0
@@ -264,27 +366,42 @@ catalogs:
     is-windows:
       specifier: ^1.0.2
       version: 1.0.2
+    isexe:
+      specifier: 2.0.0
+      version: 2.0.0
     jest-diff:
       specifier: ^29.7.0
       version: 29.7.0
     js-yaml:
       specifier: npm:@zkochan/js-yaml@0.0.7
       version: 0.0.7
+    json5:
+      specifier: ^2.2.3
+      version: 2.2.3
     load-json-file:
       specifier: ^6.2.0
       version: 6.2.0
+    lodash.clonedeep:
+      specifier: ^4.5.0
+      version: 4.5.0
     lodash.throttle:
       specifier: 4.1.1
       version: 4.1.1
     loud-rejection:
       specifier: ^2.2.0
       version: 2.2.0
+    lru-cache:
+      specifier: ^10.2.2
+      version: 10.2.2
     make-empty-dir:
       specifier: ^2.1.0
       version: 2.1.0
     mem:
       specifier: ^8.1.1
       version: 8.1.1
+    micromatch:
+      specifier: ^4.0.7
+      version: 4.0.7
     nerf-dart:
       specifier: 1.0.0
       version: 1.0.0
@@ -300,6 +417,9 @@ catalogs:
     normalize-newline:
       specifier: 3.0.0
       version: 3.0.0
+    normalize-package-data:
+      specifier: ^5.0.0
+      version: 5.0.0
     normalize-path:
       specifier: ^3.0.0
       version: 3.0.0
@@ -330,9 +450,21 @@ catalogs:
     p-map-values:
       specifier: ^1.0.0
       version: 1.0.0
+    p-memoize:
+      specifier: 4.0.1
+      version: 4.0.1
     p-queue:
       specifier: ^6.6.2
       version: 6.6.2
+    p-settle:
+      specifier: ^4.1.1
+      version: 4.1.1
+    parse-json:
+      specifier: ^5.2.0
+      version: 5.2.0
+    parse-npm-tarball-url:
+      specifier: ^3.0.0
+      version: 3.0.0
     path-absolute:
       specifier: ^1.0.1
       version: 1.0.1
@@ -348,6 +480,9 @@ catalogs:
     pidtree:
       specifier: ^0.6.0
       version: 0.6.0
+    pkg:
+      specifier: 5.8.1
+      version: 5.8.1
     preferred-pm:
       specifier: ^3.1.3
       version: 3.1.3
@@ -390,6 +525,15 @@ catalogs:
     resolve-link-target:
       specifier: ^2.0.0
       version: 2.0.0
+    rfc4648:
+      specifier: ^1.5.3
+      version: 1.5.3
+    rimraf:
+      specifier: ^3.0.2
+      version: 3.0.2
+    root-link-target:
+      specifier: ^3.1.0
+      version: 3.1.0
     run-groups:
       specifier: ^3.0.1
       version: 3.0.1
@@ -399,12 +543,24 @@ catalogs:
     safe-buffer:
       specifier: 5.2.1
       version: 5.2.1
+    safe-execa:
+      specifier: ^0.1.4
+      version: 0.1.4
+    safe-promise-defer:
+      specifier: ^1.0.1
+      version: 1.0.1
     sanitize-filename:
       specifier: ^1.6.3
       version: 1.6.3
     semver:
       specifier: ^7.6.2
       version: 7.6.2
+    semver-range-intersect:
+      specifier: ^0.3.1
+      version: 0.3.1
+    semver-utils:
+      specifier: ^1.1.4
+      version: 1.1.4
     signal-exit:
       specifier: ^3.0.7
       version: 3.0.7
@@ -432,12 +588,24 @@ catalogs:
     strip-bom:
       specifier: ^4.0.0
       version: 4.0.0
+    strip-comments-strings:
+      specifier: 1.2.0
+      version: 1.2.0
     symlink-dir:
       specifier: ^6.0.0
       version: 6.0.0
+    tar:
+      specifier: ^6.2.1
+      version: 6.2.1
+    tar-stream:
+      specifier: ^2.2.0
+      version: 2.2.0
     tempy:
       specifier: ^1.0.1
       version: 1.0.1
+    touch:
+      specifier: 3.1.0
+      version: 3.1.0
     tree-kill:
       specifier: ^1.2.2
       version: 1.2.2
@@ -447,6 +615,9 @@ catalogs:
     v8-compile-cache:
       specifier: 2.4.0
       version: 2.4.0
+    validate-npm-package-name:
+      specifier: 5.0.0
+      version: 5.0.0
     version-selector-type:
       specifier: ^3.0.0
       version: 3.0.0
@@ -3024,7 +3195,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       hyperdrive-schemas:
-        specifier: ^2.0.0
+        specifier: 'catalog:'
         version: 2.0.0
       load-json-file:
         specifier: 'catalog:'
@@ -3034,7 +3205,7 @@ importers:
         version: 3.0.0
     optionalDependencies:
       fuse-native:
-        specifier: ^2.2.6
+        specifier: 'catalog:'
         version: 2.2.6
     devDependencies:
       '@pnpm/mount-modules':
@@ -3044,7 +3215,7 @@ importers:
         specifier: 'catalog:'
         version: 3.0.2
       rimraf:
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
 
   network/auth-header:
@@ -3075,7 +3246,7 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       '@pnpm/network.agent':
-        specifier: ^2.0.0
+        specifier: 'catalog:'
         version: 2.0.0
       '@pnpm/types':
         specifier: workspace:*
@@ -3091,7 +3262,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       https-proxy-server-express:
-        specifier: 0.1.2
+        specifier: 'catalog:'
         version: 0.1.2
       nock:
         specifier: 'catalog:'
@@ -3160,7 +3331,7 @@ importers:
   packages/crypto.base32-hash:
     dependencies:
       rfc4648:
-        specifier: ^1.5.3
+        specifier: 'catalog:'
         version: 1.5.3
     devDependencies:
       '@pnpm/crypto.base32-hash':
@@ -3218,7 +3389,7 @@ importers:
         specifier: workspace:*
         version: link:../error
       '@pnpm/exec':
-        specifier: ^2.0.0
+        specifier: 'catalog:'
         version: 2.0.0
       '@pnpm/exportable-manifest':
         specifier: workspace:*
@@ -3230,7 +3401,7 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
       '@pnpm/logger':
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
       '@pnpm/prune-lockfile':
         specifier: workspace:*
@@ -3267,14 +3438,14 @@ importers:
   packages/parse-wanted-dependency:
     dependencies:
       validate-npm-package-name:
-        specifier: 5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: 'link:'
       '@types/validate-npm-package-name':
-        specifier: ^4.0.2
+        specifier: 'catalog:'
         version: 4.0.2
 
   packages/plugin-commands-doctor:
@@ -3339,7 +3510,7 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       '@pnpm/os.env.path-extender':
-        specifier: ^2.0.0
+        specifier: 'catalog:'
         version: 2.0.0
       render-help:
         specifier: 'catalog:'
@@ -3376,7 +3547,7 @@ importers:
         specifier: 'catalog:'
         version: 4.1.2
       cli-columns:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       semver:
         specifier: 'catalog:'
@@ -3389,8 +3560,8 @@ importers:
         specifier: 'catalog:'
         version: 0.0.33
       '@types/semver':
-        specifier: 7.5.8
-        version: 7.5.8
+        specifier: 'catalog:'
+        version: 7.5.3
       strip-ansi:
         specifier: 'catalog:'
         version: 6.0.1
@@ -3404,7 +3575,7 @@ importers:
   packages/which-version-is-pinned:
     dependencies:
       semver-utils:
-        specifier: ^1.1.4
+        specifier: 'catalog:'
         version: 1.1.4
     devDependencies:
       '@pnpm/which-version-is-pinned':
@@ -3417,7 +3588,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@pnpm/patch-package':
-        specifier: 0.0.0
+        specifier: 'catalog:'
         version: 0.0.0
     devDependencies:
       '@pnpm/patching.apply-patch':
@@ -3487,7 +3658,7 @@ importers:
         specifier: 'catalog:'
         version: 2.4.1
       escape-string-regexp:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       fast-glob:
         specifier: 'catalog:'
@@ -3505,7 +3676,7 @@ importers:
         specifier: 'catalog:'
         version: 1.0.3
       safe-execa:
-        specifier: ^0.1.4
+        specifier: 'catalog:'
         version: 0.1.4
       semver:
         specifier: 'catalog:'
@@ -4105,16 +4276,16 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       '@types/rimraf':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/sinon':
         specifier: 'catalog:'
         version: 10.0.20
       concurrently:
-        specifier: 8.2.1
+        specifier: 'catalog:'
         version: 8.2.1
       isexe:
-        specifier: 2.0.0
+        specifier: 'catalog:'
         version: 2.0.0
       load-json-file:
         specifier: 'catalog:'
@@ -4162,7 +4333,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/util.lex-comparator':
-        specifier: 3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       is-subdir:
         specifier: 'catalog:'
@@ -4217,7 +4388,7 @@ importers:
         specifier: 'catalog:'
         version: 2.1.3
       bin-links:
-        specifier: ^4.0.4
+        specifier: 'catalog:'
         version: 4.0.4
       is-subdir:
         specifier: 'catalog:'
@@ -4229,7 +4400,7 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
       p-settle:
-        specifier: ^4.1.1
+        specifier: 'catalog:'
         version: 4.1.1
       ramda:
         specifier: 'catalog:'
@@ -4263,7 +4434,7 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
       cmd-extension:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       path-exists:
         specifier: 'catalog:'
@@ -4740,7 +4911,7 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
       '@yarnpkg/nm':
-        specifier: 4.0.2
+        specifier: 'catalog:'
         version: 4.0.2(typanion@3.14.0)
     devDependencies:
       '@pnpm/lockfile-file':
@@ -4777,7 +4948,7 @@ importers:
         specifier: 'catalog:'
         version: 2.1.3
       cmd-extension:
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       is-windows:
         specifier: 'catalog:'
@@ -4862,13 +5033,13 @@ importers:
         specifier: 'catalog:'
         version: 4.0.3(typanion@3.14.0)
       filenamify:
-        specifier: ^4.3.0
+        specifier: 'catalog:'
         version: 4.3.0
       get-npm-tarball-url:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       graph-cycles:
-        specifier: 1.2.1
+        specifier: 'catalog:'
         version: 1.2.1
       is-inner-link:
         specifier: 'catalog:'
@@ -4895,13 +5066,13 @@ importers:
         specifier: 'catalog:'
         version: 5.0.0
       safe-promise-defer:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       semver:
         specifier: 'catalog:'
         version: 7.6.2
       semver-range-intersect:
-        specifier: ^0.3.1
+        specifier: 'catalog:'
         version: 0.3.1
       version-selector-type:
         specifier: 'catalog:'
@@ -4994,20 +5165,20 @@ importers:
         specifier: 'catalog:'
         version: 6.2.0
       normalize-package-data:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: 'link:'
       '@types/normalize-package-data':
-        specifier: ^2.4.4
+        specifier: 'catalog:'
         version: 2.4.4
 
   pkg-manifest/read-project-manifest:
     dependencies:
       '@gwhitney/detect-indent':
-        specifier: 7.0.1
+        specifier: 'catalog:'
         version: 7.0.1
       '@pnpm/error':
         specifier: workspace:*
@@ -5025,19 +5196,19 @@ importers:
         specifier: workspace:*
         version: link:../write-project-manifest
       fast-deep-equal:
-        specifier: ^3.1.3
+        specifier: 'catalog:'
         version: 3.1.3
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
       json5:
-        specifier: ^2.2.3
+        specifier: 'catalog:'
         version: 2.2.3
       lodash.clonedeep:
-        specifier: ^4.5.0
+        specifier: 'catalog:'
         version: 4.5.0
       parse-json:
-        specifier: ^5.2.0
+        specifier: 'catalog:'
         version: 5.2.0
       read-yaml-file:
         specifier: 'catalog:'
@@ -5056,10 +5227,10 @@ importers:
         specifier: 'catalog:'
         version: 1.0.2
       '@types/lodash.clonedeep':
-        specifier: ^4.5.9
+        specifier: 'catalog:'
         version: 4.5.9
       '@types/parse-json':
-        specifier: ^4.0.2
+        specifier: 'catalog:'
         version: 4.0.2
       tempy:
         specifier: 'catalog:'
@@ -5074,7 +5245,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       json5:
-        specifier: ^2.2.3
+        specifier: 'catalog:'
         version: 2.2.3
       write-file-atomic:
         specifier: 'catalog:'
@@ -5087,7 +5258,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/write-file-atomic':
-        specifier: ^4.0.3
+        specifier: 'catalog:'
         version: 4.0.3
       tempy:
         specifier: 'catalog:'
@@ -5411,7 +5582,7 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
       pkg:
-        specifier: 5.8.1
+        specifier: 'catalog:'
         version: 5.8.1(patch_hash=pp6fkuhwkrqq7cjcj7uqpf37e4)(encoding@0.1.13)
 
   pnpm/artifacts/linux-arm64:
@@ -5580,7 +5751,7 @@ importers:
         specifier: 'catalog:'
         version: 1.0.3
       tar-stream:
-        specifier: ^2.2.0
+        specifier: 'catalog:'
         version: 2.2.0
       tempy:
         specifier: 'catalog:'
@@ -5623,10 +5794,10 @@ importers:
         specifier: 'catalog:'
         version: 10.0.20
       '@types/tar':
-        specifier: ^6.1.13
+        specifier: 'catalog:'
         version: 6.1.13
       '@types/tar-stream':
-        specifier: ^2.2.3
+        specifier: 'catalog:'
         version: 2.2.3
       ci-info:
         specifier: 'catalog:'
@@ -5644,7 +5815,7 @@ importers:
         specifier: 'catalog:'
         version: 4.0.0
       tar:
-        specifier: ^6.2.1
+        specifier: 'catalog:'
         version: 6.2.1
       write-yaml-file:
         specifier: 'catalog:'
@@ -5690,10 +5861,10 @@ importers:
         specifier: workspace:*
         version: link:../resolver-base
       graceful-git:
-        specifier: ^3.1.2
+        specifier: 'catalog:'
         version: 3.1.2
       hosted-git-info:
-        specifier: npm:@pnpm/hosted-git-info@1.0.0
+        specifier: 'catalog:'
         version: '@pnpm/hosted-git-info@1.0.0'
       semver:
         specifier: 'catalog:'
@@ -5703,7 +5874,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/hosted-git-info':
-        specifier: ^3.0.5
+        specifier: 'catalog:'
         version: 3.0.5
       '@types/is-windows':
         specifier: 'catalog:'
@@ -5785,13 +5956,13 @@ importers:
         specifier: 'catalog:'
         version: 0.2.0
       encode-registry:
-        specifier: ^3.0.1
+        specifier: 'catalog:'
         version: 3.0.1
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
       lru-cache:
-        specifier: ^10.2.2
+        specifier: 'catalog:'
         version: 10.2.2
       normalize-path:
         specifier: 'catalog:'
@@ -5800,10 +5971,10 @@ importers:
         specifier: 'catalog:'
         version: 3.1.0
       p-memoize:
-        specifier: 4.0.1
+        specifier: 'catalog:'
         version: 4.0.1
       parse-npm-tarball-url:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
       path-temp:
         specifier: 'catalog:'
@@ -6362,7 +6533,7 @@ importers:
         specifier: 'catalog:'
         version: 2.1.3
       is-gzip:
-        specifier: 2.0.0
+        specifier: 'catalog:'
         version: 2.0.0
       p-limit:
         specifier: 'catalog:'
@@ -6387,7 +6558,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@types/is-gzip':
-        specifier: 2.0.0
+        specifier: 'catalog:'
         version: 2.0.0
       '@types/node':
         specifier: 'catalog:'
@@ -6548,7 +6719,7 @@ importers:
         specifier: workspace:*
         version: link:../store-path
       '@zkochan/diable':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       delay:
         specifier: 'catalog:'
@@ -6639,7 +6810,7 @@ importers:
         specifier: 'catalog:'
         version: 1.0.0
       dint:
-        specifier: ^5.1.0
+        specifier: 'catalog:'
         version: 5.1.0
       load-json-file:
         specifier: 'catalog:'
@@ -6840,7 +7011,7 @@ importers:
         specifier: workspace:*
         version: link:../store-path
       '@zkochan/diable':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.0.2
       delay:
         specifier: 'catalog:'
@@ -6881,7 +7052,7 @@ importers:
         specifier: 'catalog:'
         version: 2.1.3
       can-link:
-        specifier: ^2.0.0
+        specifier: 'catalog:'
         version: 2.0.0
       path-absolute:
         specifier: 'catalog:'
@@ -6890,10 +7061,10 @@ importers:
         specifier: 'catalog:'
         version: 2.1.0
       root-link-target:
-        specifier: ^3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
       touch:
-        specifier: 3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
     devDependencies:
       '@pnpm/store-path':
@@ -6906,22 +7077,22 @@ importers:
         specifier: 'catalog:'
         version: 18.19.34
       '@types/rimraf':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/touch':
-        specifier: ^3.1.5
+        specifier: 'catalog:'
         version: 3.1.5
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
       rimraf:
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
 
   text/comments-parser:
     dependencies:
       strip-comments-strings:
-        specifier: 1.2.0
+        specifier: 'catalog:'
         version: 1.2.0
     devDependencies:
       '@pnpm/text.comments-parser':
@@ -6958,7 +7129,7 @@ importers:
         specifier: workspace:*
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
-        specifier: 0.4.9
+        specifier: 'catalog:'
         version: 0.4.9(@types/node@20.14.8)
       load-json-file:
         specifier: 'catalog:'
@@ -7008,13 +7179,13 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
       find-up:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
       micromatch:
-        specifier: ^4.0.7
+        specifier: 'catalog:'
         version: 4.0.7
       ramda:
         specifier: 'catalog:'
@@ -7030,13 +7201,13 @@ importers:
         specifier: 'catalog:'
         version: 1.0.2
       '@types/micromatch':
-        specifier: ^4.0.7
+        specifier: 'catalog:'
         version: 4.0.7
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
       '@types/touch':
-        specifier: ^3.1.5
+        specifier: 'catalog:'
         version: 3.1.5
       ci-info:
         specifier: 'catalog:'
@@ -7048,7 +7219,7 @@ importers:
         specifier: 'catalog:'
         version: 1.0.1
       touch:
-        specifier: 3.1.0
+        specifier: 'catalog:'
         version: 3.1.0
 
   workspace/find-packages:
@@ -7066,7 +7237,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/util.lex-comparator':
-        specifier: 3.0.0
+        specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
       '@pnpm/workspace.find-packages':
@@ -7082,7 +7253,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       find-up:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
       '@pnpm/find-workspace-dir':
@@ -10427,6 +10598,7 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
+    deprecated: Glob versions prior to v9 are no longer supported
 
   glob@8.1.0:
     resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
@@ -12483,10 +12655,12 @@ packages:
 
   rimraf@2.7.1:
     resolution: {integrity: sha512-uWjbaKIK3T1OSVptzX7Nl6PvQ3qAGtKEtVRjRuazjfL3Bx5eI409VZSqgND+4UNnmzLVdPj9FqFJNPqBZFve4w==}
+    deprecated: Rimraf versions prior to v4 are no longer supported
     hasBin: true
 
   rimraf@3.0.2:
     resolution: {integrity: sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==}
+    deprecated: Rimraf versions prior to v4 are no longer supported
     hasBin: true
 
   root-link-target@3.1.0:
@@ -21275,6 +21449,7 @@ snapshots:
   zwitch@1.0.5: {}
 
 time:
+  '@pnpm/hosted-git-info@1.0.0': '2024-02-05T14:40:06.830Z'
   '@pnpm/node-fetch@1.0.0': '2023-04-19T11:13:43.487Z'
   '@pnpm/ramda@0.28.1': '2022-08-03T13:56:59.597Z'
   '@pnpm/which@3.0.1': '2023-05-14T22:08:27.551Z'

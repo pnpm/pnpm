@@ -21,7 +21,7 @@
   "devDependencies": {
     "@pnpm/exe": "workspace:*",
     "execa": "catalog:",
-    "pkg": "5.8.1"
+    "pkg": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/exe#readme",

@@ -39,7 +39,7 @@
   "devDependencies": {
     "@pnpm/mount-modules": "workspace:*",
     "@types/normalize-path": "catalog:",
-    "rimraf": "^3.0.2"
+    "rimraf": "catalog:"
   },
   "dependencies": {
     "@pnpm/config": "workspace:*",
@@ -50,13 +50,13 @@
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "hyperdrive-schemas": "^2.0.0",
+    "hyperdrive-schemas": "catalog:",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "optionalDependencies": {
-    "fuse-native": "^2.2.6"
+    "fuse-native": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

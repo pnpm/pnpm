@@ -34,22 +34,22 @@
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.pkgs-graph": "workspace:*",
     "execa": "catalog:",
-    "find-up": "^5.0.0",
+    "find-up": "catalog:",
     "is-subdir": "catalog:",
-    "micromatch": "^4.0.7",
+    "micromatch": "catalog:",
     "ramda": "catalog:"
   },
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/is-windows": "catalog:",
-    "@types/micromatch": "^4.0.7",
+    "@types/micromatch": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/touch": "^3.1.5",
+    "@types/touch": "catalog:",
     "ci-info": "catalog:",
     "is-windows": "catalog:",
     "tempy": "catalog:",
-    "touch": "3.1.0"
+    "touch": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

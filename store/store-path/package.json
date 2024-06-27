@@ -32,20 +32,20 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "can-link": "^2.0.0",
+    "can-link": "catalog:",
     "path-absolute": "catalog:",
     "path-temp": "catalog:",
-    "root-link-target": "^3.1.0",
-    "touch": "3.1.0"
+    "root-link-target": "catalog:",
+    "touch": "catalog:"
   },
   "devDependencies": {
     "@pnpm/store-path": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/node": "catalog:",
-    "@types/rimraf": "^3.0.2",
-    "@types/touch": "^3.1.5",
+    "@types/rimraf": "catalog:",
+    "@types/touch": "catalog:",
     "is-windows": "catalog:",
-    "rimraf": "^3.0.2"
+    "rimraf": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -35,13 +35,13 @@
     "@pnpm/types": "workspace:*",
     "archy": "catalog:",
     "chalk": "catalog:",
-    "cli-columns": "^4.0.0",
+    "cli-columns": "catalog:",
     "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/render-peer-issues": "workspace:*",
     "@types/archy": "catalog:",
-    "@types/semver": "7.5.8",
+    "@types/semver": "catalog:",
     "strip-ansi": "catalog:"
   },
   "exports": {

@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-setup#readme",
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/os.env.path-extender": "^2.0.0",
+    "@pnpm/os.env.path-extender": "catalog:",
     "render-help": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

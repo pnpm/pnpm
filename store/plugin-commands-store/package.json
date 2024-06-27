@@ -61,7 +61,7 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "archy": "catalog:",
-    "dint": "^5.1.0",
+    "dint": "catalog:",
     "load-json-file": "catalog:",
     "p-filter": "catalog:",
     "ramda": "catalog:",

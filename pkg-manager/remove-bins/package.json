@@ -33,7 +33,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "cmd-extension": "^1.0.2",
+    "cmd-extension": "catalog:",
     "is-windows": "catalog:"
   },
   "devDependencies": {

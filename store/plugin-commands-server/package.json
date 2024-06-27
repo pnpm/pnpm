@@ -43,7 +43,7 @@
     "@pnpm/server": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/store-path": "workspace:*",
-    "@zkochan/diable": "^1.0.2",
+    "@zkochan/diable": "catalog:",
     "delay": "catalog:",
     "get-port": "catalog:",
     "is-windows": "catalog:",

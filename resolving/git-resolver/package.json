@@ -34,13 +34,13 @@
   "dependencies": {
     "@pnpm/fetch": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
-    "graceful-git": "^3.1.2",
-    "hosted-git-info": "npm:@pnpm/hosted-git-info@1.0.0",
+    "graceful-git": "catalog:",
+    "hosted-git-info": "catalog:",
     "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/git-resolver": "workspace:*",
-    "@types/hosted-git-info": "^3.0.5",
+    "@types/hosted-git-info": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/semver": "catalog:",
     "is-windows": "catalog:"

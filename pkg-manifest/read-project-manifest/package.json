@@ -29,17 +29,17 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/read-project-manifest#readme",
   "dependencies": {
-    "@gwhitney/detect-indent": "7.0.1",
+    "@gwhitney/detect-indent": "catalog:",
     "@pnpm/error": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
-    "fast-deep-equal": "^3.1.3",
+    "fast-deep-equal": "catalog:",
     "is-windows": "catalog:",
-    "json5": "^2.2.3",
-    "lodash.clonedeep": "^4.5.0",
-    "parse-json": "^5.2.0",
+    "json5": "catalog:",
+    "lodash.clonedeep": "catalog:",
+    "parse-json": "catalog:",
     "read-yaml-file": "catalog:",
     "sort-keys": "catalog:",
     "strip-bom": "catalog:"
@@ -47,8 +47,8 @@
   "devDependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
     "@types/is-windows": "catalog:",
-    "@types/lodash.clonedeep": "^4.5.9",
-    "@types/parse-json": "^4.0.2",
+    "@types/lodash.clonedeep": "catalog:",
+    "@types/parse-json": "catalog:",
     "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

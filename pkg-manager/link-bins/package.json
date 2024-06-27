@@ -40,11 +40,11 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/cmd-shim": "catalog:",
     "@zkochan/rimraf": "catalog:",
-    "bin-links": "^4.0.4",
+    "bin-links": "catalog:",
     "is-subdir": "catalog:",
     "is-windows": "catalog:",
     "normalize-path": "catalog:",
-    "p-settle": "^4.1.1",
+    "p-settle": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:",
     "symlink-dir": "catalog:"
@@ -57,7 +57,7 @@
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "cmd-extension": "^1.0.2",
+    "cmd-extension": "catalog:",
     "path-exists": "catalog:",
     "tempy": "catalog:"
   },

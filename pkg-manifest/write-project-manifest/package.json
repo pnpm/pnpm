@@ -31,13 +31,13 @@
   "dependencies": {
     "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "json5": "^2.2.3",
+    "json5": "catalog:",
     "write-file-atomic": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm/write-project-manifest": "workspace:*",
-    "@types/write-file-atomic": "^4.0.3",
+    "@types/write-file-atomic": "catalog:",
     "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
