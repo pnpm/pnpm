@@ -42,7 +42,7 @@
   "dependencies": {
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/store.cafs": "workspace:*",
-    "path-exists": "^4.0.0"
+    "path-exists": "catalog:"
   },
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*"

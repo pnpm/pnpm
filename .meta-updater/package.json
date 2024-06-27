@@ -9,11 +9,11 @@
   "dependencies": {
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@types/normalize-path": "^3.0.2",
+    "@types/normalize-path": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
-    "path-exists": "^4.0.0",
+    "path-exists": "catalog:",
     "write-json-file": "catalog:"
   },
   "devDependencies": {

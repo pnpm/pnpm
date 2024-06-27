@@ -44,7 +44,7 @@
     "is-port-reachable": "3.0.0",
     "load-json-file": "catalog:",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "dependencies": {
     "@pnpm/fetch": "workspace:*",

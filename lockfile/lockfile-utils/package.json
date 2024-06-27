@@ -34,7 +34,7 @@
     "@pnpm/lockfile-utils": "workspace:*",
     "@types/js-yaml": "^4.0.9",
     "@types/ramda": "catalog:",
-    "tempy": "^1.0.1",
+    "tempy": "catalog:",
     "write-yaml-file": "catalog:",
     "yaml-tag": "1.1.0"
   },

@@ -23,7 +23,7 @@
     "is-gzip": "2.0.0",
     "p-limit": "catalog:",
     "rename-overwrite": "^5.0.0",
-    "ssri": "10.0.5",
+    "ssri": "catalog:",
     "strip-bom": "^4.0.0"
   },
   "devDependencies": {
@@ -32,9 +32,9 @@
     "@pnpm/types": "workspace:*",
     "@types/is-gzip": "2.0.0",
     "@types/node": "^18.19.34",
-    "@types/ssri": "^7.1.5",
+    "@types/ssri": "catalog:",
     "symlink-dir": "catalog:",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

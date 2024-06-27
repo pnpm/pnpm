@@ -52,7 +52,7 @@
     "is-windows": "catalog:",
     "normalize-registry-url": "2.0.0",
     "path-absolute": "^1.0.1",
-    "path-name": "^1.0.0",
+    "path-name": "catalog:",
     "ramda": "catalog:",
     "read-ini-file": "4.0.0",
     "realpath-missing": "^1.1.0",

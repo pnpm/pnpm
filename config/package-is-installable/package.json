@@ -34,7 +34,7 @@
     "@pnpm/types": "workspace:*",
     "detect-libc": "^2.0.3",
     "execa": "catalog:",
-    "mem": "^8.1.1",
+    "mem": "catalog:",
     "semver": "catalog:"
   },
   "devDependencies": {

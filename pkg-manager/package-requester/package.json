@@ -54,7 +54,7 @@
     "promise-share": "^1.0.0",
     "ramda": "catalog:",
     "semver": "catalog:",
-    "ssri": "10.0.5"
+    "ssri": "catalog:"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
@@ -63,15 +63,15 @@
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/normalize-path": "^3.0.2",
+    "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "@types/ssri": "^7.1.5",
+    "@types/ssri": "catalog:",
     "delay": "^5.0.0",
     "load-json-file": "catalog:",
     "nock": "catalog:",
     "normalize-path": "catalog:",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

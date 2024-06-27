@@ -42,7 +42,7 @@
     "@pnpm/types": "workspace:*",
     "ansi-diff": "^1.1.1",
     "boxen": "^5.1.2",
-    "chalk": "^4.1.2",
+    "chalk": "catalog:",
     "cli-truncate": "^2.1.0",
     "normalize-path": "catalog:",
     "pretty-bytes": "^5.6.0",
@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@pnpm/default-reporter": "workspace:*",
-    "@types/normalize-path": "^3.0.2",
+    "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "ghooks": "2.0.4",

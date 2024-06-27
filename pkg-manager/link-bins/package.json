@@ -54,12 +54,12 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/node": "^18.19.34",
-    "@types/normalize-path": "^3.0.2",
+    "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "cmd-extension": "^1.0.2",
-    "path-exists": "^4.0.0",
-    "tempy": "^1.0.1"
+    "path-exists": "catalog:",
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "peerDependencies": {

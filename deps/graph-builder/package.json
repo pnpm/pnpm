@@ -48,7 +48,7 @@
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "path-exists": "^4.0.0",
+    "path-exists": "catalog:",
     "ramda": "catalog:"
   }
 }

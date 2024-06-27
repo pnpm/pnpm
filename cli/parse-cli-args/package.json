@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/parse-cli-args#readme",
   "devDependencies": {
     "@pnpm/parse-cli-args": "workspace:*",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",

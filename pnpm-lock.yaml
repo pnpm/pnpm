@@ -12,15 +12,39 @@ catalogs:
     '@types/is-windows':
       specifier: ^1.0.2
       version: 1.0.2
+    '@types/normalize-path':
+      specifier: ^3.0.2
+      version: 3.0.2
     '@types/ramda':
       specifier: 0.29.12
       version: 0.29.12
     '@types/semver':
       specifier: 7.5.3
       version: 7.5.3
+    '@types/sinon':
+      specifier: ^10.0.20
+      version: 10.0.20
+    '@types/ssri':
+      specifier: ^7.1.5
+      version: 7.1.5
+    '@types/zkochan__table':
+      specifier: npm:@types/table@6.0.0
+      version: 6.0.0
     '@zkochan/rimraf':
       specifier: ^2.1.3
       version: 2.1.3
+    '@zkochan/table':
+      specifier: ^2.0.1
+      version: 2.0.1
+    chalk:
+      specifier: ^4.1.2
+      version: 4.1.2
+    ci-info:
+      specifier: ^3.9.0
+      version: 3.9.0
+    enquirer:
+      specifier: ^2.4.1
+      version: 2.4.1
     execa:
       specifier: npm:safe-execa@0.1.2
       version: 0.1.2
@@ -33,6 +57,9 @@ catalogs:
     load-json-file:
       specifier: ^6.2.0
       version: 6.2.0
+    mem:
+      specifier: ^8.1.1
+      version: 8.1.1
     nock:
       specifier: 13.3.4
       version: 13.3.4
@@ -45,6 +72,12 @@ catalogs:
     p-limit:
       specifier: ^3.1.0
       version: 3.1.0
+    path-exists:
+      specifier: ^4.0.0
+      version: 4.0.0
+    path-name:
+      specifier: ^1.0.0
+      version: 1.0.0
     ramda:
       specifier: npm:@pnpm/ramda@0.28.1
       version: 0.28.1
@@ -66,9 +99,15 @@ catalogs:
     sort-keys:
       specifier: ^4.2.0
       version: 4.2.0
+    ssri:
+      specifier: 10.0.5
+      version: 10.0.5
     symlink-dir:
       specifier: ^6.0.0
       version: 6.0.0
+    tempy:
+      specifier: ^1.0.1
+      version: 1.0.1
     version-selector-type:
       specifier: ^3.0.0
       version: 3.0.0
@@ -225,7 +264,7 @@ importers:
         specifier: workspace:*
         version: link:../packages/types
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       is-subdir:
         specifier: 'catalog:'
@@ -237,7 +276,7 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       write-json-file:
         specifier: 'catalog:'
@@ -308,7 +347,7 @@ importers:
         specifier: workspace:*
         version: link:../../store/cafs
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
     devDependencies:
       '@pnpm/assert-store':
@@ -530,7 +569,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
       load-json-file:
         specifier: 'catalog:'
@@ -595,7 +634,7 @@ importers:
         specifier: ^5.1.2
         version: 5.1.2
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
       cli-truncate:
         specifier: ^2.1.0
@@ -629,7 +668,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -669,7 +708,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   completion/plugin-commands-completion:
@@ -781,7 +820,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       path-name:
-        specifier: ^1.0.0
+        specifier: 'catalog:'
         version: 1.0.0
       ramda:
         specifier: 'catalog:'
@@ -868,7 +907,7 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
       mem:
-        specifier: ^8.1.1
+        specifier: 'catalog:'
         version: 8.1.1
       semver:
         specifier: 'catalog:'
@@ -988,7 +1027,7 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
     devDependencies:
       '@pnpm/dedupe.issues-renderer':
@@ -1040,7 +1079,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       ramda:
         specifier: 'catalog:'
@@ -1089,7 +1128,7 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
     devDependencies:
       '@pnpm/cafs-types':
@@ -1221,7 +1260,7 @@ importers:
         specifier: npm:@pnpm/node-fetch@1.0.0
         version: '@pnpm/node-fetch@1.0.0'
       path-name:
-        specifier: ^1.0.0
+        specifier: 'catalog:'
         version: 1.0.0
 
   exec/build-modules:
@@ -1312,7 +1351,7 @@ importers:
         specifier: 'catalog:'
         version: 1.0.2
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       run-groups:
         specifier: 'catalog:'
@@ -1437,7 +1476,7 @@ importers:
         specifier: 'catalog:'
         version: 6.2.0
       mem:
-        specifier: ^8.1.1
+        specifier: 'catalog:'
         version: 8.1.1
       p-limit:
         specifier: 'catalog:'
@@ -1486,13 +1525,13 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
       '@types/sinon':
-        specifier: ^10.0.20
+        specifier: 'catalog:'
         version: 10.0.20
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       sinon:
         specifier: 'catalog:'
@@ -1567,10 +1606,10 @@ importers:
         specifier: 'catalog:'
         version: 3.1.0
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       path-name:
-        specifier: ^1.0.0
+        specifier: 'catalog:'
         version: 1.0.0
       ramda:
         specifier: 'catalog:'
@@ -1677,7 +1716,7 @@ importers:
         specifier: ^7.0.3
         version: 7.0.3
       path-name:
-        specifier: ^1.0.0
+        specifier: 'catalog:'
         version: 1.0.0
     devDependencies:
       '@pnpm/run-npm':
@@ -1730,7 +1769,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@types/ssri':
-        specifier: ^7.1.5
+        specifier: 'catalog:'
         version: 7.1.5
     devDependencies:
       '@pnpm/cafs-types':
@@ -1777,7 +1816,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   fetching/pick-fetcher:
@@ -1868,16 +1907,16 @@ importers:
         specifier: ^0.12.5
         version: 0.12.5
       '@types/ssri':
-        specifier: ^7.1.5
+        specifier: 'catalog:'
         version: 7.1.5
       nock:
         specifier: 'catalog:'
         version: 13.3.4
       ssri:
-        specifier: 10.0.5
+        specifier: 'catalog:'
         version: 10.0.5
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   fs/find-packages:
@@ -1958,7 +1997,7 @@ importers:
         specifier: 'catalog:'
         version: 3.1.0
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       path-temp:
         specifier: ^2.1.0
@@ -2058,7 +2097,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
       path-absolute:
         specifier: ^1.0.1
@@ -2105,7 +2144,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -2204,7 +2243,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   lockfile/filter-lockfile:
@@ -2250,7 +2289,7 @@ importers:
         specifier: ^2.0.3
         version: 2.0.3
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       write-yaml-file:
         specifier: 'catalog:'
@@ -2329,7 +2368,7 @@ importers:
         specifier: ^4.0.9
         version: 4.0.9
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -2341,7 +2380,7 @@ importers:
         specifier: ^4.0.3
         version: 4.0.3
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       write-yaml-file:
         specifier: 'catalog:'
@@ -2381,7 +2420,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -2434,7 +2473,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       write-yaml-file:
         specifier: 'catalog:'
@@ -2459,7 +2498,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   lockfile/merge-lockfile-changes:
@@ -2520,13 +2559,13 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/table':
-        specifier: ^2.0.1
+        specifier: 'catalog:'
         version: 2.0.1
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
       mem:
-        specifier: ^8.1.1
+        specifier: 'catalog:'
         version: 8.1.1
       ramda:
         specifier: 'catalog:'
@@ -2548,7 +2587,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       '@types/zkochan__table':
-        specifier: npm:@types/table@6.0.0
+        specifier: 'catalog:'
         version: '@types/table@6.0.0'
       load-json-file:
         specifier: 'catalog:'
@@ -2560,7 +2599,7 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   lockfile/preferred-versions:
@@ -2657,7 +2696,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       rimraf:
         specifier: ^3.0.2
@@ -2825,7 +2864,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   packages/make-dedicated-lockfile:
@@ -2989,7 +3028,7 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
       cli-columns:
         specifier: ^4.0.0
@@ -3100,7 +3139,7 @@ importers:
         specifier: workspace:*
         version: link:../../store/store-connection-manager
       enquirer:
-        specifier: ^2.4.1
+        specifier: 'catalog:'
         version: 2.4.1
       escape-string-regexp:
         specifier: ^4.0.0
@@ -3127,7 +3166,7 @@ importers:
         specifier: 'catalog:'
         version: 7.6.2
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
     devDependencies:
       '@pnpm/plugin-commands-patching':
@@ -3146,7 +3185,7 @@ importers:
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -3369,7 +3408,7 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       ramda:
         specifier: 'catalog:'
@@ -3439,7 +3478,7 @@ importers:
         specifier: 'catalog:'
         version: 1.0.2
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -3448,13 +3487,13 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
       '@types/sinon':
-        specifier: ^10.0.20
+        specifier: 'catalog:'
         version: 10.0.20
       '@yarnpkg/core':
         specifier: 4.0.3
         version: 4.0.3(typanion@3.14.0)
       ci-info:
-        specifier: ^3.9.0
+        specifier: 'catalog:'
         version: 3.9.0
       deep-require-cwd:
         specifier: 1.0.0
@@ -3472,7 +3511,7 @@ importers:
         specifier: 'catalog:'
         version: 13.3.4
       path-name:
-        specifier: ^1.0.0
+        specifier: 'catalog:'
         version: 1.0.0
       read-yaml-file:
         specifier: 'catalog:'
@@ -3554,10 +3593,10 @@ importers:
         specifier: 'catalog:'
         version: 2.1.3
       ci-info:
-        specifier: ^3.9.0
+        specifier: 'catalog:'
         version: 3.9.0
       enquirer:
-        specifier: ^2.4.1
+        specifier: 'catalog:'
         version: 2.4.1
       path-absolute:
         specifier: ^1.0.1
@@ -3669,7 +3708,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       ramda:
         specifier: 'catalog:'
@@ -3724,7 +3763,7 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/sinon':
-        specifier: ^10.0.20
+        specifier: 'catalog:'
         version: 10.0.20
       concurrently:
         specifier: 8.2.1
@@ -3739,7 +3778,7 @@ importers:
         specifier: 'catalog:'
         version: 16.1.3
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       write-json-file:
         specifier: 'catalog:'
@@ -3870,7 +3909,7 @@ importers:
         specifier: ^18.19.34
         version: 18.19.34
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -3882,10 +3921,10 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   pkg-manager/modules-cleaner:
@@ -3962,7 +4001,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   pkg-manager/package-bins:
@@ -4047,7 +4086,7 @@ importers:
         specifier: 'catalog:'
         version: 7.6.2
       ssri:
-        specifier: 10.0.5
+        specifier: 'catalog:'
         version: 10.0.5
     devDependencies:
       '@pnpm/cafs-types':
@@ -4069,7 +4108,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -4078,7 +4117,7 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
       '@types/ssri':
-        specifier: ^7.1.5
+        specifier: 'catalog:'
         version: 7.1.5
       delay:
         specifier: ^5.0.0
@@ -4093,7 +4132,7 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   pkg-manager/plugin-commands-installation:
@@ -4201,16 +4240,16 @@ importers:
         specifier: 'catalog:'
         version: 2.1.3
       '@zkochan/table':
-        specifier: ^2.0.1
+        specifier: 'catalog:'
         version: 2.0.1
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
       ci-info:
-        specifier: ^3.9.0
+        specifier: 'catalog:'
         version: 3.9.0
       enquirer:
-        specifier: ^2.4.1
+        specifier: 'catalog:'
         version: 2.4.1
       is-subdir:
         specifier: 'catalog:'
@@ -4219,7 +4258,7 @@ importers:
         specifier: 'catalog:'
         version: 6.2.0
       mem:
-        specifier: ^8.1.1
+        specifier: 'catalog:'
         version: 8.1.1
       p-filter:
         specifier: 'catalog:'
@@ -4231,7 +4270,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       ramda:
         specifier: 'catalog:'
@@ -4274,13 +4313,13 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       '@types/sinon':
-        specifier: ^10.0.20
+        specifier: 'catalog:'
         version: 10.0.20
       '@types/yarnpkg__lockfile':
         specifier: ^1.1.9
         version: 1.1.9
       '@types/zkochan__table':
-        specifier: npm:@types/table@6.0.0
+        specifier: 'catalog:'
         version: '@types/table@6.0.0'
       delay:
         specifier: ^5.0.0
@@ -4289,7 +4328,7 @@ importers:
         specifier: ^29.7.0
         version: 29.7.0
       path-name:
-        specifier: ^1.0.0
+        specifier: 'catalog:'
         version: 1.0.0
       proxyquire:
         specifier: ^2.1.3
@@ -4304,7 +4343,7 @@ importers:
         specifier: 'catalog:'
         version: 6.0.0
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       write-json-file:
         specifier: 'catalog:'
@@ -4496,7 +4535,7 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       promise-share:
         specifier: ^1.0.0
@@ -4524,7 +4563,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -4675,7 +4714,7 @@ importers:
         specifier: ^4.0.2
         version: 4.0.2
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   pkg-manifest/write-project-manifest:
@@ -4703,7 +4742,7 @@ importers:
         specifier: ^4.0.3
         version: 4.0.3
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   pnpm:
@@ -4903,10 +4942,10 @@ importers:
         specifier: 'catalog:'
         version: 2.1.3
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
       ci-info:
-        specifier: ^3.9.0
+        specifier: 'catalog:'
         version: 3.9.0
       cross-spawn:
         specifier: ^7.0.3
@@ -4948,10 +4987,10 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       path-name:
-        specifier: ^1.0.0
+        specifier: 'catalog:'
         version: 1.0.0
       pidtree:
         specifier: ^0.6.0
@@ -4981,7 +5020,7 @@ importers:
         specifier: 'catalog:'
         version: 6.0.0
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       tree-kill:
         specifier: ^1.2.2
@@ -5172,7 +5211,7 @@ importers:
         specifier: 'catalog:'
         version: 2.1.3
       enquirer:
-        specifier: ^2.4.1
+        specifier: 'catalog:'
         version: 2.4.1
       execa:
         specifier: 'catalog:'
@@ -5196,7 +5235,7 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       write-json-file:
         specifier: 'catalog:'
@@ -5233,7 +5272,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       '@types/sinon':
-        specifier: ^10.0.20
+        specifier: 'catalog:'
         version: 10.0.20
       '@types/tar':
         specifier: ^6.1.13
@@ -5242,7 +5281,7 @@ importers:
         specifier: ^2.2.3
         version: 2.2.3
       ci-info:
-        specifier: ^3.9.0
+        specifier: 'catalog:'
         version: 3.9.0
       cross-spawn:
         specifier: ^7.0.3
@@ -5254,7 +5293,7 @@ importers:
         specifier: 'catalog:'
         version: 6.2.0
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       tar:
         specifier: ^6.2.1
@@ -5352,17 +5391,17 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
       ssri:
-        specifier: 10.0.5
+        specifier: 'catalog:'
         version: 10.0.5
     devDependencies:
       '@pnpm/local-resolver':
         specifier: workspace:*
         version: 'link:'
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/ssri':
-        specifier: ^7.1.5
+        specifier: 'catalog:'
         version: 7.1.5
 
   resolving/npm-resolver:
@@ -5431,7 +5470,7 @@ importers:
         specifier: 'catalog:'
         version: 7.6.2
       ssri:
-        specifier: 10.0.5
+        specifier: 'catalog:'
         version: 10.0.5
       version-selector-type:
         specifier: 'catalog:'
@@ -5447,7 +5486,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/ramda':
         specifier: 'catalog:'
@@ -5456,16 +5495,16 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
       '@types/ssri':
-        specifier: ^7.1.5
+        specifier: 'catalog:'
         version: 7.1.5
       nock:
         specifier: 'catalog:'
         version: 13.3.4
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   resolving/resolver-base:
@@ -5546,7 +5585,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/normalize-path':
-        specifier: ^3.0.2
+        specifier: 'catalog:'
         version: 3.0.2
       '@types/semver':
         specifier: 'catalog:'
@@ -5640,7 +5679,7 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
       cli-columns:
         specifier: ^4.0.0
@@ -5759,10 +5798,10 @@ importers:
         specifier: workspace:*
         version: link:../../store/store-path
       '@zkochan/table':
-        specifier: ^2.0.1
+        specifier: 'catalog:'
         version: 2.0.1
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
       ramda:
         specifier: 'catalog:'
@@ -5802,7 +5841,7 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
       '@types/zkochan__table':
-        specifier: npm:@types/table@6.0.0
+        specifier: 'catalog:'
         version: '@types/table@6.0.0'
       strip-ansi:
         specifier: ^6.0.1
@@ -5917,10 +5956,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/table':
-        specifier: ^2.0.1
+        specifier: 'catalog:'
         version: 2.0.1
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
       ramda:
         specifier: 'catalog:'
@@ -5957,7 +5996,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       '@types/zkochan__table':
-        specifier: npm:@types/table@6.0.0
+        specifier: 'catalog:'
         version: '@types/table@6.0.0'
 
   store/cafs:
@@ -5984,7 +6023,7 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       ssri:
-        specifier: 10.0.5
+        specifier: 'catalog:'
         version: 10.0.5
       strip-bom:
         specifier: ^4.0.0
@@ -6006,13 +6045,13 @@ importers:
         specifier: ^18.19.34
         version: 18.19.34
       '@types/ssri':
-        specifier: ^7.1.5
+        specifier: 'catalog:'
         version: 7.1.5
       symlink-dir:
         specifier: 'catalog:'
         version: 6.0.0
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   store/cafs-types:
@@ -6024,7 +6063,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@types/ssri':
-        specifier: ^7.1.5
+        specifier: 'catalog:'
         version: 7.1.5
 
   store/create-cafs-store:
@@ -6048,7 +6087,7 @@ importers:
         specifier: workspace:*
         version: link:../cafs
       mem:
-        specifier: ^8.1.1
+        specifier: 'catalog:'
         version: 8.1.1
       path-temp:
         specifier: ^2.1.0
@@ -6109,7 +6148,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       ssri:
-        specifier: 10.0.5
+        specifier: 'catalog:'
         version: 10.0.5
     devDependencies:
       '@pnpm/client':
@@ -6125,10 +6164,10 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       '@types/ssri':
-        specifier: ^7.1.5
+        specifier: 'catalog:'
         version: 7.1.5
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   store/plugin-commands-server:
@@ -6292,7 +6331,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       '@types/ssri':
-        specifier: ^7.1.5
+        specifier: 'catalog:'
         version: 7.1.5
       '@zkochan/rimraf':
         specifier: 'catalog:'
@@ -6301,13 +6340,13 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
       path-exists:
-        specifier: ^4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       ssri:
-        specifier: 10.0.5
+        specifier: 'catalog:'
         version: 10.0.5
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   store/plugin-commands-store-inspecting:
@@ -6343,7 +6382,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       chalk:
-        specifier: ^4.1.2
+        specifier: 'catalog:'
         version: 4.1.2
       load-json-file:
         specifier: 'catalog:'
@@ -6365,7 +6404,7 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   store/server:
@@ -6426,7 +6465,7 @@ importers:
         specifier: npm:@pnpm/node-fetch@1.0.0
         version: '@pnpm/node-fetch@1.0.0'
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
 
   store/store-connection-manager:
@@ -6655,13 +6694,13 @@ importers:
         specifier: ^3.1.5
         version: 3.1.5
       ci-info:
-        specifier: ^3.9.0
+        specifier: 'catalog:'
         version: 3.9.0
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
       tempy:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       touch:
         specifier: 3.1.0
@@ -20865,3 +20904,4 @@ snapshots:
 time:
   '@pnpm/ramda@0.28.1': '2022-08-03T13:56:59.597Z'
   '@pnpm/which@3.0.1': '2023-05-14T22:08:27.551Z'
+  '@types/table@6.0.0': '2020-09-17T17:56:44.787Z'

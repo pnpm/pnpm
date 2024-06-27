@@ -32,7 +32,7 @@
     "@pnpm/plugin-commands-store-inspecting": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "execa": "catalog:",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "dependencies": {
     "@pnpm/client": "workspace:*",
@@ -45,7 +45,7 @@
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "chalk": "^4.1.2",
+    "chalk": "catalog:",
     "load-json-file": "catalog:",
     "render-help": "catalog:",
     "sort-keys": "catalog:"

@@ -45,8 +45,8 @@
     "@pnpm/read-projects-context": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "ci-info": "^3.9.0",
-    "enquirer": "^2.4.1",
+    "ci-info": "catalog:",
+    "enquirer": "catalog:",
     "path-absolute": "^1.0.1",
     "ramda": "catalog:"
   },

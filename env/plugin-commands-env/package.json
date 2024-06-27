@@ -61,7 +61,7 @@
     "execa": "catalog:",
     "nock": "catalog:",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0",
-    "path-name": "^1.0.0"
+    "path-name": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

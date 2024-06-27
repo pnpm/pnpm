@@ -38,12 +38,12 @@
     "@pnpm/registry-mock": "catalog:",
     "@types/archy": "0.0.33",
     "@types/ramda": "catalog:",
-    "@types/ssri": "^7.1.5",
+    "@types/ssri": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:",
-    "path-exists": "^4.0.0",
-    "ssri": "10.0.5",
-    "tempy": "^1.0.1"
+    "path-exists": "catalog:",
+    "ssri": "catalog:",
+    "tempy": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",

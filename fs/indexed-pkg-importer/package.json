@@ -23,7 +23,7 @@
     "fs-extra": "^11.2.0",
     "make-empty-dir": "^2.1.0",
     "p-limit": "catalog:",
-    "path-exists": "^4.0.0",
+    "path-exists": "catalog:",
     "path-temp": "^2.1.0",
     "rename-overwrite": "^5.0.0",
     "sanitize-filename": "^1.6.3"

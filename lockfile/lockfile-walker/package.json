@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-walker#readme",
   "devDependencies": {
     "@pnpm/lockfile-walker": "workspace:*",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",

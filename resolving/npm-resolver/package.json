@@ -54,20 +54,20 @@
     "ramda": "catalog:",
     "rename-overwrite": "^5.0.0",
     "semver": "catalog:",
-    "ssri": "10.0.5",
+    "ssri": "catalog:",
     "version-selector-type": "catalog:"
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/normalize-path": "^3.0.2",
+    "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "@types/ssri": "^7.1.5",
+    "@types/ssri": "catalog:",
     "nock": "catalog:",
-    "path-exists": "^4.0.0",
-    "tempy": "^1.0.1"
+    "path-exists": "catalog:",
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

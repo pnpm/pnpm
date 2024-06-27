@@ -41,7 +41,7 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

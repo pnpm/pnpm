@@ -44,7 +44,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",
-    "path-exists": "^4.0.0",
+    "path-exists": "catalog:",
     "run-groups": "catalog:"
   },
   "devDependencies": {

@@ -49,7 +49,7 @@
     "@types/is-windows": "catalog:",
     "@types/lodash.clonedeep": "^4.5.9",
     "@types/parse-json": "^4.0.2",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

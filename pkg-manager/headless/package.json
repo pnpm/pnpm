@@ -31,12 +31,12 @@
     "@types/fs-extra": "^9.0.13",
     "@types/ramda": "catalog:",
     "@types/rimraf": "^3.0.2",
-    "@types/sinon": "^10.0.20",
+    "@types/sinon": "catalog:",
     "concurrently": "8.2.1",
     "isexe": "2.0.0",
     "load-json-file": "catalog:",
     "sinon": "catalog:",
-    "tempy": "^1.0.1",
+    "tempy": "catalog:",
     "write-json-file": "catalog:"
   },
   "directories": {
@@ -94,7 +94,7 @@
     "@zkochan/rimraf": "catalog:",
     "p-limit": "catalog:",
     "path-absolute": "^1.0.1",
-    "path-exists": "^4.0.0",
+    "path-exists": "catalog:",
     "ramda": "catalog:",
     "realpath-missing": "^1.1.0"
   },

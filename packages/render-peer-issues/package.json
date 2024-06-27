@@ -34,7 +34,7 @@
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/types": "workspace:*",
     "archy": "^1.0.0",
-    "chalk": "^4.1.2",
+    "chalk": "catalog:",
     "cli-columns": "^4.0.0",
     "semver": "catalog:"
   },

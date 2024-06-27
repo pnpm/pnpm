@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@pnpm/lockfile-to-pnp": "workspace:*",
-    "@types/normalize-path": "^3.0.2",
+    "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "rimraf": "^3.0.2"
   },

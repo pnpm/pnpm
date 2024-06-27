@@ -57,7 +57,7 @@
     "is-subdir": "catalog:",
     "normalize-path": "catalog:",
     "p-defer": "^3.0.0",
-    "path-exists": "^4.0.0",
+    "path-exists": "catalog:",
     "promise-share": "^1.0.0",
     "ramda": "catalog:",
     "rename-overwrite": "^5.0.0",
@@ -68,7 +68,7 @@
   },
   "devDependencies": {
     "@pnpm/resolve-dependencies": "workspace:*",
-    "@types/normalize-path": "^3.0.2",
+    "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"
   },

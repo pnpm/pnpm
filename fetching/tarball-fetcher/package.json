@@ -59,10 +59,10 @@
     "@types/lodash.throttle": "4.1.7",
     "@types/ramda": "catalog:",
     "@types/retry": "^0.12.5",
-    "@types/ssri": "^7.1.5",
+    "@types/ssri": "catalog:",
     "nock": "catalog:",
-    "ssri": "10.0.5",
-    "tempy": "^1.0.1"
+    "ssri": "catalog:",
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

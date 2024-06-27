@@ -46,9 +46,9 @@
     "@types/micromatch": "^4.0.7",
     "@types/ramda": "catalog:",
     "@types/touch": "^3.1.5",
-    "ci-info": "^3.9.0",
+    "ci-info": "catalog:",
     "is-windows": "catalog:",
-    "tempy": "^1.0.1",
+    "tempy": "catalog:",
     "touch": "3.1.0"
   },
   "funding": "https://opencollective.com/pnpm",

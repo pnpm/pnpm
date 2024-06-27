@@ -35,11 +35,11 @@
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
-    "@types/zkochan__table": "npm:@types/table@6.0.0",
+    "@types/zkochan__table": "catalog:",
     "load-json-file": "catalog:",
     "nock": "catalog:",
     "strip-ansi": "^6.0.1",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "dependencies": {
     "@pnpm/audit": "workspace:*",
@@ -51,9 +51,9 @@
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@zkochan/table": "^2.0.1",
-    "chalk": "^4.1.2",
-    "mem": "^8.1.1",
+    "@zkochan/table": "catalog:",
+    "chalk": "catalog:",
+    "mem": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"
   },
