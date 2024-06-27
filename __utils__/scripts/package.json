@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "execa": "catalog:",
-    "make-empty-dir": "^2.1.0"
+    "make-empty-dir": "catalog:"
   },
   "devDependencies": {
     "@pnpm/scripts": "workspace:*"

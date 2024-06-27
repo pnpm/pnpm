@@ -37,6 +37,7 @@ packages:
 catalog:
   "@pnpm/builder.policy": 3.0.0
   "@pnpm/registry-mock": 3.32.1
+  "@types/fs-extra": ^9.0.13
   "@types/is-windows": ^1.0.2
   "@types/node": ^18.19.34
   "@types/normalize-path": ^3.0.2
@@ -45,6 +46,7 @@ catalog:
   "@types/sinon": ^10.0.20
   "@types/ssri": ^7.1.5
   "@types/zkochan__table": npm:@types/table@6.0.0
+  "@types/which": ^2.0.2
   "@zkochan/cmd-shim": ^6.0.0
   "@zkochan/rimraf": ^2.1.3
   "@zkochan/table": ^2.0.1
@@ -53,10 +55,12 @@ catalog:
   ci-info: ^3.9.0
   enquirer: ^2.4.1
   execa: npm:safe-execa@0.1.2
+  fs-extra: ^11.2.0
   graceful-fs: ^4.2.11
   is-subdir: ^1.2.0
   is-windows: ^1.0.2
   load-json-file: ^6.2.0
+  make-empty-dir: ^2.1.0
   mem: ^8.1.1
   nock: 13.3.4
   node-fetch: npm:@pnpm/node-fetch@1.0.0
@@ -75,9 +79,11 @@ catalog:
   sinon: ^16.1.3
   sort-keys: ^4.2.0
   ssri: 10.0.5
+  strip-ansi: ^6.0.1
   symlink-dir: ^6.0.0
   tempy: ^1.0.1
   version-selector-type: ^3.0.0
   which: npm:@pnpm/which@^3.0.1
   write-json-file: ^4.3.0
   write-yaml-file: ^5.0.0
+  write-pkg: 4.0.0

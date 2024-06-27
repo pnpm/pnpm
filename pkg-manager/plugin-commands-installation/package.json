@@ -52,7 +52,7 @@
     "symlink-dir": "catalog:",
     "tempy": "catalog:",
     "write-json-file": "catalog:",
-    "write-pkg": "4.0.0",
+    "write-pkg": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "dependencies": {

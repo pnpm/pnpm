@@ -59,7 +59,7 @@
     "chalk": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
-    "strip-ansi": "^6.0.1"
+    "strip-ansi": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

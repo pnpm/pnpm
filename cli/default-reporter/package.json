@@ -61,7 +61,7 @@
     "ghooks": "2.0.4",
     "load-json-file": "catalog:",
     "normalize-newline": "3.0.0",
-    "strip-ansi": "^6.0.1"
+    "strip-ansi": "catalog:"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/default-reporter#readme",
   "funding": "https://opencollective.com/pnpm",

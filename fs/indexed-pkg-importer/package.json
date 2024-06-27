@@ -20,8 +20,8 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@reflink/reflink": "0.1.16",
     "@zkochan/rimraf": "catalog:",
-    "fs-extra": "^11.2.0",
-    "make-empty-dir": "^2.1.0",
+    "fs-extra": "catalog:",
+    "make-empty-dir": "catalog:",
     "p-limit": "catalog:",
     "path-exists": "catalog:",
     "path-temp": "^2.1.0",
@@ -31,7 +31,7 @@
   "devDependencies": {
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/fs-extra": "^9.0.13"
+    "@types/fs-extra": "catalog:"
   },
   "directories": {
     "test": "test"

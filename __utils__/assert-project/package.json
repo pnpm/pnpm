@@ -49,6 +49,6 @@
     "is-windows": "catalog:",
     "isexe": "2.0.0",
     "read-yaml-file": "catalog:",
-    "write-pkg": "4.0.0"
+    "write-pkg": "catalog:"
   }
 }

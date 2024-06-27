@@ -39,7 +39,7 @@
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/which": "^2.0.2",
+    "@types/which": "catalog:",
     "is-windows": "catalog:",
     "write-yaml-file": "catalog:"
   },

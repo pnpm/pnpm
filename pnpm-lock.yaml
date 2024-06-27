@@ -12,6 +12,9 @@ catalogs:
     '@pnpm/registry-mock':
       specifier: 3.32.1
       version: 3.32.1
+    '@types/fs-extra':
+      specifier: ^9.0.13
+      version: 9.0.13
     '@types/is-windows':
       specifier: ^1.0.2
       version: 1.0.2
@@ -33,6 +36,9 @@ catalogs:
     '@types/ssri':
       specifier: ^7.1.5
       version: 7.1.5
+    '@types/which':
+      specifier: ^2.0.2
+      version: 2.0.2
     '@types/zkochan__table':
       specifier: npm:@types/table@6.0.0
       version: 6.0.0
@@ -60,6 +66,9 @@ catalogs:
     execa:
       specifier: npm:safe-execa@0.1.2
       version: 0.1.2
+    fs-extra:
+      specifier: ^11.2.0
+      version: 11.2.0
     graceful-fs:
       specifier: ^4.2.11
       version: 4.2.11
@@ -72,6 +81,9 @@ catalogs:
     load-json-file:
       specifier: ^6.2.0
       version: 6.2.0
+    make-empty-dir:
+      specifier: ^2.1.0
+      version: 2.1.0
     mem:
       specifier: ^8.1.1
       version: 8.1.1
@@ -126,6 +138,9 @@ catalogs:
     ssri:
       specifier: 10.0.5
       version: 10.0.5
+    strip-ansi:
+      specifier: ^6.0.1
+      version: 6.0.1
     symlink-dir:
       specifier: ^6.0.0
       version: 6.0.0
@@ -141,6 +156,9 @@ catalogs:
     write-json-file:
       specifier: ^4.3.0
       version: 4.3.0
+    write-pkg:
+      specifier: 4.0.0
+      version: 4.0.0
     write-yaml-file:
       specifier: ^5.0.0
       version: 5.0.0
@@ -346,7 +364,7 @@ importers:
         specifier: 'catalog:'
         version: 2.1.0
       write-pkg:
-        specifier: 4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
     devDependencies:
       '@pnpm/assert-project':
@@ -443,7 +461,7 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
       write-pkg:
-        specifier: 4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       write-yaml-file:
         specifier: 'catalog:'
@@ -462,7 +480,7 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
       make-empty-dir:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
     devDependencies:
       '@pnpm/scripts':
@@ -475,14 +493,14 @@ importers:
         specifier: workspace:*
         version: link:../prepare
       fs-extra:
-        specifier: ^11.2.0
+        specifier: 'catalog:'
         version: 11.2.0
     devDependencies:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: 'link:'
       '@types/fs-extra':
-        specifier: ^9.0.13
+        specifier: 'catalog:'
         version: 9.0.13
 
   __utils__/test-ipc-server:
@@ -710,7 +728,7 @@ importers:
         specifier: 3.0.0
         version: 3.0.0
       strip-ansi:
-        specifier: ^6.0.1
+        specifier: 'catalog:'
         version: 6.0.1
 
   cli/parse-cli-args:
@@ -856,8 +874,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       which:
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: 'catalog:'
+        version: '@pnpm/which@3.0.1'
     devDependencies:
       '@pnpm/config':
         specifier: workspace:*
@@ -875,7 +893,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       '@types/which':
-        specifier: ^2.0.2
+        specifier: 'catalog:'
         version: 2.0.2
       symlink-dir:
         specifier: 'catalog:'
@@ -1061,7 +1079,7 @@ importers:
         specifier: 0.0.33
         version: 0.0.33
       strip-ansi:
-        specifier: ^6.0.1
+        specifier: 'catalog:'
         version: 6.0.1
 
   dedupe/types:
@@ -1679,7 +1697,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       '@types/which':
-        specifier: ^2.0.2
+        specifier: 'catalog:'
         version: 2.0.2
       is-windows:
         specifier: 'catalog:'
@@ -2012,10 +2030,10 @@ importers:
         specifier: 'catalog:'
         version: 2.1.3
       fs-extra:
-        specifier: ^11.2.0
+        specifier: 'catalog:'
         version: 11.2.0
       make-empty-dir:
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0
       p-limit:
         specifier: 'catalog:'
@@ -2040,7 +2058,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@types/fs-extra':
-        specifier: ^9.0.13
+        specifier: 'catalog:'
         version: 9.0.13
 
   fs/is-empty-dir-or-nothing:
@@ -2620,7 +2638,7 @@ importers:
         specifier: 'catalog:'
         version: 13.3.4
       strip-ansi:
-        specifier: ^6.0.1
+        specifier: 'catalog:'
         version: 6.0.1
       tempy:
         specifier: 'catalog:'
@@ -3071,7 +3089,7 @@ importers:
         specifier: 7.5.8
         version: 7.5.8
       strip-ansi:
-        specifier: ^6.0.1
+        specifier: 'catalog:'
         version: 6.0.1
 
   packages/types:
@@ -3496,7 +3514,7 @@ importers:
         specifier: workspace:*
         version: link:../../workspace/find-packages
       '@types/fs-extra':
-        specifier: ^9.0.13
+        specifier: 'catalog:'
         version: 9.0.13
       '@types/is-windows':
         specifier: 'catalog:'
@@ -3778,7 +3796,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
       '@types/fs-extra':
-        specifier: ^9.0.13
+        specifier: 'catalog:'
         version: 9.0.13
       '@types/ramda':
         specifier: 'catalog:'
@@ -4373,7 +4391,7 @@ importers:
         specifier: 'catalog:'
         version: 4.3.0
       write-pkg:
-        specifier: 4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       write-yaml-file:
         specifier: 'catalog:'
@@ -4957,7 +4975,7 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
       '@types/which':
-        specifier: ^2.0.2
+        specifier: 'catalog:'
         version: 2.0.2
       '@zkochan/retry':
         specifier: ^0.2.0
@@ -5038,7 +5056,7 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       strip-ansi:
-        specifier: ^6.0.1
+        specifier: 'catalog:'
         version: 6.0.1
       symlink-dir:
         specifier: 'catalog:'
@@ -5050,13 +5068,13 @@ importers:
         specifier: ^1.2.2
         version: 1.2.2
       which:
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: 'catalog:'
+        version: '@pnpm/which@3.0.1'
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
       write-pkg:
-        specifier: 4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       write-yaml-file:
         specifier: 'catalog:'
@@ -5868,7 +5886,7 @@ importers:
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
       strip-ansi:
-        specifier: ^6.0.1
+        specifier: 'catalog:'
         version: 6.0.1
 
   reviewing/plugin-commands-listing:
@@ -5929,7 +5947,7 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
       strip-ansi:
-        specifier: ^6.0.1
+        specifier: 'catalog:'
         version: 6.0.1
       write-yaml-file:
         specifier: 'catalog:'
@@ -5992,7 +6010,7 @@ importers:
         specifier: 'catalog:'
         version: 1.0.3
       strip-ansi:
-        specifier: ^6.0.1
+        specifier: 'catalog:'
         version: 6.0.1
     devDependencies:
       '@pnpm/constants':

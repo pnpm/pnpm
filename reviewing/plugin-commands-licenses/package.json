@@ -41,7 +41,7 @@
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/zkochan__table": "catalog:",
-    "strip-ansi": "^6.0.1"
+    "strip-ansi": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
