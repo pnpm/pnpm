@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "comver-to-semver": "^1.0.0",
+    "comver-to-semver": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:"
   },

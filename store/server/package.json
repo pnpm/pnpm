@@ -37,11 +37,10 @@
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/server": "workspace:*",
-    "@types/mz": "^2.7.8",
-    "@types/uuid": "^8.3.4",
+    "@types/uuid": "catalog:",
     "@zkochan/rimraf": "catalog:",
-    "get-port": "^5.1.1",
-    "is-port-reachable": "3.0.0",
+    "get-port": "catalog:",
+    "is-port-reachable": "catalog:",
     "load-json-file": "catalog:",
     "node-fetch": "catalog:",
     "tempy": "catalog:"
@@ -51,8 +50,8 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-limit": "catalog:",
-    "promise-share": "^1.0.0",
-    "uuid": "^9.0.1"
+    "promise-share": "catalog:",
+    "uuid": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

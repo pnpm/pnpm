@@ -34,7 +34,7 @@
     "@zkochan/rimraf": "catalog:",
     "can-link": "^2.0.0",
     "path-absolute": "catalog:",
-    "path-temp": "^2.1.0",
+    "path-temp": "catalog:",
     "root-link-target": "^3.1.0",
     "touch": "3.1.0"
   },

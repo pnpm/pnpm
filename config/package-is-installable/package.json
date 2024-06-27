@@ -32,7 +32,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "detect-libc": "^2.0.3",
+    "detect-libc": "catalog:",
     "execa": "catalog:",
     "mem": "catalog:",
     "semver": "catalog:"

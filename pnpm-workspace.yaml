@@ -36,67 +36,157 @@ packages:
   - "!resolving/local-resolver/example-package/**"
 catalog:
   "@pnpm/builder.policy": 3.0.0
+  "@pnpm/byline": ^1.0.0
+  "@pnpm/colorize-semver-diff": ^1.0.1
+  "@pnpm/config.env-replace": 3.0.0
+  "@pnpm/fs.packlist": 2.0.0
+  "@pnpm/log.group": 3.0.0
+  "@pnpm/logger": ^5.0.0
+  "@pnpm/nopt": ^0.2.1
+  "@pnpm/npm-conf": 2.2.2
+  "@pnpm/npm-lifecycle": ^3.0.4
+  "@pnpm/npm-package-arg": ^1.0.0
   "@pnpm/registry-mock": 3.32.1
+  "@pnpm/semver-diff": ^1.1.0
+  "@pnpm/tabtab": ^0.5.4
+  "@pnpm/util.lex-comparator": 3.0.0
+  "@reflink/reflink": 0.1.16
+  "@types/adm-zip": ^0.5.5
+  "@types/archy": 0.0.33
+  "@types/cross-spawn": ^6.0.6
   "@types/fs-extra": ^9.0.13
+  "@types/graceful-fs": ^4.1.9
+  "@types/ini": 1.3.31
   "@types/is-windows": ^1.0.2
+  "@types/js-yaml": ^4.0.9
+  "@types/lodash.throttle": 4.1.7
   "@types/node": ^18.19.34
   "@types/normalize-path": ^3.0.2
+  "@types/object-hash": 3.0.6
+  "@types/pnpm__byline": npm:@types/byline@^4.2.36
+  "@types/proxyquire": ^1.3.31
   "@types/ramda": 0.29.12
+  "@types/retry": ^0.12.5
+  "@types/rimraf": ^3.0.2
   "@types/semver": 7.5.3
+  "@types/signal-exit": ^3.0.4
   "@types/sinon": ^10.0.20
   "@types/ssri": ^7.1.5
-  "@types/zkochan__table": npm:@types/table@6.0.0
+  "@types/uuid": ^8.3.4
   "@types/which": ^2.0.2
+  "@types/write-file-atomic": ^4.0.3
+  "@types/yarnpkg__lockfile": ^1.1.9
+  "@types/zkochan__table": npm:@types/table@6.0.0
   "@yarnpkg/core": 4.0.3
+  "@yarnpkg/extensions": 2.0.1
+  "@yarnpkg/lockfile": ^1.1.0
+  "@yarnpkg/parsers": 3.0.0
+  "@yarnpkg/pnp": ^4.0.6
   "@zkochan/cmd-shim": ^6.0.0
   "@zkochan/retry": ^0.2.0
   "@zkochan/rimraf": ^2.1.3
   "@zkochan/table": ^2.0.1
+  "js-yaml": npm:@zkochan/js-yaml@0.0.7
   adm-zip: ^0.5.14
+  ansi-diff: ^1.1.1
+  archy: ^1.0.0
   better-path-resolve: 1.0.0
-  camelcase: ^6.3.0
+  boxen: ^5.1.2
   camelcase-keys: ^6.2.2
+  camelcase: ^6.3.0
+  can-write-to-dir: ^1.1.1
   chalk: ^4.1.2
   ci-info: ^3.9.0
+  cli-columns: ^4.0.0
+  cli-truncate: ^2.1.0
+  comver-to-semver: ^1.0.0
   cross-spawn: ^7.0.3
+  deep-require-cwd: 1.0.0
+  delay: ^5.0.0
+  detect-libc: ^2.0.3
+  didyoumean2: ^6.0.1
+  dir-is-case-sensitive: ^2.0.0
   enquirer: ^2.4.1
+  esbuild: ^0.19.12
+  escape-string-regexp: ^4.0.0
   execa: npm:safe-execa@0.1.2
+  exists-link: 2.0.0
   fast-glob: ^3.3.2
   fs-extra: ^11.2.0
+  get-npm-tarball-url: ^2.1.0
+  get-port: ^5.1.1
+  ghooks: 2.0.4
   graceful-fs: ^4.2.11
+  ini: 4.1.1
+  is-inner-link: ^4.0.0
+  is-port-reachable: 3.0.0
   is-subdir: ^1.2.0
   is-windows: ^1.0.2
+  jest-diff: ^29.7.0
   load-json-file: ^6.2.0
+  lodash.throttle: 4.1.1
+  loud-rejection: ^2.2.0
   make-empty-dir: ^2.1.0
   mem: ^8.1.1
+  nerf-dart: 1.0.0
   nock: 13.3.4
   node-fetch: npm:@pnpm/node-fetch@1.0.0
+  node-gyp: ^10.1.0
+  normalize-newline: 3.0.0
   normalize-path: ^3.0.0
+  normalize-registry-url: 2.0.0
+  npm-packlist: 5.1.3
+  object-hash: 3.0.0
+  p-any: 3.0.0
+  p-defer: ^3.0.0
   p-every: ^2.0.0
   p-filter: ^2.1.0
   p-limit: ^3.1.0
+  p-map-values: ^1.0.0
+  p-queue: ^6.6.2
   path-absolute: ^1.0.1
   path-exists: ^4.0.0
   path-name: ^1.0.0
+  path-temp: ^2.1.0
+  pidtree: ^0.6.0
+  preferred-pm: ^3.1.3
+  pretty-bytes: ^5.6.0
+  pretty-ms: ^7.0.1
+  process-exists: ^4.1.0
+  promise-share: ^1.0.0
+  proxyquire: ^2.1.3
+  ps-list: ^7.2.0
   ramda: npm:@pnpm/ramda@0.28.1
   read-ini-file: 4.0.0
   read-yaml-file: ^2.1.0
   realpath-missing: ^1.1.0
   rename-overwrite: ^5.0.0
   render-help: ^1.0.3
+  resolve-link-target: ^2.0.0
   run-groups: ^3.0.1
+  rxjs: ^7.8.1
+  safe-buffer: 5.2.1
+  sanitize-filename: ^1.6.3
   semver: ^7.6.2
+  signal-exit: ^3.0.7
   sinon: ^16.1.3
   sort-keys: ^4.2.0
+  split-cmd: ^1.1.0
   ssri: 10.0.5
+  stacktracey: ^2.1.8
+  string-length: ^4.0.2
   strip-ansi: ^6.0.1
   strip-bom: ^4.0.0
   symlink-dir: ^6.0.0
   tempy: ^1.0.1
+  tree-kill: ^1.2.2
+  uuid: ^9.0.1
+  v8-compile-cache: 2.4.0
   version-selector-type: ^3.0.0
   which: npm:@pnpm/which@^3.0.1
   write-file-atomic: ^5.0.1
+  write-ini-file: 4.0.1
   write-json-file: ^4.3.0
-  write-yaml-file: ^5.0.0
   write-pkg: 4.0.0
+  write-yaml-file: ^5.0.0
   yaml-tag: 1.1.0

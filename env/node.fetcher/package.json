@@ -42,7 +42,7 @@
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "adm-zip": "catalog:",
-    "detect-libc": "^2.0.3",
+    "detect-libc": "catalog:",
     "rename-overwrite": "catalog:",
     "tempy": "catalog:"
   },
@@ -50,7 +50,7 @@
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/adm-zip": "^0.5.5",
+    "@types/adm-zip": "catalog:",
     "node-fetch": "catalog:"
   }
 }

@@ -39,13 +39,13 @@
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
-    "@pnpm/npm-package-arg": "^1.0.0",
+    "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
     "normalize-path": "catalog:",
     "realpath-missing": "catalog:",
-    "resolve-link-target": "^2.0.0",
+    "resolve-link-target": "catalog:",
     "semver": "catalog:"
   },
   "devDependencies": {

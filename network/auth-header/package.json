@@ -31,11 +31,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/network/auth-header#readme",
   "devDependencies": {
     "@pnpm/network.auth-header": "workspace:*",
-    "safe-buffer": "5.2.1"
+    "safe-buffer": "catalog:"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "nerf-dart": "1.0.0"
+    "nerf-dart": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

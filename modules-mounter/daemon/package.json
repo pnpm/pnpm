@@ -46,7 +46,7 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
-    "@pnpm/logger": "^5.0.0",
+    "@pnpm/logger": "catalog:",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",

@@ -50,7 +50,7 @@
     "p-limit": "catalog:",
     "p-memoize": "4.0.1",
     "parse-npm-tarball-url": "^3.0.0",
-    "path-temp": "^2.1.0",
+    "path-temp": "catalog:",
     "ramda": "catalog:",
     "rename-overwrite": "catalog:",
     "semver": "catalog:",

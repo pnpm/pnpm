@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/colorize-semver-diff": "^1.0.1",
+    "@pnpm/colorize-semver-diff": "catalog:",
     "@pnpm/command": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
@@ -52,7 +52,7 @@
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/outdated": "workspace:*",
-    "@pnpm/semver-diff": "^1.1.0",
+    "@pnpm/semver-diff": "catalog:",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "catalog:",

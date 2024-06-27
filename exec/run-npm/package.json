@@ -28,7 +28,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/run-npm#readme",
   "devDependencies": {
     "@pnpm/run-npm": "workspace:*",
-    "@types/cross-spawn": "^6.0.6"
+    "@types/cross-spawn": "catalog:"
   },
   "dependencies": {
     "cross-spawn": "catalog:",

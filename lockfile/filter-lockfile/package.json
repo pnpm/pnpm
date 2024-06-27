@@ -36,7 +36,7 @@
   "devDependencies": {
     "@pnpm/filter-lockfile": "workspace:*",
     "@types/ramda": "catalog:",
-    "detect-libc": "^2.0.3",
+    "detect-libc": "catalog:",
     "tempy": "catalog:",
     "write-yaml-file": "catalog:",
     "yaml-tag": "catalog:"

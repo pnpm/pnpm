@@ -32,7 +32,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-utils#readme",
   "devDependencies": {
     "@pnpm/lockfile-utils": "workspace:*",
-    "@types/js-yaml": "^4.0.9",
     "@types/ramda": "catalog:",
     "tempy": "catalog:",
     "write-yaml-file": "catalog:",
@@ -44,7 +43,7 @@
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "get-npm-tarball-url": "^2.1.0",
+    "get-npm-tarball-url": "catalog:",
     "ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

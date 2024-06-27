@@ -21,7 +21,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "mem": "catalog:",
-    "path-temp": "^2.1.0",
+    "path-temp": "catalog:",
     "ramda": "catalog:"
   },
   "devDependencies": {

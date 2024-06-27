@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@pnpm/types": "workspace:*",
-    "normalize-registry-url": "2.0.0",
+    "normalize-registry-url": "catalog:",
     "ramda": "catalog:"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/config/normalize-registries#readme",

@@ -65,7 +65,7 @@
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
-    "@pnpm/npm-package-arg": "^1.0.0",
+    "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/sort-packages": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",

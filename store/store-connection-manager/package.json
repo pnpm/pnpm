@@ -40,8 +40,8 @@
     "@pnpm/server": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@zkochan/diable": "^1.0.2",
-    "delay": "^5.0.0",
-    "dir-is-case-sensitive": "^2.0.0"
+    "delay": "catalog:",
+    "dir-is-case-sensitive": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

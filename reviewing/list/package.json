@@ -38,16 +38,16 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "archy": "^1.0.0",
+    "archy": "catalog:",
     "chalk": "catalog:",
-    "cli-columns": "^4.0.0",
+    "cli-columns": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:"
   },
   "devDependencies": {
     "@pnpm/list": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/archy": "0.0.33",
+    "@types/archy": "catalog:",
     "@types/ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

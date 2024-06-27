@@ -33,7 +33,7 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/exportable-manifest": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/cross-spawn": "^6.0.6",
+    "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
     "cross-spawn": "catalog:",
     "write-yaml-file": "catalog:"
@@ -43,7 +43,7 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "p-map-values": "^1.0.0",
+    "p-map-values": "catalog:",
     "ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

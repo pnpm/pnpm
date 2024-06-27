@@ -34,18 +34,18 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/run-npm": "workspace:*",
-    "ini": "4.1.1",
+    "ini": "catalog:",
     "read-ini-file": "catalog:",
     "render-help": "catalog:",
     "sort-keys": "catalog:",
-    "write-ini-file": "4.0.1"
+    "write-ini-file": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/logger": "^5.0.0",
+    "@pnpm/logger": "catalog:",
     "@pnpm/plugin-commands-config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/ini": "1.3.31"
+    "@types/ini": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

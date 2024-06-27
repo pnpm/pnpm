@@ -33,14 +33,14 @@
     "@pnpm/matcher": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "archy": "^1.0.0",
+    "archy": "catalog:",
     "chalk": "catalog:",
     "cli-columns": "^4.0.0",
     "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/render-peer-issues": "workspace:*",
-    "@types/archy": "0.0.33",
+    "@types/archy": "catalog:",
     "@types/semver": "7.5.8",
     "strip-ansi": "catalog:"
   },

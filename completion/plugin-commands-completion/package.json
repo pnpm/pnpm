@@ -33,14 +33,14 @@
     "@pnpm/command": "workspace:^",
     "@pnpm/error": "workspace:^",
     "@pnpm/find-workspace-dir": "workspace:^",
-    "@pnpm/nopt": "^0.2.1",
+    "@pnpm/nopt": "catalog:",
     "@pnpm/parse-cli-args": "workspace:^",
-    "@pnpm/tabtab": "^0.5.4",
+    "@pnpm/tabtab": "catalog:",
     "@pnpm/workspace.find-packages": "workspace:^",
     "@pnpm/workspace.read-manifest": "workspace:^",
     "ramda": "catalog:",
     "render-help": "catalog:",
-    "split-cmd": "^1.1.0"
+    "split-cmd": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

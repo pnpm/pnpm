@@ -40,7 +40,7 @@
     "@pnpm/symlink-dependency": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "ramda": "catalog:",
-    "resolve-link-target": "^2.0.0"
+    "resolve-link-target": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

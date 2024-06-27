@@ -45,7 +45,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
-    "p-defer": "^3.0.0",
+    "p-defer": "catalog:",
     "ramda": "catalog:",
     "run-groups": "catalog:"
   },

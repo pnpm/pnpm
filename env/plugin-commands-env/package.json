@@ -55,8 +55,8 @@
   "devDependencies": {
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/adm-zip": "^0.5.5",
-    "@types/graceful-fs": "^4.1.9",
+    "@types/adm-zip": "catalog:",
+    "@types/graceful-fs": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/semver": "catalog:",
     "adm-zip": "catalog:",

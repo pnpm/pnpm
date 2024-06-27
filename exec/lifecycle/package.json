@@ -39,7 +39,7 @@
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
-    "@pnpm/npm-lifecycle": "^3.0.4",
+    "@pnpm/npm-lifecycle": "catalog:",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -52,7 +52,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/is-windows": "catalog:",
-    "@types/rimraf": "^3.0.2",
+    "@types/rimraf": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "load-json-file": "catalog:"
   },

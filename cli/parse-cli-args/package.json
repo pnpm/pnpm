@@ -36,8 +36,8 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
-    "@pnpm/nopt": "^0.2.1",
-    "didyoumean2": "^6.0.1"
+    "@pnpm/nopt": "catalog:",
+    "didyoumean2": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
