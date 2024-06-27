@@ -1,77 +1,46 @@
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
-import { type Lockfile } from '@pnpm/lockfile-types'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
-import { preparePackages } from '@pnpm/prepare'
+import { prepareEmpty } from '@pnpm/prepare'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/workspace.find-packages'
-import readYamlFile from 'read-yaml-file'
 import path from 'path'
 import { testDefaults } from './utils'
 
-/**
- * A utility to make writing catalog tests easier by reducing boilerplate.
- */
-class CatalogTestsController {
-  private readonly workspaceDir: string
-  private projects: Record<ProjectId, ProjectManifest>
-  private catalogs: Catalogs = {}
-
-  constructor (pkgs: Array<{ location: string, package: ProjectManifest }>) {
-    preparePackages(pkgs)
-    this.workspaceDir = process.cwd()
-
-    this.projects = {}
-    for (const { location, package: manifest } of pkgs) {
-      this.projects[location as ProjectId] = manifest
-    }
+function preparePackagesAndReturnObjects (pkgs: Array<{ location: string, package: ProjectManifest }>) {
+  const project = prepareEmpty()
+  const projects: Record<ProjectId, ProjectManifest> = {}
+  for (const { location, package: manifest } of pkgs) {
+    projects[location as ProjectId] = manifest
   }
-
-  setCatalogs (catalogs: Catalogs) {
-    this.catalogs = catalogs
-  }
-
-  async install (opts?: { filter?: readonly string[] }) {
-    const importers: MutatedProject[] = Object.entries(this.projects)
-      .filter(([id]) => opts?.filter?.includes(id) ?? true)
-      .map(([id, manifest]) => ({
-        mutation: 'install',
-        id,
-        manifest,
-        rootDir: path.join(this.workspaceDir, id),
-      }))
-
-    const mutateModulesAllProjects: ProjectOptions[] = Object.entries(this.projects)
-      .map(([id, manifest]) => ({
-        buildIndex: 0,
-        manifest,
-        dir: path.join(this.workspaceDir, id),
-        rootDir: path.join(this.workspaceDir, id),
-      }))
-
-    await mutateModules(importers, testDefaults({
-      allProjects: mutateModulesAllProjects,
-      lockfileOnly: true,
-      catalogs: this.catalogs,
-      workspacePackages: arrayOfWorkspacePackagesToMap(mutateModulesAllProjects),
+  const allProjects: ProjectOptions[] = Object.entries(projects)
+    .map(([id, manifest]) => ({
+      buildIndex: 0,
+      manifest,
+      dir: path.resolve(id),
+      rootDir: path.resolve(id),
     }))
-  }
-
-  async lockfile (): Promise<Lockfile> {
-    return readYamlFile(path.join(this.workspaceDir, WANTED_LOCKFILE))
-  }
-
-  updateProjectManifest (location: ProjectId, manifest: ProjectManifest): void {
-    this.projects = {
-      ...this.projects,
-      [location]: manifest,
-    }
+  return {
+    ...project,
+    projects,
+    options: testDefaults({
+      allProjects,
+      workspacePackages: arrayOfWorkspacePackagesToMap(allProjects),
+    }),
   }
 }
 
+function installProjects (projects: Record<ProjectId, ProjectManifest>): MutatedProject[] {
+  return Object.entries(projects)
+    .map(([id, manifest]) => ({
+      mutation: 'install',
+      id,
+      manifest,
+      rootDir: path.resolve(id),
+    }))
+}
+
 test('installing with "catalog:" should work', async () => {
-  const ctrl = new CatalogTestsController([
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {
       location: 'packages/project1',
       package: {
@@ -87,12 +56,15 @@ test('installing with "catalog:" should work', async () => {
     },
   ])
 
-  ctrl.setCatalogs({
-    default: { 'is-positive': '1.0.0' },
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs: {
+      default: { 'is-positive': '1.0.0' },
+    },
   })
-  await ctrl.install()
-  const lockfile = await ctrl.lockfile()
 
+  const lockfile = readLockfile()
   expect(lockfile.importers['packages/project1' as ProjectId]).toEqual({
     dependencies: {
       'is-positive': {
@@ -104,7 +76,7 @@ test('installing with "catalog:" should work', async () => {
 })
 
 test('importer to importer dependency with "catalog:" should work', async () => {
-  const ctrl = new CatalogTestsController([
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {
       location: 'packages/project1',
       package: {
@@ -125,13 +97,15 @@ test('importer to importer dependency with "catalog:" should work', async () => 
     },
   ])
 
-  ctrl.setCatalogs({
-    default: { 'is-positive': '1.0.0' },
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs: {
+      default: { 'is-positive': '1.0.0' },
+    },
   })
 
-  await ctrl.install()
-  const lockfile = await ctrl.lockfile()
-
+  const lockfile = readLockfile()
   expect(lockfile.importers['packages/project2' as ProjectId]).toEqual({
     dependencies: {
       'is-positive': {
@@ -143,7 +117,7 @@ test('importer to importer dependency with "catalog:" should work', async () => 
 })
 
 test('importer with different peers uses correct peer', async () => {
-  const ctrl = new CatalogTestsController([
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {
       location: 'packages/project1',
       package: {
@@ -174,15 +148,17 @@ test('importer with different peers uses correct peer', async () => {
     },
   ])
 
-  ctrl.setCatalogs({
-    default: {
-      '@pnpm.e2e/has-foo100-peer': '^1.0.0',
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs: {
+      default: {
+        '@pnpm.e2e/has-foo100-peer': '^1.0.0',
+      },
     },
   })
 
-  await ctrl.install()
-  const lockfile = await ctrl.lockfile()
-
+  const lockfile = readLockfile()
   expect(lockfile.importers['packages/project1' as ProjectId]?.dependencies?.['@pnpm.e2e/has-foo100-peer']).toEqual({
     specifier: 'catalog:',
     version: `1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/foo', version: '100.0.0' }])}`,
@@ -195,7 +171,7 @@ test('importer with different peers uses correct peer', async () => {
 })
 
 test('lockfile contains catalog snapshots', async () => {
-  const ctrl = new CatalogTestsController([
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {
       location: 'packages/project1',
       package: {
@@ -214,16 +190,18 @@ test('lockfile contains catalog snapshots', async () => {
     },
   ])
 
-  ctrl.setCatalogs({
-    default: {
-      'is-positive': '^1.0.0',
-      'is-negative': '^1.0.0',
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs: {
+      default: {
+        'is-positive': '^1.0.0',
+        'is-negative': '^1.0.0',
+      },
     },
   })
 
-  await ctrl.install()
-  const lockfile = await ctrl.lockfile()
-
+  const lockfile = readLockfile()
   expect(lockfile.catalogs).toStrictEqual({
     default: {
       'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
@@ -233,7 +211,7 @@ test('lockfile contains catalog snapshots', async () => {
 })
 
 test('lockfile is updated if catalog config changes', async () => {
-  const ctrl = new CatalogTestsController([
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {
       location: 'packages/project1',
       package: {
@@ -244,12 +222,17 @@ test('lockfile is updated if catalog config changes', async () => {
     },
   ])
 
-  ctrl.setCatalogs({
-    default: { 'is-positive': '=1.0.0' },
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs: {
+      default: {
+        'is-positive': '=1.0.0',
+      },
+    },
   })
-  await ctrl.install()
 
-  expect((await ctrl.lockfile()).importers['packages/project1' as ProjectId]).toEqual({
+  expect(readLockfile().importers['packages/project1' as ProjectId]).toEqual({
     dependencies: {
       'is-positive': {
         specifier: 'catalog:',
@@ -258,14 +241,17 @@ test('lockfile is updated if catalog config changes', async () => {
     },
   })
 
-  ctrl.setCatalogs({
-    default: {
-      'is-positive': '=3.1.0',
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs: {
+      default: {
+        'is-positive': '=3.1.0',
+      },
     },
   })
-  await ctrl.install()
 
-  expect((await ctrl.lockfile()).importers['packages/project1' as ProjectId]).toEqual({
+  expect(readLockfile().importers['packages/project1' as ProjectId]).toEqual({
     dependencies: {
       'is-positive': {
         specifier: 'catalog:',
@@ -276,7 +262,7 @@ test('lockfile is updated if catalog config changes', async () => {
 })
 
 test('lockfile catalog snapshots retain existing entries on --filter', async () => {
-  const ctrl = new CatalogTestsController([
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {
       location: 'packages/project1',
       package: {
@@ -295,16 +281,18 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     },
   ])
 
-  ctrl.setCatalogs({
-    default: {
-      'is-positive': '^1.0.0',
-      'is-negative': '^1.0.0',
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs: {
+      default: {
+        'is-positive': '^1.0.0',
+        'is-negative': '^1.0.0',
+      },
     },
   })
 
-  await ctrl.install()
-
-  expect((await ctrl.lockfile()).catalogs).toStrictEqual({
+  expect(readLockfile().catalogs).toStrictEqual({
     default: {
       'is-negative': { specifier: '^1.0.0', version: '1.0.0' },
       'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
@@ -312,15 +300,18 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
   })
 
   // Update catalog definitions so pnpm triggers a rerun.
-  ctrl.setCatalogs({
-    default: {
-      'is-positive': '=3.1.0',
-      'is-negative': '^1.0.0',
+  await mutateModules(installProjects(projects).slice(1), {
+    ...options,
+    lockfileOnly: true,
+    catalogs: {
+      default: {
+        'is-positive': '=3.1.0',
+        'is-negative': '^1.0.0',
+      },
     },
   })
-  await ctrl.install({ filter: ['packages/project2'] })
 
-  expect((await ctrl.lockfile()).catalogs).toStrictEqual({
+  expect(readLockfile().catalogs).toStrictEqual({
     default: {
       // The is-negative snapshot should be carried from the previous install,
       // despite the current filtered install not using it.
@@ -343,7 +334,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
 // older unused resolution. For now we'll remove the unused entries since that's
 // what would happen anyway if catalogs aren't used.
 test('lockfile catalog snapshots should remove unused entries', async () => {
-  const ctrl = new CatalogTestsController([
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {
       location: 'packages/project1',
       package: {
@@ -355,16 +346,20 @@ test('lockfile catalog snapshots should remove unused entries', async () => {
     },
   ])
 
-  ctrl.setCatalogs({
+  const catalogs = {
     default: {
       'is-negative': '=1.0.0',
       'is-positive': '=1.0.0',
     },
+  }
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
   })
 
   {
-    await ctrl.install()
-    const lockfile = await ctrl.lockfile()
+    const lockfile = readLockfile()
     expect(lockfile.importers['packages/project1' as ProjectId]?.dependencies).toEqual({
       'is-negative': { specifier: 'catalog:', version: '1.0.0' },
       'is-positive': { specifier: 'catalog:', version: '1.0.0' },
@@ -376,15 +371,17 @@ test('lockfile catalog snapshots should remove unused entries', async () => {
   }
 
   // Update package.json to no longer depend on is-positive.
-  ctrl.updateProjectManifest('packages/project1' as ProjectId, {
-    dependencies: {
-      'is-negative': 'catalog:',
-    },
+  projects['packages/project1' as ProjectId].dependencies = {
+    'is-negative': 'catalog:',
+  }
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
   })
-  await ctrl.install()
 
   {
-    const lockfile = await ctrl.lockfile()
+    const lockfile = readLockfile()
     expect(lockfile.importers['packages/project1' as ProjectId]?.dependencies).toEqual({
       'is-negative': { specifier: 'catalog:', version: '1.0.0' },
     })
