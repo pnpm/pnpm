@@ -33,7 +33,7 @@
   "devDependencies": {
     "@pnpm/prune-lockfile": "workspace:*",
     "@types/ramda": "catalog:",
-    "yaml-tag": "1.1.0"
+    "yaml-tag": "catalog:"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",

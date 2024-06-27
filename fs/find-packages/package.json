@@ -33,7 +33,7 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "3.0.0",
-    "fast-glob": "^3.3.2",
+    "fast-glob": "catalog:",
     "p-filter": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

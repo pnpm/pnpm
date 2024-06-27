@@ -60,7 +60,7 @@
     "@pnpm/store-connection-manager": "workspace:*",
     "enquirer": "catalog:",
     "escape-string-regexp": "^4.0.0",
-    "fast-glob": "^3.3.2",
+    "fast-glob": "catalog:",
     "normalize-path": "catalog:",
     "ramda": "catalog:",
     "realpath-missing": "catalog:",

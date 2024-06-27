@@ -46,7 +46,7 @@
     "@pnpm/workspace.read-manifest": "workspace:*",
     "better-path-resolve": "catalog:",
     "camelcase": "catalog:",
-    "camelcase-keys": "^6.2.2",
+    "camelcase-keys": "catalog:",
     "can-write-to-dir": "^1.1.1",
     "is-subdir": "catalog:",
     "is-windows": "catalog:",

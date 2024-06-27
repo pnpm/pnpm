@@ -24,7 +24,7 @@
     "p-limit": "catalog:",
     "rename-overwrite": "catalog:",
     "ssri": "catalog:",
-    "strip-bom": "^4.0.0"
+    "strip-bom": "catalog:"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",

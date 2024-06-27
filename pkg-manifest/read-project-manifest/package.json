@@ -42,7 +42,7 @@
     "parse-json": "^5.2.0",
     "read-yaml-file": "catalog:",
     "sort-keys": "catalog:",
-    "strip-bom": "^4.0.0"
+    "strip-bom": "catalog:"
   },
   "devDependencies": {
     "@pnpm/read-project-manifest": "workspace:*",

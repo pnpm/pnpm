@@ -30,7 +30,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@zkochan/retry": "^0.2.0",
+    "@zkochan/retry": "catalog:",
     "node-fetch": "catalog:"
   },
   "devDependencies": {

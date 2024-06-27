@@ -35,7 +35,7 @@
     "@pnpm/prepare": "workspace:*",
     "@types/cross-spawn": "^6.0.6",
     "@types/ramda": "catalog:",
-    "cross-spawn": "^7.0.3",
+    "cross-spawn": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "dependencies": {
