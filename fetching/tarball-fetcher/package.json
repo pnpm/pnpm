@@ -46,7 +46,7 @@
     "lodash.throttle": "4.1.1",
     "p-map-values": "^1.0.0",
     "path-temp": "^2.1.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "ramda": "catalog:",
     "rename-overwrite": "^5.0.0"
   },
   "devDependencies": {
@@ -57,7 +57,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/lodash.throttle": "4.1.7",
-    "@types/ramda": "0.29.12",
+    "@types/ramda": "catalog:",
     "@types/retry": "^0.12.5",
     "@types/ssri": "^7.1.5",
     "nock": "13.3.4",

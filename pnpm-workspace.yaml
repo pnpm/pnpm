@@ -34,3 +34,9 @@ packages:
   - "!**/example/**"
   - "!**/test/**"
   - "!resolving/local-resolver/example-package/**"
+catalog:
+  "@pnpm/registry-mock": 3.32.1
+  "@types/ramda": 0.29.12
+  "@types/semver": 7.5.3
+  ramda: npm:@pnpm/ramda@0.28.1
+  semver: ^7.6.2

@@ -40,12 +40,12 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "ramda": "catalog:"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
-    "@types/ramda": "0.29.12"
+    "@types/ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

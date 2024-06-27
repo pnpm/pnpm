@@ -4,6 +4,24 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@pnpm/registry-mock':
+      specifier: 3.32.1
+      version: 3.32.1
+    '@types/ramda':
+      specifier: 0.29.12
+      version: 0.29.12
+    '@types/semver':
+      specifier: 7.5.3
+      version: 7.5.3
+    ramda:
+      specifier: npm:@pnpm/ramda@0.28.1
+      version: 0.28.1
+    semver:
+      specifier: ^7.6.2
+      version: 7.6.2
+
 overrides:
   clipanion: 3.2.0-rc.6
   debug@<3.1.0: '>=3.1.0'
@@ -72,7 +90,7 @@ importers:
         specifier: 1.0.0
         version: 1.0.0
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/tsconfig':
         specifier: workspace:*
@@ -190,7 +208,7 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/types':
         specifier: workspace:*
@@ -224,7 +242,7 @@ importers:
   __utils__/assert-store:
     dependencies:
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store.cafs':
         specifier: workspace:*
@@ -465,7 +483,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   cli/command:
@@ -532,13 +550,13 @@ importers:
         specifier: ^7.0.1
         version: 7.0.1
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       rxjs:
         specifier: ^7.8.1
         version: 7.8.1
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
       stacktracey:
         specifier: ^2.1.8
@@ -554,10 +572,10 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       ghooks:
         specifier: 2.0.4
@@ -624,7 +642,7 @@ importers:
         specifier: workspace:^
         version: link:../../workspace/read-manifest
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: ^1.0.3
@@ -637,7 +655,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   config/config:
@@ -706,7 +724,7 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       read-ini-file:
         specifier: 4.0.0
@@ -731,7 +749,7 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/which':
         specifier: ^2.0.2
@@ -759,14 +777,14 @@ importers:
         specifier: 2.0.0
         version: 2.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/normalize-registries':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   config/package-is-installable:
@@ -793,14 +811,14 @@ importers:
         specifier: ^8.1.1
         version: 8.1.1
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: 'link:'
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
 
   config/parse-overrides:
@@ -965,14 +983,14 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/deps.graph-builder':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   deps/graph-sequencer:
@@ -1039,7 +1057,7 @@ importers:
         specifier: workspace:*
         version: link:../node.fetcher
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
       version-selector-type:
         specifier: ^3.0.0
@@ -1052,7 +1070,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
 
   env/plugin-commands-env:
@@ -1103,7 +1121,7 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
       symlink-dir:
         specifier: ^6.0.0
@@ -1128,7 +1146,7 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       adm-zip:
         specifier: ^0.5.14
@@ -1188,7 +1206,7 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       run-groups:
         specifier: ^3.0.1
@@ -1198,7 +1216,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   exec/lifecycle:
@@ -1365,7 +1383,7 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: ^1.0.3
@@ -1374,7 +1392,7 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/assert-project':
@@ -1390,7 +1408,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
@@ -1402,10 +1420,10 @@ importers:
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       '@types/sinon':
         specifier: ^10.0.20
@@ -1495,7 +1513,7 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       realpath-missing:
         specifier: ^1.1.0
@@ -1523,7 +1541,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
@@ -1535,7 +1553,7 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/which':
         specifier: ^2.0.2
@@ -1571,7 +1589,7 @@ importers:
         specifier: ^3.1.3
         version: 3.1.3
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/prepare':
@@ -1587,7 +1605,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       load-json-file:
         specifier: ^6.2.0
@@ -1756,7 +1774,7 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: ^5.0.0
@@ -1784,7 +1802,7 @@ importers:
         specifier: 4.1.7
         version: 4.1.7
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/retry':
         specifier: ^0.12.5
@@ -2017,10 +2035,10 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/hooks.read-package-hook':
@@ -2030,10 +2048,10 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       '@yarnpkg/core':
         specifier: 4.0.3
@@ -2088,7 +2106,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/audit':
@@ -2104,7 +2122,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       nock:
         specifier: 13.3.4
@@ -2159,14 +2177,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/filter-lockfile':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       detect-libc:
         specifier: ^2.0.3
@@ -2229,10 +2247,10 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
       sort-keys:
         specifier: ^4.2.0
@@ -2254,10 +2272,10 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       '@types/write-file-atomic':
         specifier: ^4.0.3
@@ -2296,7 +2314,7 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/lockfile-to-pnp':
@@ -2306,7 +2324,7 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       rimraf:
         specifier: ^3.0.2
@@ -2343,7 +2361,7 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/lockfile-utils':
@@ -2353,7 +2371,7 @@ importers:
         specifier: ^4.0.9
         version: 4.0.9
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       tempy:
         specifier: ^1.0.1
@@ -2396,20 +2414,20 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/merge-lockfile-changes':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
 
   lockfile/plugin-commands-audit:
@@ -2451,7 +2469,7 @@ importers:
         specifier: ^8.1.1
         version: 8.1.1
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: ^1.0.3
@@ -2467,7 +2485,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/zkochan__table':
         specifier: npm:@types/table@6.0.0
@@ -2522,14 +2540,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/prune-lockfile':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       yaml-tag:
         specifier: 1.1.0
@@ -2717,14 +2735,14 @@ importers:
         specifier: workspace:*
         version: link:../types
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: 'link:'
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
 
   packages/error:
@@ -2780,7 +2798,7 @@ importers:
         specifier: workspace:*
         version: link:../types
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: ^5.0.0
@@ -2793,7 +2811,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       execa:
         specifier: npm:safe-execa@0.1.2
@@ -2917,7 +2935,7 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/render-peer-issues':
@@ -3034,7 +3052,7 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       realpath-missing:
         specifier: ^1.1.0
@@ -3046,7 +3064,7 @@ importers:
         specifier: ^0.1.4
         version: 0.1.4
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
       tempy:
         specifier: ^1.0.1
@@ -3059,7 +3077,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
@@ -3071,10 +3089,10 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       write-yaml-file:
         specifier: ^5.0.0
@@ -3110,7 +3128,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/client':
@@ -3120,7 +3138,7 @@ importers:
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   pkg-manager/core:
@@ -3294,13 +3312,13 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       run-groups:
         specifier: ^3.0.1
         version: 3.0.1
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
       sort-keys:
         specifier: ^4.2.0
@@ -3337,7 +3355,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
@@ -3364,10 +3382,10 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       '@types/sinon':
         specifier: ^10.0.20
@@ -3433,7 +3451,7 @@ importers:
         specifier: ^2.1.3
         version: 2.1.3
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       resolve-link-target:
         specifier: ^2.0.0
@@ -3443,7 +3461,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   pkg-manager/get-context:
@@ -3485,14 +3503,14 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/get-context':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   pkg-manager/headless:
@@ -3594,7 +3612,7 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       realpath-missing:
         specifier: ^1.1.0
@@ -3622,7 +3640,7 @@ importers:
         specifier: workspace:*
         version: link:../read-projects-context
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
@@ -3640,7 +3658,7 @@ importers:
         specifier: ^9.0.13
         version: 9.0.13
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/rimraf':
         specifier: ^3.0.2
@@ -3706,7 +3724,7 @@ importers:
         specifier: ^1.2.0
         version: 1.2.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       resolve-link-target:
         specifier: ^2.0.0
@@ -3719,7 +3737,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   pkg-manager/link-bins:
@@ -3770,10 +3788,10 @@ importers:
         specifier: ^4.1.1
         version: 4.1.1
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
       symlink-dir:
         specifier: ^6.0.0
@@ -3795,10 +3813,10 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       cmd-extension:
         specifier: ^1.0.2
@@ -3846,14 +3864,14 @@ importers:
         specifier: ^2.1.3
         version: 2.1.3
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/modules-cleaner':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   pkg-manager/modules-yaml:
@@ -3865,7 +3883,7 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       read-yaml-file:
         specifier: ^2.1.0
@@ -3881,7 +3899,7 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       tempy:
         specifier: ^1.0.1
@@ -3963,10 +3981,10 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
       ssri:
         specifier: 10.0.5
@@ -3985,7 +4003,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
@@ -3994,10 +4012,10 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       '@types/ssri':
         specifier: ^7.1.5
@@ -4156,7 +4174,7 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: ^1.0.3
@@ -4178,7 +4196,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
@@ -4193,7 +4211,7 @@ importers:
         specifier: ^1.3.31
         version: 1.3.31
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/sinon':
         specifier: ^10.0.20
@@ -4325,7 +4343,7 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   pkg-manager/resolve-dependencies:
@@ -4424,7 +4442,7 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: ^5.0.0
@@ -4433,7 +4451,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
       semver-range-intersect:
         specifier: ^0.3.1
@@ -4449,10 +4467,10 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
 
   pkg-manifest/exportable-manifest:
@@ -4473,7 +4491,7 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/catalogs.config':
@@ -4492,7 +4510,7 @@ importers:
         specifier: ^6.0.6
         version: 6.0.6
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       cross-spawn:
         specifier: ^7.0.3
@@ -4768,7 +4786,7 @@ importers:
         specifier: workspace:*
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/run-npm':
         specifier: workspace:*
@@ -4810,10 +4828,10 @@ importers:
         specifier: npm:@types/byline@^4.2.36
         version: '@types/byline@4.2.36'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       '@types/which':
         specifier: ^2.0.2
@@ -4882,7 +4900,7 @@ importers:
         specifier: ^7.2.0
         version: 7.2.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       read-yaml-file:
         specifier: ^2.1.0
@@ -4891,7 +4909,7 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
       split-cmd:
         specifier: ^1.1.0
@@ -5028,7 +5046,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
@@ -5106,7 +5124,7 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       realpath-missing:
         specifier: ^1.1.0
@@ -5134,7 +5152,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
@@ -5152,7 +5170,7 @@ importers:
         specifier: ^1.3.31
         version: 1.3.31
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/sinon':
         specifier: ^10.0.20
@@ -5231,7 +5249,7 @@ importers:
         specifier: npm:@pnpm/hosted-git-info@1.0.0
         version: '@pnpm/hosted-git-info@1.0.0'
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/git-resolver':
@@ -5244,7 +5262,7 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       is-windows:
         specifier: ^1.0.2
@@ -5344,13 +5362,13 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: ^5.0.0
         version: 5.0.0
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
       ssri:
         specifier: 10.0.5
@@ -5372,10 +5390,10 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       '@types/ssri':
         specifier: ^7.1.5
@@ -5455,7 +5473,7 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/constants':
@@ -5471,7 +5489,7 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
 
   reviewing/license-scanner:
@@ -5525,10 +5543,10 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/constants':
@@ -5538,7 +5556,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
         specifier: ^7.5.8
@@ -5571,7 +5589,7 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/list':
@@ -5584,7 +5602,7 @@ importers:
         specifier: 0.0.33
         version: 0.0.33
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   reviewing/outdated:
@@ -5632,10 +5650,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/outdated':
@@ -5645,10 +5663,10 @@ importers:
         specifier: workspace:*
         version: link:../../resolving/resolver-base
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
 
   reviewing/plugin-commands-licenses:
@@ -5687,13 +5705,13 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: ^1.0.3
         version: 1.0.3
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/plugin-commands-installation':
@@ -5709,7 +5727,7 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
@@ -5718,10 +5736,10 @@ importers:
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
       '@types/zkochan__table':
         specifier: npm:@types/table@6.0.0
@@ -5754,7 +5772,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: ^1.0.3
@@ -5776,13 +5794,13 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       execa:
         specifier: npm:safe-execa@0.1.2
@@ -5845,7 +5863,7 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: ^1.0.3
@@ -5867,7 +5885,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
@@ -5876,7 +5894,7 @@ importers:
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/zkochan__table':
         specifier: npm:@types/table@6.0.0
@@ -5976,7 +5994,7 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/cafs-types':
@@ -5989,7 +6007,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
 
   store/package-store:
@@ -6028,7 +6046,7 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       ssri:
         specifier: 10.0.5
@@ -6044,7 +6062,7 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/ssri':
         specifier: ^7.1.5
@@ -6098,7 +6116,7 @@ importers:
         specifier: ^4.1.0
         version: 4.1.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: ^1.0.3
@@ -6117,7 +6135,7 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/signal-exit':
         specifier: ^3.0.4
@@ -6183,7 +6201,7 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: ^1.0.3
@@ -6205,13 +6223,13 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.32.1
+        specifier: 'catalog:'
         version: 3.32.1(encoding@0.1.13)(typanion@3.14.0)
       '@types/archy':
         specifier: 0.0.33
         version: 0.0.33
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/ssri':
         specifier: ^7.1.5
@@ -6555,7 +6573,7 @@ importers:
         specifier: ^4.0.7
         version: 4.0.7
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/filter-workspace-packages':
@@ -6571,7 +6589,7 @@ importers:
         specifier: ^4.0.7
         version: 4.0.7
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       '@types/touch':
         specifier: ^3.1.5
@@ -6642,14 +6660,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
+        specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
-        specifier: 0.29.12
+        specifier: 'catalog:'
         version: 0.29.12
       better-path-resolve:
         specifier: 1.0.0
@@ -6674,14 +6692,14 @@ importers:
   workspace/resolve-workspace-range:
     dependencies:
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: 'link:'
       '@types/semver':
-        specifier: 7.5.3
+        specifier: 'catalog:'
         version: 7.5.3
 
   workspace/sort-packages:
@@ -8475,6 +8493,7 @@ packages:
 
   are-we-there-yet@1.1.7:
     resolution: {integrity: sha512-nxwy40TuMiUGqMyRHgCSWZ9FM4VAoRP4xUYSTv5ImRog+h9yISPbVH7H8fASCIzYn9wlEv4zvFL7uKDMCFQm3g==}
+    deprecated: This package is no longer supported.
 
   arg@4.1.3:
     resolution: {integrity: sha512-58S9QDqG0Xx27YwPSt9fJxivjYl432YCwfDMfZ+71RAqUrZef7LrKQZ3LHLOwCS4FLNBplP533Zx895SeOCHvA==}
@@ -9875,6 +9894,7 @@ packages:
 
   gauge@2.7.4:
     resolution: {integrity: sha512-14x4kjc6lkD3ltw589k0NrPD6cCNTD6CWoVUNpB85+DrtONoZn+Rug6xZU5RvSC4+TZPxA5AnBibQYAvZn41Hg==}
+    deprecated: This package is no longer supported.
 
   gensequence@6.0.0:
     resolution: {integrity: sha512-8WwuywE9pokJRAcg2QFR/plk3cVPebSUqRPzpGQh3WQ0wIiHAw+HyOQj5IuHyUTQBHpBKFoB2JUMu9zT3vJ16Q==}
@@ -11397,6 +11417,7 @@ packages:
 
   osenv@0.1.5:
     resolution: {integrity: sha512-0CWcCECdMVc2Rw3U5w9ZjqX6ga6ubk1xDVKxtBQPK7wis/0F2r9T6k4ydGYhecl7YUBxBVxhL5oisPsNxAPe2g==}
+    deprecated: This package is no longer supported.
 
   outdent@0.5.0:
     resolution: {integrity: sha512-/jHxFIzoMXdqPzTaCpFzAAWhpkSjZPF4Vsn6jAfNpmbH/ymsmd7Qc6VE9BGn0L6YMj6uwpQLxCECpus4ukKS9Q==}
@@ -11924,6 +11945,7 @@ packages:
   request@2.88.2:
     resolution: {integrity: sha512-MsvtOrfG9ZcrOwAW+Qi+F6HbD0CWXEh9ou77uOb7FM2WPhwT7smM833PzanhJLsgXjN89Ir6V2PczXNnMpwKhw==}
     engines: {node: '>= 6'}
+    deprecated: request has been deprecated, see https://github.com/request/request/issues/3142
 
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
@@ -12012,6 +12034,7 @@ packages:
 
   rimraf@2.4.5:
     resolution: {integrity: sha512-J5xnxTyqaiw06JjMftq7L9ouA448dw/E7dKghkP9WpKNuwmARNNg+Gk8/u5ryb9N/Yo2+z3MCwuqFK/+qPOPfQ==}
+    deprecated: Rimraf versions prior to v4 are no longer supported
     hasBin: true
 
   rimraf@2.7.1:
@@ -20591,7 +20614,7 @@ snapshots:
 
   wide-align@1.1.5:
     dependencies:
-      string-width: 1.0.2
+      string-width: 4.2.3
     optional: true
 
   widest-line@3.1.0:
@@ -20779,4 +20802,5 @@ snapshots:
 
   zwitch@1.0.5: {}
 
-time: {}
+time:
+  '@pnpm/ramda@0.28.1': '2022-08-03T13:56:59.597Z'

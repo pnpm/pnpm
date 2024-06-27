@@ -39,7 +39,7 @@
   "devDependencies": {
     "@pnpm/remove-bins": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/ramda": "0.29.12"
+    "@types/ramda": "catalog:"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

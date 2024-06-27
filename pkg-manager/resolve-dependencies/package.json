@@ -59,18 +59,18 @@
     "p-defer": "^3.0.0",
     "path-exists": "^4.0.0",
     "promise-share": "^1.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "ramda": "catalog:",
     "rename-overwrite": "^5.0.0",
     "safe-promise-defer": "^1.0.1",
-    "semver": "^7.6.2",
+    "semver": "catalog:",
     "semver-range-intersect": "^0.3.1",
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
     "@pnpm/resolve-dependencies": "workspace:*",
     "@types/normalize-path": "^3.0.2",
-    "@types/ramda": "0.29.12",
-    "@types/semver": "7.5.3"
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

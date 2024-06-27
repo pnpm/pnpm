@@ -42,13 +42,13 @@
     "chalk": "^4.1.2",
     "cli-columns": "^4.0.0",
     "p-limit": "^3.1.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "ramda": "catalog:"
   },
   "devDependencies": {
     "@pnpm/list": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/archy": "0.0.33",
-    "@types/ramda": "0.29.12"
+    "@types/ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

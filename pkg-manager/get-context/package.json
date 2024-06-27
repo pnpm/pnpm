@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context#readme",
   "devDependencies": {
     "@pnpm/get-context": "workspace:*",
-    "@types/ramda": "0.29.12"
+    "@types/ramda": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
@@ -48,7 +48,7 @@
     "ci-info": "^3.9.0",
     "enquirer": "^2.4.1",
     "path-absolute": "^1.0.1",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

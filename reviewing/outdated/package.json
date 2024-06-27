@@ -46,14 +46,14 @@
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.6.2"
+    "ramda": "catalog:",
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/outdated": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
-    "@types/ramda": "0.29.12",
-    "@types/semver": "7.5.3"
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
