@@ -63,7 +63,7 @@
     "fast-glob": "^3.3.2",
     "normalize-path": "catalog:",
     "ramda": "catalog:",
-    "realpath-missing": "^1.1.0",
+    "realpath-missing": "catalog:",
     "render-help": "catalog:",
     "safe-execa": "^0.1.4",
     "semver": "catalog:",

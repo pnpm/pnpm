@@ -47,7 +47,7 @@
     "@zkochan/rimraf": "catalog:",
     "ci-info": "catalog:",
     "enquirer": "catalog:",
-    "path-absolute": "^1.0.1",
+    "path-absolute": "catalog:",
     "ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

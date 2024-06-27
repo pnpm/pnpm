@@ -44,7 +44,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
     "normalize-path": "catalog:",
-    "realpath-missing": "^1.1.0",
+    "realpath-missing": "catalog:",
     "resolve-link-target": "^2.0.0",
     "semver": "catalog:"
   },

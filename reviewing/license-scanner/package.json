@@ -47,7 +47,7 @@
     "@pnpm/types": "workspace:*",
     "load-json-file": "catalog:",
     "p-limit": "catalog:",
-    "path-absolute": "^1.0.1",
+    "path-absolute": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:"
   },

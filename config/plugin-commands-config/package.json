@@ -35,7 +35,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/run-npm": "workspace:*",
     "ini": "4.1.1",
-    "read-ini-file": "4.0.0",
+    "read-ini-file": "catalog:",
     "render-help": "catalog:",
     "sort-keys": "catalog:",
     "write-ini-file": "4.0.1"

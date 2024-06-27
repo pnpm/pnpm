@@ -43,7 +43,7 @@
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "@yarnpkg/core": "4.0.3"
+    "@yarnpkg/core": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

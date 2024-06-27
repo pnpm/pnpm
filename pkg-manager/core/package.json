@@ -98,7 +98,7 @@
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "@types/sinon": "catalog:",
-    "@yarnpkg/core": "4.0.3",
+    "@yarnpkg/core": "catalog:",
     "ci-info": "catalog:",
     "deep-require-cwd": "1.0.0",
     "execa": "catalog:",

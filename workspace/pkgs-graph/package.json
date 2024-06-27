@@ -27,7 +27,7 @@
   "devDependencies": {
     "@pnpm/workspace.pkgs-graph": "workspace:*",
     "@types/ramda": "catalog:",
-    "better-path-resolve": "1.0.0"
+    "better-path-resolve": "catalog:"
   },
   "dependencies": {
     "@pnpm/npm-package-arg": "^1.0.0",

@@ -93,10 +93,10 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "p-limit": "catalog:",
-    "path-absolute": "^1.0.1",
+    "path-absolute": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",
-    "realpath-missing": "^1.1.0"
+    "realpath-missing": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -49,7 +49,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",
-    "@yarnpkg/core": "4.0.3",
+    "@yarnpkg/core": "catalog:",
     "filenamify": "^4.3.0",
     "get-npm-tarball-url": "^2.1.0",
     "graph-cycles": "1.2.1",

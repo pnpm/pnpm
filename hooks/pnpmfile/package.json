@@ -41,7 +41,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:",
-    "path-absolute": "^1.0.1"
+    "path-absolute": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

@@ -67,7 +67,7 @@
     "path-exists": "catalog:",
     "path-name": "catalog:",
     "ramda": "catalog:",
-    "realpath-missing": "^1.1.0",
+    "realpath-missing": "catalog:",
     "render-help": "catalog:",
     "symlink-dir": "catalog:",
     "which": "catalog:",

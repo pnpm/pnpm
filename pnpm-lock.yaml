@@ -42,6 +42,9 @@ catalogs:
     '@types/zkochan__table':
       specifier: npm:@types/table@6.0.0
       version: 6.0.0
+    '@yarnpkg/core':
+      specifier: 4.0.3
+      version: 4.0.3
     '@zkochan/cmd-shim':
       specifier: ^6.0.0
       version: 6.0.0
@@ -54,6 +57,12 @@ catalogs:
     adm-zip:
       specifier: ^0.5.14
       version: 0.5.14
+    better-path-resolve:
+      specifier: 1.0.0
+      version: 1.0.0
+    camelcase:
+      specifier: ^6.3.0
+      version: 6.3.0
     chalk:
       specifier: ^4.1.2
       version: 4.1.2
@@ -105,6 +114,9 @@ catalogs:
     p-limit:
       specifier: ^3.1.0
       version: 3.1.0
+    path-absolute:
+      specifier: ^1.0.1
+      version: 1.0.1
     path-exists:
       specifier: ^4.0.0
       version: 4.0.0
@@ -114,9 +126,15 @@ catalogs:
     ramda:
       specifier: npm:@pnpm/ramda@0.28.1
       version: 0.28.1
+    read-ini-file:
+      specifier: 4.0.0
+      version: 4.0.0
     read-yaml-file:
       specifier: ^2.1.0
       version: 2.1.0
+    realpath-missing:
+      specifier: ^1.1.0
+      version: 1.1.0
     rename-overwrite:
       specifier: ^5.0.0
       version: 5.0.0
@@ -838,10 +856,10 @@ importers:
         specifier: workspace:*
         version: link:../../workspace/read-manifest
       better-path-resolve:
-        specifier: 1.0.0
+        specifier: 'catalog:'
         version: 1.0.0
       camelcase:
-        specifier: ^6.3.0
+        specifier: 'catalog:'
         version: 6.3.0
       camelcase-keys:
         specifier: ^6.2.2
@@ -859,7 +877,7 @@ importers:
         specifier: 2.0.0
         version: 2.0.0
       path-absolute:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       path-name:
         specifier: 'catalog:'
@@ -868,10 +886,10 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       read-ini-file:
-        specifier: 4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       realpath-missing:
-        specifier: ^1.1.0
+        specifier: 'catalog:'
         version: 1.1.0
       which:
         specifier: 'catalog:'
@@ -1003,7 +1021,7 @@ importers:
         specifier: 4.1.1
         version: 4.1.1
       read-ini-file:
-        specifier: 4.0.0
+        specifier: 'catalog:'
         version: 4.0.0
       render-help:
         specifier: 'catalog:'
@@ -1657,7 +1675,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       realpath-missing:
-        specifier: ^1.1.0
+        specifier: 'catalog:'
         version: 1.1.0
       render-help:
         specifier: 'catalog:'
@@ -2142,7 +2160,7 @@ importers:
         specifier: 'catalog:'
         version: 4.1.2
       path-absolute:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
     devDependencies:
       '@pnpm/fetcher-base':
@@ -2195,7 +2213,7 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
       '@yarnpkg/core':
-        specifier: 4.0.3
+        specifier: 'catalog:'
         version: 4.0.3(typanion@3.14.0)
 
   hooks/types:
@@ -3196,7 +3214,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       realpath-missing:
-        specifier: ^1.1.0
+        specifier: 'catalog:'
         version: 1.1.0
       render-help:
         specifier: 'catalog:'
@@ -3532,7 +3550,7 @@ importers:
         specifier: 'catalog:'
         version: 10.0.20
       '@yarnpkg/core':
-        specifier: 4.0.3
+        specifier: 'catalog:'
         version: 4.0.3(typanion@3.14.0)
       ci-info:
         specifier: 'catalog:'
@@ -3641,7 +3659,7 @@ importers:
         specifier: 'catalog:'
         version: 2.4.1
       path-absolute:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       ramda:
         specifier: 'catalog:'
@@ -3747,7 +3765,7 @@ importers:
         specifier: 'catalog:'
         version: 3.1.0
       path-absolute:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       path-exists:
         specifier: 'catalog:'
@@ -3756,7 +3774,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       realpath-missing:
-        specifier: ^1.1.0
+        specifier: 'catalog:'
         version: 1.1.0
     devDependencies:
       '@pnpm/assert-project':
@@ -4270,7 +4288,7 @@ importers:
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
       '@yarnpkg/core':
-        specifier: 4.0.3
+        specifier: 'catalog:'
         version: 4.0.3(typanion@3.14.0)
       '@yarnpkg/lockfile':
         specifier: ^1.1.0
@@ -4309,7 +4327,7 @@ importers:
         specifier: 'catalog:'
         version: 3.1.0
       path-absolute:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       path-exists:
         specifier: 'catalog:'
@@ -4415,7 +4433,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       realpath-missing:
-        specifier: ^1.1.0
+        specifier: 'catalog:'
         version: 1.1.0
     devDependencies:
       '@pnpm/read-projects-context':
@@ -4553,7 +4571,7 @@ importers:
         specifier: workspace:*
         version: link:../../workspace/spec-parser
       '@yarnpkg/core':
-        specifier: 4.0.3
+        specifier: 'catalog:'
         version: 4.0.3(typanion@3.14.0)
       filenamify:
         specifier: ^4.3.0
@@ -5268,7 +5286,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
       realpath-missing:
-        specifier: ^1.1.0
+        specifier: 'catalog:'
         version: 1.1.0
       render-help:
         specifier: 'catalog:'
@@ -5608,7 +5626,7 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
       realpath-missing:
-        specifier: ^1.1.0
+        specifier: 'catalog:'
         version: 1.1.0
       resolve-link-target:
         specifier: ^2.0.0
@@ -5681,7 +5699,7 @@ importers:
         specifier: 'catalog:'
         version: 3.1.0
       path-absolute:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       ramda:
         specifier: 'catalog:'
@@ -6581,7 +6599,7 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       path-absolute:
-        specifier: ^1.0.1
+        specifier: 'catalog:'
         version: 1.0.1
       path-temp:
         specifier: ^2.1.0
@@ -6811,7 +6829,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
       better-path-resolve:
-        specifier: 1.0.0
+        specifier: 'catalog:'
         version: 1.0.0
 
   workspace/read-manifest:

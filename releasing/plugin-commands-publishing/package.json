@@ -77,7 +77,7 @@
     "fast-glob": "^3.3.2",
     "p-filter": "catalog:",
     "ramda": "catalog:",
-    "realpath-missing": "^1.1.0",
+    "realpath-missing": "catalog:",
     "render-help": "catalog:",
     "tar-stream": "^2.2.0",
     "tempy": "catalog:",
