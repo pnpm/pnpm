@@ -58,6 +58,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
+    "chalk": "catalog:",
     "enquirer": "catalog:",
     "escape-string-regexp": "catalog:",
     "fast-glob": "catalog:",
@@ -67,7 +68,8 @@
     "render-help": "catalog:",
     "safe-execa": "catalog:",
     "semver": "catalog:",
-    "tempy": "catalog:"
+    "tempy": "catalog:",
+    "terminal-link": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

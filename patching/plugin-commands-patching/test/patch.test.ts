@@ -928,7 +928,8 @@ describe('patch-remove', () => {
   })
 })
 
-function getPatchDirFromPatchOutput (output: string) {
-  const [firstLine] = output.split('\n')
-  return firstLine.substring(firstLine.indexOf(':') + 1).trim()
+function getPatchDirFromPatchOutput (output: string): string {
+  const match = output.match(/'([^']+)'/)
+  if (match?.[1] == null) throw new Error('No path in output')
+  return match[1]
 }

@@ -9,6 +9,8 @@ import {
 } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import chalk from 'chalk'
+import terminalLink from 'terminal-link'
 import tempy from 'tempy'
 import { PnpmError } from '@pnpm/error'
 import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
@@ -101,9 +103,15 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
       })
     }
   }
-  return `You can now edit the following folder: ${editDir}
+  return `Patch: You can now edit the package at:
 
-Once you're done with your changes, run "pnpm patch-commit '${editDir}'"`
+  ${terminalLink(chalk.blue(editDir), 'file://' + editDir)}
+
+To commit your changes, run:
+
+  ${chalk.green(`pnpm patch-commit '${editDir}'`)}
+
+`
 }
 
 function tryPatchWithExistingPatchFile (
