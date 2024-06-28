@@ -74,4 +74,15 @@ describe('misconfiguration', () => {
     expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
       .toThrow("Found invalid catalog entry using the catalog protocol recursively. The entry for 'bar' in catalog 'foo' is invalid.")
   })
+
+  test('returns error for workspace protocol in catalog', () => {
+    const catalogs = {
+      foo: {
+        bar: 'workspace:*',
+      },
+    }
+
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
+      .toThrow("The workspace protocol cannot be used as a catalog value. The entry for 'bar' in catalog 'foo' is invalid.")
+  })
 })

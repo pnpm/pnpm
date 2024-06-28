@@ -85,6 +85,24 @@ export function resolveFromCatalog (catalogs: Catalogs, wantedDependency: Wanted
     }
   }
 
+  // Ban catalog entries that use the workspace protocol for a few reasons:
+  //
+  //   1. It's kind of silly. It'd be better to encourage users to use the
+  //      workspace protocol directly.
+  //   2. Catalogs cache the resolved version of a dependency specifier in
+  //      pnpm-lock.yaml for more consistent resolution across importers. The
+  //      link: resolutions can't be shared between importers.
+  const protocolOfLookup = catalogLookup.split(':')[0]
+  if (protocolOfLookup === 'workspace') {
+    return {
+      type: 'misconfiguration',
+      catalogName,
+      error: new PnpmError(
+        'CATALOG_ENTRY_INVALID_WORKSPACE_SPEC',
+        `The workspace protocol cannot be used as a catalog value. The entry for '${wantedDependency.alias}' in catalog '${catalogName}' is invalid.`),
+    }
+  }
+
   return {
     type: 'found',
     resolution: {
