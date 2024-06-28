@@ -103,6 +103,20 @@ export function resolveFromCatalog (catalogs: Catalogs, wantedDependency: Wanted
     }
   }
 
+  // A future version of pnpm will try to support this. These protocols aren't
+  // supported today since these are often relative file paths that users expect
+  // to be relative to the repo root rather than the location of the pnpm
+  // workspace package.
+  if (['link', 'file'].includes(protocolOfLookup)) {
+    return {
+      type: 'misconfiguration',
+      catalogName,
+      error: new PnpmError(
+        'CATALOG_ENTRY_INVALID_SPEC',
+        `The entry for '${wantedDependency.alias}' in catalog '${catalogName}' declares a dependency using the '${protocolOfLookup}' protocol. This is not yet supported, but may be in a future version of pnpm.`),
+    }
+  }
+
   return {
     type: 'found',
     resolution: {
