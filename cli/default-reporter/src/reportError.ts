@@ -83,6 +83,8 @@ function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerD
       return reportPeerDependencyIssuesError(err, logObj as any, peerDependencyRules) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_DEDUPE_CHECK_ISSUES':
       return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    case 'ERR_PNPM_CATALOG_PROTOCOL_IN_EXTERNAL_DEP':
+      return reportExternalCatalogProtocolError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_FETCH_401':
     case 'ERR_PNPM_FETCH_403':
       return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -441,5 +443,32 @@ function reportDedupeCheckIssuesError (err: Error, msg: { dedupeCheckIssues: Ded
 ${renderDedupeCheckIssues(msg.dedupeCheckIssues)}
 Run ${chalk.yellow('pnpm dedupe')} to apply the changes above.
 `,
+  }
+}
+
+function reportExternalCatalogProtocolError (err: Error, logObj: Log): ErrorInfo {
+  const pkgsStack: Array<{ id: string, name: string, version: string }> | undefined = logObj['pkgsStack']
+  const problemDep = pkgsStack?.[0]
+
+  let body = `\
+An external package outside of the pnpm workspace declared a dependency using
+the catalog protocol. This is likely a bug in that external package. Only
+packages within the pnpm workspace may use catalogs. Usages of the catalog
+protocol replaced with real specifiers on 'pnpm publish'.
+`
+
+  if (problemDep != null) {
+    body += `\
+
+This is likely a bug in the publishing automation this package. Consider filing
+a bug with the authors of:
+
+  ${highlight(`${problemDep.name}@${problemDep.version}`)}
+`
+  }
+
+  return {
+    title: err.message,
+    body,
   }
 }

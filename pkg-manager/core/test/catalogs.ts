@@ -299,6 +299,24 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
   })
 })
 
+test('external dependency using catalog protocol errors', async () => {
+  const { options, projects } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/pkg-with-accidentally-published-catalog-protocol': '1.0.0',
+      },
+    },
+  ])
+
+  await expect(() =>
+    mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+    })
+  ).rejects.toThrow('An external package is using the catalog protocol.')
+})
+
 // If a catalog specifier was used in one or more package.json files and all
 // usages were removed later, we should remove the catalog snapshot from
 // pnpm-lock.yaml. This should happen even if the dependency is still defined in
