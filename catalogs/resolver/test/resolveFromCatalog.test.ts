@@ -74,4 +74,37 @@ describe('misconfiguration', () => {
     expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
       .toThrow("Found invalid catalog entry using the catalog protocol recursively. The entry for 'bar' in catalog 'foo' is invalid.")
   })
+
+  test('returns error for workspace protocol in catalog', () => {
+    const catalogs = {
+      foo: {
+        bar: 'workspace:*',
+      },
+    }
+
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
+      .toThrow("The workspace protocol cannot be used as a catalog value. The entry for 'bar' in catalog 'foo' is invalid.")
+  })
+
+  test('returns error for file protocol in catalog', () => {
+    const catalogs = {
+      foo: {
+        bar: 'file:./bar.tgz',
+      },
+    }
+
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
+      .toThrow("The entry for 'bar' in catalog 'foo' declares a dependency using the 'file' protocol. This is not yet supported, but may be in a future version of pnpm.")
+  })
+
+  test('returns error for link protocol in catalog', () => {
+    const catalogs = {
+      foo: {
+        bar: 'link:./bar',
+      },
+    }
+
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
+      .toThrow("The entry for 'bar' in catalog 'foo' declares a dependency using the 'link' protocol. This is not yet supported, but may be in a future version of pnpm.")
+  })
 })
