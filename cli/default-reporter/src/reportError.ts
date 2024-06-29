@@ -476,13 +476,13 @@ function reportExternalCatalogProtocolError (err: Error, logObj: Log): ErrorInfo
 An external package outside of the pnpm workspace declared a dependency using
 the catalog protocol. This is likely a bug in that external package. Only
 packages within the pnpm workspace may use catalogs. Usages of the catalog
-protocol replaced with real specifiers on 'pnpm publish'.
+protocol are replaced with real specifiers on 'pnpm publish'.
 `
 
   if (problemDep != null) {
     body += `\
 
-This is likely a bug in the publishing automation this package. Consider filing
+This is likely a bug in the publishing automation of this package. Consider filing
 a bug with the authors of:
 
   ${highlight(`${problemDep.name}@${problemDep.version}`)}
