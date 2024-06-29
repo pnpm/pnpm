@@ -1185,17 +1185,6 @@ async function resolveDependency (
     }
   }
   try {
-    // For dependencies of importers, the catalog protocol should be substituted
-    // by this point. If a dependency pref using the catalog protocol is
-    // encountered this deep into resolution, it's likely because it's an out of
-    // repo dependency that was published incorrectly. For example, it may be
-    // been mistakenly published with 'npm publish' instead of 'pnpm publish'.
-    if (wantedDependency.pref.startsWith('catalog:')) {
-      throw new PnpmError(
-        'CATALOG_PROTOCOL_IN_EXTERNAL_DEP',
-        'An external package is using the catalog protocol.')
-    }
-
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`)) {
       wantedDependency.pref = replaceVersionInPref(wantedDependency.pref, currentPkg.version)
     }
@@ -1235,20 +1224,22 @@ async function resolveDependency (
       updateToLatest: options.updateToLatest,
     })
   } catch (err: any) { // eslint-disable-line
+    const wantedDependencyDetails = {
+      name: wantedDependency.alias,
+      pref: wantedDependency.pref,
+      version: wantedDependency.alias ? wantedDependency.pref : undefined,
+    }
     if (wantedDependency.optional) {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
-        package: {
-          name: wantedDependency.alias,
-          pref: wantedDependency.pref,
-          version: wantedDependency.alias ? wantedDependency.pref : undefined,
-        },
+        package: wantedDependencyDetails,
         parents: getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById),
         prefix: options.prefix,
         reason: 'resolution_failure',
       })
       return null
     }
+    err.package = wantedDependencyDetails
     err.prefix = options.prefix
     err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
     throw err
