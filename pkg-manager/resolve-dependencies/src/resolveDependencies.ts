@@ -1224,20 +1224,22 @@ async function resolveDependency (
       updateToLatest: options.updateToLatest,
     })
   } catch (err: any) { // eslint-disable-line
+    const wantedDependencyDetails = {
+      name: wantedDependency.alias,
+      pref: wantedDependency.pref,
+      version: wantedDependency.alias ? wantedDependency.pref : undefined,
+    }
     if (wantedDependency.optional) {
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
-        package: {
-          name: wantedDependency.alias,
-          pref: wantedDependency.pref,
-          version: wantedDependency.alias ? wantedDependency.pref : undefined,
-        },
+        package: wantedDependencyDetails,
         parents: getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById),
         prefix: options.prefix,
         reason: 'resolution_failure',
       })
       return null
     }
+    err.package = wantedDependencyDetails
     err.prefix = options.prefix
     err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
     throw err

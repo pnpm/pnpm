@@ -83,6 +83,8 @@ function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerD
       return reportPeerDependencyIssuesError(err, logObj as any, peerDependencyRules) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_DEDUPE_CHECK_ISSUES':
       return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    case 'ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER':
+      return reportSpecNotSupportedByAnyResolverError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_FETCH_401':
     case 'ERR_PNPM_FETCH_403':
       return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -441,5 +443,54 @@ function reportDedupeCheckIssuesError (err: Error, msg: { dedupeCheckIssues: Ded
 ${renderDedupeCheckIssues(msg.dedupeCheckIssues)}
 Run ${chalk.yellow('pnpm dedupe')} to apply the changes above.
 `,
+  }
+}
+
+function reportSpecNotSupportedByAnyResolverError (err: Error, logObj: Log): ErrorInfo {
+  // If the catalog protocol specifier was sent to a "real resolver", it'll
+  // eventually throw a "specifier not supported" error since the catalog
+  // protocol is meant to be replaced before it's passed to any of the real
+  // resolvers.
+  //
+  // If this kind of error is thrown, and the dependency pref is using the
+  // catalog protocol it's most likely because we're trying to install an out of
+  // repo dependency that was published incorrectly. For example, it may be been
+  // mistakenly published with 'npm publish' instead of 'pnpm publish'. Report a
+  // more clear error in this case.
+  if (logObj['package']?.['pref']?.startsWith('catalog:')) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return reportExternalCatalogProtocolError(err, logObj as any)
+  }
+
+  return {
+    title: err.message ?? '',
+    body: logObj['hint'],
+  }
+}
+
+function reportExternalCatalogProtocolError (err: Error, logObj: Log): ErrorInfo {
+  const pkgsStack: Array<{ id: string, name: string, version: string }> | undefined = logObj['pkgsStack']
+  const problemDep = pkgsStack?.[0]
+
+  let body = `\
+An external package outside of the pnpm workspace declared a dependency using
+the catalog protocol. This is likely a bug in that external package. Only
+packages within the pnpm workspace may use catalogs. Usages of the catalog
+protocol are replaced with real specifiers on 'pnpm publish'.
+`
+
+  if (problemDep != null) {
+    body += `\
+
+This is likely a bug in the publishing automation of this package. Consider filing
+a bug with the authors of:
+
+  ${highlight(`${problemDep.name}@${problemDep.version}`)}
+`
+  }
+
+  return {
+    title: err.message,
+    body,
   }
 }
