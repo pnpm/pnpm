@@ -9,6 +9,7 @@ import {
   type Modules,
 } from '@pnpm/modules-yaml'
 import { readProjectsContext } from '@pnpm/read-projects-context'
+import { type WorkspacePackages } from '@pnpm/resolver-base'
 import {
   type DepPath,
   DEPENDENCIES_FIELDS,
@@ -17,6 +18,7 @@ import {
   type ProjectManifest,
   type ReadPackageHook,
   type Registries,
+  type DependencyManifest,
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
@@ -59,6 +61,7 @@ export interface PnpmContext {
   storeDir: string
   wantedLockfile: Lockfile
   wantedLockfileIsModified: boolean
+  workspacePackages: WorkspacePackages
   registries: Registries
 }
 
@@ -98,6 +101,7 @@ export interface GetContextOptions {
   mergeGitBranchLockfiles?: boolean
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
+  workspacePackages?: WorkspacePackages
 
   hoistPattern?: string[] | undefined
   forceHoistPattern?: boolean
@@ -188,6 +192,7 @@ export async function getContext (
     storeDir: opts.storeDir,
     virtualStoreDir,
     virtualStoreDirMaxLength: importersContext.virtualStoreDirMaxLength ?? opts.virtualStoreDirMaxLength,
+    workspacePackages: opts.workspacePackages ?? arrayOfWorkspacePackagesToMap(opts.allProjects),
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
@@ -581,4 +586,20 @@ function getExtraNodePaths (
     return [path.join(virtualStoreDir, 'node_modules')]
   }
   return []
+}
+
+function arrayOfWorkspacePackagesToMap (
+  pkgs: ProjectOptions[]
+): WorkspacePackages {
+  return pkgs.reduce((acc, pkg) => {
+    if (!pkg.manifest.name) return acc
+    if (!acc[pkg.manifest.name]) {
+      acc[pkg.manifest.name] = {}
+    }
+    acc[pkg.manifest.name][pkg.manifest.version ?? '0.0.0'] = {
+      manifest: pkg.manifest as DependencyManifest,
+      dir: pkg.rootDir,
+    }
+    return acc
+  }, {} as WorkspacePackages)
 }

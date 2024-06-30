@@ -43,6 +43,7 @@
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "ci-info": "catalog:",

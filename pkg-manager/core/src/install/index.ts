@@ -401,7 +401,7 @@ export async function mutateModules (
           excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
           wantedLockfile: ctx.wantedLockfile,
-          workspacePackages: opts.workspacePackages,
+          workspacePackages: ctx.workspacePackages,
           lockfileDir: opts.lockfileDir,
         })
       )
@@ -686,7 +686,7 @@ Note that in CI environments, this setting is enabled by default.`,
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
       if (preferredSpecs == null) {
-        preferredSpecs = getAllUniqueSpecs(flatten(Object.values(opts.workspacePackages).map(obj => Object.values(obj))).map(({ manifest }) => manifest))
+        preferredSpecs = getAllUniqueSpecs(flatten(Object.values(ctx.workspacePackages).map(obj => Object.values(obj))).map(({ manifest }) => manifest))
       }
       const wantedDeps = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,
@@ -1094,7 +1094,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       wantedLockfile: ctx.wantedLockfile,
-      workspacePackages: opts.workspacePackages,
+      workspacePackages: ctx.workspacePackages,
       patchedDependencies: opts.patchedDependencies,
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
@@ -1446,7 +1446,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
             linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
             wantedLockfile: ctx.wantedLockfile,
-            workspacePackages: opts.workspacePackages,
+            workspacePackages: ctx.workspacePackages,
             lockfileDir: opts.lockfileDir,
           })
         ) {

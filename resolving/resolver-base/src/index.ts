@@ -43,12 +43,14 @@ export interface ResolveResult {
   resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'url' | string
 }
 
+export interface WorkspacePackage {
+  dir: string
+  manifest: DependencyManifest
+}
+
 export interface WorkspacePackages {
   [name: string]: {
-    [version: string]: {
-      dir: string
-      manifest: DependencyManifest
-    }
+    [version: string]: WorkspacePackage
   }
 }
 

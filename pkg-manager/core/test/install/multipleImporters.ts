@@ -995,60 +995,66 @@ test('adding a new dependency with the workspace: protocol', async () => {
   await addDistTag({ package: 'foo', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
 
-  const { manifest } = await mutateModulesInSingleProject({
-    dependencySelectors: ['foo'],
-    manifest: {
-      name: 'project-1',
-      version: '1.0.0',
+  const { updatedProjects } = await mutateModules([
+    {
+      dependencySelectors: ['foo'],
+      mutation: 'installSome',
+      rootDir: path.resolve('project-1'),
     },
-    mutation: 'installSome',
-    rootDir: path.resolve('project-1'),
-  }, testDefaults({
+  ], testDefaults({
     saveWorkspaceProtocol: true,
-    workspacePackages: {
-      foo: {
-        '1.0.0': {
-          dir: '',
-          manifest: {
-            name: 'foo',
-            version: '1.0.0',
-          },
+    allProjects: [
+      {
+        manifest: {
+          name: 'foo',
+          version: '1.0.0',
         },
+        rootDir: path.resolve('foo'),
       },
-    },
+      {
+        manifest: {
+          name: 'project-1',
+          version: '1.0.0',
+        },
+        rootDir: path.resolve('project-1'),
+      },
+    ],
   }))
 
-  expect(manifest.dependencies).toStrictEqual({ foo: 'workspace:^1.0.0' })
+  expect(updatedProjects[0].manifest.dependencies).toStrictEqual({ foo: 'workspace:^1.0.0' })
 })
 
 test('adding a new dependency with the workspace: protocol and save-workspace-protocol is "rolling"', async () => {
   await addDistTag({ package: 'foo', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
 
-  const { manifest } = await mutateModulesInSingleProject({
-    dependencySelectors: ['foo'],
-    manifest: {
-      name: 'project-1',
-      version: '1.0.0',
+  const { updatedProjects } = await mutateModules([
+    {
+      dependencySelectors: ['foo'],
+      mutation: 'installSome',
+      rootDir: path.resolve('project-1'),
     },
-    mutation: 'installSome',
-    rootDir: path.resolve('project-1'),
-  }, testDefaults({
+  ], testDefaults({
     saveWorkspaceProtocol: 'rolling',
-    workspacePackages: {
-      foo: {
-        '1.0.0': {
-          dir: '',
-          manifest: {
-            name: 'foo',
-            version: '1.0.0',
-          },
+    allProjects: [
+      {
+        manifest: {
+          name: 'foo',
+          version: '1.0.0',
         },
+        rootDir: path.resolve('foo'),
       },
-    },
+      {
+        manifest: {
+          name: 'project-1',
+          version: '1.0.0',
+        },
+        rootDir: path.resolve('project-1'),
+      },
+    ],
   }))
 
-  expect(manifest.dependencies).toStrictEqual({ foo: 'workspace:^' })
+  expect(updatedProjects[0].manifest.dependencies).toStrictEqual({ foo: 'workspace:^' })
 })
 
 test('update workspace range', async () => {
@@ -1105,81 +1111,71 @@ test('update workspace range', async () => {
         },
         rootDir: path.resolve('project-2'),
       },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep1',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep1'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep2',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep2'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep3',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep3'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep4',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep4'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep5',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep5'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep6',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep6'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep7',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep7'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep8',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep8'),
+      },
     ],
-    workspacePackages: {
-      dep1: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep1',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep2: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep2',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep3: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep3',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep4: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep4',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep5: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep5',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep6: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep6',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep7: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep7',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep8: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep8',
-            version: '2.0.0',
-          },
-        },
-      },
-    },
     saveWorkspaceProtocol: true,
   }))
 
@@ -1247,64 +1243,56 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
         },
         rootDir: path.resolve('project-2'),
       },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep1',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep1'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep2',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep2'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep3',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep3'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep4',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep4'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep5',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep5'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'dep6',
+          version: '2.0.0',
+        },
+        rootDir: path.resolve('dep6'),
+      },
     ],
     saveWorkspaceProtocol: 'rolling',
-    workspacePackages: {
-      dep1: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep1',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep2: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep2',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep3: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep3',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep4: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep4',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep5: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep5',
-            version: '2.0.0',
-          },
-        },
-      },
-      dep6: {
-        '2.0.0': {
-          dir: '',
-          manifest: {
-            name: 'dep6',
-            version: '2.0.0',
-          },
-        },
-      },
-    },
   }))
 
   const expected = {
