@@ -2,7 +2,6 @@ import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/workspace.find-packages'
 import path from 'path'
 import { testDefaults } from './utils'
 
@@ -24,7 +23,6 @@ function preparePackagesAndReturnObjects (manifests: Array<ProjectManifest & Req
     projects,
     options: testDefaults({
       allProjects,
-      workspacePackages: arrayOfWorkspacePackagesToMap(allProjects),
     }),
   }
 }
