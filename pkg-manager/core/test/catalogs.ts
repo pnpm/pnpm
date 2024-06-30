@@ -1,7 +1,7 @@
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { prepareEmpty } from '@pnpm/prepare'
-import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
+import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions } from '@pnpm/core'
 import path from 'path'
 import { testDefaults } from './utils'
 
@@ -313,6 +313,82 @@ test('external dependency using catalog protocol errors', async () => {
       lockfileOnly: true,
     })
   ).rejects.toThrow("@pnpm.e2e/hello-world-js-bin@catalog:foo isn't supported by any available resolver.")
+})
+
+test('catalog resolutions should be consistent', async () => {
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+    {
+      name: 'project2',
+      dependencies: {},
+    },
+    {
+      name: 'project3',
+      dependencies: {},
+    },
+  ])
+
+  const catalogs = {
+    default: {
+      'is-positive': '=3.0.0',
+    },
+  }
+
+  const mutateOpts: MutateModulesOptions = {
+    ...options,
+    lockfileOnly: true,
+    resolutionMode: 'highest',
+    catalogs,
+  }
+
+  await mutateModules(installProjects(projects), mutateOpts)
+
+  // Change the is-positive catalog entry from =3.0.0 to ^3.0.0 to lock ^3.0.0
+  // to the existing 3.0.0 version in the lockfile.
+  catalogs.default['is-positive'] = '^3.0.0'
+  await mutateModules(installProjects(projects), mutateOpts)
+  expect(readLockfile().catalogs).toEqual({
+    default: {
+      'is-positive': { specifier: '^3.0.0', version: '3.0.0' },
+    },
+  })
+
+  // Add a different version of is-positive to the lockfile.
+  projects['project2' as ProjectId].dependencies = {
+    'is-positive': '3.1.0',
+  }
+  await mutateModules(installProjects(projects), mutateOpts)
+
+  // At this point, both 3.0.0 and 3.1.0 should be in the lockfile, but the
+  // catalog entry still resolves to 3.0.0.
+  expect(readLockfile()).toEqual(expect.objectContaining({
+    catalogs: { default: { 'is-positive': { specifier: '^3.0.0', version: '3.0.0' } } },
+    packages: expect.objectContaining({
+      'is-positive@3.0.0': expect.objectContaining({}),
+      'is-positive@3.1.0': expect.objectContaining({}),
+    }),
+  }))
+
+  // Adding a new catalog dependency. It should resolve to 3.0.0 instead of 3.1.0, despite resolution-mode=highest.
+  projects['project3' as ProjectId].dependencies = {
+    'is-positive': 'catalog:',
+  }
+  await mutateModules(installProjects(projects), mutateOpts)
+
+  // Expect all projects using the catalog specifier (e.g. project1 and project3) to resolve to the same version.
+  expect(readLockfile()).toEqual(expect.objectContaining({
+    catalogs: { default: { 'is-positive': { specifier: '^3.0.0', version: '3.0.0' } } },
+    importers: expect.objectContaining({
+      project1: expect.objectContaining({ dependencies: { 'is-positive': { specifier: 'catalog:', version: '3.0.0' } } }),
+      project2: expect.objectContaining({ dependencies: { 'is-positive': { specifier: '3.1.0', version: '3.1.0' } } }),
+      project3: expect.objectContaining({ dependencies: { 'is-positive': { specifier: 'catalog:', version: '3.0.0' } } }),
+    }),
+  }))
 })
 
 // If a catalog specifier was used in one or more package.json files and all
