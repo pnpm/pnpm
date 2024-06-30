@@ -21,7 +21,6 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 | 'saveWorkspaceProtocol'
 | 'storeController'
 | 'useGitBranchLockfile'
-| 'workspacePackages'
 | 'peersSuffixMaxLength'
 >
 & Partial<Pick<InstallOptions, 'supportedArchitectures'>>
@@ -92,7 +91,7 @@ export async function getPeerDependencyIssues (
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       wantedLockfile: ctx.wantedLockfile,
-      workspacePackages: opts.workspacePackages ?? {},
+      workspacePackages: ctx.workspacePackages ?? {},
       supportedArchitectures: opts.supportedArchitectures,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
     }

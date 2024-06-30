@@ -25,6 +25,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../resolving/resolver-base"
+    },
+    {
       "path": "../modules-yaml"
     },
     {

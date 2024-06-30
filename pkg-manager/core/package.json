@@ -91,7 +91,6 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
-    "@pnpm/workspace.find-packages": "workspace:*",
     "@types/fs-extra": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/normalize-path": "catalog:",

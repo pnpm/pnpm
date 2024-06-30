@@ -273,21 +273,6 @@ test('linking bins of local projects when node-linker is set to hoisted', async 
   ])
   fs.writeFileSync('project-2/index.js', '#!/usr/bin/env node\nconsole.log("hello")', 'utf8')
 
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-  }
-
   await mutateModules([
     {
       mutation: 'install',
@@ -311,7 +296,6 @@ test('linking bins of local projects when node-linker is set to hoisted', async 
       },
     ],
     nodeLinker: 'hoisted',
-    workspacePackages,
   }))
 
   expect(fs.existsSync('project-1/node_modules/.bin/project-2')).toBeTruthy()

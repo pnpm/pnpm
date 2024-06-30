@@ -3990,9 +3990,6 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
-      '@pnpm/workspace.find-packages':
-        specifier: workspace:*
-        version: link:../../workspace/find-packages
       '@types/fs-extra':
         specifier: 'catalog:'
         version: 9.0.13
@@ -4108,6 +4105,9 @@ importers:
       '@pnpm/read-projects-context':
         specifier: workspace:*
         version: link:../read-projects-context
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types

@@ -99,7 +99,10 @@ export interface StrictInstallOptions {
   updateToLatest?: boolean
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
-  workspacePackages: WorkspacePackages
+  // We can automatically calculate these
+  // unless installation runs on a workspace
+  // that doesn't share a lockfile
+  workspacePackages?: WorkspacePackages
   pruneStore: boolean
   virtualStoreDir?: string
   dir: string
@@ -230,7 +233,6 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     mergeGitBranchLockfiles: false,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     verifyStoreIntegrity: true,
-    workspacePackages: {},
     enableModulesDir: true,
     modulesCacheMaxAge: 7 * 24 * 60,
     resolveSymlinksInInjectedDirs: false,

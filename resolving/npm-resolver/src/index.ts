@@ -11,6 +11,7 @@ import {
   type PreferredVersions,
   type ResolveResult,
   type WantedDependency,
+  type WorkspacePackage,
   type WorkspacePackages,
 } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
@@ -328,13 +329,8 @@ function pickMatchingLocalVersionOrNull (
   }
 }
 
-interface LocalPackage {
-  dir: string
-  manifest: DependencyManifest
-}
-
 function resolveFromLocalPackage (
-  localPackage: LocalPackage,
+  localPackage: WorkspacePackage,
   normalizedPref: string | undefined,
   opts: {
     hardLinkLocalPackages?: boolean
@@ -364,7 +360,7 @@ function resolveFromLocalPackage (
   }
 }
 
-function resolveLocalPackageDir (localPackage: LocalPackage): string {
+function resolveLocalPackageDir (localPackage: WorkspacePackage): string {
   if (
     localPackage.manifest.publishConfig?.directory == null ||
     localPackage.manifest.publishConfig?.linkDirectory === false

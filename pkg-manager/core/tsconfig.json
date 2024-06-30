@@ -142,9 +142,6 @@
       "path": "../../worker"
     },
     {
-      "path": "../../workspace/find-packages"
-    },
-    {
       "path": "../client"
     },
     {

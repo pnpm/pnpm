@@ -281,25 +281,10 @@ test('links resolved from workspace protocol dependencies are not removed', asyn
       rootDir: path.resolve('project-2'),
     },
   ]
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: pkg1,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: pkg2,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     allProjects,
     excludeLinksFromLockfile: true,
     lockfileOnly: true,
-    workspacePackages,
   }))
 
   const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
