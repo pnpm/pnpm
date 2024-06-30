@@ -532,7 +532,18 @@ async function resolveDependenciesOfImporterDependency (
   })
 
   if (catalogLookup != null) {
-    extendedWantedDep.wantedDependency.pref = catalogLookup.specifier
+    // The lockfile from a previous installation may have already resolved this
+    // cataloged dependency. Reuse the exact version in the lockfile catalog
+    // snapshot to ensure all projects using the same cataloged dependency get
+    // the same version.
+    const existingCatalogResolution = ctx.wantedLockfile.catalogs
+      ?.[catalogLookup.catalogName]
+      ?.[extendedWantedDep.wantedDependency.alias]
+    const replacementPref = existingCatalogResolution?.specifier === catalogLookup.specifier
+      ? existingCatalogResolution.version
+      : catalogLookup.specifier
+
+    extendedWantedDep.wantedDependency.pref = replacementPref
   }
 
   const result = await resolveDependenciesOfDependency(
