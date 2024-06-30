@@ -50,9 +50,9 @@ export async function recursiveRebuild (
   if (pkgs.length === 0) {
     return
   }
-  const manifestsByPath: { [dir: string]: Omit<Project, 'dir' | 'dirRealPath'> } = {}
-  for (const { dir, manifest, writeProjectManifest } of pkgs) {
-    manifestsByPath[dir] = { manifest, writeProjectManifest }
+  const manifestsByPath: { [dir: string]: Omit<Project, 'rootDir' | 'rootDirRealPath'> } = {}
+  for (const { rootDir, manifest, writeProjectManifest } of pkgs) {
+    manifestsByPath[rootDir] = { manifest, writeProjectManifest }
   }
 
   const throwOnFail = throwOnCommandFail.bind(null, 'pnpm recursive rebuild')

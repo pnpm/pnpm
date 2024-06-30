@@ -21,8 +21,8 @@ export interface Options {
 }
 
 export interface Project {
-  dir: string
-  dirRealPath: string
+  rootDir: string
+  rootDirRealPath: string
   manifest: ProjectManifest
 
   writeProjectManifest: (manifest: ProjectManifest, force?: boolean | undefined) => Promise<void>
@@ -57,10 +57,10 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
       ),
       async manifestPath => {
         try {
-          const dir = path.dirname(manifestPath)
+          const rootDir = path.dirname(manifestPath)
           return {
-            dir,
-            dirRealPath: await fs.realpath(dir),
+            rootDir,
+            rootDirRealPath: await fs.realpath(rootDir),
             ...await readExactProjectManifest(manifestPath),
           } as Project
         } catch (err: unknown) {

@@ -14,7 +14,7 @@ import { createManifestGetter, type ManifestGetterOptions } from './createManife
 import { outdated, type OutdatedPackage } from './outdated'
 
 export async function outdatedDepsOfProjects (
-  pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
+  pkgs: Array<{ rootDir: string, manifest: ProjectManifest }>,
   args: string[],
   opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'> & {
     compatible?: boolean
@@ -25,7 +25,7 @@ export async function outdatedDepsOfProjects (
   if (!opts.lockfileDir) {
     return unnest(await Promise.all(
       pkgs.map(async (pkg) =>
-        outdatedDepsOfProjects([pkg], args, { ...opts, lockfileDir: pkg.dir })
+        outdatedDepsOfProjects([pkg], args, { ...opts, lockfileDir: pkg.rootDir })
       )
     ))
   }
@@ -39,7 +39,7 @@ export async function outdatedDepsOfProjects (
     fullMetadata: opts.fullMetadata === true,
     lockfileDir,
   })
-  return Promise.all(pkgs.map(async ({ dir, manifest }): Promise<OutdatedPackage[]> => {
+  return Promise.all(pkgs.map(async ({ rootDir, manifest }): Promise<OutdatedPackage[]> => {
     const match = (args.length > 0) && createMatcher(args) || undefined
     return outdated({
       compatible: opts.compatible,
@@ -50,7 +50,7 @@ export async function outdatedDepsOfProjects (
       lockfileDir,
       manifest,
       match,
-      prefix: dir,
+      prefix: rootDir,
       registries: opts.registries,
       wantedLockfile,
     })

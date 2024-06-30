@@ -75,7 +75,7 @@ export async function runRecursive (
       .flat()
       .map((prefix) => opts.selectedProjectsGraph[prefix])
       .filter((pkg) => getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName).length < 1)
-      .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
+      .map((pkg) => pkg.package.manifest.name ?? pkg.package.rootDir)
     if (missingScriptPackages.length) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
     }

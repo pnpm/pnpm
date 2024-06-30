@@ -31,7 +31,7 @@ export async function findWorkspacePackages (
 ): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
   for (const pkg of pkgs) {
-    packageIsInstallable(pkg.dir, pkg.manifest, {
+    packageIsInstallable(pkg.rootDir, pkg.manifest, {
       ...opts,
       supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
@@ -40,7 +40,7 @@ export async function findWorkspacePackages (
       },
     })
     // When setting shared-workspace-lockfile=false, `pnpm` can be set in sub-project's package.json.
-    if (opts?.sharedWorkspaceLockfile && pkg.dir !== workspaceRoot) {
+    if (opts?.sharedWorkspaceLockfile && pkg.rootDir !== workspaceRoot) {
       checkNonRootProjectManifest(pkg)
     }
   }
@@ -57,7 +57,7 @@ export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?
     includeRoot: true,
     patterns: opts?.patterns,
   })
-  pkgs.sort((pkg1: { dir: string }, pkg2: { dir: string }) => lexCompare(pkg1.dir, pkg2.dir))
+  pkgs.sort((pkg1: { rootDir: string }, pkg2: { rootDir: string }) => lexCompare(pkg1.rootDir, pkg2.rootDir))
   return pkgs
 }
 
@@ -76,12 +76,12 @@ export function arrayOfWorkspacePackagesToMap (
   }, {} as ArrayOfWorkspacePackagesToMapResult)
 }
 
-function checkNonRootProjectManifest ({ manifest, dir }: Project): void {
+function checkNonRootProjectManifest ({ manifest, rootDir }: Project): void {
   for (const rootOnlyField of ['pnpm', 'resolutions']) {
     if (manifest?.[rootOnlyField as keyof ProjectManifest]) {
       logger.warn({
-        message: `The field "${rootOnlyField}" was found in ${dir}/package.json. This will not take effect. You should configure "${rootOnlyField}" at the root of the workspace instead.`,
-        prefix: dir,
+        message: `The field "${rootOnlyField}" was found in ${rootDir}/package.json. This will not take effect. You should configure "${rootOnlyField}" at the root of the workspace instead.`,
+        prefix: rootDir,
       })
     }
   }
