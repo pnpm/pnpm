@@ -160,18 +160,18 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
   }
 
   // Dependencies with bare "*", "^", "~",">=",">","<=",< versions
-  const workspaceSemverRegex = /workspace:([\^~*]|>=|>|<=|<)/
+  const workspaceSemverRegex = /workspace:([\^~*]|>=|>|<=|<)(.*?)$/
   const versionAliasSpecParts = workspaceSemverRegex.exec(depSpec)
 
   if (versionAliasSpecParts != null) {
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
     const manifest = await resolveManifest(depName, modulesDir)
 
-    const [,semverRangGroup] = versionAliasSpecParts
+    const [,semverRangGroup, maybeVersion] = versionAliasSpecParts
 
     const semverRangeToken = semverRangGroup !== '*' ? semverRangGroup : ''
 
-    return depSpec.replace(workspaceSemverRegex, `${semverRangeToken}${manifest.version}`)
+    return depSpec.replace(workspaceSemverRegex, `${semverRangeToken}${maybeVersion || manifest.version}`)
   }
 
   depSpec = depSpec.replace('workspace:', '')
