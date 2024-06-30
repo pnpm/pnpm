@@ -444,8 +444,8 @@ test('pnpm exec shell mode', async () => {
       [process.cwd()]: {
         dependencies: [],
         package: {
-          dir: process.cwd(),
-          dirRealPath: process.cwd(),
+          rootDir: process.cwd(),
+          rootDirRealPath: process.cwd(),
           writeProjectManifest: async () => {},
           manifest: {
             name: 'test_shell_mode',
