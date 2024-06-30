@@ -598,7 +598,7 @@ function arrayOfWorkspacePackagesToMap (
     }
     acc[pkg.manifest.name][pkg.manifest.version ?? '0.0.0'] = {
       manifest: pkg.manifest as DependencyManifest,
-      dir: pkg.rootDir,
+      rootDir: pkg.rootDir,
     }
     return acc
   }, {} as WorkspacePackages)

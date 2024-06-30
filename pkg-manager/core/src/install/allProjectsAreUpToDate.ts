@@ -71,7 +71,7 @@ function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages):
   const workspacePackagesByDirectory: Record<string, DependencyManifest> = {}
   Object.keys(workspacePackages || {}).forEach((pkgName) => {
     Object.keys(workspacePackages[pkgName] || {}).forEach((pkgVersion) => {
-      workspacePackagesByDirectory[workspacePackages[pkgName][pkgVersion].dir] = workspacePackages[pkgName][pkgVersion].manifest
+      workspacePackagesByDirectory[workspacePackages[pkgName][pkgVersion].rootDir] = workspacePackages[pkgName][pkgVersion].manifest
     })
   })
   return workspacePackagesByDirectory
@@ -132,7 +132,7 @@ async function linkedPackagesAreUpToDate (
           }
           const linkedDir = isLinked
             ? path.join(project.dir, lockfileRef.slice(5))
-            : workspacePackages?.[depName]?.[lockfileRef]?.dir
+            : workspacePackages?.[depName]?.[lockfileRef]?.rootDir
           if (!linkedDir) return true
           if (!linkWorkspacePackages && !currentSpec.startsWith('workspace:')) {
             // we found a linked dir, but we don't want to use it, because it's not specified as a
