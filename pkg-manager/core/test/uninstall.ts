@@ -279,21 +279,6 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
         },
       ],
       store,
-      workspacePackages: {
-        'project-2': {
-          '1.0.0': {
-            dir: path.resolve('project-2'),
-            manifest: {
-              name: 'project-2',
-              version: '1.0.0',
-
-              dependencies: {
-                'is-negative': '1.0.0',
-              },
-            },
-          },
-        },
-      },
     })
   )
 

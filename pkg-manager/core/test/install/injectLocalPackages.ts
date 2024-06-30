@@ -97,30 +97,9 @@ test('inject local packages', async () => {
       rootDir: path.resolve('project-3'),
     },
   ]
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-    'project-3': {
-      '1.0.0': {
-        dir: path.resolve('project-3'),
-        manifest: project2Manifest,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
-    workspacePackages,
   }))
 
   projects['project-1'].has('is-negative')
@@ -186,7 +165,6 @@ test('inject local packages', async () => {
     autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
-    workspacePackages,
   }))
 
   projects['project-1'].has('is-negative')
@@ -203,7 +181,7 @@ test('inject local packages', async () => {
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  await mutateModules(importers, testDefaults({ autoInstallPeers: false, allProjects, workspacePackages }))
+  await mutateModules(importers, testDefaults({ autoInstallPeers: false, allProjects }))
   {
     const lockfile = rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
@@ -323,30 +301,9 @@ test('inject local packages declared via file protocol', async () => {
       rootDir: path.resolve('project-3'),
     },
   ]
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-    'project-3': {
-      '1.0.0': {
-        dir: path.resolve('project-3'),
-        manifest: project2Manifest,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
-    workspacePackages,
   }))
 
   projects['project-1'].has('is-negative')
@@ -412,7 +369,6 @@ test('inject local packages declared via file protocol', async () => {
     autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
-    workspacePackages,
   }))
 
   projects['project-1'].has('is-negative')
@@ -430,7 +386,7 @@ test('inject local packages declared via file protocol', async () => {
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
   writeJsonFile('project-1/package.json', allProjects[0].manifest)
-  await mutateModules(importers, testDefaults({ autoInstallPeers: false, allProjects, workspacePackages }))
+  await mutateModules(importers, testDefaults({ autoInstallPeers: false, allProjects }))
   {
     const lockfile = rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
@@ -540,30 +496,9 @@ test('inject local packages when the file protocol is used', async () => {
       rootDir: path.resolve('project-3'),
     },
   ]
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-    'project-3': {
-      '1.0.0': {
-        dir: path.resolve('project-3'),
-        manifest: project2Manifest,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
-    workspacePackages,
   }))
 
   projects['project-1'].has('is-negative')
@@ -624,7 +559,6 @@ test('inject local packages when the file protocol is used', async () => {
     autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
-    workspacePackages,
   }))
 
   projects['project-1'].has('is-negative')
@@ -645,7 +579,6 @@ test('inject local packages when the file protocol is used', async () => {
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
-    workspacePackages,
   }))
   {
     const lockfile = rootModules.readLockfile()
@@ -734,24 +667,9 @@ test('inject local packages and relink them after build', async () => {
       rootDir: path.resolve('project-2'),
     },
   ]
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
-    workspacePackages,
   }))
 
   projects['project-1'].has('is-negative')
@@ -795,7 +713,6 @@ test('inject local packages and relink them after build', async () => {
     autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
-    workspacePackages,
   }))
 
   projects['project-1'].has('is-negative')
@@ -1005,31 +922,10 @@ test('inject local packages when node-linker is hoisted', async () => {
       rootDir: path.resolve('project-3'),
     },
   ]
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-    'project-3': {
-      '1.0.0': {
-        dir: path.resolve('project-3'),
-        manifest: project2Manifest,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     nodeLinker: 'hoisted',
-    workspacePackages,
   }))
 
   const rootModules = assertProject(process.cwd())
@@ -1167,31 +1063,10 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
       rootDir: path.resolve('project-3'),
     },
   ]
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-    'project-3': {
-      '1.0.0': {
-        dir: path.resolve('project-3'),
-        manifest: project2Manifest,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     nodeLinker: 'hoisted',
-    workspacePackages,
     hooks: {
       readPackage: (manifest: any) => { // eslint-disable-line
         if (manifest.name === 'project-2') {
@@ -1344,31 +1219,10 @@ test('peer dependency of injected project should be resolved correctly', async (
       rootDir: path.resolve('project-3'),
     },
   ]
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-    'project-3': {
-      '1.0.0': {
-        dir: path.resolve('project-3'),
-        manifest: project2Manifest,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
     nodeLinker: 'hoisted',
-    workspacePackages,
   }))
 
   const rootModules = assertProject(process.cwd())
@@ -1436,24 +1290,9 @@ test('do not modify the manifest of the injected workspace project', async () =>
       rootDir: path.resolve('project-2'),
     },
   ]
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-  }
   const [project1] = (await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,
-    workspacePackages,
   }))).updatedProjects
   expect(project1.manifest).toStrictEqual({
     name: 'project-1',
@@ -1567,19 +1406,10 @@ test('injected package is kept up-to-date when it is hoisted to multiple places'
       rootDir: path.resolve('project-3'),
     },
   ]
-  const workspacePackages = {
-    'is-positive': {
-      '1.0.0': {
-        dir: path.resolve('project-3'),
-        manifest: project1Manifest,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     allProjects,
     dedupeInjectedDeps: false,
     nodeLinker: 'hoisted',
-    workspacePackages,
   }))
 
   projects['project-1'].has('is-positive/prepare.txt')
@@ -1642,18 +1472,9 @@ test('relink injected dependency on install by default', async () => {
       rootDir: path.resolve('main'),
     },
   ]
-  const workspacePackages = {
-    dep: {
-      '1.0.0': {
-        dir: path.resolve('dep'),
-        manifest: depManifest,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     allProjects,
     dedupeInjectedDeps: false,
-    workspacePackages,
     packageImportMethod: 'hardlink',
     fastUnpack: false,
   }))
@@ -1671,7 +1492,6 @@ test('relink injected dependency on install by default', async () => {
   await mutateModules(importers, testDefaults({
     allProjects,
     dedupeInjectedDeps: false,
-    workspacePackages,
     packageImportMethod: 'hardlink',
     fastUnpack: false,
   }))
@@ -1729,18 +1549,9 @@ test('do not relink injected dependency on install when disableRelinkLocalDirDep
       rootDir: path.resolve('main'),
     },
   ]
-  const workspacePackages = {
-    dep: {
-      '1.0.0': {
-        dir: path.resolve('dep'),
-        manifest: depManifest,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     allProjects,
     dedupeInjectedDeps: false,
-    workspacePackages,
     packageImportMethod: 'hardlink',
     fastUnpack: false,
   }))
@@ -1761,7 +1572,6 @@ test('do not relink injected dependency on install when disableRelinkLocalDirDep
   await mutateModules(importers, testDefaults({
     allProjects,
     dedupeInjectedDeps: false,
-    workspacePackages,
     packageImportMethod: 'hardlink',
     fastUnpack: false,
     disableRelinkLocalDirDeps: true,
@@ -1916,37 +1726,10 @@ test('injected local packages are deduped', async () => {
       rootDir: path.resolve('project-5'),
     },
   ]
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-    'project-3': {
-      '1.0.0': {
-        dir: path.resolve('project-3'),
-        manifest: project3Manifest,
-      },
-    },
-    'project-4': {
-      '1.0.0': {
-        dir: path.resolve('project-4'),
-        manifest: project4Manifest,
-      },
-    },
-  }
   await mutateModules(importers, testDefaults({
     autoInstallPeers: true,
     allProjects,
     dedupeInjectedDeps: true,
-    workspacePackages,
   }))
 
   projects['project-1'].has('is-negative')
@@ -1998,7 +1781,6 @@ test('injected local packages are deduped', async () => {
     allProjects,
     dedupeInjectedDeps: true,
     frozenLockfile: true,
-    workspacePackages,
   }))
 
   projects['project-1'].has('is-negative')
@@ -2015,7 +1797,7 @@ test('injected local packages are deduped', async () => {
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  await mutateModules(importers, testDefaults({ autoInstallPeers: true, allProjects, dedupeInjectedDeps: true, workspacePackages }))
+  await mutateModules(importers, testDefaults({ autoInstallPeers: true, allProjects, dedupeInjectedDeps: true }))
   {
     const lockfile = rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({

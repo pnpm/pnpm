@@ -886,25 +886,10 @@ test('hoistWorkspacePackages should hoist all workspace projects', async () => {
       rootDir: path.resolve('package2'),
     },
   ]
-  const workspacePackages = {
-    [workspacePackageManifest.name]: {
-      [workspacePackageManifest.version]: {
-        dir: path.resolve('package'),
-        manifest: workspacePackageManifest,
-      },
-    },
-    [workspacePackageManifest2.name]: {
-      [workspacePackageManifest2.version]: {
-        dir: path.resolve('package2'),
-        manifest: workspacePackageManifest2,
-      },
-    },
-  }
   await mutateModules(mutatedProjects, testDefaults({
     allProjects,
     hoistPattern: '*',
     hoistWorkspacePackages: true,
-    workspacePackages,
   }))
 
   projects['root'].has('@pnpm.e2e/pkg-with-1-dep')
@@ -929,7 +914,6 @@ test('hoistWorkspacePackages should hoist all workspace projects', async () => {
     frozenLockfile: true,
     hoistPattern: '*',
     hoistWorkspacePackages: true,
-    workspacePackages,
   }))
   projects['root'].has('.pnpm/node_modules/package')
   projects['root'].has('.pnpm/node_modules/package2')
