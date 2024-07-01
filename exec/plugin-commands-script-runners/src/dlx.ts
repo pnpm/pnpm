@@ -6,6 +6,7 @@ import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
+import { node } from '@pnpm/plugin-commands-env'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
@@ -64,7 +65,7 @@ export function help (): string {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' > & add.AddCommandOptions
+} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' > & add.AddCommandOptions
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -94,7 +95,12 @@ export async function handler (
   }
   const modulesDir = path.join(cacheLink, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
-  const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
+  const prependPaths = [binsDir]
+  if (opts.useNodeVersion) {
+    const nodePath = await node.getNodeBinDir(opts)
+    prependPaths.push(nodePath)
+  }
+  const env = makeEnv({ userAgent: opts.userAgent, prependPaths })
   const binName = opts.package
     ? command
     : await getBinName(modulesDir, await getPkgName(cacheLink))
