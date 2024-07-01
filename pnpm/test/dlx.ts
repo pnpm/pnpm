@@ -264,7 +264,9 @@ test('dlx uses the node version specified by --use-node-version', async () => {
     versions: {
       node: '20.0.0',
     },
-    execPath: path.join(pnpmHome, 'nodejs', '20.0.0', 'bin', 'node'),
+    execPath: process.platform === 'win32'
+      ? path.join(pnpmHome, 'nodejs', '20.0.0', 'node.exe')
+      : path.join(pnpmHome, 'nodejs', '20.0.0', 'bin', 'node'),
   })
 
   expect(execResult.status).toBe(0)
