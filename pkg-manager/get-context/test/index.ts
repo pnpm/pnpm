@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { getContext } from '@pnpm/get-context'
+import { getContext, arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import path from 'path'
 import { type GetContextOptions } from '../src'
 
@@ -38,4 +38,20 @@ test('getContext - extendNodePath true', async () => {
     extendNodePath: true,
   })
   expect(context.extraNodePaths).toEqual([path.join(context.virtualStoreDir, 'node_modules')])
+})
+
+// This is supported for compatibility with Yarn's implementation
+// see https://github.com/pnpm/pnpm/issues/2648
+test('arrayOfWorkspacePackagesToMap() treats private packages with no version as packages with 0.0.0 version', () => {
+  const privateProject = {
+    rootDir: process.cwd(),
+    manifest: {
+      name: 'private-pkg',
+    },
+  }
+  expect(arrayOfWorkspacePackagesToMap([privateProject])).toStrictEqual({
+    'private-pkg': {
+      '0.0.0': privateProject,
+    },
+  })
 })

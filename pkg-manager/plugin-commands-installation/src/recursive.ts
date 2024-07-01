@@ -6,7 +6,7 @@ import {
 } from '@pnpm/cli-utils'
 import { type Config, getOptionsFromRootManifest, readLocalConfig } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/workspace.find-packages'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { createMatcherWithIndex } from '@pnpm/matcher'

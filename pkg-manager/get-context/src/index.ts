@@ -588,8 +588,8 @@ function getExtraNodePaths (
   return []
 }
 
-function arrayOfWorkspacePackagesToMap (
-  pkgs: ProjectOptions[]
+export function arrayOfWorkspacePackagesToMap (
+  pkgs: Array<Pick<ProjectOptions, 'manifest' | 'rootDir'>>
 ): WorkspacePackages {
   return pkgs.reduce((acc, pkg) => {
     if (!pkg.manifest.name) return acc

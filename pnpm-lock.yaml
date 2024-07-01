@@ -4692,6 +4692,9 @@ importers:
       '@pnpm/find-workspace-dir':
         specifier: workspace:*
         version: link:../../workspace/find-workspace-dir
+      '@pnpm/get-context':
+        specifier: workspace:*
+        version: link:../get-context
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs

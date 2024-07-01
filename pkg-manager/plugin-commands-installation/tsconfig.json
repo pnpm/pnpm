@@ -103,6 +103,9 @@
       "path": "../core"
     },
     {
+      "path": "../get-context"
+    },
+    {
       "path": "../modules-yaml"
     }
   ]
