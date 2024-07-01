@@ -2097,6 +2097,9 @@ importers:
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins
+      '@pnpm/plugin-commands-env':
+        specifier: workspace:*
+        version: link:../../env/plugin-commands-env
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
