@@ -61,21 +61,6 @@ export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?
   return pkgs
 }
 
-type ArrayOfWorkspacePackagesToMapResult = Record<string, Record<string, Pick<Project, 'manifest'>>>
-
-export function arrayOfWorkspacePackagesToMap (
-  pkgs: Array<Pick<Project, 'manifest'>>
-): ArrayOfWorkspacePackagesToMapResult {
-  return pkgs.reduce((acc, pkg) => {
-    if (!pkg.manifest.name) return acc
-    if (!acc[pkg.manifest.name]) {
-      acc[pkg.manifest.name] = {}
-    }
-    acc[pkg.manifest.name][pkg.manifest.version ?? '0.0.0'] = pkg
-    return acc
-  }, {} as ArrayOfWorkspacePackagesToMapResult)
-}
-
 function checkNonRootProjectManifest ({ manifest, rootDir }: Project): void {
   for (const rootOnlyField of ['pnpm', 'resolutions']) {
     if (manifest?.[rootOnlyField as keyof ProjectManifest]) {

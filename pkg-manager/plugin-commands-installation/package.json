@@ -68,6 +68,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
+    "@pnpm/get-context": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
