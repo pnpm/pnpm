@@ -54,6 +54,7 @@
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/log.group": "catalog:",
     "@pnpm/package-bins": "workspace:*",
+    "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
