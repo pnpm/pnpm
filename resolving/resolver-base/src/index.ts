@@ -44,14 +44,14 @@ export interface ResolveResult {
 }
 
 export interface WorkspacePackage {
-  dir: string
+  rootDir: string
   manifest: DependencyManifest
 }
 
+export type WorkspacePackagesByVersion = Record<string, WorkspacePackage>
+
 export interface WorkspacePackages {
-  [name: string]: {
-    [version: string]: WorkspacePackage
-  }
+  [name: string]: WorkspacePackagesByVersion
 }
 
 // This weight is set for selectors that are used on direct dependencies.

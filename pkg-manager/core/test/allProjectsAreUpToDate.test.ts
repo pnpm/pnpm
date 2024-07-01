@@ -12,7 +12,7 @@ const fooManifest = {
 const workspacePackages = {
   foo: {
     '1.0.0': {
-      dir: 'foo',
+      rootDir: 'foo',
       manifest: fooManifest,
     },
   },

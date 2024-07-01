@@ -13,7 +13,7 @@ const INCLUDE_ALL = {
 const WORKSPACE_PACKAGES = {
   bar: {
     '100.0.0': {
-      dir: '',
+      rootDir: '',
       manifest: {
         name: 'foo',
         version: '100.0.0',
@@ -22,7 +22,7 @@ const WORKSPACE_PACKAGES = {
   },
   foo: {
     '100.0.0': {
-      dir: '',
+      rootDir: '',
       manifest: {
         name: 'foo',
         version: '100.0.0',
@@ -31,7 +31,7 @@ const WORKSPACE_PACKAGES = {
   },
   qar: {
     '100.0.0': {
-      dir: '',
+      rootDir: '',
       manifest: {
         name: 'foo',
         version: '100.0.0',

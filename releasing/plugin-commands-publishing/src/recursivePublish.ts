@@ -76,13 +76,13 @@ export async function recursivePublish (
     if (!pkg.manifest.name || !pkg.manifest.version || pkg.manifest.private) return false
     if (opts.force) return true
     return !(await isAlreadyPublished({
-      dir: pkg.dir,
-      lockfileDir: opts.lockfileDir ?? pkg.dir,
+      dir: pkg.rootDir,
+      lockfileDir: opts.lockfileDir ?? pkg.rootDir,
       registries: opts.registries,
       resolve,
     }, pkg.manifest.name, pkg.manifest.version))
   })
-  const publishedPkgDirs = new Set(pkgsToPublish.map(({ dir }) => dir))
+  const publishedPkgDirs = new Set(pkgsToPublish.map(({ rootDir }) => rootDir))
   const publishedPackages: Array<{ name?: string, version?: string }> = []
   if (publishedPkgDirs.size === 0) {
     logger.info({
@@ -113,7 +113,7 @@ export async function recursivePublish (
         // eslint-disable-next-line no-await-in-loop
         const publishResult = await publish({
           ...opts,
-          dir: pkg.dir,
+          dir: pkg.rootDir,
           argv: {
             original: [
               'publish',
@@ -126,7 +126,7 @@ export async function recursivePublish (
           },
           gitChecks: false,
           recursive: false,
-        }, [pkg.dir])
+        }, [pkg.rootDir])
         if (publishResult?.manifest != null) {
           publishedPackages.push(pick(['name', 'version'], publishResult.manifest))
         } else if (publishResult?.exitCode) {

@@ -185,12 +185,12 @@ async function interactiveUpdate (
     ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     : [
       {
-        dir: opts.dir,
+        rootDir: opts.dir,
         manifest: await readProjectManifestOnly(opts.dir, opts),
       },
     ]
   const rootDir = opts.workspaceDir ?? opts.dir
-  const rootProject = projects.find((project) => project.dir === rootDir)
+  const rootProject = projects.find((project) => project.rootDir === rootDir)
   const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
     ...opts,
     compatible: opts.latest !== true,

@@ -173,7 +173,7 @@ export async function handler (
   const manifest = await readProjectManifestOnly(opts.dir, opts)
   const packages = [
     {
-      dir: opts.dir,
+      rootDir: opts.dir,
       manifest,
     },
   ]

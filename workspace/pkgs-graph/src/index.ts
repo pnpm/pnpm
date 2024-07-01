@@ -7,7 +7,7 @@ import mapValues from 'ramda/src/map'
 
 export interface Package {
   manifest: BaseManifest
-  dir: string
+  rootDir: string
 }
 
 export interface PackageNode<Pkg extends Package> {
@@ -51,26 +51,26 @@ export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
             rawSpec = fetchSpec
             depName = name
           }
-          spec = npa.resolve(depName, rawSpec, pkg.dir)
+          spec = npa.resolve(depName, rawSpec, pkg.rootDir)
         } catch {
           return ''
         }
 
         if (spec.type === 'directory') {
           pkgMapByDir ??= getPkgMapByDir(pkgMapValues)
-          const resolvedPath = path.resolve(pkg.dir, spec.fetchSpec)
+          const resolvedPath = path.resolve(pkg.rootDir, spec.fetchSpec)
           const found = pkgMapByDir[resolvedPath]
           if (found) {
-            return found.dir
+            return found.rootDir
           }
 
           // Slow path; only needed when there are case mismatches on case-insensitive filesystems.
-          const matchedPkg = pkgMapValues.find(pkg => path.relative(pkg.dir, spec.fetchSpec) === '')
+          const matchedPkg = pkgMapValues.find(pkg => path.relative(pkg.rootDir, spec.fetchSpec) === '')
           if (matchedPkg == null) {
             return ''
           }
           pkgMapByDir[resolvedPath] = matchedPkg
-          return matchedPkg.dir
+          return matchedPkg.rootDir
         }
 
         if (spec.type !== 'version' && spec.type !== 'range') return ''
@@ -89,11 +89,11 @@ export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
         }
         if (isWorkspaceSpec && versions.length === 0) {
           const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName)
-          return matchedPkg!.dir
+          return matchedPkg!.rootDir
         }
         if (versions.includes(rawSpec)) {
           const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === rawSpec)
-          return matchedPkg!.dir
+          return matchedPkg!.rootDir
         }
         const matched = resolveWorkspaceRange(rawSpec, versions)
         if (!matched) {
@@ -101,7 +101,7 @@ export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
           return ''
         }
         const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === matched)
-        return matchedPkg!.dir
+        return matchedPkg!.rootDir
       })
       .filter(Boolean)
   }
@@ -110,7 +110,7 @@ export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
 function createPkgMap (pkgs: Package[]): Record<string, Package> {
   const pkgMap: Record<string, Package> = {}
   for (const pkg of pkgs) {
-    pkgMap[pkg.dir] = pkg
+    pkgMap[pkg.rootDir] = pkg
   }
   return pkgMap
 }
@@ -128,7 +128,7 @@ function getPkgMapByManifestName (pkgMapValues: Package[]): Record<string, Packa
 function getPkgMapByDir (pkgMapValues: Package[]): Record<string, Package | undefined> {
   const pkgMapByDir: Record<string, Package | undefined> = {}
   for (const pkg of pkgMapValues) {
-    pkgMapByDir[path.resolve(pkg.dir)] = pkg
+    pkgMapByDir[path.resolve(pkg.rootDir)] = pkg
   }
   return pkgMapByDir
 }

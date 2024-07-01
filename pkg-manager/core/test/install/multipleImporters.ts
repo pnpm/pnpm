@@ -338,13 +338,13 @@ test('some projects were removed from the workspace and the ones that are left d
   const workspacePackages = {
     'project-1': {
       '1.0.0': {
-        dir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1'),
         manifest: project1Manifest,
       },
     },
     'project-2': {
       '1.0.0': {
-        dir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2'),
         manifest: project2Manifest,
       },
     },

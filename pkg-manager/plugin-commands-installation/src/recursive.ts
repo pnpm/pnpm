@@ -519,17 +519,17 @@ function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: Pro
     buildIndex,
     manifest: manifestsByPath[rootDir].manifest,
     rootDir,
-    rootDirRealPath: allProjectsGraph[rootDir].package.dirRealPath,
+    rootDirRealPath: allProjectsGraph[rootDir].package.rootDirRealPath,
   }))).flat()
 }
 
-interface ManifestsByPath { [dir: string]: Omit<Project, 'dir' | 'dirRealPath'> }
+interface ManifestsByPath { [dir: string]: Omit<Project, 'rootDir' | 'rootDirRealPath'> }
 
-function getManifestsByPath (projects: Project[]): Record<string, Omit<Project, 'dir' | 'dirRealPath'>> {
-  return projects.reduce((manifestsByPath, { dir, manifest, writeProjectManifest }) => {
-    manifestsByPath[dir] = { manifest, writeProjectManifest }
+function getManifestsByPath (projects: Project[]): Record<string, Omit<Project, 'rootDir' | 'rootDirRealPath'>> {
+  return projects.reduce((manifestsByPath, { rootDir, manifest, writeProjectManifest }) => {
+    manifestsByPath[rootDir] = { manifest, writeProjectManifest }
     return manifestsByPath
-  }, {} as Record<string, Omit<Project, 'dir' | 'dirRealPath'>>)
+  }, {} as Record<string, Omit<Project, 'rootDir' | 'rootDirRealPath'>>)
 }
 
 function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'ignoredPackages'>): Array<{ rootDir: string, rootDirRealPath: string }> {
@@ -537,5 +537,5 @@ function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'i
   if (opts.ignoredPackages != null) {
     rootDirs = rootDirs.filter((rootDir) => !opts.ignoredPackages!.has(rootDir))
   }
-  return rootDirs.map((rootDir) => ({ rootDir, rootDirRealPath: opts.selectedProjectsGraph[rootDir].package.dirRealPath }))
+  return rootDirs.map((rootDir) => ({ rootDir, rootDirRealPath: opts.selectedProjectsGraph[rootDir].package.rootDirRealPath }))
 }

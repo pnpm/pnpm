@@ -162,8 +162,8 @@ export async function handler (
           dependencies: [],
           package: {
             ...project,
-            dir: opts.dir,
-            dirRealPath: opts.dir,
+            rootDir: opts.dir,
+            rootDirRealPath: opts.dir,
           } as Project,
         },
       }

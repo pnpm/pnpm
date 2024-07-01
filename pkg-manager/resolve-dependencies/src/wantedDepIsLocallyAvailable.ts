@@ -1,6 +1,5 @@
 import { parsePref, type RegistryPackageSpec } from '@pnpm/npm-resolver'
-import { type WorkspacePackages } from '@pnpm/resolver-base'
-import { type PackageManifest } from '@pnpm/types'
+import { type WorkspacePackagesByVersion, type WorkspacePackages } from '@pnpm/resolver-base'
 import semver from 'semver'
 import { type WantedDependency } from './getNonDevWantedDependencies'
 
@@ -19,12 +18,7 @@ export function wantedDepIsLocallyAvailable (
 
 // TODO: move this function to separate package or import from @pnpm/npm-resolver
 function pickMatchingLocalVersionOrNull (
-  versions: {
-    [version: string]: {
-      dir: string
-      manifest: PackageManifest
-    }
-  },
+  versions: WorkspacePackagesByVersion,
   spec: RegistryPackageSpec
 ): string | null {
   const localVersions = Object.keys(versions)

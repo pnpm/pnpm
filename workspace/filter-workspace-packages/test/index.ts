@@ -19,7 +19,7 @@ const PKGS_GRAPH: PackageGraph<Package> = {
   '/packages/project-0': {
     dependencies: ['/packages/project-1', '/project-5'],
     package: {
-      dir: '/packages/project-0',
+      rootDir: '/packages/project-0',
       manifest: {
         name: 'project-0',
         version: '1.0.0',
@@ -34,7 +34,7 @@ const PKGS_GRAPH: PackageGraph<Package> = {
   '/packages/project-1': {
     dependencies: ['/project-2', '/project-4'],
     package: {
-      dir: '/packages/project-1',
+      rootDir: '/packages/project-1',
       manifest: {
         name: 'project-1',
         version: '1.0.0',
@@ -50,7 +50,7 @@ const PKGS_GRAPH: PackageGraph<Package> = {
   '/project-2': {
     dependencies: [],
     package: {
-      dir: '/project-2',
+      rootDir: '/project-2',
       manifest: {
         name: 'project-2',
         version: '1.0.0',
@@ -64,7 +64,7 @@ const PKGS_GRAPH: PackageGraph<Package> = {
   '/project-3': {
     dependencies: [],
     package: {
-      dir: '/project-3',
+      rootDir: '/project-3',
       manifest: {
         name: 'project-3',
         version: '1.0.0',
@@ -78,7 +78,7 @@ const PKGS_GRAPH: PackageGraph<Package> = {
   '/project-4': {
     dependencies: [],
     package: {
-      dir: '/project-4',
+      rootDir: '/project-4',
       manifest: {
         name: 'project-4',
         version: '1.0.0',
@@ -92,7 +92,7 @@ const PKGS_GRAPH: PackageGraph<Package> = {
   '/project-5': {
     dependencies: [],
     package: {
-      dir: '/project-5',
+      rootDir: '/project-5',
       manifest: {
         name: 'project-5',
         version: '1.0.0',
@@ -106,7 +106,7 @@ const PKGS_GRAPH: PackageGraph<Package> = {
   '/project-5/packages/project-6': {
     dependencies: [],
     package: {
-      dir: '/project-5/packages/project-6',
+      rootDir: '/project-5/packages/project-6',
       manifest: {
         name: 'project-6',
         version: '1.0.0',
@@ -213,7 +213,7 @@ test('select package without specifying its scope', async () => {
     '/packages/bar': {
       dependencies: [],
       package: {
-        dir: '/packages/bar',
+        rootDir: '/packages/bar',
         manifest: {
           name: '@foo/bar',
           version: '1.0.0',
@@ -236,7 +236,7 @@ test('when a scoped package with the same name exists, only pick the exact match
     '/packages/@foo/bar': {
       dependencies: [],
       package: {
-        dir: '/packages/@foo/bar',
+        rootDir: '/packages/@foo/bar',
         manifest: {
           name: '@foo/bar',
           version: '1.0.0',
@@ -246,7 +246,7 @@ test('when a scoped package with the same name exists, only pick the exact match
     '/packages/bar': {
       dependencies: [],
       package: {
-        dir: '/packages/bar',
+        rootDir: '/packages/bar',
         manifest: {
           name: 'bar',
           version: '1.0.0',
@@ -269,7 +269,7 @@ test('when two scoped packages match the searched name, don\'t select any', asyn
     '/packages/@foo/bar': {
       dependencies: [],
       package: {
-        dir: '/packages/@foo/bar',
+        rootDir: '/packages/@foo/bar',
         manifest: {
           name: '@foo/bar',
           version: '1.0.0',
@@ -279,7 +279,7 @@ test('when two scoped packages match the searched name, don\'t select any', asyn
     '/packages/@types/bar': {
       dependencies: [],
       package: {
-        dir: '/packages/@types/bar',
+        rootDir: '/packages/@types/bar',
         manifest: {
           name: '@types/bar',
           version: '1.0.0',
@@ -381,7 +381,7 @@ test('select changed packages', async () => {
     [workspaceDir]: {
       dependencies: [],
       package: {
-        dir: workspaceDir,
+        rootDir: workspaceDir,
         manifest: {
           name: 'root',
           version: '0.0.0',
@@ -391,7 +391,7 @@ test('select changed packages', async () => {
     [pkg1Dir]: {
       dependencies: [],
       package: {
-        dir: pkg1Dir,
+        rootDir: pkg1Dir,
         manifest: {
           name: 'package-1',
           version: '0.0.0',
@@ -401,7 +401,7 @@ test('select changed packages', async () => {
     [pkg2Dir]: {
       dependencies: [],
       package: {
-        dir: pkg2Dir,
+        rootDir: pkg2Dir,
         manifest: {
           name: 'package-2',
           version: '0.0.0',
@@ -411,7 +411,7 @@ test('select changed packages', async () => {
     [pkg3Dir]: {
       dependencies: [pkg2Dir],
       package: {
-        dir: pkg3Dir,
+        rootDir: pkg3Dir,
         manifest: {
           name: 'package-3',
           version: '0.0.0',
@@ -421,7 +421,7 @@ test('select changed packages', async () => {
     [pkgKorDir]: {
       dependencies: [],
       package: {
-        dir: pkgKorDir,
+        rootDir: pkgKorDir,
         manifest: {
           name: 'package-kor',
           version: '0.0.0',
@@ -431,7 +431,7 @@ test('select changed packages', async () => {
     [pkg20Dir]: {
       dependencies: [],
       package: {
-        dir: pkg20Dir,
+        rootDir: pkg20Dir,
         manifest: {
           name: 'package-20',
           version: '0.0.0',

@@ -332,7 +332,7 @@ function getAllVersionsFromYarnLockFile (
 }
 
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
-  const project = projects.find(({ dir }) => path.relative(dir, searchedDir) === '')
+  const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
   return { [searchedDir]: { dependencies: [], package: project } }
 }

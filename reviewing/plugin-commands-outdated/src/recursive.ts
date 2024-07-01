@@ -47,12 +47,12 @@ interface OutdatedInWorkspace extends OutdatedPackage {
 }
 
 export async function outdatedRecursive (
-  pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
+  pkgs: Array<{ rootDir: string, manifest: ProjectManifest }>,
   params: string[],
   opts: OutdatedCommandOptions & { include: IncludedDependencies }
 ): Promise<{ output: string, exitCode: number }> {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
-  const rootManifest = pkgs.find(({ dir }) => dir === opts.lockfileDir)
+  const rootManifest = pkgs.find(({ rootDir }) => rootDir === opts.lockfileDir)
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, {
     ...opts,
     fullMetadata: opts.long,
@@ -66,13 +66,13 @@ export async function outdatedRecursive (
     timeout: opts.fetchTimeout,
   })
   for (let i = 0; i < outdatedPackagesByProject.length; i++) {
-    const { dir, manifest } = pkgs[i]
+    const { rootDir, manifest } = pkgs[i]
     outdatedPackagesByProject[i].forEach((outdatedPkg) => {
       const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.current, outdatedPkg.belongsTo])
       if (!outdatedMap[key]) {
         outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
       }
-      outdatedMap[key].dependentPkgs.push({ location: dir, manifest })
+      outdatedMap[key].dependentPkgs.push({ location: rootDir, manifest })
     })
   }
 
