@@ -70,7 +70,6 @@ import isSubdir from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import pMapValues from 'p-map-values'
-import flatten from 'ramda/src/flatten'
 import mapValues from 'ramda/src/map'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
@@ -686,7 +685,13 @@ Note that in CI environments, this setting is enabled by default.`,
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
       if (preferredSpecs == null) {
-        preferredSpecs = getAllUniqueSpecs(flatten(Object.values(ctx.workspacePackages).map(obj => Object.values(obj))).map(({ manifest }) => manifest))
+        const manifests = []
+        for (const versions of ctx.workspacePackages.values()) {
+          for (const { manifest } of versions.values()) {
+            manifests.push(manifest)
+          }
+        }
+        preferredSpecs = getAllUniqueSpecs(manifests)
       }
       const wantedDeps = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,

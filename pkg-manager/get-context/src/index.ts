@@ -591,15 +591,18 @@ function getExtraNodePaths (
 export function arrayOfWorkspacePackagesToMap (
   pkgs: Array<Pick<ProjectOptions, 'manifest' | 'rootDir'>>
 ): WorkspacePackages {
-  return pkgs.reduce((acc, pkg) => {
-    if (!pkg.manifest.name) return acc
-    if (!acc[pkg.manifest.name]) {
-      acc[pkg.manifest.name] = {}
+  const workspacePkgs: WorkspacePackages = new Map()
+  for (const { manifest, rootDir } of pkgs) {
+    if (!manifest.name) continue
+    let workspacePkgsByVersion = workspacePkgs.get(manifest.name)
+    if (!workspacePkgsByVersion) {
+      workspacePkgsByVersion = new Map()
+      workspacePkgs.set(manifest.name, workspacePkgsByVersion)
     }
-    acc[pkg.manifest.name][pkg.manifest.version ?? '0.0.0'] = {
-      manifest: pkg.manifest as DependencyManifest,
-      rootDir: pkg.rootDir,
-    }
-    return acc
-  }, {} as WorkspacePackages)
+    workspacePkgsByVersion.set(manifest.version ?? '0.0.0', {
+      manifest: manifest as DependencyManifest,
+      rootDir,
+    })
+  }
+  return workspacePkgs
 }

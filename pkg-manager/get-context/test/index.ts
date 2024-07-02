@@ -49,9 +49,9 @@ test('arrayOfWorkspacePackagesToMap() treats private packages with no version as
       name: 'private-pkg',
     },
   }
-  expect(arrayOfWorkspacePackagesToMap([privateProject])).toStrictEqual({
-    'private-pkg': {
-      '0.0.0': privateProject,
-    },
-  })
+  expect(arrayOfWorkspacePackagesToMap([privateProject])).toStrictEqual(new Map([
+    ['private-pkg', new Map([
+      ['0.0.0', privateProject],
+    ])],
+  ]))
 })

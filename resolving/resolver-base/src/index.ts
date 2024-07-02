@@ -48,11 +48,9 @@ export interface WorkspacePackage {
   manifest: DependencyManifest
 }
 
-export type WorkspacePackagesByVersion = Record<string, WorkspacePackage>
+export type WorkspacePackagesByVersion = Map<string, WorkspacePackage>
 
-export interface WorkspacePackages {
-  [name: string]: WorkspacePackagesByVersion
-}
+export type WorkspacePackages = Map<string, WorkspacePackagesByVersion>
 
 // This weight is set for selectors that are used on direct dependencies.
 // It is important to give a bigger weight to direct dependencies.

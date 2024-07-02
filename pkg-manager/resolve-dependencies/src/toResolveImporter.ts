@@ -104,7 +104,7 @@ async function partitionLinkedPackages (
   await Promise.all(dependencies.map(async (dependency) => {
     if (
       !dependency.alias ||
-      opts.workspacePackages?.[dependency.alias] != null ||
+      opts.workspacePackages?.get(dependency.alias) != null ||
       dependency.pref.startsWith('workspace:')
     ) {
       nonLinkedDependencies.push(dependency)

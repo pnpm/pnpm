@@ -23,6 +23,7 @@ import {
   type WorkspacePackages,
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
+import { type Project } from '@pnpm/types'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import pick from 'ramda/src/pick'
@@ -123,7 +124,7 @@ export async function handler (
   const cwd = process.cwd()
 
   const storeControllerCache = new Map<string, Promise<{ dir: string, ctrl: StoreController }>>()
-  let workspacePackagesArr
+  let workspacePackagesArr: Project[]
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
     workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
@@ -132,7 +133,7 @@ export async function handler (
     })
     workspacePackages = arrayOfWorkspacePackagesToMap(workspacePackagesArr) as WorkspacePackages
   } else {
-    workspacePackages = {}
+    workspacePackages = new Map()
   }
 
   const store = await createOrConnectStoreControllerCached(storeControllerCache, opts)

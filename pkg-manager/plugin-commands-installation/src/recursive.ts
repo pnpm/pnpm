@@ -121,7 +121,7 @@ export async function recursive (
 
   const workspacePackages: WorkspacePackages = cmdFullName !== 'unlink'
     ? arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
-    : {}
+    : new Map()
   const targetDependenciesField = getSaveType(opts)
   const rootManifestDir = opts.lockfileDir ?? opts.dir
   const installOpts = Object.assign(opts, {

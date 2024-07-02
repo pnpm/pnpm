@@ -12,8 +12,8 @@ export function wantedDepIsLocallyAvailable (
   }
 ): boolean {
   const spec = parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
-  if ((spec == null) || !workspacePackages[spec.name]) return false
-  return pickMatchingLocalVersionOrNull(workspacePackages[spec.name], spec) !== null
+  if ((spec == null) || !workspacePackages.has(spec.name)) return false
+  return pickMatchingLocalVersionOrNull(workspacePackages.get(spec.name)!, spec) !== null
 }
 
 // TODO: move this function to separate package or import from @pnpm/npm-resolver
@@ -26,7 +26,7 @@ function pickMatchingLocalVersionOrNull (
   case 'tag':
     return semver.maxSatisfying(localVersions, '*')
   case 'version':
-    return versions[spec.fetchSpec] ? spec.fetchSpec : null
+    return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
   case 'range':
     return semver.maxSatisfying(localVersions, spec.fetchSpec, true)
   default:

@@ -205,10 +205,12 @@ async function resolveNpm (
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta })
   }
 
-  if (((workspacePackages?.[pickedPackage.name]) != null) && opts.projectDir) {
-    if (workspacePackages[pickedPackage.name][pickedPackage.version]) {
+  const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)
+  if (workspacePkgsMatchingName && opts.projectDir) {
+    const matchedPkg = workspacePkgsMatchingName.get(pickedPackage.version)
+    if (matchedPkg) {
       return {
-        ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, {
+        ...resolveFromLocalPackage(matchedPkg, spec.normalizedPref, {
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: wantedDependency.injected,
@@ -216,10 +218,10 @@ async function resolveNpm (
         latest: meta['dist-tags'].latest,
       }
     }
-    const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[pickedPackage.name], spec)
+    const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
     if (localVersion && (semver.gt(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
       return {
-        ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][localVersion], spec.normalizedPref, {
+        ...resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec.normalizedPref, {
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: wantedDependency.injected,
@@ -286,7 +288,8 @@ function tryResolveFromWorkspacePackages (
     lockfileDir?: string
   }
 ): ResolveResult {
-  if (!workspacePackages[spec.name]) {
+  const workspacePkgsMatchingName = workspacePackages.get(spec.name)
+  if (!workspacePkgsMatchingName) {
     throw new PnpmError(
       'WORKSPACE_PKG_NOT_FOUND',
       `In ${path.relative(process.cwd(), opts.projectDir)}: "${spec.name}@${opts.wantedDependency.pref ?? ''}" is in the dependencies but no package named "${spec.name}" is present in the workspace`,
@@ -295,30 +298,29 @@ function tryResolveFromWorkspacePackages (
       }
     )
   }
-  const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[spec.name], spec)
+  const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
   if (!localVersion) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
       `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.pref ?? ''} inside the workspace`
     )
   }
-  return resolveFromLocalPackage(workspacePackages[spec.name][localVersion], spec.normalizedPref, opts)
+  return resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec.normalizedPref, opts)
 }
 
 function pickMatchingLocalVersionOrNull (
   versions: WorkspacePackagesByVersion,
   spec: RegistryPackageSpec
 ): string | null {
-  const localVersions = Object.keys(versions)
   switch (spec.type) {
   case 'tag':
-    return semver.maxSatisfying(localVersions, '*', {
+    return semver.maxSatisfying(Array.from(versions.keys()), '*', {
       includePrerelease: true,
     })
   case 'version':
-    return versions[spec.fetchSpec] ? spec.fetchSpec : null
+    return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
   case 'range':
-    return resolveWorkspaceRange(spec.fetchSpec, localVersions)
+    return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
   default:
     return null
   }

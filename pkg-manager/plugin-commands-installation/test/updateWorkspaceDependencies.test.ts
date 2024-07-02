@@ -10,35 +10,35 @@ const INCLUDE_ALL = {
   optionalDependencies: true,
 }
 
-const WORKSPACE_PACKAGES = {
-  bar: {
-    '100.0.0': {
+const WORKSPACE_PACKAGES = new Map([
+  ['bar', new Map([
+    ['100.0.0', {
       rootDir: '',
       manifest: {
         name: 'foo',
         version: '100.0.0',
       },
-    },
-  },
-  foo: {
-    '100.0.0': {
+    }],
+  ])],
+  ['foo', new Map([
+    ['100.0.0', {
       rootDir: '',
       manifest: {
         name: 'foo',
         version: '100.0.0',
       },
-    },
-  },
-  qar: {
-    '100.0.0': {
+    }],
+  ])],
+  ['qar', new Map([
+    ['100.0.0', {
       rootDir: '',
       manifest: {
         name: 'foo',
         version: '100.0.0',
       },
-    },
-  },
-}
+    }],
+  ])],
+])
 
 test('updateToWorkspacePackagesFromManifest()', () => {
   const manifest = {

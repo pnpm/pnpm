@@ -69,11 +69,13 @@ export async function allProjectsAreUpToDate (
 
 function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages): Record<string, DependencyManifest> {
   const workspacePackagesByDirectory: Record<string, DependencyManifest> = {}
-  Object.keys(workspacePackages || {}).forEach((pkgName) => {
-    Object.keys(workspacePackages[pkgName] || {}).forEach((pkgVersion) => {
-      workspacePackagesByDirectory[workspacePackages[pkgName][pkgVersion].rootDir] = workspacePackages[pkgName][pkgVersion].manifest
-    })
-  })
+  if (workspacePackages) {
+    for (const pkgVersions of workspacePackages.values()) {
+      for (const { rootDir, manifest } of pkgVersions.values()) {
+        workspacePackagesByDirectory[rootDir] = manifest
+      }
+    }
+  }
   return workspacePackagesByDirectory
 }
 
@@ -132,7 +134,7 @@ async function linkedPackagesAreUpToDate (
           }
           const linkedDir = isLinked
             ? path.join(project.dir, lockfileRef.slice(5))
-            : workspacePackages?.[depName]?.[lockfileRef]?.rootDir
+            : workspacePackages?.get(depName)?.get(lockfileRef)?.rootDir
           if (!linkedDir) return true
           if (!linkWorkspacePackages && !currentSpec.startsWith('workspace:')) {
             // we found a linked dir, but we don't want to use it, because it's not specified as a

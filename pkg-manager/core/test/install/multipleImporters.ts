@@ -15,7 +15,6 @@ import {
 import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import loadJsonFile from 'load-json-file'
-import pick from 'ramda/src/pick'
 import { sync as readYamlFile } from 'read-yaml-file'
 import sinon from 'sinon'
 import { sync as writeYamlFile } from 'write-yaml-file'
@@ -335,27 +334,28 @@ test('some projects were removed from the workspace and the ones that are left d
       rootDir: path.resolve('project-2'),
     },
   ]
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
+  const workspacePackages = new Map([
+    ['project-1', new Map([
+      ['1.0.0', {
         rootDir: path.resolve('project-1'),
         manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
+      }],
+    ])],
+    ['project-2', new Map([
+      ['1.0.0', {
         rootDir: path.resolve('project-2'),
         manifest: project2Manifest,
-      },
-    },
-  }
+      }],
+    ])],
+  ])
   await mutateModules(importers, testDefaults({ allProjects, workspacePackages }))
 
+  workspacePackages.delete('project-2')
   await expect(
     mutateModules(importers.slice(0, 1), testDefaults({
       allProjects: allProjects.slice(0, 1),
       pruneLockfileImporters: true,
-      workspacePackages: pick(['project-1'], workspacePackages),
+      workspacePackages,
     } as any)) // eslint-disable-line
   ).rejects.toThrow(/"project-2@workspace:1.0.0" is in the dependencies but no package named "project-2" is present in the workspace/)
 })

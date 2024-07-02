@@ -9,14 +9,14 @@ const fooManifest = {
   name: 'foo',
   version: '1.0.0',
 }
-const workspacePackages = {
-  foo: {
-    '1.0.0': {
+const workspacePackages = new Map([
+  ['foo', new Map([
+    ['1.0.0', {
       rootDir: 'foo',
       manifest: fooManifest,
-    },
-  },
-}
+    }],
+  ])],
+])
 
 test('allProjectsAreUpToDate(): works with packages linked through the workspace protocol using relative path', async () => {
   expect(await allProjectsAreUpToDate([

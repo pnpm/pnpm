@@ -91,7 +91,7 @@ export async function getPeerDependencyIssues (
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       wantedLockfile: ctx.wantedLockfile,
-      workspacePackages: ctx.workspacePackages ?? {},
+      workspacePackages: ctx.workspacePackages ?? new Map(),
       supportedArchitectures: opts.supportedArchitectures,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
     }
