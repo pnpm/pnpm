@@ -183,12 +183,11 @@ export async function recursive (
       mutation = (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
       break
     }
-    const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ rootDir }) => {
       const localConfig = await memReadLocalConfig(rootDir)
       const modulesDir = localConfig.modulesDir ?? opts.modulesDir
-      const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
+      const { manifest } = manifestsByPath[rootDir]
       let currentInput = [...params]
       if (updateMatch != null) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
@@ -207,7 +206,6 @@ export async function recursive (
           currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
         }
       }
-      writeProjectManifests.push(writeProjectManifest)
       switch (mutation) {
       case 'uninstallSome':
         mutatedImporters.push({
@@ -249,23 +247,10 @@ export async function recursive (
       }
     }))
     if (!opts.selectedProjectsGraph[opts.workspaceDir] && manifestsByPath[opts.workspaceDir] != null) {
-      const { writeProjectManifest } = manifestsByPath[opts.workspaceDir]
-      writeProjectManifests.push(writeProjectManifest)
       mutatedImporters.push({
         mutation: 'install',
         rootDir: opts.workspaceDir,
       })
-    }
-    if (opts.dedupePeerDependents) {
-      for (const rootDir of Object.keys(opts.allProjectsGraph)) {
-        if (opts.selectedProjectsGraph[rootDir] || rootDir === opts.workspaceDir) continue
-        const { writeProjectManifest } = manifestsByPath[rootDir]
-        writeProjectManifests.push(writeProjectManifest)
-        mutatedImporters.push({
-          mutation: 'install',
-          rootDir,
-        })
-      }
     }
     if ((mutatedImporters.length === 0) && cmdFullName === 'update' && opts.depth === 0) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
@@ -278,7 +263,9 @@ export async function recursive (
     if (opts.save !== false) {
       await Promise.all(
         mutatedPkgs
-          .map(async ({ originalManifest, manifest }, index) => writeProjectManifests[index](originalManifest ?? manifest))
+          .map(async ({ originalManifest, manifest, rootDir }) => {
+            return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
+          })
       )
     }
     return true
