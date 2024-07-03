@@ -241,7 +241,7 @@ export async function mutateModules (
     throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
 
-  const installsOnly = projects.every((project) => project.mutation === 'install' && !project.update && !project.updateMatching)
+  const installsOnly = allMutationsAreInstalls(projects)
   if (!installsOnly) opts.strictPeerDependencies = false
   // @ts-expect-error
   opts['forceNewModules'] = installsOnly
@@ -1437,6 +1437,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 }
 
+function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
+  return projects.every((project) => project.mutation === 'install' && !project.update && !project.updateMatching)
+}
+
 const installInContext: InstallFunction = async (projects, ctx, opts) => {
   try {
     const isPathInsideWorkspace = isSubdir.bind(null, opts.lockfileDir)
@@ -1445,6 +1449,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         .filter((project) => isPathInsideWorkspace(project.rootDirRealPath ?? project.rootDir))
       if (allProjectsLocatedInsideWorkspace.length > projects.length) {
         if (
+          allMutationsAreInstalls(projects) &&
           await allProjectsAreUpToDate(allProjectsLocatedInsideWorkspace, {
             catalogs: opts.catalogs,
             autoInstallPeers: opts.autoInstallPeers,
