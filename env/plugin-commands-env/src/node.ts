@@ -36,6 +36,34 @@ export type NvmNodeCommandOptions = Pick<Config,
   remote?: boolean
 }
 
+export type ConfigWithExtraBinPaths = NvmNodeCommandOptions & Pick<Config, 'extraBinPaths'>
+
+export async function createBinPathsWithNodeVersion (config: ConfigWithExtraBinPaths, nodeVersion: string): Promise<string[]> {
+  let baseDir = path.resolve(getNodeVersionsBaseDir(config.pnpmHomeDir))
+  if (!baseDir.endsWith(path.sep)) {
+    baseDir += path.sep
+  }
+
+  const nodePath = await getNodeBinDir({
+    ...config,
+    useNodeVersion: nodeVersion,
+  })
+
+  const binPaths = [...config.extraBinPaths]
+  replaceOrAddNodeIntoBinPaths(binPaths, baseDir, nodePath)
+
+  return binPaths
+}
+
+function replaceOrAddNodeIntoBinPaths (binPaths: string[], baseDir: string, nodePath: string): void {
+  const index: number | undefined = binPaths.findIndex(dir => dir.startsWith(baseDir))
+  if (index == null) {
+    binPaths.push(nodePath)
+  } else {
+    binPaths[index] = nodePath
+  }
+}
+
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {
   const fetch = createFetchFromRegistry(opts)
   const nodesDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
