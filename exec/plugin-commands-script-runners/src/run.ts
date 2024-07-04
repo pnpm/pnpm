@@ -6,6 +6,7 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
+import { node } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -155,7 +156,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv' | 'nodeOptions'>
+  & Pick<Config, 'bin' | 'dir' | 'engineStrict' | 'extraBinPaths' | 'pnpmHomeDir' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv' | 'nodeOptions'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
@@ -249,6 +250,9 @@ so you may run "pnpm -w run ${scriptName}"`,
     shellEmulator: opts.shellEmulator,
     stdio: (specifiedScripts.length > 1 && concurrency > 1) ? 'pipe' : 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+  }
+  if (manifest.pnpm?.useNodeVersion) {
+    lifecycleOpts.extraBinPaths = await node.createBinPathsWithNodeVersion(opts, manifest.pnpm.useNodeVersion)
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && await existsPnp(opts.workspaceDir)) ??

@@ -3,6 +3,7 @@ import path from 'path'
 import util from 'util'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
 import { type Config } from '@pnpm/config'
+import { node } from '@pnpm/plugin-commands-env'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,
@@ -20,8 +21,10 @@ import { tryBuildRegExpFromCommand } from './regexpCommand'
 import { type PackageScripts } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
+| 'bin'
 | 'enablePrePostScripts'
 | 'unsafePerm'
+| 'pnpmHomeDir'
 | 'rawConfig'
 | 'rootProjectManifest'
 | 'scriptsPrependNodePath'
@@ -120,6 +123,9 @@ export async function runRecursive (
             shellEmulator: opts.shellEmulator,
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+          }
+          if (pkg.package.manifest.pnpm?.useNodeVersion) {
+            lifecycleOpts.extraBinPaths = await node.createBinPathsWithNodeVersion(opts, pkg.package.manifest.pnpm.useNodeVersion)
           }
           const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
           if (pnpPath) {

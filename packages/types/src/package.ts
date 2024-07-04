@@ -146,6 +146,7 @@ export interface ProjectManifest extends BaseManifest {
     }
     requiredScripts?: string[]
     supportedArchitectures?: SupportedArchitectures
+    useNodeVersion?: string
   }
   private?: boolean
   resolutions?: Record<string, string>

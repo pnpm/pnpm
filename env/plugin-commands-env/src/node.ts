@@ -36,7 +36,7 @@ export type NvmNodeCommandOptions = Pick<Config,
   remote?: boolean
 }
 
-export type ConfigWithExtraBinPaths = NvmNodeCommandOptions & Pick<Config, 'extraBinPaths'>
+export type ConfigWithExtraBinPaths = NvmNodeCommandOptions & Partial<Pick<Config, 'extraBinPaths'>>
 
 export async function createBinPathsWithNodeVersion (config: ConfigWithExtraBinPaths, nodeVersion: string): Promise<string[]> {
   let baseDir = path.resolve(getNodeVersionsBaseDir(config.pnpmHomeDir))
@@ -49,7 +49,7 @@ export async function createBinPathsWithNodeVersion (config: ConfigWithExtraBinP
     useNodeVersion: nodeVersion,
   })
 
-  const binPaths = [...config.extraBinPaths]
+  const binPaths = config.extraBinPaths ? [...config.extraBinPaths] : []
   replaceOrAddNodeIntoBinPaths(binPaths, baseDir, nodePath)
 
   return binPaths
