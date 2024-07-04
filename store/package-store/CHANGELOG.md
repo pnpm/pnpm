@@ -1,5 +1,20 @@
 # @pnpm/package-store
 
+## 20.3.1
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/fetcher-base@16.0.3
+  - @pnpm/package-requester@25.2.1
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/store.cafs@3.0.4
+  - @pnpm/worker@1.0.5
+  - @pnpm/create-cafs-store@7.0.4
+
 ## 20.3.0
 
 ### Minor Changes

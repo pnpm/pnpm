@@ -1,5 +1,18 @@
 # @pnpm/fs.find-packages
 
+## 4.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/read-project-manifest@6.0.4
+
 ## 3.0.3
 
 ### Patch Changes

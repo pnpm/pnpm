@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-completion
 
+## 1.0.11
+
+### Patch Changes
+
+- fd884c1: Improve output of the `pnpm patch` command.
+- 9b5b869: update @pnpm/tabtab to v0.5.4, enabling zsh autocomplete lazy loading [#8236](https://github.com/pnpm/pnpm/pull/8236).
+- Updated dependencies [dd00eeb]
+- Updated dependencies [9c63679]
+- Updated dependencies [9b5b869]
+  - @pnpm/workspace.find-packages@4.0.0
+  - @pnpm/workspace.read-manifest@2.2.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+
 ## 1.0.10
 
 ### Patch Changes

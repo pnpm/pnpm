@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-listing
 
+## 10.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/list@10.1.6
+
 ## 9.1.8
 
 ### Patch Changes

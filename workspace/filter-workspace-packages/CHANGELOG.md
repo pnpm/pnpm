@@ -1,5 +1,17 @@
 # @pnpm/filter-workspace-packages
 
+## 10.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+  - @pnpm/workspace.find-packages@4.0.0
+  - @pnpm/workspace.pkgs-graph@4.0.0
+
 ## 9.0.0
 
 ### Major Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/command",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "description": "Types and utils for pnpm commands",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

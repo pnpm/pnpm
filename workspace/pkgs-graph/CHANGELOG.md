@@ -1,5 +1,18 @@
 # @pnpm/workspace.pkgs-graph
 
+## 4.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/npm-resolver@21.0.0
+  - @pnpm/types@11.0.0
+
 ## 3.0.6
 
 ### Patch Changes

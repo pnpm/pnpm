@@ -1,5 +1,22 @@
 # @pnpm/get-context
 
+## 12.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/modules-yaml@13.1.3
+  - @pnpm/read-projects-context@9.1.6
+
 ## 11.2.1
 
 ### Patch Changes

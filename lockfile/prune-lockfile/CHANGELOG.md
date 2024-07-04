@@ -1,5 +1,15 @@
 # @pnpm/prune-lockfile
 
+## 6.1.3
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/dependency-path@5.1.2
+
 ## 6.1.2
 
 ### Patch Changes

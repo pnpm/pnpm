@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-store
 
+## 9.2.2
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/get-context@12.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/store-connection-manager@8.3.1
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/normalize-registries@6.0.3
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/store.cafs@3.0.4
+
 ## 9.2.1
 
 ### Patch Changes

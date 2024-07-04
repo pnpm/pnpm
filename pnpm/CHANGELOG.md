@@ -1,5 +1,12 @@
 # pnpm
 
+## 9.5.0-beta.1
+
+### Patch Changes
+
+- Installation with filtering should work, when `dedupe-peer-dependents` is set to `true` [#6300](https://github.com/pnpm/pnpm/issues/6300).
+- Fix `dlx` not actually using node version specified by `--use-node-version`.
+
 ## 9.5.0-beta.0
 
 ### Minor Changes
