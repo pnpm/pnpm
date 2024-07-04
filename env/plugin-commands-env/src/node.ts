@@ -10,6 +10,7 @@ import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { getNodeMirror } from './getNodeMirror'
 import { parseNodeSpecifier } from './parseNodeSpecifier'
+import { replaceOrAddNodeIntoBinPaths } from './replaceOrAddNodeIntoBinPaths'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -50,20 +51,6 @@ export async function createBinPathsWithNodeVersion (config: ConfigWithExtraBinP
   replaceOrAddNodeIntoBinPaths(binPaths, baseDir, nodePath)
 
   return binPaths
-}
-
-function replaceOrAddNodeIntoBinPaths (binPaths: string[], baseDir: string, nodePath: string): void {
-  baseDir = path.resolve(baseDir)
-  if (!baseDir.endsWith(path.sep)) {
-    baseDir += path.sep
-  }
-
-  const index = binPaths.findIndex(dir => dir.startsWith(baseDir))
-  if (index < 0) {
-    binPaths.push(nodePath)
-  } else {
-    binPaths[index] = nodePath
-  }
 }
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {
