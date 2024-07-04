@@ -56,8 +56,8 @@ export async function createBinPathsWithNodeVersion (config: ConfigWithExtraBinP
 }
 
 function replaceOrAddNodeIntoBinPaths (binPaths: string[], baseDir: string, nodePath: string): void {
-  const index: number | undefined = binPaths.findIndex(dir => dir.startsWith(baseDir))
-  if (index == null) {
+  const index = binPaths.findIndex(dir => dir.startsWith(baseDir))
+  if (index < 0) {
     binPaths.push(nodePath)
   } else {
     binPaths[index] = nodePath
