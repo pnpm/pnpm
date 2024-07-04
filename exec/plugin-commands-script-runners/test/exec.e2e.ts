@@ -5,6 +5,7 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { exec, run } from '@pnpm/plugin-commands-script-runners'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { type ProjectRootDir } from '@pnpm/types'
 import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
@@ -441,7 +442,7 @@ test('pnpm exec shell mode', async () => {
     dir: process.cwd(),
     recursive: false,
     selectedProjectsGraph: {
-      [process.cwd()]: {
+      [process.cwd() as ProjectRootDir]: {
         dependencies: [],
         package: {
           rootDir: process.cwd(),
