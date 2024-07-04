@@ -11,6 +11,7 @@ import {
   mutateModules,
 } from '@pnpm/core'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { type ProjectRootDir } from '@pnpm/types'
 import { restartWorkerPool } from '@pnpm/worker'
 import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
@@ -152,7 +153,7 @@ test('installation fails if lifecycle script fails', async () => {
 
 test('INIT_CWD is always set to lockfile directory', async () => {
   prepareEmpty()
-  const rootDir = process.cwd()
+  const rootDir = process.cwd() as ProjectRootDir
   fs.mkdirSync('sub_dir')
   process.chdir('sub_dir')
   await mutateModulesInSingleProject({
@@ -303,7 +304,7 @@ test('lifecycle scripts run before linking bins', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ frozenLockfile: true }))
 
   project.isExecutable('.bin/cmd1')
@@ -324,7 +325,7 @@ test('hoisting does not fail on commands that will be created by lifecycle scrip
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
 
   // project.isExecutable('.pnpm/node_modules/.bin/cmd1')
@@ -356,7 +357,7 @@ test('bins are linked even if lifecycle scripts are ignored', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ frozenLockfile: true, ignoreScripts: true }))
 
   project.isExecutable('.bin/peer-with-bin')
@@ -385,7 +386,7 @@ test('dependency should not be added to current lockfile if it was not built suc
     mutateModulesInSingleProject({
       manifest,
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults({ frozenLockfile: true }))
   ).rejects.toThrow()
 
@@ -524,7 +525,7 @@ test('lifecycle scripts run after linking root dependencies', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ fastUnpack: false }))
 
   rimraf('node_modules')
@@ -532,7 +533,7 @@ test('lifecycle scripts run after linking root dependencies', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ fastUnpack: false, frozenLockfile: true }))
 
   // if there was no exception, the test passed
@@ -594,19 +595,19 @@ test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted',
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-4'),
+      rootDir: path.resolve('project-4') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -620,7 +621,7 @@ test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted',
           '@pnpm.e2e/pre-and-postinstall-scripts-example': '1',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -632,7 +633,7 @@ test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted',
           '@pnpm.e2e/pre-and-postinstall-scripts-example': '1',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -644,7 +645,7 @@ test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted',
           '@pnpm.e2e/pre-and-postinstall-scripts-example': '2',
         },
       },
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -656,7 +657,7 @@ test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted',
           '@pnpm.e2e/pre-and-postinstall-scripts-example': '2',
         },
       },
-      rootDir: path.resolve('project-4'),
+      rootDir: path.resolve('project-4') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({

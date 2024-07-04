@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, mutateModulesInSingleProject, install } from '@pnpm/core'
-import { type PackageExtension, type ProjectManifest } from '@pnpm/types'
+import { type ProjectRootDir, type PackageExtension, type ProjectManifest } from '@pnpm/types'
 import { createObjectChecksum } from '../../lib/install/index'
 import {
   testDefaults,
@@ -42,7 +42,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ packageExtensions }))
 
   {
@@ -63,7 +63,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ frozenLockfile: true, packageExtensions }))
 
   {
@@ -85,7 +85,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
     mutateModulesInSingleProject({
       manifest,
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults({ frozenLockfile: true, packageExtensions }))
   ).rejects.toThrow(
     new PnpmError('LOCKFILE_CONFIG_MISMATCH',

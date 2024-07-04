@@ -17,7 +17,7 @@ import { existsInDir } from './existsInDir'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
 import { runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
-import { type PackageScripts } from '@pnpm/types'
+import { type PackageScripts, type ProjectRootDir } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
@@ -48,8 +48,8 @@ export async function runRecursive (
 
   const sortedPackageChunks = opts.sort
     ? sortPackages(opts.selectedProjectsGraph)
-    : [Object.keys(opts.selectedProjectsGraph).sort()]
-  let packageChunks = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
+    : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
+  let packageChunks: ProjectRootDir[][] = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
 
   if (opts.resumeFrom) {
     packageChunks = getResumedPackageChunks({

@@ -2,24 +2,24 @@ import path from 'path'
 import npa from '@pnpm/npm-package-arg'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import { parsePref, workspacePrefToNpm } from '@pnpm/npm-resolver'
-import { type BaseManifest } from '@pnpm/types'
+import { type ProjectRootDir, type BaseManifest } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 
 export interface Package {
   manifest: BaseManifest
-  rootDir: string
+  rootDir: ProjectRootDir
 }
 
 export interface PackageNode<Pkg extends Package> {
   package: Pkg
-  dependencies: string[]
+  dependencies: ProjectRootDir[]
 }
 
 export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
 }): {
-    graph: Record<string, PackageNode<Pkg>>
+    graph: Record<ProjectRootDir, PackageNode<Pkg>>
     unmatched: Array<{ pkgName: string, range: string }>
   } {
   const pkgMap = createPkgMap(pkgs)
@@ -30,7 +30,7 @@ export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
   const graph = mapValues((pkg) => ({
     dependencies: createNode(pkg),
     package: pkg,
-  }), pkgMap) as Record<string, PackageNode<Pkg>>
+  }), pkgMap) as Record<ProjectRootDir, PackageNode<Pkg>>
   return { graph, unmatched }
 
   function createNode (pkg: Package): string[] {
@@ -107,8 +107,8 @@ export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
   }
 }
 
-function createPkgMap (pkgs: Package[]): Record<string, Package> {
-  const pkgMap: Record<string, Package> = {}
+function createPkgMap (pkgs: Package[]): Record<ProjectRootDir, Package> {
+  const pkgMap: Record<ProjectRootDir, Package> = {}
   for (const pkg of pkgs) {
     pkgMap[pkg.rootDir] = pkg
   }

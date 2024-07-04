@@ -26,7 +26,7 @@ import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
-import { type DepPath, type ProjectManifest, type ProjectId } from '@pnpm/types'
+import { type DepPath, type ProjectManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import * as dp from '@pnpm/dependency-path'
 import { hardLinkDir } from '@pnpm/worker'
@@ -87,7 +87,7 @@ type PackageSelector = string | {
 }
 
 export async function rebuildSelectedPkgs (
-  projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
+  projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
 ): Promise<void> {
@@ -133,7 +133,7 @@ export async function rebuildSelectedPkgs (
 }
 
 export async function rebuildProjects (
-  projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
+  projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>,
   maybeOpts: RebuildOptions
 ): Promise<void> {
   const reporter = maybeOpts?.reporter
@@ -241,7 +241,7 @@ async function _rebuild (
     virtualStoreDir: string
     rootModulesDir: string
     currentLockfile: Lockfile
-    projects: Record<string, { id: ProjectId, rootDir: string }>
+    projects: Record<string, { id: ProjectId, rootDir: ProjectRootDir }>
     extraBinPaths: string[]
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,

@@ -3,6 +3,7 @@ import { assertProject } from '@pnpm/assert-project'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject, type PackageManifest } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import { testDefaults } from '../utils'
@@ -246,7 +247,7 @@ test('automatically install root peer dependencies', async () => {
     dependencyNames: ['is-odd'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ autoInstallPeers: true, resolutionMode: 'lowest-direct' }))
   project.hasNot('is-odd')
   project.has('is-positive')
@@ -273,11 +274,11 @@ test('automatically install peer dependency when it is a dev dependency in anoth
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ], testDefaults({
     allProjects: [
@@ -289,7 +290,7 @@ test('automatically install peer dependency when it is a dev dependency in anoth
             'is-positive': '1.0.0',
           },
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -299,7 +300,7 @@ test('automatically install peer dependency when it is a dev dependency in anoth
             'is-positive': '1.0.0',
           },
         },
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
     ],
     autoInstallPeers: true,
@@ -328,11 +329,11 @@ test('auto install peer deps in a workspace. test #1', async () => {
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('project1'),
+      rootDir: path.resolve('project1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project2'),
+      rootDir: path.resolve('project2') as ProjectRootDir,
     },
   ], testDefaults({
     autoInstallPeers: true,
@@ -345,7 +346,7 @@ test('auto install peer deps in a workspace. test #1', async () => {
             '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
           },
         },
-        rootDir: path.resolve('project1'),
+        rootDir: path.resolve('project1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -355,7 +356,7 @@ test('auto install peer deps in a workspace. test #1', async () => {
             '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
           },
         },
-        rootDir: path.resolve('project2'),
+        rootDir: path.resolve('project2') as ProjectRootDir,
       },
     ],
     dedupePeerDependents: false,
@@ -370,11 +371,11 @@ test('auto install peer deps in a workspace. test #2', async () => {
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project'),
+      rootDir: path.resolve('project') as ProjectRootDir,
     },
   ], testDefaults({
     autoInstallPeers: true,
@@ -388,7 +389,7 @@ test('auto install peer deps in a workspace. test #2', async () => {
             '@pnpm.e2e/peer-c': '1.0.0',
           },
         },
-        rootDir: process.cwd(),
+        rootDir: process.cwd() as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -398,7 +399,7 @@ test('auto install peer deps in a workspace. test #2', async () => {
             '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
           },
         },
-        rootDir: path.resolve('project'),
+        rootDir: path.resolve('project') as ProjectRootDir,
       },
     ],
   }))
@@ -416,11 +417,11 @@ test('installation on a workspace with many complex circular dependencies does n
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('project1'),
+      rootDir: path.resolve('project1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project2'),
+      rootDir: path.resolve('project2') as ProjectRootDir,
     },
   ], testDefaults({
     autoInstallPeers: true,
@@ -528,7 +529,7 @@ test('installation on a workspace with many complex circular dependencies does n
             typescript: '4.8.4',
           },
         },
-        rootDir: path.resolve('project1'),
+        rootDir: path.resolve('project1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -558,7 +559,7 @@ test('installation on a workspace with many complex circular dependencies does n
             'tsparticles-engine': '2.3.3',
           },
         },
-        rootDir: path.resolve('project2'),
+        rootDir: path.resolve('project2') as ProjectRootDir,
       },
     ],
   }))

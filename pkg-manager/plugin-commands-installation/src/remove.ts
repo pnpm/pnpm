@@ -11,7 +11,7 @@ import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type DependenciesField } from '@pnpm/types'
+import { type DependenciesField, type ProjectRootDir } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'
@@ -206,7 +206,7 @@ export async function handler (
       dependencyNames: params,
       manifest: currentManifest,
       mutation: 'uninstallSome',
-      rootDir: opts.dir,
+      rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField,
     },
     removeOpts

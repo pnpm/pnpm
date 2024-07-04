@@ -3,6 +3,7 @@ import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
 import { preparePackages } from '@pnpm/prepare'
+import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as writeJsonFile } from 'write-json-file'
 import { testDefaults } from '../utils'
@@ -69,32 +70,32 @@ test('inject local packages', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   const allProjects: ProjectOptions[] = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -273,32 +274,32 @@ test('inject local packages declared via file protocol', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   const allProjects: ProjectOptions[] = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -468,32 +469,32 @@ test('inject local packages when the file protocol is used', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   const allProjects: ProjectOptions[] = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -648,23 +649,23 @@ test('inject local packages and relink them after build', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -764,23 +765,23 @@ test('inject local packages and relink them after build (file protocol is used)'
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ autoInstallPeers: false, allProjects }))
@@ -894,32 +895,32 @@ test('inject local packages when node-linker is hoisted', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -1035,32 +1036,32 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -1191,32 +1192,32 @@ test('peer dependency of injected project should be resolved correctly', async (
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -1271,23 +1272,23 @@ test('do not modify the manifest of the injected workspace project', async () =>
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const [project1] = (await mutateModules(importers, testDefaults({
@@ -1369,41 +1370,41 @@ test('injected package is kept up-to-date when it is hoisted to multiple places'
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: rootProjectManifest,
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -1453,23 +1454,23 @@ test('relink injected dependency on install by default', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('dep'),
+      rootDir: path.resolve('dep') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('main'),
+      rootDir: path.resolve('main') as ProjectRootDir,
     },
   ]
   const allProjects: ProjectOptions[] = [
     {
       buildIndex: 0,
       manifest: depManifest,
-      rootDir: path.resolve('dep'),
+      rootDir: path.resolve('dep') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: mainManifest,
-      rootDir: path.resolve('main'),
+      rootDir: path.resolve('main') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -1530,23 +1531,23 @@ test('do not relink injected dependency on install when disableRelinkLocalDirDep
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('dep'),
+      rootDir: path.resolve('dep') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('main'),
+      rootDir: path.resolve('main') as ProjectRootDir,
     },
   ]
   const allProjects: ProjectOptions[] = [
     {
       buildIndex: 0,
       manifest: depManifest,
-      rootDir: path.resolve('dep'),
+      rootDir: path.resolve('dep') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: mainManifest,
-      rootDir: path.resolve('main'),
+      rootDir: path.resolve('main') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -1680,50 +1681,50 @@ test('injected local packages are deduped', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-4'),
+      rootDir: path.resolve('project-4') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-5'),
+      rootDir: path.resolve('project-5') as ProjectRootDir,
     },
   ]
   const allProjects: ProjectOptions[] = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project4Manifest,
-      rootDir: path.resolve('project-4'),
+      rootDir: path.resolve('project-4') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project5Manifest,
-      rootDir: path.resolve('project-5'),
+      rootDir: path.resolve('project-5') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({

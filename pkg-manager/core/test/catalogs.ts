@@ -1,5 +1,5 @@
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
-import { type ProjectId, type ProjectManifest } from '@pnpm/types'
+import { type ProjectRootDir, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions } from '@pnpm/core'
 import path from 'path'
@@ -15,8 +15,7 @@ function preparePackagesAndReturnObjects (manifests: Array<ProjectManifest & Req
     .map(([id, manifest]) => ({
       buildIndex: 0,
       manifest,
-      dir: path.resolve(id),
-      rootDir: path.resolve(id),
+      rootDir: path.resolve(id) as ProjectRootDir,
     }))
   return {
     ...project,
@@ -33,7 +32,7 @@ function installProjects (projects: Record<ProjectId, ProjectManifest>): Mutated
       mutation: 'install',
       id,
       manifest,
-      rootDir: path.resolve(id),
+      rootDir: path.resolve(id) as ProjectRootDir,
     }))
 }
 

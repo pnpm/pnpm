@@ -5,7 +5,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
-import { type DepPath } from '@pnpm/types'
+import { type ProjectRootDir, type DepPath } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
@@ -51,7 +51,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
     dependencySelectors: ['file:pkg.tgz'],
     manifest: {},
     mutation: 'installSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ lockfileDir }))
 
   const lockfile = readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -63,7 +63,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ frozenLockfile: true, lockfileDir }))
 
   project.has('tar-pkg-with-dep')

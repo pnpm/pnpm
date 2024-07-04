@@ -1,4 +1,4 @@
-import { type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
+import { type ProjectRootDir, type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
 
 export { type PkgResolutionId }
 
@@ -44,7 +44,7 @@ export interface ResolveResult {
 }
 
 export interface WorkspacePackage {
-  rootDir: string
+  rootDir: ProjectRootDir
   manifest: DependencyManifest
 }
 

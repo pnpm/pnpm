@@ -20,6 +20,7 @@ import {
   DEPENDENCIES_FIELDS,
   type HoistedDependencies,
   type ProjectId,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import rimraf from '@zkochan/rimraf'
@@ -36,7 +37,7 @@ export async function prune (
     modulesDir: string
     pruneDirectDependencies?: boolean
     removePackages?: string[]
-    rootDir: string
+    rootDir: ProjectRootDir
   }>,
   opts: {
     dedupeDirectDeps?: boolean
@@ -160,7 +161,7 @@ export async function prune (
               binsDir: path.join(modulesDir, '.bin'),
               modulesDir,
               muteLogs: true,
-              rootDir: prefix,
+              rootDir: prefix as ProjectRootDir,
             })
           }))
         }

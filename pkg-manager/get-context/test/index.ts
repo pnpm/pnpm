@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import { getContext, arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { type ProjectRootDir } from '@pnpm/types'
 import path from 'path'
 import { type GetContextOptions } from '../src'
 
@@ -44,7 +45,7 @@ test('getContext - extendNodePath true', async () => {
 // see https://github.com/pnpm/pnpm/issues/2648
 test('arrayOfWorkspacePackagesToMap() treats private packages with no version as packages with 0.0.0 version', () => {
   const privateProject = {
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
     manifest: {
       name: 'private-pkg',
     },

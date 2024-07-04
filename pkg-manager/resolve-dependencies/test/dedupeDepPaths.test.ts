@@ -1,4 +1,4 @@
-import { type PkgResolutionId, type PkgIdWithPatchHash } from '@pnpm/types'
+import { type PkgResolutionId, type PkgIdWithPatchHash, type ProjectRootDir } from '@pnpm/types'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import { type DependenciesTreeNode } from '../lib/resolveDependencies'
 import { type NodeId } from '../lib/nextNodeId'
@@ -42,7 +42,7 @@ test('packages are not deduplicated when versions do not match', async () => {
           ['bar', '>project1>bar/1.0.0>' as NodeId],
         ]),
         topParents: [],
-        rootDir: '',
+        rootDir: '' as ProjectRootDir,
         id: 'project1' as PkgResolutionId,
       },
       {
@@ -52,7 +52,7 @@ test('packages are not deduplicated when versions do not match', async () => {
           ['baz', '>project2>baz/1.0.0>' as NodeId],
         ]),
         topParents: [],
-        rootDir: '',
+        rootDir: '' as ProjectRootDir,
         id: 'project2' as PkgResolutionId,
       },
       {
@@ -61,7 +61,7 @@ test('packages are not deduplicated when versions do not match', async () => {
           ['bar', '>project3>bar/2.0.0>' as NodeId],
         ]),
         topParents: [],
-        rootDir: '',
+        rootDir: '' as ProjectRootDir,
         id: 'project3' as PkgResolutionId,
       },
       {
@@ -71,7 +71,7 @@ test('packages are not deduplicated when versions do not match', async () => {
           ['baz', '>project4>baz/2.0.0>' as NodeId],
         ]),
         topParents: [],
-        rootDir: '',
+        rootDir: '' as ProjectRootDir,
         id: 'project4' as PkgResolutionId,
       },
     ],

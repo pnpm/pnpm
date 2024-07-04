@@ -5,6 +5,7 @@ import { install, type MutatedProject, mutateModules } from '@pnpm/core'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { type LockfileV9 as Lockfile, type PackageSnapshots } from '@pnpm/lockfile-file'
+import { type ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils'
 
 test('fix broken lockfile with --fix-lockfile', async () => {
@@ -79,15 +80,15 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('.'),
+      rootDir: path.resolve('.') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
 
@@ -175,7 +176,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
           name: 'root',
           version: '1.0.0',
         },
-        rootDir: path.resolve('.'),
+        rootDir: path.resolve('.') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -186,7 +187,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
             '@babel/runtime-corejs3': '7.15.3',
           },
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -197,7 +198,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
             '@babel/runtime-corejs3': '7.15.4',
           },
         },
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
     ],
   }))

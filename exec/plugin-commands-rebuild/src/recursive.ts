@@ -11,7 +11,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type Project, type ProjectManifest } from '@pnpm/types'
+import { type Project, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import mem from 'mem'
 import pLimit from 'p-limit'
 import { rebuildProjects as rebuildAll, type RebuildOptions, rebuildSelectedPkgs } from './implementation'
@@ -59,7 +59,7 @@ export async function recursiveRebuild (
 
   const chunks = opts.sort !== false
     ? sortPackages(opts.selectedProjectsGraph)
-    : [Object.keys(opts.selectedProjectsGraph).sort()]
+    : [Object.keys(opts.selectedProjectsGraph).sort() as ProjectRootDir[]]
 
   const store = await createOrConnectStoreController(opts)
 
@@ -76,8 +76,8 @@ export async function recursiveRebuild (
   const memReadLocalConfig = mem(readLocalConfig)
 
   async function getImporters () {
-    const importers = [] as Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>
-    await Promise.all(chunks.map(async (prefixes: string[], buildIndex) => {
+    const importers = [] as Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: ProjectRootDir }>
+    await Promise.all(chunks.map(async (prefixes, buildIndex) => {
       if (opts.ignoredPackages != null) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
@@ -113,7 +113,7 @@ export async function recursiveRebuild (
   const limitRebuild = pLimit(opts.workspaceConcurrency ?? 4)
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
-    await Promise.all(chunk.map(async (rootDir: string) =>
+    await Promise.all(chunk.map(async (rootDir) =>
       limitRebuild(async () => {
         try {
           if (opts.ignoredPackages?.has(rootDir)) {

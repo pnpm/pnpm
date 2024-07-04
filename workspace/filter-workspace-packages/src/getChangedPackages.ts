@@ -5,32 +5,37 @@ import { PnpmError } from '@pnpm/error'
 import * as micromatch from 'micromatch'
 import execa from 'execa'
 import findUp from 'find-up'
+import { type ProjectRootDir } from '@pnpm/types'
 
 type ChangeType = 'source' | 'test'
 
 interface ChangedDir { dir: string, changeType: ChangeType }
 
-export async function getChangedPackages (packageDirs: string[], commit: string, opts: { workspaceDir: string, testPattern?: string[], changedFilesIgnorePattern?: string[] }): Promise<[string[], string[]]> {
+export async function getChangedPackages (
+  packageDirs: ProjectRootDir[],
+  commit: string,
+  opts: { workspaceDir: string, testPattern?: string[], changedFilesIgnorePattern?: string[] }
+): Promise<[ProjectRootDir[], ProjectRootDir[]]> {
   const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) ?? opts.workspaceDir, '..')
   const changedDirs = (await getChangedDirsSinceCommit(commit, opts.workspaceDir, opts.testPattern ?? [], opts.changedFilesIgnorePattern ?? []))
     .map(changedDir => ({ ...changedDir, dir: path.join(repoRoot, changedDir.dir) }))
-  const pkgChangeTypes = new Map<string, ChangeType | undefined>()
+  const pkgChangeTypes = new Map<ProjectRootDir, ChangeType | undefined>()
   for (const pkgDir of packageDirs) {
     pkgChangeTypes.set(pkgDir, undefined)
   }
   for (const changedDir of changedDirs) {
     let currentDir = changedDir.dir
-    while (!pkgChangeTypes.has(currentDir)) {
+    while (!pkgChangeTypes.has(currentDir as ProjectRootDir)) {
       const nextDir = path.dirname(currentDir)
       if (nextDir === currentDir) break
       currentDir = nextDir
     }
-    if (pkgChangeTypes.get(currentDir) === 'source') continue
-    pkgChangeTypes.set(currentDir, changedDir.changeType)
+    if (pkgChangeTypes.get(currentDir as ProjectRootDir) === 'source') continue
+    pkgChangeTypes.set(currentDir as ProjectRootDir, changedDir.changeType)
   }
 
-  const changedPkgs = [] as string[]
-  const ignoreDependentForPkgs = [] as string[]
+  const changedPkgs = [] as ProjectRootDir[]
+  const ignoreDependentForPkgs = [] as ProjectRootDir[]
   for (const [changedDir, changeType] of pkgChangeTypes.entries()) {
     switch (changeType) {
     case 'source':

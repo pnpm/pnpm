@@ -1,6 +1,6 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import { type ProjectId } from '@pnpm/types'
+import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { allProjectsAreUpToDate } from '../lib/install/allProjectsAreUpToDate'
 import { writeFile, mkdir } from 'fs/promises'
 import { type Lockfile } from '@pnpm/lockfile-file'
@@ -12,7 +12,7 @@ const fooManifest = {
 const workspacePackages = new Map([
   ['foo', new Map([
     ['1.0.0', {
-      rootDir: 'foo',
+      rootDir: 'foo' as ProjectRootDir,
       manifest: fooManifest,
     }],
   ])],
@@ -27,12 +27,12 @@ test('allProjectsAreUpToDate(): works with packages linked through the workspace
           foo: 'workspace:../foo',
         },
       },
-      rootDir: 'bar',
+      rootDir: 'bar' as ProjectRootDir,
     },
     {
       id: 'foo' as ProjectId,
       manifest: fooManifest,
-      rootDir: 'foo',
+      rootDir: 'foo' as ProjectRootDir,
     },
   ], {
     autoInstallPeers: false,
@@ -69,12 +69,12 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async ()
           alias: 'npm:foo',
         },
       },
-      rootDir: 'bar',
+      rootDir: 'bar' as ProjectRootDir,
     },
     {
       id: 'foo' as ProjectId,
       manifest: fooManifest,
-      rootDir: 'foo',
+      rootDir: 'foo' as ProjectRootDir,
     },
   ], {
     autoInstallPeers: false,
@@ -111,12 +111,12 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
           alias: 'npm:foo@1',
         },
       },
-      rootDir: 'bar',
+      rootDir: 'bar' as ProjectRootDir,
     },
     {
       id: 'foo' as ProjectId,
       manifest: fooManifest,
-      rootDir: 'foo',
+      rootDir: 'foo' as ProjectRootDir,
     },
   ], {
     autoInstallPeers: false,
@@ -153,12 +153,12 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
           alias: 'npm:foo@0',
         },
       },
-      rootDir: 'bar',
+      rootDir: 'bar' as ProjectRootDir,
     },
     {
       id: 'foo' as ProjectId,
       manifest: fooManifest,
-      rootDir: 'foo',
+      rootDir: 'foo' as ProjectRootDir,
     },
   ], {
     autoInstallPeers: false,
@@ -199,7 +199,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
               foo3: 'workspace:^',
             },
           },
-          rootDir: 'bar',
+          rootDir: 'bar' as ProjectRootDir,
         },
         {
           id: 'bar2' as ProjectId,
@@ -208,12 +208,12 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
               foo: '1.0.0',
             },
           },
-          rootDir: 'bar2',
+          rootDir: 'bar2' as ProjectRootDir,
         },
         {
           id: 'foo' as ProjectId,
           manifest: fooManifest,
-          rootDir: 'foo',
+          rootDir: 'foo' as ProjectRootDir,
         },
         {
           id: 'foo2' as ProjectId,
@@ -221,7 +221,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
             name: 'foo2',
             version: '1.0.0',
           },
-          rootDir: 'foo2',
+          rootDir: 'foo2' as ProjectRootDir,
         },
         {
           id: 'foo3' as ProjectId,
@@ -229,7 +229,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
             name: 'foo3',
             version: '1.0.0',
           },
-          rootDir: 'foo3',
+          rootDir: 'foo3' as ProjectRootDir,
         },
       ],
       {
@@ -292,12 +292,12 @@ test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', asyn
           },
         },
       },
-      rootDir: 'bar',
+      rootDir: 'bar' as ProjectRootDir,
     },
     {
       id: 'foo' as ProjectId,
       manifest: fooManifest,
-      rootDir: 'foo',
+      rootDir: 'foo' as ProjectRootDir,
     },
   ], {
     autoInstallPeers: false,
@@ -339,12 +339,12 @@ test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async
           },
         },
       },
-      rootDir: 'bar',
+      rootDir: 'bar' as ProjectRootDir,
     },
     {
       id: 'foo' as ProjectId,
       manifest: fooManifest,
-      rootDir: 'foo',
+      rootDir: 'foo' as ProjectRootDir,
     },
   ], {
     autoInstallPeers: false,
@@ -397,12 +397,12 @@ describe('local file dependency', () => {
           local: 'file:./local-dir',
         },
       },
-      rootDir: 'bar',
+      rootDir: 'bar' as ProjectRootDir,
     },
     {
       id: 'foo' as ProjectId,
       manifest: fooManifest,
-      rootDir: 'foo',
+      rootDir: 'foo' as ProjectRootDir,
     },
   ]
   const options = {
@@ -497,12 +497,12 @@ test('allProjectsAreUpToDate(): returns true if workspace dependency\'s version 
           foo: 'unpublished-tag',
         },
       },
-      rootDir: 'bar',
+      rootDir: 'bar' as ProjectRootDir,
     },
     {
       id: 'foo' as ProjectId,
       manifest: fooManifest,
-      rootDir: 'foo',
+      rootDir: 'foo' as ProjectRootDir,
     },
   ]
   const options = {

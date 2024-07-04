@@ -9,7 +9,7 @@ import { type LockfileFileV9 } from '@pnpm/lockfile-types'
 import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { type DepPath, type ProjectManifest } from '@pnpm/types'
+import { type DepPath, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -696,7 +696,7 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
       dependencyNames: ['is-positive'],
       manifest,
       mutation: 'uninstallSome',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults({ useLockfile: false, reporter }))
 
     expect(reporter.calledWithMatch(LOCKFILE_WARN_LOG)).toBeTruthy()
@@ -950,11 +950,11 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     [
       {
         mutation: 'install',
-        rootDir: path.resolve('pkg1'),
+        rootDir: path.resolve('pkg1') as ProjectRootDir,
       },
       {
         mutation: 'install',
-        rootDir: path.resolve('pkg2'),
+        rootDir: path.resolve('pkg2') as ProjectRootDir,
       },
     ],
     testDefaults({
@@ -962,12 +962,12 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
         {
           buildIndex: 0,
           manifest: pkg1,
-          rootDir: path.resolve('pkg1'),
+          rootDir: path.resolve('pkg1') as ProjectRootDir,
         },
         {
           buildIndex: 0,
           manifest: pkg2,
-          rootDir: path.resolve('pkg2'),
+          rootDir: path.resolve('pkg2') as ProjectRootDir,
         },
       ],
     })
@@ -1008,7 +1008,7 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults())
 
   const updatedLockfile = project.readLockfile()
@@ -1035,7 +1035,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
     await mutateModulesInSingleProject({
       manifest,
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults({ frozenLockfile: true }))
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -1045,7 +1045,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ preferFrozenLockfile: true }))
 
   project.has('@pnpm.e2e/pkg-with-1-dep')
@@ -1339,7 +1339,7 @@ packages:
   await mutateModulesInSingleProject({
     mutation: 'install',
     manifest,
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ reporter }))
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
@@ -1388,7 +1388,7 @@ test('a broken lockfile should not break the store', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
 
   delete lockfile.packages!['is-positive@1.0.0' as DepPath].name
@@ -1400,7 +1400,7 @@ test('a broken lockfile should not break the store', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
 })
 
@@ -1459,7 +1459,7 @@ test('update the lockfile when a new project is added to the workspace', async (
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
   ]
   const allProjects: ProjectOptions[] = [
@@ -1473,14 +1473,14 @@ test('update the lockfile when a new project is added to the workspace', async (
           'is-positive': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects }))
 
   importers.push({
     mutation: 'install',
-    rootDir: path.resolve('project-2'),
+    rootDir: path.resolve('project-2') as ProjectRootDir,
   })
   allProjects.push({
     buildIndex: 0,
@@ -1488,7 +1488,7 @@ test('update the lockfile when a new project is added to the workspace', async (
       name: 'project-2',
       version: '1.0.0',
     },
-    rootDir: path.resolve('project-2'),
+    rootDir: path.resolve('project-2') as ProjectRootDir,
   })
   await mutateModules(importers, testDefaults({ allProjects }))
 
@@ -1507,7 +1507,7 @@ test('update the lockfile when a new project is added to the workspace and lockf
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
   ]
   const allProjects: ProjectOptions[] = [
@@ -1521,14 +1521,14 @@ test('update the lockfile when a new project is added to the workspace and lockf
           'is-positive': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
 
   importers.push({
     mutation: 'install',
-    rootDir: path.resolve('project-2'),
+    rootDir: path.resolve('project-2') as ProjectRootDir,
   })
   allProjects.push({
     buildIndex: 0,
@@ -1536,7 +1536,7 @@ test('update the lockfile when a new project is added to the workspace and lockf
       name: 'project-2',
       version: '1.0.0',
     },
-    rootDir: path.resolve('project-2'),
+    rootDir: path.resolve('project-2') as ProjectRootDir,
   })
   await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
 

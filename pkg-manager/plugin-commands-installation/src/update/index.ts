@@ -10,7 +10,7 @@ import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { PnpmError } from '@pnpm/error'
-import { type IncludedDependencies } from '@pnpm/types'
+import { type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
@@ -185,7 +185,7 @@ async function interactiveUpdate (
     ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     : [
       {
-        rootDir: opts.dir,
+        rootDir: opts.dir as ProjectRootDir,
         manifest: await readProjectManifestOnly(opts.dir, opts),
       },
     ]
