@@ -3,6 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import { type ProjectRootDir } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import { testDefaults } from '../utils'
@@ -21,7 +22,7 @@ test('fail if none of the available resolvers support a version spec', async () 
         },
       },
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults())
     throw new Error('should have failed')
   } catch (_err: any) { // eslint-disable-line

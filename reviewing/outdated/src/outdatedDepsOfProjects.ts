@@ -8,13 +8,14 @@ import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   type IncludedDependencies,
   type ProjectManifest,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import unnest from 'ramda/src/unnest'
 import { createManifestGetter, type ManifestGetterOptions } from './createManifestGetter'
 import { outdated, type OutdatedPackage } from './outdated'
 
 export async function outdatedDepsOfProjects (
-  pkgs: Array<{ rootDir: string, manifest: ProjectManifest }>,
+  pkgs: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>,
   args: string[],
   opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'> & {
     compatible?: boolean

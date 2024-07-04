@@ -7,7 +7,7 @@ import { addDistTag } from '@pnpm/registry-mock'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type MutatedProject, type ProjectOptions, addDependenciesToPackage, mutateModulesInSingleProject, mutateModules } from '@pnpm/core'
 import { type LockfileFileV9 } from '@pnpm/lockfile-types'
-import { type ProjectManifest } from '@pnpm/types'
+import { type ProjectRootDir, type ProjectManifest } from '@pnpm/types'
 import {
   testDefaults,
 } from '../utils'
@@ -46,7 +46,7 @@ test('versions are replaced with versions specified through overrides option', a
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, { ...testDefaults(), ignorePackageManifest: true, overrides })
 
   // The lockfile is updated if the overrides are changed
@@ -56,7 +56,7 @@ test('versions are replaced with versions specified through overrides option', a
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ overrides }))
 
   {
@@ -77,7 +77,7 @@ test('versions are replaced with versions specified through overrides option', a
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ frozenLockfile: true, overrides }))
 
   {
@@ -97,7 +97,7 @@ test('versions are replaced with versions specified through overrides option', a
     mutateModulesInSingleProject({
       manifest,
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults({ frozenLockfile: true, overrides }))
   ).rejects.toThrow(
     new PnpmError('LOCKFILE_CONFIG_MISMATCH',
@@ -187,12 +187,12 @@ test('overrides with local file and link specs', async () => {
 
   const importers = [root, direct, indirect].map(({ location }): MutatedProject => ({
     mutation: 'install',
-    rootDir: path.resolve(location),
+    rootDir: path.resolve(location) as ProjectRootDir,
   }))
   const allProjects = [root, direct, indirect].map((input): ProjectOptions => ({
     buildIndex: 0,
     manifest: input.package,
-    rootDir: path.resolve(input.location),
+    rootDir: path.resolve(input.location) as ProjectRootDir,
   }))
   await mutateModules(importers, {
     ...testDefaults({ allProjects }),

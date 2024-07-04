@@ -5,6 +5,7 @@ import { type LockfileV9 as Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import { type ProjectRootDir } from '@pnpm/types'
 import {
   addDependenciesToPackage,
   install,
@@ -254,7 +255,7 @@ test('do not update deps when installing in a project that has local tarball dep
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults())
 
   const latestLockfile = project.readLockfile()
@@ -359,32 +360,32 @@ test('resolution should not fail when a peer is resolved from a local package an
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve(manifest1.name),
+      rootDir: path.resolve(manifest1.name) as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve(manifest2.name),
+      rootDir: path.resolve(manifest2.name) as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve(manifest3.name),
+      rootDir: path.resolve(manifest3.name) as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: manifest1,
-      rootDir: path.resolve(manifest1.name),
+      rootDir: path.resolve(manifest1.name) as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: manifest2,
-      rootDir: path.resolve(manifest2.name),
+      rootDir: path.resolve(manifest2.name) as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: manifest3,
-      rootDir: path.resolve(manifest3.name),
+      rootDir: path.resolve(manifest3.name) as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true, strictPeerDependencies: false }))

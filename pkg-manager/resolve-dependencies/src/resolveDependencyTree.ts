@@ -11,6 +11,7 @@ import {
   type ProjectId,
   type ReadPackageHook,
   type Registries,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
@@ -68,7 +69,7 @@ export interface Importer<WantedDepExtraProps> {
   manifest: ProjectManifest
   modulesDir: string
   removePackages?: string[]
-  rootDir: string
+  rootDir: ProjectRootDir
   wantedDependencies: Array<WantedDepExtraProps & WantedDependency>
 }
 

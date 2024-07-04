@@ -14,7 +14,7 @@ import {
   type OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { type DependenciesField, type PackageManifest } from '@pnpm/types'
+import { type DependenciesField, type PackageManifest, type ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
@@ -173,7 +173,7 @@ export async function handler (
   const manifest = await readProjectManifestOnly(opts.dir, opts)
   const packages = [
     {
-      rootDir: opts.dir,
+      rootDir: opts.dir as ProjectRootDir,
       manifest,
     },
   ]

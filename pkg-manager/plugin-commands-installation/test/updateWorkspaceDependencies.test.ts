@@ -1,4 +1,5 @@
 import { type PnpmError } from '@pnpm/error'
+import { type ProjectRootDir } from '@pnpm/types'
 import {
   createWorkspaceSpecs,
   updateToWorkspacePackagesFromManifest,
@@ -13,7 +14,7 @@ const INCLUDE_ALL = {
 const WORKSPACE_PACKAGES = new Map([
   ['bar', new Map([
     ['100.0.0', {
-      rootDir: '',
+      rootDir: '' as ProjectRootDir,
       manifest: {
         name: 'foo',
         version: '100.0.0',
@@ -22,7 +23,7 @@ const WORKSPACE_PACKAGES = new Map([
   ])],
   ['foo', new Map([
     ['100.0.0', {
-      rootDir: '',
+      rootDir: '' as ProjectRootDir,
       manifest: {
         name: 'foo',
         version: '100.0.0',
@@ -31,7 +32,7 @@ const WORKSPACE_PACKAGES = new Map([
   ])],
   ['qar', new Map([
     ['100.0.0', {
-      rootDir: '',
+      rootDir: '' as ProjectRootDir,
       manifest: {
         name: 'foo',
         version: '100.0.0',

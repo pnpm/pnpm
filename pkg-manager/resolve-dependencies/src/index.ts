@@ -21,6 +21,7 @@ import {
   type PeerDependencyIssuesByProjects,
   type ProjectManifest,
   type ProjectId,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
@@ -68,7 +69,7 @@ interface ProjectToLink {
   linkedDependencies: LinkedDependency[]
   manifest: ProjectManifest
   modulesDir: string
-  rootDir: string
+  rootDir: ProjectRootDir
   topParents: Array<{ name: string, version: string }>
 }
 

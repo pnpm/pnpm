@@ -8,6 +8,7 @@ import {
   type DependenciesField,
   type IncludedDependencies,
   type ProjectManifest,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
@@ -47,7 +48,7 @@ interface OutdatedInWorkspace extends OutdatedPackage {
 }
 
 export async function outdatedRecursive (
-  pkgs: Array<{ rootDir: string, manifest: ProjectManifest }>,
+  pkgs: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>,
   params: string[],
   opts: OutdatedCommandOptions & { include: IncludedDependencies }
 ): Promise<{ output: string, exitCode: number }> {
