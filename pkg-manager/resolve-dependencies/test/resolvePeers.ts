@@ -1,5 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { type PkgResolutionId, type PeerDependencyIssuesByProjects, type PkgIdWithPatchHash } from '@pnpm/types'
+import {
+  type PkgResolutionId,
+  type PeerDependencyIssuesByProjects,
+  type PkgIdWithPatchHash,
+  type ProjectRootDir,
+} from '@pnpm/types'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import { type DependenciesTreeNode, type PeerDependencies } from '../lib/resolveDependencies'
 import { type NodeId } from '../lib/nextNodeId'
@@ -33,7 +38,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
           ['foo', '>foo/1.0.0>' as NodeId],
         ]),
         topParents: [],
-        rootDir: '',
+        rootDir: '' as ProjectRootDir,
         id: '',
       },
     ],
@@ -150,7 +155,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
           ['bar', '>bar/1.0.0>' as NodeId],
         ]),
         topParents: [],
-        rootDir: '',
+        rootDir: '' as ProjectRootDir,
         id: '',
       },
     ],
@@ -277,7 +282,7 @@ describe('peer dependency issues', () => {
             ['foo', '>project1>foo/1.0.0>' as NodeId],
           ]),
           topParents: [],
-          rootDir: '',
+          rootDir: '' as ProjectRootDir,
           id: 'project1' as PkgResolutionId,
         },
         {
@@ -285,7 +290,7 @@ describe('peer dependency issues', () => {
             ['bar', '>project2>bar/1.0.0>' as NodeId],
           ]),
           topParents: [],
-          rootDir: '',
+          rootDir: '' as ProjectRootDir,
           id: 'project2' as PkgResolutionId,
         },
         {
@@ -294,7 +299,7 @@ describe('peer dependency issues', () => {
             ['bar', '>project3>bar/1.0.0>' as NodeId],
           ]),
           topParents: [],
-          rootDir: '',
+          rootDir: '' as ProjectRootDir,
           id: 'project3' as PkgResolutionId,
         },
         {
@@ -303,7 +308,7 @@ describe('peer dependency issues', () => {
             ['qar', '>project4>qar/1.0.0>' as NodeId],
           ]),
           topParents: [],
-          rootDir: '',
+          rootDir: '' as ProjectRootDir,
           id: 'project4' as PkgResolutionId,
         },
         {
@@ -312,7 +317,7 @@ describe('peer dependency issues', () => {
             ['bar', '>project5>bar/2.0.0>' as NodeId],
           ]),
           topParents: [],
-          rootDir: '',
+          rootDir: '' as ProjectRootDir,
           id: 'project5' as PkgResolutionId,
         },
         {
@@ -321,7 +326,7 @@ describe('peer dependency issues', () => {
             ['bar', '>project6>bar/2.0.0>' as NodeId],
           ]),
           topParents: [],
-          rootDir: '',
+          rootDir: '' as ProjectRootDir,
           id: 'project6' as PkgResolutionId,
         },
       ],
@@ -428,7 +433,7 @@ describe('unmet peer dependency issues', () => {
             ['peer2', '>project1>peer2/1.1.0-rc.0>' as NodeId],
           ]),
           topParents: [],
-          rootDir: '',
+          rootDir: '' as ProjectRootDir,
           id: 'project1' as PkgResolutionId,
         },
       ],
@@ -499,7 +504,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
             ['foo', '>project>foo/1.0.0>' as NodeId],
           ]),
           topParents: [],
-          rootDir: '',
+          rootDir: '' as ProjectRootDir,
           id: 'project' as PkgResolutionId,
         },
       ],
@@ -602,7 +607,7 @@ test('resolve peer dependencies with npm aliases', async () => {
           ['bar-next', '>bar/2.0.0>' as NodeId],
         ]),
         topParents: [],
-        rootDir: '',
+        rootDir: '' as ProjectRootDir,
         id: '' as PkgResolutionId,
       },
     ],
