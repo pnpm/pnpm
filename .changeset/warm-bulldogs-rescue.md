@@ -1,6 +1,4 @@
 ---
-"@pnpm/plugin-commands-completion": patch
-"@pnpm/command": patch
 "pnpm": patch
 ---
 

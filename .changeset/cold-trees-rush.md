@@ -1,6 +1,5 @@
 ---
-"@pnpm/plugin-commands-completion": patch
-"@pnpm/build-modules": patch
+"pnpm": patch
 ---
 
 Improve output of the `pnpm patch` command.
