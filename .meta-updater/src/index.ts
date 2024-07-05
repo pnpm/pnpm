@@ -254,7 +254,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       ...(manifest.scripts as Record<string, string>),
     }
     scripts.test = 'pnpm run compile && pnpm run _test'
-    scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} jest`
+    scripts._test = `PNPM_REGISTRY_MOCK_PORT=${port} jest`
     break
   }
   default:

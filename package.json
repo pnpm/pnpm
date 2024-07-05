@@ -46,7 +46,6 @@
     "@types/node": "catalog:",
     "c8": "^7.14.0",
     "concurrently": "catalog:",
-    "cross-env": "^7.0.3",
     "cspell": "7.3.8",
     "eslint": "^8.57.0",
     "husky": "^9.0.11",
