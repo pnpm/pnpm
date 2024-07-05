@@ -1,5 +1,17 @@
 # @pnpm/resolver-base
 
+## 13.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+
 ## 12.0.2
 
 ### Patch Changes

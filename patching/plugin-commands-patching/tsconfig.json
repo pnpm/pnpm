@@ -46,6 +46,9 @@
       "path": "../../packages/parse-wanted-dependency"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../pkg-manager/modules-yaml"
     },
     {

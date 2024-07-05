@@ -43,11 +43,30 @@ export default async (workspaceDir: string) => {
         pnpmMajorKeyword,
         ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
       ]
-      for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
-        if (!manifest[depType]) continue
-        for (const depName of Object.keys(manifest[depType] ?? {})) {
-          if (!manifest[depType]?.[depName].startsWith('workspace:')) {
-            manifest[depType]![depName] = 'catalog:'
+      if (manifest.name !== CLI_PKG_NAME) {
+        for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+          if (!manifest[depType]) continue
+          for (const depName of Object.keys(manifest[depType] ?? {})) {
+            if (!manifest[depType]?.[depName].startsWith('workspace:')) {
+              manifest[depType]![depName] = 'catalog:'
+            }
+          }
+        }
+      } else {
+        for (const depType of ['devDependencies'] as const) {
+          if (!manifest[depType]) continue
+          for (const depName of Object.keys(manifest[depType] ?? {})) {
+            if (!manifest[depType]?.[depName].startsWith('workspace:')) {
+              manifest[depType]![depName] = 'catalog:'
+            }
+          }
+        }
+        for (const depType of ['dependencies', 'optionalDependencies'] as const) {
+          if (!manifest[depType]) continue
+          for (const depName of Object.keys(manifest[depType] ?? {})) {
+            if (manifest[depType]?.[depName] === 'catalog:') {
+              throw new Error('The pnpm CLI package cannot have "catalog:" in prod deps as publish-packed does not support them currently')
+            }
           }
         }
       }

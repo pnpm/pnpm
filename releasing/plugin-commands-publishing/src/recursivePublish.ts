@@ -5,7 +5,7 @@ import { logger } from '@pnpm/logger'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type ResolveFunction } from '@pnpm/resolver-base'
 import { sortPackages } from '@pnpm/sort-packages'
-import { type Registries } from '@pnpm/types'
+import { type Registries, type ProjectRootDir } from '@pnpm/types'
 import pFilter from 'p-filter'
 import pick from 'ramda/src/pick'
 import writeJsonFile from 'write-json-file'
@@ -82,7 +82,7 @@ export async function recursivePublish (
       resolve,
     }, pkg.manifest.name, pkg.manifest.version))
   })
-  const publishedPkgDirs = new Set(pkgsToPublish.map(({ rootDir }) => rootDir))
+  const publishedPkgDirs = new Set<ProjectRootDir>(pkgsToPublish.map(({ rootDir }) => rootDir))
   const publishedPackages: Array<{ name?: string, version?: string }> = []
   if (publishedPkgDirs.size === 0) {
     logger.info({

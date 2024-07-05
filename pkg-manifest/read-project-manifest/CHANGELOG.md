@@ -1,5 +1,14 @@
 # @pnpm/read-project-manifest
 
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/write-project-manifest@6.0.3
+
 ## 6.0.3
 
 ### Patch Changes

@@ -9,7 +9,7 @@ import {
   type ProjectOptions,
 } from '@pnpm/core'
 import { type Lockfile, type LockfileFile } from '@pnpm/lockfile-types'
-import { type ProjectId } from '@pnpm/types'
+import { type ProjectRootDir, type ProjectId } from '@pnpm/types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -41,11 +41,11 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const project1Dir = path.resolve('project-1')
@@ -62,7 +62,7 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
           'external-1': `link:${externalPkg1}`,
         },
       },
-      rootDir: project1Dir,
+      rootDir: project1Dir as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -75,7 +75,7 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
           'external-2': `link:${path.relative(project2Dir, externalPkg2)}`,
         },
       },
-      rootDir: project2Dir,
+      rootDir: project2Dir as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true }))
@@ -179,7 +179,7 @@ test('update the lockfile when a new project is added to the workspace but do no
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
   ]
   const allProjects: ProjectOptions[] = [
@@ -194,14 +194,14 @@ test('update the lockfile when a new project is added to the workspace but do no
           'local-pkg': `link:${normalizePath(absolutePath)}`,
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true }))
 
   importers.push({
     mutation: 'install',
-    rootDir: path.resolve('project-2'),
+    rootDir: path.resolve('project-2') as ProjectRootDir,
   })
   allProjects.push({
     buildIndex: 0,
@@ -209,7 +209,7 @@ test('update the lockfile when a new project is added to the workspace but do no
       name: 'project-2',
       version: '1.0.0',
     },
-    rootDir: path.resolve('project-2'),
+    rootDir: path.resolve('project-2') as ProjectRootDir,
   })
   await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: true }))
 
@@ -262,23 +262,23 @@ test('links resolved from workspace protocol dependencies are not removed', asyn
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: pkg1,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: pkg2,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({

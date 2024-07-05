@@ -1,5 +1,12 @@
 # @pnpm/types
 
+## 11.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+- Breaking change to the graph type
+
 ## 10.1.1
 
 ### Patch Changes

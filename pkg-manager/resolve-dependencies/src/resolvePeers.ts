@@ -4,12 +4,13 @@ import path from 'path'
 import pDefer from 'p-defer'
 import semver from 'semver'
 import { semverUtils } from '@yarnpkg/core'
-import type {
-  DepPath,
-  ParentPackages,
-  PeerDependencyIssues,
-  PeerDependencyIssuesByProjects,
-  PkgIdWithPatchHash,
+import {
+  type DepPath,
+  type ParentPackages,
+  type PeerDependencyIssues,
+  type PeerDependencyIssuesByProjects,
+  type PkgIdWithPatchHash,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersDirSuffix, type PeerId } from '@pnpm/dependency-path'
 import partition from 'ramda/src/partition'
@@ -70,7 +71,7 @@ export interface ProjectToResolve {
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
   topParents: Array<{ name: string, version: string, alias?: string }>
-  rootDir: string // is only needed for logging
+  rootDir: ProjectRootDir // is only needed for logging
   id: string
 }
 
@@ -370,7 +371,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     purePkgs: Set<PkgIdWithPatchHash> // pure packages are those that don't rely on externally resolved peers
-    rootDir: string
+    rootDir: ProjectRootDir
     lockfileDir: string
     peersSuffixMaxLength: number
   }
@@ -733,7 +734,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     purePkgs: Set<PkgIdWithPatchHash>
     depGraph: GenericDependenciesGraph<T>
     dependenciesTree: DependenciesTree<T>
-    rootDir: string
+    rootDir: ProjectRootDir
     lockfileDir: string
     peersSuffixMaxLength: number
   }
@@ -821,7 +822,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
     parentNodeIds: NodeId[]
     resolvedPackage: T
     dependenciesTree: DependenciesTree<T>
-    rootDir: string
+    rootDir: ProjectRootDir
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
   }
 ): PeersResolution {

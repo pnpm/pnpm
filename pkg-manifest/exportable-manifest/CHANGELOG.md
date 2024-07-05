@@ -1,5 +1,18 @@
 # @pnpm/exportable-manifest
 
+## 7.0.0
+
+### Major Changes
+
+- 9c63679: Creating an exportable manifest now requires a `Catalog` object to be passed to `createExportableManifest` in order to replace `catalog:` protocol specifiers.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/read-project-manifest@6.0.4
+
 ## 6.1.0
 
 ### Minor Changes

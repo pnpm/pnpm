@@ -1,9 +1,9 @@
-import type { ProjectsGraph } from '@pnpm/types'
+import { type ProjectRootDir, type ProjectsGraph } from '@pnpm/types'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import type { Result as GraphSequencerResult } from '@pnpm/deps.graph-sequencer'
 
-export function sequenceGraph (pkgGraph: ProjectsGraph): GraphSequencerResult<string> {
-  const keys = Object.keys(pkgGraph)
+export function sequenceGraph (pkgGraph: ProjectsGraph): GraphSequencerResult<ProjectRootDir> {
+  const keys = Object.keys(pkgGraph) as ProjectRootDir[]
   const setOfKeys = new Set(keys)
   const graph = new Map(
     keys.map((pkgPath) => [
@@ -15,7 +15,7 @@ export function sequenceGraph (pkgGraph: ProjectsGraph): GraphSequencerResult<st
   return graphSequencer(graph, keys)
 }
 
-export function sortPackages (pkgGraph: ProjectsGraph): string[][] {
+export function sortPackages (pkgGraph: ProjectsGraph): ProjectRootDir[][] {
   const graphSequencerResult = sequenceGraph(pkgGraph)
   return graphSequencerResult.chunks
 }

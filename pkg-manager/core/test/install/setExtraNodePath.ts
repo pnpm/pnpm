@@ -7,6 +7,7 @@ import {
   mutateModules,
   install,
 } from '@pnpm/core'
+import { type ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)
@@ -25,11 +26,11 @@ test('jest CLI should print the right version when multiple instances of jest ar
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -46,7 +47,7 @@ test('jest CLI should print the right version when multiple instances of jest ar
           jest: '27.5.1',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -61,7 +62,7 @@ test('jest CLI should print the right version when multiple instances of jest ar
           jest: '24.9.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({

@@ -1,5 +1,11 @@
 # @pnpm/command
 
+## 5.0.2
+
+### Patch Changes
+
+- 9b5b869: update @pnpm/tabtab to v0.5.4, enabling zsh autocomplete lazy loading [#8236](https://github.com/pnpm/pnpm/pull/8236).
+
 ## 5.0.1
 
 ### Patch Changes

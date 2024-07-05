@@ -1,5 +1,11 @@
 # @pnpm/workspace.read-manifest
 
+## 2.2.0
+
+### Minor Changes
+
+- 9c63679: The `readWorkspaceManifest` function now parses and validates [pnpm catalogs](https://github.com/pnpm/rfcs/pull/1) configs if present.
+
 ## 2.1.0
 
 ### Minor Changes

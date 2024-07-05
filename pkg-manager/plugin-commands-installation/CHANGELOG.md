@@ -1,5 +1,39 @@
 # @pnpm/plugin-commands-installation
 
+## 16.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- 84654bd: Installation with filtering should work, when `dedupe-peer-dependents` is set to `true` [#6300](https://github.com/pnpm/pnpm/issues/6300).
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [9b5b869]
+  - @pnpm/config@21.6.0
+  - @pnpm/filter-workspace-packages@10.0.0
+  - @pnpm/plugin-commands-rebuild@12.0.0
+  - @pnpm/get-context@12.0.0
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/workspace.find-packages@4.0.0
+  - @pnpm/workspace.pkgs-graph@4.0.0
+  - @pnpm/outdated@15.0.0
+  - @pnpm/core@15.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/store-connection-manager@8.3.1
+  - @pnpm/package-store@20.3.1
+  - @pnpm/dedupe.check@2.0.5
+  - @pnpm/pnpmfile@6.0.6
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/manifest-utils@6.0.4
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/sort-packages@6.0.4
+
 ## 15.1.11
 
 ### Patch Changes

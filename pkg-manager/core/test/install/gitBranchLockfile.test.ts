@@ -4,7 +4,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, mutateModules } from '@pnpm/core'
 import { testDefaults } from '../utils'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { type ProjectManifest } from '@pnpm/types'
+import { type ProjectRootDir, type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
@@ -94,17 +94,17 @@ test('install a workspace with git-branch-lockfile = true', async () => {
       {
         buildIndex: 0,
         manifest: rootManifest,
-        rootDir: process.cwd(),
+        rootDir: process.cwd() as ProjectRootDir,
       },
       {
         buildIndex: 0,
         manifest: project1Manifest,
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
         manifest: project2Manifest,
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
     ],
   })
@@ -112,15 +112,15 @@ test('install a workspace with git-branch-lockfile = true', async () => {
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ], opts)
 

@@ -5,7 +5,7 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type ProjectManifest, type ProjectId } from '@pnpm/types'
+import { type ProjectManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import {
   addDependenciesToPackage,
   type MutatedProject,
@@ -35,11 +35,11 @@ test('install only the dependencies of the specified importer', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -53,7 +53,7 @@ test('install only the dependencies of the specified importer', async () => {
           'is-positive': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -65,7 +65,7 @@ test('install only the dependencies of the specified importer', async () => {
           'is-negative': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
 
@@ -97,11 +97,11 @@ test('install only the dependencies of the specified importer, when node-linker 
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -115,7 +115,7 @@ test('install only the dependencies of the specified importer, when node-linker 
           'is-positive': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -127,7 +127,7 @@ test('install only the dependencies of the specified importer, when node-linker 
           'is-negative': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
 
@@ -156,11 +156,11 @@ test('install only the dependencies of the specified importer, when no lockfile 
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -174,7 +174,7 @@ test('install only the dependencies of the specified importer, when no lockfile 
           'is-positive': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -186,7 +186,7 @@ test('install only the dependencies of the specified importer, when no lockfile 
           'is-negative': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
 
@@ -222,15 +222,15 @@ test('install only the dependencies of the specified importer. The current lockf
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -244,7 +244,7 @@ test('install only the dependencies of the specified importer. The current lockf
           'is-positive': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -256,7 +256,7 @@ test('install only the dependencies of the specified importer. The current lockf
           'is-negative': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -268,7 +268,7 @@ test('install only the dependencies of the specified importer. The current lockf
           '@pnpm.e2e/foobar': '100.0.0',
         },
       },
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, hoistPattern: '*' }))
@@ -315,35 +315,35 @@ test('some projects were removed from the workspace and the ones that are left d
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const workspacePackages = new Map([
     ['project-1', new Map([
       ['1.0.0', {
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
         manifest: project1Manifest,
       }],
     ])],
     ['project-2', new Map([
       ['1.0.0', {
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
         manifest: project2Manifest,
       }],
     ])],
@@ -375,11 +375,11 @@ test('dependencies of other importers are not pruned when installing for a subse
   const [{ manifest }] = (await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ], testDefaults({
     allProjects: [
@@ -393,7 +393,7 @@ test('dependencies of other importers are not pruned when installing for a subse
             'is-positive': '1.0.0',
           },
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -405,7 +405,7 @@ test('dependencies of other importers are not pruned when installing for a subse
             'is-negative': '1.0.0',
           },
         },
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
     ],
   }))).updatedProjects
@@ -448,11 +448,11 @@ test('dependencies of other importers are not pruned when (headless) installing 
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -466,7 +466,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
           'is-positive': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -478,7 +478,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
           'is-negative': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const [{ manifest }] = (await mutateModules(importers, testDefaults({ allProjects }))).updatedProjects
@@ -511,7 +511,7 @@ test('adding a new dev dependency to project that uses a shared lockfile', async
   let [{ manifest }] = (await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
   ], testDefaults({
     allProjects: [
@@ -525,7 +525,7 @@ test('adding a new dev dependency to project that uses a shared lockfile', async
             'is-positive': '1.0.0',
           },
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
     ],
   }))).updatedProjects
@@ -558,23 +558,23 @@ test('headless install is used when package linked to another package in the wor
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: pkg1,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: pkg2,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
@@ -616,23 +616,23 @@ test('headless install is used with an up-to-date lockfile when package referenc
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: pkg1,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: pkg2,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
@@ -677,32 +677,32 @@ test('headless install is used when packages are not linked from the workspace (
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('foo'),
+      rootDir: path.resolve('foo') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('bar'),
+      rootDir: path.resolve('bar') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('qar'),
+      rootDir: path.resolve('qar') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: foo,
-      rootDir: path.resolve('foo'),
+      rootDir: path.resolve('foo') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: bar,
-      rootDir: path.resolve('bar'),
+      rootDir: path.resolve('bar') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: qar,
-      rootDir: path.resolve('qar'),
+      rootDir: path.resolve('qar') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -747,13 +747,13 @@ test('current lockfile contains only installed dependencies when adding a new im
   await mutateModulesInSingleProject({
     manifest: pkg1,
     mutation: 'install',
-    rootDir: path.resolve('project-1'),
+    rootDir: path.resolve('project-1') as ProjectRootDir,
   }, testDefaults({ lockfileOnly: true }))
 
   await mutateModulesInSingleProject({
     manifest: pkg2,
     mutation: 'install',
-    rootDir: path.resolve('project-2'),
+    rootDir: path.resolve('project-2') as ProjectRootDir,
   }, testDefaults())
 
   const currentLockfile = await readCurrentLockfile(path.resolve('node_modules/.pnpm'), { ignoreIncompatible: false })
@@ -768,11 +768,11 @@ test('partial installation in a monorepo does not remove dependencies of other w
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ], testDefaults({
     allProjects: [
@@ -783,7 +783,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
             'is-positive': '1.0.0',
           },
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -792,7 +792,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
             '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
           },
         },
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
     ],
   }))
@@ -852,7 +852,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
       },
     },
     mutation: 'install',
-    rootDir: path.resolve('project-1'),
+    rootDir: path.resolve('project-1') as ProjectRootDir,
   }, testDefaults())
 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/is-positive@2.0.0/node_modules/is-positive'))).toBeTruthy()
@@ -867,11 +867,11 @@ test('partial installation in a monorepo does not remove dependencies of other w
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ], testDefaults({
     allProjects: [
@@ -882,7 +882,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
             'is-positive': '1.0.0',
           },
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -891,7 +891,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
             '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
           },
         },
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
     ],
   }))
@@ -959,7 +959,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
       },
     },
     mutation: 'install',
-    rootDir: path.resolve('project-1'),
+    rootDir: path.resolve('project-1') as ProjectRootDir,
   }, testDefaults({ frozenLockfile: true }))
 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'))).toBeTruthy()
@@ -975,7 +975,7 @@ test('adding a new dependency with the workspace: protocol', async () => {
     {
       dependencySelectors: ['foo'],
       mutation: 'installSome',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
   ], testDefaults({
     saveWorkspaceProtocol: true,
@@ -985,14 +985,14 @@ test('adding a new dependency with the workspace: protocol', async () => {
           name: 'foo',
           version: '1.0.0',
         },
-        rootDir: path.resolve('foo'),
+        rootDir: path.resolve('foo') as ProjectRootDir,
       },
       {
         manifest: {
           name: 'project-1',
           version: '1.0.0',
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
     ],
   }))
@@ -1008,7 +1008,7 @@ test('adding a new dependency with the workspace: protocol and save-workspace-pr
     {
       dependencySelectors: ['foo'],
       mutation: 'installSome',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
   ], testDefaults({
     saveWorkspaceProtocol: 'rolling',
@@ -1018,14 +1018,14 @@ test('adding a new dependency with the workspace: protocol and save-workspace-pr
           name: 'foo',
           version: '1.0.0',
         },
-        rootDir: path.resolve('foo'),
+        rootDir: path.resolve('foo') as ProjectRootDir,
       },
       {
         manifest: {
           name: 'project-1',
           version: '1.0.0',
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
     ],
   }))
@@ -1040,12 +1040,12 @@ test('update workspace range', async () => {
     {
       dependencySelectors: ['dep1', 'dep2', 'dep3', 'dep4', 'dep5', 'dep6'],
       mutation: 'installSome',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
       update: true,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
       update: true,
     },
   ], testDefaults({
@@ -1066,7 +1066,7 @@ test('update workspace range', async () => {
             dep8: 'workspace:~',
           },
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1085,7 +1085,7 @@ test('update workspace range', async () => {
             dep8: 'workspace:~',
           },
         },
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1093,7 +1093,7 @@ test('update workspace range', async () => {
           name: 'dep1',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep1'),
+        rootDir: path.resolve('dep1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1101,7 +1101,7 @@ test('update workspace range', async () => {
           name: 'dep2',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep2'),
+        rootDir: path.resolve('dep2') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1109,7 +1109,7 @@ test('update workspace range', async () => {
           name: 'dep3',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep3'),
+        rootDir: path.resolve('dep3') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1117,7 +1117,7 @@ test('update workspace range', async () => {
           name: 'dep4',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep4'),
+        rootDir: path.resolve('dep4') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1125,7 +1125,7 @@ test('update workspace range', async () => {
           name: 'dep5',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep5'),
+        rootDir: path.resolve('dep5') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1133,7 +1133,7 @@ test('update workspace range', async () => {
           name: 'dep6',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep6'),
+        rootDir: path.resolve('dep6') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1141,7 +1141,7 @@ test('update workspace range', async () => {
           name: 'dep7',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep7'),
+        rootDir: path.resolve('dep7') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1149,7 +1149,7 @@ test('update workspace range', async () => {
           name: 'dep8',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep8'),
+        rootDir: path.resolve('dep8') as ProjectRootDir,
       },
     ],
     saveWorkspaceProtocol: true,
@@ -1176,12 +1176,12 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
     {
       dependencySelectors: ['dep1', 'dep2', 'dep3', 'dep4', 'dep5', 'dep6'],
       mutation: 'installSome',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
       update: true,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
       update: true,
     },
   ], testDefaults({
@@ -1200,7 +1200,7 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
             dep6: 'workspace:*',
           },
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1217,7 +1217,7 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
             dep6: 'workspace:*',
           },
         },
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1225,7 +1225,7 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
           name: 'dep1',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep1'),
+        rootDir: path.resolve('dep1') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1233,7 +1233,7 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
           name: 'dep2',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep2'),
+        rootDir: path.resolve('dep2') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1241,7 +1241,7 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
           name: 'dep3',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep3'),
+        rootDir: path.resolve('dep3') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1249,7 +1249,7 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
           name: 'dep4',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep4'),
+        rootDir: path.resolve('dep4') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1257,7 +1257,7 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
           name: 'dep5',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep5'),
+        rootDir: path.resolve('dep5') as ProjectRootDir,
       },
       {
         buildIndex: 0,
@@ -1265,7 +1265,7 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
           name: 'dep6',
           version: '2.0.0',
         },
-        rootDir: path.resolve('dep6'),
+        rootDir: path.resolve('dep6') as ProjectRootDir,
       },
     ],
     saveWorkspaceProtocol: 'rolling',
@@ -1298,11 +1298,11 @@ test('remove dependencies of a project that was removed from the workspace (duri
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -1316,7 +1316,7 @@ test('remove dependencies of a project that was removed from the workspace (duri
           'is-positive': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -1328,7 +1328,7 @@ test('remove dependencies of a project that was removed from the workspace (duri
           'is-negative': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects }))
@@ -1381,11 +1381,11 @@ test('do not resolve a subdependency from the workspace by default', async () =>
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project'),
+      rootDir: path.resolve('project') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep'),
+      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -1399,7 +1399,7 @@ test('do not resolve a subdependency from the workspace by default', async () =>
           '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         },
       },
-      rootDir: path.resolve('project'),
+      rootDir: path.resolve('project') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -1407,7 +1407,7 @@ test('do not resolve a subdependency from the workspace by default', async () =>
         name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
         version: '100.1.0',
       },
-      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep'),
+      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects }))
@@ -1433,11 +1433,11 @@ test('resolve a subdependency from the workspace', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project'),
+      rootDir: path.resolve('project') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep'),
+      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -1451,7 +1451,7 @@ test('resolve a subdependency from the workspace', async () => {
           '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         },
       },
-      rootDir: path.resolve('project'),
+      rootDir: path.resolve('project') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -1459,7 +1459,7 @@ test('resolve a subdependency from the workspace', async () => {
         name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
         version: '100.1.0',
       },
-      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep'),
+      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, linkWorkspacePackagesDepth: Infinity }))
@@ -1494,11 +1494,11 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project'),
+      rootDir: path.resolve('project') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('@pnpm.e2e/peer-a'),
+      rootDir: path.resolve('@pnpm.e2e/peer-a') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -1513,7 +1513,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
           '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
         },
       },
-      rootDir: path.resolve('project'),
+      rootDir: path.resolve('project') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -1521,7 +1521,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
         name: '@pnpm.e2e/peer-a',
         version: '1.0.1',
       },
-      rootDir: path.resolve('@pnpm.e2e/peer-a'),
+      rootDir: path.resolve('@pnpm.e2e/peer-a') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -1569,11 +1569,11 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project'),
+      rootDir: path.resolve('project') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep'),
+      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -1587,7 +1587,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
           '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         },
       },
-      rootDir: path.resolve('project'),
+      rootDir: path.resolve('project') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -1595,7 +1595,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
         name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
         version: '100.1.0',
       },
-      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep'),
+      rootDir: path.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep') as ProjectRootDir,
     },
   ]
   const overrides = {
@@ -1648,23 +1648,23 @@ test('install the dependency that is already present in the workspace when addin
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: manifest1,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: manifest2,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects }))
@@ -1721,23 +1721,23 @@ test('do not update dependency that has the same name as a dependency in the wor
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: manifest1,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: manifest2,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, linkWorkspacePackagesDepth: -1 }))
@@ -1794,23 +1794,23 @@ test('symlink local package from the location described in its publishConfig.dir
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects }))
@@ -1868,23 +1868,23 @@ test('do not symlink local package from the location described in its publishCon
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects }))
@@ -1924,23 +1924,23 @@ require("fs").writeFileSync("created-by-prepare", "", "utf8")`)
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 1,
       manifest: pkg1,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: pkg2,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects }))

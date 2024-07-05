@@ -1,5 +1,18 @@
 # @pnpm/lockfile-file
 
+## 9.1.2
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/git-resolver@9.0.4
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/merge-lockfile-changes@6.0.4
+  - @pnpm/dependency-path@5.1.2
+
 ## 9.1.1
 
 ### Patch Changes

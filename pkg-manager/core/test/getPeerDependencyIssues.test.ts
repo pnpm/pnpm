@@ -1,5 +1,6 @@
 import { getPeerDependencyIssues } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
+import { type ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from './utils'
 
 test('cannot resolve peer dependency for top-level dependency', async () => {
@@ -13,7 +14,7 @@ test('cannot resolve peer dependency for top-level dependency', async () => {
           'ajv-keywords': '1.5.0',
         },
       },
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
   ], testDefaults())
 
@@ -32,7 +33,7 @@ test('a conflict is detected when the same peer is required with ranges that do 
           '@pnpm.e2e/has-foo101-peer': '1.0.0',
         },
       },
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
   ], testDefaults())
 

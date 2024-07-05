@@ -1,5 +1,22 @@
 # @pnpm/config
 
+## 21.6.0
+
+### Minor Changes
+
+- 1b03682: Read authentication information from .npmrc in the current directory when running `dlx` [#7996](https://github.com/pnpm/pnpm/issues/7996).
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [9c63679]
+  - @pnpm/types@11.0.0
+  - @pnpm/workspace.read-manifest@2.2.0
+  - @pnpm/pnpmfile@6.0.6
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/catalogs.config@0.1.0
+
 ## 21.5.0
 
 ### Minor Changes

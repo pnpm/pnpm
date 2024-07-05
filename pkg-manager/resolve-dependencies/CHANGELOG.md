@@ -1,5 +1,31 @@
 # @pnpm/resolve-dependencies
 
+## 34.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- 9bf9f71: When encountering an external dependency using the `catalog:` protocol, a clearer error will be shown. Previously a confusing `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` error was thrown. The new error message will explain that the author of the dependency needs to run `pnpm publish` to replace the catalog protocol.
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/npm-resolver@21.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/pick-fetcher@3.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/lockfile.preferred-versions@1.0.7
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/prune-lockfile@6.1.3
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/manifest-utils@6.0.4
+  - @pnpm/read-package-json@9.0.4
+
 ## 33.1.1
 
 ### Patch Changes

@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-outdated
 
+## 12.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [9b5b869]
+  - @pnpm/config@21.6.0
+  - @pnpm/outdated@15.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/default-resolver@20.0.2
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/modules-yaml@13.1.3
+
 ## 11.1.8
 
 ### Patch Changes

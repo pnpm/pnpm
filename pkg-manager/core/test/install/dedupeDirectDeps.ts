@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { mutateModules, type MutatedProject } from '@pnpm/core'
+import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
@@ -26,15 +27,15 @@ test('dedupe direct dependencies', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -49,7 +50,7 @@ test('dedupe direct dependencies', async () => {
           'is-odd': '1.0.0',
         },
       },
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -61,7 +62,7 @@ test('dedupe direct dependencies', async () => {
           '@pnpm.e2e/hello-world-js-bin': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -73,7 +74,7 @@ test('dedupe direct dependencies', async () => {
           '@pnpm.e2e/hello-world-js-bin': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: true }))
@@ -121,11 +122,11 @@ test('dedupe direct dependencies after public hoisting', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -139,7 +140,7 @@ test('dedupe direct dependencies after public hoisting', async () => {
           '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         },
       },
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -151,7 +152,7 @@ test('dedupe direct dependencies after public hoisting', async () => {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const opts = testDefaults({

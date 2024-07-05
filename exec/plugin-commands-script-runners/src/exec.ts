@@ -6,7 +6,7 @@ import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { sortPackages } from '@pnpm/sort-packages'
-import { type Project, type ProjectsGraph } from '@pnpm/types'
+import { type Project, type ProjectsGraph, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
 import PATH from 'path-name'
@@ -93,10 +93,10 @@ export function getResumedPackageChunks ({
   selectedProjectsGraph,
 }: {
   resumeFrom: string
-  chunks: string[][]
+  chunks: ProjectRootDir[][]
   selectedProjectsGraph: ProjectsGraph
-}): string[][] {
-  const resumeFromPackagePrefix = Object.keys(selectedProjectsGraph)
+}): ProjectRootDir[][] {
+  const resumeFromPackagePrefix = (Object.keys(selectedProjectsGraph) as ProjectRootDir[])
     .find((prefix) => selectedProjectsGraph[prefix]?.package.manifest.name === resumeFrom)
 
   if (!resumeFromPackagePrefix) {
@@ -145,16 +145,16 @@ export async function handler (
   }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
-  let chunks!: string[][]
+  let chunks!: ProjectRootDir[][]
   if (opts.recursive) {
     chunks = opts.sort
       ? sortPackages(opts.selectedProjectsGraph)
-      : [Object.keys(opts.selectedProjectsGraph).sort()]
+      : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
     if (opts.reverse) {
       chunks = chunks.reverse()
     }
   } else {
-    chunks = [[opts.dir]]
+    chunks = [[opts.dir as ProjectRootDir]]
     const project = await tryReadProjectManifest(opts.dir)
     if (project.manifest != null) {
       opts.selectedProjectsGraph = {
@@ -162,8 +162,8 @@ export async function handler (
           dependencies: [],
           package: {
             ...project,
-            rootDir: opts.dir,
-            rootDirRealPath: opts.dir,
+            rootDir: opts.dir as ProjectRootDir,
+            rootDirRealPath: opts.dir as ProjectRootDirRealPath,
           } as Project,
         },
       }
@@ -190,7 +190,7 @@ export async function handler (
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
-    await Promise.all(chunk.map(async (prefix: string) =>
+    await Promise.all(chunk.map(async (prefix) =>
       limitRun(async () => {
         result[prefix].status = 'running'
         const startTime = process.hrtime()

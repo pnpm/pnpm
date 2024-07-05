@@ -12,7 +12,7 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type IncludedDependencies, type Project, type ProjectsGraph } from '@pnpm/types'
+import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir } from '@pnpm/types'
 import {
   install,
   mutateModulesInSingleProject,
@@ -182,7 +182,7 @@ when running add/update with the --workspace option')
         }).graph
       } else {
         allProjectsGraph = selectedProjectsGraph
-        if (!allProjectsGraph[opts.workspaceDir]) {
+        if (!allProjectsGraph[opts.workspaceDir as ProjectRootDir]) {
           allProjectsGraph = {
             ...allProjectsGraph,
             ...selectProjectByDir(allProjects, opts.workspaceDir),
@@ -289,7 +289,7 @@ when running add/update with the --workspace option')
       mutation: 'installSome' as const,
       peer: opts.savePeer,
       pinnedVersion: getPinnedVersion(opts),
-      rootDir: opts.dir,
+      rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
     const updatedImporter = await mutateModulesInSingleProject(mutatedProject, installOpts)
@@ -329,7 +329,7 @@ when running add/update with the --workspace option')
         {
           buildIndex: 0,
           manifest: await readProjectManifestOnly(opts.dir, opts),
-          rootDir: opts.dir,
+          rootDir: opts.dir as ProjectRootDir,
         },
       ], {
         ...opts,

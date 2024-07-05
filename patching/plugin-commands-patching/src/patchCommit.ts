@@ -6,6 +6,7 @@ import { packlist } from '@pnpm/fs.packlist'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { type ProjectRootDir } from '@pnpm/types'
 import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
@@ -47,7 +48,7 @@ type PatchCommitCommandOptions = install.InstallCommandOptions & Pick<Config, 'p
 
 export async function handler (opts: PatchCommitCommandOptions, params: string[]): Promise<string | undefined> {
   const userDir = params[0]
-  const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+  const lockfileDir = (opts.lockfileDir ?? opts.dir ?? process.cwd()) as ProjectRootDir
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
   const patchesDir = path.join(lockfileDir, patchesDirName)
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)

@@ -19,6 +19,8 @@ import {
   type ReadPackageHook,
   type Registries,
   type DependencyManifest,
+  type ProjectRootDir,
+  type ProjectRootDirRealPath,
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
@@ -70,8 +72,8 @@ export interface ProjectOptions {
   binsDir?: string
   manifest: ProjectManifest
   modulesDir?: string
-  rootDir: string
-  rootDirRealPath?: string
+  rootDir: ProjectRootDir
+  rootDirRealPath?: ProjectRootDirRealPath
 }
 
 interface HookOptions {
@@ -112,7 +114,7 @@ export interface GetContextOptions {
 }
 interface ImporterToPurge {
   modulesDir: string
-  rootDir: string
+  rootDir: ProjectRootDir
 }
 
 export async function getContext (
@@ -221,7 +223,7 @@ async function validateModules (
   projects: Array<{
     modulesDir: string
     id: string
-    rootDir: string
+    rootDir: ProjectRootDir
   }>,
   opts: {
     currentHoistPattern?: string[]
@@ -314,7 +316,7 @@ async function validateModules (
   if (importersToPurge.length > 0 && (rootProject == null)) {
     importersToPurge.push({
       modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
-      rootDir: opts.lockfileDir,
+      rootDir: opts.lockfileDir as ProjectRootDir,
     })
   }
 
@@ -473,7 +475,7 @@ export async function getContextForSingleImporter (
   } = await readProjectsContext(
     [
       {
-        rootDir: opts.dir,
+        rootDir: opts.dir as ProjectRootDir,
       },
     ],
     {
@@ -553,7 +555,7 @@ export async function getContextForSingleImporter (
       force: opts.force,
       frozenLockfile: false,
       lockfileDir: opts.lockfileDir,
-      projects: [{ id: importerId, rootDir: opts.dir }],
+      projects: [{ id: importerId, rootDir: opts.dir as ProjectRootDir }],
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,

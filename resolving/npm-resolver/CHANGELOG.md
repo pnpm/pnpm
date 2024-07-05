@@ -1,5 +1,19 @@
 # @pnpm/npm-resolver
 
+## 21.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/core-loggers@10.0.3
+
 ## 20.0.1
 
 ### Patch Changes

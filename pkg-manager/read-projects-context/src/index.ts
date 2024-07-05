@@ -4,14 +4,22 @@ import path from 'path'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
-import { type DepPath, type DependenciesField, type HoistedDependencies, type ProjectId, type Registries } from '@pnpm/types'
+import {
+  type DepPath,
+  type DependenciesField,
+  type HoistedDependencies,
+  type ProjectId,
+  type Registries,
+  type ProjectRootDir,
+  type ProjectRootDirRealPath,
+} from '@pnpm/types'
 import realpathMissing from 'realpath-missing'
 
 export interface ProjectOptions {
   binsDir?: string
   modulesDir?: string
-  rootDir: string
-  rootDirRealPath?: string
+  rootDir: ProjectRootDir
+  rootDirRealPath?: ProjectRootDirRealPath
 }
 
 export async function readProjectsContext<T> (
@@ -67,12 +75,12 @@ export async function readProjectsContext<T> (
   }
 }
 
-async function realpath (path: string): Promise<string> {
+async function realpath (path: ProjectRootDir): Promise<ProjectRootDirRealPath> {
   try {
-    return await fs.realpath(path)
+    return await fs.realpath(path) as ProjectRootDirRealPath
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return path
+      return path as unknown as ProjectRootDirRealPath
     }
     throw err
   }

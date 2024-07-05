@@ -1,5 +1,37 @@
 # @pnpm/plugin-commands-script-runners
 
+## 10.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Minor Changes
+
+- 1b03682: Read authentication information from .npmrc in the current directory when running `dlx` [#7996](https://github.com/pnpm/pnpm/issues/7996).
+
+### Patch Changes
+
+- 98f20a7: Fix `dlx` not actually using node version specified by `--use-node-version`.
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [84654bd]
+- Updated dependencies [9b5b869]
+  - @pnpm/config@21.6.0
+  - @pnpm/plugin-commands-installation@16.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/plugin-commands-env@5.0.11
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/package-bins@9.0.3
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/sort-packages@6.0.4
+  - @pnpm/crypto.base32-hash@3.0.0
+
 ## 9.1.11
 
 ### Patch Changes

@@ -9,6 +9,7 @@ import {
   NoMatchingVersionError,
 } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
+import { type ProjectRootDir } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import omit from 'ramda/src/omit'
@@ -981,7 +982,7 @@ test('resolve from local directory when it matches the latest version of the pac
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['1.0.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
@@ -1019,7 +1020,7 @@ test('resolve injected dependency from local directory when it matches the lates
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['1.0.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
@@ -1057,7 +1058,7 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['1.0.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
@@ -1091,7 +1092,7 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['1.0.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
@@ -1124,7 +1125,7 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['1.0.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
@@ -1165,7 +1166,7 @@ test('use version from the registry if it is newer than the local one', async ()
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['3.0.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0',
@@ -1208,7 +1209,7 @@ test('preferWorkspacePackages: use version from the workspace even if there is n
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['3.0.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0',
@@ -1247,7 +1248,7 @@ test('use local version if it is newer than the latest in the registry', async (
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['3.2.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.2.0',
@@ -1284,21 +1285,21 @@ test('resolve from local directory when package is not found in the registry', a
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['1.0.0', {
-          rootDir: '/home/istvan/src/is-positive-1.0.0',
+          rootDir: '/home/istvan/src/is-positive-1.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
         }],
         ['1.1.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.1.0',
           },
         }],
         ['2.0.0', {
-          rootDir: '/home/istvan/src/is-positive-2.0.0',
+          rootDir: '/home/istvan/src/is-positive-2.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '2.0.0',
@@ -1335,21 +1336,21 @@ test('resolve from local directory when package is not found in the registry and
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['1.0.0', {
-          rootDir: '/home/istvan/src/is-positive-1.0.0',
+          rootDir: '/home/istvan/src/is-positive-1.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
         }],
         ['1.1.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.1.0',
           },
         }],
         ['2.0.0', {
-          rootDir: '/home/istvan/src/is-positive-2.0.0',
+          rootDir: '/home/istvan/src/is-positive-2.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '2.0.0',
@@ -1386,7 +1387,7 @@ test('resolve from local directory when package is not found in the registry and
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['3.0.0-alpha.1.2.3', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0-alpha.1.2.3',
@@ -1423,21 +1424,21 @@ test('resolve from local directory when package is not found in the registry and
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['1.0.0', {
-          rootDir: '/home/istvan/src/is-positive-1.0.0',
+          rootDir: '/home/istvan/src/is-positive-1.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
         }],
         ['1.1.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.1.0',
           },
         }],
         ['2.0.0', {
-          rootDir: '/home/istvan/src/is-positive-2.0.0',
+          rootDir: '/home/istvan/src/is-positive-2.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '2.0.0',
@@ -1474,7 +1475,7 @@ test('resolve from local directory when the requested version is not found in th
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['100.0.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '100.0.0',
@@ -1507,7 +1508,7 @@ test('workspace protocol: resolve from local directory even when it does not mat
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['3.0.0', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0',
@@ -1544,7 +1545,7 @@ test('workspace protocol: resolve from local package that has a pre-release vers
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['3.0.0-alpha.1.2.3', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0-alpha.1.2.3',
@@ -1581,7 +1582,7 @@ test("workspace protocol: don't resolve from local package that has a pre-releas
     workspacePackages: new Map([
       ['is-positive', new Map([
         ['3.0.0-alpha.1.2.3', {
-          rootDir: '/home/istvan/src/is-positive',
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0-alpha.1.2.3',
@@ -1637,7 +1638,7 @@ test('workspace protocol: resolution fails if there is no matching local package
       workspacePackages: new Map([
         ['is-positive', new Map([
           ['2.0.0', {
-            rootDir: '/home/istvan/src/is-positive',
+            rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
             manifest: {
               name: 'is-positive',
               version: '2.0.0',

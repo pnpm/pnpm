@@ -63,6 +63,7 @@ import {
   type ProjectId,
   type ProjectManifest,
   type ReadPackageHook,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
@@ -151,7 +152,7 @@ export async function install (
   manifest: ProjectManifest,
   opts: Opts
 ): Promise<ProjectManifest> {
-  const rootDir = opts.dir ?? process.cwd()
+  const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
   const { updatedProjects: projects } = await mutateModules(
     [
       {
@@ -180,10 +181,10 @@ interface ProjectToBeInstalled {
   buildIndex: number
   manifest: ProjectManifest
   modulesDir: string
-  rootDir: string
+  rootDir: ProjectRootDir
 }
 
-export type MutatedProject = DependenciesMutation & { rootDir: string }
+export type MutatedProject = DependenciesMutation & { rootDir: ProjectRootDir }
 
 export type MutateModulesOptions = InstallOptions & {
   preferredVersions?: PreferredVersions
@@ -196,7 +197,7 @@ export async function mutateModulesInSingleProject (
   project: MutatedProject & {
     binsDir?: string
     manifest: ProjectManifest
-    rootDir: string
+    rootDir: ProjectRootDir
     modulesDir?: string
   },
   maybeOpts: Omit<MutateModulesOptions, 'allProjects'> & InstallMutationOptions
@@ -889,7 +890,7 @@ export async function addDependenciesToPackage (
     targetDependenciesField?: DependenciesField
   } & InstallMutationOptions
 ): Promise<ProjectManifest> {
-  const rootDir = opts.dir ?? process.cwd()
+  const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
   const { updatedProjects: projects } = await mutateModules(
     [
       {
@@ -927,7 +928,7 @@ export type ImporterToUpdate = {
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
   modulesDir: string
-  rootDir: string
+  rootDir: ProjectRootDir
   pruneDirectDependencies: boolean
   removePackages?: string[]
   updatePackageManifest: boolean
@@ -938,7 +939,7 @@ export interface UpdatedProject {
   originalManifest?: ProjectManifest
   manifest: ProjectManifest
   peerDependencyIssues?: PeerDependencyIssues
-  rootDir: string
+  rootDir: ProjectRootDir
 }
 
 interface InstallFunctionResult {

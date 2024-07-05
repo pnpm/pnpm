@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-publishing
 
+## 9.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies [9c63679]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/exportable-manifest@7.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/client@11.1.3
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/package-bins@9.0.3
+  - @pnpm/sort-packages@6.0.4
+
 ## 8.1.8
 
 ### Patch Changes

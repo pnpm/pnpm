@@ -1,5 +1,37 @@
 # @pnpm/plugin-commands-rebuild
 
+## 12.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/get-context@12.0.0
+  - @pnpm/workspace.find-packages@4.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/store-connection-manager@8.3.1
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/normalize-registries@6.0.3
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/lockfile-walker@9.0.3
+  - @pnpm/calc-dep-state@7.0.3
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/link-bins@10.0.5
+  - @pnpm/modules-yaml@13.1.3
+  - @pnpm/store.cafs@3.0.4
+  - @pnpm/worker@1.0.5
+  - @pnpm/sort-packages@6.0.4
+
 ## 11.3.0
 
 ### Minor Changes

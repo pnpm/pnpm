@@ -3,6 +3,7 @@ import {
   mutateModules,
   type MutatedProject,
 } from '@pnpm/core'
+import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
@@ -12,7 +13,7 @@ test('spec not specified in package.json.dependencies', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -26,7 +27,7 @@ test('spec not specified in package.json.dependencies', async () => {
           'is-positive': '1.0.0',
         },
       },
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
   ]
   {
@@ -47,7 +48,7 @@ test('spec not specified in package.json.dependencies', async () => {
       {
         mutation: 'uninstallSome',
         dependencyNames: ['is-positive'],
-        rootDir: process.cwd(),
+        rootDir: process.cwd() as ProjectRootDir,
       },
     ], testDefaults({ allProjects, frozenLockfile: true }))
     expect(stats.added).toEqual(0)

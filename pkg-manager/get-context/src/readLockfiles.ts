@@ -13,7 +13,7 @@ import {
   readWantedLockfileAndAutofixConflicts,
 } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
-import { type ProjectId } from '@pnpm/types'
+import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { isCI } from 'ci-info'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
@@ -35,7 +35,7 @@ export async function readLockfiles (
     frozenLockfile: boolean
     projects: Array<{
       id: ProjectId
-      rootDir: string
+      rootDir: ProjectRootDir
     }>
     lockfileDir: string
     registry: string

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-patching",
-  "version": "6.2.1",
+  "version": "6.2.2",
   "description": "Commands for creating patches",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -58,6 +58,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "chalk": "catalog:",
     "enquirer": "catalog:",
     "escape-string-regexp": "catalog:",

@@ -65,6 +65,7 @@ import {
   type Registries,
   DEPENDENCIES_FIELDS,
   type SupportedArchitectures,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { symlinkAllModules } from '@pnpm/worker'
@@ -100,7 +101,7 @@ export interface Project {
   modulesDir: string
   id: ProjectId
   pruneDirectDependencies?: boolean
-  rootDir: string
+  rootDir: ProjectRootDir
 }
 
 export interface HeadlessOptions {
@@ -723,7 +724,7 @@ async function linkBinsOfImporter (
     binsDir: string
     manifest: ProjectManifest
     modulesDir: string
-    rootDir: string
+    rootDir: ProjectRootDir
   },
   { extraNodePaths, preferSymlinkedExecutables }: { extraNodePaths?: string[], preferSymlinkedExecutables?: boolean } = {}
 ): Promise<string[]> {

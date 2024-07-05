@@ -1,5 +1,19 @@
 # @pnpm/find-workspace-packages
 
+## 4.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/fs.find-packages@4.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+
 ## 3.0.0
 
 ### Major Changes

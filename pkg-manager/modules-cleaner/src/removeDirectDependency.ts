@@ -2,7 +2,7 @@ import path from 'path'
 import { promises as fs } from 'fs'
 import { rootLogger } from '@pnpm/core-loggers'
 import { removeBin, removeBinsOfDependency } from '@pnpm/remove-bins'
-import { type DependenciesField } from '@pnpm/types'
+import { type DependenciesField, type ProjectRootDir } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 
 export async function removeDirectDependency (
@@ -15,7 +15,7 @@ export async function removeDirectDependency (
     dryRun?: boolean
     modulesDir: string
     muteLogs?: boolean
-    rootDir: string
+    rootDir: ProjectRootDir
   }
 ): Promise<void> {
   const dependencyDir = path.join(opts.modulesDir, dependency.name)
