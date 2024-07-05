@@ -1,5 +1,5 @@
 import path from 'path'
-import { matchCatalogResolveResult, type CatalogResolver } from '@pnpm/catalogs.resolver'
+import { type CatalogResolution, matchCatalogResolveResult, type CatalogResolver } from '@pnpm/catalogs.resolver'
 import {
   deprecationLogger,
   progressLogger,
@@ -7,6 +7,7 @@ import {
 } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import {
+  type ResolvedCatalogEntry,
   type Lockfile,
   type PackageSnapshot,
   type ResolvedDependencies,
@@ -536,11 +537,14 @@ async function resolveDependenciesOfImporterDependency (
     // cataloged dependency. Reuse the exact version in the lockfile catalog
     // snapshot to ensure all projects using the same cataloged dependency get
     // the same version.
-    const existingCatalogResolution = ctx.wantedLockfile.catalogs
+    const { alias } = extendedWantedDep.wantedDependency
+    const catalogSnapshot = ctx.wantedLockfile.catalogs
       ?.[catalogLookup.catalogName]
-      ?.[extendedWantedDep.wantedDependency.alias]
-    const replacementPref = existingCatalogResolution?.specifier === catalogLookup.specifier
-      ? existingCatalogResolution.version
+      ?.[alias]
+
+    const existingVersion = getVersionFromExistingCatalogResolution(alias, catalogLookup, catalogSnapshot)
+    const replacementPref = existingVersion
+      ? replaceVersionInPref(catalogLookup.specifier, existingVersion)
       : catalogLookup.specifier
 
     extendedWantedDep.wantedDependency.pref = replacementPref
@@ -564,6 +568,28 @@ async function resolveDependenciesOfImporterDependency (
   }
 
   return result
+}
+
+function getVersionFromExistingCatalogResolution (
+  alias: string,
+  catalogResolution: CatalogResolution,
+  catalogSnapshot: ResolvedCatalogEntry | undefined
+) {
+  // If the catalog resolution from a previous install (i.e. the snapshot)
+  // doesn't match the current wanted specifier, the resolution from the prior
+  // snapshot shouldn't be used.
+  if (catalogSnapshot?.specifier !== catalogResolution.specifier) {
+    return undefined
+  }
+
+  // The version reference might be a simple version like '1.0.0' that can be
+  // reused, but it could also be something more complex like
+  // '@pnpm/ramda@0.28.1'. In the later case, we'll need to parse out the
+  // concrete version.
+  const depPath = dp.refToRelative(catalogSnapshot.version, alias)
+  const version = depPath ? dp.parse(depPath).version : undefined
+
+  return version
 }
 
 function filterMissingPeersFromPkgAddresses (
