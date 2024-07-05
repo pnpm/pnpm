@@ -716,7 +716,7 @@ test('pnpm run with custom node-options', async () => {
 test('pnpm run without node version', async () => {
   prepare({
     scripts: {
-      'assert-node-version': `node -e "assert.equal(process.version, \'${process.version}\')"`,
+      'assert-node-version': `node -e "assert.equal(process.version, '${process.version}')"`,
     },
   })
 
