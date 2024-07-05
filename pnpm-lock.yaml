@@ -411,9 +411,6 @@ catalogs:
     node-fetch:
       specifier: npm:@pnpm/node-fetch@1.0.0
       version: 1.0.0
-    node-gyp:
-      specifier: ^10.1.0
-      version: 10.1.0
     normalize-newline:
       specifier: 3.0.0
       version: 3.0.0
@@ -615,9 +612,6 @@ catalogs:
     uuid:
       specifier: ^9.0.1
       version: 9.0.1
-    v8-compile-cache:
-      specifier: 2.4.0
-      version: 2.4.0
     validate-npm-package-name:
       specifier: 5.0.0
       version: 5.0.0
@@ -5282,11 +5276,11 @@ importers:
   pnpm:
     dependencies:
       v8-compile-cache:
-        specifier: 'catalog:'
+        specifier: 2.4.0
         version: 2.4.0
     optionalDependencies:
       node-gyp:
-        specifier: 'catalog:'
+        specifier: ^10.1.0
         version: 10.1.0
     devDependencies:
       '@pnpm/assert-project':
@@ -21289,7 +21283,7 @@ snapshots:
 
   wide-align@1.1.5:
     dependencies:
-      string-width: 1.0.2
+      string-width: 4.2.3
     optional: true
 
   widest-line@3.1.0:
