@@ -156,15 +156,15 @@ test.skip('run install scripts in with customized node versions in some workspac
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('node-version-undefined'),
+      rootDir: path.resolve('node-version-undefined') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('node-version-18'),
+      rootDir: path.resolve('node-version-18') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('node-version-20'),
+      rootDir: path.resolve('node-version-20') as ProjectRootDir,
     },
   ]
   const allProjects: ProjectOptions[] = [
@@ -180,7 +180,7 @@ test.skip('run install scripts in with customized node versions in some workspac
           '@pnpm.e2e/generate-node-info-during-install': '1.0.0',
         },
       },
-      rootDir: path.resolve('node-version-undefined'),
+      rootDir: path.resolve('node-version-undefined') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -197,7 +197,7 @@ test.skip('run install scripts in with customized node versions in some workspac
           useNodeVersion: '18.0.0',
         },
       },
-      rootDir: path.resolve('node-version-18'),
+      rootDir: path.resolve('node-version-18') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -214,7 +214,7 @@ test.skip('run install scripts in with customized node versions in some workspac
           useNodeVersion: '20.0.0',
         },
       },
-      rootDir: path.resolve('node-version-20'),
+      rootDir: path.resolve('node-version-20') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects }))
