@@ -1,6 +1,6 @@
 # pnpm
 
-## 9.5.0-beta.1
+## 9.5.0-beta.2
 
 ### Patch Changes
 
