@@ -390,6 +390,65 @@ test('catalog resolutions should be consistent', async () => {
   }))
 })
 
+// Similar to the 'catalog resolutions should be consistent' test above, but
+// ensures this works for catalog entries using npm aliases.
+test('catalog entry using npm alias can be reused', async () => {
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        '@pnpm.test/is-positive-alias': 'catalog:',
+      },
+    },
+    {
+      name: 'project2',
+      dependencies: {},
+    },
+  ])
+
+  const mutateOpts: MutateModulesOptions = {
+    ...options,
+    lockfileOnly: true,
+    catalogs: {
+      default: {
+        '@pnpm.test/is-positive-alias': 'npm:is-positive@1.0.0',
+      },
+    },
+  }
+
+  await mutateModules(installProjects(projects), mutateOpts)
+
+  {
+    const lockfile = readLockfile()
+
+    // Sanity check that we're recording an expected version specifier.
+    expect(lockfile.catalogs.default?.['@pnpm.test/is-positive-alias']).toEqual({
+      specifier: 'npm:is-positive@1.0.0',
+      version: 'is-positive@1.0.0',
+    })
+
+    // When an importer adds a new dependency using the catalog protocol, the
+    // catalog snapshot version will be reused for more consistent resolution across importers (see
+    // 'catalog resolutions should be consistent' test).
+    //
+    // For this reason, it's important for the catalog snapshot version to be the
+    // same as the importer version.
+    expect(lockfile.catalogs.default?.['@pnpm.test/is-positive-alias'].version)
+      .toEqual(lockfile.importers.project1.dependencies?.['@pnpm.test/is-positive-alias'].version)
+  }
+
+  // If project2 now reuses a catalog entry with the catalog specifier, the
+  // catalog snapshot above should be used and work.
+  projects['project2' as ProjectId].dependencies = {
+    '@pnpm.test/is-positive-alias': 'catalog:',
+  }
+  await mutateModules(installProjects(projects), mutateOpts)
+
+  const lockfile = readLockfile()
+  expect(lockfile.catalogs.default?.['@pnpm.test/is-positive-alias'].version)
+    .toEqual(lockfile.importers.project2.dependencies?.['@pnpm.test/is-positive-alias'].version)
+})
+
 // If a catalog specifier was used in one or more package.json files and all
 // usages were removed later, we should remove the catalog snapshot from
 // pnpm-lock.yaml. This should happen even if the dependency is still defined in
