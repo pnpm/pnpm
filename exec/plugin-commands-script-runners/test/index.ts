@@ -712,3 +712,42 @@ test('pnpm run with custom node-options', async () => {
     workspaceConcurrency: 1,
   }, ['build'])
 })
+
+test('pnpm run without node version', async () => {
+  prepare({
+    scripts: {
+      'assert-node-20': `node -e "assert.equal(process.version, \'${process.version}\')"`,
+    },
+  })
+
+  await run.handler({
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: process.cwd(),
+    rawConfig: {},
+    workspaceConcurrency: 1,
+  }, ['assert-node-20'])
+})
+
+test('pnpm run with node version', async () => {
+  prepare({
+    scripts: {
+      'assert-node-20': 'node -e "assert.equal(process.version, \'v20.0.0\')"',
+    },
+    pnpm: {
+      useNodeVersion: '20.0.0',
+    },
+  })
+
+  await run.handler({
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: process.cwd(),
+    rawConfig: {},
+    workspaceConcurrency: 1,
+  }, ['assert-node-20'])
+})
