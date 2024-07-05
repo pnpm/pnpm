@@ -540,7 +540,7 @@ async function resolveDependenciesOfImporterDependency (
       ?.[catalogLookup.catalogName]
       ?.[extendedWantedDep.wantedDependency.alias]
     const replacementPref = existingCatalogResolution?.specifier === catalogLookup.specifier
-      ? existingCatalogResolution.version
+      ? replaceVersionInPref(catalogLookup.specifier, existingCatalogResolution.version)
       : catalogLookup.specifier
 
     extendedWantedDep.wantedDependency.pref = replacementPref
