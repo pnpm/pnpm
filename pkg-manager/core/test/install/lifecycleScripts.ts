@@ -9,6 +9,7 @@ import {
   mutateModulesInSingleProject,
   type MutatedProject,
   mutateModules,
+  type ProjectOptions,
 } from '@pnpm/core'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { restartWorkerPool } from '@pnpm/worker'
@@ -136,6 +137,113 @@ test('run install scripts in the current project when its name is different than
     `install-${process.cwd()}`,
     `postinstall-${process.cwd()}`,
   ])
+})
+
+// TODO: remove `.skip` once the implementation of node version for lifecycle scripts is completed.
+test.skip('run install scripts in with customized node versions in some workspace packages', async () => {
+  const projects = preparePackages([
+    {
+      name: 'node-version-undefined',
+    },
+    {
+      name: 'node-version-18',
+    },
+    {
+      name: 'node-version-20',
+    },
+  ])
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('node-version-undefined'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('node-version-18'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('node-version-20'),
+    },
+  ]
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'node-version-undefined',
+        version: '1.0.0',
+        scripts: {
+          install: 'node -v > node-version.txt',
+        },
+        dependencies: {
+          '@pnpm.e2e/generate-node-info-during-install': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('node-version-undefined'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'node-version-18',
+        version: '1.0.0',
+        scripts: {
+          install: 'node -v > node-version.txt',
+        },
+        dependencies: {
+          '@pnpm.e2e/generate-node-info-during-install': '1.0.0',
+        },
+        pnpm: {
+          useNodeVersion: '18.0.0',
+        },
+      },
+      rootDir: path.resolve('node-version-18'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'node-version-20',
+        version: '1.0.0',
+        scripts: {
+          install: 'node -v > node-version.txt',
+        },
+        dependencies: {
+          '@pnpm.e2e/generate-node-info-during-install': '1.0.0',
+        },
+        pnpm: {
+          useNodeVersion: '20.0.0',
+        },
+      },
+      rootDir: path.resolve('node-version-20'),
+    },
+  ]
+  await mutateModules(importers, testDefaults({ allProjects }))
+
+  expect([
+    fs.readFileSync(path.resolve('node-version-undefined', 'node-version.txt'), 'utf-8').trim(),
+    fs.readFileSync(path.resolve('node-version-18', 'node-version.txt'), 'utf-8').trim(),
+    fs.readFileSync(path.resolve('node-version-20', 'node-version.txt'), 'utf-8').trim(),
+  ]).toStrictEqual([
+    process.version,
+    'v18.0.0',
+    'v20.0.0',
+  ])
+
+  expect(projects['node-version-undefined'].requireModule('@pnpm.e2e/generate-node-info-during-install')).toMatchObject({
+    execPath: process.execPath,
+    versions: process.versions,
+  })
+  expect(projects['node-version-18'].requireModule('@pnpm.e2e/generate-node-info-during-install')).toMatchObject({
+    execPath: '',
+    versions: {
+      node: '18.0.0',
+    },
+  })
+  expect(projects['node-version-20'].requireModule('@pnpm.e2e/generate-node-info-during-install')).toMatchObject({
+    execPath: '',
+    versions: {
+      node: '20.0.0',
+    },
+  })
 })
 
 test('installation fails if lifecycle script fails', async () => {
