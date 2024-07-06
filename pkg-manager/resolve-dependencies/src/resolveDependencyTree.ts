@@ -62,6 +62,13 @@ export interface ResolvedDirectDependency {
 export interface CatalogLookupMetadata {
   readonly catalogName: string
   readonly specifier: string
+
+  /**
+   * The specifier the user originally requested. This will usually be
+   * 'catalog:<name>', but can simply be 'catalog:' if users are using the
+   * default catalog shorthand.
+   */
+  readonly userSpecifiedPref: string
 }
 
 export interface Importer<WantedDepExtraProps> {
