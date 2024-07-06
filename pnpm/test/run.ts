@@ -276,3 +276,47 @@ test('recursive run when some packages define node version, config does not defi
     `node-version-undefined print-node-version: ${process.version}`,
   ])
 })
+
+test('recursive run when some packages define node version, config defines another node version', async () => {
+  preparePackages([
+    {
+      name: 'node-version-undefined',
+      scripts: {
+        'print-node-version': 'node -v',
+      },
+    },
+    {
+      name: 'node-version-18',
+      scripts: {
+        'print-node-version': 'node -v',
+      },
+      pnpm: {
+        useNodeVersion: '18.0.0',
+      },
+    },
+    {
+      name: 'node-version-20',
+      scripts: {
+        'print-node-version': 'node -v',
+      },
+      pnpm: {
+        useNodeVersion: '20.0.0',
+      },
+    },
+  ])
+
+  const output = execPnpmSync(['run', '-r', '--use-node-version=19.0.0', 'print-node-version'])
+  expect(
+    output
+      .stdout
+      .toString()
+      .trim()
+      .split('\n')
+      .filter(x => /v[0-9]+\.[0-9]+\.[0-9]+/.test(x))
+      .sort()
+  ).toStrictEqual([
+    'node-version-18 print-node-version: v18.0.0',
+    'node-version-20 print-node-version: v20.0.0',
+    'node-version-undefined print-node-version: v19.0.0',
+  ])
+})
