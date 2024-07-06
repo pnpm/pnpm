@@ -233,7 +233,7 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
   expect(output).not.toContain('script2: 2')
 })
 
-test('recursive run when some packages define node version, config does not define use-node-version', async () => {
+test('recursive run when some packages define different node versions, CLI does not define node version', async () => {
   preparePackages([
     {
       name: 'node-version-undefined',
@@ -277,7 +277,7 @@ test('recursive run when some packages define node version, config does not defi
   ])
 })
 
-test('recursive run when some packages define node version, config defines another node version', async () => {
+test('recursive run when some packages define different node versions, CLI defines another node version', async () => {
   preparePackages([
     {
       name: 'node-version-undefined',
