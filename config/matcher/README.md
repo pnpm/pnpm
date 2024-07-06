@@ -11,9 +11,9 @@ pnpm add @pnpm/matcher
 ## Usage
 
 ```ts
-import matcher from '@pnpm/matcher'
+import { createMatcher } from '@pnpm/matcher'
 
-const match = matcher(['eslint-*'])
+const match = createMatcher(['eslint-*'])
 match('eslint-plugin-foo')
 //> true
 ```
