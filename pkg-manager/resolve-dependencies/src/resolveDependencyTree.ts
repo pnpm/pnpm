@@ -62,6 +62,17 @@ export interface ResolvedDirectDependency {
 export interface CatalogLookupMetadata {
   readonly catalogName: string
   readonly specifier: string
+
+  /**
+   * The catalog protocol pref the user wrote in package.json files or as a
+   * parameter to pnpm add. Ex: pnpm add foo@catalog:
+   *
+   * This will usually be 'catalog:<name>', but can simply be 'catalog:' if
+   * users wrote the default catalog shorthand. This is different than the
+   * catalogName field, which would be 'default' regardless of whether users
+   * originally requested 'catalog:' or 'catalog:default'.
+   */
+  readonly userSpecifiedPref: string
 }
 
 export interface Importer<WantedDepExtraProps> {
