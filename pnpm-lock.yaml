@@ -1663,6 +1663,53 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/node-fetch@1.0.0'
 
+  env/node.mirror:
+    dependencies:
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+    devDependencies:
+      '@pnpm/node.mirror':
+        specifier: workspace:*
+        version: 'link:'
+
+  env/node.path:
+    dependencies:
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/node.fetcher':
+        specifier: workspace:*
+        version: link:../node.fetcher
+      '@pnpm/node.mirror':
+        specifier: workspace:*
+        version: link:../node.mirror
+      '@pnpm/node.specifier':
+        specifier: workspace:*
+        version: link:../node.specifier
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../../store/store-path
+      load-json-file:
+        specifier: 'catalog:'
+        version: 6.2.0
+      write-json-file:
+        specifier: 'catalog:'
+        version: 4.3.0
+    devDependencies:
+      '@pnpm/node.path':
+        specifier: workspace:*
+        version: 'link:'
+
   env/node.resolver:
     dependencies:
       '@pnpm/fetching-types':
@@ -1688,6 +1735,16 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
 
+  env/node.specifier:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+    devDependencies:
+      '@pnpm/node.specifier':
+        specifier: workspace:*
+        version: 'link:'
+
   env/plugin-commands-env:
     dependencies:
       '@pnpm/cli-utils':
@@ -1708,6 +1765,12 @@ importers:
       '@pnpm/node.fetcher':
         specifier: workspace:*
         version: link:../node.fetcher
+      '@pnpm/node.mirror':
+        specifier: workspace:*
+        version: link:../node.mirror
+      '@pnpm/node.path':
+        specifier: workspace:*
+        version: link:../node.path
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: link:../node.resolver

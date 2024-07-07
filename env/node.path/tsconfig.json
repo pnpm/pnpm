@@ -10,12 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../__utils__/prepare"
-    },
-    {
-      "path": "../../cli/cli-utils"
-    },
-    {
       "path": "../../config/config"
     },
     {
@@ -23,9 +17,6 @@
     },
     {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../pkg-manager/remove-bins"
     },
     {
       "path": "../../store/store-path"
@@ -37,10 +28,7 @@
       "path": "../node.mirror"
     },
     {
-      "path": "../node.path"
-    },
-    {
-      "path": "../node.resolver"
+      "path": "../node.specifier"
     }
   ]
 }

@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop */
 import { PnpmError } from '@pnpm/error'
+import { type NvmNodeCommandOptions } from '@pnpm/node.path'
 import { downloadNodeVersion } from './downloadNodeVersion'
-import { type NvmNodeCommandOptions } from './node'
 
 export async function envAdd (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (!opts.global) {

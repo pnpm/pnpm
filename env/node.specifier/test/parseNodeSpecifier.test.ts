@@ -1,4 +1,4 @@
-import { parseNodeSpecifier } from '../lib/parseNodeSpecifier'
+import { parseNodeSpecifier } from '../src/index'
 
 test.each([
   ['rc/16.0.0-rc.0', '16.0.0-rc.0', 'rc'],

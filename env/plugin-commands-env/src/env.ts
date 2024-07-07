@@ -1,9 +1,9 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
+import { type NvmNodeCommandOptions } from '@pnpm/node.path'
 import renderHelp from 'render-help'
 import { envRemove } from './envRemove'
 import { envUse } from './envUse'
-import { type NvmNodeCommandOptions } from './node'
 import { envList } from './envList'
 import { envAdd } from './envAdd'
 

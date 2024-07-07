@@ -1,11 +1,11 @@
 import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { createFetchFromRegistry } from '@pnpm/fetch'
+import { getNodeMirror } from '@pnpm/node.mirror'
+import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from '@pnpm/node.path'
 import { resolveNodeVersions } from '@pnpm/node.resolver'
 import { PnpmError } from '@pnpm/error'
 import semver from 'semver'
-import { getNodeMirror } from './getNodeMirror'
-import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
 import { parseEnvSpecifier } from './parseEnvSpecifier'
 import { getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils'
 

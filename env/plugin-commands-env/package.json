@@ -38,6 +38,8 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
+    "@pnpm/node.mirror": "workspace:*",
+    "@pnpm/node.path": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@pnpm/store-path": "workspace:*",

@@ -3,12 +3,12 @@ import util from 'util'
 import assert from 'assert'
 import { PnpmError } from '@pnpm/error'
 import { globalInfo, logger } from '@pnpm/logger'
+import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from '@pnpm/node.path'
 import { removeBin } from '@pnpm/remove-bins'
 import rimraf from '@zkochan/rimraf'
 import { existsSync } from 'fs'
 import path from 'path'
 import { getNodeVersion } from './downloadNodeVersion'
-import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
 import { getNodeExecPathAndTargetDir } from './utils'
 
 export async function envRemove (opts: NvmNodeCommandOptions, params: string[]): Promise<{ exitCode: number }> {

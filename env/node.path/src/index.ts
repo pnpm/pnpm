@@ -5,11 +5,11 @@ import { type Config } from '@pnpm/config'
 import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
 import { fetchNode } from '@pnpm/node.fetcher'
+import { getNodeMirror } from '@pnpm/node.mirror'
+import { parseNodeSpecifier } from '@pnpm/node.specifier'
 import { getStorePath } from '@pnpm/store-path'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-import { getNodeMirror } from './getNodeMirror'
-import { parseNodeSpecifier } from './parseNodeSpecifier'
 import { replaceOrAddNodeIntoBinPaths } from './replaceOrAddNodeIntoBinPaths'
 
 export type NvmNodeCommandOptions = Pick<Config,
