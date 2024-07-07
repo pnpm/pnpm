@@ -554,6 +554,10 @@ async function resolveDependenciesOfImporterDependency (
       ...importer.options,
       parentPkgAliases: importer.parentPkgAliases,
       pickLowestVersion: pickLowestVersion && !importer.updatePackageManifest,
+      // Cataloged dependencies cannot be upgraded yet since they require
+      // updating the pnpm-workspace.yaml file. This will be handled in a future
+      // version of pnpm.
+      updateToLatest: catalogLookup === null && importer.options.updateToLatest,
     },
     extendedWantedDep
   )
