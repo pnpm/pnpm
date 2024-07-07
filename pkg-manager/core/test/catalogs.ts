@@ -631,7 +631,7 @@ describe('update', () => {
     }))
   })
 
-  test('update latest does modify catalog: protocol', async () => {
+  test('update latest does not modify catalog: protocol', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
