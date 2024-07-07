@@ -630,4 +630,51 @@ describe('update', () => {
       packages: { 'is-positive@3.0.0': expect.objectContaining({}) },
     }))
   })
+
+  test('update latest does not modify catalog: protocol', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }])
+
+    const catalogs = {
+      default: { 'is-positive': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check that the is-positive dependency is installed on the older
+    // requested version.
+    expect(readLockfile().catalogs.default).toEqual({
+      'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+    })
+
+    const updatedManifest = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive'],
+      {
+        ...mutateOpts,
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+      })
+
+    // Expecting the manifest to remain unchanged.
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    })
+
+    expect(Object.keys(readLockfile().snapshots)).toEqual(['is-positive@1.0.0'])
+  })
 })
