@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 9.2.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/store-connection-manager@8.3.2
+
 ## 9.2.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-listing
 
+## 10.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/list@10.1.6
+
 ## 10.0.0
 
 ### Major Changes

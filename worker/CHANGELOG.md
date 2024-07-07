@@ -1,5 +1,16 @@
 # @pnpm/worker
 
+## 1.0.6
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/symlink-dependency@8.0.4
+  - @pnpm/create-cafs-store@7.0.5
+  - @pnpm/fs.hard-link-dir@4.0.0
+
 ## 1.0.5
 
 ### Patch Changes

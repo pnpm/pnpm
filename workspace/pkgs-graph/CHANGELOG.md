@@ -1,5 +1,12 @@
 # @pnpm/workspace.pkgs-graph
 
+## 4.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/npm-resolver@21.0.1
+
 ## 4.0.0
 
 ### Major Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-outdated
 
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/default-resolver@20.0.3
+  - @pnpm/outdated@15.0.1
+  - @pnpm/cli-utils@3.1.4
+
 ## 12.0.0
 
 ### Major Changes

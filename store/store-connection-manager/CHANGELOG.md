@@ -1,5 +1,15 @@
 # @pnpm/store-connection-manager
 
+## 8.3.2
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/client@11.1.4
+  - @pnpm/package-store@20.3.2
+  - @pnpm/server@18.2.2
+
 ## 8.3.1
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/package-requester
 
+## 25.2.2
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/worker@1.0.6
+
 ## 25.2.1
 
 ### Patch Changes

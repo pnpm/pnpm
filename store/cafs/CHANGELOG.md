@@ -1,5 +1,12 @@
 # @pnpm/store.cafs
 
+## 3.0.5
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+- afe520d: Update symlink-dir to v6.0.1.
+
 ## 3.0.4
 
 ### Patch Changes

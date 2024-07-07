@@ -1,5 +1,13 @@
 # @pnpm/cli-utils
 
+## 3.1.4
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/default-reporter@13.1.7
+
 ## 3.1.3
 
 ### Patch Changes

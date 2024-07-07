@@ -1,5 +1,13 @@
 # @pnpm/tarball-fetcher
 
+## 19.0.8
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+  - @pnpm/worker@1.0.6
+  - @pnpm/prepare-package@6.0.8
+
 ## 19.0.7
 
 ### Patch Changes

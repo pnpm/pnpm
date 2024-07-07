@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 20.0.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/npm-resolver@21.0.1
+
 ## 20.0.2
 
 ### Patch Changes

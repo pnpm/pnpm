@@ -1,5 +1,12 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.6.11
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+  - @pnpm/exportable-manifest@7.0.0
+
 ## 0.6.10
 
 ### Patch Changes

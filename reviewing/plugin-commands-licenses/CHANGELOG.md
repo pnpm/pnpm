@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-licenses
 
+## 4.1.10
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/license-scanner@3.1.8
+  - @pnpm/cli-utils@3.1.4
+
 ## 4.1.9
 
 ### Patch Changes

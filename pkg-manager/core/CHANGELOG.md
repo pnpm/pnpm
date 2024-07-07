@@ -1,5 +1,24 @@
 # @pnpm/core
 
+## 15.0.1
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/resolve-dependencies@34.0.1
+  - @pnpm/symlink-dependency@8.0.4
+  - @pnpm/hoist@9.1.8
+  - @pnpm/link-bins@10.0.6
+  - @pnpm/headless@23.1.9
+  - @pnpm/package-requester@25.2.2
+  - @pnpm/worker@1.0.6
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.4
+  - @pnpm/build-modules@13.0.6
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/crypto.base32-hash@3.0.0
+
 ## 15.0.0
 
 ### Major Changes

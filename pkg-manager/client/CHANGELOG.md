@@ -1,5 +1,15 @@
 # @pnpm/client
 
+## 11.1.4
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/tarball-fetcher@19.0.8
+  - @pnpm/default-resolver@20.0.3
+  - @pnpm/git-fetcher@13.0.8
+  - @pnpm/directory-fetcher@8.0.4
+
 ## 11.1.3
 
 ### Patch Changes

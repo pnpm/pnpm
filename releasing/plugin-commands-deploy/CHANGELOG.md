@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-deploy
 
+## 5.1.13
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/fs.indexed-pkg-importer@6.0.5
+  - @pnpm/plugin-commands-installation@16.0.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/directory-fetcher@8.0.4
+
 ## 5.1.12
 
 ### Patch Changes

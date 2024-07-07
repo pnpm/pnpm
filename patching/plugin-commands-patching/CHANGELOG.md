@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-patching
 
+## 6.2.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/plugin-commands-installation@16.0.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/store-connection-manager@8.3.2
+  - @pnpm/patching.apply-patch@3.0.1
+
 ## 6.2.2
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/build-modules
 
+## 13.0.6
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/link-bins@10.0.6
+  - @pnpm/worker@1.0.6
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+
 ## 13.0.5
 
 ### Patch Changes

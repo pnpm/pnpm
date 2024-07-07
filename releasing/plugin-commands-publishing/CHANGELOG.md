@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/client@11.1.4
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/exportable-manifest@7.0.0
+
 ## 9.0.0
 
 ### Major Changes

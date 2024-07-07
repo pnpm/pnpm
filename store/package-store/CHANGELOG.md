@@ -1,5 +1,16 @@
 # @pnpm/package-store
 
+## 20.3.2
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/create-cafs-store@7.0.5
+  - @pnpm/package-requester@25.2.2
+  - @pnpm/worker@1.0.6
+
 ## 20.3.1
 
 ### Patch Changes

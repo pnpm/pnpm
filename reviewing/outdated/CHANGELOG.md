@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 15.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/npm-resolver@21.0.1
+  - @pnpm/client@11.1.4
+
 ## 15.0.0
 
 ### Major Changes

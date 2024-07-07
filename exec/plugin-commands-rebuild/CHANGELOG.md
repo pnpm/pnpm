@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-rebuild
 
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/config@21.6.1
+  - @pnpm/link-bins@10.0.6
+  - @pnpm/worker@1.0.6
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/store-connection-manager@8.3.2
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/workspace.find-packages@4.0.1
+
 ## 12.0.0
 
 ### Major Changes
