@@ -530,6 +530,7 @@ async function resolveDependenciesOfImporterDependency (
       throw result.error
     },
   })
+  const originalPref = extendedWantedDep.wantedDependency.pref
 
   if (catalogLookup != null) {
     // The lockfile from a previous installation may have already resolved this
@@ -560,7 +561,10 @@ async function resolveDependenciesOfImporterDependency (
   // If the catalog protocol was used, store metadata about the catalog
   // lookup to use in the lockfile.
   if (result.resolveDependencyResult != null && catalogLookup != null) {
-    result.resolveDependencyResult.catalogLookup = catalogLookup
+    result.resolveDependencyResult.catalogLookup = {
+      ...catalogLookup,
+      userSpecifiedPref: originalPref,
+    }
   }
 
   return result

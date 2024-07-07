@@ -1,7 +1,7 @@
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import { type ProjectRootDir, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { prepareEmpty } from '@pnpm/prepare'
-import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions } from '@pnpm/core'
+import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions, addDependenciesToPackage } from '@pnpm/core'
 import path from 'path'
 import { testDefaults } from './utils'
 
@@ -510,4 +510,124 @@ test('lockfile catalog snapshots should remove unused entries', async () => {
       'is-negative': { specifier: '=1.0.0', version: '1.0.0' },
     })
   }
+})
+
+describe('add', () => {
+  test('adding is-positive@catalog: works', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+
+    const updatedManifest = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@catalog:'],
+      {
+        ...options,
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: { 'is-positive': '1.0.0' },
+        },
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    })
+    expect(readLockfile()).toEqual(expect.objectContaining({
+      catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      packages: { 'is-positive@1.0.0': expect.objectContaining({}) },
+    }))
+  })
+})
+
+// The 'pnpm update' command should eventually support updates of dependencies
+// in the catalog. This is a more involved feature since pnpm-workspace.yaml
+// needs to be edited. Until the catalog update feature is implemented, ensure
+// pnpm update does not touch or rewrite dependencies using the catalog
+// protocol.
+describe('update', () => {
+  test('update does not modify catalog: protocol', async () => {
+    const { options, projects } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }])
+
+    const updatedManifest = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive'],
+      {
+        ...options,
+        lockfileOnly: true,
+        allowNew: false,
+        update: true,
+        catalogs: {
+          default: { 'is-positive': '^1.0.0' },
+        },
+      })
+
+    // Expecting the manifest to remain unchanged.
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    })
+  })
+
+  test('update does not upgrade cataloged dependency', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }])
+
+    const catalogs = {
+      default: { 'is-positive': '3.0.0' },
+    }
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Updating the catalog from 3.0.0 to ^3.0.0. This should still lock to the
+    // existing 3.0.0 version despite version 3.1.0 existing.
+    catalogs.default['is-positive'] = '^3.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().catalogs.default).toEqual({
+      'is-positive': { specifier: '^3.0.0', version: '3.0.0' },
+    })
+
+    // Expecting the manifest to remain unchanged after running an update.
+    const updatedManifest = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive'],
+      {
+        ...mutateOpts,
+        update: true,
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    })
+
+    // The lockfile should only contain 3.0.0 and not 3.1.0 (or a later version).
+    expect(readLockfile()).toEqual(expect.objectContaining({
+      catalogs: { default: { 'is-positive': { specifier: '^3.0.0', version: '3.0.0' } } },
+      packages: { 'is-positive@3.0.0': expect.objectContaining({}) },
+    }))
+  })
 })
