@@ -23,7 +23,6 @@
     "fs-extra": "catalog:",
     "make-empty-dir": "catalog:",
     "p-limit": "catalog:",
-    "path-exists": "catalog:",
     "path-temp": "catalog:",
     "rename-overwrite": "catalog:",
     "sanitize-filename": "catalog:"

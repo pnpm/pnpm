@@ -49,7 +49,6 @@
     "cross-spawn": "catalog:",
     "is-windows": "catalog:",
     "load-json-file": "catalog:",
-    "path-exists": "catalog:",
     "tar": "catalog:",
     "write-yaml-file": "catalog:"
   },

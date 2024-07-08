@@ -67,7 +67,7 @@ export async function runRecursive (
       ? 'inherit'
       : 'pipe'
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
-  const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
+  const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
 
   const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
   if (requiredScripts.includes(scriptName)) {
@@ -121,7 +121,7 @@ export async function runRecursive (
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
           }
-          const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
+          const pnpPath = workspacePnpPath ?? existsPnp(prefix)
           if (pnpPath) {
             lifecycleOpts.extraEnv = {
               ...lifecycleOpts.extraEnv,

@@ -58,7 +58,6 @@
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "cmd-extension": "catalog:",
-    "path-exists": "catalog:",
     "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

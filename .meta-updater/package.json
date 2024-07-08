@@ -13,7 +13,6 @@
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
-    "path-exists": "catalog:",
     "write-json-file": "catalog:"
   },
   "devDependencies": {

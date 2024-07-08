@@ -180,7 +180,7 @@ export async function handler (
 
   const result = createEmptyRecursiveSummary(chunks)
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
-  const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
+  const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
 
   let exitCode = 0
   const prependPaths = [
@@ -195,7 +195,7 @@ export async function handler (
         result[prefix].status = 'running'
         const startTime = process.hrtime()
         try {
-          const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
+          const pnpPath = workspacePnpPath ?? existsPnp(prefix)
           const extraEnv = {
             ...opts.extraEnv,
             ...(pnpPath ? makeNodeRequireOption(pnpPath) : {}),

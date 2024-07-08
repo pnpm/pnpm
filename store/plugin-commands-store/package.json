@@ -41,7 +41,6 @@
     "@types/ssri": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:",
-    "path-exists": "catalog:",
     "ssri": "catalog:",
     "tempy": "catalog:"
   },
