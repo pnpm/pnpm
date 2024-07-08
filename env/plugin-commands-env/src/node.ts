@@ -71,6 +71,7 @@ export const createBinPathsModifierBasedOnManifest = (config: NvmNodeCommandOpti
     useNodeVersion: manifest.pnpm.useNodeVersion,
   })
 
+  binPaths = [...binPaths]
   replaceOrAddNodeIntoBinPaths(binPaths, baseDir, nodePath)
 
   return binPaths
