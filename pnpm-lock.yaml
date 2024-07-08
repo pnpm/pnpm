@@ -4719,6 +4719,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
+      '@pnpm/plugin-commands-env':
+        specifier: workspace:*
+        version: link:../../env/plugin-commands-env
       '@pnpm/plugin-commands-rebuild':
         specifier: workspace:*
         version: link:../../exec/plugin-commands-rebuild

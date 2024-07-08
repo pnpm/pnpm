@@ -53,6 +53,29 @@ export async function createBinPathsWithNodeVersion (config: ConfigWithExtraBinP
   return binPaths
 }
 
+export interface ManifestWithUseNodeVersion {
+  pnpm?: {
+    useNodeVersion?: string
+  }
+}
+
+export type BinPathsModifierBasedOnManifest = (manifest: ManifestWithUseNodeVersion, extraBinPaths: string[]) => Promise<string[]>
+
+export const createBinPathsModifierBasedOnManifest = (config: NvmNodeCommandOptions): BinPathsModifierBasedOnManifest => async (manifest, binPaths) => {
+  if (!manifest.pnpm?.useNodeVersion) return binPaths
+
+  const baseDir = getNodeVersionsBaseDir(config.pnpmHomeDir)
+
+  const nodePath = await getNodeBinDir({
+    ...config,
+    useNodeVersion: manifest.pnpm.useNodeVersion,
+  })
+
+  replaceOrAddNodeIntoBinPaths(binPaths, baseDir, nodePath)
+
+  return binPaths
+}
+
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {
   const fetch = createFetchFromRegistry(opts)
   const nodesDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)

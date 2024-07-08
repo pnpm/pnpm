@@ -13,6 +13,7 @@ import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageExtension,
+  type ProjectManifest,
   type ReadPackageHook,
   type Registries,
 } from '@pnpm/types'
@@ -151,6 +152,7 @@ export interface StrictInstallOptions {
   hoistWorkspacePackages?: boolean
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
+  modifyBinPaths: (manifest: ProjectManifest, extraBinPaths: string[]) => string[] | Promise<string[]>
 }
 
 export type InstallOptions =

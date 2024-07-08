@@ -8,6 +8,8 @@ import isWindows from 'is-windows'
 
 function noop () {} // eslint-disable-line:no-empty
 
+export type ModifyBinPaths = (manifest: ProjectManifest, extraBinPaths: string[]) => string[] | Promise<string[]>
+
 export interface RunLifecycleHookOptions {
   args?: string[]
   depPath: string
@@ -24,6 +26,7 @@ export interface RunLifecycleHookOptions {
   shellEmulator?: boolean
   stdio?: string
   unsafePerm: boolean
+  modifyBinPaths?: ModifyBinPaths
 }
 
 export async function runLifecycleHook (
@@ -94,13 +97,15 @@ Please unset the script-shell option, or configure it to a .exe instead.
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
     : undefined
+  const modifyBinPaths: ModifyBinPaths = opts.modifyBinPaths ?? ((_, extraBinPaths) => extraBinPaths)
+  const extraBinPaths: string[] = await modifyBinPaths(manifest, opts.extraBinPaths ?? [])
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,
       'frozen-lockfile': false,
     },
     dir: opts.rootModulesDir,
-    extraBinPaths: opts.extraBinPaths ?? [],
+    extraBinPaths,
     extraEnv: {
       ...opts.extraEnv,
       INIT_CWD: opts.initCwd ?? process.cwd(),

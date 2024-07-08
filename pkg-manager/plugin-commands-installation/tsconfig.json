@@ -40,6 +40,9 @@
       "path": "../../dedupe/check"
     },
     {
+      "path": "../../env/plugin-commands-env"
+    },
+    {
       "path": "../../exec/plugin-commands-rebuild"
     },
     {
