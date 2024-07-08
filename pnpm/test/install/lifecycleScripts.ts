@@ -1,10 +1,11 @@
 import fs from 'fs'
 import path from 'path'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { type PackageManifest } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import loadJsonFile from 'load-json-file'
+import writeYamlFile from 'write-yaml-file'
 import { execPnpmSync } from '../utils'
 
 const pkgRoot = path.join(__dirname, '..', '..')
@@ -162,4 +163,91 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+})
+
+// TODO: investigate the bug, fix the bug, and remove `.skip`
+test.skip('use node versions specified by pnpm.useNodeVersion in workspace packages', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'node-version-undefined',
+      version: '1.0.0',
+      scripts: {
+        install: 'node -v > node-version.txt',
+      },
+      dependencies: {
+        '@pnpm.e2e/generate-node-info-during-install': '1.0.0',
+      },
+    },
+    {
+      name: 'node-version-18',
+      version: '1.0.0',
+      scripts: {
+        install: 'node -v > node-version.txt',
+      },
+      dependencies: {
+        '@pnpm.e2e/generate-node-info-during-install': '1.0.0',
+      },
+      pnpm: {
+        useNodeVersion: '18.0.0',
+      },
+    },
+    {
+      name: 'node-version-20',
+      version: '1.0.0',
+      scripts: {
+        install: 'node -v > node-version.txt',
+      },
+      dependencies: {
+        '@pnpm.e2e/generate-node-info-during-install': '1.0.0',
+      },
+      pnpm: {
+        useNodeVersion: '20.0.0',
+      },
+    },
+  ])
+
+  await writeYamlFile(path.resolve('pnpm-workspace.yaml'), {
+    packages: ['*'],
+  })
+
+  execPnpmSync(['install'])
+
+  expect(
+    ['node-version-undefined', 'node-version-18', 'node-version-20'].map(name => {
+      const filePath = path.join(projects[name].dir(), 'node-version.txt')
+      return fs.readFileSync(filePath, 'utf-8').trim()
+    })
+  ).toStrictEqual([process.version, 'v18.0.0', 'v20.0.0'])
+
+  expect(
+    ['node-version-undefined', 'node-version-18', 'node-version-20']
+      .map(name => path.join(projects[name].dir(), 'node_modules', '@pnpm.e2e', 'generate-node-info-during-install', 'node-info.json'))
+      .map(nodeInfoPath => fs.readFileSync(nodeInfoPath, 'utf-8'))
+      .map(nodeInfoJson => JSON.parse(nodeInfoJson))
+  ).toMatchObject([
+    {
+      execPath: process.execPath,
+      versions: process.versions,
+    },
+    {
+      execPath: '',
+      versions: {
+        node: '18.0.0',
+      },
+    },
+    {
+      execPath: '',
+      versions: {
+        node: '20.0.0',
+      },
+    },
+  ])
 })
