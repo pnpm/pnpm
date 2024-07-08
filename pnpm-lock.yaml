@@ -791,9 +791,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -862,9 +859,6 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
     devDependencies:
       '@pnpm/assert-store':
         specifier: workspace:*
@@ -2046,9 +2040,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       sinon:
         specifier: 'catalog:'
         version: 16.1.3
@@ -2124,9 +2115,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -2515,9 +2503,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       path-temp:
         specifier: 'catalog:'
         version: 2.1.0
@@ -4442,9 +4427,6 @@ importers:
       cmd-extension:
         specifier: 'catalog:'
         version: 1.0.2
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -4791,9 +4773,6 @@ importers:
       path-absolute:
         specifier: 'catalog:'
         version: 1.0.1
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -5514,9 +5493,6 @@ importers:
       p-defer:
         specifier: 'catalog:'
         version: 3.0.0
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -5829,9 +5805,6 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       tar:
         specifier: 'catalog:'
         version: 6.2.1
@@ -6037,9 +6010,6 @@ importers:
       nock:
         specifier: 'catalog:'
         version: 13.3.4
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -6876,9 +6846,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       ssri:
         specifier: 'catalog:'
         version: 10.0.5

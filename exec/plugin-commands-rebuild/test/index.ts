@@ -10,7 +10,6 @@ import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import execa from 'execa'
 import loadJsonFile from 'load-json-file'
-import exists from 'path-exists'
 import sinon from 'sinon'
 import { DEFAULT_OPTS } from './utils'
 
@@ -56,8 +55,8 @@ test('rebuilds dependencies', async () => {
   expect(modules!.pendingBuilds.length).toBe(0)
 
   {
-    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
-    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+    expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
+    expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
 
     const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
     expect(typeof generatedByPreinstall).toBe('function')
@@ -319,12 +318,12 @@ test('rebuild links bins', async () => {
     '--ignore-scripts',
   ])
 
-  expect(await exists(path.resolve('node_modules/.bin/cmd1'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules/.bin/cmd2'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.bin/cmd1'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.bin/cmd2'))).toBeFalsy()
 
-  expect(await exists(path.resolve('node_modules/@pnpm.e2e/has-generated-bins-as-dep/package.json'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/@pnpm.e2e/has-generated-bins-as-dep/node_modules/.bin/cmd1'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules/@pnpm.e2e/has-generated-bins-as-dep/node_modules/.bin/cmd2'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/has-generated-bins-as-dep/package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/has-generated-bins-as-dep/node_modules/.bin/cmd1'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/has-generated-bins-as-dep/node_modules/.bin/cmd2'))).toBeFalsy()
 
   const modules = project.readModulesManifest()
   await rebuild.handler({
@@ -407,12 +406,12 @@ test('never build neverBuiltDependencies', async () => {
   )
 
   expect(
-    await exists(
+    fs.existsSync(
       'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-prepare.js'
     )
   ).toBeFalsy()
   expect(
-    await exists(
+    fs.existsSync(
       'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
     )
   ).toBeTruthy()

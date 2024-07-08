@@ -41,8 +41,7 @@
   },
   "dependencies": {
     "@pnpm/registry-mock": "catalog:",
-    "@pnpm/store.cafs": "workspace:*",
-    "path-exists": "catalog:"
+    "@pnpm/store.cafs": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*"

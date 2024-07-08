@@ -100,7 +100,6 @@
     "p-filter": "catalog:",
     "p-limit": "catalog:",
     "path-absolute": "catalog:",
-    "path-exists": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "version-selector-type": "catalog:",

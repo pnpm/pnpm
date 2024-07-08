@@ -42,7 +42,6 @@
     "@types/semver": "catalog:",
     "@types/sinon": "catalog:",
     "execa": "catalog:",
-    "path-exists": "catalog:",
     "sinon": "catalog:",
     "write-yaml-file": "catalog:"
   },
