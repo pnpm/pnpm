@@ -5735,6 +5735,9 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
+      '@pnpm/plugin-commands-env':
+        specifier: workspace:*
+        version: link:../../env/plugin-commands-env
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base

@@ -12,9 +12,11 @@ import writeJsonFile from 'write-json-file'
 import { publish } from './publish'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
+| 'bin'
 | 'cacheDir'
 | 'cliOptions'
 | 'dir'
+| 'pnpmHomeDir'
 | 'rawConfig'
 | 'registries'
 | 'workspaceDir'

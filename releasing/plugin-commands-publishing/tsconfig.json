@@ -34,6 +34,9 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../env/plugin-commands-env"
+    },
+    {
       "path": "../../exec/lifecycle"
     },
     {
