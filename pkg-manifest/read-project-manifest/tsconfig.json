@@ -24,6 +24,5 @@
     {
       "path": "../write-project-manifest"
     }
-  ],
-  "composite": true
+  ]
 }

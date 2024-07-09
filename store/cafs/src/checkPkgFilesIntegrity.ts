@@ -1,4 +1,5 @@
 import fs from 'fs'
+import util from 'util'
 import type { PackageFileInfo } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
@@ -19,6 +20,8 @@ export interface VerifyResult {
   manifest?: DependencyManifest
 }
 
+export type SideEffects = Record<string, Record<string, PackageFileInfo>>
+
 export interface PackageFilesIndex {
   // name and version are nullable for backward compatibility
   // the initial specs of pnpm store v3 did not require these fields.
@@ -26,9 +29,10 @@ export interface PackageFilesIndex {
   // have the name/version fields, like the local tarball dependencies.
   name?: string
   version?: string
+  requiresBuild?: boolean
 
   files: Record<string, PackageFileInfo>
-  sideEffects?: Record<string, Record<string, PackageFileInfo>>
+  sideEffects?: SideEffects
 }
 
 export function checkPkgFilesIntegrity (
@@ -109,7 +113,7 @@ function verifyFile (
   if (readManifest) {
     return {
       passed: true,
-      manifest: parseJsonBufferSync(gfs.readFileSync(filename)),
+      manifest: parseJsonBufferSync(gfs.readFileSync(filename)) as DependencyManifest,
     }
   }
   // If a file was not edited, we are skipping integrity check.
@@ -133,12 +137,12 @@ export function verifyFileIntegrity (
     } else if (readManifest) {
       return {
         passed,
-        manifest: parseJsonBufferSync(data),
+        manifest: parseJsonBufferSync(data) as DependencyManifest,
       }
     }
     return { passed }
-  } catch (err: any) { // eslint-disable-line
-    switch (err.code) {
+  } catch (err: unknown) {
+    switch (util.types.isNativeError(err) && 'code' in err && err.code) {
     case 'ENOENT': return { passed: false }
     case 'EINTEGRITY': {
       // Broken files are removed from the store
@@ -150,15 +154,15 @@ export function verifyFileIntegrity (
   }
 }
 
-function checkFile (filename: string, checkedAt?: number) {
+function checkFile (filename: string, checkedAt?: number): { isModified: boolean, size: number } | null {
   try {
     const { mtimeMs, size } = fs.statSync(filename)
     return {
       isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
       size,
     }
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') return null
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
   }
 }

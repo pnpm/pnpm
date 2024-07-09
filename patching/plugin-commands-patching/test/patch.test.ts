@@ -3,8 +3,8 @@ import os from 'os'
 import path from 'path'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { install } from '@pnpm/plugin-commands-installation'
-import { readProjects } from '@pnpm/filter-workspace-packages'
-import writeYamlFile from 'write-yaml-file'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import tempy from 'tempy'
 import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
@@ -27,6 +27,7 @@ const basePatchOption = {
   registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
   userConfig: {},
   virtualStoreDir: 'node_modules/.pnpm',
+  virtualStoreDirMaxLength: 120,
 }
 
 describe('patch and commit', () => {
@@ -77,6 +78,7 @@ describe('patch and commit', () => {
       ...DEFAULT_OPTS,
       cacheDir,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
       storeDir,
@@ -115,6 +117,7 @@ describe('patch and commit', () => {
       ...DEFAULT_OPTS,
       cacheDir,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
       storeDir,
@@ -138,6 +141,7 @@ describe('patch and commit', () => {
       ...DEFAULT_OPTS,
       cacheDir,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
       storeDir,
@@ -160,6 +164,7 @@ describe('patch and commit', () => {
       ...DEFAULT_OPTS,
       cacheDir,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
       patchesDir,
@@ -198,6 +203,7 @@ describe('patch and commit', () => {
       ...DEFAULT_OPTS,
       cacheDir,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
       storeDir,
@@ -217,6 +223,7 @@ describe('patch and commit', () => {
       ...DEFAULT_OPTS,
       cacheDir,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
       storeDir,
@@ -266,6 +273,7 @@ describe('patch and commit', () => {
       ...DEFAULT_OPTS,
       cacheDir,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
       storeDir,
@@ -310,19 +318,21 @@ describe('patch and commit', () => {
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('1.0.0')
   })
 
-  test('should skip empty patch content', async () => {
+  test('should skip empty patch content and not create patches dir', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
     const result = await patchCommit.handler({
       ...DEFAULT_OPTS,
       cacheDir,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
       storeDir,
     }, [patchDir])
     expect(result).toBe(`No changes were found to the following directory: ${patchDir}`)
     expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(false)
+    expect(fs.existsSync('patches')).toBe(false)
   })
 })
 
@@ -358,11 +368,21 @@ describe('prompt to choose version', () => {
     prompt.mockResolvedValue({
       version: '5.3.0',
     })
-
+    prompt.mockClear()
     const output = await patch.handler(defaultPatchOption, ['chalk'])
 
-    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining(['5.3.0', '4.1.2']))
-    prompt.mockClear()
+    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining([
+      {
+        name: '4.1.2',
+        message: '4.1.2',
+        value: '4.1.2',
+      },
+      {
+        name: '5.3.0',
+        message: '5.3.0',
+        value: '5.3.0',
+      },
+    ]))
 
     const patchDir = getPatchDirFromPatchOutput(output)
     const tempDir = os.tmpdir()
@@ -377,6 +397,7 @@ describe('prompt to choose version', () => {
       ...DEFAULT_OPTS,
       cacheDir,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
       storeDir,
@@ -435,6 +456,7 @@ describe('patching should work when there is a no EOL in the patched file', () =
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
     }, [userPatchDir])
@@ -463,6 +485,7 @@ describe('patching should work when there is a no EOL in the patched file', () =
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
     }, [userPatchDir])
@@ -495,6 +518,7 @@ describe('patch and commit in workspaces', () => {
         version: '1.0.0',
         dependencies: {
           'is-positive': '1.0.0',
+          hi: '0.0.0',
         },
       },
       {
@@ -503,6 +527,7 @@ describe('patch and commit in workspaces', () => {
         dependencies: {
           'is-positive': '1.0.0',
           'project-1': '1',
+          hi: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
         },
       },
     ])
@@ -516,11 +541,11 @@ describe('patch and commit in workspaces', () => {
       dir: process.cwd(),
       storeDir,
     }
-    await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
+    writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
   })
 
   test('patch commit should work in workspaces', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -551,13 +576,13 @@ describe('patch and commit in workspaces', () => {
       allProjectsGraph,
       selectedProjectsGraph,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       cacheDir,
       storeDir,
       lockfileDir: process.cwd(),
       workspaceDir: process.cwd(),
       saveLockfile: true,
       frozenLockfile: false,
-      fixLockfile: true,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
@@ -574,7 +599,7 @@ describe('patch and commit in workspaces', () => {
   })
 
   test('patch and patch-commit should work with shared-workspace-lockfile=false', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -611,6 +636,7 @@ describe('patch and commit in workspaces', () => {
       allProjectsGraph,
       selectedProjectsGraph,
       dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
       cacheDir,
       storeDir,
       lockfileDir: process.cwd(),
@@ -632,6 +658,132 @@ describe('patch and commit in workspaces', () => {
     expect(fs.existsSync('./node_modules/is-positive/license')).toBe(false)
     expect(fs.readFileSync('../project-2/node_modules/is-positive/index.js', 'utf8')).not.toContain('// test patching')
     expect(fs.existsSync('../project-2/node_modules/is-positive/license')).toBe(true)
+  })
+
+  test('reusing existing patch file should work with shared-workspace-lockfile=false', async () => {
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      lockfileDir: undefined,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+      sharedWorkspaceLockfile: false,
+    })
+
+    // patch project-1
+    process.chdir('./project-1')
+    let output = await patch.handler({
+      ...defaultPatchOption,
+      dir: process.cwd(),
+    }, ['is-positive@1.0.0'])
+    let patchDir = getPatchDirFromPatchOutput(output)
+
+    // modify index.js and remove license
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
+
+    // patch-commit
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      cacheDir,
+      storeDir,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+      frozenLockfile: false,
+      fixLockfile: true,
+      sharedWorkspaceLockfile: false,
+    }, [patchDir])
+
+    // verify committed patch
+    expect(fs.readFileSync('./node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+    expect(fs.existsSync('./node_modules/is-positive/license')).toBe(false)
+
+    // re-patch project-1
+    output = await patch.handler({
+      ...defaultPatchOption,
+      dir: process.cwd(),
+    }, ['is-positive@1.0.0'])
+    patchDir = getPatchDirFromPatchOutput(output)
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    // verify temporary patch is reusing last committed patch
+    expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('// test patching')
+    expect(fs.existsSync(path.join(patchDir, 'license'))).toBe(false)
+  })
+
+  test('patch and patch-commit for git hosted dependency', async () => {
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      lockfileDir: process.cwd(),
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+    })
+
+    prompt.mockResolvedValue({
+      version: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    })
+    prompt.mockClear()
+    const output = await patch.handler(defaultPatchOption, ['hi'])
+    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining([
+      {
+        name: '0.0.0',
+        message: '0.0.0',
+        value: '0.0.0',
+      },
+      {
+        name: '1.0.0',
+        message: '1.0.0',
+        value: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+        hint: 'Git Hosted',
+      },
+    ]))
+    const patchDir = getPatchDirFromPatchOutput(output)
+    expect(fs.existsSync(patchDir)).toBe(true)
+    expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('module.exports = \'Hi\'')
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      cacheDir,
+      storeDir,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+      frozenLockfile: false,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'hi@1.0.0': 'patches/hi@1.0.0.patch',
+    })
+    const patchContent = fs.readFileSync('patches/hi@1.0.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git')
+    expect(patchContent).toContain('// test patching')
+    expect(fs.readFileSync('./project-2/node_modules/hi/index.js', 'utf8')).toContain('// test patching')
   })
 })
 
@@ -658,7 +810,7 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
   test('should work with custom modules-dir and virtual-store-dir', async () => {
     const manifest = fs.readFileSync(path.join(customModulesDirFixture, 'package.json'), 'utf8')
     const lockfileYaml = fs.readFileSync(path.join(customModulesDirFixture, 'pnpm-lock.yaml'), 'utf8')
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(customModulesDirFixture, [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(customModulesDirFixture, [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -685,6 +837,7 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: customModulesDirFixture,
+      rootProjectManifestDir: customModulesDirFixture,
       saveLockfile: true,
       frozenLockfile: false,
       fixLockfile: true,
@@ -746,6 +899,7 @@ describe('patch-remove', () => {
     const { manifest: newManifest } = await readProjectManifest(process.cwd())
     expect(newManifest!.pnpm!).toBeUndefined()
     expect(fs.existsSync(path.join(process.cwd(), 'patches/is-positive@1.0.0.patch'))).toBe(false)
+    expect(fs.existsSync(path.join(process.cwd(), 'patches'))).toBe(false)
   })
 
   test('prompt to select patches that to be removed', async () => {
@@ -774,7 +928,8 @@ describe('patch-remove', () => {
   })
 })
 
-function getPatchDirFromPatchOutput (output: string) {
-  const [firstLine] = output.split('\n')
-  return firstLine.substring(firstLine.indexOf(':') + 1).trim()
+function getPatchDirFromPatchOutput (output: string): string {
+  const match = output.match(/'([^']+)'/)
+  if (match?.[1] == null) throw new Error('No path in output')
+  return match[1]
 }

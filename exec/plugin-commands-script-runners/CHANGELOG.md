@@ -1,5 +1,609 @@
 # @pnpm/plugin-commands-script-runners
 
+## 10.0.1
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/plugin-commands-env@5.0.12
+  - @pnpm/plugin-commands-installation@16.0.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 10.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Minor Changes
+
+- 1b03682: Read authentication information from .npmrc in the current directory when running `dlx` [#7996](https://github.com/pnpm/pnpm/issues/7996).
+
+### Patch Changes
+
+- 98f20a7: Fix `dlx` not actually using node version specified by `--use-node-version`.
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [84654bd]
+- Updated dependencies [9b5b869]
+  - @pnpm/config@21.6.0
+  - @pnpm/plugin-commands-installation@16.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/plugin-commands-env@5.0.11
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/package-bins@9.0.3
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/sort-packages@6.0.4
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 9.1.11
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/plugin-commands-installation@15.1.11
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/package-bins@9.0.2
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/sort-packages@6.0.3
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 9.1.10
+
+### Patch Changes
+
+- 271386f: Set `reporter-hide-prefix` to `true` by default for `pnpm exec`. In order to show prefix, the user now has to explicitly set `reporter-hide-prefix=false` [#8174](https://github.com/pnpm/pnpm/issues/8174).
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/plugin-commands-installation@15.1.10
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/lifecycle@17.0.5
+
+## 9.1.9
+
+### Patch Changes
+
+- bc0618c: `exec` now also streams prefixed output when `--recursive` or `--parallel` is specified just as `run` does [#8065](https://github.com/pnpm/pnpm/issues/8065).
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/lifecycle@17.0.5
+  - @pnpm/plugin-commands-installation@15.1.9
+
+## 9.1.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.8
+
+## 9.1.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.7
+
+## 9.1.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.6
+
+## 9.1.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.5
+- @pnpm/lifecycle@17.0.4
+- @pnpm/config@21.2.3
+- @pnpm/cli-utils@3.0.7
+- @pnpm/crypto.base32-hash@3.0.0
+
+## 9.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/lifecycle@17.0.3
+  - @pnpm/package-bins@9.0.1
+  - @pnpm/plugin-commands-installation@15.1.4
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/read-project-manifest@6.0.2
+  - @pnpm/sort-packages@6.0.2
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 9.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+- Updated dependencies [37538f5]
+  - @pnpm/error@6.0.1
+  - @pnpm/command@5.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/lifecycle@17.0.2
+  - @pnpm/plugin-commands-installation@15.1.3
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/read-project-manifest@6.0.1
+  - @pnpm/store-path@9.0.1
+
+## 9.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+- @pnpm/plugin-commands-installation@15.1.2
+
+## 9.1.1
+
+### Patch Changes
+
+- @pnpm/sort-packages@6.0.1
+- @pnpm/plugin-commands-installation@15.1.1
+
+## 9.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/plugin-commands-installation@15.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/lifecycle@17.0.1
+
+## 9.0.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.7
+
+## 9.0.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.6
+
+## 9.0.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.5
+
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [bfadc0a]
+- Updated dependencies [a80b539]
+  - @pnpm/lifecycle@17.0.1
+  - @pnpm/cli-utils@3.0.2
+  - @pnpm/plugin-commands-installation@15.0.4
+
+## 9.0.3
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.3
+
+## 9.0.2
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.2
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/cli-utils@3.0.1
+  - @pnpm/plugin-commands-installation@15.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 98566d9: Added cache for `pnpm dlx` [#5277](https://github.com/pnpm/pnpm/issues/5277).
+
+### Patch Changes
+
+- 1a3449e: support `node-options` option inside `.npmrc` file when running scripts [#7596](https://github.com/pnpm/pnpm/issues/7596)
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [d4e13ca]
+- Updated dependencies [e748162]
+- Updated dependencies [82aac81]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/plugin-commands-installation@15.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/package-bins@9.0.0
+  - @pnpm/sort-packages@6.0.0
+  - @pnpm/store-path@9.0.0
+  - @pnpm/lifecycle@17.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/command@5.0.0
+
+## 8.0.21
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+- Updated dependencies [f43bdcf45]
+  - @pnpm/plugin-commands-installation@14.2.0
+  - @pnpm/lifecycle@16.0.12
+  - @pnpm/cli-utils@2.1.9
+  - @pnpm/config@20.4.2
+
+## 8.0.20
+
+### Patch Changes
+
+- be27890ee: Set saveProd to true for getting pkgName from dependencies [7424](https://github.com/pnpm/pnpm/issues/7424).
+  - @pnpm/plugin-commands-installation@14.1.3
+  - @pnpm/lifecycle@16.0.11
+
+## 8.0.19
+
+### Patch Changes
+
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/plugin-commands-installation@14.1.2
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/lifecycle@16.0.10
+
+## 8.0.18
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.1.1
+
+## 8.0.17
+
+### Patch Changes
+
+- Updated dependencies [064aeb681]
+- Updated dependencies [c597f72ec]
+  - @pnpm/plugin-commands-installation@14.1.0
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 8.0.16
+
+### Patch Changes
+
+- Updated dependencies [619e9ed6f]
+- Updated dependencies [4e71066dd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/plugin-commands-installation@14.0.15
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/package-bins@8.0.6
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/read-project-manifest@5.0.10
+  - @pnpm/sort-packages@5.0.9
+
+## 8.0.15
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/plugin-commands-installation@14.0.14
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/package-bins@8.0.5
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/read-project-manifest@5.0.9
+  - @pnpm/sort-packages@5.0.8
+
+## 8.0.14
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.13
+
+## 8.0.13
+
+### Patch Changes
+
+- 1474bfd89: Fix a bug where pnpm incorrectly passes a flag to a run handler as a fallback command [#7244](https://github.com/pnpm/pnpm/issues/7244).
+
+## 8.0.12
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.12
+
+## 8.0.11
+
+### Patch Changes
+
+- Updated dependencies [6558d1865]
+  - @pnpm/plugin-commands-installation@14.0.11
+  - @pnpm/cli-utils@2.1.4
+
+## 8.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+- @pnpm/plugin-commands-installation@14.0.10
+
+## 8.0.9
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.9
+
+## 8.0.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.8
+
+## 8.0.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.7
+
+## 8.0.6
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.8
+- @pnpm/plugin-commands-installation@14.0.6
+- @pnpm/config@20.1.2
+- @pnpm/cli-utils@2.1.2
+
+## 8.0.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.5
+
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.7
+- @pnpm/plugin-commands-installation@14.0.4
+
+## 8.0.3
+
+### Patch Changes
+
+- 7d65d901a: Fix issue when trying to use `pnpm dlx` in the root of a Windows Drive [#7263](https://github.com/pnpm/pnpm/issues/7263).
+- Updated dependencies [7d65d901a]
+  - @pnpm/store-path@8.0.1
+  - @pnpm/plugin-commands-installation@14.0.3
+  - @pnpm/lifecycle@16.0.6
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+
+## 8.0.2
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.5
+- @pnpm/plugin-commands-installation@14.0.2
+
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.1
+
+## 8.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Minor Changes
+
+- 43ce9e4a6: Support for multiple architectures when installing dependencies [#5965](https://github.com/pnpm/pnpm/issues/5965).
+
+  You can now specify architectures for which you'd like to install optional dependencies, even if they don't match the architecture of the system running the install. Use the `supportedArchitectures` field in `package.json` to define your preferences.
+
+  For example, the following configuration tells pnpm to install optional dependencies for Windows x64:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32"],
+        "cpu": ["x64"]
+      }
+    }
+  }
+  ```
+
+  Whereas this configuration will have pnpm install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32", "darwin", "current"],
+        "cpu": ["x64", "arm64"]
+      }
+    }
+  }
+  ```
+
+  Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+### Patch Changes
+
+- e34f6fba9: When running scripts recursively inside a workspace, the logs of the scripts are grouped together in some CI tools. (Only works with `--workspace-concurrency 1`)
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d2dc2e66a]
+- Updated dependencies [d6592964f]
+- Updated dependencies [d6592964f]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/package-bins@8.0.4
+  - @pnpm/plugin-commands-installation@14.0.0
+  - @pnpm/lifecycle@16.0.4
+  - @pnpm/read-package-json@8.0.5
+  - @pnpm/read-project-manifest@5.0.8
+  - @pnpm/sort-packages@5.0.7
+
+## 7.2.8
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.3
+- @pnpm/plugin-commands-installation@13.2.6
+
+## 7.2.7
+
+### Patch Changes
+
+- Updated dependencies [4246f41be]
+- Updated dependencies [84f81c9ae]
+  - @pnpm/sort-packages@5.0.6
+  - @pnpm/lifecycle@16.0.2
+  - @pnpm/plugin-commands-installation@13.2.5
+
+## 7.2.6
+
+### Patch Changes
+
+- 1ce2dd13a: Update didyoumean2 to v6.
+- ac5abd3ff: `pnpm dlx` should ignore any settings that are in a `package.json` file found in the current working directory [#7198](https://github.com/pnpm/pnpm/issues/7198).
+- Updated dependencies [bc83798d4]
+- Updated dependencies [46dc34dcc]
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/plugin-commands-installation@13.2.4
+  - @pnpm/config@20.0.0
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/lifecycle@16.0.1
+
+## 7.2.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.2.3
+
+## 7.2.4
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.2.2
+
+## 7.2.3
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+  - @pnpm/plugin-commands-installation@13.2.1
+
+## 7.2.2
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [12f45a83d]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/plugin-commands-installation@13.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/package-bins@8.0.3
+  - @pnpm/read-package-json@8.0.4
+  - @pnpm/read-project-manifest@5.0.7
+  - @pnpm/sort-packages@5.0.5
+
+## 7.2.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.8
+
+## 7.2.0
+
+### Minor Changes
+
+- ee328fd25: Add `--hide-reporter-prefix' option for `run` command to hide project name as prefix for lifecycle log outputs of running scripts [#7061](https://github.com/pnpm/pnpm/issues/7061).
+
+### Patch Changes
+
+- Updated dependencies [ba48fe0bc]
+- Updated dependencies [ee328fd25]
+  - @pnpm/plugin-commands-installation@13.1.7
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+
+## 7.1.26
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.6
+- @pnpm/cli-utils@2.0.20
+
 ## 7.1.25
 
 ### Patch Changes

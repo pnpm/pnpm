@@ -1,26 +1,31 @@
+import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import { resolveDependencies, getWantedDependencies } from '@pnpm/resolve-dependencies'
 import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
 import { getContext, type GetContextOptions, type ProjectOptions } from '@pnpm/get-context'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import { getPreferredVersionsFromLockfileAndManifests } from './install/getPreferredVersions'
 import { type InstallOptions } from './install/extendInstallOptions'
 import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 
 export type ListMissingPeersOptions = Partial<GetContextOptions>
 & Pick<InstallOptions, 'hooks'
+| 'catalogs'
+| 'dedupePeerDependents'
 | 'ignoreCompatibilityDb'
 | 'linkWorkspacePackagesDepth'
 | 'nodeVersion'
 | 'nodeLinker'
 | 'overrides'
 | 'packageExtensions'
+| 'ignoredOptionalDependencies'
 | 'preferWorkspacePackages'
 | 'saveWorkspaceProtocol'
 | 'storeController'
 | 'useGitBranchLockfile'
-| 'workspacePackages'
+| 'peersSuffixMaxLength'
 >
+& Partial<Pick<InstallOptions, 'supportedArchitectures'>>
 & Pick<GetContextOptions, 'autoInstallPeers' | 'excludeLinksFromLockfile' | 'storeDir'>
+& Required<Pick<InstallOptions, 'virtualStoreDirMaxLength' | 'peersSuffixMaxLength'>>
 
 export async function getPeerDependencyIssues (
   projects: ProjectOptions[],
@@ -29,7 +34,6 @@ export async function getPeerDependencyIssues (
   const lockfileDir = opts.lockfileDir ?? process.cwd()
   const ctx = await getContext({
     force: false,
-    forceSharedLockfile: false,
     extraBinPaths: [],
     lockfileDir,
     nodeLinker: opts.nodeLinker ?? 'isolated',
@@ -56,7 +60,9 @@ export async function getPeerDependencyIssues (
       currentLockfile: ctx.currentLockfile,
       allowedDeprecatedVersions: {},
       allowNonAppliedPatches: false,
+      catalogs: opts.catalogs,
       defaultUpdateDepth: -1,
+      dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: true,
       engineStrict: false,
       force: false,
@@ -68,6 +74,7 @@ export async function getPeerDependencyIssues (
           overrides: opts.overrides,
           packageExtensions: opts.packageExtensions,
           readPackageHook: opts.hooks?.readPackage,
+          ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
         }),
       },
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
@@ -82,8 +89,11 @@ export async function getPeerDependencyIssues (
       storeController: opts.storeController,
       tag: 'latest',
       virtualStoreDir: ctx.virtualStoreDir,
+      virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       wantedLockfile: ctx.wantedLockfile,
-      workspacePackages: opts.workspacePackages ?? {},
+      workspacePackages: ctx.workspacePackages ?? new Map(),
+      supportedArchitectures: opts.supportedArchitectures,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
     }
   )
 

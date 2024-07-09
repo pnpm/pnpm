@@ -1,5 +1,198 @@
 # @pnpm/get-context
 
+## 12.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/modules-yaml@13.1.3
+  - @pnpm/read-projects-context@9.1.6
+
+## 11.2.1
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- Updated dependencies [13e55b2]
+  - @pnpm/read-projects-context@9.1.5
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/modules-yaml@13.1.2
+
+## 11.2.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/read-projects-context@9.1.4
+
+## 11.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/read-projects-context@9.1.3
+
+## 11.1.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/read-projects-context@9.1.2
+
+## 11.1.1
+
+### Patch Changes
+
+- @pnpm/lockfile-file@9.0.4
+- @pnpm/read-projects-context@9.1.1
+
+## 11.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/read-projects-context@9.1.0
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/lockfile-file@9.0.3
+
+## 11.0.2
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+  - @pnpm/read-projects-context@9.0.2
+
+## 11.0.1
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/read-projects-context@9.0.1
+
+## 11.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- 19c4b4f: When purging multiple node_modules folders, pnpm will no longer print multiple prompts simultaneously.
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [c692f80]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [f67ad31]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/read-projects-context@9.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/core-loggers@10.0.0
+
+## 10.0.11
+
+### Patch Changes
+
+- 60bcc797f: Registry configuration from previous installation should not override current settings [#7507](https://github.com/pnpm/pnpm/issues/7507).
+
+## 10.0.10
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/read-projects-context@8.0.11
+
+## 10.0.9
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/read-projects-context@8.0.10
+
+## 10.0.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/read-projects-context@8.0.9
+
+## 10.0.7
+
+### Patch Changes
+
+- b1fd38cca: The modules directory should not be removed if the registry configuration has changed.
+
+## 10.0.6
+
+### Patch Changes
+
+- 2143a9388: Improve the error message when `node_modules` should be recreated.
+
+## 10.0.5
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/core-loggers@9.0.4
+  - @pnpm/modules-yaml@12.1.4
+  - @pnpm/read-projects-context@8.0.8
+
+## 10.0.4
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/modules-yaml@12.1.3
+  - @pnpm/read-projects-context@8.0.7
+
 ## 10.0.3
 
 ### Patch Changes

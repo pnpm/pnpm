@@ -1,7 +1,7 @@
 import path from 'path'
 import { createVersionsOverrider } from '../lib/createVersionsOverrider'
 
-test('createVersionsOverrider() matches subranges', () => {
+test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider({
     'foo@2': '2.12.0',
     'qar@>2': '1.0.0',
@@ -148,6 +148,27 @@ test('createVersionsOverrider() overrides dependencies with links', () => {
   })
 })
 
+test('createVersionsOverrider() overrides dependencies with absolute links', () => {
+  const qarAbsolutePath = path.resolve(process.cwd(), './qar')
+  const overrider = createVersionsOverrider({
+    qar: `link:${qarAbsolutePath}`,
+  }, process.cwd())
+
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: `link:${qarAbsolutePath}`,
+    },
+  })
+})
+
 test('createVersionsOverrider() overrides dependency of pkg matched by name and version', () => {
   const overrider = createVersionsOverrider({
     'yargs@^7.1.0>yargs-parser': '^20.0.0',
@@ -253,21 +274,42 @@ test('createVersionsOverrider() should work for scoped parent and scoped child',
   })
 })
 
-test('createVersionsOverrider() overrides dependencies with file', () => {
+test('createVersionsOverrider() overrides dependencies with file with relative path for root package', () => {
+  const rootDir = process.cwd()
   const overrider = createVersionsOverrider({
     qar: 'file:../qar',
-  }, process.cwd())
+  }, rootDir)
   expect(overrider({
     name: 'foo',
     version: '1.2.0',
     dependencies: {
       qar: '3.0.0',
     },
-  }, path.resolve('pkg'))).toStrictEqual({
+  }, rootDir)).toStrictEqual({
     name: 'foo',
     version: '1.2.0',
     dependencies: {
-      qar: `file:${path.resolve('../qar')}`,
+      qar: 'file:../qar',
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides dependencies with file with relative path for workspace package', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider({
+    qar: 'file:../qar',
+  }, rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.join(rootDir, 'packages', 'pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'file:../../../qar',
     },
   })
 })

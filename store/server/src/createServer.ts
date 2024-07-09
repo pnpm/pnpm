@@ -1,4 +1,6 @@
+import assert from 'assert'
 import http, { type IncomingMessage, type Server, type ServerResponse } from 'http'
+import util from 'util'
 import { globalInfo } from '@pnpm/logger'
 import {
   type PkgRequestFetchResult,
@@ -24,6 +26,11 @@ interface RequestBody {
   searchQueries: string[]
 }
 
+export interface StoreServerHandle {
+  close: () => Promise<void>
+  waitForClose: Promise<void>
+}
+
 export function createServer (
   store: StoreController,
   opts: {
@@ -33,7 +40,7 @@ export function createServer (
     ignoreStopRequests?: boolean
     ignoreUploadRequests?: boolean
   }
-) {
+): StoreServerHandle {
   const filesPromises: Record<string, () => Promise<PkgRequestFetchResult>> = {}
 
   // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
@@ -78,7 +85,8 @@ export function createServer (
             filesPromises[body.msgId] = pkgResponse.fetching
           }
           res.end(JSON.stringify(pkgResponse.body))
-        } catch (err: any) { // eslint-disable-line
+        } catch (err: unknown) {
+          assert(util.types.isNativeError(err))
           res.end(JSON.stringify({
             error: {
               message: err.message,
@@ -94,7 +102,8 @@ export function createServer (
           const pkgResponse = (store.fetchPackage as FetchPackageToStoreFunction)(body.options as any) // eslint-disable-line
           filesPromises[body.msgId] = pkgResponse.fetching
           res.end(JSON.stringify({ filesIndexFile: pkgResponse.filesIndexFile }))
-        } catch (err: any) { // eslint-disable-line
+        } catch (err: unknown) {
+          assert(util.types.isNativeError(err))
           res.end(JSON.stringify({
             error: {
               message: err.message,
@@ -172,7 +181,7 @@ export function createServer (
 
   return { close, waitForClose }
 
-  async function close () {
+  async function close (): Promise<void> {
     listener.close()
     return store.close()
   }

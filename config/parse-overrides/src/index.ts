@@ -4,15 +4,14 @@ import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 const DELIMITER_REGEX = /[^ |@]>/
 
 export interface VersionOverride {
-  parentPkg?: {
-    name: string
-    pref?: string
-  }
-  targetPkg: {
-    name: string
-    pref?: string
-  }
+  parentPkg?: PackageSelector
+  targetPkg: PackageSelector
   newPref: string
+}
+
+export interface PackageSelector {
+  name: string
+  pref?: string
 }
 
 export function parseOverrides (
@@ -38,7 +37,7 @@ export function parseOverrides (
     })
 }
 
-function parsePkgSelector (selector: string) {
+function parsePkgSelector (selector: string): PackageSelector {
   const wantedDep = parseWantedDependency(selector)
   if (!wantedDep.alias) {
     throw new PnpmError('INVALID_SELECTOR', `Cannot parse the "${selector}" selector`)

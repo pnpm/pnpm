@@ -1,5 +1,325 @@
 # @pnpm/plugin-commands-listing
 
+## 10.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/list@10.1.6
+
+## 10.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/list@10.1.6
+
+## 9.1.8
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/list@10.1.5
+
+## 9.1.7
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/list@10.1.4
+
+## 9.1.6
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+
+## 9.1.5
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/cli-utils@3.0.7
+- @pnpm/list@10.1.3
+
+## 9.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/list@10.1.3
+
+## 9.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/list@10.1.2
+
+## 9.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 9.1.1
+
+### Patch Changes
+
+- @pnpm/list@10.1.1
+
+## 9.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/list@10.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/cli-utils@3.0.3
+
+## 9.0.4
+
+### Patch Changes
+
+- @pnpm/list@10.0.2
+
+## 9.0.3
+
+### Patch Changes
+
+- @pnpm/list@10.0.1
+
+## 9.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/cli-utils@3.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/list@10.0.0
+  - @pnpm/cli-utils@3.0.0
+
+## 8.0.11
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.9
+- @pnpm/config@20.4.2
+- @pnpm/list@9.1.10
+
+## 8.0.10
+
+### Patch Changes
+
+- Updated dependencies [d9564e354]
+  - @pnpm/config@20.4.1
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/list@9.1.9
+
+## 8.0.9
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 8.0.8
+
+### Patch Changes
+
+- Updated dependencies [09f610349]
+- Updated dependencies [4e71066dd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/list@9.1.8
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+
+## 8.0.7
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/list@9.1.7
+
+## 8.0.6
+
+### Patch Changes
+
+- @pnpm/list@9.1.6
+
+## 8.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.4
+
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+
+## 8.0.3
+
+### Patch Changes
+
+- @pnpm/list@9.1.5
+
+## 8.0.2
+
+### Patch Changes
+
+- @pnpm/config@20.1.2
+- @pnpm/cli-utils@2.1.2
+- @pnpm/list@9.1.4
+
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/list@9.1.4
+- @pnpm/config@20.1.1
+- @pnpm/cli-utils@2.1.1
+
+## 8.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/list@9.1.3
+
+## 7.0.26
+
+### Patch Changes
+
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/config@20.0.0
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/list@9.1.2
+
+## 7.0.25
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+
+## 7.0.24
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/list@9.1.2
+
+## 7.0.23
+
+### Patch Changes
+
+- Updated dependencies [40798fb1c]
+  - @pnpm/list@9.1.1
+
+## 7.0.22
+
+### Patch Changes
+
+- Updated dependencies [101c97ecb]
+- Updated dependencies [ee328fd25]
+  - @pnpm/list@9.1.0
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+
+## 7.0.21
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+
 ## 7.0.20
 
 ### Patch Changes

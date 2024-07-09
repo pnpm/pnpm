@@ -1,6 +1,8 @@
+import { promises as fs } from 'fs'
 import path from 'path'
+import util from 'util'
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
-import { type ProjectManifest } from '@pnpm/types'
+import { type Project, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import fastGlob from 'fast-glob'
 import pFilter from 'p-filter'
@@ -16,13 +18,6 @@ export interface Options {
   ignore?: string[]
   includeRoot?: boolean
   patterns?: string[]
-}
-
-export interface Project {
-  dir: string
-  manifest: ProjectManifest
-
-  writeProjectManifest: (manifest: ProjectManifest, force?: boolean | undefined) => Promise<void>
 }
 
 export async function findPackages (root: string, opts?: Options): Promise<Project[]> {
@@ -54,12 +49,14 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
       ),
       async manifestPath => {
         try {
+          const rootDir = path.dirname(manifestPath) as ProjectRootDir
           return {
-            dir: path.dirname(manifestPath),
+            rootDir,
+            rootDirRealPath: await fs.realpath(rootDir) as ProjectRootDirRealPath,
             ...await readExactProjectManifest(manifestPath),
           } as Project
-        } catch (err: any) { // eslint-disable-line
-          if (err.code === 'ENOENT') {
+        } catch (err: unknown) {
+          if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
             return null!
           }
           throw err
@@ -69,7 +66,7 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
   )
 }
 
-function normalizePatterns (patterns: readonly string[]) {
+function normalizePatterns (patterns: readonly string[]): string[] {
   const normalizedPatterns: string[] = []
   for (const pattern of patterns) {
     // We should add separate pattern for each extension

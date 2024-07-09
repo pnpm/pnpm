@@ -1,5 +1,234 @@
 # @pnpm/plugin-commands-doctor
 
+## 3.0.12
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+
+## 3.0.11
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+  - @pnpm/config@21.6.0
+  - @pnpm/cli-utils@3.1.3
+
+## 3.0.10
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/cli-utils@3.1.2
+
+## 3.0.9
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/cli-utils@3.1.1
+
+## 3.0.8
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+
+## 3.0.7
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/cli-utils@3.0.7
+
+## 3.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.6
+- @pnpm/config@21.2.2
+
+## 3.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.5
+- @pnpm/config@21.2.1
+
+## 3.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/config@21.2.0
+  - @pnpm/cli-utils@3.0.3
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/cli-utils@3.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/config@21.0.0
+  - @pnpm/cli-utils@3.0.0
+
+## 2.0.34
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.9
+- @pnpm/config@20.4.2
+
+## 2.0.33
+
+### Patch Changes
+
+- Updated dependencies [d9564e354]
+  - @pnpm/config@20.4.1
+  - @pnpm/cli-utils@2.1.8
+
+## 2.0.32
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 2.0.31
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+  - @pnpm/config@20.3.0
+  - @pnpm/cli-utils@2.1.6
+
+## 2.0.30
+
+### Patch Changes
+
+- Updated dependencies [672c559e4]
+  - @pnpm/config@20.2.0
+  - @pnpm/cli-utils@2.1.5
+
+## 2.0.29
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.4
+
+## 2.0.28
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+
+## 2.0.27
+
+### Patch Changes
+
+- @pnpm/config@20.1.2
+- @pnpm/cli-utils@2.1.2
+
+## 2.0.26
+
+### Patch Changes
+
+- @pnpm/config@20.1.1
+- @pnpm/cli-utils@2.1.1
+
+## 2.0.25
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+
+## 2.0.24
+
+### Patch Changes
+
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/config@20.0.0
+  - @pnpm/cli-utils@2.0.24
+
+## 2.0.23
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+
+## 2.0.22
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/cli-utils@2.0.22
+
+## 2.0.21
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+
+## 2.0.20
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+
 ## 2.0.19
 
 ### Patch Changes

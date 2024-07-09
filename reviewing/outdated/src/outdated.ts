@@ -1,4 +1,4 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   getLockfileImporterId,
@@ -20,6 +20,7 @@ import {
 import * as dp from '@pnpm/dependency-path'
 import semver from 'semver'
 import { createMatcher } from '@pnpm/matcher'
+import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 
 export * from './createManifestGetter'
 
@@ -54,9 +55,24 @@ export async function outdated (
   if (opts.wantedLockfile == null) {
     throw new PnpmError('OUTDATED_NO_LOCKFILE', `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`)
   }
-  const allDeps = getAllDependenciesFromManifest(opts.manifest)
+
+  async function getOverriddenManifest () {
+    const overrides = opts.currentLockfile?.overrides ?? opts.wantedLockfile?.overrides
+    if (overrides) {
+      const readPackageHook = createReadPackageHook({
+        lockfileDir: opts.lockfileDir,
+        overrides,
+      })
+      const manifest = await readPackageHook?.(opts.manifest, opts.lockfileDir)
+      if (manifest) return manifest
+    }
+
+    return opts.manifest
+  }
+
+  const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest())
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
-  const currentLockfile = opts.currentLockfile ?? { importers: { [importerId]: {} } }
+  const currentLockfile: Lockfile = opts.currentLockfile ?? { lockfileVersion: LOCKFILE_VERSION, importers: { [importerId]: { specifiers: {} } } }
 
   const outdated: OutdatedPackage[] = []
 
@@ -165,12 +181,12 @@ export async function outdated (
   return outdated.sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
 }
 
-function packageHasNoDeps (manifest: ProjectManifest) {
+function packageHasNoDeps (manifest: ProjectManifest): boolean {
   return ((manifest.dependencies == null) || isEmpty(manifest.dependencies)) &&
     ((manifest.devDependencies == null) || isEmpty(manifest.devDependencies)) &&
     ((manifest.optionalDependencies == null) || isEmpty(manifest.optionalDependencies))
 }
 
-function isEmpty (obj: object) {
+function isEmpty (obj: object): boolean {
   return Object.keys(obj).length === 0
 }

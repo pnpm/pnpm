@@ -1,0 +1,1 @@
+export { getCatalogsFromWorkspaceManifest } from './getCatalogsFromWorkspaceManifest'

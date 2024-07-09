@@ -16,11 +16,10 @@
       "path": "../../fs/find-packages"
     },
     {
-      "path": "../../packages/constants"
+      "path": "../../packages/types"
     },
     {
-      "path": "../../packages/types"
+      "path": "../read-manifest"
     }
-  ],
-  "composite": true
+  ]
 }

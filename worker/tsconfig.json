@@ -10,7 +10,13 @@
   ],
   "references": [
     {
+      "path": "../exec/pkg-requires-build"
+    },
+    {
       "path": "../fs/graceful-fs"
+    },
+    {
+      "path": "../fs/hard-link-dir"
     },
     {
       "path": "../fs/symlink-dependency"
@@ -30,6 +36,5 @@
     {
       "path": "../store/create-cafs-store"
     }
-  ],
-  "composite": true
+  ]
 }

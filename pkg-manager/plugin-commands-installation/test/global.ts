@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { add } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
@@ -31,10 +31,12 @@ const DEFAULT_OPTIONS = {
   registries: {
     default: REGISTRY_URL,
   },
+  rootProjectManifestDir: '',
   sort: true,
   storeDir: path.join(tmp, 'store'),
   userConfig: {},
   workspaceConcurrency: 1,
+  virtualStoreDirMaxLength: 120,
 }
 
 test('globally installed package is linked with active version of Node.js', async () => {
@@ -54,7 +56,7 @@ test('globally installed package is linked with active version of Node.js', asyn
     manifest.dependenciesMeta['@pnpm.e2e/hello-world-js-bin']?.node
   ).toBeTruthy()
 
-  const shimContent = await fs.readFile('node_modules/.bin/hello-world-js-bin', 'utf-8')
+  const shimContent = fs.readFileSync('node_modules/.bin/hello-world-js-bin', 'utf-8')
   expect(shimContent).toContain(nodeExecPath)
 })
 

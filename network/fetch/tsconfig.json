@@ -13,8 +13,10 @@
       "path": "../../packages/core-loggers"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../fetching-types"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -1,6 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { type VersionSelectors } from '@pnpm/resolver-base'
 import semver from 'semver'
+import util from 'util'
 import { type RegistryPackageSpec } from './parsePref'
 import { type PackageInRegistry, type PackageMeta } from './pickPackage'
 
@@ -50,7 +51,15 @@ export function pickPackageFromMeta (
       manifest.name = meta['name']
     }
     return manifest
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
+    if (
+      util.types.isNativeError(err) &&
+      'code' in err &&
+      typeof err.code === 'string' &&
+      err.code.startsWith('ERR_PNPM_')
+    ) {
+      throw err
+    }
     throw new PnpmError('MALFORMED_METADATA',
       `Received malformed metadata for "${spec.name}"`,
       { hint: 'This might mean that the package was unpublished from the registry' }
@@ -89,7 +98,7 @@ export function pickLowestVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
   preferredVerSels?: VersionSelectors
-) {
+): string | null {
   if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVerSels)
     for (const preferredVersions of prioritizedPreferredVersions) {
@@ -110,7 +119,7 @@ export function pickVersionByVersionRange (
   versionRange: string,
   preferredVerSels?: VersionSelectors,
   publishedBy?: Date
-) {
+): string | null {
   let latest: string | undefined = meta['dist-tags'].latest
 
   if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
@@ -128,6 +137,9 @@ export function pickVersionByVersionRange (
 
   let versions = Object.keys(meta.versions)
   if (publishedBy) {
+    if (meta.time == null) {
+      throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
+    }
     versions = versions.filter(version => new Date(meta.time![version]) <= publishedBy)
     if (!versions.includes(latest)) {
       latest = undefined
@@ -156,11 +168,11 @@ export function pickVersionByVersionRange (
 function prioritizePreferredVersions (
   meta: PackageMeta,
   versionRange: string,
-  preferredVerSels?: VersionSelectors
+  preferredVerSelectors?: VersionSelectors
 ): string[][] {
-  const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
+  const preferredVerSelectorsArr = Object.entries(preferredVerSelectors ?? {})
   const versionsPrioritizer = new PreferredVersionsPrioritizer()
-  for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
+  for (const [preferredSelector, preferredSelectorType] of preferredVerSelectorsArr) {
     const { selectorType, weight } = typeof preferredSelectorType === 'string'
       ? { selectorType: preferredSelectorType, weight: 1 }
       : preferredSelectorType
@@ -193,7 +205,7 @@ function prioritizePreferredVersions (
 class PreferredVersionsPrioritizer {
   private preferredVersions: Record<string, number> = {}
 
-  add (version: string, weight: number) {
+  add (version: string, weight: number): void {
     if (!this.preferredVersions[version]) {
       this.preferredVersions[version] = weight
     } else {
@@ -201,7 +213,7 @@ class PreferredVersionsPrioritizer {
     }
   }
 
-  versionsByPriority () {
+  versionsByPriority (): string[][] {
     const versionsByWeight = Object.entries(this.preferredVersions)
       .reduce((acc, [version, weight]) => {
         acc[weight] = acc[weight] ?? []

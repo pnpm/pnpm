@@ -36,6 +36,7 @@ export const DEFAULT_OPTS = {
   rawConfig: { registry: REGISTRY },
   rawLocalConfig: {},
   registries: { default: REGISTRY },
+  rootProjectManifestDir: '',
   // registry: REGISTRY,
   sort: true,
   storeDir: '../store',
@@ -44,5 +45,7 @@ export const DEFAULT_OPTS = {
   userConfig: {},
   useRunningStoreServer: false,
   useStoreServer: false,
+  virtualStoreDir: 'node_modules/.pnpm',
   workspaceConcurrency: 4,
+  virtualStoreDirMaxLength: 120,
 }

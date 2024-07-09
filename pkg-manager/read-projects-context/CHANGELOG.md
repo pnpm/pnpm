@@ -1,5 +1,149 @@
 # @pnpm/read-projects-context
 
+## 9.1.6
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/normalize-registries@6.0.3
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/modules-yaml@13.1.3
+
+## 9.1.5
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/normalize-registries@6.0.2
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/modules-yaml@13.1.2
+
+## 9.1.4
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+
+## 9.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/normalize-registries@6.0.1
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/modules-yaml@13.1.1
+
+## 9.1.2
+
+### Patch Changes
+
+- @pnpm/lockfile-file@9.0.5
+
+## 9.1.1
+
+### Patch Changes
+
+- @pnpm/lockfile-file@9.0.4
+
+## 9.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/lockfile-file@9.0.3
+
+## 9.0.2
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [f67ad31]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/normalize-registries@6.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/lockfile-file@9.0.0
+
+## 8.0.11
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+
+## 8.0.10
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/normalize-registries@5.0.6
+  - @pnpm/modules-yaml@12.1.6
+
+## 8.0.9
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/normalize-registries@5.0.5
+  - @pnpm/modules-yaml@12.1.5
+
+## 8.0.8
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/normalize-registries@5.0.4
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/modules-yaml@12.1.4
+
+## 8.0.7
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/normalize-registries@5.0.3
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/modules-yaml@12.1.3
+
 ## 8.0.6
 
 ### Patch Changes

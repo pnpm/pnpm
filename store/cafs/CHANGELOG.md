@@ -1,5 +1,119 @@
 # @pnpm/store.cafs
 
+## 3.0.5
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+- afe520d: Update symlink-dir to v6.0.1.
+
+## 3.0.4
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.3
+- @pnpm/store-controller-types@18.1.2
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.2
+- @pnpm/store-controller-types@18.1.1
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.1
+- @pnpm/store-controller-types@18.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- 36dcaa0: Breaking change to addFileFromDir args.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- 6cdbf11: Don't fail on a tarball that appears to be not a USTAR or GNU TAR archive. Still try to unpack the tarball [#7120](https://github.com/pnpm/pnpm/issues/7120).
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/graceful-fs@4.0.0
+
+## 2.0.12
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/fetcher-base@15.0.7
+
+## 2.0.11
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+  - @pnpm/fetcher-base@15.0.6
+  - @pnpm/store-controller-types@17.1.4
+
+## 2.0.10
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.5
+- @pnpm/store-controller-types@17.1.3
+
+## 2.0.9
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+
+## 2.0.8
+
+### Patch Changes
+
+- Updated dependencies [7ea45afbe]
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/fetcher-base@15.0.4
+
+## 2.0.7
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/fetcher-base@15.0.3
+
+## 2.0.6
+
+### Patch Changes
+
+- 01bc58e2c: Update ssri to v10.0.5.
+
+## 2.0.5
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.2
+- @pnpm/store-controller-types@17.0.1
+
 ## 2.0.4
 
 ### Patch Changes

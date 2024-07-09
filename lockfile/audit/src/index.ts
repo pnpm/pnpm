@@ -1,4 +1,6 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { type AgentOptions, fetchWithAgent, type RetryTimeoutOptions } from '@pnpm/fetch'
 import { type GetAuthHeader } from '@pnpm/fetching-types'
@@ -21,8 +23,9 @@ export async function audit (
     registry: string
     retry?: RetryTimeoutOptions
     timeout?: number
+    virtualStoreDirMaxLength: number
   }
-) {
+): Promise<AuditReport> {
   const auditTree = await lockfileToAuditTree(lockfile, { include: opts.include, lockfileDir: opts.lockfileDir })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/audits`
@@ -53,15 +56,21 @@ export async function audit (
       lockfile,
       lockfileDir: opts.lockfileDir,
       include: opts.include,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
-  } catch (err: any) { // eslint-disable-line
-    globalWarn(`Failed to extend audit report with dependency paths: ${err.message as string}`)
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    globalWarn(`Failed to extend audit report with dependency paths: ${err.message}`)
     return auditReport
   }
 }
 
-function getAuthHeaders (authHeaderValue: string | undefined) {
-  const headers: { authorization?: string } = {}
+interface AuthHeaders {
+  authorization?: string
+}
+
+function getAuthHeaders (authHeaderValue: string | undefined): AuthHeaders {
+  const headers: AuthHeaders = {}
   if (authHeaderValue) {
     headers['authorization'] = authHeaderValue
   }
@@ -72,6 +81,7 @@ async function extendWithDependencyPaths (auditReport: AuditReport, opts: {
   lockfile: Lockfile
   lockfileDir: string
   include?: { [dependenciesField in DependenciesField]: boolean }
+  virtualStoreDirMaxLength: number
 }): Promise<AuditReport> {
   const { advisories } = auditReport
   if (!Object.keys(advisories).length) return auditReport
@@ -81,6 +91,7 @@ async function extendWithDependencyPaths (auditReport: AuditReport, opts: {
     lockfileDir: opts.lockfileDir,
     depth: Infinity,
     include: opts.include,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   }
   const _searchPackagePaths = searchPackagePaths.bind(null, searchOpts, projectDirs)
   // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -97,10 +108,11 @@ async function searchPackagePaths (
     lockfileDir: string
     depth: number
     include?: { [dependenciesField in DependenciesField]: boolean }
+    virtualStoreDirMaxLength: number
   },
   projectDirs: string[],
   pkg: string
-) {
+): Promise<string[]> {
   const pkgs = await searchForPackages([pkg], projectDirs, searchOpts)
   return flattenSearchedPackages(pkgs, { lockfileDir: searchOpts.lockfileDir }).map(({ depPath }) => depPath)
 }

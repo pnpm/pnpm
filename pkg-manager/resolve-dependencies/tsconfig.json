@@ -10,13 +10,25 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../fetching/pick-fetcher"
     },
     {
       "path": "../../lockfile/lockfile-types"
     },
     {
       "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../lockfile/preferred-versions"
     },
     {
       "path": "../../lockfile/prune-lockfile"
@@ -53,7 +65,9 @@
     },
     {
       "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../workspace/spec-parser"
     }
-  ],
-  "composite": true
+  ]
 }

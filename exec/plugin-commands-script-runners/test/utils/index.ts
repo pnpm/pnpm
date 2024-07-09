@@ -40,6 +40,7 @@ export const DEFAULT_OPTS = {
   proxy: undefined,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: {},
+  rootProjectManifestDir: '',
   registries: { default: REGISTRY_URL },
   registry: REGISTRY_URL,
   sort: true,
@@ -49,6 +50,12 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
+  supportedArchitectures: {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  },
+  virtualStoreDirMaxLength: 120,
 }
 
 export const DLX_DEFAULT_OPTS = {
@@ -60,6 +67,7 @@ export const DLX_DEFAULT_OPTS = {
   cacheDir: path.join(tmp, 'cache'),
   extraEnv: {},
   cliOptions: {},
+  dlxCacheMaxAge: Infinity,
   include: {
     dependencies: true,
     devDependencies: true,
@@ -74,8 +82,15 @@ export const DLX_DEFAULT_OPTS = {
   registries: {
     default: REGISTRY_URL,
   },
+  rootProjectManifestDir: '',
   sort: true,
   storeDir: path.join(tmp, 'store'),
   userConfig: {},
   workspaceConcurrency: 1,
+  supportedArchitectures: {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  },
+  virtualStoreDirMaxLength: 120,
 }

@@ -7,7 +7,7 @@ export function reportSkippedOptionalDependencies (
   opts: {
     cwd: string
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return skippedOptionalDependency$.pipe(
     filter((log) => Boolean(log['prefix'] === opts.cwd && log.parents && log.parents.length === 0)),
     map((log) => Rx.of({

@@ -8,6 +8,7 @@ import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { runNpm } from '@pnpm/run-npm'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
+import { loadToken } from '@pnpm/network.auth-header'
 import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
 import pick from 'ramda/src/pick'
@@ -17,7 +18,7 @@ import tempy from 'tempy'
 import * as pack from './pack'
 import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'access',
     'git-checks',
@@ -33,7 +34,7 @@ export function rcOptionsTypes () {
   ], allTypes)
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
     'dry-run': Boolean,
@@ -46,7 +47,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['publish']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Publishes a package to the npm registry.',
     descriptionLists: [
@@ -120,10 +121,15 @@ export async function handler (
     workspaceDir?: string
   } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme'>,
   params: string[]
-) {
+): Promise<{ exitCode?: number } | undefined> {
   const result = await publish(opts, params)
   if (result?.manifest) return
   return result
+}
+
+export interface PublishResult {
+  exitCode?: number
+  manifest?: ProjectManifest
 }
 
 export async function publish (
@@ -136,7 +142,7 @@ export async function publish (
     workspaceDir?: string
   } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
   params: string[]
-) {
+): Promise<PublishResult> {
   if (opts.gitChecks !== false && await isGitRepo()) {
     if (!(await isWorkingTreeClean())) {
       throw new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
@@ -182,26 +188,9 @@ Do you want to continue?`,
     })
     return { exitCode }
   }
-  if ((params.length > 0) && params[0].endsWith('.tgz')) {
-    const { status } = runNpm(opts.npmPath, ['publish', ...params])
-    return { exitCode: status ?? 0 }
-  }
-  const dirInParams = (params.length > 0) && params[0]
-  const dir = dirInParams || opts.dir || process.cwd()
 
-  const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
-    depPath: dir,
-    extraBinPaths: opts.extraBinPaths,
-    extraEnv: opts.extraEnv,
-    pkgRoot: dir,
-    rawConfig: opts.rawConfig,
-    rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
-    stdio: 'inherit',
-    unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
-  })
-  const { manifest } = await readProjectManifest(dir, opts)
-  // Unfortunately, we cannot support postpack at the moment
   let args = opts.argv.original.slice(1)
+  const dirInParams = (params.length > 0) ? params[0] : undefined
   if (dirInParams) {
     args = args.filter(arg => arg !== params[0])
   }
@@ -215,6 +204,25 @@ Do you want to continue?`,
       args.splice(index, 2)
     }
   }
+
+  if (dirInParams?.endsWith('.tgz')) {
+    const { status } = runNpm(opts.npmPath, ['publish', ...args])
+    return { exitCode: status ?? 0 }
+  }
+  const dir = dirInParams ?? opts.dir ?? process.cwd()
+
+  const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
+    depPath: dir,
+    extraBinPaths: opts.extraBinPaths,
+    extraEnv: opts.extraEnv,
+    pkgRoot: dir,
+    rawConfig: opts.rawConfig,
+    rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
+    stdio: 'inherit',
+    unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+  })
+  const { manifest } = await readProjectManifest(dir, opts)
+  // Unfortunately, we cannot support postpack at the moment
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([
       'prepublishOnly',
@@ -235,6 +243,7 @@ Do you want to continue?`,
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
     cwd: packDestination,
+    env: getEnvWithTokens(opts),
   })
   await rimraf(packDestination)
 
@@ -250,13 +259,38 @@ Do you want to continue?`,
   return { manifest }
 }
 
+/**
+ * The npm CLI doesn't support token helpers, so we transform the token helper settings
+ * to regular auth token settings that the npm CLI can understand.
+ */
+function getEnvWithTokens (opts: Pick<PublishRecursiveOpts, 'rawConfig' | 'argv'>): Record<string, string> {
+  const tokenHelpers = Object.entries(opts.rawConfig).filter(([key]) => key.endsWith(':tokenHelper'))
+  const tokenHelpersFromArgs = opts.argv.original
+    .filter(arg => arg.includes(':tokenHelper='))
+    .map(arg => arg.split('=', 2) as [string, string])
+
+  const env: Record<string, string> = {}
+  for (const [key, helperPath] of tokenHelpers.concat(tokenHelpersFromArgs)) {
+    const authHeader = loadToken(helperPath, key)
+    const authType = authHeader.startsWith('Bearer')
+      ? '_authToken'
+      : '_auth'
+
+    const registry = key.replace(/:tokenHelper$/, '')
+    env[`NPM_CONFIG_${registry}:${authType}`] = authType === '_authToken'
+      ? authHeader.slice('Bearer '.length)
+      : authHeader.replace(/Basic /i, '')
+  }
+  return env
+}
+
 async function copyNpmrc (
   { dir, workspaceDir, packDestination }: {
     dir: string
     workspaceDir?: string
     packDestination: string
   }
-) {
+): Promise<void> {
   const localNpmrc = path.join(dir, '.npmrc')
   if (existsSync(localNpmrc)) {
     await fs.copyFile(localNpmrc, path.join(packDestination, '.npmrc'))
@@ -273,7 +307,7 @@ export async function runScriptsIfPresent (
   opts: RunLifecycleHookOptions,
   scriptNames: string[],
   manifest: ProjectManifest
-) {
+): Promise<void> {
   for (const scriptName of scriptNames) {
     if (!manifest.scripts?.[scriptName]) continue
     await runLifecycleHook(scriptName, manifest, opts) // eslint-disable-line no-await-in-loop

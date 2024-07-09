@@ -7,7 +7,7 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type DependenciesField } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type DependenciesField, type ProjectId } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import mapValues from 'ramda/src/map'
 import pickBy from 'ramda/src/pickBy'
@@ -16,23 +16,39 @@ import { filterImporter } from './filterImporter'
 
 const lockfileLogger = logger('lockfile')
 
+export interface FilterLockfileResult {
+  lockfile: Lockfile
+  selectedImporterIds: ProjectId[]
+}
+
+export function filterLockfileByEngine (
+  lockfile: Lockfile,
+  opts: FilterLockfileOptions
+): FilterLockfileResult {
+  const importerIds = Object.keys(lockfile.importers) as ProjectId[]
+  return filterLockfileByImportersAndEngine(lockfile, importerIds, opts)
+}
+
+export interface FilterLockfileOptions {
+  currentEngine: {
+    nodeVersion?: string
+    pnpmVersion: string
+  }
+  engineStrict: boolean
+  include: { [dependenciesField in DependenciesField]: boolean }
+  includeIncompatiblePackages?: boolean
+  failOnMissingDependencies: boolean
+  lockfileDir: string
+  skipped: Set<string>
+  supportedArchitectures?: SupportedArchitectures
+}
+
 export function filterLockfileByImportersAndEngine (
   lockfile: Lockfile,
-  importerIds: string[],
-  opts: {
-    currentEngine: {
-      nodeVersion: string
-      pnpmVersion: string
-    }
-    engineStrict: boolean
-    include: { [dependenciesField in DependenciesField]: boolean }
-    includeIncompatiblePackages?: boolean
-    failOnMissingDependencies: boolean
-    lockfileDir: string
-    skipped: Set<string>
-  }
-): { lockfile: Lockfile, selectedImporterIds: string[] } {
-  const importerIdSet = new Set(importerIds) as Set<string>
+  importerIds: ProjectId[],
+  opts: FilterLockfileOptions
+): FilterLockfileResult {
+  const importerIdSet = new Set(importerIds)
 
   const directDepPaths = toImporterDepPaths(lockfile, importerIds, {
     include: opts.include,
@@ -50,6 +66,7 @@ export function filterLockfileByImportersAndEngine (
             opts.includeIncompatiblePackages === true,
         lockfileDir: opts.lockfileDir,
         skipped: opts.skipped,
+        supportedArchitectures: opts.supportedArchitectures,
       })
       : {}
 
@@ -76,11 +93,11 @@ export function filterLockfileByImportersAndEngine (
 
 function pickPkgsWithAllDeps (
   lockfile: Lockfile,
-  depPaths: string[],
-  importerIdSet: Set<string>,
+  depPaths: DepPath[],
+  importerIdSet: Set<ProjectId>,
   opts: {
     currentEngine: {
-      nodeVersion: string
+      nodeVersion?: string
       pnpmVersion: string
     }
     engineStrict: boolean
@@ -89,8 +106,9 @@ function pickPkgsWithAllDeps (
     includeIncompatiblePackages: boolean
     lockfileDir: string
     skipped: Set<string>
+    supportedArchitectures?: SupportedArchitectures
   }
-) {
+): PackageSnapshots {
   const pickedPackages = {} as PackageSnapshots
   pkgAllDeps({ lockfile, pickedPackages, importerIdSet }, depPaths, true, opts)
   return pickedPackages
@@ -100,13 +118,13 @@ function pkgAllDeps (
   ctx: {
     lockfile: Lockfile
     pickedPackages: PackageSnapshots
-    importerIdSet: Set<string>
+    importerIdSet: Set<ProjectId>
   },
-  depPaths: string[],
+  depPaths: DepPath[],
   parentIsInstallable: boolean,
   opts: {
     currentEngine: {
-      nodeVersion: string
+      nodeVersion?: string
       pnpmVersion: string
     }
     engineStrict: boolean
@@ -115,6 +133,7 @@ function pkgAllDeps (
     includeIncompatiblePackages: boolean
     lockfileDir: string
     skipped: Set<string>
+    supportedArchitectures?: SupportedArchitectures
   }
 ) {
   for (const depPath of depPaths) {
@@ -149,7 +168,7 @@ function pkgAllDeps (
           lockfileDir: opts.lockfileDir,
           nodeVersion: opts.currentEngine.nodeVersion,
           optional: pkgSnapshot.optional === true,
-          pnpmVersion: opts.currentEngine.pnpmVersion,
+          supportedArchitectures: opts.supportedArchitectures,
         }) !== false
       if (!installable) {
         if (!ctx.pickedPackages[depPath] && pkgSnapshot.optional === true) {
@@ -179,12 +198,12 @@ function pkgAllDeps (
 
 function toImporterDepPaths (
   lockfile: Lockfile,
-  importerIds: string[],
+  importerIds: ProjectId[],
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean }
-    importerIdSet: Set<string>
+    importerIdSet: Set<ProjectId>
   }
-): string[] {
+): DepPath[] {
   const importerDeps = importerIds
     .map(importerId => lockfile.importers[importerId])
     .map(importer => ({
@@ -210,11 +229,16 @@ function toImporterDepPaths (
   ]
 }
 
-function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfile) {
+interface ParsedDepRefs {
+  depPaths: DepPath[]
+  importerIds: ProjectId[]
+}
+
+function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfile): ParsedDepRefs {
   return refsByPkgNames
     .reduce((acc, [pkgName, ref]) => {
       if (ref.startsWith('link:')) {
-        const importerId = ref.substring(5)
+        const importerId = ref.substring(5) as ProjectId
         if (lockfile.importers[importerId]) {
           acc.importerIds.push(importerId)
         }
@@ -224,5 +248,5 @@ function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfi
       if (depPath == null) return acc
       acc.depPaths.push(depPath)
       return acc
-    }, { depPaths: [] as string[], importerIds: [] as string[] })
+    }, { depPaths: [], importerIds: [] } as ParsedDepRefs)
 }

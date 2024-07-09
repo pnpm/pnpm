@@ -5,7 +5,7 @@ import {
   type ProjectSnapshot,
   type ResolvedDependencies,
 } from '@pnpm/lockfile-types'
-import { type PackageManifest } from '@pnpm/types'
+import { type DepPath, type PackageManifest, type ProjectId } from '@pnpm/types'
 import { refToRelative } from '@pnpm/dependency-path'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
@@ -13,12 +13,16 @@ import unnest from 'ramda/src/unnest'
 
 export * from '@pnpm/lockfile-types'
 
+// cannot import DependenciesGraph from @pnpm/resolve-dependencies due to circular dependency
+type DependenciesGraph = Record<DepPath, { optional?: boolean }>
+
 export function pruneSharedLockfile (
   lockfile: Lockfile,
   opts?: {
+    dependenciesGraph?: DependenciesGraph
     warn?: (msg: string) => void
   }
-) {
+): Lockfile {
   const copiedPackages = (lockfile.packages == null)
     ? {}
     : copyPackageSnapshots(lockfile.packages, {
@@ -26,6 +30,7 @@ export function pruneSharedLockfile (
       optionalDepPaths: unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.optionalDependencies ?? {}))),
       prodDepPaths: unnest(Object.values(lockfile.importers).map((deps) => resolvedDepsToDepPaths(deps.dependencies ?? {}))),
       warn: opts?.warn ?? ((msg: string) => undefined),
+      dependenciesGraph: opts?.dependenciesGraph,
     })
 
   const prunedLockfile: Lockfile = {
@@ -41,12 +46,12 @@ export function pruneSharedLockfile (
 export function pruneLockfile (
   lockfile: Lockfile,
   pkg: PackageManifest,
-  importerId: string,
-  opts?: {
+  importerId: ProjectId,
+  opts: {
     warn?: (msg: string) => void
+    dependenciesGraph?: DependenciesGraph
   }
 ): Lockfile {
-  const packages: PackageSnapshots = {}
   const importer = lockfile.importers[importerId]
   const lockfileSpecs: ResolvedDependencies = importer.specifiers ?? {}
   const optionalDependencies = Object.keys(pkg.optionalDependencies ?? {})
@@ -89,16 +94,13 @@ export function pruneLockfile (
   const updatedImporter: ProjectSnapshot = {
     specifiers,
   }
-  const prunnedLockfile: Lockfile = {
+  const prunedLockfile: Lockfile = {
     importers: {
       ...lockfile.importers,
       [importerId]: updatedImporter,
     },
     lockfileVersion: lockfile.lockfileVersion || LOCKFILE_VERSION,
     packages: lockfile.packages,
-  }
-  if (!isEmpty(packages)) {
-    prunnedLockfile.packages = packages
   }
   if (!isEmpty(lockfileDependencies)) {
     updatedImporter.dependencies = lockfileDependencies
@@ -109,67 +111,70 @@ export function pruneLockfile (
   if (!isEmpty(lockfileDevDependencies)) {
     updatedImporter.devDependencies = lockfileDevDependencies
   }
-  return pruneSharedLockfile(prunnedLockfile, opts)
+  if (lockfile.pnpmfileChecksum) {
+    prunedLockfile.pnpmfileChecksum = lockfile.pnpmfileChecksum
+  }
+  if (lockfile.ignoredOptionalDependencies && !isEmpty(lockfile.ignoredOptionalDependencies)) {
+    prunedLockfile.ignoredOptionalDependencies = lockfile.ignoredOptionalDependencies
+  }
+  return pruneSharedLockfile(prunedLockfile, opts)
 }
 
 function copyPackageSnapshots (
   originalPackages: PackageSnapshots,
   opts: {
-    devDepPaths: string[]
-    optionalDepPaths: string[]
-    prodDepPaths: string[]
+    devDepPaths: DepPath[]
+    optionalDepPaths: DepPath[]
+    prodDepPaths: DepPath[]
     warn: (msg: string) => void
+    dependenciesGraph?: DependenciesGraph
   }
 ): PackageSnapshots {
   const copiedSnapshots: PackageSnapshots = {}
   const ctx = {
     copiedSnapshots,
     nonOptional: new Set<string>(),
-    notProdOnly: new Set<string>(),
     originalPackages,
     walked: new Set<string>(),
     warn: opts.warn,
+    dependenciesGraph: opts.dependenciesGraph,
   }
 
   copyDependencySubGraph(ctx, opts.devDepPaths, {
-    dev: true,
     optional: false,
   })
   copyDependencySubGraph(ctx, opts.optionalDepPaths, {
-    dev: false,
     optional: true,
   })
   copyDependencySubGraph(ctx, opts.prodDepPaths, {
-    dev: false,
     optional: false,
   })
 
   return copiedSnapshots
 }
 
-function resolvedDepsToDepPaths (deps: ResolvedDependencies) {
+function resolvedDepsToDepPaths (deps: ResolvedDependencies): DepPath[] {
   return Object.entries(deps)
     .map(([alias, ref]) => refToRelative(ref, alias))
-    .filter((depPath) => depPath !== null) as string[]
+    .filter((depPath) => depPath !== null) as DepPath[]
 }
 
 function copyDependencySubGraph (
   ctx: {
     copiedSnapshots: PackageSnapshots
     nonOptional: Set<string>
-    notProdOnly: Set<string>
     originalPackages: PackageSnapshots
     walked: Set<string>
     warn: (msg: string) => void
+    dependenciesGraph?: DependenciesGraph
   },
-  depPaths: string[],
+  depPaths: DepPath[],
   opts: {
-    dev: boolean
     optional: boolean
   }
-) {
+): void {
   for (const depPath of depPaths) {
-    const key = `${depPath}:${opts.optional.toString()}:${opts.dev.toString()}`
+    const key = `${depPath}:${opts.optional.toString()}`
     if (ctx.walked.has(key)) continue
     ctx.walked.add(key)
     if (!ctx.originalPackages[depPath]) {
@@ -184,21 +189,19 @@ function copyDependencySubGraph (
     ctx.copiedSnapshots[depPath] = depLockfile
     if (opts.optional && !ctx.nonOptional.has(depPath)) {
       depLockfile.optional = true
+      if (ctx.dependenciesGraph?.[depPath]) {
+        ctx.dependenciesGraph[depPath].optional = true
+      }
     } else {
       ctx.nonOptional.add(depPath)
       delete depLockfile.optional
-    }
-    if (opts.dev) {
-      ctx.notProdOnly.add(depPath)
-      depLockfile.dev = true
-    } else if (depLockfile.dev === true) { // keeping if dev is explicitly false
-      delete depLockfile.dev
-    } else if (depLockfile.dev === undefined && !ctx.notProdOnly.has(depPath)) {
-      depLockfile.dev = false
+      if (ctx.dependenciesGraph?.[depPath]) {
+        ctx.dependenciesGraph[depPath].optional = false
+      }
     }
     const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {})
     copyDependencySubGraph(ctx, newDependencies, opts)
     const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {})
-    copyDependencySubGraph(ctx, newOptionalDependencies, { dev: opts.dev, optional: true })
+    copyDependencySubGraph(ctx, newOptionalDependencies, { optional: true })
   }
 }

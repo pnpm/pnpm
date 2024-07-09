@@ -1,5 +1,169 @@
 # @pnpm/lockfile-file
 
+## 9.1.2
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/git-resolver@9.0.4
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/merge-lockfile-changes@6.0.4
+  - @pnpm/dependency-path@5.1.2
+
+## 9.1.1
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/merge-lockfile-changes@6.0.3
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/git-resolver@9.0.3
+
+## 9.1.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/merge-lockfile-changes@6.0.2
+
+## 9.0.6
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/merge-lockfile-changes@6.0.1
+  - @pnpm/git-resolver@9.0.2
+
+## 9.0.5
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+
+## 9.0.2
+
+### Patch Changes
+
+- c969f37: Lockfiles that have git-hosted dependencies specified should be correctly converted to the new lockfile format [#7990](https://github.com/pnpm/pnpm/issues/7990).
+- Updated dependencies [c969f37]
+  - @pnpm/git-resolver@9.0.1
+
+## 9.0.1
+
+### Patch Changes
+
+- 2cbf7b7: Lockfiles with local or git-hosted dependencies are now successfully converted to the new lockfile format [#7955](https://github.com/pnpm/pnpm/issues/7955).
+- 6b6ca69: The lockfile should be saved in the new format even if it is up-to-date.
+
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Minor Changes
+
+- 086b69c: The checksum of the `.pnpmfile.cjs` is saved into the lockfile. If the pnpmfile gets modified, the lockfile is reanalyzed to apply the changes [#7662](https://github.com/pnpm/pnpm/pull/7662).
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- f67ad31: Never wrap lines in the lockfile.
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [27a96a8]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/merge-lockfile-changes@6.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/git-utils@2.0.0
+
+## 8.1.6
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/merge-lockfile-changes@5.0.7
+  - @pnpm/dependency-path@2.1.7
+
+## 8.1.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/merge-lockfile-changes@5.0.6
+  - @pnpm/dependency-path@2.1.6
+
+## 8.1.4
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-types@5.1.3
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/merge-lockfile-changes@5.0.5
+
+## 8.1.3
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lockfile-types@5.1.2
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/merge-lockfile-changes@5.0.4
+
 ## 8.1.2
 
 ### Patch Changes

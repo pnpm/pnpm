@@ -1,6 +1,12 @@
 scripts:
+  step1: node ../pnpm/dist/pnpm.cjs install -rf --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages
+  step2: node ../pnpm/dist/pnpm.cjs install -rf --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages
+  step3: node ../pnpm/dist/pnpm.cjs install -rf -C fixtureWithLinks --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile
+  step4: cd ./fixture-with-external-shrinkwrap/pkg && node ../../../pnpm/dist/pnpm.cjs install -f --frozen-lockfile
+  step5: cd ./custom-modules-dir && node ../../pnpm/dist/pnpm.cjs install -f --frozen-lockfile
   prepareFixtures: >
-    node ../pnpm/dist/pnpm.cjs install -rf --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages &&
-    node ../pnpm/dist/pnpm.cjs install -rf -C fixtureWithLinks --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile &&
-    cd ./fixture-with-external-shrinkwrap/pkg && node ../../../pnpm/dist/pnpm.cjs install -f --frozen-lockfile &&
-    cd ../../custom-modules-dir && node ../../pnpm/dist/pnpm.cjs install -f --frozen-lockfile
+    pnpm run step1 &&
+    pnpm run step2 &&
+    pnpm run step3 &&
+    pnpm run step4 &&
+    pnpm run step5

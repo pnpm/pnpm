@@ -11,7 +11,7 @@ import { prune } from './prune'
 
 export { type CafsLocker }
 
-export async function createPackageStore (
+export function createPackageStore (
   resolve: ResolveFunction,
   fetchers: Fetchers,
   initOpts: {
@@ -27,8 +27,11 @@ export async function createPackageStore (
     networkConcurrency?: number
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     verifyStoreIntegrity: boolean
+    virtualStoreDirMaxLength: number
+    strictStorePkgContentCheck?: boolean
+    clearResolutionCache: () => void
   }
-): Promise<StoreController> {
+): StoreController {
   const storeDir = initOpts.storeDir
   const cafs = createCafsStore(storeDir, {
     cafsLocker: initOpts.cafsLocker,
@@ -46,6 +49,8 @@ export async function createPackageStore (
     networkConcurrency: initOpts.networkConcurrency,
     storeDir: initOpts.storeDir,
     verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
+    virtualStoreDirMaxLength: initOpts.virtualStoreDirMaxLength,
+    strictStorePkgContentCheck: initOpts.strictStorePkgContentCheck,
   })
 
   return {
@@ -63,9 +68,10 @@ export async function createPackageStore (
     prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
     requestPackage: packageRequester.requestPackage,
     upload,
+    clearResolutionCache: initOpts.clearResolutionCache,
   }
 
-  async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) {
+  async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }): Promise<void> {
     await addFilesFromDir({
       cafsDir: cafs.cafsDir,
       dir: builtPkgLocation,

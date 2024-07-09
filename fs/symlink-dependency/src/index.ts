@@ -8,7 +8,7 @@ export async function symlinkDependency (
   dependencyRealLocation: string,
   destModulesDir: string,
   importAs: string
-) {
+): Promise<{ reused: boolean, warn?: string }> {
   const link = path.join(destModulesDir, importAs)
   linkLogger.debug({ target: dependencyRealLocation, link })
   return symlinkDir(dependencyRealLocation, link)
@@ -18,7 +18,7 @@ export function symlinkDependencySync (
   dependencyRealLocation: string,
   destModulesDir: string,
   importAs: string
-) {
+): { reused: boolean, warn?: string } {
   const link = path.join(destModulesDir, importAs)
   linkLogger.debug({ target: dependencyRealLocation, link })
   return symlinkDir.sync(dependencyRealLocation, link)

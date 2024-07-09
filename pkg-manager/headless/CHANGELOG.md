@@ -1,5 +1,756 @@
 # @pnpm/headless
 
+## 23.1.9
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/symlink-dependency@8.0.4
+  - @pnpm/hoist@9.1.8
+  - @pnpm/link-bins@10.0.6
+  - @pnpm/package-requester@25.2.2
+  - @pnpm/worker@1.0.6
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.4
+  - @pnpm/build-modules@13.0.6
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/real-hoist@3.0.7
+
+## 23.1.8
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies [fd884c1]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/build-modules@13.0.5
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/package-requester@25.2.1
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/package-is-installable@9.0.4
+  - @pnpm/deps.graph-builder@1.1.7
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/symlink-dependency@8.0.3
+  - @pnpm/filter-lockfile@9.0.8
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/lockfile-to-pnp@4.1.7
+  - @pnpm/calc-dep-state@7.0.3
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/hoist@9.1.7
+  - @pnpm/link-bins@10.0.5
+  - @pnpm/modules-cleaner@15.1.7
+  - @pnpm/modules-yaml@13.1.3
+  - @pnpm/real-hoist@3.0.7
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/worker@1.0.5
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.3
+
+## 23.1.7
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [13e55b2]
+  - @pnpm/package-requester@25.2.0
+  - @pnpm/types@10.1.1
+  - @pnpm/package-is-installable@9.0.3
+  - @pnpm/deps.graph-builder@1.1.6
+  - @pnpm/build-modules@13.0.4
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/symlink-dependency@8.0.2
+  - @pnpm/filter-lockfile@9.0.7
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/lockfile-to-pnp@4.1.6
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/calc-dep-state@7.0.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/hoist@9.1.6
+  - @pnpm/link-bins@10.0.4
+  - @pnpm/modules-cleaner@15.1.6
+  - @pnpm/modules-yaml@13.1.2
+  - @pnpm/real-hoist@3.0.6
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/worker@1.0.4
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.2
+
+## 23.1.6
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/deps.graph-builder@1.1.5
+  - @pnpm/filter-lockfile@9.0.6
+  - @pnpm/lockfile-to-pnp@4.1.5
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/calc-dep-state@7.0.1
+  - @pnpm/hoist@9.1.5
+  - @pnpm/modules-cleaner@15.1.5
+  - @pnpm/package-requester@25.1.4
+  - @pnpm/real-hoist@3.0.5
+  - @pnpm/build-modules@13.0.3
+  - @pnpm/symlink-dependency@8.0.1
+  - @pnpm/lifecycle@17.0.5
+  - @pnpm/link-bins@10.0.3
+
+## 23.1.5
+
+### Patch Changes
+
+- Updated dependencies [b3a2f9c]
+- Updated dependencies [80aaa9f]
+  - @pnpm/lockfile-to-pnp@4.1.4
+  - @pnpm/link-bins@10.0.3
+  - @pnpm/build-modules@13.0.2
+  - @pnpm/lifecycle@17.0.5
+  - @pnpm/hoist@9.1.4
+  - @pnpm/package-requester@25.1.3
+
+## 23.1.4
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/deps.graph-builder@1.1.4
+  - @pnpm/build-modules@13.0.1
+  - @pnpm/lifecycle@17.0.4
+  - @pnpm/modules-cleaner@15.1.4
+  - @pnpm/package-requester@25.1.3
+  - @pnpm/worker@1.0.3
+  - @pnpm/symlink-dependency@8.0.1
+  - @pnpm/link-bins@10.0.2
+  - @pnpm/real-hoist@3.0.4
+
+## 23.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/build-modules@13.0.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/calc-dep-state@7.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/package-is-installable@9.0.2
+  - @pnpm/deps.graph-builder@1.1.3
+  - @pnpm/lifecycle@17.0.3
+  - @pnpm/symlink-dependency@8.0.1
+  - @pnpm/filter-lockfile@9.0.5
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/lockfile-to-pnp@4.1.3
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/hoist@9.1.3
+  - @pnpm/link-bins@10.0.2
+  - @pnpm/modules-cleaner@15.1.3
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/package-requester@25.1.2
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/read-project-manifest@6.0.2
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/worker@1.0.2
+  - @pnpm/real-hoist@3.0.4
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.1
+
+## 23.1.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/package-is-installable@9.0.1
+  - @pnpm/lifecycle@17.0.2
+  - @pnpm/filter-lockfile@9.0.4
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/link-bins@10.0.1
+  - @pnpm/package-requester@25.1.1
+  - @pnpm/real-hoist@3.0.3
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/read-project-manifest@6.0.1
+  - @pnpm/worker@1.0.1
+  - @pnpm/deps.graph-builder@1.1.2
+  - @pnpm/build-modules@12.0.4
+  - @pnpm/modules-cleaner@15.1.2
+  - @pnpm/lockfile-to-pnp@4.1.2
+  - @pnpm/hoist@9.1.2
+
+## 23.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/build-modules@12.0.3
+  - @pnpm/deps.graph-builder@1.1.1
+  - @pnpm/filter-lockfile@9.0.3
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/lockfile-to-pnp@4.1.1
+  - @pnpm/hoist@9.1.1
+  - @pnpm/modules-cleaner@15.1.1
+  - @pnpm/real-hoist@3.0.2
+  - @pnpm/package-requester@25.1.0
+
+## 23.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/package-requester@25.1.0
+  - @pnpm/modules-cleaner@15.1.0
+  - @pnpm/lockfile-to-pnp@4.1.0
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/deps.graph-builder@1.1.0
+  - @pnpm/hoist@9.1.0
+  - @pnpm/filter-lockfile@9.0.2
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/calc-dep-state@6.0.1
+  - @pnpm/real-hoist@3.0.1
+  - @pnpm/build-modules@12.0.2
+  - @pnpm/symlink-dependency@8.0.0
+  - @pnpm/lifecycle@17.0.1
+  - @pnpm/link-bins@10.0.0
+
+## 23.0.4
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+  - @pnpm/deps.graph-builder@1.0.3
+  - @pnpm/lockfile-to-pnp@4.0.2
+  - @pnpm/real-hoist@3.0.0
+  - @pnpm/package-requester@25.0.1
+
+## 23.0.3
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/deps.graph-builder@1.0.2
+  - @pnpm/lockfile-to-pnp@4.0.1
+  - @pnpm/real-hoist@3.0.0
+
+## 23.0.2
+
+### Patch Changes
+
+- b7d2ed4: The `engines.pnpm` field in the `package.json` files of dependencies should be ignored [#7965](https://github.com/pnpm/pnpm/issues/7965).
+- Updated dependencies [b7d2ed4]
+  - @pnpm/package-requester@25.0.1
+  - @pnpm/filter-lockfile@9.0.1
+  - @pnpm/deps.graph-builder@1.0.1
+  - @pnpm/modules-cleaner@15.0.1
+
+## 23.0.1
+
+### Patch Changes
+
+- Updated dependencies [bfadc0a]
+  - @pnpm/lifecycle@17.0.1
+  - @pnpm/build-modules@12.0.1
+  - @pnpm/package-requester@25.0.0
+
+## 23.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- Updated dependencies [1b26210]
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [11d9ebd]
+- Updated dependencies [086b69c]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [d381a60]
+- Updated dependencies [82aac81]
+- Updated dependencies [f67ad31]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/build-modules@12.0.0
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/worker@1.0.0
+  - @pnpm/package-requester@25.0.0
+  - @pnpm/modules-cleaner@15.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/deps.graph-builder@1.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/package-is-installable@9.0.0
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/filter-lockfile@9.0.0
+  - @pnpm/lockfile-to-pnp@4.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/calc-dep-state@6.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/real-hoist@3.0.0
+  - @pnpm/symlink-dependency@8.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/link-bins@10.0.0
+  - @pnpm/hoist@9.0.0
+  - @pnpm/lifecycle@17.0.0
+
+## 22.4.4
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+- Updated dependencies [0c383327e]
+  - @pnpm/package-requester@24.1.8
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/calc-dep-state@5.0.0
+  - @pnpm/deps.graph-builder@0.2.8
+  - @pnpm/build-modules@11.2.12
+  - @pnpm/lifecycle@16.0.12
+  - @pnpm/modules-cleaner@14.0.24
+  - @pnpm/lockfile-utils@9.0.5
+  - @pnpm/worker@0.3.14
+  - @pnpm/filter-lockfile@8.1.6
+  - @pnpm/lockfile-to-pnp@3.0.17
+  - @pnpm/hoist@8.2.1
+  - @pnpm/real-hoist@2.0.19
+  - @pnpm/symlink-dependency@7.1.4
+  - @pnpm/link-bins@9.0.12
+
+## 22.4.3
+
+### Patch Changes
+
+- @pnpm/package-requester@24.1.7
+- @pnpm/lifecycle@16.0.11
+- @pnpm/build-modules@11.2.11
+
+## 22.4.2
+
+### Patch Changes
+
+- ff10acade: When `hoisted-workspace-packages` is `true` don't hoist the root package even if it has a name. Otherwise we would create a circular symlink.
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/deps.graph-builder@0.2.7
+  - @pnpm/package-requester@24.1.7
+  - @pnpm/symlink-dependency@7.1.4
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/link-bins@9.0.12
+
+## 22.4.1
+
+### Patch Changes
+
+- @pnpm/package-requester@24.1.7
+- @pnpm/worker@0.3.13
+- @pnpm/build-modules@11.2.10
+
+## 22.4.0
+
+### Minor Changes
+
+- c597f72ec: A new option added for hoisting packages from the workspace. When `hoist-workspace-packages` is set to `true`, packages from the workspace are symlinked to either `<workspace_root>/node_modules/.pnpm/node_modules` or to `<workspace_root>/node_modules` depending on other hoisting settings (`hoist-pattern` and `public-hoist-pattern`) [#7451](https://github.com/pnpm/pnpm/pull/7451).
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/hoist@8.2.0
+
+## 22.3.12
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/package-requester@24.1.6
+  - @pnpm/worker@0.3.12
+  - @pnpm/filter-lockfile@8.1.5
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/calc-dep-state@4.1.5
+  - @pnpm/hoist@8.1.5
+  - @pnpm/modules-cleaner@14.0.23
+  - @pnpm/package-is-installable@8.1.2
+  - @pnpm/deps.graph-builder@0.2.6
+  - @pnpm/build-modules@11.2.9
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/symlink-dependency@7.1.4
+  - @pnpm/lockfile-to-pnp@3.0.16
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/link-bins@9.0.12
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/read-project-manifest@5.0.10
+  - @pnpm/store-controller-types@17.1.4
+  - @pnpm/real-hoist@2.0.18
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.9
+
+## 22.3.11
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/filter-lockfile@8.1.4
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/calc-dep-state@4.1.4
+  - @pnpm/hoist@8.1.4
+  - @pnpm/modules-cleaner@14.0.22
+  - @pnpm/package-is-installable@8.1.1
+  - @pnpm/deps.graph-builder@0.2.5
+  - @pnpm/build-modules@11.2.8
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/symlink-dependency@7.1.3
+  - @pnpm/lockfile-to-pnp@3.0.15
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/link-bins@9.0.11
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/package-requester@24.1.5
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/read-project-manifest@5.0.9
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/worker@0.3.11
+  - @pnpm/real-hoist@2.0.17
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.8
+
+## 22.3.10
+
+### Patch Changes
+
+- e3b983295: Don't report dependencies with optional dependencies as being added on repeat install. This was a bug in reporting [#7384](https://github.com/pnpm/pnpm/issues/7384).
+- Updated dependencies [d5a176af7]
+- Updated dependencies [f3cd0a61d]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/modules-cleaner@14.0.21
+  - @pnpm/deps.graph-builder@0.2.4
+  - @pnpm/filter-lockfile@8.1.3
+  - @pnpm/lockfile-to-pnp@3.0.14
+  - @pnpm/hoist@8.1.3
+  - @pnpm/real-hoist@2.0.16
+  - @pnpm/package-requester@24.1.4
+  - @pnpm/worker@0.3.10
+  - @pnpm/build-modules@11.2.7
+
+## 22.3.9
+
+### Patch Changes
+
+- 6558d1865: When `dedupe-direct-deps` is set to `true`, commands of dependencies should be deduplicated [#7359](https://github.com/pnpm/pnpm/pull/7359).
+- Updated dependencies [6558d1865]
+  - @pnpm/modules-cleaner@14.0.20
+  - @pnpm/package-requester@24.1.3
+
+## 22.3.8
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/package-requester@24.1.3
+  - @pnpm/worker@0.3.9
+  - @pnpm/build-modules@11.2.6
+
+## 22.3.7
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/real-hoist@2.0.15
+  - @pnpm/lockfile-utils@9.0.1
+  - @pnpm/deps.graph-builder@0.2.3
+  - @pnpm/filter-lockfile@8.1.2
+  - @pnpm/lockfile-to-pnp@3.0.13
+  - @pnpm/hoist@8.1.2
+  - @pnpm/modules-cleaner@14.0.19
+
+## 22.3.6
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+- Updated dependencies [fe1f0f734]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/deps.graph-builder@0.2.2
+  - @pnpm/build-modules@11.2.5
+  - @pnpm/lifecycle@16.0.8
+  - @pnpm/modules-cleaner@14.0.18
+  - @pnpm/package-requester@24.1.2
+  - @pnpm/worker@0.3.8
+  - @pnpm/symlink-dependency@7.1.2
+  - @pnpm/link-bins@9.0.10
+
+## 22.3.5
+
+### Patch Changes
+
+- Updated dependencies [b06f50183]
+  - @pnpm/build-modules@11.2.4
+
+## 22.3.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.7
+- @pnpm/build-modules@11.2.3
+- @pnpm/package-requester@24.1.1
+
+## 22.3.3
+
+### Patch Changes
+
+- cfc017ee3: Optional dependencies that do not have to be built will be reflinked (or hardlinked) to the store instead of copied [#7046](https://github.com/pnpm/pnpm/issues/7046).
+- Updated dependencies [4c2450208]
+- Updated dependencies [7ea45afbe]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/package-requester@24.1.1
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/deps.graph-builder@0.2.1
+  - @pnpm/filter-lockfile@8.1.1
+  - @pnpm/lockfile-to-pnp@3.0.12
+  - @pnpm/hoist@8.1.1
+  - @pnpm/modules-cleaner@14.0.17
+  - @pnpm/real-hoist@2.0.14
+  - @pnpm/worker@0.3.7
+  - @pnpm/build-modules@11.2.2
+  - @pnpm/lifecycle@16.0.6
+  - @pnpm/symlink-dependency@7.1.2
+  - @pnpm/link-bins@9.0.10
+
+## 22.3.2
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.5
+- @pnpm/build-modules@11.2.1
+- @pnpm/package-requester@24.1.0
+
+## 22.3.1
+
+### Patch Changes
+
+- Updated dependencies [ee4d15fdd]
+  - @pnpm/hoist@8.1.0
+
+## 22.3.0
+
+### Minor Changes
+
+- 43ce9e4a6: Support for multiple architectures when installing dependencies [#5965](https://github.com/pnpm/pnpm/issues/5965).
+
+  You can now specify architectures for which you'd like to install optional dependencies, even if they don't match the architecture of the system running the install. Use the `supportedArchitectures` field in `package.json` to define your preferences.
+
+  For example, the following configuration tells pnpm to install optional dependencies for Windows x64:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32"],
+        "cpu": ["x64"]
+      }
+    }
+  }
+  ```
+
+  Whereas this configuration will have pnpm install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32", "darwin", "current"],
+        "cpu": ["x64", "arm64"]
+      }
+    }
+  }
+  ```
+
+  Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [6390033cd]
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/package-is-installable@8.1.0
+  - @pnpm/package-requester@24.1.0
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/filter-lockfile@8.1.0
+  - @pnpm/deps.graph-builder@0.2.0
+  - @pnpm/types@9.4.0
+  - @pnpm/build-modules@11.2.0
+  - @pnpm/worker@0.3.6
+  - @pnpm/lifecycle@16.0.4
+  - @pnpm/modules-cleaner@14.0.16
+  - @pnpm/symlink-dependency@7.1.2
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/lockfile-to-pnp@3.0.11
+  - @pnpm/lockfile-utils@8.0.7
+  - @pnpm/core-loggers@9.0.4
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/hoist@8.0.15
+  - @pnpm/link-bins@9.0.10
+  - @pnpm/modules-yaml@12.1.4
+  - @pnpm/read-package-json@8.0.5
+  - @pnpm/read-project-manifest@5.0.8
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.7
+  - @pnpm/real-hoist@2.0.13
+  - @pnpm/calc-dep-state@4.1.3
+
+## 22.2.5
+
+### Patch Changes
+
+- Updated dependencies [5c8c9196c]
+  - @pnpm/link-bins@9.0.9
+  - @pnpm/hoist@8.0.14
+  - @pnpm/build-modules@11.1.2
+  - @pnpm/lifecycle@16.0.3
+  - @pnpm/package-requester@24.0.6
+
+## 22.2.4
+
+### Patch Changes
+
+- Updated dependencies [4246f41be]
+- Updated dependencies [84f81c9ae]
+  - @pnpm/build-modules@11.1.1
+  - @pnpm/lifecycle@16.0.2
+  - @pnpm/package-requester@24.0.6
+  - @pnpm/worker@0.3.5
+
+## 22.2.3
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [08b65ff78]
+  - @pnpm/package-requester@24.0.5
+  - @pnpm/worker@0.3.4
+  - @pnpm/symlink-dependency@7.1.1
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/link-bins@9.0.8
+
+## 22.2.2
+
+### Patch Changes
+
+- @pnpm/package-requester@24.0.4
+- @pnpm/worker@0.3.3
+
+## 22.2.1
+
+### Patch Changes
+
+- @pnpm/package-requester@24.0.3
+- @pnpm/worker@0.3.2
+
+## 22.2.0
+
+### Minor Changes
+
+- d774a3196: The list of packages that are allowed to run installation scripts now may be provided in a separate configuration file. The path to the file should be specified via the `pnpm.onlyBuiltDependenciesFile` field in `package.json`. For instance:
+
+  ```json
+  {
+    "dependencies": {
+      "@my-org/policy": "1.0.0"
+    }
+    "pnpm": {
+      "onlyBuiltDependenciesFile": "node_modules/@my-org/policy/allow-build.json"
+    }
+  }
+  ```
+
+  In the example above, the list is loaded from a dependency. The JSON file with the list should contain an array of package names. For instance:
+
+  ```json
+  ["esbuild", "@reflink/reflink"]
+  ```
+
+  With the above list, only `esbuild` and `@reflink/reflink` will be allowed to run scripts during installation.
+
+  Related issue: [#7137](https://github.com/pnpm/pnpm/issues/7137).
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/build-modules@11.1.0
+  - @pnpm/package-is-installable@8.0.5
+  - @pnpm/deps.graph-builder@0.1.5
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/symlink-dependency@7.1.1
+  - @pnpm/filter-lockfile@8.0.10
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/lockfile-to-pnp@3.0.10
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/hoist@8.0.13
+  - @pnpm/link-bins@9.0.8
+  - @pnpm/modules-cleaner@14.0.15
+  - @pnpm/modules-yaml@12.1.3
+  - @pnpm/package-requester@24.0.2
+  - @pnpm/read-package-json@8.0.4
+  - @pnpm/read-project-manifest@5.0.7
+  - @pnpm/store-controller-types@17.0.1
+  - @pnpm/worker@0.3.1
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.6
+  - @pnpm/real-hoist@2.0.12
+  - @pnpm/calc-dep-state@4.1.2
+
+## 22.1.2
+
+### Patch Changes
+
+- 1f32d3eb8: When the `node-linker` is set to `hoisted`, the `package.json` files of the existing dependencies inside `node_modules` will be checked to verify their actual versions. The data in the `node_modules/.modules.yaml` and `node_modules/.pnpm/lock.yaml` may not be fully reliable, as an installation may fail after changes to dependencies were made but before those state files were updated [#7107](https://github.com/pnpm/pnpm/pull/7107).
+- Updated dependencies [f394cfccd]
+  - @pnpm/lockfile-utils@8.0.5
+  - @pnpm/deps.graph-builder@0.1.4
+  - @pnpm/filter-lockfile@8.0.9
+  - @pnpm/lockfile-to-pnp@3.0.9
+  - @pnpm/hoist@8.0.12
+  - @pnpm/modules-cleaner@14.0.14
+  - @pnpm/real-hoist@2.0.11
+  - @pnpm/package-requester@24.0.1
+
+## 22.1.1
+
+### Patch Changes
+
+- 78a97774d: Fixed an ENOENT error that was sometimes happening during install with "hoisted" `node_modules` [#6756](https://github.com/pnpm/pnpm/issues/6756).
+  - @pnpm/package-requester@24.0.0
+
 ## 22.1.0
 
 ### Minor Changes

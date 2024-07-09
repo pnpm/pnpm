@@ -1,5 +1,187 @@
 # @pnpm/default-resolver
 
+## 20.0.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/npm-resolver@21.0.1
+
+## 20.0.2
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/npm-resolver@21.0.0
+  - @pnpm/git-resolver@9.0.4
+  - @pnpm/local-resolver@12.0.4
+  - @pnpm/tarball-resolver@9.0.3
+
+## 20.0.1
+
+### Patch Changes
+
+- @pnpm/local-resolver@12.0.3
+- @pnpm/npm-resolver@20.0.1
+- @pnpm/resolver-base@12.0.2
+- @pnpm/git-resolver@9.0.3
+- @pnpm/tarball-resolver@9.0.2
+
+## 20.0.0
+
+### Major Changes
+
+- 0c08e1c: Breaking change.
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/npm-resolver@20.0.0
+
+## 19.0.5
+
+### Patch Changes
+
+- @pnpm/local-resolver@12.0.2
+- @pnpm/npm-resolver@19.0.4
+- @pnpm/resolver-base@12.0.1
+- @pnpm/git-resolver@9.0.2
+- @pnpm/tarball-resolver@9.0.1
+
+## 19.0.4
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/local-resolver@12.0.1
+  - @pnpm/npm-resolver@19.0.3
+
+## 19.0.3
+
+### Patch Changes
+
+- Updated dependencies [43b6bb7]
+  - @pnpm/npm-resolver@19.0.2
+
+## 19.0.2
+
+### Patch Changes
+
+- Updated dependencies [cb0f459]
+  - @pnpm/npm-resolver@19.0.1
+
+## 19.0.1
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/git-resolver@9.0.1
+
+## 19.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [43cdd87]
+- Updated dependencies [985381c]
+- Updated dependencies [d381a60]
+- Updated dependencies [b13d2dc]
+  - @pnpm/error@6.0.0
+  - @pnpm/npm-resolver@19.0.0
+  - @pnpm/tarball-resolver@9.0.0
+  - @pnpm/local-resolver@12.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/git-resolver@9.0.0
+
+## 18.0.22
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/npm-resolver@18.1.0
+  - @pnpm/git-resolver@8.0.12
+  - @pnpm/local-resolver@11.0.4
+  - @pnpm/tarball-resolver@8.0.8
+
+## 18.0.21
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+  - @pnpm/npm-resolver@18.0.2
+  - @pnpm/local-resolver@11.0.3
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/git-resolver@8.0.11
+  - @pnpm/tarball-resolver@8.0.7
+
+## 18.0.20
+
+### Patch Changes
+
+- @pnpm/local-resolver@11.0.2
+- @pnpm/npm-resolver@18.0.1
+- @pnpm/resolver-base@11.0.1
+- @pnpm/git-resolver@8.0.10
+- @pnpm/tarball-resolver@8.0.6
+
+## 18.0.19
+
+### Patch Changes
+
+- Updated dependencies [cd4fcfff0]
+  - @pnpm/npm-resolver@18.0.0
+
+## 18.0.18
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/npm-resolver@17.0.0
+  - @pnpm/git-resolver@8.0.9
+  - @pnpm/local-resolver@11.0.1
+  - @pnpm/tarball-resolver@8.0.5
+
+## 18.0.17
+
+### Patch Changes
+
+- Updated dependencies [5b7ed47d8]
+- Updated dependencies [5b7ed47d8]
+  - @pnpm/local-resolver@11.0.0
+  - @pnpm/npm-resolver@16.0.13
+  - @pnpm/resolver-base@10.0.4
+  - @pnpm/git-resolver@8.0.8
+  - @pnpm/tarball-resolver@8.0.4
+
+## 18.0.16
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [ff55119a8]
+  - @pnpm/local-resolver@10.0.9
+  - @pnpm/npm-resolver@16.0.12
+
+## 18.0.15
+
+### Patch Changes
+
+- @pnpm/local-resolver@10.0.8
+- @pnpm/npm-resolver@16.0.11
+- @pnpm/resolver-base@10.0.3
+- @pnpm/git-resolver@8.0.7
+- @pnpm/tarball-resolver@8.0.3
+
 ## 18.0.14
 
 ### Patch Changes

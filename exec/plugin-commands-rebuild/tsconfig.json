@@ -19,6 +19,9 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -31,7 +34,10 @@
       "path": "../../config/normalize-registries"
     },
     {
-      "path": "../../fs/hard-link-dir"
+      "path": "../../crypto/object-hasher"
+    },
+    {
+      "path": "../../deps/graph-sequencer"
     },
     {
       "path": "../../lockfile/lockfile-types"
@@ -79,7 +85,10 @@
       "path": "../../store/store-controller-types"
     },
     {
-      "path": "../../workspace/filter-workspace-packages"
+      "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/filter-packages-from-dir"
     },
     {
       "path": "../../workspace/find-packages"
@@ -90,6 +99,5 @@
     {
       "path": "../lifecycle"
     }
-  ],
-  "composite": true
+  ]
 }

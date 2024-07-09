@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "16.0.10",
+  "version": "21.0.1",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/npm-resolver",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "resolver",
     "npm"
@@ -41,32 +41,32 @@
     "@pnpm/resolve-workspace-range": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@zkochan/retry": "^0.2.0",
-    "encode-registry": "^3.0.0",
-    "load-json-file": "^6.2.0",
-    "lru-cache": "^9.1.2",
-    "normalize-path": "^3.0.0",
-    "p-limit": "^3.1.0",
-    "p-memoize": "4.0.1",
-    "parse-npm-tarball-url": "^3.0.0",
-    "path-temp": "^2.1.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "rename-overwrite": "^4.0.3",
-    "semver": "^7.5.4",
-    "ssri": "10.0.4",
-    "version-selector-type": "^3.0.0"
+    "@pnpm/workspace.spec-parser": "workspace:*",
+    "@zkochan/retry": "catalog:",
+    "encode-registry": "catalog:",
+    "load-json-file": "catalog:",
+    "lru-cache": "catalog:",
+    "normalize-path": "catalog:",
+    "p-limit": "catalog:",
+    "p-memoize": "catalog:",
+    "parse-npm-tarball-url": "catalog:",
+    "path-temp": "catalog:",
+    "ramda": "catalog:",
+    "rename-overwrite": "catalog:",
+    "semver": "catalog:",
+    "ssri": "catalog:",
+    "version-selector-type": "catalog:"
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "0.28.20",
-    "@types/semver": "7.3.13",
-    "@types/ssri": "^7.1.1",
-    "nock": "13.3.2",
-    "path-exists": "^4.0.0",
-    "tempy": "^1.0.1"
+    "@types/normalize-path": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
+    "@types/ssri": "catalog:",
+    "nock": "catalog:",
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

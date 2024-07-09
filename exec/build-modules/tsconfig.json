@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
       "path": "../../fs/hard-link-dir"
     },
     {
@@ -34,8 +37,10 @@
       "path": "../../store/store-controller-types"
     },
     {
+      "path": "../../worker"
+    },
+    {
       "path": "../lifecycle"
     }
-  ],
-  "composite": true
+  ]
 }

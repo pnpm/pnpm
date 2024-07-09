@@ -7,7 +7,7 @@ const getDescendentProcesses = promisify((pid: number, callback: (error: Error |
   pidTree(pid, { root: false }, callback)
 })
 
-export async function errorHandler (error: Error & { code?: string }) {
+export async function errorHandler (error: Error & { code?: string }): Promise<void> {
   if (error.name != null && error.name !== 'pnpm' && !error.name.startsWith('pnpm:')) {
     try {
       error.name = 'pnpm'
@@ -39,11 +39,11 @@ export async function errorHandler (error: Error & { code?: string }) {
 
   // Deferring exit. Otherwise, the reporter wouldn't show the error
   setTimeout(async () => {
-    await killProcesses()
+    await killProcesses('errno' in error && typeof error.errno === 'number' ? error.errno : 1)
   }, 0)
 }
 
-async function killProcesses () {
+async function killProcesses (status: number): Promise<void> {
   try {
     const descendentProcesses = await getDescendentProcesses(process.pid)
     for (const pid of descendentProcesses) {
@@ -56,5 +56,5 @@ async function killProcesses () {
   } catch (err) {
     // ignore error here
   }
-  process.exit(1)
+  process.exit(status)
 }

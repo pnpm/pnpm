@@ -49,7 +49,7 @@ async function fetchAllVersions (fetch: FetchFromRegistry, nodeMirrorBaseUrl?: s
   }))
 }
 
-function filterVersions (versions: NodeVersion[], versionSelector: string) {
+function filterVersions (versions: NodeVersion[], versionSelector: string): { versions: string[], versionRange: string } {
   if (versionSelector === 'lts') {
     return {
       versions: versions

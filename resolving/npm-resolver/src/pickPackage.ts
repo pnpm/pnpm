@@ -11,6 +11,7 @@ import loadJsonFile from 'load-json-file'
 import pLimit from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import pick from 'ramda/src/pick'
+import semver from 'semver'
 import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw'
 import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta'
@@ -37,7 +38,8 @@ export interface PackageMetaCache {
   has: (key: string) => boolean
 }
 
-export type PackageInRegistry = PackageManifest & {
+export interface PackageInRegistry extends PackageManifest {
+  hasInstallScript?: boolean
   dist: {
     integrity?: string
     shasum: string
@@ -85,6 +87,7 @@ export interface PickPackageOptions {
   pickLowestVersion?: boolean
   registry: string
   dryRun: boolean
+  updateToLatest?: boolean
 }
 
 function pickPackageFromMetaUsingTime (
@@ -92,7 +95,7 @@ function pickPackageFromMetaUsingTime (
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
   publishedBy?: Date
-) {
+): PackageInRegistry | null {
   const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
   if (pickedPackage) return pickedPackage
   return pickPackageFromMeta(pickLowestVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
@@ -112,10 +115,24 @@ export async function pickPackage (
   opts: PickPackageOptions
 ): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
   opts = opts || {}
-  const _pickPackageFromMeta =
+  let _pickPackageFromMeta =
     opts.publishedBy
       ? pickPackageFromMetaUsingTime
       : (pickPackageFromMeta.bind(null, opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange))
+
+  if (opts.updateToLatest) {
+    const _pickPackageBase = _pickPackageFromMeta
+    _pickPackageFromMeta = (spec, ...rest) => {
+      const latestStableSpec: RegistryPackageSpec = { ...spec, type: 'tag', fetchSpec: 'latest' }
+      const latestStable = _pickPackageBase(latestStableSpec, ...rest)
+      const current = _pickPackageBase(spec, ...rest)
+
+      if (!latestStable) return current
+      if (!current) return latestStable
+      if (semver.lt(latestStable.version, current.version)) return current
+      return latestStable
+    }
+  }
 
   validatePackageName(spec.name)
 
@@ -155,7 +172,7 @@ export async function pickPackage (
       }
     }
 
-    if (spec.type === 'version') {
+    if (!opts.updateToLatest && spec.type === 'version') {
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       // use the cached meta only if it has the required package version
       // otherwise it is probably out of date
@@ -249,7 +266,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
   }
 }
 
-function encodePkgName (pkgName: string) {
+function encodePkgName (pkgName: string): string {
   if (pkgName !== pkgName.toLowerCase()) {
     return `${pkgName}_${crypto.createHash('md5').update(pkgName).digest('hex')}`
   }

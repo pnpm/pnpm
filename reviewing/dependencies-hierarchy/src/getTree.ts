@@ -1,5 +1,6 @@
 import path from 'path'
 import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile-file'
+import { type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type Registries } from '@pnpm/types'
 import { type SearchFunction } from './types'
 import { type PackageNode } from './PackageNode'
@@ -18,9 +19,11 @@ interface GetTreeOpts {
   skipped: Set<string>
   registries: Registries
   importers: Record<string, ProjectSnapshot>
+  depTypes: DepTypes
   currentPackages: PackageSnapshots
   wantedPackages: PackageSnapshots
   virtualStoreDir?: string
+  virtualStoreDirMaxLength: number
 }
 
 interface DependencyInfo {
@@ -125,6 +128,7 @@ function getTreeHelper (
     const packageInfo = getPkgInfo({
       alias,
       currentPackages: opts.currentPackages,
+      depTypes: opts.depTypes,
       rewriteLinkVersionDir: opts.rewriteLinkVersionDir,
       linkedPathBaseDir,
       peers,
@@ -133,6 +137,7 @@ function getTreeHelper (
       skipped: opts.skipped,
       wantedPackages: opts.wantedPackages,
       virtualStoreDir: opts.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
     let circular: boolean
     const matchedSearched = opts.search?.(packageInfo)

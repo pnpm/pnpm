@@ -9,7 +9,7 @@ export function reportPeerDependencyIssues (
     lockfileDir: string
     strictPeerDependencies: boolean
   }
-) {
+): void {
   if (
     Object.values(peerDependencyIssuesByProjects).every((peerIssuesOfProject) =>
       isEmpty(peerIssuesOfProject.bad) && (

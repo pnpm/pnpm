@@ -1,5 +1,126 @@
 # @pnpm/prepare
 
+## 0.0.97
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.54
+
+## 0.0.96
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/assert-project@2.3.53
+
+## 0.0.95
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/assert-project@2.3.52
+
+## 0.0.94
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.51
+
+## 0.0.93
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.50
+
+## 0.0.92
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/assert-project@2.3.49
+
+## 0.0.91
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.48
+
+## 0.0.90
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/assert-project@2.3.47
+
+## 0.0.89
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.46
+
+## 0.0.88
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.45
+
+## 0.0.87
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/assert-project@2.3.44
+
+## 0.0.86
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/assert-project@2.3.43
+
+## 0.0.85
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.42
+
+## 0.0.84
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.41
+
+## 0.0.83
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/assert-project@2.3.40
+
+## 0.0.82
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.39
+
+## 0.0.81
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/assert-project@2.3.38
+
 ## 0.0.80
 
 ### Patch Changes

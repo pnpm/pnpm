@@ -25,11 +25,13 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../resolving/resolver-base"
+    },
+    {
       "path": "../modules-yaml"
     },
     {
       "path": "../read-projects-context"
     }
-  ],
-  "composite": true
+  ]
 }

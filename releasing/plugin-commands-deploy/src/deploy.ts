@@ -3,26 +3,28 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
+import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 import { install } from '@pnpm/plugin-commands-installation'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { deployHook } from './deployHook'
+import { logger } from '@pnpm/logger'
 
 export const shorthands = install.shorthands
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return install.rcOptionsTypes()
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return install.cliOptionsTypes()
 }
 
 export const commandNames = ['deploy']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Experimental! Deploy a package from a workspace',
     url: docsUrl('deploy'),
@@ -55,7 +57,7 @@ export function help () {
 export async function handler (
   opts: install.InstallCommandOptions,
   params: string[]
-) {
+): Promise<void> {
   if (!opts.workspaceDir) {
     throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace')
   }
@@ -72,6 +74,15 @@ export async function handler (
   const deployedDir = selectedDirs[0]
   const deployDirParam = params[0]
   const deployDir = path.isAbsolute(deployDirParam) ? deployDirParam : path.join(opts.dir, deployDirParam)
+
+  if (!isEmptyDirOrNothing(deployDir)) {
+    if (!opts.force) {
+      throw new PnpmError('DEPLOY_DIR_NOT_EMPTY', `Deploy path ${deployDir} is not empty`)
+    }
+
+    logger.warn({ message: 'using --force, deleting deploy path', prefix: deployDir })
+  }
+
   await rimraf(deployDir)
   await fs.promises.mkdir(deployDir, { recursive: true })
   const includeOnlyPackageFiles = !opts.deployAllFiles
@@ -106,7 +117,7 @@ export async function handler (
   })
 }
 
-async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }) {
+async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }): Promise<void> {
   const { filesIndex } = await fetchFromDir(src, opts)
   const importPkg = createIndexedPkgImporter('clone-or-copy')
   importPkg(dest, { filesMap: filesIndex, force: true, resolvedFrom: 'local-dir' })

@@ -1,11 +1,11 @@
 {
   "name": "@pnpm/lockfile-utils",
-  "version": "8.0.4",
+  "version": "11.0.3",
   "description": "Utils for dealing with pnpm-lock.yaml",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "files": [
     "lib",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-utils",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "shrinkwrap",
     "lockfile"
@@ -32,19 +32,19 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-utils#readme",
   "devDependencies": {
     "@pnpm/lockfile-utils": "workspace:*",
-    "@types/js-yaml": "^4.0.5",
-    "@types/ramda": "0.28.20",
-    "tempy": "^1.0.1",
-    "write-yaml-file": "^5.0.0",
-    "yaml-tag": "1.1.0"
+    "@types/ramda": "catalog:",
+    "tempy": "catalog:",
+    "write-yaml-file": "catalog:",
+    "yaml-tag": "catalog:"
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "get-npm-tarball-url": "^2.0.3",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "get-npm-tarball-url": "catalog:",
+    "ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

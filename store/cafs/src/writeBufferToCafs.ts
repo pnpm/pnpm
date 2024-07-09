@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
 import renameOverwrite from 'rename-overwrite'
 import type ssri from 'ssri'
 import { verifyFileIntegrity } from './checkPkgFilesIntegrity'
@@ -54,16 +55,16 @@ export function writeBufferToCafs (
   }
 }
 
-export function optimisticRenameOverwrite (temp: string, fileDest: string) {
+export function optimisticRenameOverwrite (temp: string, fileDest: string): void {
   try {
     renameOverwrite.sync(temp, fileDest)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT' || !fs.existsSync(fileDest)) throw err
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') || !fs.existsSync(fileDest)) throw err
     // The temporary file path is created by appending the process ID to the target file name.
     // This is done to avoid lots of random crypto number generations.
     //   PR with related performance optimization: https://github.com/pnpm/pnpm/pull/6817
     //
-    // Probably the only scenario in which the temp directory will dissappear
+    // Probably the only scenario in which the temp directory will disappear
     // before being renamed is when two containers use the same mounted directory
     // for their content-addressable store. In this case there's a chance that the process ID
     // will be the same in both containers.
@@ -76,7 +77,7 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string) {
 /**
  * The process ID is appended to the file name to create a temporary file.
  * If the process fails, on rerun the new temp file may get a filename the got left over.
- * That is fine, the file will be overriden.
+ * That is fine, the file will be overridden.
  */
 export function pathTemp (file: string): string {
   const basename = removeSuffix(path.basename(file))
@@ -93,7 +94,7 @@ function removeSuffix (filePath: string): string {
   return withoutSuffix
 }
 
-function existsSame (filename: string, integrity: ssri.IntegrityLike) {
+function existsSame (filename: string, integrity: ssri.IntegrityLike): boolean {
   const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
   if (!existingFile) return false
   return verifyFileIntegrity(filename, {

@@ -10,8 +10,10 @@
   ],
   "references": [
     {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
       "path": "../../packages/types"
     }
-  ],
-  "composite": true
+  ]
 }

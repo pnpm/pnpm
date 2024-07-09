@@ -1,9 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare module '@pnpm/tabtab' {
-  const anything: any
-  export = anything
-}
-
 declare module 'hyperdrive-schemas' {
   const anything: any
   export = anything
@@ -20,11 +15,6 @@ declare module '@zkochan/libnpx/index' {
 }
 
 declare module '@pnpm/npm-conf' {
-  const anything: any
-  export = anything
-}
-
-declare module '@pnpm/npm-conf/lib/types' {
   const anything: any
   export = anything
 }
@@ -59,6 +49,7 @@ declare module 'better-path-resolve' {
   export = anything
 }
 
+// cspell:disable-next-line
 declare module '@zkochan/diable' {
   const anything: any
   export = anything
@@ -77,29 +68,6 @@ declare module 'exists-link' {
 declare module 'graceful-git' {
   const anything: any
   export = anything
-}
-
-declare module '@pnpm/graph-sequencer' {
-  namespace graphSequencer {
-    type Graph<T> = Map<T, T[]>
-    type Groups<T> = T[][]
-
-    interface Options<T> {
-      graph: Graph<T>
-      groups: Groups<T>
-    }
-
-    interface Result<T> {
-      safe: boolean
-      chunks: Groups<T>
-      cycles: Groups<T>
-    }
-
-    type GraphSequencer = <T>(opts: Options<T>) => Result<T>
-  }
-
-  const graphSequencer: graphSequencer.GraphSequencer
-  export = graphSequencer
 }
 
 declare module 'is-inner-link' {
@@ -139,11 +107,6 @@ declare module 'nerf-dart' {
 
 declare module '@pnpm/patch-package/dist/applyPatches' {
   export function applyPatch (opts: any): boolean
-}
-
-declare module 'string.prototype.replaceall' {
-  const anything: any
-  export = anything
 }
 
 declare module 'ramda/src/map' {

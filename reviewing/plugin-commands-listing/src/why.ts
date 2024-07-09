@@ -6,8 +6,9 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { handler as list, type ListCommandOptions } from './list'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
+    'depth',
     'dev',
     'global-dir',
     'global',
@@ -20,19 +21,19 @@ export function rcOptionsTypes () {
   ], allTypes)
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   recursive: Boolean,
 })
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
 
 export const commandNames = ['why']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: `Shows the packages that depend on <pkg>
 For example: pnpm why babel-* eslint-*`,
@@ -79,6 +80,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: "Don't display packages from `optionalDependencies`",
             name: '--no-optional',
           },
+          {
+            name: '--depth <number>',
+            description: 'Max display depth of the dependency graph',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -95,7 +100,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export async function handler (
   opts: ListCommandOptions,
   params: string[]
-) {
+): Promise<string> {
   if (params.length === 0) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
   }
@@ -103,7 +108,7 @@ export async function handler (
     ...opts,
     cliOptions: {
       ...(opts.cliOptions ?? {}),
-      depth: Infinity,
+      depth: opts.depth ?? Infinity,
     },
   }, params)
 }

@@ -1,10 +1,10 @@
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { mutateModulesInSingleProject } from '@pnpm/core'
+import { type ProjectRootDir } from '@pnpm/types'
 import renderHelp from 'render-help'
-import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { cliOptionsTypes, rcOptionsTypes } from './install'
 import { recursive } from './recursive'
 
@@ -12,7 +12,7 @@ export { cliOptionsTypes, rcOptionsTypes }
 
 export const commandNames = ['unlink', 'dislink']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['dislink'],
     description: 'Removes the link created by `pnpm link` and reinstalls package if it is saved in `package.json`',
@@ -55,13 +55,14 @@ export async function handler (
   | 'rawLocalConfig'
   | 'registries'
   | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
   | 'pnpmfile'
   | 'workspaceDir'
   > & {
     recursive?: boolean
   },
   params: string[]
-) {
+): Promise<void> {
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
     await recursive(opts.allProjects, params, {
       ...opts,
@@ -73,7 +74,7 @@ export async function handler (
   }
   const store = await createOrConnectStoreController(opts)
   const unlinkOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
+    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     globalBin: opts.bin,
     storeController: store.ctrl,
     storeDir: store.dir,
@@ -84,13 +85,13 @@ export async function handler (
       dependencyNames: params,
       manifest: await readProjectManifestOnly(opts.dir, opts),
       mutation: 'unlinkSome',
-      rootDir: opts.dir,
+      rootDir: opts.dir as ProjectRootDir,
     }, unlinkOpts)
     return
   }
   await mutateModulesInSingleProject({
     manifest: await readProjectManifestOnly(opts.dir, opts),
     mutation: 'unlink',
-    rootDir: opts.dir,
+    rootDir: opts.dir as ProjectRootDir,
   }, unlinkOpts)
 }

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/render-peer-issues",
   "description": "Visualizes peer dependency issues",
-  "version": "4.0.2",
+  "version": "5.0.4",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,11 +12,11 @@
     "!*.map"
   ],
   "keywords": [
-    "pnpm8"
+    "pnpm9"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/render-peer-issues",
   "scripts": {
@@ -29,15 +29,20 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/render-peer-issues#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "archy": "^1.0.0",
-    "chalk": "^4.1.2",
-    "cli-columns": "^4.0.0"
+    "archy": "catalog:",
+    "chalk": "catalog:",
+    "cli-columns": "catalog:",
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/render-peer-issues": "workspace:*",
-    "@types/archy": "0.0.32",
-    "strip-ansi": "^6.0.1"
+    "@types/archy": "catalog:",
+    "@types/semver": "catalog:",
+    "strip-ansi": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

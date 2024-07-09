@@ -1,11 +1,11 @@
 {
   "name": "@pnpm/outdated",
-  "version": "13.0.17",
+  "version": "15.0.1",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "files": [
     "lib",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/outdated",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "outdated"
   ],
@@ -37,6 +37,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/hooks.read-package-hook": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
@@ -45,13 +46,14 @@
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.5.4"
+    "ramda": "catalog:",
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/outdated": "workspace:*",
-    "@types/ramda": "0.28.20",
-    "@types/semver": "7.3.13"
+    "@pnpm/resolver-base": "workspace:*",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

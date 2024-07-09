@@ -1,24 +1,25 @@
 import fs from 'fs'
 import path from 'path'
 import { createGzip } from 'zlib'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import { types as allTypes, type UniversalOptions, type Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
+import { packlist } from '@pnpm/fs.packlist'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { type DependencyManifest } from '@pnpm/types'
+import { type ProjectManifest, type DependencyManifest } from '@pnpm/types'
 import fg from 'fast-glob'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tar from 'tar-stream'
-import packlist from 'npm-packlist'
 import { runScriptsIfPresent } from './publish'
 
-const LICENSE_GLOB = 'LICEN{S,C}E{,.*}'
+const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
 const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...cliOptionsTypes(),
     ...pick([
@@ -27,7 +28,7 @@ export function rcOptionsTypes () {
   }
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     'pack-destination': String,
     ...pick([
@@ -38,7 +39,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['pack']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Create a tarball from a package',
     usages: ['pnpm pack'],
@@ -58,7 +59,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
+  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs' | 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel' | 'nodeLinker'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
     argv: {
       original: string[]
     }
@@ -66,8 +67,9 @@ export async function handler (
     packDestination?: string
     workspaceDir?: string
   }
-) {
+): Promise<string> {
   const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
+  preventBundledDependenciesWithoutHoistedNodeLinker(opts.nodeLinker, entryManifest)
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: opts.dir,
     extraBinPaths: opts.extraBinPaths,
@@ -87,7 +89,9 @@ export async function handler (
   const dir = entryManifest.publishConfig?.directory
     ? path.join(opts.dir, entryManifest.publishConfig.directory)
     : opts.dir
-  const manifest = (opts.dir !== dir) ? (await readProjectManifest(dir, opts)).manifest : entryManifest
+  // always read the latest manifest, as "prepack" or "prepare" script may modify package manifest.
+  const { manifest } = await readProjectManifest(dir, opts)
+  preventBundledDependenciesWithoutHoistedNodeLinker(opts.nodeLinker, manifest)
   if (!manifest.name) {
     throw new PnpmError('PACKAGE_NAME_NOT_FOUND', `Package name is not defined in the ${manifestFileName}.`)
   }
@@ -95,8 +99,20 @@ export async function handler (
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
   const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
-  const files = await packlist({ path: dir })
-  const filesMap: Record<string, string> = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
+  const publishManifest = await createPublishManifest({
+    projectDir: dir,
+    modulesDir: path.join(opts.dir, 'node_modules'),
+    manifest,
+    embedReadme: opts.embedReadme,
+    catalogs: opts.catalogs ?? {},
+  })
+  const files = await packlist(dir, {
+    packageJsonCache: {
+      [path.join(dir, 'package.json')]: publishManifest as Record<string, unknown>,
+    },
+  })
+  const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
+  // cspell:disable-next-line
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
     const licenses = await findLicenses({ cwd: opts.workspaceDir })
     for (const license of licenses) {
@@ -110,10 +126,14 @@ export async function handler (
   await packPkg({
     destFile: path.join(destDir, tarballName),
     filesMap,
-    projectDir: dir,
-    embedReadme: opts.embedReadme,
     modulesDir: path.join(opts.dir, 'node_modules'),
     packGzipLevel: opts.packGzipLevel,
+    manifest: publishManifest,
+    bins: [
+      ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
+      ...(manifest.publishConfig?.executableFiles ?? [])
+        .map((executableFile) => path.join(dir, executableFile)),
+    ],
   })
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], entryManifest)
@@ -124,9 +144,22 @@ export async function handler (
   return path.relative(opts.dir, path.join(dir, tarballName))
 }
 
-async function readReadmeFile (filesMap: Record<string, string>) {
-  const readmePath = Object.keys(filesMap).find(name => /^package\/readme\.md$/i.test(name))
-  const readmeFile = readmePath ? await fs.promises.readFile(filesMap[readmePath], 'utf8') : undefined
+function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
+  if (nodeLinker === 'hoisted') return
+  for (const key of ['bundledDependencies', 'bundleDependencies'] as const) {
+    const bundledDependencies = manifest[key]
+    if (bundledDependencies) {
+      throw new PnpmError('BUNDLED_DEPENDENCIES_WITHOUT_HOISTED', `${key} does not work with node-linker=${nodeLinker}`, {
+        hint: `Add node-linker=hoisted to .npmrc or delete ${key} from the root package.json to resolve this error`,
+      })
+    }
+  }
+}
+
+async function readReadmeFile (projectDir: string): Promise<string | undefined> {
+  const files = await fs.promises.readdir(projectDir)
+  const readmePath = files.find(name => /readme\.md$/i.test(name))
+  const readmeFile = readmePath ? await fs.promises.readFile(path.join(projectDir, readmePath), 'utf8') : undefined
 
   return readmeFile
 }
@@ -134,32 +167,24 @@ async function readReadmeFile (filesMap: Record<string, string>) {
 async function packPkg (opts: {
   destFile: string
   filesMap: Record<string, string>
-  projectDir: string
-  embedReadme?: boolean
   modulesDir: string
   packGzipLevel?: number
+  bins: string[]
+  manifest: ProjectManifest
 }): Promise<void> {
   const {
     destFile,
     filesMap,
-    projectDir,
-    embedReadme,
+    bins,
+    manifest,
   } = opts
-  const { manifest } = await readProjectManifest(projectDir, {})
-  const bins = [
-    ...(await getBinsFromPackageManifest(manifest as DependencyManifest, projectDir)).map(({ path }) => path),
-    ...(manifest.publishConfig?.executableFiles ?? [])
-      .map((executableFile) => path.join(projectDir, executableFile)),
-  ]
   const mtime = new Date('1985-10-26T08:15:00.000Z')
   const pack = tar.pack()
   await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
     const isExecutable = bins.some((bin) => path.relative(bin, source) === '')
     const mode = isExecutable ? 0o755 : 0o644
     if (/^package\/package\.(json|json5|yaml)/.test(name)) {
-      const readmeFile = embedReadme ? await readReadmeFile(filesMap) : undefined
-      const publishManifest = await createExportableManifest(projectDir, manifest, { readmeFile, modulesDir: opts.modulesDir })
-      pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(publishManifest, null, 2))
+      pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(manifest, null, 2))
       return
     }
     pack.entry({ mode, mtime, name }, fs.readFileSync(source))
@@ -171,5 +196,21 @@ async function packPkg (opts: {
     tarball.on('close', () => {
       resolve()
     }).on('error', reject)
+  })
+}
+
+async function createPublishManifest (opts: {
+  projectDir: string
+  embedReadme?: boolean
+  modulesDir: string
+  manifest: ProjectManifest
+  catalogs: Catalogs
+}): Promise<ProjectManifest> {
+  const { projectDir, embedReadme, modulesDir, manifest, catalogs } = opts
+  const readmeFile = embedReadme ? await readReadmeFile(projectDir) : undefined
+  return createExportableManifest(projectDir, manifest, {
+    catalogs,
+    readmeFile,
+    modulesDir,
   })
 }

@@ -3,13 +3,15 @@ import {
   readDepNameCompletions,
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
+import { FILTERING } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import { type LicensesCommandResult } from './LicensesCommandResult'
 import { licensesList, type LicensesCommandOptions } from './licensesList'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick(
       ['dev', 'global-dir', 'global', 'json', 'long', 'optional', 'production'],
@@ -20,19 +22,19 @@ export function rcOptionsTypes () {
   }
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   recursive: Boolean,
 })
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
 
 export const commandNames = ['licenses']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Check the licenses of the installed packages.',
     descriptionLists: [
@@ -66,10 +68,12 @@ To display the details, pass this option.',
           },
         ],
       },
+      FILTERING,
     ],
     url: docsUrl('licenses'),
     usages: [
       'pnpm licenses ls',
+      'pnpm licenses ls --long',
       'pnpm licenses list',
       'pnpm licenses list --long',
     ],
@@ -83,7 +87,7 @@ export const completion: CompletionFunc = async (cliOpts) => {
 export async function handler (
   opts: LicensesCommandOptions,
   params: string[] = []
-) {
+): Promise<LicensesCommandResult> {
   if (params.length === 0) {
     throw new PnpmError('LICENCES_NO_SUBCOMMAND', 'Please specify the subcommand', {
       hint: help(),

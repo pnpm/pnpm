@@ -1,5 +1,23 @@
 # @pnpm/command
 
+## 5.0.2
+
+### Patch Changes
+
+- 9b5b869: update @pnpm/tabtab to v0.5.4, enabling zsh autocomplete lazy loading [#8236](https://github.com/pnpm/pnpm/pull/8236).
+
+## 5.0.1
+
+### Patch Changes
+
+- 37538f5: Update the `@pnpm/tabtab` to v0.5.3 which include a fix for shell completion on MinGW-w64 environment.
+
+## 5.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
 ## 4.0.0
 
 ### Major Changes

@@ -4,6 +4,7 @@ import { type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
+import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot'
 
 export function pkgSnapshotToResolution (
@@ -13,12 +14,21 @@ export function pkgSnapshotToResolution (
 ): Resolution {
   if (
     Boolean((pkgSnapshot.resolution as TarballResolution).type) ||
-    (pkgSnapshot.resolution as TarballResolution).tarball?.startsWith('file:')
+    (pkgSnapshot.resolution as TarballResolution).tarball?.startsWith('file:') ||
+    isGitHostedPkgUrl((pkgSnapshot.resolution as TarballResolution).tarball ?? '')
   ) {
     return pkgSnapshot.resolution as Resolution
   }
   const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  const registry: string = (name[0] === '@' && registries[name.split('/')[0]]) || registries.default
+  let registry: string = ''
+  if (name != null) {
+    if (name.startsWith('@')) {
+      registry = registries[name.split('/')[0]]
+    }
+  }
+  if (!registry) {
+    registry = registries.default
+  }
   let tarball!: string
   if (!(pkgSnapshot.resolution as TarballResolution).tarball) {
     tarball = getTarball(registry)
@@ -29,7 +39,6 @@ export function pkgSnapshotToResolution (
   }
   return {
     ...pkgSnapshot.resolution,
-    registry,
     tarball,
   } as Resolution
 

@@ -7,6 +7,7 @@ import {
   writeCurrentLockfile,
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 import tempy from 'tempy'
 
 jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
@@ -18,9 +19,14 @@ test('readWantedLockfile()', async () => {
     const lockfile = await readWantedLockfile(path.join('fixtures', '2'), {
       ignoreIncompatible: false,
     })
-    expect(lockfile?.lockfileVersion).toEqual(3)
+    expect(lockfile?.lockfileVersion).toEqual('9.0')
     expect(lockfile?.importers).toStrictEqual({
       '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        devDependencies: undefined,
+        optionalDependencies: undefined,
         specifiers: {
           foo: '1',
         },
@@ -65,7 +71,7 @@ test('readCurrentLockfile()', async () => {
   const lockfile = await readCurrentLockfile('fixtures/2/node_modules/.pnpm', {
     ignoreIncompatible: false,
   })
-  expect(lockfile!.lockfileVersion).toEqual(3)
+  expect(lockfile!.lockfileVersion).toEqual('6.0')
 })
 
 test('writeWantedLockfile()', async () => {
@@ -83,9 +89,9 @@ test('writeWantedLockfile()', async () => {
         },
       },
     },
-    lockfileVersion: 3,
+    lockfileVersion: '9.0',
     packages: {
-      '/is-negative/1.0.0': {
+      'is-negative@1.0.0': {
         dependencies: {
           'is-positive': '2.0.0',
         },
@@ -93,12 +99,12 @@ test('writeWantedLockfile()', async () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/1.0.0': {
+      'is-positive@1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/2.0.0': {
+      'is-positive@2.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -126,9 +132,9 @@ test('writeCurrentLockfile()', async () => {
         },
       },
     },
-    lockfileVersion: 3,
+    lockfileVersion: '9.0',
     packages: {
-      '/is-negative/1.0.0': {
+      'is-negative@1.0.0': {
         dependencies: {
           'is-positive': '2.0.0',
         },
@@ -136,12 +142,12 @@ test('writeCurrentLockfile()', async () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/1.0.0': {
+      'is-positive@1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/2.0.0': {
+      'is-positive@2.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -159,7 +165,7 @@ test('existsNonEmptyWantedLockfile()', async () => {
   expect(await existsNonEmptyWantedLockfile(projectPath)).toBe(false)
   await writeWantedLockfile(projectPath, {
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           'is-negative': '1.0.0',
           'is-positive': '1.0.0',
@@ -170,9 +176,9 @@ test('existsNonEmptyWantedLockfile()', async () => {
         },
       },
     },
-    lockfileVersion: 3,
+    lockfileVersion: '3',
     packages: {
-      '/is-negative/1.0.0': {
+      ['is-negative/1.0.0' as DepPath]: {
         dependencies: {
           'is-positive': '2.0.0',
         },
@@ -180,12 +186,12 @@ test('existsNonEmptyWantedLockfile()', async () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/1.0.0': {
+      ['is-positive/1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/2.0.0': {
+      ['is-positive/2.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -202,13 +208,16 @@ test('readWantedLockfile() when useGitBranchLockfile', async () => {
   })
   expect(lockfile?.importers).toEqual({
     '.': {
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
       specifiers: {
         'is-positive': '1.0.0',
       },
     },
   })
   expect(lockfile?.packages).toStrictEqual({
-    '/is-positive/1.0.0': {
+    'is-positive@1.0.0': {
       resolution: {
         integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
       },
@@ -221,13 +230,16 @@ test('readWantedLockfile() when useGitBranchLockfile', async () => {
   })
   expect(gitBranchLockfile?.importers).toEqual({
     '.': {
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
       specifiers: {
         'is-positive': '2.0.0',
       },
     },
   })
   expect(gitBranchLockfile?.packages).toStrictEqual({
-    '/is-positive/2.0.0': {
+    'is-positive@2.0.0': {
       resolution: {
         integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
       },
@@ -244,18 +256,21 @@ test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles
   })
   expect(lockfile?.importers).toEqual({
     '.': {
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
       specifiers: {
         'is-positive': '2.0.0',
       },
     },
   })
   expect(lockfile?.packages).toStrictEqual({
-    '/is-positive/1.0.0': {
+    'is-positive@1.0.0': {
       resolution: {
         integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
       },
     },
-    '/is-positive/2.0.0': {
+    'is-positive@2.0.0': {
       resolution: {
         integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
       },
@@ -276,7 +291,7 @@ test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
       },
     },
     packages: {
-      '/is-positive/1.0.0': {
+      'is-positive/1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },

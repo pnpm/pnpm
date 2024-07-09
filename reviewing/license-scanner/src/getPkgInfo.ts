@@ -2,7 +2,7 @@ import path from 'path'
 import pathAbsolute from 'path-absolute'
 import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
-import { depPathToFilename } from '@pnpm/dependency-path'
+import { depPathToFilename, parse } from '@pnpm/dependency-path'
 import pLimit from 'p-limit'
 import { type PackageManifest, type Registries } from '@pnpm/types'
 import {
@@ -19,7 +19,7 @@ import { fetchFromDir } from '@pnpm/directory-fetcher'
 
 const limitPkgReads = pLimit(4)
 
-export async function readPkg (pkgPath: string) {
+export async function readPkg (pkgPath: string): Promise<PackageManifest> {
   return limitPkgReads(async () => readPackageJson(pkgPath))
 }
 
@@ -37,6 +37,65 @@ const LICENSE_FILES = [
   'MIT-LICENSE.txt',
   'MIT-LICENSE.md',
   'MIT-LICENSE',
+]
+
+/**
+ * @const
+ * List common license names
+ * Refer https://github.com/pivotal/LicenseFinder/blob/master/lib/license_finder/license/definitions.rb
+*/
+const LICENSE_NAMES = [
+  'Apache1_1',
+  'Apache-1.1',
+  'Apache 1.1',
+  'Apache2',
+  'Apache-2.0',
+  'Apache 2.0',
+  'BSD',
+  'BSD-4-Clause',
+  'CC01',
+  'CC0-1.0',
+  'CC0-1.0',
+  'CDDL1',
+  'CDDL-1.0',
+  'Common Development and Distribution License 1.0',
+  'EPL1',
+  'EPL-1.0',
+  'Eclipse Public License 1.0',
+  'GPLv2',
+  'GPL-2.0-only',
+  'GPLv3',
+  'GPL-3.0-only',
+  'ISC',
+  'LGPL',
+  'LGPL-3.0-only',
+  'LGPL2_1',
+  'LGPL-2.1-only',
+  'MIT',
+  'MPL1_1',
+  'MPL-1.1',
+  'Mozilla Public License 1.1',
+  'MPL2',
+  'MPL-2.0',
+  'Mozilla Public License 2.0',
+  'NewBSD',
+  'BSD-3-Clause',
+  'New BSD',
+  'OFL',
+  'OFL-1.1',
+  'SIL OPEN FONT LICENSE Version 1.1',
+  'Python',
+  'PSF-2.0',
+  'Python Software Foundation License',
+  'Ruby',
+  'SimplifiedBSD',
+  'BSD-2-Clause',
+  'Simplified BSD',
+  'WTFPL',
+  '0BSD',
+  'BSD Zero Clause License',
+  'Zlib',
+  'zlib/libpng license',
 ]
 
 export interface LicenseInfo {
@@ -60,7 +119,7 @@ function coerceToString (field: unknown): string | null {
  * @param field the value to parse
  * @returns string
  */
-function parseLicenseManifestField (field: unknown) {
+function parseLicenseManifestField (field: unknown): string {
   if (Array.isArray(field)) {
     const licenses = field
     const licenseTypes = licenses.reduce((listOfLicenseTypes, license) => {
@@ -126,10 +185,18 @@ async function parseLicense (
       } else {
         licenseContents = await readLicenseFileFromCafs(opts.cafsDir, licensePackageFileInfo as PackageFileInfo)
       }
+      const licenseContent = licenseContents?.toString('utf-8')
+      let name = 'Unknown'
+      if (licenseContent) {
+        const match = licenseContent.match(new RegExp(`\\b(${LICENSE_NAMES.join('|')})\\b`, 'igm'))
+        if (match) {
+          name = [...new Set(match)].join(' OR ')
+        }
+      }
 
       return {
-        name: 'Unknown',
-        licenseFile: licenseContents?.toString('utf-8'),
+        name,
+        licenseFile: licenseContent,
       }
     }
   }
@@ -143,10 +210,21 @@ async function parseLicense (
  * @param opts the options for reading file
  * @returns Promise<Buffer>
  */
-async function readLicenseFileFromCafs (cafsDir: string, { integrity, mode }: PackageFileInfo) {
+async function readLicenseFileFromCafs (cafsDir: string, { integrity, mode }: PackageFileInfo): Promise<Buffer> {
   const fileName = getFilePathByModeInCafs(cafsDir, integrity, mode)
   const fileContents = await readFile(fileName)
   return fileContents
+}
+
+export type ReadPackageIndexFileResult =
+  | { local: false, files: Record<string, PackageFileInfo> }
+  | { local: true, files: Record<string, string> }
+
+export interface ReadPackageIndexFileOptions {
+  cafsDir: string
+  storeDir: string
+  lockfileDir: string
+  virtualStoreDirMaxLength: number
 }
 
 /**
@@ -158,18 +236,9 @@ async function readLicenseFileFromCafs (cafsDir: string, { integrity, mode }: Pa
  */
 export async function readPackageIndexFile (
   packageResolution: Resolution,
-  depPath: string,
-  opts: { cafsDir: string, storeDir: string, lockfileDir: string }
-): Promise<
-  | {
-    local: false
-    files: Record<string, PackageFileInfo>
-  }
-  | {
-    local: true
-    files: Record<string, string>
-  }
-  > {
+  id: string,
+  opts: ReadPackageIndexFileOptions
+): Promise<ReadPackageIndexFileResult> {
   // If the package resolution is of type directory we need to do things
   // differently and generate our own package index file
   const isLocalPkg = packageResolution.type === 'directory'
@@ -195,10 +264,7 @@ export async function readPackageIndexFile (
       'index'
     )
   } else if (!packageResolution.type && packageResolution.tarball) {
-    // If the package resolution has a tarball then we need to clean up
-    // the return value to depPathToFilename as it adds peer deps(e.g. a@1.0.0_peer-foo@18.0.0_peer-bar@18.0.0) or patch hash(a@1.0.0_patch_hash=xxxx) part to the
-    // directory for the package in the content-addressable store
-    const packageDirInStore = depPathToFilename(depPath).split('_')[0]
+    const packageDirInStore = depPathToFilename(parse(id).nonSemverVersion ?? id, opts.virtualStoreDirMaxLength)
     pkgIndexFilePath = path.join(
       opts.storeDir,
       packageDirInStore,
@@ -207,7 +273,7 @@ export async function readPackageIndexFile (
   } else {
     throw new PnpmError(
       'UNSUPPORTED_PACKAGE_TYPE',
-      `Unsupported package resolution type for ${depPath}`
+      `Unsupported package resolution type for ${id}`
     )
   }
 
@@ -221,7 +287,7 @@ export async function readPackageIndexFile (
     if (err.code === 'ENOENT') {
       throw new PnpmError(
         'MISSING_PACKAGE_INDEX_FILE',
-        `Failed to find package index file for ${depPath}, please consider running 'pnpm install'`
+        `Failed to find package index file for ${id}, please consider running 'pnpm install'`
       )
     }
 
@@ -230,6 +296,7 @@ export async function readPackageIndexFile (
 }
 
 export interface PackageInfo {
+  id: string
   name?: string
   version?: string
   depPath: string
@@ -240,25 +307,25 @@ export interface PackageInfo {
 export interface GetPackageInfoOptions {
   storeDir: string
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   dir: string
   modulesDir: string
 }
+
+export type PkgInfo = {
+  from: string
+  description?: string
+} & Omit<LicensePackage, 'belongsTo'>
 
 /**
  * Returns the package manifest information for a give package name and path
  * @param pkg the package to fetch information for
  * @param opts the fetching options
- * @returns Promise<{ from: string; description?: string } & Omit<LicensePackage, 'belongsTo'>>
  */
 export async function getPkgInfo (
   pkg: PackageInfo,
   opts: GetPackageInfoOptions
-): Promise<
-  {
-    from: string
-    description?: string
-  } & Omit<LicensePackage, 'belongsTo'>
-  > {
+): Promise<PkgInfo> {
   const cafsDir = path.join(opts.storeDir, 'files')
 
   // Retrieve file index for the requested package
@@ -270,11 +337,12 @@ export async function getPkgInfo (
 
   const packageFileIndexInfo = await readPackageIndexFile(
     packageResolution as Resolution,
-    pkg.depPath,
+    pkg.id,
     {
       cafsDir,
       storeDir: opts.storeDir,
       lockfileDir: opts.dir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }
   )
 
@@ -318,7 +386,7 @@ export async function getPkgInfo (
   // TODO: fix issue that path is only correct when using node-linked=isolated
   const packageModulePath = path.join(
     virtualStoreDir,
-    depPathToFilename(pkg.depPath),
+    depPathToFilename(pkg.depPath, opts.virtualStoreDirMaxLength),
     modulesDir,
     manifest.name
   )

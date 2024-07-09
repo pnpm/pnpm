@@ -1,5 +1,16 @@
 # @pnpm/constants
 
+## 8.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Minor Changes
+
+- c692f80: Bump lockfile to v6.1
+
 ## 7.1.1
 
 ### Patch Changes

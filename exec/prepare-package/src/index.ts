@@ -1,5 +1,8 @@
+import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
+import util from 'util'
+import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type PackageManifest } from '@pnpm/types'
@@ -18,15 +21,16 @@ const PREPUBLISH_SCRIPTS = [
 
 export interface PreparePackageOptions {
   ignoreScripts?: boolean
-  rawConfig: object
+  rawConfig: Record<string, unknown>
   unsafePerm?: boolean
 }
 
-export async function preparePackage (opts: PreparePackageOptions, pkgDir: string): Promise<boolean> {
+export async function preparePackage (opts: PreparePackageOptions, gitRootDir: string, subDir: string): Promise<{ shouldBeBuilt: boolean, pkgDir: string }> {
+  const pkgDir = safeJoinPath(gitRootDir, subDir)
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
-  if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return false
-  if (opts.ignoreScripts) return true
-  const pm = (await preferredPM(pkgDir))?.name ?? 'npm'
+  if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return { shouldBeBuilt: false, pkgDir }
+  if (opts.ignoreScripts) return { shouldBeBuilt: true, pkgDir }
+  const pm = (await preferredPM(gitRootDir))?.name ?? 'npm'
   const execOpts: RunLifecycleHookOptions = {
     depPath: `${manifest.name}@${manifest.version}`,
     pkgRoot: pkgDir,
@@ -42,15 +46,25 @@ export async function preparePackage (opts: PreparePackageOptions, pkgDir: strin
     await runLifecycleHook(installScriptName, manifest, execOpts)
     for (const scriptName of PREPUBLISH_SCRIPTS) {
       if (manifest.scripts[scriptName] == null || manifest.scripts[scriptName] === '') continue
+      let newScriptName
+      if (pm !== 'pnpm') {
+        newScriptName = `${pm}-run-${scriptName}`
+        manifest.scripts[newScriptName] = `${pm} run ${scriptName}`
+      } else {
+        newScriptName = scriptName
+      }
       // eslint-disable-next-line no-await-in-loop
-      await runLifecycleHook(scriptName, manifest, execOpts)
+      await runLifecycleHook(newScriptName, manifest, execOpts)
     }
-  } catch (err: any) { // eslint-disable-line
-    err.code = 'ERR_PNPM_PREPARE_PACKAGE'
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    Object.assign(err, {
+      code: 'ERR_PNPM_PREPARE_PACKAGE',
+    })
     throw err
   }
   await rimraf(path.join(pkgDir, 'node_modules'))
-  return true
+  return { shouldBeBuilt: true, pkgDir }
 }
 
 function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boolean {
@@ -61,4 +75,17 @@ function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boole
   if (!hasPrepublishScript) return false
   const mainFile = manifest.main ?? 'index.js'
   return !fs.existsSync(path.join(pkgDir, mainFile))
+}
+
+function safeJoinPath (root: string, sub: string): string {
+  const joined = path.join(root, sub)
+  // prevent the dir traversal attack
+  const relative = path.relative(root, joined)
+  if (relative.startsWith('..')) {
+    throw new PnpmError('INVALID_PATH', `Path "${sub}" should be a sub directory`)
+  }
+  if (!fs.existsSync(joined) || !fs.lstatSync(joined).isDirectory()) {
+    throw new PnpmError('INVALID_PATH', `Path "${sub}" is not a directory`)
+  }
+  return joined
 }

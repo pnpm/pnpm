@@ -8,7 +8,7 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { installDeps, type InstallDepsOptions } from './installDeps'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'child-concurrency',
@@ -55,14 +55,12 @@ export function rcOptionsTypes () {
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
     'side-effects-cache',
-    'store',
     'store-dir',
     'strict-peer-dependencies',
     'offline',
     'only',
     'optional',
     'unsafe-perm',
-    'use-lockfile-v6',
     'use-running-store-server',
     'use-store-server',
     'verify-store-integrity',
@@ -70,7 +68,7 @@ export function rcOptionsTypes () {
   ], allTypes)
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
   'fix-lockfile': Boolean,
@@ -78,14 +76,14 @@ export const cliOptionsTypes = () => ({
   recursive: Boolean,
 })
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
 
 export const commandNames = ['install', 'i']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['i'],
     description: 'Installs all dependencies of the project in the current working directory. \
@@ -184,6 +182,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--ignore-pnpmfile',
           },
           {
+            description: 'Ignore pnpm-workspace.yaml if exists in the parent directory, and treat the installation as normal non-workspace installation.',
+            name: '--ignore-workspace',
+          },
+          {
             description: "If false, doesn't check whether packages in the store were mutated",
             name: '--[no-]verify-store-integrity',
           },
@@ -250,6 +252,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'bail'
 | 'bin'
 | 'cliOptions'
+| 'dedupeDirectDeps'
 | 'dedupePeerDependents'
 | 'deployAllFiles'
 | 'depth'
@@ -270,6 +273,8 @@ export type InstallCommandOptions = Pick<Config,
 | 'preferFrozenLockfile'
 | 'production'
 | 'registries'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -290,9 +295,11 @@ export type InstallCommandOptions = Pick<Config,
 | 'virtualStoreDir'
 | 'workspaceConcurrency'
 | 'workspaceDir'
+| 'workspacePackagePatterns'
 | 'extraEnv'
 | 'resolutionMode'
 | 'ignoreWorkspaceCycles'
+| 'disallowWorkspaceCycles'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -309,9 +316,7 @@ export type InstallCommandOptions = Pick<Config,
   confirmModulesPurge?: boolean
 } & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages'>>
 
-export async function handler (
-  opts: InstallCommandOptions
-) {
+export async function handler (opts: InstallCommandOptions): Promise<void> {
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,

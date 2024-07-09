@@ -4,7 +4,7 @@ import { logger } from '@pnpm/logger'
 import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { type StoreController } from '@pnpm/store-controller-types'
-import { type ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import runGroups from 'run-groups'
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook'
 
@@ -22,7 +22,7 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 export interface Importer {
   buildIndex: number
   manifest: ProjectManifest
-  rootDir: string
+  rootDir: ProjectRootDir
   modulesDir: string
   stages?: string[]
   targetDirs?: string[]
@@ -33,7 +33,7 @@ export async function runLifecycleHooksConcurrently (
   importers: Importer[],
   childConcurrency: number,
   opts: RunLifecycleHooksConcurrentlyOptions
-) {
+): Promise<void> {
   const importersByBuildIndex = new Map<number, Importer[]>()
   for (const importer of importers) {
     if (!importersByBuildIndex.has(importer.buildIndex)) {
@@ -101,7 +101,7 @@ export async function runLifecycleHooksConcurrently (
   await runGroups(childConcurrency, groups)
 }
 
-async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Record<string, string>) {
+async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Record<string, string>): Promise<void> {
   const files = await fs.promises.readdir(currentDir)
   await Promise.all(files.map(async (file) => {
     const fullPath = path.join(currentDir, file)

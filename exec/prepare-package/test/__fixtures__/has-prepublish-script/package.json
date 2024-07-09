@@ -2,10 +2,7 @@
   "name": "has-prepublish-script",
   "version": "1.0.0",
   "scripts": {
-    "prepublish": "node -e \"process.stdout.write('prepublish')\" | json-append output.json",
-    "postpublish": "node -e \"process.stdout.write('postpublish')\" | json-append output.json"
-  },
-  "devDependencies": {
-    "json-append": "1.1.1"
+    "prepublish": "node -e \"console.log('prepublish')\" | test-ipc-server-client ./test.sock",
+    "postpublish": "node -e \"console.log('postpublish')\" | test-ipc-server-client ./test.sock"
   }
 }

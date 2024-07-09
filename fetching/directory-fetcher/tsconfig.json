@@ -13,6 +13,12 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../exec/pkg-requires-build"
+    },
+    {
+      "path": "../../fs/packlist"
+    },
+    {
       "path": "../../packages/types"
     },
     {
@@ -24,6 +30,5 @@
     {
       "path": "../fetcher-base"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -1,5 +1,227 @@
 # @pnpm/git-fetcher
 
+## 13.0.8
+
+### Patch Changes
+
+- @pnpm/worker@1.0.6
+- @pnpm/prepare-package@6.0.8
+
+## 13.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.3
+- @pnpm/prepare-package@6.0.7
+- @pnpm/worker@1.0.5
+
+## 13.0.6
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.6
+- @pnpm/fetcher-base@16.0.2
+- @pnpm/worker@1.0.4
+
+## 13.0.5
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.5
+
+## 13.0.4
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.4
+- @pnpm/worker@1.0.3
+
+## 13.0.3
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.3
+- @pnpm/fetcher-base@16.0.1
+- @pnpm/worker@1.0.2
+
+## 13.0.2
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.2
+- @pnpm/worker@1.0.1
+
+## 13.0.1
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.1
+
+## 13.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- b13d2dc: It is now possible to install only a subdirectory from a Git repository.
+
+  For example, `pnpm add github:user/repo#path:packages/foo` will add a dependency from the `packages/foo` subdirectory.
+
+  This new parameter may be combined with other supported parameters separated by `&`. For instance, the next command will install the same package from the `dev` branch: `pnpm add github:user/repo#dev&path:packages/bar`.
+
+  Related issue: [#4765](https://github.com/pnpm/pnpm/issues/4765).
+  Related PR: [#7487](https://github.com/pnpm/pnpm/pull/7487).
+
+### Patch Changes
+
+- 36dcaa0: When installing git-hosted dependencies, only pick the files that would be packed with the package [#7638](https://github.com/pnpm/pnpm/pull/7638).
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [167ac4d]
+- Updated dependencies [11d9ebd]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+  - @pnpm/worker@1.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/prepare-package@6.0.0
+  - @pnpm/fs.packlist@2.0.0
+
+## 12.0.19
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.7
+- @pnpm/prepare-package@5.0.24
+- @pnpm/worker@0.3.14
+
+## 12.0.18
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.23
+
+## 12.0.17
+
+### Patch Changes
+
+- @pnpm/worker@0.3.13
+
+## 12.0.16
+
+### Patch Changes
+
+- @pnpm/worker@0.3.12
+- @pnpm/prepare-package@5.0.22
+- @pnpm/fetcher-base@15.0.6
+
+## 12.0.15
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.21
+- @pnpm/fetcher-base@15.0.5
+- @pnpm/worker@0.3.11
+
+## 12.0.14
+
+### Patch Changes
+
+- @pnpm/worker@0.3.10
+
+## 12.0.13
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/worker@0.3.9
+
+## 12.0.12
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.20
+- @pnpm/worker@0.3.8
+
+## 12.0.11
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.19
+
+## 12.0.10
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.4
+- @pnpm/worker@0.3.7
+- @pnpm/prepare-package@5.0.18
+
+## 12.0.9
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.17
+
+## 12.0.8
+
+### Patch Changes
+
+- Updated dependencies [6390033cd]
+  - @pnpm/worker@0.3.6
+  - @pnpm/prepare-package@5.0.16
+  - @pnpm/fetcher-base@15.0.3
+
+## 12.0.7
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.15
+
+## 12.0.6
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.14
+- @pnpm/worker@0.3.5
+
+## 12.0.5
+
+### Patch Changes
+
+- Updated dependencies [08b65ff78]
+  - @pnpm/worker@0.3.4
+  - @pnpm/prepare-package@5.0.13
+
+## 12.0.4
+
+### Patch Changes
+
+- @pnpm/worker@0.3.3
+
+## 12.0.3
+
+### Patch Changes
+
+- @pnpm/worker@0.3.2
+
+## 12.0.2
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.13
+- @pnpm/fetcher-base@15.0.2
+- @pnpm/worker@0.3.1
+
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [17d2ddb05]
+  - @pnpm/prepare-package@5.0.12
+
 ## 12.0.0
 
 ### Patch Changes

@@ -21,7 +21,7 @@ export interface FetchNodeOptions {
   retry?: RetryTimeoutOptions
 }
 
-export async function fetchNode (fetch: FetchFromRegistry, version: string, targetDir: string, opts: FetchNodeOptions) {
+export async function fetchNode (fetch: FetchFromRegistry, version: string, targetDir: string, opts: FetchNodeOptions): Promise<void> {
   if (await isNonGlibcLinux()) {
     throw new PnpmError('MUSL', 'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
   }
@@ -50,6 +50,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     filesResponse: {
       filesIndex: filesIndex as Record<string, string>,
       resolvedFrom: 'remote',
+      requiresBuild: false,
     },
     force: true,
   })
@@ -60,7 +61,7 @@ async function downloadAndUnpackZip (
   zipUrl: string,
   targetDir: string,
   pkgName: string
-) {
+): Promise<void> {
   const response = await fetchFromRegistry(zipUrl)
   const tmp = path.join(tempy.directory(), 'pnpm.zip')
   const dest = fs.createWriteStream(tmp)

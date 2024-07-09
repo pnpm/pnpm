@@ -1,0 +1,13 @@
+{
+  "pkg": {
+    "assets": [
+      "dist/worker.js",
+      "dist/pnpmrc",
+      "dist/scripts/*",
+      "dist/refclone.win32-arm64-*.node",
+      "dist/templates/*"
+    ],
+    "targets": ["node18-win-arm64"],
+    "outputPath": "../win-arm64"
+  }
+}

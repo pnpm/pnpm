@@ -1,5 +1,246 @@
 # @pnpm/tarball-fetcher
 
+## 19.0.8
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+  - @pnpm/worker@1.0.6
+  - @pnpm/prepare-package@6.0.8
+
+## 19.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.3
+- @pnpm/prepare-package@6.0.7
+- @pnpm/core-loggers@10.0.3
+- @pnpm/worker@1.0.5
+
+## 19.0.6
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.6
+- @pnpm/fetcher-base@16.0.2
+- @pnpm/core-loggers@10.0.2
+- @pnpm/worker@1.0.4
+
+## 19.0.5
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.5
+
+## 19.0.4
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.4
+- @pnpm/worker@1.0.3
+
+## 19.0.3
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.3
+- @pnpm/fetcher-base@16.0.1
+- @pnpm/core-loggers@10.0.1
+- @pnpm/worker@1.0.2
+
+## 19.0.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/prepare-package@6.0.2
+  - @pnpm/worker@1.0.1
+
+## 19.0.1
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.1
+
+## 19.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- b13d2dc: It is now possible to install only a subdirectory from a Git repository.
+
+  For example, `pnpm add github:user/repo#path:packages/foo` will add a dependency from the `packages/foo` subdirectory.
+
+  This new parameter may be combined with other supported parameters separated by `&`. For instance, the next command will install the same package from the `dev` branch: `pnpm add github:user/repo#dev&path:packages/bar`.
+
+  Related issue: [#4765](https://github.com/pnpm/pnpm/issues/4765).
+  Related PR: [#7487](https://github.com/pnpm/pnpm/pull/7487).
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- 3ded840: Print the right error code when a package fails to be added to the store [#7679](https://github.com/pnpm/pnpm/issues/7679).
+- 36dcaa0: When installing git-hosted dependencies, only pick the files that would be packed with the package [#7638](https://github.com/pnpm/pnpm/pull/7638).
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [167ac4d]
+- Updated dependencies [11d9ebd]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+  - @pnpm/error@6.0.0
+  - @pnpm/worker@1.0.0
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/prepare-package@6.0.0
+  - @pnpm/graceful-fs@4.0.0
+  - @pnpm/fs.packlist@2.0.0
+
+## 18.0.19
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.7
+- @pnpm/prepare-package@5.0.24
+- @pnpm/worker@0.3.14
+
+## 18.0.18
+
+### Patch Changes
+
+- 342222d20: A git-hosted dependency should not be added to the store if it failed to be built [#7407](https://github.com/pnpm/pnpm/pull/7407).
+  - @pnpm/prepare-package@5.0.23
+
+## 18.0.17
+
+### Patch Changes
+
+- @pnpm/worker@0.3.13
+
+## 18.0.16
+
+### Patch Changes
+
+- @pnpm/worker@0.3.12
+- @pnpm/prepare-package@5.0.22
+- @pnpm/fetcher-base@15.0.6
+- @pnpm/core-loggers@9.0.6
+
+## 18.0.15
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.21
+- @pnpm/fetcher-base@15.0.5
+- @pnpm/core-loggers@9.0.5
+- @pnpm/worker@0.3.11
+
+## 18.0.14
+
+### Patch Changes
+
+- @pnpm/worker@0.3.10
+
+## 18.0.13
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/worker@0.3.9
+
+## 18.0.12
+
+### Patch Changes
+
+- abdf1f2b6: Don't retry fetching missing packages, since the retries will never work [#7276](https://github.com/pnpm/pnpm/pull/7276).
+  - @pnpm/prepare-package@5.0.20
+  - @pnpm/worker@0.3.8
+
+## 18.0.11
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.19
+
+## 18.0.10
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.4
+- @pnpm/worker@0.3.7
+- @pnpm/prepare-package@5.0.18
+
+## 18.0.9
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.17
+
+## 18.0.8
+
+### Patch Changes
+
+- Updated dependencies [6390033cd]
+  - @pnpm/worker@0.3.6
+  - @pnpm/prepare-package@5.0.16
+  - @pnpm/fetcher-base@15.0.3
+  - @pnpm/core-loggers@9.0.4
+
+## 18.0.7
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.15
+
+## 18.0.6
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.14
+- @pnpm/worker@0.3.5
+
+## 18.0.5
+
+### Patch Changes
+
+- Updated dependencies [08b65ff78]
+  - @pnpm/worker@0.3.4
+  - @pnpm/prepare-package@5.0.13
+
+## 18.0.4
+
+### Patch Changes
+
+- @pnpm/worker@0.3.3
+
+## 18.0.3
+
+### Patch Changes
+
+- @pnpm/worker@0.3.2
+
+## 18.0.2
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.13
+- @pnpm/fetcher-base@15.0.2
+- @pnpm/core-loggers@9.0.3
+- @pnpm/worker@0.3.1
+
+## 18.0.1
+
+### Patch Changes
+
+- Updated dependencies [17d2ddb05]
+  - @pnpm/prepare-package@5.0.12
+
 ## 18.0.0
 
 ### Major Changes

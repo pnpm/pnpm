@@ -1,20 +1,24 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import {
   restart,
   run,
   test as testCommand,
 } from '@pnpm/plugin-commands-script-runners'
 import { prepare, preparePackages } from '@pnpm/prepare'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import execa from 'execa'
 import isWindows from 'is-windows'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+
+const skipOnWindows = isWindows() ? test.skip : test
+const onlyOnWindows = !isWindows() ? test.skip : test
 
 test('pnpm run: returns correct exit code', async () => {
   prepare({
@@ -51,8 +55,8 @@ test('pnpm run --no-bail never fails', async () => {
       exit1: 'node recordArgs && exit 1',
     },
   })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
     bail: false,
@@ -76,8 +80,8 @@ test('run: pass the args to the command that is specified in the build script', 
       prefoo: 'node recordArgs',
     },
   })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
     dir: process.cwd(),
@@ -98,8 +102,8 @@ test('run: pass the args to the command that is specified in the build script of
       prefoo: 'node recordArgs',
     },
   }, { manifestFormat: 'YAML' })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
     dir: process.cwd(),
@@ -120,8 +124,8 @@ test('test: pass the args to the command that is specified in the build script o
       test: 'node recordArgs',
     },
   }, { manifestFormat: 'YAML' })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await testCommand.handler({
     dir: process.cwd(),
@@ -142,8 +146,8 @@ test('run start: pass the args to the command that is specified in the build scr
       start: 'node recordArgs',
     },
   }, { manifestFormat: 'YAML' })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
     dir: process.cwd(),
@@ -164,8 +168,8 @@ test('run stop: pass the args to the command that is specified in the build scri
       stop: 'node recordArgs',
     },
   }, { manifestFormat: 'YAML' })
-  await fs.writeFile('args.json', '[]', 'utf8')
-  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
+  fs.writeFileSync('args.json', '[]', 'utf8')
+  fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
     dir: process.cwd(),
@@ -179,23 +183,24 @@ test('run stop: pass the args to the command that is specified in the build scri
 })
 
 test('restart: run stop, restart and start', async () => {
+  await using server = await createTestIpcServer()
+
   prepare({
     scripts: {
-      poststop: 'node -e "process.stdout.write(\'poststop\')" | json-append ./output.json',
-      prestop: 'node -e "process.stdout.write(\'prestop\')" | json-append ./output.json',
-      stop: 'node -e "process.stdout.write(\'stop\')" | json-append ./output.json',
+      poststop: server.sendLineScript('poststop'),
+      prestop: server.sendLineScript('prestop'),
+      stop: server.sendLineScript('stop'),
 
-      postrestart: 'node -e "process.stdout.write(\'postrestart\')" | json-append ./output.json',
-      prerestart: 'node -e "process.stdout.write(\'prerestart\')" | json-append ./output.json',
-      restart: 'node -e "process.stdout.write(\'restart\')" | json-append ./output.json',
+      postrestart: server.sendLineScript('postrestart'),
+      prerestart: server.sendLineScript('prerestart'),
+      restart: server.sendLineScript('restart'),
 
-      poststart: 'node -e "process.stdout.write(\'poststart\')" | json-append ./output.json',
-      prestart: 'node -e "process.stdout.write(\'prestart\')" | json-append ./output.json',
-      start: 'node -e "process.stdout.write(\'start\')" | json-append ./output.json',
+      poststart: server.sendLineScript('poststart'),
+      prestart: server.sendLineScript('prestart'),
+      start: server.sendLineScript('start'),
     },
   })
 
-  await execa('pnpm', ['add', 'json-append@1'])
   await restart.handler({
     dir: process.cwd(),
     extraBinPaths: [],
@@ -203,8 +208,7 @@ test('restart: run stop, restart and start', async () => {
     rawConfig: {},
   }, [])
 
-  const { default: scriptsRan } = await import(path.resolve('output.json'))
-  expect(scriptsRan).toStrictEqual([
+  expect(server.getLines()).toStrictEqual([
     'stop',
     'restart',
     'start',
@@ -212,23 +216,24 @@ test('restart: run stop, restart and start', async () => {
 })
 
 test('restart: run stop, restart and start and all the pre/post scripts', async () => {
+  await using server = await createTestIpcServer()
+
   prepare({
     scripts: {
-      poststop: 'node -e "process.stdout.write(\'poststop\')" | json-append ./output.json',
-      prestop: 'node -e "process.stdout.write(\'prestop\')" | json-append ./output.json',
-      stop: 'pnpm prestop && node -e "process.stdout.write(\'stop\')" | json-append ./output.json && pnpm poststop',
+      poststop: server.sendLineScript('poststop'),
+      prestop: server.sendLineScript('prestop'),
+      stop: `${server.sendLineScript('stop')} && pnpm poststop`,
 
-      postrestart: 'node -e "process.stdout.write(\'postrestart\')" | json-append ./output.json',
-      prerestart: 'node -e "process.stdout.write(\'prerestart\')" | json-append ./output.json',
-      restart: 'node -e "process.stdout.write(\'restart\')" | json-append ./output.json',
+      postrestart: server.sendLineScript('postrestart'),
+      prerestart: server.sendLineScript('prerestart'),
+      restart: server.sendLineScript('restart'),
 
-      poststart: 'node -e "process.stdout.write(\'poststart\')" | json-append ./output.json',
-      prestart: 'node -e "process.stdout.write(\'prestart\')" | json-append ./output.json',
-      start: 'node -e "process.stdout.write(\'start\')" | json-append ./output.json',
+      poststart: server.sendLineScript('poststart'),
+      prestart: server.sendLineScript('prestart'),
+      start: server.sendLineScript('start'),
     },
   })
 
-  await execa('pnpm', ['add', 'json-append@1'])
   await restart.handler({
     dir: process.cwd(),
     enablePrePostScripts: true,
@@ -237,8 +242,7 @@ test('restart: run stop, restart and start and all the pre/post scripts', async 
     rawConfig: {},
   }, [])
 
-  const { default: scriptsRan } = await import(path.resolve('output.json'))
-  expect(scriptsRan).toStrictEqual([
+  expect(server.getLines()).toStrictEqual([
     'prestop',
     'stop',
     'poststop',
@@ -281,9 +285,6 @@ test('"pnpm run" prints the list of available commands, including commands of th
     {
       location: '.',
       package: {
-        dependencies: {
-          'json-append': '1',
-        },
         scripts: {
           build: 'echo root',
           test: 'test-all',
@@ -300,10 +301,10 @@ test('"pnpm run" prints the list of available commands, including commands of th
       },
     },
   ])
-  await writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFile('pnpm-workspace.yaml', {})
   const workspaceDir = process.cwd()
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
 
   {
     process.chdir('foo')
@@ -372,11 +373,8 @@ test('if a script is not found but is present in the root, print an info message
     {
       location: '.',
       package: {
-        dependencies: {
-          'json-append': '1',
-        },
         scripts: {
-          build: 'node -e "process.stdout.write(\'root\')" | json-append ./output.json',
+          build: 'node -e "process.stdout.write(\'root\')"',
         },
       },
     },
@@ -385,7 +383,7 @@ test('if a script is not found but is present in the root, print an info message
       version: '1.0.0',
     },
   ])
-  await writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFile('pnpm-workspace.yaml', {})
 
   await execa(pnpmBin, [
     'install',
@@ -395,7 +393,7 @@ test('if a script is not found but is present in the root, print an info message
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
 
   let err!: PnpmError
   try {
@@ -417,12 +415,13 @@ test('if a script is not found but is present in the root, print an info message
 test('scripts work with PnP', async () => {
   prepare({
     scripts: {
-      foo: 'node -e "process.stdout.write(\'foo\')" | json-append ./output.json',
+      foo: 'hello-world-js-bin > ./output.txt',
     },
   })
 
-  await execa(pnpmBin, ['add', 'json-append@1'], {
+  await execa(pnpmBin, ['add', '@pnpm.e2e/hello-world-js-bin@1.0.0'], {
     env: {
+      NPM_CONFIG_REGISTRY: REGISTRY_URL,
       NPM_CONFIG_NODE_LINKER: 'pnp',
       NPM_CONFIG_SYMLINK: 'false',
     },
@@ -434,11 +433,17 @@ test('scripts work with PnP', async () => {
     rawConfig: {},
   }, ['foo'])
 
-  const { default: scriptsRan } = await import(path.resolve('output.json'))
-  expect(scriptsRan).toStrictEqual(['foo'])
+  // https://github.com/pnpm/registry-mock/blob/ac2e129eb262009d2e7cd43ed869c31097793073/packages/hello-world-js-bin%401.0.0/index.js#L2
+  const helloWorldJsBinOutput = 'Hello world!\n'
+
+  const fooOutput = fs.readFileSync(path.resolve('output.txt')).toString()
+  expect(fooOutput).toStrictEqual(helloWorldJsBinOutput)
 })
 
-test('pnpm run with custom shell', async () => {
+// A .exe file to configure as the scriptShell option would be necessary to test
+// this behavior on Windows. Skip this test for now since compiling a custom
+// .exe would be quite involved and hard to maintain.
+skipOnWindows('pnpm run with custom shell', async () => {
   prepare({
     scripts: {
       build: 'foo bar',
@@ -460,10 +465,42 @@ test('pnpm run with custom shell', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    scriptShell: path.resolve(`node_modules/.bin/shell-mock${isWindows() ? '.cmd' : ''}`),
+    scriptShell: path.resolve('node_modules/.bin/shell-mock'),
   }, ['build'])
 
   expect((await import(path.resolve('shell-input.json'))).default).toStrictEqual(['-c', 'foo bar'])
+})
+
+onlyOnWindows('pnpm shows error if script-shell is .cmd', async () => {
+  prepare({
+    scripts: {
+      build: 'foo bar',
+    },
+    dependencies: {
+      '@pnpm.e2e/shell-mock': '0.0.0',
+    },
+  })
+
+  await execa(pnpmBin, [
+    'install',
+    `--registry=${REGISTRY_URL}`,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  async function runScript () {
+    await run.handler({
+      dir: process.cwd(),
+      extraBinPaths: [],
+      extraEnv: {},
+      rawConfig: {},
+      scriptShell: path.resolve('node_modules/.bin/shell-mock.cmd'),
+    }, ['build'])
+  }
+
+  await expect(runScript).rejects.toEqual(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS',
+  }))
 })
 
 test('pnpm run with RegExp script selector should work', async () => {
@@ -487,13 +524,13 @@ test('pnpm run with RegExp script selector should work', async () => {
     rawConfig: {},
   }, ['/^(lint|build):.*/'])
 
-  expect(await fs.readFile('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(await fs.readFile('output-build-b.txt', { encoding: 'utf-8' })).toEqual('b')
-  expect(await fs.readFile('output-build-c.txt', { encoding: 'utf-8' })).toEqual('c')
+  expect(fs.readFileSync('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(fs.readFileSync('output-build-b.txt', { encoding: 'utf-8' })).toEqual('b')
+  expect(fs.readFileSync('output-build-c.txt', { encoding: 'utf-8' })).toEqual('c')
 
-  expect(await fs.readFile('output-lint-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(await fs.readFile('output-lint-b.txt', { encoding: 'utf-8' })).toEqual('b')
-  expect(await fs.readFile('output-lint-c.txt', { encoding: 'utf-8' })).toEqual('c')
+  expect(fs.readFileSync('output-lint-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(fs.readFileSync('output-lint-b.txt', { encoding: 'utf-8' })).toEqual('b')
+  expect(fs.readFileSync('output-lint-c.txt', { encoding: 'utf-8' })).toEqual('c')
 })
 
 test('pnpm run with RegExp script selector should work also for pre/post script', async () => {
@@ -512,19 +549,20 @@ test('pnpm run with RegExp script selector should work also for pre/post script'
     enablePrePostScripts: true,
   }, ['/build:.*/'])
 
-  expect(await fs.readFile('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(await fs.readFile('output-pre-a.txt', { encoding: 'utf-8' })).toEqual('pre-a')
+  expect(fs.readFileSync('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(fs.readFileSync('output-pre-a.txt', { encoding: 'utf-8' })).toEqual('pre-a')
 })
 
 test('pnpm run with RegExp script selector should work parallel as a default behavior (parallel execution limits number is four)', async () => {
+  await using serverA = await createTestIpcServer()
+  await using serverB = await createTestIpcServer()
+
   prepare({
     scripts: {
-      'build:a': 'node -e "let i = 20;setInterval(() => {if (!--i) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},50)"',
-      'build:b': 'node -e "let i = 40;setInterval(() => {if (!--i) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-b.json\');},25)"',
+      'build:a': `node -e "let i = 20;setInterval(() => {if (!--i) process.exit(0); console.log(Date.now());},50)" | ${serverA.generateSendStdinScript()}`,
+      'build:b': `node -e "let i = 40;setInterval(() => {if (!--i) process.exit(0); console.log(Date.now());},25)" | ${serverB.generateSendStdinScript()}`,
     },
   })
-
-  await execa('pnpm', ['add', 'json-append@1'])
 
   await run.handler({
     dir: process.cwd(),
@@ -533,21 +571,22 @@ test('pnpm run with RegExp script selector should work parallel as a default beh
     rawConfig: {},
   }, ['/build:.*/'])
 
-  const { default: outputsA } = await import(path.resolve('output-a.json'))
-  const { default: outputsB } = await import(path.resolve('output-b.json'))
+  const outputsA = serverA.getLines().map(x => Number.parseInt(x))
+  const outputsB = serverB.getLines().map(x => Number.parseInt(x))
 
   expect(Math.max(outputsA[0], outputsB[0]) < Math.min(outputsA[outputsA.length - 1], outputsB[outputsB.length - 1])).toBeTruthy()
 })
 
 test('pnpm run with RegExp script selector should work sequentially with --workspace-concurrency=1', async () => {
+  await using serverA = await createTestIpcServer()
+  await using serverB = await createTestIpcServer()
+
   prepare({
     scripts: {
-      'build:a': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},16)"',
-      'build:b': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-b.json\');},16)"',
+      'build:a': `node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); console.log(Date.now()); },16)" | ${serverA.generateSendStdinScript()}`,
+      'build:b': `node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); console.log(Date.now()); },16)" | ${serverB.generateSendStdinScript()}`,
     },
   })
-
-  await execa('pnpm', ['add', 'json-append@1'])
 
   await run.handler({
     dir: process.cwd(),
@@ -557,17 +596,20 @@ test('pnpm run with RegExp script selector should work sequentially with --works
     workspaceConcurrency: 1,
   }, ['/build:.*/'])
 
-  const { default: outputsA } = await import(path.resolve('output-a.json'))
-  const { default: outputsB } = await import(path.resolve('output-b.json'))
+  const outputsA = serverA.getLines().map(x => Number.parseInt(x))
+  const outputsB = serverB.getLines().map(x => Number.parseInt(x))
 
   expect(outputsA[0] < outputsB[0] && outputsA[1] < outputsB[1]).toBeTruthy()
 })
 
 test('pnpm run with RegExp script selector with flag should throw error', async () => {
+  await using serverA = await createTestIpcServer()
+  await using serverB = await createTestIpcServer()
+
   prepare({
     scripts: {
-      'build:a': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},16)"',
-      'build:b': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-b.json\');},16)"',
+      'build:a': `node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); console.log(Date.now()); },16)" | ${serverA.generateSendStdinScript()}`,
+      'build:b': `node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); console.log(Date.now()); },16)" | ${serverB.generateSendStdinScript()}`,
     },
   })
 
@@ -593,6 +635,7 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
     },
   })
 
+  // cspell:ignore buil
   await expect(run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
@@ -603,4 +646,21 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
     code: 'ERR_PNPM_NO_SCRIPT',
     hint: 'Command "buil" not found. Did you mean "pnpm run build"?',
   }))
+})
+
+test('pnpm run with custom node-options', async () => {
+  prepare({
+    scripts: {
+      build: 'node -e "if (process.env.NODE_OPTIONS !== \'--max-old-space-size=1200\') { process.exit(1) }"',
+    },
+  })
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+    nodeOptions: '--max-old-space-size=1200',
+    workspaceConcurrency: 1,
+  }, ['build'])
 })

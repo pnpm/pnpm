@@ -8,6 +8,7 @@ import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
+import { type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
 import { type Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import normalizePath from 'normalize-path'
@@ -21,6 +22,8 @@ export interface GetPkgInfoOpts {
   readonly skipped: Set<string>
   readonly wantedPackages: PackageSnapshots
   readonly virtualStoreDir?: string
+  readonly virtualStoreDirMaxLength: number
+  readonly depTypes: DepTypes
 
   /**
    * The base dir if the `ref` argument is a `"link:"` relative path.
@@ -41,7 +44,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   let name!: string
   let version: string
   let resolved: string | undefined
-  let dev: boolean | undefined
+  let depType: DepType | undefined
   let optional: true | undefined
   let isSkipped: boolean = false
   let isMissing: boolean = false
@@ -67,7 +70,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
       isSkipped = opts.skipped.has(depPath)
     }
     resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
-    dev = pkgSnapshot.dev
+    depType = opts.depTypes[depPath]
     optional = pkgSnapshot.optional
   } else {
     name = opts.alias
@@ -77,7 +80,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
     version = opts.ref
   }
   const fullPackagePath = depPath
-    ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath), 'node_modules', name)
+    ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', name)
     : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {
@@ -99,8 +102,10 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   if (optional === true) {
     packageInfo.optional = true
   }
-  if (typeof dev === 'boolean') {
-    packageInfo.dev = dev
+  if (depType === DepType.DevOnly) {
+    packageInfo.dev = true
+  } else if (depType === DepType.ProdOnly) {
+    packageInfo.dev = false
   }
   return packageInfo
 }

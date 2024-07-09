@@ -10,7 +10,7 @@ import {
 } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { node } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
@@ -39,7 +39,7 @@ const DEPRECATED_OPTIONS = new Set([
 // A workaround for the https://github.com/vercel/pkg/issues/897 issue.
 delete process.env.PKG_EXECPATH
 
-export async function main (inputArgv: string[]) {
+export async function main (inputArgv: string[]): Promise<void> {
   let parsedCliArgs!: ParsedCliArgs
   try {
     parsedCliArgs = await parseCliArgs(inputArgv)
@@ -82,7 +82,6 @@ export async function main (inputArgv: string[]) {
   }
 
   let config: Config & {
-    forceSharedLockfile: boolean
     argv: { remain: string[], cooked: string[], original: string[] }
     fallbackCommandUsed: boolean
   }
@@ -90,17 +89,18 @@ export async function main (inputArgv: string[]) {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
+    const isDlxCommand = cmd === 'dlx'
     config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
+      ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
-    if (cmd === 'dlx') {
+    if (isDlxCommand) {
       config.useStderr = true
     }
-    config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
     config.argv = argv
     config.fallbackCommandUsed = fallbackCommandUsed
     // Set 'npm_command' env variable to current command name
@@ -200,7 +200,7 @@ export async function main (inputArgv: string[]) {
     const filterResults = await filterPackagesFromDir(wsDir, filters, {
       engineStrict: config.engineStrict,
       nodeVersion: config.nodeVersion ?? config.useNodeVersion,
-      patterns: cliOptions['workspace-packages'],
+      patterns: config.workspacePackagePatterns,
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
       workspaceDir: wsDir,
@@ -214,7 +214,7 @@ export async function main (inputArgv: string[]) {
       if (printLogs) {
         console.log(`No projects found in "${wsDir}"`)
       }
-      process.exitCode = 0
+      process.exitCode = config.failIfNoMatch ? 1 : 0
       return
     }
     config.allProjectsGraph = filterResults.allProjectsGraph
@@ -223,7 +223,7 @@ export async function main (inputArgv: string[]) {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }
-      process.exitCode = 0
+      process.exitCode = config.failIfNoMatch ? 1 : 0
       return
     }
     if (filterResults.unmatchedFilters.length !== 0 && printLogs) {
@@ -271,9 +271,13 @@ export async function main (inputArgv: string[]) {
     })
 
     if (config.useNodeVersion != null) {
-      const nodePath = await node.getNodeBinDir(config)
-      config.extraBinPaths.push(nodePath)
-      config.nodeVersion = config.useNodeVersion
+      if ('webcontainer' in process.versions) {
+        globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
+      } else {
+        const nodePath = await node.getNodeBinDir(config)
+        config.extraBinPaths.push(nodePath)
+        config.nodeVersion = config.useNodeVersion
+      }
     }
     let result = pnpmCmds[cmd ?? 'help'](
       // TypeScript doesn't currently infer that the type of config
@@ -313,7 +317,7 @@ export async function main (inputArgv: string[]) {
   }
 }
 
-function printError (message: string, hint?: string) {
+function printError (message: string, hint?: string): void {
   const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
   console.log(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
   if (hint) {

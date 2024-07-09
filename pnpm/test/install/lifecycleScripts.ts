@@ -1,6 +1,8 @@
+import fs from 'fs'
 import path from 'path'
 import { prepare } from '@pnpm/prepare'
 import { type PackageManifest } from '@pnpm/types'
+import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import loadJsonFile from 'load-json-file'
 import { execPnpmSync } from '../utils'
@@ -104,10 +106,11 @@ test('dependency should not be added to package.json and lockfile if it was not 
 
   const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 
-  expect(result.status).toBe(1)
+  expect(typeof result.status).toBe('number')
+  expect(result.status).not.toBe(0)
 
-  expect(await project.readCurrentLockfile()).toBeFalsy()
-  expect(await project.readLockfile()).toBeFalsy()
+  expect(project.readCurrentLockfile()).toBeFalsy()
+  expect(project.readLockfile()).toBeFalsy()
 
   const { default: pkg } = await import(path.resolve('package.json'))
   expect(pkg).toStrictEqual({ name: 'foo', version: '1.0.0' })
@@ -132,4 +135,31 @@ test('node-gyp is in the PATH', async () => {
   })
 
   expect(result.status).toBe(0)
+})
+
+test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFile', async () => {
+  prepare({
+    pnpm: {
+      onlyBuiltDependenciesFile: 'node_modules/@pnpm.e2e/build-allow-list/list.json',
+    },
+  })
+  execPnpmSync(['add', '@pnpm.e2e/build-allow-list', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  rimraf('node_modules')
+
+  execPnpmSync(['install', '--frozen-lockfile'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  execPnpmSync(['rebuild'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })

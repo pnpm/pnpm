@@ -19,7 +19,7 @@ test('dlx should work with scoped packages', async () => {
     userAgent,
   }, ['@foo/touch-file-one-bin'])
 
-  expect(execa).toBeCalledWith('touch-file-one-bin', [], expect.objectContaining({
+  expect(execa).toHaveBeenCalledWith('touch-file-one-bin', [], expect.objectContaining({
     env: expect.objectContaining({
       npm_config_user_agent: userAgent,
     }),
@@ -35,5 +35,5 @@ test('dlx should work with versioned packages', async () => {
     storeDir: path.resolve('store'),
   }, ['@foo/touch-file-one-bin@latest'])
 
-  expect(execa).toBeCalledWith('touch-file-one-bin', [], expect.anything())
+  expect(execa).toHaveBeenCalledWith('touch-file-one-bin', [], expect.anything())
 })

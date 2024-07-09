@@ -97,7 +97,7 @@ export async function fromRegistry (
   })
 }
 
-function toUri (pkgName: string, registry: string) {
+function toUri (pkgName: string, registry: string): string {
   let encodedName: string
 
   if (pkgName[0] === '@') {

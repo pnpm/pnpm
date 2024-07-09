@@ -1,4 +1,5 @@
 import {
+  type PkgResolutionId,
   type DirectoryResolution,
   type PreferredVersions,
   type Resolution,
@@ -13,6 +14,7 @@ import {
   type ResolvedFrom,
 } from '@pnpm/cafs-types'
 import {
+  type SupportedArchitectures,
   type DependencyManifest,
   type PackageManifest,
 } from '@pnpm/types'
@@ -50,8 +52,9 @@ export interface StoreController {
   getFilesIndexFilePath: GetFilesIndexFilePath
   importPackage: ImportPackageFunctionAsync
   close: () => Promise<void>
-  prune: () => Promise<void>
+  prune: (removeAlienFiles?: boolean) => Promise<void>
   upload: UploadPkgToStore
+  clearResolutionCache: () => void
 }
 
 export interface PkgRequestFetchResult {
@@ -59,19 +62,14 @@ export interface PkgRequestFetchResult {
   files: PackageFilesResponse
 }
 
-export type FetchPackageToStoreFunction = (
-  opts: FetchPackageToStoreOptions
-) => {
+export interface FetchResponse {
   filesIndexFile: string
   fetching: () => Promise<PkgRequestFetchResult>
 }
 
-export type FetchPackageToStoreFunctionAsync = (
-  opts: FetchPackageToStoreOptions
-) => Promise<{
-  filesIndexFile: string
-  fetching: () => Promise<PkgRequestFetchResult>
-}>
+export type FetchPackageToStoreFunction = (opts: FetchPackageToStoreOptions) => FetchResponse
+
+export type FetchPackageToStoreFunctionAsync = (opts: FetchPackageToStoreOptions) => Promise<FetchResponse>
 
 export type GetFilesIndexFilePath = (opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>) => {
   filesIndexFile: string
@@ -96,7 +94,10 @@ export interface FetchPackageToStoreOptions {
    * Expected package is the package name and version that are found in the lockfile.
    */
   expectedPkg?: PkgNameVersion
+  onFetchError?: OnFetchError
 }
+
+export type OnFetchError = (error: Error) => Error
 
 export type RequestPackageFunction = (
   wantedDependency: WantedDependency & { optional?: boolean },
@@ -106,7 +107,7 @@ export type RequestPackageFunction = (
 export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
   currentPkg?: {
-    id?: string
+    id?: PkgResolutionId
     resolution?: Resolution
   }
   /**
@@ -128,6 +129,9 @@ export interface RequestPackageOptions {
   update?: boolean
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean
+  supportedArchitectures?: SupportedArchitectures
+  onFetchError?: OnFetchError
+  updateToLatest?: boolean
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
@@ -140,7 +144,7 @@ export interface PackageResponse {
     isInstallable?: boolean
     resolution: Resolution
     manifest?: PackageManifest
-    id: string
+    id: PkgResolutionId
     normalizedPref?: string
     updated: boolean
     publishedAt?: string

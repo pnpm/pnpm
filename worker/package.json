@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/worker",
-  "version": "0.3.0",
+  "version": "1.0.6",
   "description": "A worker for extracting package taralls to the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -16,12 +16,12 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/worker",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "tarball"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "license": "MIT",
   "bugs": {
@@ -35,11 +35,13 @@
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.pkg-requires-build": "workspace:*",
+    "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@rushstack/worker-pool": "0.3.34",
-    "load-json-file": "^6.2.0"
+    "@pnpm/symlink-dependency": "workspace:*",
+    "@rushstack/worker-pool": "catalog:",
+    "load-json-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm/types": "workspace:*",

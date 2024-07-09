@@ -1,8 +1,11 @@
+import assert from 'assert'
 import fs from 'fs'
+import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import { type PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
+import { type Hooks } from './Hooks'
 
 export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
@@ -24,9 +27,14 @@ class PnpmFileFailError extends PnpmError {
   }
 }
 
-export function requirePnpmfile (pnpmFilePath: string, prefix: string) {
+export interface Pnpmfile {
+  hooks?: Hooks
+  filename: string
+}
+
+export function requirePnpmfile (pnpmFilePath: string, prefix: string): Pnpmfile | undefined {
   try {
-    const pnpmfile = require(pnpmFilePath) // eslint-disable-line
+    const pnpmfile: { hooks?: { readPackage?: unknown }, filename?: unknown } = require(pnpmFilePath) // eslint-disable-line
     if (typeof pnpmfile === 'undefined') {
       logger.warn({
         message: `Ignoring the pnpmfile at "${pnpmFilePath}". It exports "undefined".`,
@@ -38,7 +46,7 @@ export function requirePnpmfile (pnpmFilePath: string, prefix: string) {
       throw new TypeError('hooks.readPackage should be a function')
     }
     if (pnpmfile?.hooks?.readPackage) {
-      const readPackage = pnpmfile.hooks.readPackage
+      const readPackage = pnpmfile.hooks.readPackage as Function // eslint-disable-line
       pnpmfile.hooks.readPackage = async function (pkg: PackageManifest, ...args: any[]) { // eslint-disable-line
         pkg.dependencies = pkg.dependencies ?? {}
         pkg.devDependencies = pkg.devDependencies ?? {}
@@ -58,21 +66,25 @@ export function requirePnpmfile (pnpmFilePath: string, prefix: string) {
       }
     }
     pnpmfile.filename = pnpmFilePath
-    return pnpmfile
-  } catch (err: any) { // eslint-disable-line
+    return pnpmfile as Pnpmfile
+  } catch (err: unknown) {
     if (err instanceof SyntaxError) {
       console.error(chalk.red('A syntax error in the .pnpmfile.cjs\n'))
       console.error(err)
       process.exit(1)
     }
-    if (err.code !== 'MODULE_NOT_FOUND' || pnpmFileExistsSync(pnpmFilePath)) {
+    assert(util.types.isNativeError(err))
+    if (
+      !('code' in err && err.code === 'MODULE_NOT_FOUND') ||
+      pnpmFileExistsSync(pnpmFilePath)
+    ) {
       throw new PnpmFileFailError(pnpmFilePath, err)
     }
     return undefined
   }
 }
 
-function pnpmFileExistsSync (pnpmFilePath: string) {
+function pnpmFileExistsSync (pnpmFilePath: string): boolean {
   const pnpmFileRealName = pnpmFilePath.endsWith('.cjs')
     ? pnpmFilePath
     : `${pnpmFilePath}.cjs`

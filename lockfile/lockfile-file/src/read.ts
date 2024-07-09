@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import util from 'util'
 import {
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
@@ -7,7 +8,7 @@ import {
 import { PnpmError } from '@pnpm/error'
 import { mergeLockfileChanges } from '@pnpm/merge-lockfile-changes'
 import { type Lockfile } from '@pnpm/lockfile-types'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { type ProjectId } from '@pnpm/types'
 import comverToSemver from 'comver-to-semver'
 import yaml from 'js-yaml'
 import semver from 'semver'
@@ -15,10 +16,9 @@ import stripBom from 'strip-bom'
 import { LockfileBreakingChangeError } from './errors'
 import { autofixMergeConflicts, isDiff } from './gitMergeFile'
 import { lockfileLogger as logger } from './logger'
-import { type LockfileFile } from './write'
 import { getWantedLockfileName } from './lockfileName'
 import { getGitBranchLockfileNames } from './gitBranchLockfile'
-import { revertFromInlineSpecifiersFormatIfNecessary } from './experiments/inlineSpecifiersLockfileConverters'
+import { convertToLockfileObject } from './lockfileFormatConverters'
 
 export async function readCurrentLockfile (
   virtualStoreDir: string,
@@ -76,8 +76,8 @@ async function _read (
   let lockfileRawContent
   try {
     lockfileRawContent = stripBom(await fs.readFile(lockfilePath, 'utf8'))
-  } catch (err: any) { // eslint-disable-line
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
       throw err
     }
     return {
@@ -88,14 +88,14 @@ async function _read (
   let lockfile: Lockfile
   let hadConflicts!: boolean
   try {
-    lockfile = revertFromInlineSpecifiersFormatIfNecessary(convertFromLockfileFileMutable(yaml.load(lockfileRawContent) as Lockfile))
+    lockfile = convertToLockfileObject(yaml.load(lockfileRawContent) as any) // eslint-disable-line
     hadConflicts = false
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
-      throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${err.message as string}`)
+      throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${(err as Error).message}`)
     }
     hadConflicts = true
-    lockfile = convertFromLockfileFileMutable(autofixMergeConflicts(lockfileRawContent))
+    lockfile = autofixMergeConflicts(lockfileRawContent)
     logger.info({
       message: `Merge conflict detected in ${WANTED_LOCKFILE} and successfully merged`,
       prefix,
@@ -103,7 +103,7 @@ async function _read (
   }
   if (lockfile) {
     const lockfileSemver = comverToSemver((lockfile.lockfileVersion ?? 0).toString())
-    /* eslint-enable @typescript-eslint/dot-notation */
+
     if (
       !opts.wantedVersions ||
       opts.wantedVersions.length === 0 ||
@@ -133,13 +133,14 @@ async function _read (
 }
 
 export function createLockfileObject (
-  importerIds: string[],
+  importerIds: ProjectId[],
   opts: {
-    lockfileVersion: number | string
+    lockfileVersion: string
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
+    peersSuffixMaxLength: number
   }
-) {
+): Lockfile {
   const importers = importerIds.reduce((acc, importerId) => {
     acc[importerId] = {
       dependencies: {},
@@ -153,6 +154,7 @@ export function createLockfileObject (
     settings: {
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
     },
   }
 }
@@ -234,27 +236,4 @@ async function _readGitBranchLockfiles (
   const files = await getGitBranchLockfileNames(lockfileDir)
 
   return Promise.all(files.map((file) => _read(path.join(lockfileDir, file), prefix, opts)))
-}
-
-/**
- * Reverts changes from the "forceSharedFormat" write option if necessary.
- */
-function convertFromLockfileFileMutable (lockfileFile: LockfileFile): Lockfile {
-  if (typeof lockfileFile?.['importers'] === 'undefined') {
-    lockfileFile.importers = {
-      '.': {
-        specifiers: lockfileFile['specifiers'] ?? {},
-        dependenciesMeta: lockfileFile['dependenciesMeta'],
-        publishDirectory: lockfileFile['publishDirectory'],
-      },
-    }
-    delete lockfileFile.specifiers
-    for (const depType of DEPENDENCIES_FIELDS) {
-      if (lockfileFile[depType] != null) {
-        lockfileFile.importers['.'][depType] = lockfileFile[depType]
-        delete lockfileFile[depType]
-      }
-    }
-  }
-  return lockfileFile as Lockfile
 }

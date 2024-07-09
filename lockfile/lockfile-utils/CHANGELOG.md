@@ -1,5 +1,179 @@
 # @pnpm/lockfile-utils
 
+## 11.0.3
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/pick-fetcher@3.0.0
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/dependency-path@5.1.2
+
+## 11.0.2
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/pick-fetcher@3.0.0
+
+## 11.0.1
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-types@7.1.0
+
+## 11.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/pick-fetcher@3.0.0
+
+## 10.1.1
+
+### Patch Changes
+
+- 7a0536e: Fix `Cannot read properties of undefined (reading 'missingPeersOfChildren')` exception that happens on install [#8041](https://github.com/pnpm/pnpm/issues/8041).
+
+## 10.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+
+## 10.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [cdd8365]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [27a96a8]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/types@10.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/pick-fetcher@3.0.0
+
+## 9.0.5
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/pick-fetcher@2.0.1
+
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/pick-fetcher@2.0.1
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/pick-fetcher@2.0.1
+
+## 9.0.2
+
+### Patch Changes
+
+- d5a176af7: Fix a bug where `--fix-lockfile` crashes on tarballs [#7368](https://github.com/pnpm/pnpm/issues/7368).
+
+## 9.0.1
+
+### Patch Changes
+
+- b4194fe52: Fixed out-of-memory exception that was happening on dependencies with many peer dependencies, when `node-linker` was set to `hoisted` [#6227](https://github.com/pnpm/pnpm/issues/6227).
+
+## 9.0.0
+
+### Major Changes
+
+- 4c2450208: (Important) Tarball resolutions in `pnpm-lock.yaml` will no longer contain a `registry` field. This field has been unused for a long time. This change should not cause any issues besides backward compatible modifications to the lockfile [#7262](https://github.com/pnpm/pnpm/pull/7262).
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/pick-fetcher@2.0.1
+
+## 8.0.7
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-types@5.1.3
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/resolver-base@10.0.4
+  - @pnpm/pick-fetcher@2.0.1
+
+## 8.0.6
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lockfile-types@5.1.2
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/resolver-base@10.0.3
+  - @pnpm/pick-fetcher@2.0.1
+
+## 8.0.5
+
+### Patch Changes
+
+- f394cfccd: Don't update git-hosted dependencies when adding an unrelated dependency [#7008](https://github.com/pnpm/pnpm/issues/7008).
+- Updated dependencies [f394cfccd]
+  - @pnpm/pick-fetcher@2.0.1
+
 ## 8.0.4
 
 ### Patch Changes

@@ -8,7 +8,15 @@ import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
 import { type ImporterToResolve } from '.'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
+import { type ImporterToResolveGeneric } from './resolveDependencyTree'
 import { safeIsInnerLink } from './safeIsInnerLink'
+
+export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGeneric<{ isNew?: boolean }> {
+  wantedDependencies: Array<WantedDependency & {
+    isNew?: boolean
+    updateDepth: number
+  }>
+}
 
 export async function toResolveImporter (
   opts: {
@@ -17,9 +25,11 @@ export async function toResolveImporter (
     preferredVersions?: PreferredVersions
     virtualStoreDir: string
     workspacePackages: WorkspacePackages
+    updateToLatest?: boolean
+    noDependencySelectors: boolean
   },
   project: ImporterToResolve
-) {
+): Promise<ResolveImporter> {
   const allDeps = getWantedDependencies(project.manifest)
   const nonLinkedDependencies = await partitionLinkedPackages(allDeps, {
     lockfileOnly: opts.lockfileOnly,
@@ -31,6 +41,11 @@ export async function toResolveImporter (
   const defaultUpdateDepth = (project.update === true || (project.updateMatching != null)) ? opts.defaultUpdateDepth : -1
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
+  if (opts.updateToLatest && opts.noDependencySelectors) {
+    for (const dep of existingDeps) {
+      dep.updateSpec = true
+    }
+  }
   let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
   if (!project.manifest) {
     wantedDependencies = [
@@ -48,14 +63,18 @@ export async function toResolveImporter (
       ...dep,
       updateDepth: project.updateMatching != null
         ? defaultUpdateDepth
-        : (prefIsLocalTarball(dep.pref) ? 0 : -1),
+        : (prefIsLocalTarball(dep.pref) ? 0 : defaultUpdateDepth),
     })
     wantedDependencies = [
       ...project.wantedDependencies.map(
         defaultUpdateDepth < 0
           ? updateLocalTarballs
           : (dep) => ({ ...dep, updateDepth: defaultUpdateDepth })),
-      ...existingDeps.map(updateLocalTarballs),
+      ...existingDeps.map(
+        opts.noDependencySelectors && project.updateMatching != null
+          ? updateLocalTarballs
+          : (dep) => ({ ...dep, updateDepth: -1 })
+      ),
     ]
   }
   return {
@@ -66,7 +85,7 @@ export async function toResolveImporter (
   }
 }
 
-function prefIsLocalTarball (pref: string) {
+function prefIsLocalTarball (pref: string): boolean {
   return pref.startsWith('file:') && pref.endsWith('.tgz')
 }
 
@@ -85,7 +104,7 @@ async function partitionLinkedPackages (
   await Promise.all(dependencies.map(async (dependency) => {
     if (
       !dependency.alias ||
-      opts.workspacePackages?.[dependency.alias] != null ||
+      opts.workspacePackages?.get(dependency.alias) != null ||
       dependency.pref.startsWith('workspace:')
     ) {
       nonLinkedDependencies.push(dependency)

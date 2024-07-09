@@ -22,7 +22,7 @@ export function reportStats (
     width: number
     hideProgressPrefix?: boolean
   }
-) {
+): Array<Rx.Observable<Rx.Observable<{ msg: string }>>> {
   if (opts.hideProgressPrefix) {
     return [statsForCurrentPackage(log$.stats, {
       cmd: opts.cmd,
@@ -59,7 +59,7 @@ function statsForCurrentPackage (
     cmd: string
     width: number
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return stats$.pipe(
     take((opts.cmd === 'install' || opts.cmd === 'install-test' || opts.cmd === 'add' || opts.cmd === 'update' || opts.cmd === 'dlx') ? 2 : 1),
     reduce((acc, log) => {
@@ -98,7 +98,7 @@ function statsForNotCurrentPackage (
     currentPrefix: string
     width: number
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   const stats = {}
   const cookedStats$ = (
     opts.cmd !== 'remove'
@@ -146,7 +146,7 @@ function statsForNotCurrentPackage (
   )
 }
 
-function padStep (s: string, step: number) {
+function padStep (s: string, step: number): string {
   const sLength = stringLength(s)
   const placeholderLength = Math.ceil(sLength / step) * step
   if (sLength < placeholderLength) {
@@ -160,7 +160,7 @@ function roundStats (stat: number): number {
   return Math.max(1, Math.round(stat / 10))
 }
 
-function printPlusesAndMinuses (maxWidth: number, added: number, removed: number) {
+function printPlusesAndMinuses (maxWidth: number, added: number, removed: number): string {
   if (maxWidth === 0) return ''
   const changes = added + removed
   let addedChars: number

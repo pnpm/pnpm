@@ -1,11 +1,12 @@
 import path from 'path'
 import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
+import { type LifecycleMessage, lifecycleLogger } from '@pnpm/core-loggers'
 import { type Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { sortPackages } from '@pnpm/sort-packages'
-import { type Project, type ProjectsGraph } from '@pnpm/types'
+import { type Project, type ProjectsGraph, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
 import PATH from 'path-name'
@@ -24,14 +25,14 @@ import which from 'which'
 import writeJsonFile from 'write-json-file'
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
 
-export const shorthands = {
+export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
   c: '--shell-mode',
 }
 
 export const commandNames = ['exec']
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'bail',
@@ -39,6 +40,7 @@ export function rcOptionsTypes () {
       'use-node-version',
       'unsafe-perm',
       'workspace-concurrency',
+      'reporter-hide-prefix',
     ], types),
     'shell-mode': Boolean,
     'resume-from': String,
@@ -46,13 +48,13 @@ export function rcOptionsTypes () {
   }
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   recursive: Boolean,
   reverse: Boolean,
 })
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Run a shell command in the context of a project.',
     descriptionLists: [
@@ -91,10 +93,10 @@ export function getResumedPackageChunks ({
   selectedProjectsGraph,
 }: {
   resumeFrom: string
-  chunks: string[][]
+  chunks: ProjectRootDir[][]
   selectedProjectsGraph: ProjectsGraph
-}) {
-  const resumeFromPackagePrefix = Object.keys(selectedProjectsGraph)
+}): ProjectRootDir[][] {
+  const resumeFromPackagePrefix = (Object.keys(selectedProjectsGraph) as ProjectRootDir[])
     .find((prefix) => selectedProjectsGraph[prefix]?.package.manifest.name === resumeFrom)
 
   if (!resumeFromPackagePrefix) {
@@ -105,20 +107,20 @@ export function getResumedPackageChunks ({
   return chunks.slice(chunkPosition)
 }
 
-export async function writeRecursiveSummary (opts: { dir: string, summary: RecursiveSummary }) {
+export async function writeRecursiveSummary (opts: { dir: string, summary: RecursiveSummary }): Promise<void> {
   await writeJsonFile(path.join(opts.dir, 'pnpm-exec-summary.json'), {
     executionStatus: opts.summary,
   })
 }
 
-export function createEmptyRecursiveSummary (chunks: string[][]) {
+export function createEmptyRecursiveSummary (chunks: string[][]): RecursiveSummary {
   return chunks.flat().reduce<RecursiveSummary>((acc, prefix) => {
     acc[prefix] = { status: 'queued' }
     return acc
   }, {})
 }
 
-export function getExecutionDuration (start: [number, number]) {
+export function getExecutionDuration (start: [number, number]): number {
   const end = process.hrtime(start)
   return (end[0] * 1e9 + end[1]) / 1e6
 }
@@ -127,7 +129,6 @@ export async function handler (
   opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
     bail?: boolean
     unsafePerm?: boolean
-    rawConfig: object
     reverse?: boolean
     sort?: boolean
     workspaceConcurrency?: number
@@ -135,25 +136,25 @@ export async function handler (
     resumeFrom?: string
     reportSummary?: boolean
     implicitlyFellbackFromRun?: boolean
-  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
+  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'reporterHidePrefix' | 'workspaceDir' | 'nodeOptions'>,
   params: string[]
-) {
+): Promise<{ exitCode: number }> {
   // For backward compatibility
   if (params[0] === '--') {
     params.shift()
   }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
-  let chunks!: string[][]
+  let chunks!: ProjectRootDir[][]
   if (opts.recursive) {
     chunks = opts.sort
       ? sortPackages(opts.selectedProjectsGraph)
-      : [Object.keys(opts.selectedProjectsGraph).sort()]
+      : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
     if (opts.reverse) {
       chunks = chunks.reverse()
     }
   } else {
-    chunks = [[opts.dir]]
+    chunks = [[opts.dir as ProjectRootDir]]
     const project = await tryReadProjectManifest(opts.dir)
     if (project.manifest != null) {
       opts.selectedProjectsGraph = {
@@ -161,7 +162,8 @@ export async function handler (
           dependencies: [],
           package: {
             ...project,
-            dir: opts.dir,
+            rootDir: opts.dir as ProjectRootDir,
+            rootDirRealPath: opts.dir as ProjectRootDirRealPath,
           } as Project,
         },
       }
@@ -178,21 +180,22 @@ export async function handler (
 
   const result = createEmptyRecursiveSummary(chunks)
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
-  const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
+  const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
 
   let exitCode = 0
   const prependPaths = [
     './node_modules/.bin',
     ...opts.extraBinPaths,
   ]
+  const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
-    await Promise.all(chunk.map(async (prefix: string) =>
+    await Promise.all(chunk.map(async (prefix) =>
       limitRun(async () => {
         result[prefix].status = 'running'
         const startTime = process.hrtime()
         try {
-          const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
+          const pnpPath = workspacePnpPath ?? existsPnp(prefix)
           const extraEnv = {
             ...opts.extraEnv,
             ...(pnpPath ? makeNodeRequireOption(pnpPath) : {}),
@@ -201,16 +204,52 @@ export async function handler (
             extraEnv: {
               ...extraEnv,
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
+              ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
             },
             prependPaths,
             userAgent: opts.userAgent,
           })
-          await execa(params[0], params.slice(1), {
-            cwd: prefix,
-            env,
-            stdio: 'inherit',
-            shell: opts.shellMode ?? false,
-          })
+          const [cmd, ...args] = params
+          if (reporterShowPrefix) {
+            const manifest = await readProjectManifestOnly(prefix)
+            const child = execa(cmd, args, {
+              cwd: prefix,
+              env,
+              stdio: 'pipe',
+              shell: opts.shellMode ?? false,
+            })
+            const lifecycleOpts = {
+              wd: prefix,
+              depPath: manifest.name ?? path.relative(opts.dir, prefix),
+              stage: '(exec)',
+            } satisfies Partial<LifecycleMessage>
+            const logFn = (stdio: 'stdout' | 'stderr') => (data: unknown): void => {
+              for (const line of String(data).split('\n')) {
+                lifecycleLogger.debug({
+                  ...lifecycleOpts,
+                  stdio,
+                  line,
+                })
+              }
+            }
+            child.stdout!.on('data', logFn('stdout'))
+            child.stderr!.on('data', logFn('stderr'))
+            void child.once('close', exitCode => {
+              lifecycleLogger.debug({
+                ...lifecycleOpts,
+                exitCode: exitCode ?? 1,
+                optional: false,
+              })
+            })
+            await child
+          } else {
+            await execa(cmd, args, {
+              cwd: prefix,
+              env,
+              stdio: 'inherit',
+              shell: opts.shellMode ?? false,
+            })
+          }
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
@@ -248,7 +287,7 @@ export async function handler (
             dir: opts.lockfileDir ?? opts.dir,
             summary: result,
           })
-          /* eslint-enable @typescript-eslint/dot-notation */
+
           throw err
         }
       }
@@ -308,7 +347,7 @@ interface CommandError extends Error {
   shortMessage: string
 }
 
-function isErrorCommandNotFound (command: string, error: CommandError, prependPaths: string[]) {
+function isErrorCommandNotFound (command: string, error: CommandError, prependPaths: string[]): boolean {
   // Mac/Linux
   if (process.platform === 'linux' || process.platform === 'darwin') {
     return error.originalMessage === `spawn ${command} ENOENT`

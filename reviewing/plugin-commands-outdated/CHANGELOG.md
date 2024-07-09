@@ -1,5 +1,447 @@
 # @pnpm/plugin-commands-outdated
 
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/default-resolver@20.0.3
+  - @pnpm/outdated@15.0.1
+  - @pnpm/cli-utils@3.1.4
+
+## 12.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [9b5b869]
+  - @pnpm/config@21.6.0
+  - @pnpm/outdated@15.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/default-resolver@20.0.2
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/modules-yaml@13.1.3
+
+## 11.1.8
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/modules-yaml@13.1.2
+  - @pnpm/outdated@14.0.12
+  - @pnpm/default-resolver@20.0.1
+
+## 11.1.7
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/config@21.4.0
+  - @pnpm/outdated@14.0.11
+  - @pnpm/cli-utils@3.1.1
+
+## 11.1.6
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/outdated@14.0.10
+
+## 11.1.5
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/default-resolver@20.0.0
+  - @pnpm/outdated@14.0.9
+  - @pnpm/config@21.2.3
+  - @pnpm/cli-utils@3.0.7
+
+## 11.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/outdated@14.0.8
+  - @pnpm/default-resolver@19.0.5
+
+## 11.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+- Updated dependencies [37538f5]
+  - @pnpm/error@6.0.1
+  - @pnpm/command@5.0.1
+  - @pnpm/outdated@14.0.7
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/default-resolver@19.0.4
+  - @pnpm/store-path@9.0.1
+
+## 11.1.2
+
+### Patch Changes
+
+- @pnpm/default-resolver@19.0.3
+- @pnpm/outdated@14.0.6
+- @pnpm/cli-utils@3.0.4
+
+## 11.1.1
+
+### Patch Changes
+
+- 21de734: Details in the `pnpm outdated` output are wrapped correctly [#8037](https://github.com/pnpm/pnpm/pull/8037).
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/outdated@14.0.5
+  - @pnpm/default-resolver@19.0.2
+
+## 11.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/outdated@14.0.4
+  - @pnpm/cli-utils@3.0.3
+
+## 11.0.4
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+  - @pnpm/outdated@14.0.3
+  - @pnpm/default-resolver@19.0.1
+
+## 11.0.3
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/outdated@14.0.2
+
+## 11.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+  - @pnpm/outdated@14.0.1
+
+## 11.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/cli-utils@3.0.1
+
+## 11.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- 98566d9: Added cache for `pnpm dlx` [#5277](https://github.com/pnpm/pnpm/issues/5277).
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [f67ad31]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/default-resolver@19.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/outdated@14.0.0
+  - @pnpm/store-path@9.0.0
+  - @pnpm/matcher@6.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/command@5.0.0
+
+## 10.0.17
+
+### Patch Changes
+
+- @pnpm/default-resolver@18.0.22
+- @pnpm/outdated@13.0.42
+- @pnpm/cli-utils@2.1.9
+- @pnpm/config@20.4.2
+
+## 10.0.16
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.41
+
+## 10.0.15
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/outdated@13.0.40
+  - @pnpm/cli-utils@2.1.8
+
+## 10.0.14
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.39
+
+## 10.0.13
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 10.0.12
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [8fd4e349a]
+- Updated dependencies [4d34684f1]
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/outdated@13.0.38
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/default-resolver@18.0.21
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/modules-yaml@12.1.6
+
+## 10.0.11
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/outdated@13.0.37
+  - @pnpm/default-resolver@18.0.20
+
+## 10.0.10
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.36
+
+## 10.0.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.4
+- @pnpm/outdated@13.0.35
+
+## 10.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+- @pnpm/outdated@13.0.34
+
+## 10.0.7
+
+### Patch Changes
+
+- @pnpm/default-resolver@18.0.19
+- @pnpm/outdated@13.0.33
+
+## 10.0.6
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.32
+
+## 10.0.5
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.31
+
+## 10.0.4
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.30
+- @pnpm/config@20.1.2
+- @pnpm/cli-utils@2.1.2
+
+## 10.0.3
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.29
+
+## 10.0.2
+
+### Patch Changes
+
+- Updated dependencies [7d65d901a]
+  - @pnpm/store-path@8.0.1
+  - @pnpm/outdated@13.0.28
+  - @pnpm/default-resolver@18.0.18
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+
+## 10.0.1
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.27
+
+## 10.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/modules-yaml@12.1.4
+  - @pnpm/outdated@13.0.26
+  - @pnpm/default-resolver@18.0.17
+
+## 9.0.38
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.25
+
+## 9.0.37
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.24
+
+## 9.0.36
+
+### Patch Changes
+
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/config@20.0.0
+  - @pnpm/default-resolver@18.0.16
+  - @pnpm/outdated@13.0.23
+  - @pnpm/cli-utils@2.0.24
+
+## 9.0.35
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.22
+
+## 9.0.34
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.21
+
+## 9.0.33
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+
+## 9.0.32
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/modules-yaml@12.1.3
+  - @pnpm/outdated@13.0.20
+  - @pnpm/default-resolver@18.0.15
+
+## 9.0.31
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+  - @pnpm/outdated@13.0.19
+
+## 9.0.30
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+- @pnpm/outdated@13.0.18
+
 ## 9.0.29
 
 ### Patch Changes

@@ -1,19 +1,19 @@
 import { ENGINE_NAME } from '@pnpm/constants'
-import { refToRelative } from '@pnpm/dependency-path'
+import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
+import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
+import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import sortKeys from 'sort-keys'
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 
-export interface DepsGraph {
-  [depPath: string]: DepsGraphNode
-}
+export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
 
-export interface DepsGraphNode {
-  children: { [alias: string]: string }
-  depPath: string
+export interface DepsGraphNode<T extends string> {
+  children: { [alias: string]: T }
+  pkgIdWithPatchHash: PkgIdWithPatchHash
 }
 
 export interface DepsStateCache {
@@ -24,8 +24,8 @@ export interface DepStateObj {
   [depPath: string]: DepStateObj
 }
 
-export function calcDepState (
-  depsGraph: DepsGraph,
+export function calcDepState<T extends string> (
+  depsGraph: DepsGraph<T>,
   cache: DepsStateCache,
   depPath: string,
   opts: {
@@ -36,7 +36,7 @@ export function calcDepState (
   let result = ENGINE_NAME
   if (opts.isBuilt) {
     const depStateObj = calcDepStateObj(depPath, depsGraph, cache, new Set())
-    result += `-${JSON.stringify(depStateObj)}`
+    result += `-${hashObjectWithoutSorting(depStateObj)}`
   }
   if (opts.patchFileHash) {
     result += `-${opts.patchFileHash}`
@@ -44,25 +44,25 @@ export function calcDepState (
   return result
 }
 
-function calcDepStateObj (
-  depPath: string,
-  depsGraph: DepsGraph,
+function calcDepStateObj<T extends string> (
+  depPath: T,
+  depsGraph: DepsGraph<T>,
   cache: DepsStateCache,
-  parents: Set<string>
+  parents: Set<PkgIdWithPatchHash>
 ): DepStateObj {
   if (cache[depPath]) return cache[depPath]
   const node = depsGraph[depPath]
   if (!node) return {}
-  const nextParents = new Set([...Array.from(parents), node.depPath])
+  const nextParents = new Set([...Array.from(parents), node.pkgIdWithPatchHash])
   const state: DepStateObj = {}
   for (const childId of Object.values(node.children)) {
     const child = depsGraph[childId]
     if (!child) continue
-    if (parents.has(child.depPath)) {
-      state[child.depPath] = {}
+    if (parents.has(child.pkgIdWithPatchHash)) {
+      state[child.pkgIdWithPatchHash] = {}
       continue
     }
-    state[child.depPath] = calcDepStateObj(childId, depsGraph, cache, nextParents)
+    state[child.pkgIdWithPatchHash] = calcDepStateObj(childId, depsGraph, cache, nextParents)
   }
   cache[depPath] = sortKeys(state)
   return cache[depPath]
@@ -100,25 +100,25 @@ export function lockfileToDepGraphWithHashes (lockfile: Lockfile): DepsGraph {
   return newGraph
 }
 
-export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph {
-  const graph: DepsGraph = {}
+export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph<DepPath> {
+  const graph: DepsGraph<DepPath> = {}
   if (lockfile.packages != null) {
-    Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
+    for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
       const children = lockfileDepsToGraphChildren({
         ...pkgSnapshot.dependencies,
         ...pkgSnapshot.optionalDependencies,
       })
-      graph[depPath] = {
+      graph[depPath as DepPath] = {
         children,
-        depPath,
+        pkgIdWithPatchHash: getPkgIdWithPatchHash(depPath as DepPath),
       }
-    })
+    }
   }
   return graph
 }
 
-function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<string, string> {
-  const children: Record<string, string> = {}
+function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<string, DepPath> {
+  const children: Record<string, DepPath> = {}
   for (const [alias, reference] of Object.entries(deps)) {
     const depPath = refToRelative(reference, alias)
     if (depPath) {

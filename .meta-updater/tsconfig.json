@@ -16,6 +16,5 @@
     {
       "path": "../packages/types"
     }
-  ],
-  "composite": true
+  ]
 }

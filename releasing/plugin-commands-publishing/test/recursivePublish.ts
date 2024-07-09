@@ -1,6 +1,6 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { streamParser } from '@pnpm/logger'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
@@ -70,11 +70,11 @@ test('recursive publish', async () => {
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     dryRun: true,
     recursive: true,
@@ -92,7 +92,7 @@ test('recursive publish', async () => {
   process.env.npm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
   }, [])
@@ -106,11 +106,11 @@ test('recursive publish', async () => {
     expect(JSON.parse(stdout.toString())).toStrictEqual(pkg2.version)
   }
 
-  await projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
+  projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     tag: 'next',
@@ -154,21 +154,21 @@ test('print info when no packages are published', async () => {
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   const reporter = jest.fn()
   streamParser.on('data', reporter)
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     dryRun: true,
     recursive: true,
   }, [])
 
   streamParser.removeListener('data', reporter)
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'info',
     message: 'There are no new packages that should be published',
     name: 'pnpm',
@@ -189,18 +189,18 @@ test('packages are released even if their current version is published, when for
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     force: true,
     dir: process.cwd(),
     dryRun: true,
     recursive: true,
   }, [])
 
-  const manifest = await loadJsonFile<ProjectManifest>('is-positive/package.json')
+  const manifest = loadJsonFile.sync<ProjectManifest>('is-positive/package.json')
   expect(manifest.version).toBe('4.0.0')
 })
 
@@ -252,33 +252,33 @@ test('recursive publish writes publish summary', async () => {
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   process.env.npm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     reportSummary: true,
   }, [])
 
   {
-    const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
+    const publishSummary = loadJsonFile.sync('pnpm-publish-summary.json')
     expect(publishSummary).toMatchSnapshot()
-    await fs.unlink('pnpm-publish-summary.json')
+    fs.unlinkSync('pnpm-publish-summary.json')
   }
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     reportSummary: true,
   }, [])
 
   {
-    const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
+    const publishSummary = loadJsonFile.sync('pnpm-publish-summary.json')
     expect(publishSummary).toStrictEqual({
       publishedPackages: [],
     })
@@ -298,11 +298,11 @@ test('when publish some package throws an error, exit code should be non-zero', 
   ])
 
   // Throw ENEEDAUTH error when publish.
-  await fs.writeFile('.npmrc', 'registry=https://__fake_npm_registry__.com', 'utf8')
+  fs.writeFileSync('.npmrc', 'registry=https://__fake_npm_registry__.com', 'utf8')
 
   const result = await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     force: true,

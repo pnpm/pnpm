@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "18.0.0",
+  "version": "19.0.8",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -17,13 +17,13 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/fetching/tarball-fetcher",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "fetcher",
     "tarball"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "license": "MIT",
   "bugs": {
@@ -39,12 +39,15 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/fs.packlist": "catalog:",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
-    "@zkochan/retry": "^0.2.0",
-    "lodash.throttle": "4.1.1",
-    "p-map-values": "^1.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "@zkochan/retry": "catalog:",
+    "lodash.throttle": "catalog:",
+    "p-map-values": "catalog:",
+    "path-temp": "catalog:",
+    "ramda": "catalog:",
+    "rename-overwrite": "catalog:"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
@@ -53,13 +56,13 @@
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@types/lodash.throttle": "4.1.7",
-    "@types/ramda": "0.28.20",
-    "@types/retry": "^0.12.2",
-    "@types/ssri": "^7.1.1",
-    "nock": "13.3.2",
-    "ssri": "10.0.4",
-    "tempy": "^1.0.1"
+    "@types/lodash.throttle": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/retry": "catalog:",
+    "@types/ssri": "catalog:",
+    "nock": "catalog:",
+    "ssri": "catalog:",
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

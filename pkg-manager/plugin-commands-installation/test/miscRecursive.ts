@@ -1,16 +1,16 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
-import { readProjects } from '@pnpm/filter-workspace-packages'
-import { type LockfileV6 as Lockfile } from '@pnpm/lockfile-types'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { type LockfileFile } from '@pnpm/lockfile-types'
 import { add, install, remove, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 import symlinkDir from 'symlink-dir'
 
@@ -34,7 +34,7 @@ test('recursive add/remove', async () => {
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -47,7 +47,7 @@ test('recursive add/remove', async () => {
 
   expect(projects['project-1'].requireModule('is-positive')).toBeTruthy()
   expect(projects['project-2'].requireModule('is-negative')).toBeTruthy()
-  await projects['project-2'].has('is-negative')
+  projects['project-2'].has('is-negative')
 
   await add.handler({
     ...DEFAULT_OPTS,
@@ -72,7 +72,7 @@ test('recursive add/remove', async () => {
     workspaceDir: process.cwd(),
   }, ['is-negative'])
 
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-2'].hasNot('is-negative')
 })
 
 test('recursive add/remove in workspace with many lockfiles', async () => {
@@ -95,7 +95,7 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -109,7 +109,7 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
 
   expect(projects['project-1'].requireModule('is-positive')).toBeTruthy()
   expect(projects['project-2'].requireModule('is-negative')).toBeTruthy()
-  await projects['project-2'].has('is-negative')
+  projects['project-2'].has('is-negative')
 
   await add.handler({
     ...DEFAULT_OPTS,
@@ -134,7 +134,7 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
     workspaceDir: process.cwd(),
   }, ['is-negative'])
 
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-2'].hasNot('is-negative')
 
   {
     const manifest = await loadJsonFile<ProjectManifest>(path.resolve('project-1/package.json'))
@@ -185,7 +185,7 @@ test('recursive install with package that has link', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
@@ -216,18 +216,18 @@ test('running `pnpm recursive` on a subset of packages', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
   })
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
 })
 
 test('running `pnpm recursive` only for packages in subdirectories of cwd', async () => {
@@ -267,20 +267,20 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
     },
   ])
 
-  await fs.mkdir('node_modules')
+  fs.mkdirSync('node_modules')
   process.chdir('packages')
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
   })
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].has('is-negative')
-  await projects['root-project'].hasNot('debug')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
+  projects['root-project'].hasNot('debug')
 })
 
 test('recursive installation fails when installation in one of the packages fails', async () => {
@@ -307,7 +307,7 @@ test('recursive installation fails when installation in one of the packages fail
   try {
     await install.handler({
       ...DEFAULT_OPTS,
-      ...await readProjects(process.cwd(), []),
+      ...await filterPackagesFromDir(process.cwd(), []),
       dir: process.cwd(),
       recursive: true,
       workspaceDir: process.cwd(),
@@ -334,7 +334,7 @@ test('second run of `recursive install` after package.json has been edited manua
     },
   ])
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -345,7 +345,7 @@ test('second run of `recursive install` after package.json has been edited manua
     workspaceDir: process.cwd(),
   })
 
-  await writeJsonFile('is-negative/package.json', {
+  writeJsonFile.sync('is-negative/package.json', {
     name: 'is-negative',
     version: '1.0.0',
 
@@ -396,7 +396,7 @@ test('recursive --filter ignore excluded packages', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', {
+  writeYamlFile('pnpm-workspace.yaml', {
     packages: [
       '**',
       '!project-1',
@@ -405,7 +405,7 @@ test('recursive --filter ignore excluded packages', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), [
+    ...await filterPackagesFromDir(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
     ]),
     dir: process.cwd(),
@@ -413,9 +413,9 @@ test('recursive --filter ignore excluded packages', async () => {
     workspaceDir: process.cwd(),
   })
 
-  await projects['project-1'].hasNot('is-positive')
-  await projects['project-2'].hasNot('is-negative')
-  await projects['project-3'].hasNot('minimatch')
+  projects['project-1'].hasNot('is-positive')
+  projects['project-2'].hasNot('is-negative')
+  projects['project-3'].hasNot('minimatch')
 })
 
 test('recursive filter multiple times', async () => {
@@ -449,7 +449,7 @@ test('recursive filter multiple times', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), [
+    ...await filterPackagesFromDir(process.cwd(), [
       { namePattern: 'project-1' },
       { namePattern: 'project-2' },
     ]),
@@ -458,9 +458,9 @@ test('recursive filter multiple times', async () => {
     workspaceDir: process.cwd(),
   })
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-2'].has('is-negative')
-  await projects['project-3'].hasNot('minimatch')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
+  projects['project-3'].hasNot('minimatch')
 })
 
 test('recursive install --no-bail', async () => {
@@ -487,7 +487,7 @@ test('recursive install --no-bail', async () => {
   try {
     await install.handler({
       ...DEFAULT_OPTS,
-      ...await readProjects(process.cwd(), []),
+      ...await filterPackagesFromDir(process.cwd(), []),
       bail: false,
       dir: process.cwd(),
       recursive: true,
@@ -520,7 +520,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 
   await update.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     linkWorkspacePackages: false,
     lockfileDir: process.cwd(),
@@ -540,7 +540,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     expect(pkg.dependencies).toBeFalsy()
   }
 
-  await projects['project-1'].has('project-2')
+  projects['project-1'].has('project-2')
 })
 
 test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is "rolling"', async () => {
@@ -561,7 +561,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 
   await update.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     linkWorkspacePackages: false,
     lockfileDir: process.cwd(),
@@ -581,7 +581,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     expect(pkg.dependencies).toBeFalsy()
   }
 
-  await projects['project-1'].has('project-2')
+  projects['project-1'].has('project-2')
 })
 
 test('recursive install on workspace with custom lockfile-dir', async () => {
@@ -605,7 +605,7 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
   ])
 
   const lockfileDir = path.resolve('_')
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -617,8 +617,8 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<Lockfile>(path.join(lockfileDir, 'pnpm-lock.yaml'))
-  expect(Object.keys(lockfile.importers)).toStrictEqual(['../project-1', '../project-2'])
+  const lockfile = readYamlFile<LockfileFile>(path.join(lockfileDir, 'pnpm-lock.yaml'))
+  expect(Object.keys(lockfile.importers!)).toStrictEqual(['../project-1', '../project-2'])
 })
 
 test('recursive install in a monorepo with different modules directories', async () => {
@@ -640,10 +640,10 @@ test('recursive install in a monorepo with different modules directories', async
       },
     },
   ])
-  await fs.writeFile('project-1/.npmrc', 'modules-dir=modules_1', 'utf8')
-  await fs.writeFile('project-2/.npmrc', 'modules-dir=modules_2', 'utf8')
+  fs.writeFileSync('project-1/.npmrc', 'modules-dir=modules_1', 'utf8')
+  fs.writeFileSync('project-2/.npmrc', 'modules-dir=modules_2', 'utf8')
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -654,8 +654,8 @@ test('recursive install in a monorepo with different modules directories', async
     workspaceDir: process.cwd(),
   })
 
-  await projects['project-1'].has('is-positive', 'modules_1')
-  await projects['project-2'].has('is-positive', 'modules_2')
+  projects['project-1'].has('is-positive', 'modules_1')
+  projects['project-2'].has('is-positive', 'modules_2')
 })
 
 test('recursive install in a monorepo with parsing env variables', async () => {
@@ -672,9 +672,9 @@ test('recursive install in a monorepo with parsing env variables', async () => {
 
   process.env['SOME_NAME'] = 'some_name'
   // eslint-disable-next-line no-template-curly-in-string
-  await fs.writeFile('project/.npmrc', 'modules-dir=${SOME_NAME}_modules', 'utf8')
+  fs.writeFileSync('project/.npmrc', 'modules-dir=${SOME_NAME}_modules', 'utf8')
 
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -685,7 +685,7 @@ test('recursive install in a monorepo with parsing env variables', async () => {
     workspaceDir: process.cwd(),
   })
 
-  await projects['project'].has('is-positive', `${process.env['SOME_NAME']}_modules`)
+  projects['project'].has('is-positive', `${process.env['SOME_NAME']}_modules`)
 })
 
 test('prefer-workspace-package', async () => {
@@ -714,7 +714,7 @@ test('prefer-workspace-package', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     linkWorkspacePackages: true,
     preferWorkspacePackages: true,
@@ -725,8 +725,8 @@ test('prefer-workspace-package', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<Lockfile>(path.resolve('pnpm-lock.yaml'))
-  expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/foo'].version).toBe('link:../foo')
+  const lockfile = readYamlFile<LockfileFile>(path.resolve('pnpm-lock.yaml'))
+  expect(lockfile.importers?.['project-1'].dependencies?.['@pnpm.e2e/foo'].version).toBe('link:../foo')
 })
 
 test('installing in monorepo with shared lockfile should work on virtual drives', async () => {
@@ -742,7 +742,7 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
   const virtualPath = process.cwd() + '-virtual-disk'
   // symlink simulates windows' subst
   await symlinkDir(process.cwd(), virtualPath)
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(virtualPath, [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(virtualPath, [])
   await install.handler({
     ...DEFAULT_OPTS,
     lockfileDir: virtualPath,
@@ -754,7 +754,7 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
     workspaceDir: virtualPath,
   })
 
-  await projects['project-1'].has('is-positive')
+  projects['project-1'].has('is-positive')
 })
 
 test('pass readPackage with shared lockfile', async () => {
@@ -777,7 +777,7 @@ test('pass readPackage with shared lockfile', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
@@ -793,8 +793,8 @@ test('pass readPackage with shared lockfile', async () => {
     },
   })
 
-  await projects['project-1'].has('is-positive')
-  await projects['project-1'].hasNot('is-negative')
-  await projects['project-2'].has('is-positive')
-  await projects['project-2'].hasNot('is-negative')
+  projects['project-1'].has('is-positive')
+  projects['project-1'].hasNot('is-negative')
+  projects['project-2'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
 })

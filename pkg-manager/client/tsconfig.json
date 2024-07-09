@@ -31,11 +31,13 @@
       "path": "../../network/fetching-types"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../resolving/default-resolver"
     },
     {
       "path": "../../resolving/resolver-base"
     }
-  ],
-  "composite": true
+  ]
 }

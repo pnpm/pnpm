@@ -1,5 +1,210 @@
 # @pnpm/lifecycle
 
+## 17.0.8
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/link-bins@10.0.6
+  - @pnpm/directory-fetcher@8.0.4
+
+## 17.0.7
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/directory-fetcher@8.0.4
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/link-bins@10.0.5
+  - @pnpm/read-package-json@9.0.4
+
+## 17.0.6
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/directory-fetcher@8.0.3
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/link-bins@10.0.4
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/store-controller-types@18.1.1
+
+## 17.0.5
+
+### Patch Changes
+
+- Updated dependencies [80aaa9f]
+  - @pnpm/link-bins@10.0.3
+
+## 17.0.4
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/directory-fetcher@8.0.2
+  - @pnpm/link-bins@10.0.2
+
+## 17.0.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/directory-fetcher@8.0.2
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/link-bins@10.0.2
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/store-controller-types@18.0.1
+
+## 17.0.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/link-bins@10.0.1
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/directory-fetcher@8.0.1
+
+## 17.0.1
+
+### Patch Changes
+
+- bfadc0a: If the `script-shell` option is configured to a `.bat`/`.cmd` file on Windows, pnpm will now error with `ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS`. Newer [versions of Node.js released in April 2024](https://nodejs.org/en/blog/vulnerability/april-2024-security-releases-2) do not support executing these files directly without behavior differences. If the `script-shell` option is necessary for your use-case, please set a `.exe` file instead.
+
+## 17.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- 82aac81: Update @pnpm/npm-lifecycle.
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/directory-fetcher@8.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/link-bins@10.0.0
+
+## 16.0.12
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/directory-fetcher@7.0.11
+  - @pnpm/link-bins@9.0.12
+
+## 16.0.11
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.10
+
+## 16.0.10
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/directory-fetcher@7.0.9
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/link-bins@9.0.12
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/store-controller-types@17.1.4
+
+## 16.0.9
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/directory-fetcher@7.0.8
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/link-bins@9.0.11
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/store-controller-types@17.1.3
+
+## 16.0.8
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/directory-fetcher@7.0.7
+  - @pnpm/link-bins@9.0.10
+
+## 16.0.7
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.6
+
+## 16.0.6
+
+### Patch Changes
+
+- Updated dependencies [7ea45afbe]
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/directory-fetcher@7.0.5
+  - @pnpm/link-bins@9.0.10
+
+## 16.0.5
+
+### Patch Changes
+
+- Updated dependencies [500363647]
+  - @pnpm/directory-fetcher@7.0.4
+
+## 16.0.4
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/types@9.4.0
+  - @pnpm/directory-fetcher@7.0.3
+  - @pnpm/core-loggers@9.0.4
+  - @pnpm/link-bins@9.0.10
+  - @pnpm/read-package-json@8.0.5
+
+## 16.0.3
+
+### Patch Changes
+
+- Updated dependencies [5c8c9196c]
+  - @pnpm/link-bins@9.0.9
+
+## 16.0.2
+
+### Patch Changes
+
+- 84f81c9ae: Do not run node-gyp rebuild if `preinstall` lifecycle script is present [#7206](https://github.com/pnpm/pnpm/pull/7206).
+
+## 16.0.1
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/directory-fetcher@7.0.2
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/link-bins@9.0.8
+  - @pnpm/read-package-json@8.0.4
+  - @pnpm/store-controller-types@17.0.1
+
 ## 16.0.0
 
 ### Major Changes

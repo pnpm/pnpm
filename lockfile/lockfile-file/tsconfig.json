@@ -25,11 +25,16 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../resolving/git-resolver"
+    },
+    {
       "path": "../lockfile-types"
+    },
+    {
+      "path": "../lockfile-utils"
     },
     {
       "path": "../merge-lockfile-changes"
     }
-  ],
-  "composite": true
+  ]
 }

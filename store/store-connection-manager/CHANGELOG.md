@@ -1,5 +1,433 @@
 # @pnpm/store-connection-manager
 
+## 8.3.2
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/client@11.1.4
+  - @pnpm/package-store@20.3.2
+  - @pnpm/server@18.2.2
+
+## 8.3.1
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+  - @pnpm/config@21.6.0
+  - @pnpm/client@11.1.3
+  - @pnpm/package-store@20.3.1
+  - @pnpm/cli-meta@6.0.3
+  - @pnpm/server@18.2.2
+
+## 8.3.0
+
+### Minor Changes
+
+- 7c6c923: Some registries allow the exact same content to be published under different package names and/or versions. This breaks the validity checks of packages in the store. To avoid errors when verifying the names and versions of such packages in the store, you may now set the `strict-store-pkg-content-check` setting to `false` [#4724](https://github.com/pnpm/pnpm/issues/4724).
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [04b8363]
+  - @pnpm/package-store@20.3.0
+  - @pnpm/config@21.5.0
+  - @pnpm/server@18.2.1
+  - @pnpm/cli-meta@6.0.2
+  - @pnpm/client@11.1.2
+
+## 8.2.2
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/package-store@20.2.1
+  - @pnpm/server@18.2.0
+
+## 8.2.1
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+  - @pnpm/config@21.3.0
+  - @pnpm/client@11.1.1
+  - @pnpm/package-store@20.2.0
+  - @pnpm/server@18.2.0
+
+## 8.2.0
+
+### Minor Changes
+
+- 0c08e1c: Added a new function for clearing resolution cache.
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/package-store@20.2.0
+  - @pnpm/client@11.1.0
+  - @pnpm/server@18.2.0
+  - @pnpm/config@21.2.3
+
+## 8.1.4
+
+### Patch Changes
+
+- @pnpm/cli-meta@6.0.1
+- @pnpm/config@21.2.2
+- @pnpm/client@11.0.6
+- @pnpm/package-store@20.1.2
+- @pnpm/server@18.1.1
+
+## 8.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/config@21.2.1
+  - @pnpm/store-path@9.0.1
+  - @pnpm/client@11.0.5
+  - @pnpm/package-store@20.1.1
+  - @pnpm/server@18.1.0
+
+## 8.1.2
+
+### Patch Changes
+
+- @pnpm/client@11.0.4
+- @pnpm/package-store@20.1.0
+- @pnpm/server@18.1.0
+
+## 8.1.1
+
+### Patch Changes
+
+- @pnpm/client@11.0.3
+- @pnpm/package-store@20.1.0
+- @pnpm/server@18.1.0
+
+## 8.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/package-store@20.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/server@18.1.0
+
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/client@11.0.2
+- @pnpm/package-store@20.0.1
+- @pnpm/server@18.0.0
+
+## 8.0.3
+
+### Patch Changes
+
+- @pnpm/package-store@20.0.1
+- @pnpm/server@18.0.0
+
+## 8.0.2
+
+### Patch Changes
+
+- @pnpm/client@11.0.1
+- @pnpm/package-store@20.0.0
+- @pnpm/server@18.0.0
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+
+## 8.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 7733f3a: Added support for registry-scoped SSL configurations (cert, key, and ca). Three new settings supported: `<registryURL>:certfile`, `<registryURL>:keyfile`, and `<registryURL>:ca`. For instance:
+
+  ```
+  //registry.mycomp.com/:certfile=server-cert.pem
+  //registry.mycomp.com/:keyfile=server-key.pem
+  //registry.mycomp.com/:cafile=client-cert.pem
+  ```
+
+  Related issue: [#7427](https://github.com/pnpm/pnpm/issues/7427).
+  Related PR: [#7626](https://github.com/pnpm/pnpm/pull/7626).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/client@11.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/server@18.0.0
+  - @pnpm/package-store@20.0.0
+  - @pnpm/store-path@9.0.0
+  - @pnpm/cli-meta@6.0.0
+
+## 7.0.26
+
+### Patch Changes
+
+- @pnpm/package-store@19.0.15
+- @pnpm/server@17.0.7
+- @pnpm/client@10.0.46
+- @pnpm/config@20.4.2
+
+## 7.0.25
+
+### Patch Changes
+
+- @pnpm/client@10.0.45
+- @pnpm/package-store@19.0.14
+- @pnpm/server@17.0.6
+
+## 7.0.24
+
+### Patch Changes
+
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/client@10.0.44
+  - @pnpm/package-store@19.0.14
+  - @pnpm/server@17.0.6
+
+## 7.0.23
+
+### Patch Changes
+
+- @pnpm/package-store@19.0.14
+- @pnpm/server@17.0.6
+- @pnpm/client@10.0.43
+
+## 7.0.22
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+
+## 7.0.21
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+  - @pnpm/config@20.3.0
+  - @pnpm/package-store@19.0.13
+  - @pnpm/cli-meta@5.0.6
+  - @pnpm/server@17.0.6
+  - @pnpm/client@10.0.42
+
+## 7.0.20
+
+### Patch Changes
+
+- Updated dependencies [672c559e4]
+  - @pnpm/config@20.2.0
+  - @pnpm/cli-meta@5.0.5
+  - @pnpm/package-store@19.0.12
+  - @pnpm/server@17.0.5
+  - @pnpm/client@10.0.41
+
+## 7.0.19
+
+### Patch Changes
+
+- @pnpm/package-store@19.0.11
+- @pnpm/server@17.0.4
+- @pnpm/client@10.0.40
+
+## 7.0.18
+
+### Patch Changes
+
+- @pnpm/client@10.0.39
+- @pnpm/package-store@19.0.10
+- @pnpm/server@17.0.4
+
+## 7.0.17
+
+### Patch Changes
+
+- @pnpm/client@10.0.38
+- @pnpm/package-store@19.0.10
+- @pnpm/server@17.0.4
+
+## 7.0.16
+
+### Patch Changes
+
+- @pnpm/client@10.0.37
+- @pnpm/package-store@19.0.10
+- @pnpm/server@17.0.4
+
+## 7.0.15
+
+### Patch Changes
+
+- @pnpm/package-store@19.0.10
+- @pnpm/server@17.0.4
+- @pnpm/client@10.0.36
+
+## 7.0.14
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/package-store@19.0.9
+  - @pnpm/client@10.0.35
+  - @pnpm/server@17.0.4
+  - @pnpm/config@20.1.2
+
+## 7.0.13
+
+### Patch Changes
+
+- @pnpm/client@10.0.34
+- @pnpm/package-store@19.0.8
+- @pnpm/server@17.0.3
+
+## 7.0.12
+
+### Patch Changes
+
+- Updated dependencies [7d65d901a]
+  - @pnpm/store-path@8.0.1
+  - @pnpm/client@10.0.33
+  - @pnpm/package-store@19.0.8
+  - @pnpm/server@17.0.3
+  - @pnpm/config@20.1.1
+
+## 7.0.11
+
+### Patch Changes
+
+- @pnpm/client@10.0.32
+- @pnpm/package-store@19.0.7
+- @pnpm/server@17.0.2
+
+## 7.0.10
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/config@20.1.0
+  - @pnpm/package-store@19.0.7
+  - @pnpm/server@17.0.2
+  - @pnpm/cli-meta@5.0.4
+  - @pnpm/client@10.0.31
+
+## 7.0.9
+
+### Patch Changes
+
+- @pnpm/client@10.0.30
+- @pnpm/package-store@19.0.6
+- @pnpm/server@17.0.1
+
+## 7.0.8
+
+### Patch Changes
+
+- @pnpm/package-store@19.0.6
+- @pnpm/server@17.0.1
+- @pnpm/client@10.0.29
+
+## 7.0.7
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/package-store@19.0.5
+  - @pnpm/config@20.0.0
+  - @pnpm/server@17.0.1
+  - @pnpm/client@10.0.28
+
+## 7.0.6
+
+### Patch Changes
+
+- @pnpm/package-store@19.0.4
+- @pnpm/server@17.0.1
+- @pnpm/client@10.0.27
+
+## 7.0.5
+
+### Patch Changes
+
+- @pnpm/package-store@19.0.3
+- @pnpm/server@17.0.1
+- @pnpm/client@10.0.26
+
+## 7.0.4
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+
+## 7.0.3
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/cli-meta@5.0.3
+  - @pnpm/package-store@19.0.2
+  - @pnpm/server@17.0.1
+  - @pnpm/client@10.0.25
+
+## 7.0.2
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/package-store@19.0.1
+  - @pnpm/server@17.0.0
+
+## 7.0.1
+
+### Patch Changes
+
+- @pnpm/client@10.0.24
+- @pnpm/package-store@19.0.0
+- @pnpm/server@17.0.0
+
 ## 7.0.0
 
 ### Major Changes

@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../fetching/pick-fetcher"
+    },
+    {
       "path": "../../packages/dependency-path"
     },
     {
@@ -21,6 +24,5 @@
     {
       "path": "../lockfile-types"
     }
-  ],
-  "composite": true
+  ]
 }

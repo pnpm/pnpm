@@ -16,7 +16,7 @@ export async function stop (
     dir: string
     pnpmHomeDir: string
   }
-) {
+): Promise<void> {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
@@ -43,7 +43,7 @@ export async function stop (
   globalInfo('Server process terminated')
 }
 
-async function serverGracefullyStops (pid: number) {
+async function serverGracefullyStops (pid: number): Promise<boolean> {
   if (!await processExists(pid)) return true
 
   await delay(5000)

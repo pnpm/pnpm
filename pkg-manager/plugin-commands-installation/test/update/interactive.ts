@@ -1,10 +1,10 @@
 import path from 'path'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { add, install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import chalk from 'chalk'
 import * as enquirer from 'enquirer'
 
@@ -37,9 +37,11 @@ const DEFAULT_OPTIONS = {
   registries: {
     default: REGISTRY_URL,
   },
+  rootProjectManifestDir: '',
   sort: true,
   userConfig: {},
   workspaceConcurrency: 1,
+  virtualStoreDirMaxLength: 120,
 }
 
 test('interactively update', async () => {
@@ -100,18 +102,21 @@ test('interactively update', async () => {
       choices: [
         headerChoice,
         {
-          name: chalk`is-negative                                                  1.0.0 ❯ 1.0.{greenBright.bold 1}                 `,
+          message: chalk`is-negative                                                  1.0.0 ❯ 1.0.{greenBright.bold 1}                 `,
           value: 'is-negative',
+          name: 'is-negative',
         },
         {
-          name: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
+          message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
           value: 'micromatch',
+          name: 'micromatch',
         },
       ],
-      name: 'dependencies',
+      name: '[dependencies]',
+      message: 'dependencies',
     },
   ])
-  expect(prompt).toBeCalledWith(
+  expect(prompt).toHaveBeenCalledWith(
     expect.objectContaining({
       footer: '\nEnter to start updating. Ctrl-c to cancel.',
       message:
@@ -125,11 +130,11 @@ test('interactively update', async () => {
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
 
-    expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy()
-    expect(lockfile.packages['/is-negative@1.0.1']).toBeTruthy()
-    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
+    expect(lockfile.packages['micromatch@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['is-negative@1.0.1']).toBeTruthy()
+    expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
   }
 
   // t.comment('update to latest versions')
@@ -149,22 +154,26 @@ test('interactively update', async () => {
       choices: [
         headerChoice,
         {
-          name: chalk`is-negative                                                  1.0.1 ❯ {redBright.bold 2.1.0}                 `,
+          message: chalk`is-negative                                                  1.0.1 ❯ {redBright.bold 2.1.0}                 `,
           value: 'is-negative',
+          name: 'is-negative',
         },
         {
-          name: chalk`is-positive                                                  2.0.0 ❯ {redBright.bold 3.1.0}                 `,
+          message: chalk`is-positive                                                  2.0.0 ❯ {redBright.bold 3.1.0}                 `,
           value: 'is-positive',
+          name: 'is-positive',
         },
         {
-          name: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.5}                 `,
+          message: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.7}                 `,
           value: 'micromatch',
+          name: 'micromatch',
         },
       ],
-      name: 'dependencies',
+      name: '[dependencies]',
+      message: 'dependencies',
     },
   ])
-  expect(prompt).toBeCalledWith(
+  expect(prompt).toHaveBeenCalledWith(
     expect.objectContaining({
       footer: '\nEnter to start updating. Ctrl-c to cancel.',
       message:
@@ -178,11 +187,11 @@ test('interactively update', async () => {
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
 
-    expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy()
-    expect(lockfile.packages['/is-negative@2.1.0']).toBeTruthy()
-    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
+    expect(lockfile.packages['micromatch@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['is-negative@2.1.0']).toBeTruthy()
+    expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
   }
 })
 
@@ -214,7 +223,7 @@ test('interactive update of dev dependencies only', async () => {
     ],
   })
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(
     process.cwd(),
     []
   )
@@ -250,11 +259,11 @@ test('interactive update of dev dependencies only', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
 
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
-    '/is-negative@1.0.1',
-    '/is-negative@2.1.0',
+    'is-negative@1.0.1',
+    'is-negative@2.1.0',
   ])
 })
 
@@ -314,16 +323,18 @@ test('interactively update should ignore dependencies from the ignoreDependencie
             value: '',
           },
           {
-            name: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
+            message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
             value: 'micromatch',
+            name: 'micromatch',
           },
         ],
-        name: 'dependencies',
+        name: '[dependencies]',
+        message: 'dependencies',
       },
     ]
   )
 
-  expect(prompt).toBeCalledWith(
+  expect(prompt).toHaveBeenCalledWith(
     expect.objectContaining({
       footer: '\nEnter to start updating. Ctrl-c to cancel.',
       message:
@@ -337,10 +348,10 @@ test('interactively update should ignore dependencies from the ignoreDependencie
   )
 
   {
-    const lockfile = await project.readLockfile()
+    const lockfile = project.readLockfile()
 
-    expect(lockfile.packages['/micromatch@3.1.10']).toBeTruthy()
-    expect(lockfile.packages['/is-negative@1.0.0']).toBeTruthy()
-    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
+    expect(lockfile.packages['micromatch@3.1.10']).toBeTruthy()
+    expect(lockfile.packages['is-negative@1.0.0']).toBeTruthy()
+    expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
   }
 })

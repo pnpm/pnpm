@@ -1,10 +1,12 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
+import util from 'util'
+import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import { logger } from '@pnpm/logger'
+import { packlist } from '@pnpm/fs.packlist'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DependencyManifest } from '@pnpm/types'
-import packlist from 'npm-packlist'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 
@@ -15,13 +17,13 @@ export interface CreateDirectoryFetcherOptions {
 
 export function createDirectoryFetcher (
   opts?: CreateDirectoryFetcherOptions
-) {
+): { directory: DirectoryFetcher } {
   const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
   const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir.bind(null, readFileStat)
 
   const directoryFetcher: DirectoryFetcher = (cafs, resolution, opts) => {
     const dir = path.join(opts.lockfileDir, resolution.directory)
-    return fetchFromDir(dir, opts)
+    return fetchFromDir(dir)
   }
 
   return {
@@ -31,35 +33,41 @@ export function createDirectoryFetcher (
 
 type FetchFromDirOpts = Omit<DirectoryFetcherOptions, 'lockfileDir'>
 
+interface FetchResult {
+  local: true
+  filesIndex: Record<string, string>
+  packageImportMethod: 'hardlink'
+  manifest: DependencyManifest
+  requiresBuild: boolean
+}
+
 export async function fetchFromDir (
   dir: string,
   opts: FetchFromDirOpts & CreateDirectoryFetcherOptions
-) {
+): Promise<FetchResult> {
   if (opts.includeOnlyPackageFiles) {
-    return fetchPackageFilesFromDir(dir, opts)
+    return fetchPackageFilesFromDir(dir)
   }
   const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
-  return fetchAllFilesFromDir(readFileStat, dir, opts)
+  return fetchAllFilesFromDir(readFileStat, dir)
 }
 
 async function fetchAllFilesFromDir (
   readFileStat: ReadFileStat,
-  dir: string,
-  opts: FetchFromDirOpts
-) {
+  dir: string
+): Promise<FetchResult> {
   const filesIndex = await _fetchAllFilesFromDir(readFileStat, dir)
-  let manifest: DependencyManifest | undefined
-  if (opts.readManifest) {
-    // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
-    // Safe read was added to support the Bit workspace in which the components have no package.json files.
-    // Related PR in Bit: https://github.com/teambit/bit/pull/5251
-    manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
-  }
+  // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
+  // Safe read was added to support the Bit workspace in which the components have no package.json files.
+  // Related PR in Bit: https://github.com/teambit/bit/pull/5251
+  const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
+  const requiresBuild = pkgRequiresBuild(manifest, filesIndex)
   return {
-    local: true as const,
+    local: true,
     filesIndex,
-    packageImportMethod: 'hardlink' as const,
+    packageImportMethod: 'hardlink',
     manifest,
+    requiresBuild,
   }
 }
 
@@ -98,9 +106,9 @@ async function realFileStat (filePath: string): Promise<{ filePath: string, stat
     filePath = await fs.realpath(filePath)
     stat = await fs.stat(filePath)
     return { filePath, stat }
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  } catch (err: unknown) {
     // Broken symlinks are skipped
-    if (err.code === 'ENOENT') {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
       return { filePath: null, stat: null }
     }
@@ -114,9 +122,9 @@ async function fileStat (filePath: string): Promise<{ filePath: string, stat: St
       filePath,
       stat: await fs.stat(filePath),
     }
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  } catch (err: unknown) {
     // Broken symlinks are skipped
-    if (err.code === 'ENOENT') {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
       return { filePath: null, stat: null }
     }
@@ -124,23 +132,19 @@ async function fileStat (filePath: string): Promise<{ filePath: string, stat: St
   }
 }
 
-async function fetchPackageFilesFromDir (
-  dir: string,
-  opts: FetchFromDirOpts
-) {
-  const files = await packlist({ path: dir })
+async function fetchPackageFilesFromDir (dir: string): Promise<FetchResult> {
+  const files = await packlist(dir)
   const filesIndex: Record<string, string> = Object.fromEntries(files.map((file) => [file, path.join(dir, file)]))
-  let manifest: DependencyManifest | undefined
-  if (opts.readManifest) {
-    // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
-    // Safe read was added to support the Bit workspace in which the components have no package.json files.
-    // Related PR in Bit: https://github.com/teambit/bit/pull/5251
-    manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
-  }
+  // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
+  // Safe read was added to support the Bit workspace in which the components have no package.json files.
+  // Related PR in Bit: https://github.com/teambit/bit/pull/5251
+  const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined
+  const requiresBuild = pkgRequiresBuild(manifest, filesIndex)
   return {
-    local: true as const,
+    local: true,
     filesIndex,
-    packageImportMethod: 'hardlink' as const,
+    packageImportMethod: 'hardlink',
     manifest,
+    requiresBuild,
   }
 }

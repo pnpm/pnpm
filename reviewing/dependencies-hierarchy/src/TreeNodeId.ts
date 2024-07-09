@@ -1,3 +1,5 @@
+import { type DepPath } from '@pnpm/types'
+
 export type TreeNodeId = TreeNodeIdImporter | TreeNodeIdPackage
 
 /**
@@ -13,7 +15,7 @@ interface TreeNodeIdImporter {
  */
 interface TreeNodeIdPackage {
   readonly type: 'package'
-  readonly depPath: string
+  readonly depPath: DepPath
 }
 
 export function serializeTreeNodeId (treeNodeId: TreeNodeId): string {

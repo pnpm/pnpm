@@ -25,6 +25,12 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../fetching/pick-fetcher"
+    },
+    {
+      "path": "../../fs/packlist"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {
@@ -38,6 +44,9 @@
     },
     {
       "path": "../../packages/parse-wanted-dependency"
+    },
+    {
+      "path": "../../packages/types"
     },
     {
       "path": "../../pkg-manager/modules-yaml"
@@ -55,11 +64,10 @@
       "path": "../../store/store-connection-manager"
     },
     {
-      "path": "../../workspace/filter-workspace-packages"
+      "path": "../../workspace/filter-packages-from-dir"
     },
     {
       "path": "../apply-patch"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -45,6 +45,7 @@ export interface AddDirToStoreMessage {
   sideEffectsCacheKey?: string
   readManifest?: boolean
   pkg?: PkgNameVersion
+  files?: string[]
 }
 
 export interface ReadPkgFromCafsMessage {
@@ -53,4 +54,10 @@ export interface ReadPkgFromCafsMessage {
   filesIndexFile: string
   readManifest: boolean
   verifyStoreIntegrity: boolean
+}
+
+export interface HardLinkDirMessage {
+  type: 'hardLinkDir'
+  src: string
+  destDirs: string[]
 }

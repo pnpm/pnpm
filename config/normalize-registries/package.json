@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/normalize-registries",
   "description": "Accepts a mapping of registry URLs and returns a mapping with the same URLs but normalized",
-  "version": "5.0.2",
+  "version": "6.0.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,11 +12,11 @@
     "!*.map"
   ],
   "keywords": [
-    "pnpm8"
+    "pnpm9"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/config/normalize-registries",
   "scripts": {
@@ -27,14 +27,14 @@
   },
   "dependencies": {
     "@pnpm/types": "workspace:*",
-    "normalize-registry-url": "2.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "normalize-registry-url": "catalog:",
+    "ramda": "catalog:"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/config/normalize-registries#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/normalize-registries": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

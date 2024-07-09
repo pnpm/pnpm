@@ -6,7 +6,7 @@ import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
 import fetch from 'node-fetch'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import tempy from 'tempy'
 import isPortReachable from 'is-port-reachable'
@@ -20,7 +20,7 @@ async function createStoreController (storeDir?: string) {
   }
   const authConfig = { registry }
   const cacheDir = path.join(tmp, 'cache')
-  const { resolve, fetchers } = createClient({
+  const { resolve, fetchers, clearResolutionCache } = createClient({
     authConfig,
     cacheDir,
     rawConfig: {},
@@ -30,6 +30,8 @@ async function createStoreController (storeDir?: string) {
     cacheDir,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+    clearResolutionCache,
   })
 }
 
@@ -58,7 +60,7 @@ test('server', async () => {
 
   const { bundledManifest, files } = await response.fetching!()
   expect(bundledManifest?.name).toBe('is-positive')
-  expect(response.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+  expect(response.body.id).toBe('is-positive@1.0.0')
 
   expect(response.body.manifest!.name).toBe('is-positive')
   expect(response.body.manifest!.version).toBe('1.0.0')
@@ -92,7 +94,6 @@ test('fetchPackage', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        registry: 'https://registry.npmjs.org/',
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
     },
@@ -170,7 +171,7 @@ test('server upload', async () => {
     filesIndexFile,
   })
 
-  const cacheIntegrity = await loadJsonFile<any>(filesIndexFile) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = loadJsonFile.sync<any>(filesIndexFile) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(Object.keys(cacheIntegrity?.['sideEffects'][fakeEngine]).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
 
   await server.close()
@@ -178,7 +179,7 @@ test('server upload', async () => {
 })
 
 test('disable server upload', async () => {
-  await rimraf('.store')
+  rimraf('.store')
 
   const port = await getPort()
   const hostname = 'localhost'

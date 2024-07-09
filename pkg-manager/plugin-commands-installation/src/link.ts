@@ -7,10 +7,11 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
-import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
@@ -22,13 +23,13 @@ import {
   type WorkspacePackages,
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
+import { type Project } from '@pnpm/types'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import pick from 'ramda/src/pick'
 import partition from 'ramda/src/partition'
 import renderHelp from 'render-help'
 import * as installCommand from './install'
-import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getSaveType } from './getSaveType'
 
 // @ts-expect-error
@@ -44,12 +45,13 @@ type LinkOpts = CreateStoreControllerOptions & Pick<Config,
 | 'saveOptional'
 | 'saveProd'
 | 'workspaceDir'
+| 'workspacePackagePatterns'
 | 'sharedWorkspaceLockfile'
 > & Partial<Pick<Config, 'linkWorkspacePackages'>>
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return pick([
     'global-dir',
     'global',
@@ -68,7 +70,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['link', 'ln']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['ln'],
     descriptionLists: [
@@ -105,10 +107,10 @@ async function checkPeerDeps (linkCwdDir: string, opts: LinkOpts) {
 
     logger.warn({
       message: `The package ${packageName}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:
-      
+
 ${peerDeps}
 
-The linked in dependency will not resolve the peer dependencies from the target node_modules. 
+The linked in dependency will not resolve the peer dependencies from the target node_modules.
 This might cause issues in your project. To resolve this, you may use the "file:" protocol to reference the local dependency.`,
       prefix: opts.dir,
     })
@@ -118,17 +120,20 @@ This might cause issues in your project. To resolve this, you may use the "file:
 export async function handler (
   opts: LinkOpts,
   params?: string[]
-) {
+): Promise<void> {
   const cwd = process.cwd()
 
   const storeControllerCache = new Map<string, Promise<{ dir: string, ctrl: StoreController }>>()
-  let workspacePackagesArr
+  let workspacePackagesArr: Project[]
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
-    workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
+    workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
+      ...opts,
+      patterns: opts.workspacePackagePatterns,
+    })
     workspacePackages = arrayOfWorkspacePackagesToMap(workspacePackagesArr) as WorkspacePackages
   } else {
-    workspacePackages = {}
+    workspacePackages = new Map()
   }
 
   const store = await createOrConnectStoreControllerCached(storeControllerCache, opts)
@@ -175,7 +180,7 @@ export async function handler (
       await install(
         await readProjectManifestOnly(dir, opts), {
           ...config,
-          ...getOptionsFromRootManifest(config.rootProjectManifest ?? {}),
+          ...getOptionsFromRootManifest(config.rootProjectManifestDir, config.rootProjectManifest ?? {}),
           include: {
             dependencies: config.production !== false,
             devDependencies: config.dev !== false,
@@ -192,11 +197,14 @@ export async function handler (
   if (pkgNames.length > 0) {
     let globalPkgNames!: string[]
     if (opts.workspaceDir) {
-      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
+      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
+        ...opts,
+        patterns: opts.workspacePackagePatterns,
+      })
 
       const pkgsFoundInWorkspace = workspacePackagesArr
         .filter(({ manifest }) => manifest.name && pkgNames.includes(manifest.name))
-      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.dir))
+      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.rootDir))
 
       if ((pkgsFoundInWorkspace.length > 0) && !linkOpts.targetDependenciesField) {
         linkOpts.targetDependenciesField = 'dependencies'

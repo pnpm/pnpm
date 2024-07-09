@@ -1,5 +1,4 @@
-// eslint-disable
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   s: '--reporter=silent',
   d: '--loglevel=info',
   dd: '--loglevel=verbose',
@@ -33,4 +32,3 @@ export const shorthands = {
   i: '--interactive',
   F: '--filter',
 }
-// eslint-enable

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/crypto.base32-hash",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Create a base32 hash",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -17,13 +17,13 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/crypto.base32-hash",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "hash",
     "crypto",
     "base32"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "license": "MIT",
   "bugs": {
@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/crypto.base32-hash#readme",
   "dependencies": {
-    "rfc4648": "^1.5.2"
+    "rfc4648": "catalog:"
   },
   "devDependencies": {
     "@pnpm/crypto.base32-hash": "workspace:*",

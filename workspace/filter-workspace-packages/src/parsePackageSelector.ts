@@ -60,7 +60,7 @@ export function parsePackageSelector (rawSelector: string, prefix: string): Pack
   }
 }
 
-function isSelectorByLocation (rawSelector: string) {
+function isSelectorByLocation (rawSelector: string): boolean {
   if (rawSelector[0] !== '.') return false
 
   // . or ./ or .\

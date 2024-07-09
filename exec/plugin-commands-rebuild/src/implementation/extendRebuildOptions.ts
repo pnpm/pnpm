@@ -1,11 +1,12 @@
 import path from 'path'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { type LogBase } from '@pnpm/logger'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type Registries } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 
-export interface StrictRebuildOptions {
+export type StrictRebuildOptions = {
   autoInstallPeers: boolean
   cacheDir: string
   childConcurrency: number
@@ -24,7 +25,6 @@ export interface StrictRebuildOptions {
   storeDir: string // TODO: remove this property
   storeController: StoreController
   force: boolean
-  forceSharedLockfile: boolean
   useLockfile: boolean
   registries: Registries
   dir: string
@@ -45,12 +45,17 @@ export interface StrictRebuildOptions {
   pending: boolean
   shamefullyHoist: boolean
   deployAllFiles: boolean
-}
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
+  virtualStoreDirMaxLength: number
+  peersSuffixMaxLength: number
+  strictStorePkgContentCheck: boolean
+} & Pick<Config, 'sslConfigs'>
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
-Pick<StrictRebuildOptions, 'storeDir' | 'storeController'>
+Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> & Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
 
-const defaults = async (opts: RebuildOptions) => {
+const defaults = async (opts: RebuildOptions): Promise<StrictRebuildOptions> => {
   const packageManager = opts.packageManager ??
     await loadJsonFile<{ name: string, version: string }>(path.join(__dirname, '../../package.json'))!
   const dir = opts.dir ?? process.cwd()
@@ -60,7 +65,6 @@ const defaults = async (opts: RebuildOptions) => {
     development: true,
     dir,
     force: false,
-    forceSharedLockfile: false,
     lockfileDir,
     nodeLinker: 'isolated',
     optional: true,
@@ -77,7 +81,7 @@ const defaults = async (opts: RebuildOptions) => {
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
       !process.setgid ||
-      process.getuid() !== 0,
+      process.getuid?.() !== 0,
     useLockfile: true,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
   } as StrictRebuildOptions
@@ -94,7 +98,12 @@ export async function extendRebuildOptions (
     }
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = { ...defaultOpts, ...opts, storeDir: defaultOpts.storeDir }
+  const extendedOpts = {
+    ...defaultOpts,
+    ...opts,
+    storeDir: defaultOpts.storeDir,
+    ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}),
+  }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts
 }

@@ -1,5 +1,188 @@
 # @pnpm/plugin-commands-setup
 
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.4
+
+## 5.1.0
+
+### Minor Changes
+
+- 3beb895: Bundled `pnpm setup` now creates `pnpx` script [#8230](https://github.com/pnpm/pnpm/issues/8230).
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.3
+
+## 5.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.2
+
+## 5.0.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.1
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+
+## 5.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.7
+
+## 5.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.6
+
+## 5.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.5
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.3
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+- Updated dependencies [3477ee5]
+  - @pnpm/cli-utils@3.0.0
+
+## 4.0.34
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.9
+
+## 4.0.33
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.8
+
+## 4.0.32
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.7
+
+## 4.0.31
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.6
+
+## 4.0.30
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.5
+
+## 4.0.29
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.4
+
+## 4.0.28
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+
+## 4.0.27
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.2
+
+## 4.0.26
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.1
+
+## 4.0.25
+
+### Patch Changes
+
+- 34654835d: `pnpm setup` should add a newline at the end of the updated shell config file [#7227](https://github.com/pnpm/pnpm/issues/7227).
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/cli-utils@2.1.0
+
+## 4.0.24
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.24
+
+## 4.0.23
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.23
+
+## 4.0.22
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.22
+
+## 4.0.21
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.21
+
+## 4.0.20
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+
 ## 4.0.19
 
 ### Patch Changes

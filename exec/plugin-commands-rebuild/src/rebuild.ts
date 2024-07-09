@@ -6,6 +6,7 @@ import {
   createOrConnectStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
+import { type ProjectRootDir } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import {
@@ -14,7 +15,7 @@ import {
 } from './implementation'
 import { recursiveRebuild } from './recursive'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'npm-path',
@@ -26,7 +27,7 @@ export function rcOptionsTypes () {
   }
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
     pending: Boolean,
@@ -36,7 +37,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['rebuild', 'rb']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['rb'],
     description: 'Rebuild a package.',
@@ -79,6 +80,8 @@ export async function handler (
   | 'lockfileDir'
   | 'nodeLinker'
   | 'rawLocalConfig'
+  | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
   | 'registries'
   | 'scriptShell'
   | 'selectedProjectsGraph'
@@ -94,9 +97,11 @@ export async function handler (
     reporter?: (logObj: LogBase) => void
     pending: boolean
     skipIfHasSideEffectsCache?: boolean
+    neverBuiltDependencies?: string[]
+    onlyBuiltDependencies?: string[]
   },
   params: string[]
-) {
+): Promise<void> {
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
     await recursiveRebuild(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir })
     return
@@ -115,7 +120,7 @@ export async function handler (
         {
           buildIndex: 0,
           manifest: await readProjectManifestOnly(rebuildOpts.dir, opts),
-          rootDir: rebuildOpts.dir,
+          rootDir: rebuildOpts.dir as ProjectRootDir,
         },
       ],
       rebuildOpts
@@ -127,7 +132,7 @@ export async function handler (
       {
         buildIndex: 0,
         manifest: await readProjectManifestOnly(rebuildOpts.dir, opts),
-        rootDir: rebuildOpts.dir,
+        rootDir: rebuildOpts.dir as ProjectRootDir,
       },
     ],
     params,

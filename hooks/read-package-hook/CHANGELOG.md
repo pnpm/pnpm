@@ -1,5 +1,95 @@
 # @pnpm/hooks.read-package-hook
 
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+
+## 4.0.2
+
+### Patch Changes
+
+- b1d7f8c: Overrides with `link:` now preserves absolute path.
+- b1d7f8c: Fix incorrect path when resolving relative `file:` overrides for workspace package.
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/parse-overrides@5.0.1
+
+## 4.0.1
+
+### Patch Changes
+
+- 04310be: Write overrides with `file:` scheme to lockfile as-is [#7858](https://github.com/pnpm/pnpm/issues/7858).
+
+## 4.0.0
+
+### Major Changes
+
+- aa33269: Peer dependency rules should only affect reporting, not data in the lockfile.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- 0963390: Link overrides should be able to use absolute path [#7749](https://github.com/pnpm/pnpm/pull/7749).
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/parse-wanted-dependency@6.0.0
+  - @pnpm/parse-overrides@5.0.0
+  - @pnpm/matcher@6.0.0
+
+## 3.0.10
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+
+## 3.0.9
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+
+## 3.0.8
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+
+## 3.0.7
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+
 ## 3.0.6
 
 ### Patch Changes

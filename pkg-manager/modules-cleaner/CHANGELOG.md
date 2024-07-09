@@ -1,5 +1,242 @@
 # @pnpm/modules-cleaner
 
+## 15.1.7
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/filter-lockfile@9.0.8
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/remove-bins@6.0.4
+
+## 15.1.6
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/filter-lockfile@9.0.7
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/remove-bins@6.0.3
+  - @pnpm/store-controller-types@18.1.1
+
+## 15.1.5
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/filter-lockfile@9.0.6
+  - @pnpm/lockfile-utils@11.0.1
+
+## 15.1.4
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+
+## 15.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/filter-lockfile@9.0.5
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/remove-bins@6.0.2
+  - @pnpm/store-controller-types@18.0.1
+
+## 15.1.2
+
+### Patch Changes
+
+- @pnpm/filter-lockfile@9.0.4
+- @pnpm/remove-bins@6.0.1
+
+## 15.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/filter-lockfile@9.0.3
+
+## 15.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/filter-lockfile@9.0.2
+
+## 15.0.1
+
+### Patch Changes
+
+- Updated dependencies [b7d2ed4]
+  - @pnpm/filter-lockfile@9.0.1
+
+## 15.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [cdd8365]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [27a96a8]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/types@10.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/filter-lockfile@9.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/remove-bins@6.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/read-modules-dir@7.0.0
+
+## 14.0.24
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/lockfile-utils@9.0.5
+  - @pnpm/filter-lockfile@8.1.6
+
+## 14.0.23
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/filter-lockfile@8.1.5
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/remove-bins@5.0.7
+  - @pnpm/store-controller-types@17.1.4
+
+## 14.0.22
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/filter-lockfile@8.1.4
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/remove-bins@5.0.6
+  - @pnpm/store-controller-types@17.1.3
+
+## 14.0.21
+
+### Patch Changes
+
+- f3cd0a61d: Installation should not fail if an empty `node_modules` directory cannot be removed [#7405](https://github.com/pnpm/pnpm/issues/7405).
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/filter-lockfile@8.1.3
+
+## 14.0.20
+
+### Patch Changes
+
+- 6558d1865: When `dedupe-direct-deps` is set to `true`, commands of dependencies should be deduplicated [#7359](https://github.com/pnpm/pnpm/pull/7359).
+
+## 14.0.19
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+  - @pnpm/filter-lockfile@8.1.2
+
+## 14.0.18
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+
+## 14.0.17
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+- Updated dependencies [7ea45afbe]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/filter-lockfile@8.1.1
+
+## 14.0.16
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/filter-lockfile@8.1.0
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-types@5.1.3
+  - @pnpm/lockfile-utils@8.0.7
+  - @pnpm/core-loggers@9.0.4
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/remove-bins@5.0.5
+
+## 14.0.15
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/filter-lockfile@8.0.10
+  - @pnpm/lockfile-types@5.1.2
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/remove-bins@5.0.4
+  - @pnpm/store-controller-types@17.0.1
+
+## 14.0.14
+
+### Patch Changes
+
+- Updated dependencies [f394cfccd]
+  - @pnpm/lockfile-utils@8.0.5
+  - @pnpm/filter-lockfile@8.0.9
+
 ## 14.0.13
 
 ### Patch Changes

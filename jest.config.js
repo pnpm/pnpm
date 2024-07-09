@@ -2,6 +2,14 @@ const path = require("path")
 
 const config = {
   preset: "ts-jest",
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', {
+      // For most projects, the tsconfig.json and test/tsconfig.json are almost
+      // exactly the same. But it's more correct to point to test/tsconfig.json
+      // to prevent surprises in the future.
+      tsconfig: 'test/tsconfig.json'
+    }]
+  },
   testMatch: ["**/test/**/*.[jt]s?(x)", "**/src/**/*.test.ts"],
   testEnvironment: "node",
   collectCoverage: true,
@@ -9,10 +17,7 @@ const config = {
   testPathIgnorePatterns: ["/fixtures/", "/__fixtures__/", "<rootDir>/test/utils/.+"],
   testTimeout: 4 * 60 * 1000, // 4 minutes
   setupFilesAfterEnv: [path.join(__dirname, "jest.setup.js")],
-  // Many tests change the dist tags of packages.
-  // Unfortunately, this means that if two such tests will run at the same time,
-  // they may break each other.
-  maxWorkers: 1,
+  maxWorkers: "50%",
 }
 
 if (process.env.PNPM_SCRIPT_SRC_DIR) {

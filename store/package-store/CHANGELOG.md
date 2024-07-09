@@ -1,5 +1,303 @@
 # @pnpm/package-store
 
+## 20.3.2
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/create-cafs-store@7.0.5
+  - @pnpm/package-requester@25.2.2
+  - @pnpm/worker@1.0.6
+
+## 20.3.1
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/fetcher-base@16.0.3
+  - @pnpm/package-requester@25.2.1
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/store.cafs@3.0.4
+  - @pnpm/worker@1.0.5
+  - @pnpm/create-cafs-store@7.0.4
+
+## 20.3.0
+
+### Minor Changes
+
+- 7c6c923: Some registries allow the exact same content to be published under different package names and/or versions. This breaks the validity checks of packages in the store. To avoid errors when verifying the names and versions of such packages in the store, you may now set the `strict-store-pkg-content-check` setting to `false` [#4724](https://github.com/pnpm/pnpm/issues/4724).
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [13e55b2]
+  - @pnpm/package-requester@25.2.0
+  - @pnpm/types@10.1.1
+  - @pnpm/fetcher-base@16.0.2
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/store.cafs@3.0.3
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/worker@1.0.4
+  - @pnpm/create-cafs-store@7.0.3
+
+## 20.2.1
+
+### Patch Changes
+
+- @pnpm/package-requester@25.1.4
+- @pnpm/create-cafs-store@7.0.2
+
+## 20.2.0
+
+### Minor Changes
+
+- 0c08e1c: Added a new function for clearing resolution cache.
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/package-requester@25.1.3
+  - @pnpm/store.cafs@3.0.2
+  - @pnpm/create-cafs-store@7.0.2
+  - @pnpm/worker@1.0.3
+
+## 20.1.2
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/fetcher-base@16.0.1
+  - @pnpm/package-requester@25.1.2
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/store.cafs@3.0.1
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/worker@1.0.2
+  - @pnpm/create-cafs-store@7.0.1
+
+## 20.1.1
+
+### Patch Changes
+
+- @pnpm/package-requester@25.1.1
+- @pnpm/worker@1.0.1
+
+## 20.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/package-requester@25.1.0
+  - @pnpm/create-cafs-store@7.0.0
+
+## 20.0.1
+
+### Patch Changes
+
+- Updated dependencies [b7d2ed4]
+  - @pnpm/package-requester@25.0.1
+
+## 20.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [11d9ebd]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/worker@1.0.0
+  - @pnpm/package-requester@25.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/create-cafs-store@7.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/store.cafs@3.0.0
+
+## 19.0.15
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/package-requester@24.1.8
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/store.cafs@2.0.12
+  - @pnpm/create-cafs-store@6.0.13
+  - @pnpm/fetcher-base@15.0.7
+  - @pnpm/worker@0.3.14
+
+## 19.0.14
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.12
+- @pnpm/package-requester@24.1.7
+- @pnpm/worker@0.3.13
+
+## 19.0.13
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/store.cafs@2.0.11
+  - @pnpm/types@9.4.2
+  - @pnpm/create-cafs-store@6.0.11
+  - @pnpm/package-requester@24.1.6
+  - @pnpm/worker@0.3.12
+  - @pnpm/fetcher-base@15.0.6
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/store-controller-types@17.1.4
+
+## 19.0.12
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/fetcher-base@15.0.5
+  - @pnpm/package-requester@24.1.5
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/store.cafs@2.0.10
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/worker@0.3.11
+  - @pnpm/create-cafs-store@6.0.10
+
+## 19.0.11
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.9
+- @pnpm/package-requester@24.1.4
+- @pnpm/worker@0.3.10
+
+## 19.0.10
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/package-requester@24.1.3
+  - @pnpm/worker@0.3.9
+
+## 19.0.9
+
+### Patch Changes
+
+- 291607c5a: When using `pnpm store prune --force` alien directories are removed from the store [#7272](https://github.com/pnpm/pnpm/pull/7272).
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/package-requester@24.1.2
+  - @pnpm/store.cafs@2.0.9
+  - @pnpm/create-cafs-store@6.0.8
+  - @pnpm/worker@0.3.8
+
+## 19.0.8
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+- Updated dependencies [cfc017ee3]
+- Updated dependencies [7ea45afbe]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/create-cafs-store@6.0.7
+  - @pnpm/package-requester@24.1.1
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/fetcher-base@15.0.4
+  - @pnpm/worker@0.3.7
+  - @pnpm/store.cafs@2.0.8
+
+## 19.0.7
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [6390033cd]
+  - @pnpm/package-requester@24.1.0
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/types@9.4.0
+  - @pnpm/worker@0.3.6
+  - @pnpm/store.cafs@2.0.7
+  - @pnpm/create-cafs-store@6.0.6
+  - @pnpm/fetcher-base@15.0.3
+  - @pnpm/resolver-base@10.0.4
+
+## 19.0.6
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.5
+- @pnpm/package-requester@24.0.6
+- @pnpm/worker@0.3.5
+
+## 19.0.5
+
+### Patch Changes
+
+- 01bc58e2c: Update ssri to v10.0.5.
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [08b65ff78]
+  - @pnpm/package-requester@24.0.5
+  - @pnpm/store.cafs@2.0.6
+  - @pnpm/worker@0.3.4
+  - @pnpm/create-cafs-store@6.0.4
+
+## 19.0.4
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.3
+- @pnpm/package-requester@24.0.4
+- @pnpm/worker@0.3.3
+
+## 19.0.3
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.2
+- @pnpm/package-requester@24.0.3
+- @pnpm/worker@0.3.2
+
+## 19.0.2
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/create-cafs-store@6.0.1
+  - @pnpm/fetcher-base@15.0.2
+  - @pnpm/package-requester@24.0.2
+  - @pnpm/resolver-base@10.0.3
+  - @pnpm/store.cafs@2.0.5
+  - @pnpm/store-controller-types@17.0.1
+  - @pnpm/worker@0.3.1
+
+## 19.0.1
+
+### Patch Changes
+
+- @pnpm/package-requester@24.0.1
+
 ## 19.0.0
 
 ### Patch Changes

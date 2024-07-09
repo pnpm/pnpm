@@ -1,5 +1,536 @@
 # @pnpm/plugin-commands-store
 
+## 9.2.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/store-connection-manager@8.3.2
+
+## 9.2.2
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/get-context@12.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/store-connection-manager@8.3.1
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/normalize-registries@6.0.3
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/store.cafs@3.0.4
+
+## 9.2.1
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/store-connection-manager@8.3.0
+  - @pnpm/config@21.5.0
+  - @pnpm/get-context@11.2.1
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/normalize-registries@6.0.2
+  - @pnpm/pick-registry-for-package@6.0.2
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/store.cafs@3.0.3
+  - @pnpm/store-controller-types@18.1.1
+
+## 9.2.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/get-context@11.2.0
+  - @pnpm/config@21.4.0
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/store-connection-manager@8.2.2
+
+## 9.1.6
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/store-connection-manager@8.2.1
+
+## 9.1.5
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-connection-manager@8.2.0
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/store.cafs@3.0.2
+  - @pnpm/config@21.2.3
+  - @pnpm/cli-utils@3.0.7
+
+## 9.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/normalize-registries@6.0.1
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/get-context@11.1.3
+  - @pnpm/store.cafs@3.0.1
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/store-connection-manager@8.1.4
+
+## 9.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/get-context@11.1.2
+  - @pnpm/store-connection-manager@8.1.3
+  - @pnpm/store-path@9.0.1
+
+## 9.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+- @pnpm/store-connection-manager@8.1.2
+
+## 9.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/get-context@11.1.1
+  - @pnpm/store-connection-manager@8.1.1
+
+## 9.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/store-connection-manager@8.1.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/get-context@11.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/cli-utils@3.0.3
+
+## 9.0.5
+
+### Patch Changes
+
+- @pnpm/get-context@11.0.2
+- @pnpm/store-connection-manager@8.0.4
+
+## 9.0.4
+
+### Patch Changes
+
+- @pnpm/get-context@11.0.1
+
+## 9.0.3
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@8.0.3
+
+## 9.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+  - @pnpm/store-connection-manager@8.0.2
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/cli-utils@3.0.1
+  - @pnpm/store-connection-manager@8.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- 98566d9: Added cache for `pnpm dlx` [#5277](https://github.com/pnpm/pnpm/issues/5277).
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [19c4b4f]
+- Updated dependencies [d381a60]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+- Updated dependencies [98a1266]
+  - @pnpm/store-connection-manager@8.0.0
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/pick-registry-for-package@6.0.0
+  - @pnpm/parse-wanted-dependency@6.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/normalize-registries@6.0.0
+  - @pnpm/get-context@11.0.0
+  - @pnpm/store-path@9.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/store.cafs@3.0.0
+
+## 8.1.17
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/store.cafs@2.0.12
+  - @pnpm/lockfile-utils@9.0.5
+  - @pnpm/cli-utils@2.1.9
+  - @pnpm/store-connection-manager@7.0.26
+  - @pnpm/config@20.4.2
+
+## 8.1.16
+
+### Patch Changes
+
+- Updated dependencies [60bcc797f]
+  - @pnpm/get-context@10.0.11
+  - @pnpm/store-connection-manager@7.0.25
+
+## 8.1.15
+
+### Patch Changes
+
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/get-context@10.0.10
+  - @pnpm/store-connection-manager@7.0.24
+  - @pnpm/cli-utils@2.1.8
+
+## 8.1.14
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@7.0.23
+
+## 8.1.13
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+  - @pnpm/store-connection-manager@7.0.22
+
+## 8.1.12
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/config@20.3.0
+  - @pnpm/store.cafs@2.0.11
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/store-connection-manager@7.0.21
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/normalize-registries@5.0.6
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/get-context@10.0.9
+  - @pnpm/store-controller-types@17.1.4
+
+## 8.1.11
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/normalize-registries@5.0.5
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/get-context@10.0.8
+  - @pnpm/store.cafs@2.0.10
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/store-connection-manager@7.0.20
+
+## 8.1.10
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/store-connection-manager@7.0.19
+
+## 8.1.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.4
+- @pnpm/store-connection-manager@7.0.18
+
+## 8.1.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+- @pnpm/store-connection-manager@7.0.17
+
+## 8.1.7
+
+### Patch Changes
+
+- Updated dependencies [b1fd38cca]
+  - @pnpm/get-context@10.0.7
+  - @pnpm/store-connection-manager@7.0.16
+
+## 8.1.6
+
+### Patch Changes
+
+- Updated dependencies [2143a9388]
+  - @pnpm/get-context@10.0.6
+  - @pnpm/store-connection-manager@7.0.15
+
+## 8.1.5
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+
+## 8.1.4
+
+### Patch Changes
+
+- 291607c5a: When using `pnpm store prune --force` alien directories are removed from the store [#7272](https://github.com/pnpm/pnpm/pull/7272).
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/store.cafs@2.0.9
+  - @pnpm/store-connection-manager@7.0.14
+  - @pnpm/config@20.1.2
+  - @pnpm/cli-utils@2.1.2
+
+## 8.1.3
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@7.0.13
+
+## 8.1.2
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+- Updated dependencies [7d65d901a]
+- Updated dependencies [7ea45afbe]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/store-path@8.0.1
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/store-connection-manager@7.0.12
+  - @pnpm/store.cafs@2.0.8
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+
+## 8.1.1
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@7.0.11
+
+## 8.1.0
+
+### Minor Changes
+
+- 43ce9e4a6: Support for multiple architectures when installing dependencies [#5965](https://github.com/pnpm/pnpm/issues/5965).
+
+  You can now specify architectures for which you'd like to install optional dependencies, even if they don't match the architecture of the system running the install. Use the `supportedArchitectures` field in `package.json` to define your preferences.
+
+  For example, the following configuration tells pnpm to install optional dependencies for Windows x64:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32"],
+        "cpu": ["x64"]
+      }
+    }
+  }
+  ```
+
+  Whereas this configuration will have pnpm install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32", "darwin", "current"],
+        "cpu": ["x64", "arm64"]
+      }
+    }
+  }
+  ```
+
+  Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/store.cafs@2.0.7
+  - @pnpm/normalize-registries@5.0.4
+  - @pnpm/pick-registry-for-package@5.0.4
+  - @pnpm/lockfile-utils@8.0.7
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/get-context@10.0.5
+  - @pnpm/store-connection-manager@7.0.10
+
+## 8.0.30
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@7.0.9
+
+## 8.0.29
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@7.0.8
+
+## 8.0.28
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/store.cafs@2.0.6
+  - @pnpm/config@20.0.0
+  - @pnpm/store-connection-manager@7.0.7
+  - @pnpm/cli-utils@2.0.24
+
+## 8.0.27
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@7.0.6
+
+## 8.0.26
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@7.0.5
+
+## 8.0.25
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+  - @pnpm/store-connection-manager@7.0.4
+
+## 8.0.24
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/store-connection-manager@7.0.3
+  - @pnpm/normalize-registries@5.0.3
+  - @pnpm/pick-registry-for-package@5.0.3
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/get-context@10.0.4
+  - @pnpm/store.cafs@2.0.5
+  - @pnpm/store-controller-types@17.0.1
+
+## 8.0.23
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+- Updated dependencies [f394cfccd]
+  - @pnpm/config@19.1.0
+  - @pnpm/lockfile-utils@8.0.5
+  - @pnpm/cli-utils@2.0.21
+  - @pnpm/store-connection-manager@7.0.2
+
+## 8.0.22
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+- @pnpm/store-connection-manager@7.0.1
+
 ## 8.0.21
 
 ### Patch Changes

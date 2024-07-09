@@ -19,6 +19,9 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -79,6 +82,9 @@
       "path": "../../store/store-connection-manager"
     },
     {
+      "path": "../../workspace/filter-packages-from-dir"
+    },
+    {
       "path": "../../workspace/filter-workspace-packages"
     },
     {
@@ -97,8 +103,10 @@
       "path": "../core"
     },
     {
+      "path": "../get-context"
+    },
+    {
       "path": "../modules-yaml"
     }
-  ],
-  "composite": true
+  ]
 }

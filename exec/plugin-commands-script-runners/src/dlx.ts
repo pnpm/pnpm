@@ -1,26 +1,29 @@
-import fs from 'fs'
+import fs, { type Stats } from 'fs'
 import path from 'path'
+import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
+import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
+import { node } from '@pnpm/plugin-commands-env'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { getStorePath } from '@pnpm/store-path'
 import execa from 'execa'
 import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import symlinkDir from 'symlink-dir'
 import { makeEnv } from './makeEnv'
 
 export const commandNames = ['dlx']
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   c: '--shell-mode',
 }
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'use-node-version',
@@ -29,12 +32,12 @@ export function rcOptionsTypes () {
   }
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   package: [String, Array],
 })
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Run a package in a temporary environment.',
     descriptionLists: [
@@ -62,40 +65,45 @@ export function help () {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-} & Pick<Config, 'reporter' | 'userAgent'> & add.AddCommandOptions
+} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' > & add.AddCommandOptions
 
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
-) {
-  const dlxDir = await getDlxDir({
-    dir: opts.dir,
-    pnpmHomeDir: opts.pnpmHomeDir,
-    storeDir: opts.storeDir,
-  })
-  const prefix = path.join(dlxDir, `dlx-${process.pid.toString()}`)
-  const modulesDir = path.join(prefix, 'node_modules')
-  const binsDir = path.join(modulesDir, '.bin')
-  fs.mkdirSync(prefix, { recursive: true })
-  process.on('exit', () => {
-    try {
-      fs.rmdirSync(prefix, {
-        recursive: true,
-        maxRetries: 3,
-      })
-    } catch (err) {}
-  })
+): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
-  const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
-  await add.handler({
-    ...omit(['workspaceDir'], opts),
-    bin: binsDir,
-    dir: prefix,
-    lockfileDir: prefix,
-  }, pkgs)
+  const { cacheLink, prepareDir } = findCache(pkgs, {
+    dlxCacheMaxAge: opts.dlxCacheMaxAge,
+    cacheDir: opts.cacheDir,
+  })
+  if (prepareDir) {
+    fs.mkdirSync(prepareDir, { recursive: true })
+    await add.handler({
+      // Ideally the config reader should ignore these settings when the dlx command is executed.
+      // This is a temporary solution until "@pnpm/config" is refactored.
+      ...omit(['workspaceDir', 'rootProjectManifest'], opts),
+      bin: path.join(prepareDir, 'node_modules/.bin'),
+      dir: prepareDir,
+      lockfileDir: prepareDir,
+      rootProjectManifestDir: prepareDir, // This property won't be used as rootProjectManifest will be undefined
+      saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+      saveDev: false,
+      saveOptional: false,
+      savePeer: false,
+    }, pkgs)
+    await symlinkDir(prepareDir, cacheLink, { overwrite: true })
+  }
+  const modulesDir = path.join(cacheLink, 'node_modules')
+  const binsDir = path.join(modulesDir, '.bin')
+  const prependPaths = [binsDir]
+  if (opts.useNodeVersion) {
+    const nodePath = await node.getNodeBinDir(opts)
+    prependPaths.push(nodePath)
+  }
+  const env = makeEnv({ userAgent: opts.userAgent, prependPaths })
   const binName = opts.package
     ? command
-    : await getBinName(modulesDir, await getPkgName(prefix))
+    : await getBinName(modulesDir, await getPkgName(cacheLink))
   try {
     await execa(binName, args, {
       cwd: process.cwd(),
@@ -103,10 +111,10 @@ export async function handler (
       stdio: 'inherit',
       shell: opts.shellMode ?? false,
     })
-  } catch (err: any) { // eslint-disable-line
-    if (err.exitCode != null) {
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'exitCode' in err && err.exitCode != null) {
       return {
-        exitCode: err.exitCode,
+        exitCode: err.exitCode as number,
       }
     }
     throw err
@@ -114,9 +122,13 @@ export async function handler (
   return { exitCode: 0 }
 }
 
-async function getPkgName (pkgDir: string) {
+async function getPkgName (pkgDir: string): Promise<string> {
   const manifest = await readPackageJsonFromDir(pkgDir)
-  return Object.keys(manifest.dependencies ?? {})[0]
+  const dependencyNames = Object.keys(manifest.dependencies ?? {})
+  if (dependencyNames.length === 0) {
+    throw new PnpmError('DLX_NO_DEP', 'dlx was unable to find the installed dependency in "dependencies"')
+  }
+  return dependencyNames[0]
 }
 
 async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
@@ -140,24 +152,47 @@ ${binNames.map(name => `pnpm --package=${pkgName} dlx ${name}`).join('\n')}
   })
 }
 
-function scopeless (pkgName: string) {
-  if (pkgName.startsWith('@')) {
+function scopeless (pkgName: string): string {
+  if (pkgName[0] === '@') {
     return pkgName.split('/')[1]
   }
   return pkgName
 }
 
-async function getDlxDir (
-  opts: {
-    dir: string
-    storeDir?: string
-    pnpmHomeDir: string
+function findCache (pkgs: string[], opts: {
+  cacheDir: string
+  dlxCacheMaxAge: number
+}): { cacheLink: string, prepareDir: string | null } {
+  const dlxCommandCacheDir = createDlxCommandCacheDir(opts.cacheDir, pkgs)
+  const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
+  const valid = isCacheValid(cacheLink, opts.dlxCacheMaxAge)
+  const prepareDir = valid ? null : getPrepareDir(dlxCommandCacheDir)
+  return { cacheLink, prepareDir }
+}
+
+function createDlxCommandCacheDir (cacheDir: string, pkgs: string[]): string {
+  const dlxCacheDir = path.resolve(cacheDir, 'dlx')
+  const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
+  const cacheKey = createBase32Hash(hashStr)
+  const cachePath = path.join(dlxCacheDir, cacheKey)
+  fs.mkdirSync(cachePath, { recursive: true })
+  return cachePath
+}
+
+function isCacheValid (cacheLink: string, dlxCacheMaxAge: number): boolean {
+  let stats: Stats
+  try {
+    stats = fs.lstatSync(cacheLink)
+  } catch (err) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return false
+    }
+    throw err
   }
-): Promise<string> {
-  const storeDir = await getStorePath({
-    pkgRoot: opts.dir,
-    storePath: opts.storeDir,
-    pnpmHomeDir: opts.pnpmHomeDir,
-  })
-  return path.join(storeDir, 'tmp')
+  return stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= new Date().getTime()
+}
+
+function getPrepareDir (cachePath: string): string {
+  const name = `${new Date().getTime().toString(16)}-${process.pid.toString(16)}`
+  return path.join(cachePath, name)
 }

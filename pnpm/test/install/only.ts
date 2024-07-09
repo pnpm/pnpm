@@ -11,9 +11,9 @@ test('production install (with --production flag)', async () => {
 
   await execPnpm(['install', '--production'])
 
-  await project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
-  await project.has('rimraf')
-  await project.has('is-positive')
+  project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
+  project.has('rimraf')
+  project.has('is-positive')
 })
 
 test('production install (with production NODE_ENV)', async () => {
@@ -21,9 +21,9 @@ test('production install (with production NODE_ENV)', async () => {
 
   await execPnpm(['install'], { env: { NODE_ENV: 'production' } })
 
-  await project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
-  await project.has('rimraf')
-  await project.has('is-positive')
+  project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
+  project.has('rimraf')
+  project.has('is-positive')
 })
 
 test('dev dependencies install (with production NODE_ENV)', async () => {
@@ -31,8 +31,8 @@ test('dev dependencies install (with production NODE_ENV)', async () => {
 
   await execPnpm(['install', '--dev'], { env: { NODE_ENV: 'production' } })
 
-  await project.hasNot(Object.keys(basicPackageManifest.dependencies!)[0])
-  await project.has('@rstacruz/tap-spec')
+  project.hasNot(Object.keys(basicPackageManifest.dependencies!)[0])
+  project.has('@rstacruz/tap-spec')
 })
 
 test('install dev dependencies only', async () => {
@@ -57,5 +57,5 @@ test('install dev dependencies only', async () => {
   const isNegative = project.requireModule('is-negative')
   expect(typeof isNegative).toBe('function')
 
-  await project.hasNot('is-positive')
+  project.hasNot('is-positive')
 })

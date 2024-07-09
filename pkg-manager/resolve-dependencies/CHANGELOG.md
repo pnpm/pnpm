@@ -1,5 +1,533 @@
 # @pnpm/resolve-dependencies
 
+## 34.0.1
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+- Updated dependencies [afe520d]
+  - @pnpm/npm-resolver@21.0.1
+
+## 34.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- 9bf9f71: When encountering an external dependency using the `catalog:` protocol, a clearer error will be shown. Previously a confusing `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` error was thrown. The new error message will explain that the author of the dependency needs to run `pnpm publish` to replace the catalog protocol.
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/npm-resolver@21.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/pick-fetcher@3.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/lockfile.preferred-versions@1.0.7
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/prune-lockfile@6.1.3
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/manifest-utils@6.0.4
+  - @pnpm/read-package-json@9.0.4
+
+## 33.1.1
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/pick-registry-for-package@6.0.2
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/lockfile.preferred-versions@1.0.6
+  - @pnpm/prune-lockfile@6.1.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/manifest-utils@6.0.3
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/npm-resolver@20.0.1
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/pick-fetcher@3.0.0
+
+## 33.1.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/prune-lockfile@6.1.1
+  - @pnpm/lockfile.preferred-versions@1.0.5
+  - @pnpm/npm-resolver@20.0.0
+
+## 33.0.4
+
+### Patch Changes
+
+- 74c1057: Improved the performance of the resolution stage by changing how missing peer dependencies are detected [#8144](https://github.com/pnpm/pnpm/pull/8144).
+
+## 33.0.3
+
+### Patch Changes
+
+- 4b65113: Temporary fix. Don't hoist peer dependencies, when peers deduplication is on.
+
+## 33.0.2
+
+### Patch Changes
+
+- 81d90c9: Reduce memory usage during peer dependency resolution by using numbers for Node IDs.
+- 27c33f0: Fix a bug in which a dependency that is both optional for one package but non-optional for another is omitted when `optional=false` [#8066](https://github.com/pnpm/pnpm/issues/8066).
+- Updated dependencies [27c33f0]
+  - @pnpm/prune-lockfile@6.1.0
+
+## 33.0.1
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+- Updated dependencies [0c08e1c]
+  - @pnpm/npm-resolver@20.0.0
+  - @pnpm/store-controller-types@18.1.0
+
+## 33.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- ef73c19: Decrease memory consumption [#8084](https://github.com/pnpm/pnpm/pull/8084).
+- 471ee65: Reduce memory usage by peer dependencies resolution [#8072](https://github.com/pnpm/pnpm/issues/8072).
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/lockfile.preferred-versions@1.0.4
+  - @pnpm/prune-lockfile@6.0.2
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/manifest-utils@6.0.2
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/npm-resolver@19.0.4
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/pick-fetcher@3.0.0
+
+## 32.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/npm-resolver@19.0.3
+  - @pnpm/lockfile.preferred-versions@1.0.3
+
+## 32.1.2
+
+### Patch Changes
+
+- 2cb67d7: Improve the performance of the peers resolution stage by utilizing more cache [#8058](https://github.com/pnpm/pnpm/pull/8058).
+- Updated dependencies [43b6bb7]
+  - @pnpm/npm-resolver@19.0.2
+
+## 32.1.1
+
+### Patch Changes
+
+- 7a0536e: Fix `Cannot read properties of undefined (reading 'missingPeersOfChildren')` exception that happens on install [#8041](https://github.com/pnpm/pnpm/issues/8041).
+- cb0f459: `pnpm update` should not fail when there's an aliased local workspace dependency [#7975](https://github.com/pnpm/pnpm/issues/7975).
+- Updated dependencies [cb0f459]
+- Updated dependencies [7a0536e]
+- Updated dependencies [cb0f459]
+  - @pnpm/workspace.spec-parser@1.0.0
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/npm-resolver@19.0.1
+  - @pnpm/lockfile.preferred-versions@1.0.2
+
+## 32.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- 1a6f7fb: A dependency is hoisted to resolve an optional peer dependency only if it satisfies the range provided for the optional peer dependency [#8028](https://github.com/pnpm/pnpm/pull/8028).
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/prune-lockfile@6.0.1
+  - @pnpm/lockfile.preferred-versions@1.0.1
+  - @pnpm/npm-resolver@19.0.0
+
+## 32.0.4
+
+### Patch Changes
+
+- abaf12e: Resolve peer dependencies correctly, when they have prerelease versions [#7977](https://github.com/pnpm/pnpm/issues/7977).
+- e9530a8: Fix aliased dependencies resolution on repeat install with existing lockfile, when the aliased dependency doesn't specify a version or range [#7957](https://github.com/pnpm/pnpm/issues/7957).
+
+## 32.0.3
+
+### Patch Changes
+
+- eb19475: Fix aliased dependencies resolution on repeat install with existing lockfile [#7957](https://github.com/pnpm/pnpm/issues/7957).
+
+## 32.0.2
+
+### Patch Changes
+
+- b3961cb: Fixed an issue where optional dependencies were not linked into the dependent's node_modules [#7943](https://github.com/pnpm/pnpm/issues/7943).
+
+## 32.0.1
+
+### Patch Changes
+
+- 253d50c: Optional peer dependencies should be resolved as optional dependencies [#7918](https://github.com/pnpm/pnpm/pull/7918).
+
+## 32.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- 98a1266: Peer dependencies of peer dependencies are now resolved correctly. When peer dependencies have peer dependencies of their own, the peer dependencies are grouped with their own peer dependencies before being linked to their dependents.
+
+  For instance, if `card` has `react` in peer dependencies and `react` has `typescript` in its peer dependencies, then the same version of `react` may be linked from different places if there are multiple versions of `typescript`. For instance:
+
+  ```
+  project1/package.json
+  {
+    "dependencies": {
+      "card": "1.0.0",
+      "react": "16.8.0",
+      "typescript": "7.0.0"
+    }
+  }
+  project2/package.json
+  {
+    "dependencies": {
+      "card": "1.0.0",
+      "react": "16.8.0",
+      "typescript": "8.0.0"
+    }
+  }
+  node_modules
+    .pnpm
+      card@1.0.0(react@16.8.0(typescript@7.0.0))
+        node_modules
+          card
+          react --> ../../react@16.8.0(typescript@7.0.0)/node_modules/react
+      react@16.8.0(typescript@7.0.0)
+        node_modules
+          react
+          typescript --> ../../typescript@7.0.0/node_modules/typescript
+      typescript@7.0.0
+        node_modules
+          typescript
+      card@1.0.0(react@16.8.0(typescript@8.0.0))
+        node_modules
+          card
+          react --> ../../react@16.8.0(typescript@8.0.0)/node_modules/react
+      react@16.8.0(typescript@8.0.0)
+        node_modules
+          react
+          typescript --> ../../typescript@8.0.0/node_modules/typescript
+      typescript@8.0.0
+        node_modules
+          typescript
+  ```
+
+  In the above example, both projects have `card` in dependencies but the projects use different versions of `typescript`. Hence, even though the same version of `card` is used, `card` in `project1` will reference `react` from a directory where it is placed with `typescript@7.0.0` (because it resolves `typescript` from the dependencies of `project1`), while `card` in `project2` will reference `react` with `typescript@8.0.0`.
+
+  Related issue: [#7444](https://github.com/pnpm/pnpm/issues/7444).
+  Related PR: [#7606](https://github.com/pnpm/pnpm/pull/7606).
+
+### Minor Changes
+
+- 7733f3a: Added support for registry-scoped SSL configurations (cert, key, and ca). Three new settings supported: `<registryURL>:certfile`, `<registryURL>:keyfile`, and `<registryURL>:ca`. For instance:
+
+  ```
+  //registry.mycomp.com/:certfile=server-cert.pem
+  //registry.mycomp.com/:keyfile=server-key.pem
+  //registry.mycomp.com/:cafile=client-cert.pem
+  ```
+
+  Related issue: [#7427](https://github.com/pnpm/pnpm/issues/7427).
+  Related PR: [#7626](https://github.com/pnpm/pnpm/pull/7626).
+
+- 086b69c: The checksum of the `.pnpmfile.cjs` is saved into the lockfile. If the pnpmfile gets modified, the lockfile is reanalyzed to apply the changes [#7662](https://github.com/pnpm/pnpm/pull/7662).
+- 9f8948c: Add a new option autoInstallPeersFromHighestMatch that makes pnpm install the highest version satisfying one of the peer dependencies even if the peer dependency ranges don't overlap.
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- 977060f: Properly resolve peer dependencies of peer dependencies [#7444](https://github.com/pnpm/pnpm/issues/7444).
+- f5eadba: Revert [#7583](https://github.com/pnpm/pnpm/pull/7583).
+- 7edb917: Deleting a dependencies field via a `readPackage` hook should work [#7704](https://github.com/pnpm/pnpm/pull/7704).
+- 732430a: `bundledDependencies` should never be added to the lockfile with `false` as the value [#7576](https://github.com/pnpm/pnpm/issues/7576).
+- 22c7acc: Link globally the command of a package that has no name in `package.json` [#4761](https://github.com/pnpm/pnpm/issues/4761).
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [27a96a8]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+- Updated dependencies [8eddd21]
+- Updated dependencies [98a1266]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/npm-resolver@19.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/pick-registry-for-package@6.0.0
+  - @pnpm/which-version-is-pinned@6.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/manifest-utils@6.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/prune-lockfile@6.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/pick-fetcher@3.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/lockfile.preferred-versions@1.0.0
+
+## 31.4.0
+
+### Minor Changes
+
+- 31054a63e: Running `pnpm update -r --latest` will no longer downgrade prerelease dependencies [#7436](https://github.com/pnpm/pnpm/issues/7436).
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/npm-resolver@18.1.0
+  - @pnpm/pick-fetcher@2.0.1
+  - @pnpm/lockfile-utils@9.0.5
+
+## 31.3.1
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+- 4d34684f1: Added support for boolean values in 'bundleDependencies' package.json fields when installing a dependency. Fix to properly handle 'bundledDependencies' alias [#7411](https://github.com/pnpm/pnpm/issues/7411).
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/npm-resolver@18.0.2
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/prune-lockfile@5.0.9
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/manifest-utils@5.0.7
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/store-controller-types@17.1.4
+  - @pnpm/pick-fetcher@2.0.1
+
+## 31.3.0
+
+### Minor Changes
+
+- 672c559e4: A new setting added for symlinking [injected dependencies](https://pnpm.io/package_json#dependenciesmetainjected) from the workspace, if their dependencies use the same peer dependencies as the dependent package. The setting is called `dedupe-injected-deps` [#7416](https://github.com/pnpm/pnpm/pull/7416).
+
+### Patch Changes
+
+- Added support for boolean values in 'bundleDependencies' package.json fields when installing a dependency. Fix to properly handle 'bundledDependencies' alias [#7411](https://github.com/pnpm/pnpm/issues/7411).
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/prune-lockfile@5.0.8
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/manifest-utils@5.0.6
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/npm-resolver@18.0.1
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/pick-fetcher@2.0.1
+
+## 31.2.7
+
+### Patch Changes
+
+- d5a176af7: Fix a bug where `--fix-lockfile` crashes on tarballs [#7368](https://github.com/pnpm/pnpm/issues/7368).
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+
+## 31.2.6
+
+### Patch Changes
+
+- 5462cb6d4: Fix dependencies deduplication.
+
+## 31.2.5
+
+### Patch Changes
+
+- 6558d1865: When `dedupe-direct-deps` is set to `true`, commands of dependencies should be deduplicated [#7359](https://github.com/pnpm/pnpm/pull/7359).
+
+## 31.2.4
+
+### Patch Changes
+
+- Updated dependencies [cd4fcfff0]
+  - @pnpm/npm-resolver@18.0.0
+
+## 31.2.3
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+
+## 31.2.2
+
+### Patch Changes
+
+- 4da7b463f: (Important) Increased the default amount of allowed concurrent network request on systems that have more than 16 CPUs [#7285](https://github.com/pnpm/pnpm/pull/7285).
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/npm-resolver@17.0.0
+
+## 31.2.1
+
+### Patch Changes
+
+- 7ea45afbe: If a package's tarball cannot be fetched, print the dependency chain that leads to the failed package [#7265](https://github.com/pnpm/pnpm/pull/7265).
+- Updated dependencies [4c2450208]
+- Updated dependencies [7ea45afbe]
+- Updated dependencies [cfc017ee3]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/npm-resolver@17.0.0
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/exec.files-include-install-scripts@1.0.0
+  - @pnpm/pick-fetcher@2.0.1
+
+## 31.2.0
+
+### Minor Changes
+
+- 43ce9e4a6: Support for multiple architectures when installing dependencies [#5965](https://github.com/pnpm/pnpm/issues/5965).
+
+  You can now specify architectures for which you'd like to install optional dependencies, even if they don't match the architecture of the system running the install. Use the `supportedArchitectures` field in `package.json` to define your preferences.
+
+  For example, the following configuration tells pnpm to install optional dependencies for Windows x64:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32"],
+        "cpu": ["x64"]
+      }
+    }
+  }
+  ```
+
+  Whereas this configuration will have pnpm install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32", "darwin", "current"],
+        "cpu": ["x64", "arm64"]
+      }
+    }
+  }
+  ```
+
+  Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/types@9.4.0
+  - @pnpm/pick-registry-for-package@5.0.4
+  - @pnpm/lockfile-types@5.1.3
+  - @pnpm/lockfile-utils@8.0.7
+  - @pnpm/prune-lockfile@5.0.7
+  - @pnpm/core-loggers@9.0.4
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/manifest-utils@5.0.5
+  - @pnpm/read-package-json@8.0.5
+  - @pnpm/npm-resolver@16.0.13
+  - @pnpm/resolver-base@10.0.4
+  - @pnpm/pick-fetcher@2.0.1
+
+## 31.1.21
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [ff55119a8]
+  - @pnpm/npm-resolver@16.0.12
+
+## 31.1.20
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/pick-registry-for-package@5.0.3
+  - @pnpm/lockfile-types@5.1.2
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/prune-lockfile@5.0.6
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/manifest-utils@5.0.4
+  - @pnpm/read-package-json@8.0.4
+  - @pnpm/npm-resolver@16.0.11
+  - @pnpm/resolver-base@10.0.3
+  - @pnpm/store-controller-types@17.0.1
+  - @pnpm/pick-fetcher@2.0.1
+
+## 31.1.19
+
+### Patch Changes
+
+- b0afd7833: Optimize peers resolution to avoid out-of-memory exceptions in some rare cases, when there are too many circular dependencies and peer dependencies [#7149](https://github.com/pnpm/pnpm/pull/7149).
+
+## 31.1.18
+
+### Patch Changes
+
+- f394cfccd: Don't update git-hosted dependencies when adding an unrelated dependency [#7008](https://github.com/pnpm/pnpm/issues/7008).
+- Updated dependencies [f394cfccd]
+  - @pnpm/lockfile-utils@8.0.5
+  - @pnpm/pick-fetcher@2.0.1
+
 ## 31.1.17
 
 ### Patch Changes

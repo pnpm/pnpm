@@ -10,7 +10,7 @@ export function reportContext (
     packageImportMethod: Rx.Observable<PackageImportMethodLog>
   },
   opts: { cwd: string }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return Rx.combineLatest(
     log$.context.pipe(take(1)),
     log$.packageImportMethod.pipe(take(1))

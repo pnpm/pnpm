@@ -11,7 +11,8 @@ describe('licences', () => {
         {
           name: 'bogus-package',
           version: '1.0.0',
-          depPath: '/bogus-package/1.0.0',
+          id: '/bogus-package@1.0.0',
+          depPath: '/bogus-package@1.0.0',
           snapshot: {
             resolution: {
               integrity: 'integrity-sha',
@@ -24,8 +25,9 @@ describe('licences', () => {
           virtualStoreDir: 'virtual-store-dir',
           modulesDir: 'modules-dir',
           dir: 'workspace-dir',
+          virtualStoreDirMaxLength: 120,
         }
       )
-    ).rejects.toThrow('Failed to find package index file for /bogus-package/1.0.0, please consider running \'pnpm install\'')
+    ).rejects.toThrow('Failed to find package index file for /bogus-package@1.0.0, please consider running \'pnpm install\'')
   })
 })

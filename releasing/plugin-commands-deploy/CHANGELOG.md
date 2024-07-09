@@ -1,5 +1,469 @@
 # @pnpm/plugin-commands-deploy
 
+## 5.1.13
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/fs.indexed-pkg-importer@6.0.5
+  - @pnpm/plugin-commands-installation@16.0.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/directory-fetcher@8.0.4
+
+## 5.1.12
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [84654bd]
+  - @pnpm/plugin-commands-installation@16.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/directory-fetcher@8.0.4
+  - @pnpm/fs.indexed-pkg-importer@6.0.4
+
+## 5.1.11
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/plugin-commands-installation@15.1.11
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/directory-fetcher@8.0.3
+  - @pnpm/fs.indexed-pkg-importer@6.0.3
+
+## 5.1.10
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.10
+- @pnpm/cli-utils@3.1.1
+- @pnpm/fs.indexed-pkg-importer@6.0.2
+- @pnpm/directory-fetcher@8.0.2
+
+## 5.1.9
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/plugin-commands-installation@15.1.9
+
+## 5.1.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.8
+
+## 5.1.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.7
+
+## 5.1.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.6
+
+## 5.1.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.5
+- @pnpm/fs.indexed-pkg-importer@6.0.2
+- @pnpm/cli-utils@3.0.7
+- @pnpm/directory-fetcher@8.0.2
+
+## 5.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/directory-fetcher@8.0.2
+  - @pnpm/plugin-commands-installation@15.1.4
+  - @pnpm/fs.indexed-pkg-importer@6.0.1
+
+## 5.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/plugin-commands-installation@15.1.3
+  - @pnpm/directory-fetcher@8.0.1
+
+## 5.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+- @pnpm/plugin-commands-installation@15.1.2
+
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.1
+
+## 5.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/plugin-commands-installation@15.1.0
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/fs.indexed-pkg-importer@6.0.0
+  - @pnpm/directory-fetcher@8.0.0
+
+## 5.0.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.7
+
+## 5.0.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.6
+
+## 5.0.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.5
+
+## 5.0.4
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+  - @pnpm/plugin-commands-installation@15.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.3
+
+## 5.0.2
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.1
+- @pnpm/plugin-commands-installation@15.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [3477ee5]
+- Updated dependencies [d4e13ca]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/plugin-commands-installation@15.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/directory-fetcher@8.0.0
+  - @pnpm/fs.indexed-pkg-importer@6.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/fs.is-empty-dir-or-nothing@2.0.0
+
+## 4.0.20
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+- Updated dependencies [e2e08b98f]
+- Updated dependencies [f43bdcf45]
+- Updated dependencies [df9b16aa9]
+  - @pnpm/plugin-commands-installation@14.2.0
+  - @pnpm/fs.indexed-pkg-importer@5.0.13
+  - @pnpm/directory-fetcher@7.0.11
+  - @pnpm/cli-utils@2.1.9
+
+## 4.0.19
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.10
+- @pnpm/plugin-commands-installation@14.1.3
+
+## 4.0.18
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.1.2
+- @pnpm/cli-utils@2.1.8
+- @pnpm/fs.indexed-pkg-importer@5.0.12
+- @pnpm/directory-fetcher@7.0.9
+
+## 4.0.17
+
+### Patch Changes
+
+- Updated dependencies [19be6b704]
+  - @pnpm/fs.indexed-pkg-importer@5.0.12
+  - @pnpm/plugin-commands-installation@14.1.1
+
+## 4.0.16
+
+### Patch Changes
+
+- 693944b66: `pnpm deploy` should not touch the target directory if it already exists and isn't empty [#7351](https://github.com/pnpm/pnpm/issues/7351).
+- Updated dependencies [064aeb681]
+- Updated dependencies [693944b66]
+  - @pnpm/plugin-commands-installation@14.1.0
+  - @pnpm/fs.is-empty-dir-or-nothing@1.0.0
+  - @pnpm/cli-utils@2.1.7
+
+## 4.0.15
+
+### Patch Changes
+
+- Updated dependencies [619e9ed6f]
+- Updated dependencies [4e71066dd]
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/plugin-commands-installation@14.0.15
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/fs.indexed-pkg-importer@5.0.11
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/directory-fetcher@7.0.9
+
+## 4.0.14
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/plugin-commands-installation@14.0.14
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/directory-fetcher@7.0.8
+  - @pnpm/fs.indexed-pkg-importer@5.0.10
+
+## 4.0.13
+
+### Patch Changes
+
+- Updated dependencies [418866ac0]
+  - @pnpm/fs.indexed-pkg-importer@5.0.9
+  - @pnpm/plugin-commands-installation@14.0.13
+
+## 4.0.12
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.12
+
+## 4.0.11
+
+### Patch Changes
+
+- Updated dependencies [6558d1865]
+  - @pnpm/plugin-commands-installation@14.0.11
+  - @pnpm/cli-utils@2.1.4
+
+## 4.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+- @pnpm/plugin-commands-installation@14.0.10
+
+## 4.0.9
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.9
+
+## 4.0.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.8
+
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.7
+
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/fs.indexed-pkg-importer@5.0.8
+- @pnpm/plugin-commands-installation@14.0.6
+- @pnpm/directory-fetcher@7.0.7
+- @pnpm/cli-utils@2.1.2
+
+## 4.0.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.5
+
+## 4.0.4
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.6
+- @pnpm/plugin-commands-installation@14.0.4
+
+## 4.0.3
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.5
+- @pnpm/plugin-commands-installation@14.0.3
+- @pnpm/fs.indexed-pkg-importer@5.0.7
+- @pnpm/cli-utils@2.1.1
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [500363647]
+  - @pnpm/directory-fetcher@7.0.4
+  - @pnpm/plugin-commands-installation@14.0.2
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+- Updated dependencies [d6592964f]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/plugin-commands-installation@14.0.0
+  - @pnpm/fs.indexed-pkg-importer@5.0.6
+  - @pnpm/directory-fetcher@7.0.3
+
+## 3.1.15
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.2.6
+
+## 3.1.14
+
+### Patch Changes
+
+- Updated dependencies [2ca756fd2]
+  - @pnpm/fs.indexed-pkg-importer@5.0.5
+  - @pnpm/plugin-commands-installation@13.2.5
+
+## 3.1.13
+
+### Patch Changes
+
+- Updated dependencies [bc83798d4]
+- Updated dependencies [46dc34dcc]
+- Updated dependencies [6dfbca86b]
+  - @pnpm/plugin-commands-installation@13.2.4
+  - @pnpm/fs.indexed-pkg-importer@5.0.4
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/directory-fetcher@7.0.2
+
+## 3.1.12
+
+### Patch Changes
+
+- Updated dependencies [e19de6a59]
+  - @pnpm/fs.indexed-pkg-importer@5.0.3
+  - @pnpm/plugin-commands-installation@13.2.3
+
+## 3.1.11
+
+### Patch Changes
+
+- Updated dependencies [6337dcdbc]
+  - @pnpm/fs.indexed-pkg-importer@5.0.2
+  - @pnpm/plugin-commands-installation@13.2.2
+
+## 3.1.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.23
+- @pnpm/plugin-commands-installation@13.2.1
+
+## 3.1.9
+
+### Patch Changes
+
+- Updated dependencies [ee6e0734e]
+- Updated dependencies [12f45a83d]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/fs.indexed-pkg-importer@5.0.1
+  - @pnpm/plugin-commands-installation@13.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/directory-fetcher@7.0.2
+
+## 3.1.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.8
+
+## 3.1.7
+
+### Patch Changes
+
+- Updated dependencies [ba48fe0bc]
+  - @pnpm/plugin-commands-installation@13.1.7
+  - @pnpm/cli-utils@2.0.21
+
+## 3.1.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.6
+- @pnpm/cli-utils@2.0.20
+
 ## 3.1.5
 
 ### Patch Changes

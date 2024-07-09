@@ -33,21 +33,21 @@ test('fall back to a newer version if there is no version published by the given
     .reply(200, badDatesMeta)
 
   const cacheDir = tempy.directory()
-  const resolve = createResolveFromNpm({
+  const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
   })
-  const resolveResult = await resolve({ alias: 'bad-dates', pref: '^1.0.0' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'bad-dates', pref: '^1.0.0' }, {
     registry,
     publishedBy: new Date('2015-08-17T19:26:00.508Z'),
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/bad-dates/1.0.0')
+  expect(resolveResult!.id).toBe('bad-dates@1.0.0')
 })
 
-test('request metadata when the one in cache does not have a version satisfiyng the range', async () => {
+test('request metadata when the one in cache does not have a version satisfying the range', async () => {
   const cacheDir = tempy.directory()
   const cachedMeta = {
     'dist-tags': {},
@@ -62,16 +62,16 @@ test('request metadata when the one in cache does not have a version satisfiyng 
     .get('/bad-dates')
     .reply(200, badDatesMeta)
 
-  const resolve = createResolveFromNpm({
+  const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
   })
-  const resolveResult = await resolve({ alias: 'bad-dates', pref: '^1.0.0' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'bad-dates', pref: '^1.0.0' }, {
     registry,
     publishedBy: new Date('2015-08-17T19:26:00.508Z'),
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/bad-dates/1.0.0')
+  expect(resolveResult!.id).toBe('bad-dates@1.0.0')
 })

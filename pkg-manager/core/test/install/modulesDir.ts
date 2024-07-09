@@ -5,7 +5,8 @@ import {
   type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { type ProjectRootDir } from '@pnpm/types'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
 test('installing to a custom modules directory', async () => {
@@ -15,20 +16,20 @@ test('installing to a custom modules directory', async () => {
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, await testDefaults({ modulesDir: 'pnpm_modules' }))
+  }, testDefaults({ modulesDir: 'pnpm_modules' }))
 
-  await project.has('is-positive', 'pnpm_modules')
+  project.has('is-positive', 'pnpm_modules')
 
-  await rimraf('pnpm_modules')
-  await project.hasNot('is-positive', 'pnpm_modules')
+  rimraf('pnpm_modules')
+  project.hasNot('is-positive', 'pnpm_modules')
 
   await install({
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, await testDefaults({ frozenLockfile: true, modulesDir: 'pnpm_modules' }))
+  }, testDefaults({ frozenLockfile: true, modulesDir: 'pnpm_modules' }))
 
-  await project.has('is-positive', 'pnpm_modules')
+  project.has('is-positive', 'pnpm_modules')
 })
 
 test('using different custom modules directory for every project', async () => {
@@ -54,11 +55,11 @@ test('using different custom modules directory for every project', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -73,7 +74,7 @@ test('using different custom modules directory for every project', async () => {
         },
       },
       modulesDir: 'modules_1',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -86,11 +87,11 @@ test('using different custom modules directory for every project', async () => {
         },
       },
       modulesDir: 'modules_2',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects }))
+  await mutateModules(importers, testDefaults({ allProjects }))
 
-  await projects['project-1'].has('is-positive', 'modules_1')
-  await projects['project-2'].has('is-positive', 'modules_2')
+  projects['project-1'].has('is-positive', 'modules_1')
+  projects['project-2'].has('is-positive', 'modules_2')
 })

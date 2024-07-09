@@ -1,17 +1,35 @@
-import { type DependenciesMeta, type PatchFile } from '@pnpm/types'
+import { type DependenciesMeta, type DepPath, type PatchFile, type ProjectId } from '@pnpm/types'
 
-export type { PatchFile }
+export type { PatchFile, ProjectId }
+
+export * from './lockfileFileTypes'
 
 export interface LockfileSettings {
   autoInstallPeers?: boolean
   excludeLinksFromLockfile?: boolean
+  peersSuffixMaxLength?: number
 }
 
 export interface Lockfile {
-  importers: Record<string, ProjectSnapshot>
-  lockfileVersion: number | string
+  importers: Record<ProjectId, ProjectSnapshot>
+  lockfileVersion: string
   time?: Record<string, string>
+  catalogs?: CatalogSnapshots
   packages?: PackageSnapshots
+  overrides?: Record<string, string>
+  packageExtensionsChecksum?: string
+  ignoredOptionalDependencies?: string[]
+  patchedDependencies?: Record<string, PatchFile>
+  pnpmfileChecksum?: string
+  settings?: LockfileSettings
+}
+
+export interface LockfileV9 {
+  importers: Record<string, ProjectSnapshot>
+  lockfileVersion: string
+  time?: Record<string, string>
+  snapshots?: Record<string, PackageSnapshotV7>
+  packages?: Record<string, PackageInfo>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   overrides?: Record<string, string>
@@ -29,32 +47,10 @@ export interface ProjectSnapshot {
   publishDirectory?: string
 }
 
-export interface LockfileV6 {
-  importers: Record<string, ProjectSnapshotV6>
-  lockfileVersion: number | string
-  time?: Record<string, string>
-  packages?: PackageSnapshots
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  overrides?: Record<string, string>
-  packageExtensionsChecksum?: string
-  patchedDependencies?: Record<string, PatchFile>
-  settings?: LockfileSettings
-}
-
-export interface ProjectSnapshotV6 {
-  specifiers: ResolvedDependenciesOfImporters
-  dependencies?: ResolvedDependenciesOfImporters
-  optionalDependencies?: ResolvedDependenciesOfImporters
-  devDependencies?: ResolvedDependenciesOfImporters
-  dependenciesMeta?: DependenciesMeta
-  publishDirectory?: string
-}
-
 export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>
 
 export interface PackageSnapshots {
-  [packagePath: string]: PackageSnapshot
+  [packagePath: DepPath]: PackageSnapshot
 }
 
 /**
@@ -64,6 +60,7 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
+  path?: string
 }
 
 /**
@@ -81,6 +78,7 @@ export interface GitRepositoryResolution {
   type: 'git'
   repo: string
   commit: string
+  path?: string
 }
 
 export type Resolution =
@@ -92,13 +90,14 @@ export type LockfileResolution = Resolution | {
   integrity: string
 }
 
+export type PackageSnapshotV7 = Pick<PackageSnapshot, 'optional' | 'dependencies' | 'optionalDependencies' | 'transitivePeerDependencies'>
+
+export type PackageInfo = Pick<PackageSnapshot, 'id' | 'patched' | 'hasBin' | 'name' | 'version' | 'resolution' | 'peerDependencies' | 'peerDependenciesMeta' | 'bundledDependencies' | 'engines' | 'cpu' | 'os' | 'libc' | 'deprecated'>
+
 export interface PackageSnapshot {
   id?: string
-  dev?: true | false
   optional?: true
-  requiresBuild?: true
   patched?: true
-  prepare?: true
   hasBin?: true
   // name and version are only needed
   // for packages that are hosted not in the npm registry
@@ -116,7 +115,7 @@ export interface PackageSnapshot {
     }
   }
   transitivePeerDependencies?: string[]
-  bundledDependencies?: string[]
+  bundledDependencies?: string[] | boolean
   engines?: Record<string, string> & {
     node: string
   }
@@ -138,3 +137,24 @@ export type PackageBin = string | { [name: string]: string }
  * }
  */
 export type ResolvedDependencies = Record<string, string>
+
+export interface CatalogSnapshots {
+  [catalogName: string]: { [dependencyName: string]: ResolvedCatalogEntry }
+}
+
+export interface ResolvedCatalogEntry {
+  /**
+   * The real specifier that should be used for this dependency's catalog entry.
+   * This would be the ^1.2.3 portion of:
+   *
+   * @example
+   * catalog:
+   *   foo: ^1.2.3
+   */
+  readonly specifier: string
+
+  /**
+   * The concrete version that the requested specifier resolved to. Ex: 1.2.3
+   */
+  readonly version: string
+}

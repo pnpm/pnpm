@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-projects-context",
-  "version": "8.0.6",
+  "version": "9.1.6",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,11 +9,11 @@
     "!*.map"
   ],
   "keywords": [
-    "pnpm8"
+    "pnpm9"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
@@ -32,7 +32,7 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "realpath-missing": "^1.1.0"
+    "realpath-missing": "catalog:"
   },
   "devDependencies": {
     "@pnpm/read-projects-context": "workspace:*"

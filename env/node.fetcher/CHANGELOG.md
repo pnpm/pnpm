@@ -1,5 +1,242 @@
 # @pnpm/node.fetcher
 
+## 4.0.8
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+- Updated dependencies [afe520d]
+  - @pnpm/tarball-fetcher@19.0.8
+  - @pnpm/create-cafs-store@7.0.5
+
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.3
+- @pnpm/pick-fetcher@3.0.0
+- @pnpm/tarball-fetcher@19.0.7
+- @pnpm/create-cafs-store@7.0.4
+
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.2
+- @pnpm/tarball-fetcher@19.0.6
+- @pnpm/create-cafs-store@7.0.3
+- @pnpm/pick-fetcher@3.0.0
+
+## 4.0.5
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@19.0.5
+
+## 4.0.4
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@7.0.2
+- @pnpm/tarball-fetcher@19.0.4
+
+## 4.0.3
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.1
+- @pnpm/tarball-fetcher@19.0.3
+- @pnpm/create-cafs-store@7.0.1
+- @pnpm/pick-fetcher@3.0.0
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/tarball-fetcher@19.0.2
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@19.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+  - @pnpm/tarball-fetcher@19.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/create-cafs-store@7.0.0
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/pick-fetcher@3.0.0
+
+## 3.0.39
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.13
+- @pnpm/fetcher-base@15.0.7
+- @pnpm/pick-fetcher@2.0.1
+- @pnpm/tarball-fetcher@18.0.19
+
+## 3.0.38
+
+### Patch Changes
+
+- Updated dependencies [342222d20]
+  - @pnpm/tarball-fetcher@18.0.18
+
+## 3.0.37
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.12
+- @pnpm/tarball-fetcher@18.0.17
+
+## 3.0.36
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+  - @pnpm/create-cafs-store@6.0.11
+  - @pnpm/fetcher-base@15.0.6
+  - @pnpm/tarball-fetcher@18.0.16
+  - @pnpm/pick-fetcher@2.0.1
+
+## 3.0.35
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.5
+- @pnpm/tarball-fetcher@18.0.15
+- @pnpm/create-cafs-store@6.0.10
+- @pnpm/pick-fetcher@2.0.1
+
+## 3.0.34
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.9
+- @pnpm/tarball-fetcher@18.0.14
+
+## 3.0.33
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.13
+
+## 3.0.32
+
+### Patch Changes
+
+- Updated dependencies [abdf1f2b6]
+  - @pnpm/tarball-fetcher@18.0.12
+  - @pnpm/create-cafs-store@6.0.8
+
+## 3.0.31
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.11
+
+## 3.0.30
+
+### Patch Changes
+
+- Updated dependencies [cfc017ee3]
+  - @pnpm/create-cafs-store@6.0.7
+  - @pnpm/fetcher-base@15.0.4
+  - @pnpm/pick-fetcher@2.0.1
+  - @pnpm/tarball-fetcher@18.0.10
+
+## 3.0.29
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.9
+
+## 3.0.28
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.6
+- @pnpm/fetcher-base@15.0.3
+- @pnpm/tarball-fetcher@18.0.8
+- @pnpm/pick-fetcher@2.0.1
+
+## 3.0.27
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.7
+
+## 3.0.26
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.5
+- @pnpm/tarball-fetcher@18.0.6
+
+## 3.0.25
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.4
+- @pnpm/tarball-fetcher@18.0.5
+
+## 3.0.24
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.3
+- @pnpm/tarball-fetcher@18.0.4
+
+## 3.0.23
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.2
+- @pnpm/tarball-fetcher@18.0.3
+
+## 3.0.22
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.1
+- @pnpm/fetcher-base@15.0.2
+- @pnpm/tarball-fetcher@18.0.2
+- @pnpm/pick-fetcher@2.0.1
+
+## 3.0.21
+
+### Patch Changes
+
+- Updated dependencies [f394cfccd]
+  - @pnpm/pick-fetcher@2.0.1
+
+## 3.0.20
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.1
+
 ## 3.0.19
 
 ### Major Changes

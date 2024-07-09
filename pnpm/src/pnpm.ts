@@ -14,16 +14,6 @@ const argv = process.argv.slice(2)
     console.log(version)
     break
   }
-  case 'install-completion': {
-    const { install: installCompletion } = await import('@pnpm/tabtab')
-    await installCompletion({ name: 'pnpm', completer: 'pnpm', shell: argv[1] })
-    return
-  }
-  case 'uninstall-completion': {
-    const { uninstall: uninstallCompletion } = await import('@pnpm/tabtab')
-    await uninstallCompletion({ name: 'pnpm' })
-    return
-  }
   // commands that are passed through to npm:
   case 'access':
   case 'adduser':
@@ -32,6 +22,7 @@ const argv = process.argv.slice(2)
   case 'dist-tag':
   case 'docs':
   case 'edit':
+  case 'home':
   case 'info':
   case 'login':
   case 'logout':
@@ -65,7 +56,7 @@ const argv = process.argv.slice(2)
   }
 })()
 
-async function runPnpm () {
+async function runPnpm (): Promise<void> {
   const { errorHandler } = await import('./errorHandler')
   try {
     const { main } = await import('./main')
@@ -75,7 +66,7 @@ async function runPnpm () {
   }
 }
 
-async function passThruToNpm () {
+async function passThruToNpm (): Promise<void> {
   const { runNpm } = await import('./runNpm')
   const { status } = await runNpm(argv)
   process.exit(status!)

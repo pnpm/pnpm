@@ -1,5 +1,359 @@
 # @pnpm/plugin-commands-audit
 
+## 10.2.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/audit@8.1.6
+
+## 10.2.2
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/audit@8.1.6
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/read-project-manifest@6.0.4
+
+## 10.2.1
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/audit@8.1.5
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/read-project-manifest@6.0.3
+
+## 10.2.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/config@21.4.0
+  - @pnpm/audit@8.1.4
+  - @pnpm/cli-utils@3.1.1
+
+## 10.1.6
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+
+## 10.1.5
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/cli-utils@3.0.7
+- @pnpm/audit@8.1.3
+
+## 10.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/audit@8.1.3
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/read-project-manifest@6.0.2
+
+## 10.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/audit@8.1.2
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/network.auth-header@3.0.1
+  - @pnpm/read-project-manifest@6.0.1
+
+## 10.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 10.1.1
+
+### Patch Changes
+
+- @pnpm/audit@8.1.1
+- @pnpm/lockfile-file@9.0.4
+
+## 10.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/audit@8.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/cli-utils@3.0.3
+
+## 10.0.4
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+  - @pnpm/audit@8.0.2
+
+## 10.0.3
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/audit@8.0.1
+
+## 10.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+
+## 10.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/cli-utils@3.0.1
+
+## 10.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [c692f80]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [f67ad31]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/network.auth-header@3.0.0
+  - @pnpm/audit@8.0.0
+  - @pnpm/cli-utils@3.0.0
+
+## 9.0.11
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.9
+- @pnpm/config@20.4.2
+- @pnpm/audit@7.0.25
+
+## 9.0.10
+
+### Patch Changes
+
+- Updated dependencies [5a5e42551]
+- Updated dependencies [d9564e354]
+  - @pnpm/network.auth-header@2.2.0
+  - @pnpm/config@20.4.1
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/audit@7.0.24
+
+## 9.0.9
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 9.0.8
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/config@20.3.0
+  - @pnpm/types@9.4.2
+  - @pnpm/audit@7.0.23
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/read-project-manifest@5.0.10
+
+## 9.0.7
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/audit@7.0.22
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/read-project-manifest@5.0.9
+
+## 9.0.6
+
+### Patch Changes
+
+- @pnpm/audit@7.0.21
+
+## 9.0.5
+
+### Patch Changes
+
+- Updated dependencies [3ac0487b3]
+  - @pnpm/network.auth-header@2.1.0
+  - @pnpm/cli-utils@2.1.4
+
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [23039a6d6]
+  - @pnpm/network.auth-header@2.0.6
+  - @pnpm/cli-utils@2.1.3
+
+## 9.0.3
+
+### Patch Changes
+
+- @pnpm/audit@7.0.20
+
+## 9.0.2
+
+### Patch Changes
+
+- @pnpm/config@20.1.2
+- @pnpm/cli-utils@2.1.2
+- @pnpm/audit@7.0.19
+
+## 9.0.1
+
+### Patch Changes
+
+- @pnpm/audit@7.0.19
+- @pnpm/config@20.1.1
+- @pnpm/cli-utils@2.1.1
+
+## 9.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/audit@7.0.18
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/read-project-manifest@5.0.8
+
+## 8.0.30
+
+### Patch Changes
+
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/config@20.0.0
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/audit@7.0.17
+
+## 8.0.29
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+
+## 8.0.28
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/audit@7.0.17
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/read-project-manifest@5.0.7
+
+## 8.0.27
+
+### Patch Changes
+
+- @pnpm/audit@7.0.16
+
+## 8.0.26
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/audit@7.0.15
+  - @pnpm/cli-utils@2.0.21
+
+## 8.0.25
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+
 ## 8.0.24
 
 ### Patch Changes

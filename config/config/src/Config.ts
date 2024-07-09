@@ -1,8 +1,10 @@
+import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   type Project,
   type ProjectManifest,
   type ProjectsGraph,
   type Registries,
+  type SslConfig,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
 
@@ -22,6 +24,7 @@ export interface Config {
   excludeLinksFromLockfile: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
+  failIfNoMatch: boolean
   filter: string[]
   filterProd: string[]
   rawLocalConfig: Record<string, any>, // eslint-disable-line
@@ -90,6 +93,7 @@ export interface Config {
   failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
   deployAllFiles?: boolean
+  reporterHidePrefix?: boolean
 
   // proxy
   httpProxy?: string
@@ -124,11 +128,14 @@ export interface Config {
   hooks?: Hooks
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
-  publicHoistPattern?: string[]
+  publicHoistPattern?: string[] | string
+  hoistWorkspacePackages?: boolean
   useStoreServer?: boolean
   useRunningStoreServer?: boolean
   workspaceConcurrency: number
   workspaceDir?: string
+  workspacePackagePatterns?: string[]
+  catalogs?: Catalogs
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
@@ -152,6 +159,7 @@ export interface Config {
   enablePnp?: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
+  dlxCacheMaxAge: number
   embedReadme?: boolean
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
@@ -159,19 +167,42 @@ export interface Config {
   dedupePeerDependents?: boolean
   patchesDir?: string
   ignoreWorkspaceCycles?: boolean
+  disallowWorkspaceCycles?: boolean
   packGzipLevel?: number
 
   registries: Registries
+  sslConfigs: Record<string, SslConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean
 
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
+  rootProjectManifestDir: string
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
+
+  globalconfig: string
+  hoist: boolean
+  packageLock: boolean
+  pending: boolean
+  userconfig: string
+  workspacePrefix?: string
+  dedupeDirectDeps?: boolean
+  extendNodePath?: boolean
+  gitBranchLockfile?: boolean
+  globalDir?: string
+  lockfile?: boolean
+  dedupeInjectedDeps?: boolean
+  nodeOptions?: string
+  packageManagerStrict?: boolean
+  packageManagerStrictVersion?: boolean
+  virtualStoreDirMaxLength: number
+  peersSuffixMaxLength?: number
+  strictStorePkgContentCheck: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
   globalPrefix?: string
   proxy?: string
+  shamefullyFlatten?: boolean
 }

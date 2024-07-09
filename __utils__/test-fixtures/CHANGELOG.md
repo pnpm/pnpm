@@ -1,5 +1,107 @@
 # @pnpm/test-fixtures
 
+## 0.1.27
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.97
+
+## 0.1.26
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.96
+
+## 0.1.25
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.95
+
+## 0.1.24
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.94
+
+## 0.1.23
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.93
+
+## 0.1.22
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.92
+
+## 0.1.21
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.91
+
+## 0.1.20
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.90
+
+## 0.1.19
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.89
+
+## 0.1.18
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.88
+
+## 0.1.17
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.87
+
+## 0.1.16
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.86
+
+## 0.1.15
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.85
+
+## 0.1.14
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.84
+
+## 0.1.13
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.83
+
+## 0.1.12
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.82
+
+## 0.1.11
+
+### Patch Changes
+
+- @pnpm/prepare@0.0.81
+
 ## 0.1.10
 
 ### Patch Changes

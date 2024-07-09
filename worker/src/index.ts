@@ -1,3 +1,4 @@
+// cspell:ignore checkin
 import path from 'path'
 import os from 'os'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
@@ -9,22 +10,23 @@ import {
   type AddDirToStoreMessage,
   type LinkPkgMessage,
   type SymlinkAllModulesMessage,
+  type HardLinkDirMessage,
 } from './types'
 
 let workerPool: WorkerPool | undefined
 
-export async function restartWorkerPool () {
+export async function restartWorkerPool (): Promise<void> {
   await finishWorkers()
   workerPool = createTarballWorkerPool()
 }
 
-export async function finishWorkers () {
+export async function finishWorkers (): Promise<void> {
   // @ts-expect-error
   await global.finishWorkers?.()
 }
 
 function createTarballWorkerPool (): WorkerPool {
-  const maxWorkers = Math.max(2, os.cpus().length - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
+  const maxWorkers = Math.max(2, (os.availableParallelism?.() ?? os.cpus().length) - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
   const workerPool = new WorkerPool({
     id: 'pnpm',
     maxWorkers,
@@ -46,19 +48,24 @@ function createTarballWorkerPool (): WorkerPool {
   return workerPool
 }
 
-export async function addFilesFromDir (
-  opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg'>
-) {
+interface AddFilesResult {
+  filesIndex: Record<string, string>
+  manifest: DependencyManifest
+  requiresBuild: boolean
+}
+
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
+
+export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
-    // eslint-disalbe-next-line
+  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError('GIT_FETCH_FAILED', error as string))
+        reject(new PnpmError(error.code ?? 'GIT_FETCH_FAILED', error.message as string))
         return
       }
       resolve(value)
@@ -71,6 +78,7 @@ export async function addFilesFromDir (
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
+      files: opts.files,
     })
   })
 }
@@ -109,16 +117,16 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
   }
 }
 
-export async function addFilesFromTarball (
-  opts: Pick<TarballExtractMessage, 'buffer' | 'cafsDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
-    url: string
-  }
-) {
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'cafsDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
+  url: string
+}
+
+export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Promise<AddFilesResult> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
+  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
@@ -129,7 +137,7 @@ export async function addFilesFromTarball (
           }))
           return
         }
-        reject(new PnpmError('TARBALL_EXTRACT', `Failed to unpack the tarball from "${opts.url}": ${error as string}`))
+        reject(new PnpmError(error.code ?? 'TARBALL_EXTRACT', `Failed to add tarball from "${opts.url}" to store: ${error.message as string}`))
         return
       }
       resolve(value)
@@ -151,16 +159,16 @@ export async function readPkgFromCafs (
   verifyStoreIntegrity: boolean,
   filesIndexFile: string,
   readManifest?: boolean
-): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest }> {
+): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }> {
   if (!workerPool) {
     workerPool = createTarballWorkerPool()
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }>((resolve, reject) => {
+  return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, requiresBuild: boolean }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError('READ_FROM_STORE', error as string))
+        reject(new PnpmError(error.code ?? 'READ_FROM_STORE', error.message as string))
         return
       }
       resolve(value)
@@ -186,7 +194,7 @@ export async function importPackage (
     localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError('LINKING_FAILED', error as string))
+        reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
         return
       }
       resolve(value)
@@ -209,7 +217,7 @@ export async function symlinkAllModules (
     localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError('SYMLINK_FAILED', error as string))
+        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string))
         return
       }
       resolve(value)
@@ -218,5 +226,27 @@ export async function symlinkAllModules (
       type: 'symlinkAllModules',
       ...opts,
     } as SymlinkAllModulesMessage)
+  })
+}
+
+export async function hardLinkDir (src: string, destDirs: string[]): Promise<void> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  await new Promise<void>((resolve, reject) => {
+    localWorker.once('message', ({ status, error }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError(error.code ?? 'HARDLINK_FAILED', error.message as string))
+        return
+      }
+      resolve()
+    })
+    localWorker.postMessage({
+      type: 'hardLinkDir',
+      src,
+      destDirs,
+    } as HardLinkDirMessage)
   })
 }

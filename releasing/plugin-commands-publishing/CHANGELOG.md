@@ -1,5 +1,535 @@
 # @pnpm/plugin-commands-publishing
 
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/client@11.1.4
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/exportable-manifest@7.0.0
+
+## 9.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies [9c63679]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/exportable-manifest@7.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/client@11.1.3
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/package-bins@9.0.3
+  - @pnpm/sort-packages@6.0.4
+
+## 8.1.8
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [398472c]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/exportable-manifest@6.1.0
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/pick-registry-for-package@6.0.2
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/client@11.1.2
+  - @pnpm/package-bins@9.0.2
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/sort-packages@6.0.3
+
+## 8.1.7
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/exportable-manifest@6.0.2
+  - @pnpm/lifecycle@17.0.5
+
+## 8.1.6
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/lifecycle@17.0.5
+  - @pnpm/client@11.1.1
+
+## 8.1.5
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/client@11.1.0
+  - @pnpm/lifecycle@17.0.4
+  - @pnpm/config@21.2.3
+  - @pnpm/cli-utils@3.0.7
+  - @pnpm/exportable-manifest@6.0.2
+
+## 8.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/lifecycle@17.0.3
+  - @pnpm/client@11.0.6
+  - @pnpm/package-bins@9.0.1
+  - @pnpm/exportable-manifest@6.0.2
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/sort-packages@6.0.2
+
+## 8.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/lifecycle@17.0.2
+  - @pnpm/network.auth-header@3.0.1
+  - @pnpm/exportable-manifest@6.0.1
+  - @pnpm/client@11.0.5
+
+## 8.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+- @pnpm/client@11.0.4
+
+## 8.1.1
+
+### Patch Changes
+
+- c50afe4: Explicitly throw an error when user attempts to run `publish` or `pack` when `bundledDependencies` is set but `node-linker` isn't `hoisted`.
+  - @pnpm/sort-packages@6.0.1
+  - @pnpm/client@11.0.3
+
+## 8.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/config@21.2.0
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/exportable-manifest@6.0.0
+  - @pnpm/lifecycle@17.0.1
+
+## 8.0.3
+
+### Patch Changes
+
+- @pnpm/client@11.0.2
+
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [bfadc0a]
+- Updated dependencies [a80b539]
+  - @pnpm/lifecycle@17.0.1
+  - @pnpm/cli-utils@3.0.2
+  - @pnpm/client@11.0.1
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/cli-utils@3.0.1
+
+## 8.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 7733f3a: Added support for registry-scoped SSL configurations (cert, key, and ca). Three new settings supported: `<registryURL>:certfile`, `<registryURL>:keyfile`, and `<registryURL>:ca`. For instance:
+
+  ```
+  //registry.mycomp.com/:certfile=server-cert.pem
+  //registry.mycomp.com/:keyfile=server-key.pem
+  //registry.mycomp.com/:cafile=client-cert.pem
+  ```
+
+  Related issue: [#7427](https://github.com/pnpm/pnpm/issues/7427).
+  Related PR: [#7626](https://github.com/pnpm/pnpm/pull/7626).
+
+### Patch Changes
+
+- f7537b8: It should be possible to publish a tarball with custom dist-tag [#7845](https://github.com/pnpm/pnpm/issues/7845).
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [82aac81]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [e70a829]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/client@11.0.0
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/pick-registry-for-package@6.0.0
+  - @pnpm/exportable-manifest@6.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/package-bins@9.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/sort-packages@6.0.0
+  - @pnpm/network.auth-header@3.0.0
+  - @pnpm/git-utils@2.0.0
+  - @pnpm/lifecycle@17.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/run-npm@7.0.0
+  - @pnpm/fs.packlist@2.0.0
+
+## 7.5.3
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/lifecycle@16.0.12
+  - @pnpm/client@10.0.46
+  - @pnpm/cli-utils@2.1.9
+  - @pnpm/config@20.4.2
+  - @pnpm/exportable-manifest@5.0.11
+
+## 7.5.2
+
+### Patch Changes
+
+- 3c6726936: `pnpm pack` should work as expected when "prepack" modifies the manifest [#7558](https://github.com/pnpm/pnpm/pull/7558).
+
+## 7.5.1
+
+### Patch Changes
+
+- 7856b9263: `@pnpm/network.auth-header` should be a prod dependency.
+- 9fb45d0fc: `pnpm publish` should pack "main" file or "bin" files defined in "publishConfig" [#4195](https://github.com/pnpm/pnpm/issues/4195).
+- Updated dependencies [9fb45d0fc]
+  - @pnpm/fs.packlist@1.0.3
+  - @pnpm/client@10.0.45
+  - @pnpm/lifecycle@16.0.11
+
+## 7.5.0
+
+### Minor Changes
+
+- 5a5e42551: Allow using token helpers in `pnpm publish` [#7316](https://github.com/pnpm/pnpm/issues/7316).
+
+### Patch Changes
+
+- Updated dependencies [5a5e42551]
+- Updated dependencies [d9564e354]
+- Updated dependencies [5a5e42551]
+  - @pnpm/run-npm@6.1.0
+  - @pnpm/config@20.4.1
+  - @pnpm/client@10.0.44
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/exportable-manifest@5.0.11
+  - @pnpm/lifecycle@16.0.10
+
+## 7.4.13
+
+### Patch Changes
+
+- @pnpm/client@10.0.43
+
+## 7.4.12
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 7.4.11
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/package-bins@8.0.6
+  - @pnpm/exportable-manifest@5.0.11
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/sort-packages@5.0.9
+  - @pnpm/client@10.0.42
+
+## 7.4.10
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/package-bins@8.0.5
+  - @pnpm/exportable-manifest@5.0.10
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/sort-packages@5.0.8
+  - @pnpm/client@10.0.41
+
+## 7.4.9
+
+### Patch Changes
+
+- @pnpm/client@10.0.40
+
+## 7.4.8
+
+### Patch Changes
+
+- @pnpm/client@10.0.39
+- @pnpm/cli-utils@2.1.4
+
+## 7.4.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+- @pnpm/client@10.0.38
+
+## 7.4.6
+
+### Patch Changes
+
+- @pnpm/client@10.0.37
+
+## 7.4.5
+
+### Patch Changes
+
+- @pnpm/client@10.0.36
+
+## 7.4.4
+
+### Patch Changes
+
+- Updated dependencies [74432d605]
+  - @pnpm/fs.packlist@1.0.2
+  - @pnpm/client@10.0.35
+  - @pnpm/lifecycle@16.0.8
+  - @pnpm/config@20.1.2
+  - @pnpm/cli-utils@2.1.2
+  - @pnpm/exportable-manifest@5.0.9
+
+## 7.4.3
+
+### Patch Changes
+
+- Updated dependencies [c7f1359b6]
+  - @pnpm/fs.packlist@1.0.1
+  - @pnpm/lifecycle@16.0.7
+  - @pnpm/client@10.0.34
+
+## 7.4.2
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/client@10.0.33
+  - @pnpm/lifecycle@16.0.6
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+  - @pnpm/exportable-manifest@5.0.9
+
+## 7.4.1
+
+### Patch Changes
+
+- 500363647: `pnpm publish` should not pack the same file twice sometimes [#6997](https://github.com/pnpm/pnpm/issues/6997).
+
+  The fix was to update `npm-packlist` to the latest version.
+
+- Updated dependencies [500363647]
+  - @pnpm/fs.packlist@1.0.0
+  - @pnpm/lifecycle@16.0.5
+  - @pnpm/client@10.0.32
+
+## 7.4.0
+
+### Minor Changes
+
+- 43ce9e4a6: Support for multiple architectures when installing dependencies [#5965](https://github.com/pnpm/pnpm/issues/5965).
+
+  You can now specify architectures for which you'd like to install optional dependencies, even if they don't match the architecture of the system running the install. Use the `supportedArchitectures` field in `package.json` to define your preferences.
+
+  For example, the following configuration tells pnpm to install optional dependencies for Windows x64:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32"],
+        "cpu": ["x64"]
+      }
+    }
+  }
+  ```
+
+  Whereas this configuration will have pnpm install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32", "darwin", "current"],
+        "cpu": ["x64", "arm64"]
+      }
+    }
+  }
+  ```
+
+  Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d2dc2e66a]
+- Updated dependencies [d6592964f]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/package-bins@8.0.4
+  - @pnpm/lifecycle@16.0.4
+  - @pnpm/pick-registry-for-package@5.0.4
+  - @pnpm/exportable-manifest@5.0.9
+  - @pnpm/resolver-base@10.0.4
+  - @pnpm/sort-packages@5.0.7
+  - @pnpm/client@10.0.31
+
+## 7.3.20
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.3
+- @pnpm/client@10.0.30
+
+## 7.3.19
+
+### Patch Changes
+
+- Updated dependencies [4246f41be]
+- Updated dependencies [84f81c9ae]
+  - @pnpm/sort-packages@5.0.6
+  - @pnpm/lifecycle@16.0.2
+  - @pnpm/client@10.0.29
+
+## 7.3.18
+
+### Patch Changes
+
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/config@20.0.0
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/client@10.0.28
+  - @pnpm/exportable-manifest@5.0.8
+  - @pnpm/lifecycle@16.0.1
+
+## 7.3.17
+
+### Patch Changes
+
+- @pnpm/client@10.0.27
+
+## 7.3.16
+
+### Patch Changes
+
+- @pnpm/client@10.0.26
+
+## 7.3.15
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+
+## 7.3.14
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/pick-registry-for-package@5.0.3
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/package-bins@8.0.3
+  - @pnpm/exportable-manifest@5.0.8
+  - @pnpm/resolver-base@10.0.3
+  - @pnpm/sort-packages@5.0.5
+  - @pnpm/client@10.0.25
+
+## 7.3.13
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+
+## 7.3.12
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+- @pnpm/client@10.0.24
+
 ## 7.3.11
 
 ### Patch Changes

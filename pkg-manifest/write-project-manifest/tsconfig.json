@@ -15,6 +15,5 @@
     {
       "path": "../../text/comments-parser"
     }
-  ],
-  "composite": true
+  ]
 }

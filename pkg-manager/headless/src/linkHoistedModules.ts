@@ -46,9 +46,11 @@ export async function linkHoistedModules (
     prefix: opts.lockfileDir,
     removed: dirsToRemove.length,
   })
-  await Promise.all([
-    ...dirsToRemove.map((dir) => tryRemoveDir(dir)),
-    ...Object.entries(hierarchy)
+  // We should avoid removing unnecessary directories while simultaneously adding new ones.
+  // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
+  await Promise.all(dirsToRemove.map((dir) => tryRemoveDir(dir)))
+  await Promise.all(
+    Object.entries(hierarchy)
       .map(([parentDir, depsHierarchy]) => {
         function warn (message: string) {
           logger.info({
@@ -60,11 +62,11 @@ export async function linkHoistedModules (
           ...opts,
           warn,
         })
-      }),
-  ])
+      })
+  )
 }
 
-async function tryRemoveDir (dir: string) {
+async function tryRemoveDir (dir: string): Promise<void> {
   removalLogger.debug(dir)
   try {
     await rimraf(dir)
@@ -95,7 +97,7 @@ async function linkAllPkgsInOrder (
     sideEffectsCacheRead: boolean
     warn: (message: string) => void
   }
-) {
+): Promise<void> {
   const _calcDepState = calcDepState.bind(null, graph, opts.depsStateCache)
   await Promise.all(
     Object.entries(hierarchy).map(async ([dir, deps]) => {
@@ -109,6 +111,7 @@ async function linkAllPkgsInOrder (
           throw err
         }
 
+        depNode.requiresBuild = filesResponse.requiresBuild
         let sideEffectsCacheKey: string | undefined
         if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
           sideEffectsCacheKey = _calcDepState(dir, {
@@ -122,10 +125,10 @@ async function linkAllPkgsInOrder (
         await limitLinking(async () => {
           const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
             filesResponse,
-            force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
+            force: true,
             disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
             keepModulesDir: true,
-            requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
+            requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
             sideEffectsCacheKey,
           })
           if (importMethod) {

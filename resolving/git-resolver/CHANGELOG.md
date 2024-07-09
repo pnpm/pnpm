@@ -1,5 +1,101 @@
 # @pnpm/git-resolver
 
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/fetch@8.0.3
+
+## 9.0.3
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.2
+- @pnpm/resolver-base@12.0.2
+
+## 9.0.2
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.1
+- @pnpm/resolver-base@12.0.1
+
+## 9.0.1
+
+### Patch Changes
+
+- c969f37: Lockfiles that have git-hosted dependencies specified should be correctly converted to the new lockfile format [#7990](https://github.com/pnpm/pnpm/issues/7990).
+
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- b13d2dc: It is now possible to install only a subdirectory from a Git repository.
+
+  For example, `pnpm add github:user/repo#path:packages/foo` will add a dependency from the `packages/foo` subdirectory.
+
+  This new parameter may be combined with other supported parameters separated by `&`. For instance, the next command will install the same package from the `dev` branch: `pnpm add github:user/repo#dev&path:packages/bar`.
+
+  Related issue: [#4765](https://github.com/pnpm/pnpm/issues/4765).
+  Related PR: [#7487](https://github.com/pnpm/pnpm/pull/7487).
+
+### Patch Changes
+
+- 985381c: Install gitlab-hosted packages correctly, when they are specified by commit or branch [#7603](https://github.com/pnpm/pnpm/issues/7603).
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [b13d2dc]
+  - @pnpm/fetch@8.0.0
+  - @pnpm/resolver-base@12.0.0
+
+## 8.0.12
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+
+## 8.0.11
+
+### Patch Changes
+
+- @pnpm/resolver-base@11.0.2
+- @pnpm/fetch@7.0.7
+
+## 8.0.10
+
+### Patch Changes
+
+- @pnpm/resolver-base@11.0.1
+- @pnpm/fetch@7.0.6
+
+## 8.0.9
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+
+## 8.0.8
+
+### Patch Changes
+
+- @pnpm/resolver-base@10.0.4
+- @pnpm/fetch@7.0.5
+
+## 8.0.7
+
+### Patch Changes
+
+- @pnpm/resolver-base@10.0.3
+- @pnpm/fetch@7.0.4
+
 ## 8.0.6
 
 ### Patch Changes

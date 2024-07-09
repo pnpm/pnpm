@@ -21,7 +21,12 @@ const pnpm = JSON.parse(fs.readFileSync(path.join(pnpmDir, 'package.json'), 'utf
 const release = getChangelogEntry(changelog, pnpm.version)
 fs.writeFileSync(path.join(dirname, '../../../RELEASE.md'), release.content)
 
-function getChangelogEntry (changelog: string, version: string) {
+interface ChangelogEntry {
+  content: string
+  highestLevel: number
+}
+
+function getChangelogEntry (changelog: string, version: string): ChangelogEntry {
   const ast = unified().use(remarkParse).parse(changelog)
 
   let highestLevel: number = BumpLevels.dep
@@ -72,7 +77,7 @@ function getChangelogEntry (changelog: string, version: string) {
   return {
     content: `${unified().use(remarkStringify).stringify(ast)}
 
-## Our Gold Sponsors
+## Platinum Sponsors
 
 <table>
   <tbody>
@@ -81,16 +86,26 @@ function getChangelogEntry (changelog: string, version: string) {
         <a href="https://bit.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://novu.co/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://figma.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/figma.svg" width="80"></a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Gold Sponsors
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://discord.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/novu.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/novu_light.svg" />
-            <img src="https://pnpm.io/img/users/novu.svg" width="180" />
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/discord.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/discord_light.svg" />
+            <img src="https://pnpm.io/img/users/discord.svg" width="220" />
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://prisma.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
@@ -100,8 +115,45 @@ function getChangelogEntry (changelog: string, version: string) {
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
-        <a href="https://www.flightcontrol.dev/?ref=pnpm" target="_blank"><img src="https://pnpm.io/img/users/flightcontrol.svg" width="240"></a>
+        <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/uscreen.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/uscreen_light.svg" />
+            <img src="https://pnpm.io/img/users/uscreen.svg" width="180" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://www.jetbrains.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
+            <img src="https://pnpm.io/img/users/jetbrains.svg" width="180" />
+          </picture>
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://nx.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/nx.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/nx_light.svg" />
+            <img src="https://pnpm.io/img/users/nx.svg" width="120" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
+            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" />
+          </picture>
+        </a>
       </td>
     </tr>
   </tbody>
@@ -149,21 +201,37 @@ function getChangelogEntry (changelog: string, version: string) {
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://www.thinkmill.com.au/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/thinkmill.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/thinkmill_light.svg" />
-            <img src="https://pnpm.io/img/users/thinkmill.svg" width="200" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
         <a href="https://devowl.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/devowlio.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/devowlio.svg" />
             <img src="https://pnpm.io/img/users/devowlio.svg" width="200" />
           </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://macpaw.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/macpaw.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/macpaw_light.svg" />
+            <img src="https://pnpm.io/img/users/macpaw.svg" width="200" />
+          </picture>
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://cerbos.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/cerbos.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/cerbos_light.svg" />
+            <img src="https://pnpm.io/img/users/cerbos.svg" width="180" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://vpsserver.com/en-us/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <img src="https://pnpm.io/img/users/vpsserver.svg" width="180" />
         </a>
       </td>
     </tr>

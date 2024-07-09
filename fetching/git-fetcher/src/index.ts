@@ -1,5 +1,8 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import type { GitFetcher } from '@pnpm/fetcher-base'
+import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { addFilesFromDir } from '@pnpm/worker'
@@ -9,12 +12,12 @@ import { URL } from 'url'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]
-  rawConfig: object
+  rawConfig: Record<string, unknown>
   unsafePerm?: boolean
   ignoreScripts?: boolean
 }
 
-export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
+export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: GitFetcher } {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
   const ignoreScripts = createOpts.ignoreScripts ?? false
   const preparePkg = preparePackage.bind(null, {
@@ -33,23 +36,28 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
       await execGit(['clone', resolution.repo, tempLocation])
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
+    let pkgDir: string
     try {
-      const shouldBeBuilt = await preparePkg(tempLocation)
-      if (ignoreScripts && shouldBeBuilt) {
+      const prepareResult = await preparePkg(tempLocation, resolution.path ?? '')
+      pkgDir = prepareResult.pkgDir
+      if (ignoreScripts && prepareResult.shouldBeBuilt) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }
-    } catch (err: any) { // eslint-disable-line
+    } catch (err: unknown) {
+      assert(util.types.isNativeError(err))
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
       throw err
     }
     // removing /.git to make directory integrity calculation faster
     await rimraf(path.join(tempLocation, '.git'))
+    const files = await packlist(pkgDir)
     // Important! We cannot remove the temp location at this stage.
     // Even though we have the index of the package,
     // the linking of files to the store is in progress.
     return addFilesFromDir({
       cafsDir: cafs.cafsDir,
-      dir: tempLocation,
+      dir: pkgDir,
+      files,
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
@@ -77,7 +85,7 @@ function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-function execGit (args: string[], opts?: object) {
+async function execGit (args: string[], opts?: object): Promise<void> {
   const fullArgs = prefixGitArgs().concat(args || [])
-  return execa('git', fullArgs, opts)
+  await execa('git', fullArgs, opts)
 }

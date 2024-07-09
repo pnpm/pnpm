@@ -1,5 +1,339 @@
 # @pnpm/build-modules
 
+## 13.0.6
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/link-bins@10.0.6
+  - @pnpm/worker@1.0.6
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 13.0.5
+
+### Patch Changes
+
+- fd884c1: Improve output of the `pnpm patch` command.
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/calc-dep-state@7.0.3
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/link-bins@10.0.5
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/worker@1.0.5
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 13.0.4
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/calc-dep-state@7.0.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/link-bins@10.0.4
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/worker@1.0.4
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 13.0.3
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@7.0.1
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/patching.apply-patch@3.0.1
+- @pnpm/lifecycle@17.0.5
+- @pnpm/link-bins@10.0.3
+
+## 13.0.2
+
+### Patch Changes
+
+- Updated dependencies [80aaa9f]
+  - @pnpm/link-bins@10.0.3
+  - @pnpm/lifecycle@17.0.5
+
+## 13.0.1
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/lifecycle@17.0.4
+  - @pnpm/worker@1.0.3
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+  - @pnpm/link-bins@10.0.2
+
+## 13.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/calc-dep-state@7.0.0
+  - @pnpm/lifecycle@17.0.3
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/link-bins@10.0.2
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/worker@1.0.2
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 12.0.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.2
+- @pnpm/patching.apply-patch@3.0.1
+- @pnpm/link-bins@10.0.1
+- @pnpm/read-package-json@9.0.1
+- @pnpm/worker@1.0.1
+
+## 12.0.3
+
+### Patch Changes
+
+- Updated dependencies [db1d6ff]
+  - @pnpm/deps.graph-sequencer@2.0.1
+
+## 12.0.2
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@6.0.1
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/patching.apply-patch@3.0.0
+- @pnpm/lifecycle@17.0.1
+- @pnpm/link-bins@10.0.0
+
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [bfadc0a]
+  - @pnpm/lifecycle@17.0.1
+
+## 12.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 1b26210: Print an info message about dependencies that were not built [#7815](https://github.com/pnpm/pnpm/issues/7815).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [11d9ebd]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [82aac81]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/worker@1.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/calc-dep-state@6.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/link-bins@10.0.0
+  - @pnpm/deps.graph-sequencer@2.0.0
+  - @pnpm/patching.apply-patch@3.0.0
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/lifecycle@17.0.0
+
+## 11.2.12
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+- Updated dependencies [0c383327e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/calc-dep-state@5.0.0
+  - @pnpm/lifecycle@16.0.12
+  - @pnpm/worker@0.3.14
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/link-bins@9.0.12
+
+## 11.2.11
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.11
+
+## 11.2.10
+
+### Patch Changes
+
+- @pnpm/worker@0.3.13
+
+## 11.2.9
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/worker@0.3.12
+  - @pnpm/calc-dep-state@4.1.5
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/link-bins@9.0.12
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/store-controller-types@17.1.4
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 11.2.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/calc-dep-state@4.1.4
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/link-bins@9.0.11
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/worker@0.3.11
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 11.2.7
+
+### Patch Changes
+
+- @pnpm/worker@0.3.10
+
+## 11.2.6
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/worker@0.3.9
+
+## 11.2.5
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/lifecycle@16.0.8
+  - @pnpm/worker@0.3.8
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/link-bins@9.0.10
+
+## 11.2.4
+
+### Patch Changes
+
+- b06f50183: Fixed a regression that was shipped with pnpm v8.10.0. Dependencies that were already built should not be rebuilt on repeat install. This issue was introduced via the changes related to [supportedArchitectures](https://github.com/pnpm/pnpm/pull/7214). Related issue [#7268](https://github.com/pnpm/pnpm/issues/7268).
+
+## 11.2.3
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.7
+
+## 11.2.2
+
+### Patch Changes
+
+- Updated dependencies [7ea45afbe]
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/worker@0.3.7
+  - @pnpm/lifecycle@16.0.6
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/link-bins@9.0.10
+
+## 11.2.1
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.5
+
+## 11.2.0
+
+### Minor Changes
+
+- 6390033cd: Directory hard linking moved to the worker.
+
+### Patch Changes
+
+- 43ce9e4a6: `filesIndexFile` may be undefined.
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [6390033cd]
+- Updated dependencies [6390033cd]
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/types@9.4.0
+  - @pnpm/worker@0.3.6
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/lifecycle@16.0.4
+  - @pnpm/core-loggers@9.0.4
+  - @pnpm/link-bins@9.0.10
+  - @pnpm/read-package-json@8.0.5
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/calc-dep-state@4.1.3
+
+## 11.1.2
+
+### Patch Changes
+
+- Updated dependencies [5c8c9196c]
+  - @pnpm/link-bins@9.0.9
+  - @pnpm/lifecycle@16.0.3
+
+## 11.1.1
+
+### Patch Changes
+
+- 4246f41be: Add package @pnpm/deps.graph-sequencer for better topological sort [#7168](https://github.com/pnpm/pnpm/pull/7168).
+- Updated dependencies [4246f41be]
+- Updated dependencies [84f81c9ae]
+  - @pnpm/deps.graph-sequencer@1.0.0
+  - @pnpm/lifecycle@16.0.2
+
+## 11.1.0
+
+### Minor Changes
+
+- d774a3196: Accept an allowBuild function to filter which dependencies may run scripts.
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/link-bins@9.0.8
+  - @pnpm/read-package-json@8.0.4
+  - @pnpm/store-controller-types@17.0.1
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/calc-dep-state@4.1.2
+
 ## 11.0.15
 
 ### Patch Changes
@@ -256,7 +590,7 @@
 
 ### Minor Changes
 
-- 3360c9f4b: When the hoisted `node-linker` is used, pnpm should not build the same package multiple times during installation. If a package is present at multipe locations because hoisting could not hoist them to a single directory, then the package should only built in one of the locations and copied to the rest.
+- 3360c9f4b: When the hoisted `node-linker` is used, pnpm should not build the same package multiple times during installation. If a package is present at multiple locations because hoisting could not hoist them to a single directory, then the package should only built in one of the locations and copied to the rest.
 
 ### Patch Changes
 

@@ -1,10 +1,11 @@
-import { type FileWriteResult, type PackageFileInfo, type FilesIndex } from '@pnpm/cafs-types'
+import { type AddToStoreResult, type FileWriteResult, type PackageFileInfo, type FilesIndex } from '@pnpm/cafs-types'
 import ssri from 'ssri'
 import { addFilesFromDir } from './addFilesFromDir'
 import { addFilesFromTarball } from './addFilesFromTarball'
 import {
   checkPkgFilesIntegrity,
   type PackageFilesIndex,
+  type SideEffects,
   type VerifyResult,
 } from './checkPkgFilesIntegrity'
 import { readManifestFromStore } from './readManifestFromStore'
@@ -27,6 +28,7 @@ export {
   getFilePathInCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
+  type SideEffects,
   optimisticRenameOverwrite,
   type FilesIndex,
   type VerifyResult,
@@ -39,7 +41,14 @@ export interface CreateCafsOpts {
   cafsLocker?: CafsLocker
 }
 
-export function createCafs (cafsDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}) {
+export interface CafsFunctions {
+  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean }) => AddToStoreResult
+  addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
+  getFilePathInCafs: (integrity: string | ssri.IntegrityLike, fileType: FileType) => string
+  getFilePathByModeInCafs: (integrity: string | ssri.IntegrityLike, mode: number) => string
+}
+
+export function createCafs (cafsDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {
   const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), cafsDir)
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
   return {

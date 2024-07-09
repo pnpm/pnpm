@@ -11,7 +11,7 @@ export function initReporter (
     cmd: string | null
     config: Config
   }
-) {
+): void {
   switch (reporterType) {
   case 'default':
     initDefaultReporter({
@@ -26,6 +26,8 @@ export function initReporter (
         streamLifecycleOutput: opts.config.stream,
         throttleProgress: 200,
         hideAddedPkgsProgress: opts.config.lockfileOnly,
+        hideLifecyclePrefix: opts.config.reporterHidePrefix,
+        peerDependencyRules: opts.config.rootProjectManifest?.pnpm?.peerDependencyRules,
       },
       streamParser,
     })
@@ -42,6 +44,8 @@ export function initReporter (
         aggregateOutput: opts.config.aggregateOutput,
         logLevel: opts.config.loglevel as LogLevel,
         throttleProgress: 1000,
+        hideLifecyclePrefix: opts.config.reporterHidePrefix,
+        peerDependencyRules: opts.config.rootProjectManifest?.pnpm?.peerDependencyRules,
       },
       streamParser,
     })

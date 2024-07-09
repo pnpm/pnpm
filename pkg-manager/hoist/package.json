@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "8.0.11",
+  "version": "9.1.8",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -16,19 +16,19 @@
   },
   "devDependencies": {
     "@pnpm/hoist": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "catalog:"
   },
   "directories": {
     "test": "test"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/hoist#readme",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/hoist",
   "scripts": {
@@ -48,11 +48,11 @@
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "1.0.0",
-    "is-subdir": "^1.2.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "resolve-link-target": "^2.0.0",
-    "symlink-dir": "^5.2.0"
+    "@pnpm/util.lex-comparator": "catalog:",
+    "is-subdir": "catalog:",
+    "ramda": "catalog:",
+    "resolve-link-target": "catalog:",
+    "symlink-dir": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

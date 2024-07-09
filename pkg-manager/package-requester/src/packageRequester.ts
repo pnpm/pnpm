@@ -1,4 +1,5 @@
 import { createReadStream, promises as fs } from 'fs'
+import os from 'os'
 import path from 'path'
 import {
   type FileType,
@@ -17,7 +18,7 @@ import {
 } from '@pnpm/fetcher-base'
 import { type Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
@@ -89,6 +90,8 @@ export function createPackageRequester (
     networkConcurrency?: number
     storeDir: string
     verifyStoreIntegrity: boolean
+    virtualStoreDirMaxLength: number
+    strictStorePkgContentCheck?: boolean
   }
 ): RequestPackageFunction & {
     fetchPackageToStore: FetchPackageToStoreFunction
@@ -97,7 +100,10 @@ export function createPackageRequester (
   } {
   opts = opts || {}
 
-  const networkConcurrency = opts.networkConcurrency ?? 16
+  // A lower bound of 16 is enforced to prevent performance degradation,
+  // especially in CI environments. Tests with a threshold lower than 16
+  // have shown consistent underperformance.
+  const networkConcurrency = opts.networkConcurrency ?? Math.max(os.availableParallelism?.() ?? os.cpus().length, 16)
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
@@ -116,6 +122,8 @@ export function createPackageRequester (
       concurrency: networkConcurrency,
     }),
     storeDir: opts.storeDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
   })
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
@@ -133,6 +141,7 @@ export function createPackageRequester (
     getFilesIndexFilePath: getFilesIndexFilePath.bind(null, {
       getFilePathInCafs,
       storeDir: opts.storeDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }),
     requestPackage,
   })
@@ -180,6 +189,7 @@ async function resolveAndFetch (
       projectDir: options.projectDir,
       registry: options.registry,
       workspacePackages: options.workspacePackages,
+      updateToLatest: options.updateToLatest,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest
@@ -201,7 +211,7 @@ async function resolveAndFetch (
     normalizedPref = resolveResult.normalizedPref
   }
 
-  const id = pkgId as string
+  const id = pkgId!
 
   if (resolution.type === 'directory' && !id.startsWith('file:')) {
     if (manifest == null) {
@@ -230,7 +240,7 @@ async function resolveAndFetch (
             lockfileDir: options.lockfileDir,
             nodeVersion: ctx.nodeVersion,
             optional: wantedDependency.optional === true,
-            pnpmVersion: ctx.pnpmVersion,
+            supportedArchitectures: options.supportedArchitectures,
           })
       )
   )
@@ -253,7 +263,7 @@ async function resolveAndFetch (
     }
   }
 
-  const pkg: PkgNameVersion = pick(['name', 'version'], manifest ?? {})
+  const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
     force: forceFetch,
@@ -267,8 +277,12 @@ async function resolveAndFetch (
     expectedPkg: options.expectedPkg?.name != null
       ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
       : pkg,
+    onFetchError: options.onFetchError,
   })
 
+  if (!manifest) {
+    manifest = (await fetchResult.fetching()).bundledManifest
+  }
   return {
     body: {
       id,
@@ -297,10 +311,11 @@ function getFilesIndexFilePath (
   ctx: {
     getFilePathInCafs: (integrity: string, fileType: FileType) => string
     storeDir: string
+    virtualStoreDirMaxLength: number
   },
   opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>
 ) {
-  const targetRelative = depPathToFilename(opts.pkg.id)
+  const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
   const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
     ? ctx.getFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, 'index')
@@ -313,7 +328,7 @@ function fetchToStore (
     readPkgFromCafs: (
       filesIndexFile: string,
       readManifest?: boolean
-    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest }>
+    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     fetch: (
       packageId: string,
       resolution: Resolution,
@@ -328,6 +343,8 @@ function fetchToStore (
       concurrency: number
     }
     storeDir: string
+    virtualStoreDirMaxLength: number
+    strictStorePkgContentCheck?: boolean
   },
   opts: FetchPackageToStoreOptions
 ): {
@@ -428,6 +445,9 @@ function fetchToStore (
       return await p
     } catch (err: any) { // eslint-disable-line
       ctx.fetchingLocker.delete(opts.pkg.id)
+      if (opts.onFetchError) {
+        throw opts.onFetchError(err)
+      }
       throw err
     }
   }
@@ -449,7 +469,7 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        const { verified, pkgFilesIndex, manifest } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
+        const { verified, pkgFilesIndex, manifest, requiresBuild } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
         if (verified) {
           if (
             (
@@ -467,10 +487,17 @@ function fetchToStore (
               !equalOrSemverEqual(pkgFilesIndex.version, opts.expectedPkg.version)
             )
           ) {
-            throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', `\
-Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store. \
-This means that the lockfile is broken. Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
-Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`)
+            const msg = `Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store.`
+            const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. \
+Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
+Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
+            if (ctx.strictStorePkgContentCheck ?? true) {
+              throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
+                hint: `${hint}\n\nIf you want to ignore this issue, set the strict-store-pkg-content-check to false.`,
+              })
+            } else {
+              globalWarn(`${msg} ${hint}`)
+            }
           }
           fetching.resolve({
             files: {
@@ -478,6 +505,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               filesIndex: pkgFilesIndex.files,
               resolvedFrom: 'store',
               sideEffects: pkgFilesIndex.sideEffects,
+              requiresBuild,
             },
             bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
           })
@@ -539,6 +567,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           resolvedFrom: fetchedPackage.local ? 'local-dir' : 'remote',
           filesIndex: fetchedPackage.filesIndex,
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
+          requiresBuild: fetchedPackage.requiresBuild,
         },
         bundledManifest: fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest),
       })

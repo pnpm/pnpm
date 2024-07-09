@@ -16,6 +16,12 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../packages/types"
     },
     {
@@ -24,6 +30,5 @@
     {
       "path": "../lifecycle"
     }
-  ],
-  "composite": true
+  ]
 }
