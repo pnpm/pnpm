@@ -1,6 +1,6 @@
 import path from 'path'
 
-export function replaceOrAddNodeIntoBinPaths (binPaths: string[], baseDir: string, nodePath: string): void {
+export function replaceOrAddNodeIntoBinPaths (binPaths: string[], baseDir: string, nodePath: string): string[] {
   baseDir = path.resolve(baseDir)
   if (!baseDir.endsWith(path.sep)) {
     baseDir += path.sep
@@ -8,8 +8,8 @@ export function replaceOrAddNodeIntoBinPaths (binPaths: string[], baseDir: strin
 
   const index = binPaths.findIndex(dir => dir.startsWith(baseDir))
   if (index < 0) {
-    binPaths.push(nodePath)
+    return [...binPaths, nodePath]
   } else {
-    binPaths[index] = nodePath
+    return [...binPaths.slice(0, index), nodePath, ...binPaths.slice(index + 1)]
   }
 }

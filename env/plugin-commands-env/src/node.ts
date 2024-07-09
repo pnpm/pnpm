@@ -47,10 +47,7 @@ export async function createBinPathsWithNodeVersion (config: ConfigWithExtraBinP
     useNodeVersion: nodeVersion,
   })
 
-  const binPaths = config.extraBinPaths ? [...config.extraBinPaths] : []
-  replaceOrAddNodeIntoBinPaths(binPaths, baseDir, nodePath)
-
-  return binPaths
+  return replaceOrAddNodeIntoBinPaths(config.extraBinPaths ?? [], baseDir, nodePath)
 }
 
 export interface ManifestWithUseNodeVersion {
@@ -71,10 +68,7 @@ export const createBinPathsModifierBasedOnManifest = (config: NvmNodeCommandOpti
     useNodeVersion: manifest.pnpm.useNodeVersion,
   })
 
-  binPaths = [...binPaths]
-  replaceOrAddNodeIntoBinPaths(binPaths, baseDir, nodePath)
-
-  return binPaths
+  return replaceOrAddNodeIntoBinPaths(binPaths, baseDir, nodePath)
 }
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {
