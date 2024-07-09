@@ -97,8 +97,8 @@ Please unset the script-shell option, or configure it to a .exe instead.
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
     : undefined
-  const modifyBinPaths: ModifyBinPaths = opts.modifyBinPaths ?? ((_, extraBinPaths) => extraBinPaths)
-  const extraBinPaths: string[] = await modifyBinPaths(manifest, opts.extraBinPaths ?? [])
+  // not all lifecycle hooks are executed by runLifecycleHooksConcurrently, so this step is still necessary
+  const extraBinPaths: string[] = await callModifyBinPaths(opts, manifest)
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,
@@ -160,6 +160,14 @@ Please unset the script-shell option, or configure it to a .exe instead.
     }
     }
   }
+}
+
+export async function callModifyBinPaths (
+  opts: Pick<RunLifecycleHookOptions, 'extraBinPaths' | 'modifyBinPaths'>,
+  manifest: ProjectManifest
+): Promise<string[]> {
+  const modifyBinPaths: ModifyBinPaths = opts.modifyBinPaths ?? ((_, extraBinPaths) => extraBinPaths)
+  return modifyBinPaths(manifest, opts.extraBinPaths ?? [])
 }
 
 function getId (manifest: ProjectManifest | DependencyManifest): string {
