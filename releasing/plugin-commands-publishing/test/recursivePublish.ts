@@ -312,7 +312,7 @@ test('when publish some package throws an error, exit code should be non-zero', 
 })
 
 test('recursive publish runs script with Node.js version specified by pnpm.useNodeVersion', async () => {
-  const projects = preparePackages([
+  preparePackages([
     {
       name: 'test-publish-node-version-undefined',
       version: '1.0.0',
