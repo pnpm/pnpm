@@ -530,6 +530,7 @@ async function resolveDependenciesOfImporterDependency (
       throw result.error
     },
   })
+  const originalPref = extendedWantedDep.wantedDependency.pref
 
   if (catalogLookup != null) {
     // The lockfile from a previous installation may have already resolved this
@@ -553,6 +554,12 @@ async function resolveDependenciesOfImporterDependency (
       ...importer.options,
       parentPkgAliases: importer.parentPkgAliases,
       pickLowestVersion: pickLowestVersion && !importer.updatePackageManifest,
+      // Cataloged dependencies cannot be upgraded yet since they require
+      // updating the pnpm-workspace.yaml file. This will be handled in a future
+      // version of pnpm.
+      updateToLatest: catalogLookup != null
+        ? false
+        : importer.options.updateToLatest,
     },
     extendedWantedDep
   )
@@ -560,7 +567,10 @@ async function resolveDependenciesOfImporterDependency (
   // If the catalog protocol was used, store metadata about the catalog
   // lookup to use in the lockfile.
   if (result.resolveDependencyResult != null && catalogLookup != null) {
-    result.resolveDependencyResult.catalogLookup = catalogLookup
+    result.resolveDependencyResult.catalogLookup = {
+      ...catalogLookup,
+      userSpecifiedPref: originalPref,
+    }
   }
 
   return result

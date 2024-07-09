@@ -205,7 +205,7 @@ catalog:
   read-ini-file: 4.0.0
   read-yaml-file: ^2.1.0
   realpath-missing: ^1.1.0
-  rename-overwrite: ^5.0.3
+  rename-overwrite: ^6.0.0
   render-help: ^1.0.3
   resolve-link-target: ^2.0.0
   rfc4648: ^1.5.3
@@ -230,7 +230,7 @@ catalog:
   strip-ansi: ^6.0.1
   strip-bom: ^4.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^6.0.0
+  symlink-dir: ^6.0.1
   tar-stream: ^2.2.0
   tar: ^6.2.1
   tempy: ^1.0.1

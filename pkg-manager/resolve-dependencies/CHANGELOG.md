@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 34.0.1
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+- Updated dependencies [afe520d]
+  - @pnpm/npm-resolver@21.0.1
+
 ## 34.0.0
 
 ### Major Changes

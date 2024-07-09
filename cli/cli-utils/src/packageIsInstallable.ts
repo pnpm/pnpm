@@ -33,10 +33,10 @@ export function packageIsInstallable (
       } else {
         globalWarn(msg)
       }
-    } else if (opts.packageManagerStrictVersion && !pmReference.includes(':')) {
+    } else if (currentPnpmVersion && opts.packageManagerStrictVersion && !pmReference.includes(':')) {
       // pmReference is semantic versioning, not URL
       const [requiredPnpmVersion] = pmReference.split('+')
-      if (requiredPnpmVersion && currentPnpmVersion && requiredPnpmVersion !== currentPnpmVersion) {
+      if (requiredPnpmVersion && requiredPnpmVersion !== currentPnpmVersion) {
         const msg = `This project is configured to use v${requiredPnpmVersion} of pnpm. Your current pnpm is v${currentPnpmVersion}`
         if (opts.packageManagerStrict) {
           throw new PnpmError('BAD_PM_VERSION', msg, {

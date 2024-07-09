@@ -166,8 +166,7 @@ export async function parseCliArgs (
 
   if (cmd === 'install' && params.length > 0) {
     cmd = 'add'
-  }
-  if (!cmd && options['recursive']) {
+  } else if (!cmd && options['recursive']) {
     cmd = 'recursive'
   }
 

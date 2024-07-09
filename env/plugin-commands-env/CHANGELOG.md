@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-env
 
+## 5.0.12
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/node.fetcher@4.0.8
+  - @pnpm/config@21.6.1
+  - @pnpm/node.resolver@3.0.8
+  - @pnpm/cli-utils@3.1.4
+
 ## 5.0.11
 
 ### Patch Changes

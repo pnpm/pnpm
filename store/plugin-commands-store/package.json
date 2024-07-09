@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "9.2.2",
+  "version": "9.2.3",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -41,7 +41,6 @@
     "@types/ssri": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "execa": "catalog:",
-    "path-exists": "catalog:",
     "ssri": "catalog:",
     "tempy": "catalog:"
   },

@@ -255,8 +255,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     lifecycleOpts.extraBinPaths = await node.createBinPathsWithNodeVersion(opts, manifest.pnpm.useNodeVersion)
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
-  const pnpPath = (opts.workspaceDir && await existsPnp(opts.workspaceDir)) ??
-    await existsPnp(dir)
+  const pnpPath = (opts.workspaceDir && existsPnp(opts.workspaceDir)) ?? existsPnp(dir)
   if (pnpPath) {
     lifecycleOpts.extraEnv = {
       ...lifecycleOpts.extraEnv,

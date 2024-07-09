@@ -1,5 +1,14 @@
 # @pnpm/node.fetcher
 
+## 4.0.8
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+- Updated dependencies [afe520d]
+  - @pnpm/tarball-fetcher@19.0.8
+  - @pnpm/create-cafs-store@7.0.5
+
 ## 4.0.7
 
 ### Patch Changes

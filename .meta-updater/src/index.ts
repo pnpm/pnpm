@@ -6,7 +6,6 @@ import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-upda
 import isSubdir from 'is-subdir'
 import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
-import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 
 const NEXT_TAG = 'next-9'
@@ -119,7 +118,7 @@ async function updateTSConfig (
     if (!spec.startsWith('link:') || spec.length === 5) continue
     const relativePath = spec.slice(5)
     const linkedPkgDir = path.join(dir, relativePath)
-    if (!await exists(path.join(linkedPkgDir, 'tsconfig.json'))) continue
+    if (!fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json'))) continue
     if (!isSubdir(context.workspaceDir, linkedPkgDir)) continue
     if (
       depName === '@pnpm/package-store' && (
@@ -138,7 +137,7 @@ async function updateTSConfig (
 
   async function writeTestTsconfig () {
     const testDir = path.join(dir, 'test')
-    if (!await exists(testDir)) {
+    if (!fs.existsSync(testDir)) {
       return
     }
 
@@ -258,7 +257,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     break
   }
   default:
-    if (await exists(path.join(dir, 'test'))) {
+    if (fs.existsSync(path.join(dir, 'test'))) {
       scripts = {
         ...(manifest.scripts as Record<string, string>),
         _test: 'jest',

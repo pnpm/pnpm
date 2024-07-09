@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1.0.85",
+  "version": "1.0.86",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -41,8 +41,7 @@
   },
   "dependencies": {
     "@pnpm/registry-mock": "catalog:",
-    "@pnpm/store.cafs": "workspace:*",
-    "path-exists": "catalog:"
+    "@pnpm/store.cafs": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*"

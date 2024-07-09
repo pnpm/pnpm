@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 10.0.6
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+
 ## 10.0.5
 
 ### Patch Changes

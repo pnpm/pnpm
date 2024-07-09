@@ -1,5 +1,14 @@
 # @pnpm/license-scanner
 
+## 3.1.8
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/directory-fetcher@8.0.4
+
 ## 3.1.7
 
 ### Patch Changes

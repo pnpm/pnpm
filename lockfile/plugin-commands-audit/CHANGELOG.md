@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-audit
 
+## 10.2.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/audit@8.1.6
+
 ## 10.2.2
 
 ### Patch Changes

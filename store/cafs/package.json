@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.cafs",
-  "version": "3.0.4",
+  "version": "3.0.5",
   "description": "A content-addressable filesystem for the packages storage",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-rebuild",
-  "version": "12.0.0",
+  "version": "12.0.1",
   "description": "Commands for rebuilding dependencies",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -42,7 +42,6 @@
     "@types/semver": "catalog:",
     "@types/sinon": "catalog:",
     "execa": "catalog:",
-    "path-exists": "catalog:",
     "sinon": "catalog:",
     "write-yaml-file": "catalog:"
   },

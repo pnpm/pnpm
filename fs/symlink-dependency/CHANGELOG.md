@@ -1,5 +1,11 @@
 # @pnpm/symlink-dependency
 
+## 8.0.4
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+
 ## 8.0.3
 
 ### Patch Changes

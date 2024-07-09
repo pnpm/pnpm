@@ -1,5 +1,13 @@
 # @pnpm/lifecycle
 
+## 17.0.8
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/link-bins@10.0.6
+  - @pnpm/directory-fetcher@8.0.4
+
 ## 17.0.7
 
 ### Patch Changes

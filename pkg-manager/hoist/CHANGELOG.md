@@ -1,5 +1,13 @@
 # @pnpm/hoist
 
+## 9.1.8
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+- Updated dependencies [afe520d]
+  - @pnpm/link-bins@10.0.6
+
 ## 9.1.7
 
 ### Patch Changes

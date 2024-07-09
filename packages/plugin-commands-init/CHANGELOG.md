@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-init
 
+## 4.0.12
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+
 ## 4.0.11
 
 ### Patch Changes

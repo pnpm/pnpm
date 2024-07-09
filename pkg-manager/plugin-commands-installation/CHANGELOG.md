@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 16.0.1
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/core@15.0.1
+  - @pnpm/outdated@15.0.1
+  - @pnpm/workspace.pkgs-graph@4.0.1
+  - @pnpm/plugin-commands-rebuild@12.0.1
+  - @pnpm/package-store@20.3.2
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/store-connection-manager@8.3.2
+  - @pnpm/filter-workspace-packages@10.0.1
+  - @pnpm/workspace.find-packages@4.0.1
+
 ## 16.0.0
 
 ### Major Changes

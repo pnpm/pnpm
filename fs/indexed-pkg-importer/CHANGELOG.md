@@ -1,5 +1,11 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 6.0.5
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+
 ## 6.0.4
 
 ### Patch Changes

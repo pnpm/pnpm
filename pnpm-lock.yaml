@@ -514,8 +514,8 @@ catalogs:
       specifier: ^1.1.0
       version: 1.1.0
     rename-overwrite:
-      specifier: ^5.0.3
-      version: 5.0.3
+      specifier: ^6.0.0
+      version: 6.0.0
     render-help:
       specifier: ^1.0.3
       version: 1.0.3
@@ -589,8 +589,8 @@ catalogs:
       specifier: 1.2.0
       version: 1.2.0
     symlink-dir:
-      specifier: ^6.0.0
-      version: 6.0.0
+      specifier: ^6.0.1
+      version: 6.0.1
     tar:
       specifier: ^6.2.1
       version: 6.2.1
@@ -791,9 +791,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -862,9 +859,6 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
     devDependencies:
       '@pnpm/assert-store':
         specifier: workspace:*
@@ -1371,7 +1365,7 @@ importers:
         version: 2.0.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.1
 
   config/matcher:
     dependencies:
@@ -1642,7 +1636,7 @@ importers:
         version: 2.0.3
       rename-overwrite:
         specifier: 'catalog:'
-        version: 5.0.3
+        version: 6.0.0
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -1740,7 +1734,7 @@ importers:
         version: 7.6.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.1
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -2046,9 +2040,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       sinon:
         specifier: 'catalog:'
         version: 16.1.3
@@ -2124,9 +2115,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -2141,7 +2129,7 @@ importers:
         version: 1.0.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.1
       which:
         specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'
@@ -2396,7 +2384,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 5.0.3
+        version: 6.0.0
     devDependencies:
       '@pnpm/cafs-types':
         specifier: workspace:*
@@ -2515,15 +2503,12 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       path-temp:
         specifier: 'catalog:'
         version: 2.1.0
       rename-overwrite:
         specifier: 'catalog:'
-        version: 5.0.3
+        version: 6.0.0
       sanitize-filename:
         specifier: 'catalog:'
         version: 1.6.3
@@ -2580,7 +2565,7 @@ importers:
         version: link:../../packages/types
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.1
     devDependencies:
       '@pnpm/prepare':
         specifier: workspace:*
@@ -3414,7 +3399,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 5.0.3
+        version: 6.0.0
     devDependencies:
       '@pnpm/make-dedicated-lockfile':
         specifier: workspace:*
@@ -4043,7 +4028,7 @@ importers:
         version: 16.1.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.1
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -4352,7 +4337,7 @@ importers:
         version: 2.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.1
     devDependencies:
       '@pnpm/hoist':
         specifier: workspace:*
@@ -4416,7 +4401,7 @@ importers:
         version: 7.6.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.1
     devDependencies:
       '@pnpm/link-bins':
         specifier: workspace:*
@@ -4442,9 +4427,6 @@ importers:
       cmd-extension:
         specifier: 'catalog:'
         version: 1.0.2
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -4794,9 +4776,6 @@ importers:
       path-absolute:
         specifier: 'catalog:'
         version: 1.0.1
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -4872,7 +4851,7 @@ importers:
         version: 16.1.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.1
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -5076,7 +5055,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 5.0.3
+        version: 6.0.0
       safe-promise-defer:
         specifier: 'catalog:'
         version: 1.0.1
@@ -5517,9 +5496,6 @@ importers:
       p-defer:
         specifier: 'catalog:'
         version: 3.0.0
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -5549,7 +5525,7 @@ importers:
         version: 6.0.1
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.1
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -5835,9 +5811,6 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       tar:
         specifier: 'catalog:'
         version: 6.2.1
@@ -6008,7 +5981,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 5.0.3
+        version: 6.0.0
       semver:
         specifier: 'catalog:'
         version: 7.6.2
@@ -6043,9 +6016,6 @@ importers:
       nock:
         specifier: 'catalog:'
         version: 13.3.4
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -6564,7 +6534,7 @@ importers:
         version: 3.1.0
       rename-overwrite:
         specifier: 'catalog:'
-        version: 5.0.3
+        version: 6.0.0
       ssri:
         specifier: 'catalog:'
         version: 10.0.5
@@ -6592,7 +6562,7 @@ importers:
         version: 7.1.5
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.1
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -6882,9 +6852,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
-      path-exists:
-        specifier: 'catalog:'
-        version: 4.0.0
       ssri:
         specifier: 'catalog:'
         version: 10.0.5
@@ -12569,6 +12536,10 @@ packages:
     resolution: {integrity: sha512-jSzZxCmn/PWTiLw3aDhP24sGZQdOFOQIWVEdyBSCtEcePwJ+sDNIXLjppFEeLRquYGTgNBKNyksPxQWWmhsoQA==}
     engines: {node: '>=18'}
 
+  rename-overwrite@6.0.0:
+    resolution: {integrity: sha512-njyKyIyxYix8yklXAd5Jrp2otBFZdzD8069W/LaqhRpXqpdQpIb0ZEcheX25IdpX2LBpsGl3Qk+NRD/M7S27wg==}
+    engines: {node: '>=18'}
+
   render-help@1.0.3:
     resolution: {integrity: sha512-oC1+EZEeVpinZDtG0j7Frby2HRGUtU+x62/0QRH/1FcZR9U/OgsI7HKpy/a36iXdI9by0SouWTHm8CDaOeqx3A==}
     engines: {node: '>=10'}
@@ -13109,8 +13080,8 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  symlink-dir@6.0.0:
-    resolution: {integrity: sha512-n9BprpIwCiM5yqTpYwOXbIkrycqk8M+fA4VeeVuC/qn5kh+NjpCw26rY2Ltnzs2uGaZKS/wPSKhAQBK78sgLJA==}
+  symlink-dir@6.0.1:
+    resolution: {integrity: sha512-R9HTWD5jyZSBEASmWNTWQRQ8qXO11eMjPzHiN5nVoIIvIoxXwVvZws2Z/0AO5oo+i/gsRjPUk9e3etKiWu8i/w==}
     engines: {node: '>=18.12'}
     hasBin: true
 
@@ -20048,6 +20019,11 @@ snapshots:
       '@zkochan/rimraf': 3.0.2
       fs-extra: 10.1.0
 
+  rename-overwrite@6.0.0:
+    dependencies:
+      '@zkochan/rimraf': 3.0.2
+      fs-extra: 10.1.0
+
   render-help@1.0.3:
     dependencies:
       table: 6.8.2
@@ -20666,10 +20642,10 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  symlink-dir@6.0.0:
+  symlink-dir@6.0.1:
     dependencies:
       better-path-resolve: 1.0.0
-      rename-overwrite: 5.0.3
+      rename-overwrite: 6.0.0
 
   table@6.8.2:
     dependencies:

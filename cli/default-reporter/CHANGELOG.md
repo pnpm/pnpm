@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 13.1.7
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+
 ## 13.1.6
 
 ### Patch Changes

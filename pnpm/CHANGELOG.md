@@ -1,23 +1,46 @@
 # pnpm
 
-## 9.5.0-beta.3
-
-### Patch Changes
-
-- Installation with filtering should work, when `dedupe-peer-dependents` is set to `true` [#6300](https://github.com/pnpm/pnpm/issues/6300).
-- Fix `dlx` not actually using node version specified by `--use-node-version`.
-
-## 9.5.0-beta.0
+## 9.5.0
 
 ### Minor Changes
 
 - Added support for [catalogs](https://github.com/pnpm/rfcs/blob/main/text/0001-catalogs.md) [8122](#https://github.com/pnpm/pnpm/pull/8122).
-- Bundled `pnpm setup` now creates `pnpx` script [#8230](https://github.com/pnpm/pnpm/issues/8230).
+
+  Catalogs may be declared in the `pnpm-workspace.yaml` file. For example:
+
+  ```yaml
+  # Default catalogs
+  catalog:
+    chalk: ^4.1.2
+  # Named catalogs
+  catalogs:
+    react16:
+      react: ^16.7.0
+      react-dom: ^16.7.0
+    react17:
+      react: ^17.10.0
+      react-dom: ^17.10.0
+  ```
+
+  Then, in `package.json` files, use the `catalog:` protocol to reference a "default" or "named" catalog:
+
+  ```json
+  {
+    "dependencies": {
+      "chalk": "catalog:",
+      "react": "catalog:react16",
+      "react-dom": "catalog:react16"
+    }
+  }
+  ```
+- Bundled `pnpm setup` now creates the `pnpx` script [#8230](https://github.com/pnpm/pnpm/issues/8230).
 
 ### Patch Changes
 
 - Read authentication information from `.npmrc` in the current directory when running `dlx` [#7996](https://github.com/pnpm/pnpm/issues/7996).
-- update @pnpm/tabtab to v0.5.4, enabling zsh autocomplete lazy loading [#8236](https://github.com/pnpm/pnpm/pull/8236).
+- Updated `@pnpm/tabtab` to v0.5.4, enabling zsh autocomplete lazy loading [#8236](https://github.com/pnpm/pnpm/pull/8236).
+- Installation with filtering will now work, when `dedupe-peer-dependents` is set to `true` [#6300](https://github.com/pnpm/pnpm/issues/6300).
+- Fixed `dlx` not actually using the Node.js version specified by `--use-node-version`.
 
 ## 9.4.0
 

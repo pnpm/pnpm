@@ -1,5 +1,14 @@
 # @pnpm/mount-modules
 
+## 0.6.9
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/config@21.6.1
+
 ## 0.6.8
 
 ### Patch Changes

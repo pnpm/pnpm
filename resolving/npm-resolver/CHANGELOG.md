@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 21.0.1
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+
 ## 21.0.0
 
 ### Major Changes

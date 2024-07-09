@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 21.6.1
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+
 ## 21.6.0
 
 ### Minor Changes

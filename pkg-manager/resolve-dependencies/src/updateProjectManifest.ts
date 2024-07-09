@@ -72,6 +72,7 @@ export async function updateProjectManifest (
 function resolvedDirectDepToSpecObject (
   {
     alias,
+    catalogLookup,
     isNew,
     name,
     normalizedPref,
@@ -89,7 +90,9 @@ function resolvedDirectDepToSpecObject (
   }
 ): PackageSpecObject {
   let pref!: string
-  if (normalizedPref) {
+  if (catalogLookup) {
+    pref = catalogLookup.userSpecifiedPref
+  } else if (normalizedPref) {
     pref = normalizedPref
   } else {
     const shouldUseWorkspaceProtocol = resolution.type === 'directory' &&

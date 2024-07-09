@@ -1,5 +1,12 @@
 # @pnpm/node.resolver
 
+## 3.0.8
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/node.fetcher@4.0.8
+
 ## 3.0.7
 
 ### Patch Changes
