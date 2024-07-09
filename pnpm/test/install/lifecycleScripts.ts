@@ -6,7 +6,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
-import { execPnpmSync } from '../utils'
+import { execPnpm, execPnpmSync } from '../utils'
 
 const pkgRoot = path.join(__dirname, '..', '..')
 const pnpmPkg = loadJsonFile.sync<PackageManifest>(path.join(pkgRoot, 'package.json'))
@@ -216,4 +216,27 @@ test('use node versions specified by pnpm.useNodeVersion in workspace packages',
       return fs.readFileSync(filePath, 'utf-8').trim()
     })
   ).toStrictEqual([process.version, 'v18.0.0', 'v20.0.0'])
+})
+
+test('ignores pnpm.useNodeVersion specified by dependencies', async () => {
+  prepare({
+    name: 'ignores-pnpm-use-node-version-from-dependencies',
+    version: '1.0.0',
+    dependencies: {
+      // this package's package.json has pnpm.useNodeVersion = '20.0.0'
+      '@pnpm.e2e/has-pnpm-use-node-version': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const nodeInfoFile = path.resolve('node_modules', '@pnpm.e2e', 'has-pnpm-use-node-version', 'node-info.json')
+  const nodeInfoJson = fs.readFileSync(nodeInfoFile, 'utf-8')
+  const nodeInfo = JSON.parse(nodeInfoJson)
+
+  // pnpm should still use system's Node.js to execute the install script despite pnpm.useNodeVersion specified by the dependency
+  expect(nodeInfo).toMatchObject({
+    execPath: process.execPath,
+    versions: process.versions,
+  })
 })
