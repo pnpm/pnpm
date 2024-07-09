@@ -36,6 +36,7 @@ packages:
   - "!resolving/local-resolver/example-package/**"
   - codemod/*
 catalog:
+  "@codemod.com/workflow": ^0.0.19
   "@gwhitney/detect-indent": 7.0.1
   "@pnpm/builder.policy": 3.0.0
   "@pnpm/byline": ^1.0.0

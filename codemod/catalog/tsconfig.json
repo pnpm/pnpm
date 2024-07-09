@@ -9,7 +9,8 @@
     "strict": true,
     "target": "ES6",
     "allowJs": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    "rootDir": "src"
   },
   "include": [
     "./src/**/*.ts",
@@ -20,5 +21,7 @@
   "exclude": ["node_modules", "./dist/**/*"],
   "ts-node": {
     "transpileOnly": true
-  }
+  },
+  "extends": "@pnpm/tsconfig",
+  "references": []
 }

@@ -1,14 +1,14 @@
 {
   "name": "@codemod.com/pnpm-catalog",
   "license": "MIT",
+  "private": true,
   "dependencies": {
-    "semver": "^7.6.2"
+    "@codemod.com/workflow": "catalog:",
+    "semver": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "20.9.0",
-    "typescript": "^5.2.2",
-    "@codemod.com/workflow": "^0.0.19",
-    "@types/semver": "^7.5.8"
+    "@types/semver": "catalog:",
+    "@codemod.com/pnpm-catalog": "workspace:*"
   },
   "files": [
     "README.md",

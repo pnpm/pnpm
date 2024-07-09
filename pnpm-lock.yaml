@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@codemod.com/workflow':
+      specifier: ^0.0.19
+      version: 0.0.19
     '@gwhitney/detect-indent':
       specifier: 7.0.1
       version: 7.0.1
@@ -1223,22 +1226,19 @@ importers:
 
   codemod/catalog:
     dependencies:
+      '@codemod.com/workflow':
+        specifier: 'catalog:'
+        version: 0.0.19(@babel/types@7.24.7)(encoding@0.1.13)
       semver:
-        specifier: ^7.6.2
+        specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
-      '@codemod.com/workflow':
-        specifier: ^0.0.19
-        version: 0.0.19(@babel/types@7.24.7)(encoding@0.1.13)
-      '@types/node':
-        specifier: 20.9.0
-        version: 20.9.0
+      '@codemod.com/pnpm-catalog':
+        specifier: workspace:*
+        version: 'link:'
       '@types/semver':
-        specifier: ^7.5.8
-        version: 7.5.8
-      typescript:
-        specifier: ^5.2.2
-        version: 5.4.5
+        specifier: 'catalog:'
+        version: 7.5.3
 
   completion/plugin-commands-completion:
     dependencies:
@@ -16100,7 +16100,7 @@ snapshots:
 
   '@types/node-fetch@2.6.11':
     dependencies:
-      '@types/node': 20.9.0
+      '@types/node': 20.14.9
       form-data: 4.0.0
 
   '@types/node@12.20.55': {}

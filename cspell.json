@@ -28,6 +28,7 @@
     "certfile",
     "clonedeep",
     "cmds",
+    "codemod",
     "colorterm",
     "comver",
     "copyfiles",
@@ -264,7 +265,6 @@
     "xmarw",
     "zkochan",
     "zoli",
-    "zoltan",
-    "codemod"
+    "zoltan"
   ]
 }

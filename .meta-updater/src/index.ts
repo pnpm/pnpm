@@ -316,6 +316,10 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   if (manifest.name === CLI_PKG_NAME || manifest.name?.endsWith('/pnpm')) {
     files.push('dist')
     files.push('bin')
+  } else if (manifest.name?.startsWith('@codemod.com/')) {
+    files.push('README.md')
+    files.push('.codemodrc.json')
+    files.push('/dist/index.cjs')
   } else {
     // the order is important
     files.push('lib')
