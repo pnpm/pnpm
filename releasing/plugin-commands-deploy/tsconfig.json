@@ -16,6 +16,12 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {

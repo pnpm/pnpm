@@ -42,6 +42,8 @@
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*"
   },
   "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
