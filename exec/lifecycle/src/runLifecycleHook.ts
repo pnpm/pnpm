@@ -8,7 +8,7 @@ import isWindows from 'is-windows'
 
 function noop () {} // eslint-disable-line:no-empty
 
-export type ModifyBinPaths = (manifest: ProjectManifest, extraBinPaths: string[]) => string[] | Promise<string[]>
+export type PrepareExecutionEnv = (extraBinPaths: string[], useNodeVersion: string | undefined) => string[] | Promise<string[]>
 
 export interface RunLifecycleHookOptions {
   args?: string[]
@@ -26,7 +26,7 @@ export interface RunLifecycleHookOptions {
   shellEmulator?: boolean
   stdio?: string
   unsafePerm: boolean
-  modifyBinPaths?: ModifyBinPaths
+  prepareExecutionEnv?: PrepareExecutionEnv
 }
 
 export async function runLifecycleHook (
@@ -163,11 +163,11 @@ Please unset the script-shell option, or configure it to a .exe instead.
 }
 
 export async function callModifyBinPaths (
-  opts: Pick<RunLifecycleHookOptions, 'extraBinPaths' | 'modifyBinPaths'>,
+  opts: Pick<RunLifecycleHookOptions, 'extraBinPaths' | 'prepareExecutionEnv'>,
   manifest: ProjectManifest
 ): Promise<string[]> {
-  const modifyBinPaths: ModifyBinPaths = opts.modifyBinPaths ?? ((_, extraBinPaths) => extraBinPaths)
-  return modifyBinPaths(manifest, opts.extraBinPaths ?? [])
+  const prepareExecutionEnv: PrepareExecutionEnv = opts.prepareExecutionEnv ?? (extraBinPaths => extraBinPaths)
+  return prepareExecutionEnv(opts.extraBinPaths ?? [], manifest.pnpm?.useNodeVersion)
 }
 
 function getId (manifest: ProjectManifest | DependencyManifest): string {

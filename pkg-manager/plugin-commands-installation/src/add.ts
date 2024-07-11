@@ -208,6 +208,6 @@ export async function handler (
     ...opts,
     include,
     includeDirect: include,
-    modifyBinPaths: node.createBinPathsModifierBasedOnManifest(opts),
+    prepareExecutionEnv: node.createPrepareExecutionEnv(opts),
   }, params)
 }

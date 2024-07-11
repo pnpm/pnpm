@@ -305,7 +305,7 @@ async function update (
       : undefined,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
-    modifyBinPaths: node.createBinPathsModifierBasedOnManifest(opts),
+    prepareExecutionEnv: node.createPrepareExecutionEnv(opts),
   }, dependencies)
 }
 

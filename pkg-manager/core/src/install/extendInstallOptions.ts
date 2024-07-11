@@ -152,7 +152,7 @@ export interface StrictInstallOptions {
   hoistWorkspacePackages?: boolean
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
-  modifyBinPaths?: (manifest: ProjectManifest, extraBinPaths: string[]) => string[] | Promise<string[]>
+  prepareExecutionEnv?: (extraBinPaths: string[], useNodeVersion: string | undefined) => string[] | Promise<string[]>
 }
 
 export type InstallOptions =

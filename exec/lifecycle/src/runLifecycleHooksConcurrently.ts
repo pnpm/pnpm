@@ -64,7 +64,7 @@ export async function runLifecycleHooksConcurrently (
           pkgRoot: rootDir,
           rootModulesDir: modulesDir,
         }
-        delete runLifecycleHookOpts.modifyBinPaths // to prevent runLifecycleHook from repeating this call
+        delete runLifecycleHookOpts.prepareExecutionEnv // to prevent runLifecycleHook from repeating this call
         let isBuilt = false
         for (const stage of (importerStages ?? stages)) {
           if (!manifest.scripts?.[stage]) continue

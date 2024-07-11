@@ -64,6 +64,6 @@ export async function handler (opts: DedupeCommandOptions): Promise<void> {
     include,
     includeDirect: include,
     lockfileCheck: opts.check ? dedupeDiffCheck : undefined,
-    modifyBinPaths: node.createBinPathsModifierBasedOnManifest(opts),
+    prepareExecutionEnv: node.createPrepareExecutionEnv(opts),
   }, [])
 }

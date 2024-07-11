@@ -330,7 +330,7 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
       typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined',
     include,
     includeDirect: include,
-    modifyBinPaths: node.createBinPathsModifierBasedOnManifest(opts),
+    prepareExecutionEnv: node.createPrepareExecutionEnv(opts),
   }
   if (opts.resolutionOnly) {
     installDepsOptions.lockfileOnly = true

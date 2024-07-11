@@ -115,7 +115,7 @@ export type InstallDepsOptions = Pick<Config,
   dedupe?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
-  modifyBinPaths: (manifest: ProjectManifest, extraBinPaths: string[]) => string[] | Promise<string[]>
+  prepareExecutionEnv: (extraBinPaths: string[], useNodeVersion: string | undefined) => string[] | Promise<string[]>
 } & Partial<Pick<Config, 'pnpmHomeDir'>>
 
 export async function installDeps (
