@@ -165,7 +165,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
 
-test('use node versions specified by pnpm.useNodeVersion in workspace packages', async () => {
+test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace packages', async () => {
   const projects = preparePackages([
     {
       location: '.',
@@ -189,7 +189,9 @@ test('use node versions specified by pnpm.useNodeVersion in workspace packages',
         install: 'node -v > node-version.txt',
       },
       pnpm: {
-        useNodeVersion: '18.0.0',
+        executionEnv: {
+          nodeVersion: '18.0.0',
+        },
       },
     },
     {
@@ -199,7 +201,9 @@ test('use node versions specified by pnpm.useNodeVersion in workspace packages',
         install: 'node -v > node-version.txt',
       },
       pnpm: {
-        useNodeVersion: '20.0.0',
+        executionEnv: {
+          nodeVersion: '20.0.0',
+        },
       },
     },
   ])
@@ -218,7 +222,8 @@ test('use node versions specified by pnpm.useNodeVersion in workspace packages',
   ).toStrictEqual([process.version, 'v18.0.0', 'v20.0.0'])
 })
 
-test('ignores pnpm.useNodeVersion specified by dependencies', async () => {
+// TODO: update registry-mock to change it to pnpm.executionEnv.nodeVersion
+test.skip('ignores pnpm.useNodeVersion specified by dependencies', async () => {
   prepare({
     name: 'ignores-pnpm-use-node-version-from-dependencies',
     version: '1.0.0',

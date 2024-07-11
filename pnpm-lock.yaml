@@ -1711,6 +1711,9 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
         version: 6.0.0

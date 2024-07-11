@@ -96,7 +96,7 @@ Please unset the script-shell option, or configure it to a .exe instead.
     ? 'silent'
     : undefined
   const extraBinPaths: string[] | undefined = opts.prepareExecutionEnv
-    ? await opts.prepareExecutionEnv(opts.extraBinPaths ?? [], (manifest as ProjectManifest).pnpm?.useNodeVersion)
+    ? await opts.prepareExecutionEnv(opts.extraBinPaths ?? [], (manifest as ProjectManifest).pnpm?.executionEnv)
     : opts.extraBinPaths
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {

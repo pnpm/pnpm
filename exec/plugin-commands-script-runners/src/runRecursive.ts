@@ -124,8 +124,8 @@ export async function runRecursive (
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
           }
-          if (pkg.package.manifest.pnpm?.useNodeVersion) {
-            lifecycleOpts.extraBinPaths = await node.createBinPathsWithNodeVersion(opts, pkg.package.manifest.pnpm.useNodeVersion)
+          if (pkg.package.manifest.pnpm?.executionEnv?.nodeVersion) {
+            lifecycleOpts.extraBinPaths = await node.createBinPathsWithNodeVersion(opts, pkg.package.manifest.pnpm.executionEnv.nodeVersion)
           }
           const pnpPath = workspacePnpPath ?? existsPnp(prefix)
           if (pnpPath) {

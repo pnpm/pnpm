@@ -737,7 +737,9 @@ test('pnpm run with node version', async () => {
       'assert-node-version': 'node -e "assert.equal(process.version, \'v20.0.0\')"',
     },
     pnpm: {
-      useNodeVersion: '20.0.0',
+      executionEnv: {
+        nodeVersion: '20.0.0',
+      },
     },
   })
 

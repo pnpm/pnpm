@@ -251,8 +251,8 @@ so you may run "pnpm -w run ${scriptName}"`,
     stdio: (specifiedScripts.length > 1 && concurrency > 1) ? 'pipe' : 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
-  if (manifest.pnpm?.useNodeVersion) {
-    lifecycleOpts.extraBinPaths = await node.createBinPathsWithNodeVersion(opts, manifest.pnpm.useNodeVersion)
+  if (manifest.pnpm?.executionEnv?.nodeVersion) {
+    lifecycleOpts.extraBinPaths = await node.createBinPathsWithNodeVersion(opts, manifest.pnpm.executionEnv.nodeVersion)
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && existsPnp(opts.workspaceDir)) ?? existsPnp(dir)

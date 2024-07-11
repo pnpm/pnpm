@@ -6,6 +6,7 @@ import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
 import { fetchNode } from '@pnpm/node.fetcher'
 import { getStorePath } from '@pnpm/store-path'
+import { type PrepareExecutionEnv } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { getNodeMirror } from './getNodeMirror'
@@ -56,23 +57,21 @@ export interface ManifestWithUseNodeVersion {
   }
 }
 
-export type PrepareExecutionEnv = (extraBinPaths: string[], useNodeVersion?: string) => Promise<string[]>
-
 export const createPrepareExecutionEnv = (
   config: NvmNodeCommandOptions,
   cache: Partial<Record<string, Promise<string>>> = {}
-): PrepareExecutionEnv => async (binPaths, useNodeVersion) => {
-  if (!useNodeVersion) return binPaths
+): PrepareExecutionEnv => async (binPaths, executionEnv) => {
+  if (!executionEnv?.nodeVersion) return binPaths
 
   const baseDir = getNodeVersionsBaseDir(config.pnpmHomeDir)
 
-  let nodePathPromise = cache[useNodeVersion]
+  let nodePathPromise = cache[executionEnv.nodeVersion]
   if (!nodePathPromise) {
     nodePathPromise = getNodeBinDir({
       ...config,
-      useNodeVersion,
+      useNodeVersion: executionEnv.nodeVersion,
     })
-    cache[useNodeVersion] = nodePathPromise
+    cache[executionEnv.nodeVersion] = nodePathPromise
   }
 
   return replaceOrAddNodeIntoBinPaths(binPaths, baseDir, await nodePathPromise)

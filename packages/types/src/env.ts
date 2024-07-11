@@ -1,1 +1,5 @@
-export type PrepareExecutionEnv = (extraBinPaths: string[], useNodeVersion: string | undefined) => Promise<string[]>
+export type PrepareExecutionEnv = (extraBinPaths: string[], executionEnv: ExecutionEnv | undefined) => Promise<string[]>
+
+export interface ExecutionEnv {
+  nodeVersion?: string
+}
