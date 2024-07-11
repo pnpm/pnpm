@@ -1,14 +1,12 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
-import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
+import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
 import isWindows from 'is-windows'
 
 function noop () {} // eslint-disable-line:no-empty
-
-export type PrepareExecutionEnv = (extraBinPaths: string[], useNodeVersion: string | undefined) => string[] | Promise<string[]>
 
 export interface RunLifecycleHookOptions {
   args?: string[]
