@@ -97,8 +97,9 @@ Please unset the script-shell option, or configure it to a .exe instead.
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
     : undefined
-  // not all lifecycle hooks are executed by runLifecycleHooksConcurrently, so this step is still necessary
-  const extraBinPaths: string[] = await callPrepareExecutionEnv(opts, manifest)
+  const extraBinPaths: string[] | undefined = opts.prepareExecutionEnv
+    ? await opts.prepareExecutionEnv(opts.extraBinPaths ?? [], (manifest as ProjectManifest).pnpm?.useNodeVersion)
+    : opts.extraBinPaths
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,
@@ -160,14 +161,6 @@ Please unset the script-shell option, or configure it to a .exe instead.
     }
     }
   }
-}
-
-export async function callPrepareExecutionEnv (
-  opts: Pick<RunLifecycleHookOptions, 'extraBinPaths' | 'prepareExecutionEnv'>,
-  manifest: ProjectManifest
-): Promise<string[]> {
-  const prepareExecutionEnv: PrepareExecutionEnv = opts.prepareExecutionEnv ?? (extraBinPaths => extraBinPaths)
-  return prepareExecutionEnv(opts.extraBinPaths ?? [], manifest.pnpm?.useNodeVersion)
 }
 
 function getId (manifest: ProjectManifest | DependencyManifest): string {

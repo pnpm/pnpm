@@ -13,7 +13,6 @@ import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageExtension,
-  type ProjectManifest,
   type ReadPackageHook,
   type Registries,
 } from '@pnpm/types'

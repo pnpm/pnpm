@@ -58,17 +58,24 @@ export interface ManifestWithUseNodeVersion {
 
 export type PrepareExecutionEnv = (extraBinPaths: string[], useNodeVersion?: string) => Promise<string[]>
 
-export const createPrepareExecutionEnv = (config: NvmNodeCommandOptions): PrepareExecutionEnv => async (binPaths, useNodeVersion) => {
+export const createPrepareExecutionEnv = (
+  config: NvmNodeCommandOptions,
+  cache: Partial<Record<string, Promise<string>>> = {}
+): PrepareExecutionEnv => async (binPaths, useNodeVersion) => {
   if (!useNodeVersion) return binPaths
 
   const baseDir = getNodeVersionsBaseDir(config.pnpmHomeDir)
 
-  const nodePath = await getNodeBinDir({
-    ...config,
-    useNodeVersion,
-  })
+  let nodePathPromise = cache[useNodeVersion]
+  if (!nodePathPromise) {
+    nodePathPromise = getNodeBinDir({
+      ...config,
+      useNodeVersion,
+    })
+    cache[useNodeVersion] = nodePathPromise
+  }
 
-  return replaceOrAddNodeIntoBinPaths(binPaths, baseDir, nodePath)
+  return replaceOrAddNodeIntoBinPaths(binPaths, baseDir, await nodePathPromise)
 }
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {

@@ -12,7 +12,7 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type IncludedDependencies, type Project, type ProjectManifest, type ProjectsGraph, type ProjectRootDir } from '@pnpm/types'
+import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir } from '@pnpm/types'
 import {
   install,
   mutateModulesInSingleProject,

@@ -6,7 +6,7 @@ import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import runGroups from 'run-groups'
-import { callPrepareExecutionEnv, runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook'
+import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook'
 
 export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 | 'depPath'
@@ -60,11 +60,9 @@ export async function runLifecycleHooksConcurrently (
         const runLifecycleHookOpts: RunLifecycleHookOptions = {
           ...opts,
           depPath: rootDir,
-          extraBinPaths: await callPrepareExecutionEnv(opts, manifest),
           pkgRoot: rootDir,
           rootModulesDir: modulesDir,
         }
-        delete runLifecycleHookOpts.prepareExecutionEnv // to prevent runLifecycleHook from repeating this call
         let isBuilt = false
         for (const stage of (importerStages ?? stages)) {
           if (!manifest.scripts?.[stage]) continue
