@@ -98,7 +98,7 @@ Please unset the script-shell option, or configure it to a .exe instead.
     ? 'silent'
     : undefined
   // not all lifecycle hooks are executed by runLifecycleHooksConcurrently, so this step is still necessary
-  const extraBinPaths: string[] = await callModifyBinPaths(opts, manifest)
+  const extraBinPaths: string[] = await callPrepareExecutionEnv(opts, manifest)
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,
@@ -162,7 +162,7 @@ Please unset the script-shell option, or configure it to a .exe instead.
   }
 }
 
-export async function callModifyBinPaths (
+export async function callPrepareExecutionEnv (
   opts: Pick<RunLifecycleHookOptions, 'extraBinPaths' | 'prepareExecutionEnv'>,
   manifest: ProjectManifest
 ): Promise<string[]> {
