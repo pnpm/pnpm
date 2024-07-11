@@ -65,7 +65,7 @@ export function help (): string {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' > & add.AddCommandOptions
+} & Pick<Config, 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' > & add.AddCommandOptions
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -75,6 +75,7 @@ export async function handler (
   const { cacheLink, prepareDir } = findCache(pkgs, {
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
+    registries: opts.registries,
   })
   if (prepareDir) {
     fs.mkdirSync(prepareDir, { recursive: true })
@@ -162,21 +163,28 @@ function scopeless (pkgName: string): string {
 function findCache (pkgs: string[], opts: {
   cacheDir: string
   dlxCacheMaxAge: number
+  registries: Record<string, string>
 }): { cacheLink: string, prepareDir: string | null } {
-  const dlxCommandCacheDir = createDlxCommandCacheDir(opts.cacheDir, pkgs)
+  const dlxCommandCacheDir = createDlxCommandCacheDir(opts.cacheDir, pkgs, opts.registries)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
   const valid = isCacheValid(cacheLink, opts.dlxCacheMaxAge)
   const prepareDir = valid ? null : getPrepareDir(dlxCommandCacheDir)
   return { cacheLink, prepareDir }
 }
 
-function createDlxCommandCacheDir (cacheDir: string, pkgs: string[]): string {
+function createDlxCommandCacheDir (cacheDir: string, pkgs: string[], registries: Record<string, string>): string {
   const dlxCacheDir = path.resolve(cacheDir, 'dlx')
-  const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
-  const cacheKey = createBase32Hash(hashStr)
+  const cacheKey = createCacheKey(pkgs, registries)
   const cachePath = path.join(dlxCacheDir, cacheKey)
   fs.mkdirSync(cachePath, { recursive: true })
   return cachePath
+}
+
+export function createCacheKey (pkgs: string[], registries: Record<string, string>): string {
+  const sortedPkgs = [...pkgs].sort((a, b) => a.localeCompare(b))
+  const sortedRegistries = Object.entries(registries).sort(([k1], [k2]) => k1.localeCompare(k2))
+  const hashStr = JSON.stringify([sortedPkgs, sortedRegistries])
+  return createBase32Hash(hashStr)
 }
 
 function isCacheValid (cacheLink: string, dlxCacheMaxAge: number): boolean {
