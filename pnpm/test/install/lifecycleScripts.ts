@@ -213,64 +213,14 @@ test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace 
   })
 
   execPnpmSync(['install'])
-
   expect(
     ['node-version-undefined', 'node-version-18', 'node-version-20'].map(name => {
       const filePath = path.join(projects[name].dir(), 'node-version.txt')
       return fs.readFileSync(filePath, 'utf-8').trim()
     })
   ).toStrictEqual([process.version, 'v18.0.0', 'v20.0.0'])
-})
-
-test('node versions specified by pnpm.executionEnv.nodeVersion in workspace overrides use-node-version from the config', async () => {
-  const projects = preparePackages([
-    {
-      location: '.',
-      package: {
-        name: 'root',
-        version: '1.0.0',
-        private: true,
-      },
-    },
-    {
-      name: 'node-version-undefined',
-      version: '1.0.0',
-      scripts: {
-        install: 'node -v > node-version.txt',
-      },
-    },
-    {
-      name: 'node-version-18',
-      version: '1.0.0',
-      scripts: {
-        install: 'node -v > node-version.txt',
-      },
-      pnpm: {
-        executionEnv: {
-          nodeVersion: '18.0.0',
-        },
-      },
-    },
-    {
-      name: 'node-version-20',
-      version: '1.0.0',
-      scripts: {
-        install: 'node -v > node-version.txt',
-      },
-      pnpm: {
-        executionEnv: {
-          nodeVersion: '20.0.0',
-        },
-      },
-    },
-  ])
-
-  await writeYamlFile(path.resolve('pnpm-workspace.yaml'), {
-    packages: ['*'],
-  })
 
   execPnpmSync(['--config.use-node-version=19.0.0', 'install'])
-
   expect(
     ['node-version-undefined', 'node-version-18', 'node-version-20'].map(name => {
       const filePath = path.join(projects[name].dir(), 'node-version.txt')
