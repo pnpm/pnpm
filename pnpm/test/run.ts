@@ -247,7 +247,9 @@ test('recursive run when some packages define different node versions, CLI does 
         'print-node-version': 'node -v',
       },
       pnpm: {
-        useNodeVersion: '18.0.0',
+        executionEnv: {
+          nodeVersion: '18.0.0',
+        },
       },
     },
     {
@@ -256,7 +258,9 @@ test('recursive run when some packages define different node versions, CLI does 
         'print-node-version': 'node -v',
       },
       pnpm: {
-        useNodeVersion: '20.0.0',
+        executionEnv: {
+          nodeVersion: '20.0.0',
+        },
       },
     },
   ])
@@ -291,7 +295,9 @@ test('recursive run when some packages define different node versions, CLI defin
         'print-node-version': 'node -v',
       },
       pnpm: {
-        useNodeVersion: '18.0.0',
+        executionEnv: {
+          nodeVersion: '18.0.0',
+        },
       },
     },
     {
@@ -300,7 +306,9 @@ test('recursive run when some packages define different node versions, CLI defin
         'print-node-version': 'node -v',
       },
       pnpm: {
-        useNodeVersion: '20.0.0',
+        executionEnv: {
+          nodeVersion: '20.0.0',
+        },
       },
     },
   ])
