@@ -222,24 +222,23 @@ test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace 
   ).toStrictEqual([process.version, 'v18.0.0', 'v20.0.0'])
 })
 
-// TODO: update registry-mock to change it to pnpm.executionEnv.nodeVersion
-test.skip('ignores pnpm.useNodeVersion specified by dependencies', async () => {
+test('ignores pnpm.executionEnv specified by dependencies', async () => {
   prepare({
     name: 'ignores-pnpm-use-node-version-from-dependencies',
     version: '1.0.0',
     dependencies: {
-      // this package's package.json has pnpm.useNodeVersion = '20.0.0'
-      '@pnpm.e2e/has-pnpm-use-node-version': '1.0.0',
+      // this package's package.json has pnpm.executionEnv.nodeVersion = '20.0.0'
+      '@pnpm.e2e/has-execution-env': '1.0.0',
     },
   })
 
   await execPnpm(['install'])
 
-  const nodeInfoFile = path.resolve('node_modules', '@pnpm.e2e', 'has-pnpm-use-node-version', 'node-info.json')
+  const nodeInfoFile = path.resolve('node_modules', '@pnpm.e2e', 'has-execution-env', 'node-info.json')
   const nodeInfoJson = fs.readFileSync(nodeInfoFile, 'utf-8')
   const nodeInfo = JSON.parse(nodeInfoJson)
 
-  // pnpm should still use system's Node.js to execute the install script despite pnpm.useNodeVersion specified by the dependency
+  // pnpm should still use system's Node.js to execute the install script despite pnpm.executionEnv.nodeVersion specified by the dependency
   expect(nodeInfo).toMatchObject({
     execPath: process.execPath,
     versions: process.versions,
