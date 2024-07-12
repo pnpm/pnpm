@@ -274,7 +274,9 @@ export async function main (inputArgv: string[]): Promise<void> {
       if ('webcontainer' in process.versions) {
         globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
       } else {
-        config.extraBinPaths = (await node.prepareExecutionEnv(config, { executionEnv: { nodeVersion: config.useNodeVersion } })).extraBinPaths
+        config.extraBinPaths = (
+          await node.prepareExecutionEnv(config, { executionEnv: { nodeVersion: config.useNodeVersion } })
+        ).extraBinPaths
         config.nodeVersion = config.useNodeVersion
       }
     }
