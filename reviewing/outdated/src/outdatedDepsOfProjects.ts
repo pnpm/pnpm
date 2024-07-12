@@ -1,4 +1,5 @@
 import path from 'path'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   readCurrentLockfile,
   readWantedLockfile,
@@ -18,6 +19,7 @@ export async function outdatedDepsOfProjects (
   pkgs: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>,
   args: string[],
   opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'> & {
+    catalogs?: Catalogs
     compatible?: boolean
     ignoreDependencies?: string[]
     include: IncludedDependencies
@@ -43,6 +45,7 @@ export async function outdatedDepsOfProjects (
   return Promise.all(pkgs.map(async ({ rootDir, manifest }): Promise<OutdatedPackage[]> => {
     const match = (args.length > 0) && createMatcher(args) || undefined
     return outdated({
+      catalogs: opts.catalogs,
       compatible: opts.compatible,
       currentLockfile,
       getLatestManifest,

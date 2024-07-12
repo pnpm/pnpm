@@ -33,6 +33,8 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",

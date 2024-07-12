@@ -129,6 +129,7 @@ export type OutdatedCommandOptions = {
 | 'allProjects'
 | 'ca'
 | 'cacheDir'
+| 'catalogs'
 | 'cert'
 | 'dev'
 | 'dir'
