@@ -11,7 +11,6 @@ import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { getNodeMirror } from './getNodeMirror'
 import { parseNodeSpecifier } from './parseNodeSpecifier'
-import { replaceOrAddNodeIntoBinPaths } from './replaceOrAddNodeIntoBinPaths'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -51,8 +50,6 @@ const nodeFetchPromises: Record<string, Promise<string>> = {}
 export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {
   if (!executionEnv?.nodeVersion) return { extraBinPaths: extraBinPaths ?? [] }
 
-  const baseDir = getNodeVersionsBaseDir(config.pnpmHomeDir)
-
   let nodePathPromise = nodeFetchPromises[executionEnv.nodeVersion]
   if (!nodePathPromise) {
     nodePathPromise = getNodeBinDir({
@@ -63,7 +60,7 @@ export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extr
   }
 
   return {
-    extraBinPaths: replaceOrAddNodeIntoBinPaths(extraBinPaths ?? [], baseDir, await nodePathPromise),
+    extraBinPaths: [await nodePathPromise, ...extraBinPaths ?? []],
   }
 }
 
