@@ -5,7 +5,7 @@ import { type ProjectManifest, DEPENDENCIES_FIELDS } from '@pnpm/types'
 /**
  * Teach the `pnpm deploy` command how to interpret the catalog: protocol.
  *
- * This is a hack to workaround a design problem between pnpm deploy and
+ * This is a hack to work around a design problem between pnpm deploy and
  * catalogs.
  *
  *   - The catalog protocol is intentionally only allowed to be used by
