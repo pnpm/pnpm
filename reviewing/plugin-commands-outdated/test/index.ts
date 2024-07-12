@@ -17,6 +17,7 @@ const hasNotOutdatedDepsFixture = f.find('has-not-outdated-deps')
 const hasMajorOutdatedDepsFixture = f.find('has-major-outdated-deps')
 const hasNoLockfileFixture = f.find('has-no-lockfile')
 const withPnpmUpdateIgnore = f.find('with-pnpm-update-ignore')
+const hasOutdatedDepsUsingCatalogProtocol = f.find('has-outdated-deps-using-catalog-protocol')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -375,6 +376,27 @@ test('ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: withPnpmUpdateIgnore,
+  })
+
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
+┌─────────────┬─────────┬────────┐
+│ Package     │ Current │ Latest │
+├─────────────┼─────────┼────────┤
+│ is-negative │ 1.0.0   │ 2.1.0  │
+└─────────────┴─────────┴────────┘
+`)
+})
+
+test('pnpm outdated: catalog protocol', async () => {
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    catalogs: {
+      // Duplicating the catalog config in the pnpm-workspace.yaml inline to
+      // avoid an async read and catalog config normalization call.
+      default: { 'is-negative': '^1.0.0' },
+    },
+    dir: hasOutdatedDepsUsingCatalogProtocol,
   })
 
   expect(exitCode).toBe(1)
