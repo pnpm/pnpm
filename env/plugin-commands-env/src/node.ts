@@ -46,7 +46,7 @@ export interface ManifestWithUseNodeVersion {
   }
 }
 
-const nodeFetchPromises: Record<string, Promise<string>> =  {}
+const nodeFetchPromises: Record<string, Promise<string>> = {}
 
 export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {
   if (!executionEnv?.nodeVersion) return { extraBinPaths: extraBinPaths ?? [] }

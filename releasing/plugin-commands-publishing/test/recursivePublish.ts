@@ -327,7 +327,9 @@ test('recursive publish runs script with Node.js version specified by pnpm.useNo
         prepublishOnly: 'node -v > node-version.txt',
       },
       pnpm: {
-        useNodeVersion: '18.0.0',
+        executionEnv: {
+          nodeVersion: '18.0.0',
+        },
       },
     },
     {
@@ -337,7 +339,9 @@ test('recursive publish runs script with Node.js version specified by pnpm.useNo
         prepublishOnly: 'node -v > node-version.txt',
       },
       pnpm: {
-        useNodeVersion: '20.0.0',
+        executionEnv: {
+          useNodeVersion: '20.0.0',
+        },
       },
     },
   ])
