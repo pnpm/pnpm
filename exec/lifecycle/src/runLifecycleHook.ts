@@ -95,9 +95,10 @@ Please unset the script-shell option, or configure it to a .exe instead.
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
     : undefined
-  const extraBinPaths: string[] | undefined = opts.prepareExecutionEnv
-    ? await opts.prepareExecutionEnv(opts.extraBinPaths ?? [], (manifest as ProjectManifest).pnpm?.executionEnv)
-    : opts.extraBinPaths
+  const extraBinPaths = (await opts.prepareExecutionEnv?.({
+    extraBinPaths: opts.extraBinPaths,
+    executionEnv: (manifest as ProjectManifest).pnpm?.executionEnv,
+  }))?.extraBinPaths ?? opts.extraBinPaths
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,

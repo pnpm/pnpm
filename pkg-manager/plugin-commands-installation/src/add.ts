@@ -208,6 +208,6 @@ export async function handler (
     ...opts,
     include,
     includeDirect: include,
-    prepareExecutionEnv: node.createPrepareExecutionEnv(opts),
+    prepareExecutionEnv: node.prepareExecutionEnv.bind(null, opts),
   }, params)
 }

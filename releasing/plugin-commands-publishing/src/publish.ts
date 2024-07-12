@@ -221,7 +221,7 @@ Do you want to continue?`,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
-    prepareExecutionEnv: node.createPrepareExecutionEnv(opts),
+    prepareExecutionEnv: node.prepareExecutionEnv.bind(null, opts),
   })
   const { manifest } = await readProjectManifest(dir, opts)
   // Unfortunately, we cannot support postpack at the moment

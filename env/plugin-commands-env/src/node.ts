@@ -6,7 +6,7 @@ import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
 import { fetchNode } from '@pnpm/node.fetcher'
 import { getStorePath } from '@pnpm/store-path'
-import { type PrepareExecutionEnv } from '@pnpm/types'
+import { type PrepareExecutionEnvOptions, type PrepareExecutionEnvResult } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { getNodeMirror } from './getNodeMirror'
@@ -40,41 +40,31 @@ export type NvmNodeCommandOptions = Pick<Config,
 
 export type ConfigWithExtraBinPaths = NvmNodeCommandOptions & Partial<Pick<Config, 'extraBinPaths'>>
 
-export async function createBinPathsWithNodeVersion (config: ConfigWithExtraBinPaths, nodeVersion: string): Promise<string[]> {
-  const baseDir = getNodeVersionsBaseDir(config.pnpmHomeDir)
-
-  const nodePath = await getNodeBinDir({
-    ...config,
-    useNodeVersion: nodeVersion,
-  })
-
-  return replaceOrAddNodeIntoBinPaths(config.extraBinPaths ?? [], baseDir, nodePath)
-}
-
 export interface ManifestWithUseNodeVersion {
   pnpm?: {
     useNodeVersion?: string
   }
 }
 
-export const createPrepareExecutionEnv = (
-  config: NvmNodeCommandOptions,
-  cache: Partial<Record<string, Promise<string>>> = {}
-): PrepareExecutionEnv => async (binPaths, executionEnv) => {
-  if (!executionEnv?.nodeVersion) return binPaths
+const nodeFetchPromises: Record<string, Promise<string>> =  {}
+
+export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {
+  if (!executionEnv?.nodeVersion) return { extraBinPaths: extraBinPaths ?? [] }
 
   const baseDir = getNodeVersionsBaseDir(config.pnpmHomeDir)
 
-  let nodePathPromise = cache[executionEnv.nodeVersion]
+  let nodePathPromise = nodeFetchPromises[executionEnv.nodeVersion]
   if (!nodePathPromise) {
     nodePathPromise = getNodeBinDir({
       ...config,
       useNodeVersion: executionEnv.nodeVersion,
     })
-    cache[executionEnv.nodeVersion] = nodePathPromise
+    nodeFetchPromises[executionEnv.nodeVersion] = nodePathPromise
   }
 
-  return replaceOrAddNodeIntoBinPaths(binPaths, baseDir, await nodePathPromise)
+  return {
+    extraBinPaths: replaceOrAddNodeIntoBinPaths(extraBinPaths ?? [], baseDir, await nodePathPromise),
+  }
 }
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {

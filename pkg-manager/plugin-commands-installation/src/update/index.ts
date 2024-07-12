@@ -305,7 +305,7 @@ async function update (
       : undefined,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
-    prepareExecutionEnv: node.createPrepareExecutionEnv(opts),
+    prepareExecutionEnv: node.prepareExecutionEnv.bind(null, opts),
   }, dependencies)
 }
 

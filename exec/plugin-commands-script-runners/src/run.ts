@@ -252,7 +252,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
   if (manifest.pnpm?.executionEnv?.nodeVersion) {
-    lifecycleOpts.extraBinPaths = await node.createBinPathsWithNodeVersion(opts, manifest.pnpm.executionEnv.nodeVersion)
+    lifecycleOpts.extraBinPaths = (await node.prepareExecutionEnv(opts, { executionEnv: manifest.pnpm.executionEnv })).extraBinPaths
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && existsPnp(opts.workspaceDir)) ?? existsPnp(dir)
