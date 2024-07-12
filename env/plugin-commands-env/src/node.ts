@@ -39,12 +39,6 @@ export type NvmNodeCommandOptions = Pick<Config,
 
 export type ConfigWithExtraBinPaths = NvmNodeCommandOptions & Partial<Pick<Config, 'extraBinPaths'>>
 
-export interface ManifestWithUseNodeVersion {
-  pnpm?: {
-    useNodeVersion?: string
-  }
-}
-
 const nodeFetchPromises: Record<string, Promise<string>> = {}
 
 export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {
