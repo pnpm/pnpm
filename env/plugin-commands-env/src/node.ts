@@ -37,8 +37,6 @@ export type NvmNodeCommandOptions = Pick<Config,
   remote?: boolean
 }
 
-export type ConfigWithExtraBinPaths = NvmNodeCommandOptions & Partial<Pick<Config, 'extraBinPaths'>>
-
 const nodeFetchPromises: Record<string, Promise<string>> = {}
 
 export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {

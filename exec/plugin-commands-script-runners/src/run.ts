@@ -6,7 +6,7 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
-import { node } from '@pnpm/plugin-commands-env'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -253,7 +253,7 @@ so you may run "pnpm -w run ${scriptName}"`,
   }
   const executionEnv = manifest.pnpm?.executionEnv
   if (executionEnv != null) {
-    lifecycleOpts.extraBinPaths = (await node.prepareExecutionEnv(opts, { executionEnv })).extraBinPaths
+    lifecycleOpts.extraBinPaths = (await prepareExecutionEnv(opts, { executionEnv })).extraBinPaths
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && existsPnp(opts.workspaceDir)) ?? existsPnp(dir)

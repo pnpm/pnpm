@@ -2,7 +2,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { node } from '@pnpm/plugin-commands-env'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions } from './install'
@@ -208,6 +208,6 @@ export async function handler (
     ...opts,
     include,
     includeDirect: include,
-    prepareExecutionEnv: node.prepareExecutionEnv.bind(null, opts),
+    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }, params)
 }
