@@ -2,6 +2,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { isCI } from 'ci-info'
 import pick from 'ramda/src/pick'
@@ -329,6 +330,7 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
       typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined',
     include,
     includeDirect: include,
+    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }
   if (opts.resolutionOnly) {
     installDepsOptions.lockfileOnly = true

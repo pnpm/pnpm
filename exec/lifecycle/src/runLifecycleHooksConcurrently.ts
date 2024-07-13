@@ -57,7 +57,7 @@ export async function runLifecycleHooksConcurrently (
             logger.warn({ message, prefix: rootDir })
           },
         })
-        const runLifecycleHookOpts = {
+        const runLifecycleHookOpts: RunLifecycleHookOptions = {
           ...opts,
           depPath: rootDir,
           pkgRoot: rootDir,

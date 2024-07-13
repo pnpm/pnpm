@@ -15,6 +15,7 @@ import {
   type PackageExtension,
   type ReadPackageHook,
   type Registries,
+  type PrepareExecutionEnv,
 } from '@pnpm/types'
 import { pnpmPkgJson } from '../pnpmPkgJson'
 import { type ReporterFunction } from '../types'
@@ -151,6 +152,7 @@ export interface StrictInstallOptions {
   hoistWorkspacePackages?: boolean
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
+  prepareExecutionEnv?: PrepareExecutionEnv
 }
 
 export type InstallOptions =

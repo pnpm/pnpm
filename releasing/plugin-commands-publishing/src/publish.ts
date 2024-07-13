@@ -9,6 +9,7 @@ import { runNpm } from '@pnpm/run-npm'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { loadToken } from '@pnpm/network.auth-header'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
 import pick from 'ramda/src/pick'
@@ -119,7 +120,7 @@ export async function handler (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme'>,
+  } & Pick<Config, 'allProjects' | 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme'>,
   params: string[]
 ): Promise<{ exitCode?: number } | undefined> {
   const result = await publish(opts, params)
@@ -140,7 +141,7 @@ export async function publish (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
+  } & Pick<Config, 'allProjects' | 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
   params: string[]
 ): Promise<PublishResult> {
   if (opts.gitChecks !== false && await isGitRepo()) {
@@ -220,6 +221,7 @@ Do you want to continue?`,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   })
   const { manifest } = await readProjectManifest(dir, opts)
   // Unfortunately, we cannot support postpack at the moment

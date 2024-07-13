@@ -25,6 +25,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../pkg-manager/remove-bins"
     },
     {

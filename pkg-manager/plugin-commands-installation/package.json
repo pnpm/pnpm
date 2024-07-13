@@ -76,6 +76,7 @@
     "@pnpm/outdated": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
