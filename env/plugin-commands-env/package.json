@@ -41,6 +41,7 @@
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@pnpm/store-path": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@zkochan/cmd-shim": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "graceful-fs": "catalog:",

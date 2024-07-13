@@ -12,7 +12,7 @@ import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
-import { node } from '@pnpm/plugin-commands-env'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
 import { checkForUpdates } from './checkForUpdates'
@@ -274,8 +274,9 @@ export async function main (inputArgv: string[]): Promise<void> {
       if ('webcontainer' in process.versions) {
         globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
       } else {
-        const nodePath = await node.getNodeBinDir(config)
-        config.extraBinPaths.push(nodePath)
+        config.extraBinPaths = (
+          await prepareExecutionEnv(config, { executionEnv: { nodeVersion: config.useNodeVersion } })
+        ).extraBinPaths
         config.nodeVersion = config.useNodeVersion
       }
     }

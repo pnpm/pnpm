@@ -10,6 +10,7 @@ import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { PnpmError } from '@pnpm/error'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
@@ -304,6 +305,7 @@ async function update (
       : undefined,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
+    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }, dependencies)
 }
 

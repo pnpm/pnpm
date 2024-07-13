@@ -66,6 +66,7 @@
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/package-bins": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
+    "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/run-npm": "workspace:*",
     "@pnpm/sort-packages": "workspace:*",
