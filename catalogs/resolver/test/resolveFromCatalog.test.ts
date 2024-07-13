@@ -30,16 +30,6 @@ test('resolves named catalog', () => {
     .toEqual({ type: 'found', resolution: { catalogName: 'foo', specifier: '1.0.0' } })
 })
 
-test('returns unused for specifier not using catalog protocol', () => {
-  const catalogs = {
-    foo: {
-      bar: '1.0.0',
-    },
-  }
-
-  expect(resolveFromCatalog(catalogs, { alias: 'bar', pref: '^2.0.0' })).toEqual({ type: 'unused' })
-})
-
 describe('misconfiguration', () => {
   function resolveFromCatalogOrThrow (catalogs: Catalogs, wantedDependency: WantedDependency) {
     const result = resolveFromCatalog(catalogs, wantedDependency)
@@ -106,5 +96,16 @@ describe('misconfiguration', () => {
 
     expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
       .toThrow("The entry for 'bar' in catalog 'foo' declares a dependency using the 'link' protocol. This is not yet supported, but may be in a future version of pnpm.")
+  })
+
+  test('returns error for not used catalog protocol', () => {
+    const catalogs = {
+      foo: {
+        bar: '1.0.0',
+      },
+    }
+
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: '1.0.0' }))
+      .toThrow("The catalog entry 'bar' in catalog 'foo' is not used. The entry should be referenced using the catalog protocol.")
   })
 })
