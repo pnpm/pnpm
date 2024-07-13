@@ -1,11 +1,13 @@
 import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
-import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { execPnpm, execPnpmSync } from './utils'
+import { dlx } from '@pnpm/plugin-commands-script-runners'
+import { execPnpm, execPnpmSync, testDefaults } from './utils'
+
+const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, { default: testDefaults({}).registry })
 
 test('silent dlx prints the output of the child process only', async () => {
   prepare({})
@@ -72,17 +74,17 @@ test('parallel dlx calls of the same package', async () => {
 
   expect(['foo', 'bar', 'baz'].filter(name => fs.existsSync(name))).toStrictEqual(['foo', 'bar', 'baz'])
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
+    fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx'), 'pkg'))
   ).toStrictEqual([
     'node_modules',
     'package.json',
     'pnpm-lock.yaml',
   ])
   expect(
-    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg')))
-  ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createCacheKey('shx'), 'pkg')))
+  ).toBe(path.resolve('cache', 'dlx', createCacheKey('shx')))
 
-  const cacheContentAfterFirstRun = fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()
+  const cacheContentAfterFirstRun = fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx'))).sort()
 
   // parallel dlx calls with cache
   await Promise.all(['abc', 'def', 'ghi'].map(
@@ -90,17 +92,17 @@ test('parallel dlx calls of the same package', async () => {
   ))
 
   expect(['abc', 'def', 'ghi'].filter(name => fs.existsSync(name))).toStrictEqual(['abc', 'def', 'ghi'])
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(cacheContentAfterFirstRun)
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx'))).sort()).toStrictEqual(cacheContentAfterFirstRun)
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
+    fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx'), 'pkg'))
   ).toStrictEqual([
     'node_modules',
     'package.json',
     'pnpm-lock.yaml',
   ])
   expect(
-    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg')))
-  ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createCacheKey('shx'), 'pkg')))
+  ).toBe(path.resolve('cache', 'dlx', createCacheKey('shx')))
 
   // parallel dlx calls with expired cache
   await Promise.all(['a/b/c', 'd/e/f', 'g/h/i'].map(
@@ -112,17 +114,17 @@ test('parallel dlx calls of the same package', async () => {
   ))
 
   expect(['a/b/c', 'd/e/f', 'g/h/i'].filter(name => fs.existsSync(name))).toStrictEqual(['a/b/c', 'd/e/f', 'g/h/i'])
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).length).toBeGreaterThan(cacheContentAfterFirstRun.length)
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx'))).length).toBeGreaterThan(cacheContentAfterFirstRun.length)
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
+    fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx'), 'pkg'))
   ).toStrictEqual([
     'node_modules',
     'package.json',
     'pnpm-lock.yaml',
   ])
   expect(
-    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg')))
-  ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createCacheKey('shx'), 'pkg')))
+  ).toBe(path.resolve('cache', 'dlx', createCacheKey('shx')))
 })
 
 test('dlx creates cache and store prune cleans cache', async () => {
@@ -149,11 +151,11 @@ test('dlx creates cache and store prune cleans cache', async () => {
       .sort()
   ).toStrictEqual(
     Object.keys(commands)
-      .map(createBase32Hash)
+      .map(cmd => createCacheKey(cmd))
       .sort()
   )
   for (const cmd of Object.keys(commands)) {
-    expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(cmd))).length).toBe(2)
+    expect(fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey(cmd))).length).toBe(2)
   }
 
   // modify the dates of the cache items
@@ -166,7 +168,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
   const now = new Date()
   await Promise.all(Object.entries(ageTable).map(async ([cmd, age]) => {
     const newDate = new Date(now.getTime() - age * 60_000)
-    const dlxCacheLink = path.resolve('cache', 'dlx', createBase32Hash(cmd), 'pkg')
+    const dlxCacheLink = path.resolve('cache', 'dlx', createCacheKey(cmd), 'pkg')
     await fs.promises.lutimes(dlxCacheLink, newDate, newDate)
   }))
 
@@ -178,11 +180,11 @@ test('dlx creates cache and store prune cleans cache', async () => {
       .sort()
   ).toStrictEqual(
     ['shx', '@pnpm.e2e/touch-file-good-bin-name']
-      .map(createBase32Hash)
+      .map(cmd => createCacheKey(cmd))
       .sort()
   )
   for (const cmd of ['shx', '@pnpm.e2e/touch-file-good-bin-name']) {
-    expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(cmd))).length).toBe(2)
+    expect(fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey(cmd))).length).toBe(2)
   }
 
   await execPnpm([
@@ -208,7 +210,7 @@ test('dlx should ignore non-auth info from .npmrc in the current directory', asy
     `--config.cache-dir=${cacheDir}`,
     'dlx', 'shx', 'echo', 'hi'])
 
-  const modulesManifest = await readModulesManifest(path.join(cacheDir, 'dlx', createBase32Hash('shx'), 'pkg/node_modules'))
+  const modulesManifest = await readModulesManifest(path.join(cacheDir, 'dlx', createCacheKey('shx'), 'pkg/node_modules'))
   expect(modulesManifest?.hoistPattern).toStrictEqual(['*'])
 })
 

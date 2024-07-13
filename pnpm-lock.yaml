@@ -6825,12 +6825,12 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
-      '@pnpm/crypto.base32-hash':
-        specifier: workspace:*
-        version: link:../../packages/crypto.base32-hash
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
+      '@pnpm/plugin-commands-script-runners':
+        specifier: workspace:*
+        version: link:../../exec/plugin-commands-script-runners
       '@pnpm/plugin-commands-store':
         specifier: workspace:*
         version: 'link:'

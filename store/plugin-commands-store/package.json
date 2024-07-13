@@ -31,8 +31,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store#readme",
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/plugin-commands-script-runners": "workspace:*",
     "@pnpm/plugin-commands-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
