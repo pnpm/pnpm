@@ -162,16 +162,22 @@ function findCache (pkgs: string[], opts: {
   dlxCacheMaxAge: number
   registries: Record<string, string>
 }): { cacheLink: string, prepareDir: string | null } {
-  const dlxCommandCacheDir = createDlxCommandCacheDir(opts.cacheDir, pkgs, opts.registries)
+  const dlxCommandCacheDir = createDlxCommandCacheDir(pkgs, opts)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
   const valid = isCacheValid(cacheLink, opts.dlxCacheMaxAge)
   const prepareDir = valid ? null : getPrepareDir(dlxCommandCacheDir)
   return { cacheLink, prepareDir }
 }
 
-function createDlxCommandCacheDir (cacheDir: string, pkgs: string[], registries: Record<string, string>): string {
-  const dlxCacheDir = path.resolve(cacheDir, 'dlx')
-  const cacheKey = createCacheKey(pkgs, registries)
+function createDlxCommandCacheDir (
+  pkgs: string[],
+  opts: {
+    registries: Record<string, string>
+    cacheDir: string
+  }
+): string {
+  const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
+  const cacheKey = createCacheKey(pkgs, opts.registries)
   const cachePath = path.join(dlxCacheDir, cacheKey)
   fs.mkdirSync(cachePath, { recursive: true })
   return cachePath
