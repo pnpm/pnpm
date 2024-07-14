@@ -252,6 +252,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'autoInstallPeers'
 | 'bail'
 | 'bin'
+| 'catalogs'
 | 'cliOptions'
 | 'dedupeDirectDeps'
 | 'dedupePeerDependents'

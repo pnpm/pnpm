@@ -213,3 +213,53 @@ test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDepen
   project.has('is-positive')
   expect(fs.existsSync('sub-dir/deploy')).toBe(false)
 })
+
+// Regression test for https://github.com/pnpm/pnpm/issues/8297 (pnpm deploy doesn't replace catalog: protocol)
+test('deploy works when workspace packages use catalog protocol', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'is-positive': 'catalog:',
+      },
+    },
+    {
+      name: 'project-2',
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-positive': 'catalog:',
+      },
+    },
+    {
+      name: 'project-3',
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    catalogs: {
+      default: {
+        'is-positive': '1.0.0',
+      },
+    },
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  // Make sure the is-positive cataloged dependency was actually installed.
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/is-positive')).toBeTruthy()
+})
