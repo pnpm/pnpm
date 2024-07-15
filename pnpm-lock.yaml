@@ -6228,6 +6228,12 @@ importers:
 
   reviewing/outdated:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/client':
         specifier: workspace:*
         version: link:../../pkg-manager/client
