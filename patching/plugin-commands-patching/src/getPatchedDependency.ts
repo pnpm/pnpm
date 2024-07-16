@@ -4,7 +4,6 @@ import { prompt } from 'enquirer'
 import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { PnpmError } from '@pnpm/error'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import realpathMissing from 'realpath-missing'
@@ -76,7 +75,10 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
   if (!lockfile) {
     throw new PnpmError(
       'PATCH_NO_LOCKFILE',
-      `No ${WANTED_LOCKFILE} found: Cannot patch without a lockfile`
+      'The modules directory is not ready for patching',
+      {
+        hint: 'Run pnpm install first',
+      }
     )
   }
 
