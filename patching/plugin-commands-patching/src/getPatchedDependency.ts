@@ -75,7 +75,7 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
   if (!lockfile) {
     throw new PnpmError(
       'PATCH_NO_LOCKFILE',
-      `No node_modules/.modules.yaml found`,
+      'No node_modules/.modules.yaml found',
       {
         hint: 'Run pnpm install first',
       }
