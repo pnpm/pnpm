@@ -47,6 +47,7 @@
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/package-requester": "workspace:*",
+    "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
     "@pnpm/prune-lockfile": "workspace:*",

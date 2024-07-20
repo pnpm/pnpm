@@ -29,6 +29,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/config/parse-overrides#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*"
   },

@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import {
   LAYOUT_VERSION,
@@ -40,6 +41,7 @@ import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.pre
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
+import { type VersionOverride, parseOverrides } from '@pnpm/parse-overrides'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { removeBin } from '@pnpm/remove-bins'
@@ -345,7 +347,7 @@ export async function mutateModules (
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
-        overrides: opts.overrides,
+        overrides: opts.parsedOverrides,
         ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
         packageExtensionsChecksum,
         patchedDependencies,
@@ -774,7 +776,7 @@ function getOutdatedLockfileSetting (
     peersSuffixMaxLength,
     pnpmfileChecksum,
   }: {
-    overrides?: Record<string, string>
+    overrides?: VersionOverride[]
     packageExtensionsChecksum?: string
     patchedDependencies?: Record<string, PatchFile>
     ignoredOptionalDependencies?: string[]
@@ -784,7 +786,17 @@ function getOutdatedLockfileSetting (
     pnpmfileChecksum?: string
   }
 ): ChangedField | null {
-  if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
+  const catalogs: Catalogs = Object.fromEntries(
+    Object.entries(lockfile.catalogs ?? {})
+      .map(([catalogName, catalog]) => [
+        catalogName,
+        Object.fromEntries(
+          Object.entries(catalog)
+            .map(([depName, { specifier }]) => [depName, specifier])
+        ),
+      ])
+  )
+  if (!equals(parseOverrides(lockfile.overrides ?? {}, catalogs ?? {}), overrides ?? [])) {
     return 'overrides'
   }
   if (lockfile.packageExtensionsChecksum !== packageExtensionsChecksum) {

@@ -1,11 +1,11 @@
 import { packageExtensions as compatPackageExtensions } from '@yarnpkg/extensions'
-import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   type PackageExtension,
   type PackageManifest,
   type ProjectManifest,
   type ReadPackageHook,
 } from '@pnpm/types'
+import { type VersionOverride } from '@pnpm/parse-overrides'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
 import { createOptionalDependenciesRemover } from './createOptionalDependenciesRemover'
@@ -14,7 +14,6 @@ import { createVersionsOverrider } from './createVersionsOverrider'
 
 export function createReadPackageHook (
   {
-    catalogs,
     ignoreCompatibilityDb,
     lockfileDir,
     overrides,
@@ -22,10 +21,9 @@ export function createReadPackageHook (
     packageExtensions,
     readPackageHook,
   }: {
-    catalogs?: Catalogs
     ignoreCompatibilityDb?: boolean
     lockfileDir: string
-    overrides?: Record<string, string>
+    overrides?: VersionOverride[]
     ignoredOptionalDependencies?: string[]
     packageExtensions?: Record<string, PackageExtension>
     readPackageHook?: ReadPackageHook[] | ReadPackageHook
@@ -44,7 +42,7 @@ export function createReadPackageHook (
     hooks.push(readPackageHook)
   }
   if (!isEmpty(overrides ?? {})) {
-    hooks.push(createVersionsOverrider(overrides!, lockfileDir, { catalogs }))
+    hooks.push(createVersionsOverrider(overrides!, lockfileDir))
   }
   if (ignoredOptionalDependencies && !isEmpty(ignoredOptionalDependencies)) {
     hooks.push(createOptionalDependenciesRemover(ignoredOptionalDependencies))

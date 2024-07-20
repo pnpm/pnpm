@@ -2,38 +2,19 @@ import path from 'path'
 import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
-import { PnpmError } from '@pnpm/error'
-import { parseOverrides, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
+import { type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
-import { matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
-import { type Catalogs } from '@pnpm/catalogs.types'
 import { isIntersectingRange } from './isIntersectingRange'
 
 export function createVersionsOverrider (
-  overrides: Record<string, string>,
-  rootDir: string,
-  options?: {
-    catalogs?: Catalogs
-  }
+  overrides: VersionOverrideBase[],
+  rootDir: string
 ): ReadPackageHook {
-  const parsedOverrides = tryParseOverrides(overrides)
-  const _resolveFromCatalog = resolveFromCatalog.bind(null, options?.catalogs ?? {})
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
-    parsedOverrides
+    overrides
       .map((override) => {
-        const resolvedCatalog = matchCatalogResolveResult(_resolveFromCatalog({
-          pref: override.newPref,
-          alias: override.targetPkg.name,
-        }), {
-          found: (result) => result.resolution.specifier,
-          unused: () => undefined,
-          misconfiguration: (result) => {
-            throw new PnpmError('CATALOG_IN_OVERRIDES', `Could not resolve a catalog in the overrides: ${result.error.message}`)
-          },
-        })
         return {
           ...override,
-          newPref: resolvedCatalog ?? override.newPref,
           localTarget: createLocalTarget(override, rootDir),
         }
       })
@@ -49,14 +30,6 @@ export function createVersionsOverrider (
 
     return manifest
   }) as ReadPackageHook
-}
-
-function tryParseOverrides (overrides: Record<string, string>): VersionOverrideBase[] {
-  try {
-    return parseOverrides(overrides)
-  } catch (e) {
-    throw new PnpmError('INVALID_OVERRIDES_SELECTOR', `${(e as PnpmError).message} in pnpm.overrides`)
-  }
 }
 
 interface LocalTarget {

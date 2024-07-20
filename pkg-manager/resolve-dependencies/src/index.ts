@@ -307,6 +307,23 @@ export async function resolveDependencies (
   }
 
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
+  if (opts.catalogs) {
+    for (const [catalogName, catalog] of Object.entries(opts.catalogs)) {
+      if (!newLockfile.catalogs[catalogName]) {
+        newLockfile.catalogs[catalogName] = {}
+      }
+      if (catalog) {
+        for (const [depName, specifier] of  Object.entries(catalog)) {
+          if (!newLockfile.catalogs[catalogName][depName]) {
+            newLockfile.catalogs[catalogName][depName] = {
+              specifier: specifier!,
+              version: ''
+            }
+          }
+        }
+      }
+    }
+  }
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
