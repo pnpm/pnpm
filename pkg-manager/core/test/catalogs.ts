@@ -705,20 +705,21 @@ test('catalogs work in overrides', async () => {
     },
   ])
 
+  const catalogs = {
+    default: {
+      '@pnpm.e2e/foo': 'npm:@pnpm.e2e/qar@100.0.0',
+      '@pnpm.e2e/bar': '100.1.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+    },
+  }
   await mutateModules(installProjects(projects), {
     ...options,
     lockfileOnly: true,
-    catalogs: {
-      default: {
-        '@pnpm.e2e/foo': 'npm:@pnpm.e2e/qar@100.0.0',
-        '@pnpm.e2e/bar': '100.1.0',
-        '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
-      },
-    },
+    catalogs,
     overrides,
   })
 
-  const lockfile = readLockfile()
+  let lockfile = readLockfile()
   expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('@pnpm.e2e/qar@100.0.0')
   expect(lockfile.snapshots['@pnpm.e2e/foobar@100.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
@@ -728,4 +729,16 @@ test('catalogs work in overrides', async () => {
     '@pnpm.e2e/bar@^100.0.0': 'catalog:',
     '@pnpm.e2e/dep-of-pkg-with-1-dep': 'catalog:',
   })
+
+  catalogs.default['@pnpm.e2e/bar'] = '100.0.0'
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+    overrides,
+  })
+
+  lockfile = readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/bar@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/bar@100.1.0'])
 })
