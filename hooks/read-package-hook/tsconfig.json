@@ -10,12 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../catalogs/resolver"
-    },
-    {
-      "path": "../../catalogs/types"
-    },
-    {
       "path": "../../config/matcher"
     },
     {

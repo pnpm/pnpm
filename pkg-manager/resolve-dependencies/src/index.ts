@@ -313,11 +313,11 @@ export async function resolveDependencies (
         newLockfile.catalogs[catalogName] = {}
       }
       if (catalog) {
-        for (const [depName, specifier] of  Object.entries(catalog)) {
+        for (const [depName, specifier] of Object.entries(catalog)) {
           if (!newLockfile.catalogs[catalogName][depName]) {
             newLockfile.catalogs[catalogName][depName] = {
               specifier: specifier!,
-              version: ''
+              version: '',
             }
           }
         }

@@ -178,7 +178,7 @@ function parseAllowedVersions (allowedVersions: Record<string, string>): ParsedA
 
 function tryParseAllowedVersions (allowedVersions: Record<string, string>): VersionOverride[] {
   try {
-    return parseOverrides(allowedVersions ?? {})
+    return parseOverrides(allowedVersions ?? {}, {})
   } catch (err) {
     throw new PnpmError('INVALID_ALLOWED_VERSION_SELECTOR',
       `${(err as PnpmError).message} in pnpm.peerDependencyRules.allowedVersions`)
