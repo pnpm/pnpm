@@ -68,6 +68,7 @@ export async function outdated (
     const overrides = opts.currentLockfile?.overrides ?? opts.wantedLockfile?.overrides
     if (overrides) {
       const readPackageHook = createReadPackageHook({
+        catalogs: opts.catalogs ?? {},
         lockfileDir: opts.lockfileDir,
         overrides,
       })
