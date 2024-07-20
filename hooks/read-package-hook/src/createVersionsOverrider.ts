@@ -5,18 +5,35 @@ import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@
 import { PnpmError } from '@pnpm/error'
 import { parseOverrides, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
+import { matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { isIntersectingRange } from './isIntersectingRange'
 
 export function createVersionsOverrider (
   overrides: Record<string, string>,
-  rootDir: string
+  rootDir: string,
+  options: {
+    catalogs: Catalogs
+  }
 ): ReadPackageHook {
   const parsedOverrides = tryParseOverrides(overrides)
+  const _resolveFromCatalog = resolveFromCatalog.bind(null, options.catalogs)
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
     parsedOverrides
       .map((override) => {
+        const catalogLookup = matchCatalogResolveResult(_resolveFromCatalog({
+          pref: override.newPref,
+          alias: override.targetPkg.name,
+        }), {
+          found: (result) => result.resolution,
+          unused: () => undefined,
+          misconfiguration: (result) => {
+            throw result.error
+          },
+        })
         return {
           ...override,
+          newPref: catalogLookup != null ? catalogLookup.specifier : override.newPref,
           localTarget: createLocalTarget(override, rootDir),
         }
       })

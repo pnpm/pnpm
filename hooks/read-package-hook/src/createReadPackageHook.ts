@@ -1,4 +1,5 @@
 import { packageExtensions as compatPackageExtensions } from '@yarnpkg/extensions'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   type PackageExtension,
   type PackageManifest,
@@ -13,6 +14,7 @@ import { createVersionsOverrider } from './createVersionsOverrider'
 
 export function createReadPackageHook (
   {
+    catalogs,
     ignoreCompatibilityDb,
     lockfileDir,
     overrides,
@@ -20,6 +22,7 @@ export function createReadPackageHook (
     packageExtensions,
     readPackageHook,
   }: {
+    catalogs: Catalogs
     ignoreCompatibilityDb?: boolean
     lockfileDir: string
     overrides?: Record<string, string>
@@ -41,7 +44,7 @@ export function createReadPackageHook (
     hooks.push(readPackageHook)
   }
   if (!isEmpty(overrides ?? {})) {
-    hooks.push(createVersionsOverrider(overrides!, lockfileDir))
+    hooks.push(createVersionsOverrider(overrides!, lockfileDir, { catalogs }))
   }
   if (ignoredOptionalDependencies && !isEmpty(ignoredOptionalDependencies)) {
     hooks.push(createOptionalDependenciesRemover(ignoredOptionalDependencies))

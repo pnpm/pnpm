@@ -2619,6 +2619,12 @@ importers:
 
   hooks/read-package-hook:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error

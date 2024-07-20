@@ -274,6 +274,7 @@ export function extendOptions (
     storeDir: defaultOpts.storeDir,
   }
   extendedOpts.readPackageHook = createReadPackageHook({
+    catalogs: extendedOpts.catalogs,
     ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,
     readPackageHook: extendedOpts.hooks?.readPackage,
     overrides: extendedOpts.overrides,

@@ -69,6 +69,7 @@ export async function getPeerDependencyIssues (
       forceFullResolution: true,
       hooks: {
         readPackage: createReadPackageHook({
+          catalogs: opts.catalogs ?? {},
           ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
           lockfileDir,
           overrides: opts.overrides,
