@@ -21,19 +21,19 @@ export function createVersionsOverrider (
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
     parsedOverrides
       .map((override) => {
-        const catalogLookup = matchCatalogResolveResult(_resolveFromCatalog({
+        const resolvedCatalog = matchCatalogResolveResult(_resolveFromCatalog({
           pref: override.newPref,
           alias: override.targetPkg.name,
         }), {
-          found: (result) => result.resolution,
+          found: (result) => result.resolution.specifier,
           unused: () => undefined,
           misconfiguration: (result) => {
-            throw result.error
+            throw new PnpmError('CATALOG_IN_OVERRIDES', `Could not resolve a catalog in the overrides: ${result.error.message}`)
           },
         })
         return {
           ...override,
-          newPref: catalogLookup != null ? catalogLookup.specifier : override.newPref,
+          newPref: resolvedCatalog ?? override.newPref,
           localTarget: createLocalTarget(override, rootDir),
         }
       })
