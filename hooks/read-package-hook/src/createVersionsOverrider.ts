@@ -12,12 +12,12 @@ import { isIntersectingRange } from './isIntersectingRange'
 export function createVersionsOverrider (
   overrides: Record<string, string>,
   rootDir: string,
-  options: {
-    catalogs: Catalogs
+  options?: {
+    catalogs?: Catalogs
   }
 ): ReadPackageHook {
   const parsedOverrides = tryParseOverrides(overrides)
-  const _resolveFromCatalog = resolveFromCatalog.bind(null, options.catalogs)
+  const _resolveFromCatalog = resolveFromCatalog.bind(null, options?.catalogs ?? {})
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
     parsedOverrides
       .map((override) => {

@@ -22,7 +22,7 @@ export function createReadPackageHook (
     packageExtensions,
     readPackageHook,
   }: {
-    catalogs: Catalogs
+    catalogs?: Catalogs
     ignoreCompatibilityDb?: boolean
     lockfileDir: string
     overrides?: Record<string, string>
