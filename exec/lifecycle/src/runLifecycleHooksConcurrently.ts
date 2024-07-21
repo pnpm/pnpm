@@ -7,6 +7,7 @@ import { type StoreController } from '@pnpm/store-controller-types'
 import { type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import runGroups from 'run-groups'
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook'
+import { checkBindingGyp } from '.'
 
 export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 | 'depPath'
@@ -47,6 +48,9 @@ export async function runLifecycleHooksConcurrently (
     const importers = importersByBuildIndex.get(buildIndex)!
     return importers.map(({ manifest, modulesDir, rootDir, stages: importerStages, targetDirs }) =>
       async () => {
+        if (!manifest.scripts.install && !manifest.scripts.preinstall) {
+          await checkBindingGyp(rootDir, manifest.scripts)
+        }
         // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
         await linkBins(modulesDir, path.join(modulesDir, '.bin'), {
           extraNodePaths: opts.extraNodePaths,

@@ -50,7 +50,7 @@ export async function runPostinstallHooks (
  * Run node-gyp when binding.gyp is available. Only do this when there are no
  * `install` and `preinstall` scripts (see `npm help scripts`).
  */
-async function checkBindingGyp (
+export async function checkBindingGyp (
   root: string,
   scripts: PackageScripts
 ): Promise<void> {
