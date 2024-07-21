@@ -36,7 +36,6 @@
   },
   "devDependencies": {
     "@pnpm/lockfile-file": "workspace:*",
-    "@types/js-yaml": "catalog:",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
@@ -58,7 +57,7 @@
     "@pnpm/util.lex-comparator": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "comver-to-semver": "catalog:",
-    "js-yaml": "catalog:",
+    "yaml": "catalog:",
     "normalize-path": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:",

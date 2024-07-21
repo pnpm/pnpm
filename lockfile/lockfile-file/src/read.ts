@@ -10,7 +10,7 @@ import { mergeLockfileChanges } from '@pnpm/merge-lockfile-changes'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { type ProjectId } from '@pnpm/types'
 import comverToSemver from 'comver-to-semver'
-import yaml from 'js-yaml'
+import yaml from 'yaml'
 import semver from 'semver'
 import stripBom from 'strip-bom'
 import { LockfileBreakingChangeError } from './errors'
@@ -88,7 +88,7 @@ async function _read (
   let lockfile: Lockfile
   let hadConflicts!: boolean
   try {
-    lockfile = convertToLockfileObject(yaml.load(lockfileRawContent) as any) // eslint-disable-line
+    lockfile = convertToLockfileObject(yaml.parse(lockfileRawContent) as any) // eslint-disable-line
     hadConflicts = false
   } catch (err: unknown) {
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
