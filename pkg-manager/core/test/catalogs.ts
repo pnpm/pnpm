@@ -509,7 +509,6 @@ test('lockfile catalog snapshots should remove unused entries', async () => {
     // "is-positive" configured.
     expect(lockfile.catalogs?.default).toStrictEqual({
       'is-negative': { specifier: '=1.0.0', version: '1.0.0' },
-      'is-positive': { specifier: '=1.0.0', version: '' },
     })
   }
 })
