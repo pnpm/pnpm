@@ -6,6 +6,7 @@ import { type Catalogs } from '@pnpm/catalogs.types'
 const DELIMITER_REGEX = /[^ |@]>/
 
 export interface VersionOverride {
+  selector: string
   parentPkg?: PackageSelector
   targetPkg: PackageSelector
   newPref: string
@@ -35,6 +36,7 @@ export function parseOverrides (
         },
       })
       return {
+        selector,
         newPref: resolvedCatalog ?? newPref,
         ...result,
       }

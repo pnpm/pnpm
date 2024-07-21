@@ -726,9 +726,9 @@ test('catalogs work in overrides', async () => {
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/bar@100.1.0'])
   expect(lockfile.overrides).toStrictEqual({
-    '@pnpm.e2e/foobarqar>@pnpm.e2e/foo': 'catalog:',
-    '@pnpm.e2e/bar@^100.0.0': 'catalog:',
-    '@pnpm.e2e/dep-of-pkg-with-1-dep': 'catalog:',
+    '@pnpm.e2e/foobarqar>@pnpm.e2e/foo': 'npm:@pnpm.e2e/qar@100.0.0',
+    '@pnpm.e2e/bar@^100.0.0': '100.1.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
   })
 
   catalogs.default['@pnpm.e2e/bar'] = '100.0.0'
@@ -742,4 +742,9 @@ test('catalogs work in overrides', async () => {
   lockfile = readLockfile()
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/bar@100.0.0'])
   expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/bar@100.1.0'])
+  expect(lockfile.overrides).toStrictEqual({
+    '@pnpm.e2e/foobarqar>@pnpm.e2e/foo': 'npm:@pnpm.e2e/qar@100.0.0',
+    '@pnpm.e2e/bar@^100.0.0': '100.0.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+  })
 })

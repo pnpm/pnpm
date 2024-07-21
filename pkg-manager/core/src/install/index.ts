@@ -2,7 +2,6 @@ import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
-import { type Catalogs } from '@pnpm/catalogs.types'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import {
   LAYOUT_VERSION,
@@ -41,7 +40,6 @@ import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.pre
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
-import { type VersionOverride, parseOverrides } from '@pnpm/parse-overrides'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { removeBin } from '@pnpm/remove-bins'
@@ -342,12 +340,13 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
+    const overridesMap = Object.fromEntries((opts.parsedOverrides ?? []).map(({ selector, newPref }) => [selector, newPref]))
     if (!opts.ignorePackageManifest) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
-        overrides: opts.parsedOverrides,
+        overrides: overridesMap,
         ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
         packageExtensionsChecksum,
         patchedDependencies,
@@ -369,7 +368,7 @@ export async function mutateModules (
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
       }
-      ctx.wantedLockfile.overrides = opts.overrides
+      ctx.wantedLockfile.overrides = overridesMap
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
       ctx.wantedLockfile.ignoredOptionalDependencies = opts.ignoredOptionalDependencies
       ctx.wantedLockfile.pnpmfileChecksum = pnpmfileChecksum
@@ -776,7 +775,7 @@ function getOutdatedLockfileSetting (
     peersSuffixMaxLength,
     pnpmfileChecksum,
   }: {
-    overrides?: VersionOverride[]
+    overrides?: Record<string, string>
     packageExtensionsChecksum?: string
     patchedDependencies?: Record<string, PatchFile>
     ignoredOptionalDependencies?: string[]
@@ -786,17 +785,7 @@ function getOutdatedLockfileSetting (
     pnpmfileChecksum?: string
   }
 ): ChangedField | null {
-  const catalogs: Catalogs = Object.fromEntries(
-    Object.entries(lockfile.catalogs ?? {})
-      .map(([catalogName, catalog]) => [
-        catalogName,
-        Object.fromEntries(
-          Object.entries(catalog)
-            .map(([depName, { specifier }]) => [depName, specifier])
-        ),
-      ])
-  )
-  if (!equals(parseOverrides(lockfile.overrides ?? {}, catalogs ?? {}), overrides ?? [])) {
+  if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
     return 'overrides'
   }
   if (lockfile.packageExtensionsChecksum !== packageExtensionsChecksum) {
