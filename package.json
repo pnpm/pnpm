@@ -71,7 +71,6 @@
       "glob-parent@<5.1.2": ">=5.1.2",
       "hosted-git-info@1": "npm:@pnpm/hosted-git-info@1.0.0",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
-      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.7",
       "json5@<2.2.2": ">=2.2.2",
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
       "nopt@5": "npm:@pnpm/nopt@^0.2.1",

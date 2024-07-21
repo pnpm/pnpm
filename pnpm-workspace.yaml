@@ -66,7 +66,6 @@ catalog:
   "@types/ini": 1.3.31
   "@types/is-gzip": 2.0.0
   "@types/is-windows": ^1.0.2
-  "@types/js-yaml": ^4.0.9
   "@types/lodash.clonedeep": ^4.5.9
   "@types/lodash.throttle": 4.1.7
   "@types/micromatch": ^4.0.7
@@ -105,7 +104,6 @@ catalog:
   "@zkochan/rimraf": ^3.0.2
   "@zkochan/table": ^2.0.1
   "dint": ^5.1.0
-  "js-yaml": npm:@zkochan/js-yaml@0.0.7
   adm-zip: ^0.5.14
   ansi-diff: ^1.1.1
   archy: ^1.0.0
@@ -248,3 +246,4 @@ catalog:
   write-pkg: 4.0.0
   write-yaml-file: ^5.0.0
   yaml-tag: 1.1.0
+  yaml: ^2.4.5
