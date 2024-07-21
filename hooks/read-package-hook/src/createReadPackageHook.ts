@@ -5,12 +5,11 @@ import {
   type ProjectManifest,
   type ReadPackageHook,
 } from '@pnpm/types'
-import { type VersionOverride } from '@pnpm/parse-overrides'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
 import { createOptionalDependenciesRemover } from './createOptionalDependenciesRemover'
 import { createPackageExtender } from './createPackageExtender'
-import { createVersionsOverrider } from './createVersionsOverrider'
+import { createVersionsOverrider, type VersionOverrideWithoutRawSelector } from './createVersionsOverrider'
 
 export function createReadPackageHook (
   {
@@ -23,7 +22,7 @@ export function createReadPackageHook (
   }: {
     ignoreCompatibilityDb?: boolean
     lockfileDir: string
-    overrides?: Array<Omit<VersionOverride, 'selector'>>
+    overrides?: VersionOverrideWithoutRawSelector[]
     ignoredOptionalDependencies?: string[]
     packageExtensions?: Record<string, PackageExtension>
     readPackageHook?: ReadPackageHook[] | ReadPackageHook

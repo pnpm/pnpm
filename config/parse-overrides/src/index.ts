@@ -19,7 +19,7 @@ export interface PackageSelector {
 
 export function parseOverrides (
   overrides: Record<string, string>,
-  catalogs: Catalogs
+  catalogs?: Catalogs
 ): VersionOverride[] {
   const _resolveFromCatalog = resolveFromCatalog.bind(null, catalogs ?? {})
   return Object.entries(overrides)
@@ -29,10 +29,10 @@ export function parseOverrides (
         pref: newPref,
         alias: result.targetPkg.name,
       }), {
-        found: (result) => result.resolution.specifier,
+        found: ({ resolution }) => resolution.specifier,
         unused: () => undefined,
-        misconfiguration: (result) => {
-          throw new PnpmError('CATALOG_IN_OVERRIDES', `Could not resolve a catalog in the overrides: ${result.error.message}`)
+        misconfiguration: ({ error }) => {
+          throw new PnpmError('CATALOG_IN_OVERRIDES', `Could not resolve a catalog in the overrides: ${error.message}`)
         },
       })
       return {
@@ -43,7 +43,7 @@ export function parseOverrides (
     })
 }
 
-function parsePkgAndParentSelector (selector: string) {
+function parsePkgAndParentSelector (selector: string): Pick<VersionOverride, 'parentPkg' | 'targetPkg'> {
   let delimiterIndex = selector.search(DELIMITER_REGEX)
   if (delimiterIndex !== -1) {
     delimiterIndex++

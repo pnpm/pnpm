@@ -6,8 +6,10 @@ import { type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrid
 import normalizePath from 'normalize-path'
 import { isIntersectingRange } from './isIntersectingRange'
 
+export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
+
 export function createVersionsOverrider (
-  overrides: Array<Omit<VersionOverrideBase, 'selector'>>,
+  overrides: VersionOverrideWithoutRawSelector[],
   rootDir: string
 ): ReadPackageHook {
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
@@ -40,7 +42,7 @@ interface LocalTarget {
 
 type LocalProtocol = 'link:' | 'file:'
 
-function createLocalTarget (override: Omit<VersionOverrideBase, 'selector'>, rootDir: string): LocalTarget | undefined {
+function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir: string): LocalTarget | undefined {
   let protocol: LocalProtocol | undefined
   if (override.newPref.startsWith('file:')) {
     protocol = 'file:'
@@ -59,12 +61,7 @@ interface VersionOverride extends VersionOverrideBase {
   localTarget?: LocalTarget
 }
 
-interface VersionOverrideWithParent extends VersionOverride {
-  parentPkg: {
-    name: string
-    pref?: string
-  }
-}
+type VersionOverrideWithParent = VersionOverride & Required<Pick<VersionOverride, 'parentPkg'>>
 
 function overrideDepsOfPkg (
   { manifest, dir }: { manifest: PackageManifest, dir: string | undefined },
