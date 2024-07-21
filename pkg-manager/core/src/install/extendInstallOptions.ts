@@ -17,6 +17,7 @@ import {
   type Registries,
   type PrepareExecutionEnv,
 } from '@pnpm/types'
+import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 import { pnpmPkgJson } from '../pnpmPkgJson'
 import { type ReporterFunction } from '../types'
 import { type PreResolutionHookContext } from '@pnpm/hooks.types'
@@ -252,6 +253,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
 
 export type ProcessedInstallOptions = StrictInstallOptions & {
   readPackageHook?: ReadPackageHook
+  parsedOverrides: VersionOverride[]
 }
 
 export function extendOptions (
@@ -272,11 +274,12 @@ export function extendOptions (
     ...defaultOpts,
     ...opts,
     storeDir: defaultOpts.storeDir,
+    parsedOverrides: parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {}),
   }
   extendedOpts.readPackageHook = createReadPackageHook({
     ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,
     readPackageHook: extendedOpts.hooks?.readPackage,
-    overrides: extendedOpts.overrides,
+    overrides: extendedOpts.parsedOverrides,
     lockfileDir: extendedOpts.lockfileDir,
     packageExtensions: extendedOpts.packageExtensions,
     ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,

@@ -3,8 +3,9 @@ import { resolveDependencies, getWantedDependencies } from '@pnpm/resolve-depend
 import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
 import { getContext, type GetContextOptions, type ProjectOptions } from '@pnpm/get-context'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import { type InstallOptions } from './install/extendInstallOptions'
 import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+import { parseOverrides } from '@pnpm/parse-overrides'
+import { type InstallOptions } from './install/extendInstallOptions'
 
 export type ListMissingPeersOptions = Partial<GetContextOptions>
 & Pick<InstallOptions, 'hooks'
@@ -51,6 +52,7 @@ export async function getPeerDependencyIssues (
     ctx.wantedLockfile.packages,
     Object.values(ctx.projects).map(({ manifest }) => manifest)
   )
+  const overrides = parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {})
   const {
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,
@@ -71,7 +73,7 @@ export async function getPeerDependencyIssues (
         readPackage: createReadPackageHook({
           ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
           lockfileDir,
-          overrides: opts.overrides,
+          overrides,
           packageExtensions: opts.packageExtensions,
           readPackageHook: opts.hooks?.readPackage,
           ignoredOptionalDependencies: opts.ignoredOptionalDependencies,

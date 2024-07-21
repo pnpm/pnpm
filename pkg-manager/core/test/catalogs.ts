@@ -1,6 +1,7 @@
 import { createPeersDirSuffix } from '@pnpm/dependency-path'
 import { type ProjectRootDir, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { prepareEmpty } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions, addDependenciesToPackage } from '@pnpm/core'
 import path from 'path'
 import { testDefaults } from './utils'
@@ -676,5 +677,73 @@ describe('update', () => {
     })
 
     expect(Object.keys(readLockfile().snapshots)).toEqual(['is-positive@1.0.0'])
+  })
+})
+
+test('catalogs work in overrides', async () => {
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+
+  const overrides: Record<string, string> = {
+    '@pnpm.e2e/foobarqar>@pnpm.e2e/foo': 'catalog:',
+    '@pnpm.e2e/bar@^100.0.0': 'catalog:',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': 'catalog:',
+  }
+
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/foobar': '100.0.0',
+        '@pnpm.e2e/foobarqar': '1.0.0',
+      },
+    },
+    // Empty second project to create a multi-package workspace.
+    {
+      name: 'project2',
+    },
+  ])
+
+  const catalogs = {
+    default: {
+      '@pnpm.e2e/foo': 'npm:@pnpm.e2e/qar@100.0.0',
+      '@pnpm.e2e/bar': '100.1.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+    },
+  }
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+    overrides,
+  })
+
+  let lockfile = readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('@pnpm.e2e/qar@100.0.0')
+  expect(lockfile.snapshots['@pnpm.e2e/foobar@100.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/bar@100.1.0'])
+  expect(lockfile.overrides).toStrictEqual({
+    '@pnpm.e2e/foobarqar>@pnpm.e2e/foo': 'npm:@pnpm.e2e/qar@100.0.0',
+    '@pnpm.e2e/bar@^100.0.0': '100.1.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+  })
+
+  catalogs.default['@pnpm.e2e/bar'] = '100.0.0'
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+    overrides,
+  })
+
+  lockfile = readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/bar@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/bar@100.1.0'])
+  expect(lockfile.overrides).toStrictEqual({
+    '@pnpm.e2e/foobarqar>@pnpm.e2e/foo': 'npm:@pnpm.e2e/qar@100.0.0',
+    '@pnpm.e2e/bar@^100.0.0': '100.0.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
   })
 })

@@ -1432,6 +1432,12 @@ importers:
 
   config/parse-overrides:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -3848,6 +3854,9 @@ importers:
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../package-requester
+      '@pnpm/parse-overrides':
+        specifier: workspace:*
+        version: link:../../config/parse-overrides
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
@@ -6270,6 +6279,9 @@ importers:
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
+      '@pnpm/parse-overrides':
+        specifier: workspace:*
+        version: link:../../config/parse-overrides
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package

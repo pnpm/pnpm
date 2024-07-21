@@ -9,7 +9,7 @@ import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
 import { createOptionalDependenciesRemover } from './createOptionalDependenciesRemover'
 import { createPackageExtender } from './createPackageExtender'
-import { createVersionsOverrider } from './createVersionsOverrider'
+import { createVersionsOverrider, type VersionOverrideWithoutRawSelector } from './createVersionsOverrider'
 
 export function createReadPackageHook (
   {
@@ -22,7 +22,7 @@ export function createReadPackageHook (
   }: {
     ignoreCompatibilityDb?: boolean
     lockfileDir: string
-    overrides?: Record<string, string>
+    overrides?: VersionOverrideWithoutRawSelector[]
     ignoredOptionalDependencies?: string[]
     packageExtensions?: Record<string, PackageExtension>
     readPackageHook?: ReadPackageHook[] | ReadPackageHook

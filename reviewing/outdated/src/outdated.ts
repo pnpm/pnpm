@@ -28,6 +28,7 @@ import * as dp from '@pnpm/dependency-path'
 import semver from 'semver'
 import { createMatcher } from '@pnpm/matcher'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
+import { parseOverrides } from '@pnpm/parse-overrides'
 
 export * from './createManifestGetter'
 
@@ -69,7 +70,7 @@ export async function outdated (
     if (overrides) {
       const readPackageHook = createReadPackageHook({
         lockfileDir: opts.lockfileDir,
-        overrides,
+        overrides: parseOverrides(overrides, opts.catalogs ?? {}),
       })
       const manifest = await readPackageHook?.(opts.manifest, opts.lockfileDir)
       if (manifest) return manifest

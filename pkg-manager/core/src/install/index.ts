@@ -340,12 +340,13 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
+    const overridesMap = Object.fromEntries((opts.parsedOverrides ?? []).map(({ selector, newPref }) => [selector, newPref]))
     if (!opts.ignorePackageManifest) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
-        overrides: opts.overrides,
+        overrides: overridesMap,
         ignoredOptionalDependencies: opts.ignoredOptionalDependencies?.sort(),
         packageExtensionsChecksum,
         patchedDependencies,
@@ -367,7 +368,7 @@ export async function mutateModules (
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
       }
-      ctx.wantedLockfile.overrides = opts.overrides
+      ctx.wantedLockfile.overrides = overridesMap
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
       ctx.wantedLockfile.ignoredOptionalDependencies = opts.ignoredOptionalDependencies
       ctx.wantedLockfile.pnpmfileChecksum = pnpmfileChecksum

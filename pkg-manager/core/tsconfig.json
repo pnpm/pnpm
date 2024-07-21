@@ -37,6 +37,9 @@
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../config/parse-overrides"
+    },
+    {
       "path": "../../crypto/object-hasher"
     },
     {

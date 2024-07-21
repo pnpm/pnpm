@@ -27,9 +27,14 @@ test('createReadPackageHook() runs the custom hook before the version overrider'
     ignoreCompatibilityDb: true,
     lockfileDir: '/foo',
     readPackageHook: [hook],
-    overrides: {
-      react: '16',
-    },
+    overrides: [
+      {
+        targetPkg: {
+          name: 'react',
+        },
+        newPref: '16',
+      },
+    ],
   })
   const manifest = {}
   const dir = '/bar'

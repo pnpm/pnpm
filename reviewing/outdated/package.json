@@ -46,6 +46,7 @@
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:",

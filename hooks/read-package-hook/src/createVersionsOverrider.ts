@@ -2,18 +2,18 @@ import path from 'path'
 import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
-import { PnpmError } from '@pnpm/error'
-import { parseOverrides, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
+import { type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
 import { isIntersectingRange } from './isIntersectingRange'
 
+export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
+
 export function createVersionsOverrider (
-  overrides: Record<string, string>,
+  overrides: VersionOverrideWithoutRawSelector[],
   rootDir: string
 ): ReadPackageHook {
-  const parsedOverrides = tryParseOverrides(overrides)
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
-    parsedOverrides
+    overrides
       .map((override) => {
         return {
           ...override,
@@ -34,14 +34,6 @@ export function createVersionsOverrider (
   }) as ReadPackageHook
 }
 
-function tryParseOverrides (overrides: Record<string, string>): VersionOverrideBase[] {
-  try {
-    return parseOverrides(overrides)
-  } catch (e) {
-    throw new PnpmError('INVALID_OVERRIDES_SELECTOR', `${(e as PnpmError).message} in pnpm.overrides`)
-  }
-}
-
 interface LocalTarget {
   protocol: LocalProtocol
   absolutePath: string
@@ -50,7 +42,7 @@ interface LocalTarget {
 
 type LocalProtocol = 'link:' | 'file:'
 
-function createLocalTarget (override: VersionOverrideBase, rootDir: string): LocalTarget | undefined {
+function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir: string): LocalTarget | undefined {
   let protocol: LocalProtocol | undefined
   if (override.newPref.startsWith('file:')) {
     protocol = 'file:'
@@ -69,12 +61,7 @@ interface VersionOverride extends VersionOverrideBase {
   localTarget?: LocalTarget
 }
 
-interface VersionOverrideWithParent extends VersionOverride {
-  parentPkg: {
-    name: string
-    pref?: string
-  }
-}
+type VersionOverrideWithParent = VersionOverride & Required<Pick<VersionOverride, 'parentPkg'>>
 
 function overrideDepsOfPkg (
   { manifest, dir }: { manifest: PackageManifest, dir: string | undefined },
