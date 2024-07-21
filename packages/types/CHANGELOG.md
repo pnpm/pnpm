@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 11.1.0
+
+### Minor Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
 ## 11.0.0
 
 ### Major Changes

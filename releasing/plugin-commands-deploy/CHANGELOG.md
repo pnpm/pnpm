@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-deploy
 
+## 5.1.14
+
+### Patch Changes
+
+- 1e4dd79: The `pnpm deploy` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs).
+- Updated dependencies [1e4dd79]
+- Updated dependencies [0ef168b]
+  - @pnpm/plugin-commands-installation@17.0.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/fs.indexed-pkg-importer@6.0.6
+
 ## 5.1.13
 
 ### Patch Changes

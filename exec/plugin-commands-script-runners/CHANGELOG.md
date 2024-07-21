@@ -1,5 +1,30 @@
 # @pnpm/plugin-commands-script-runners
 
+## 11.0.0
+
+### Major Changes
+
+- 5aa98b6: Add registries information to the calculation of dlx cache hash.
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- 999d2ef: Silent reporting fixed with the `pnpm exec` command [#7608](https://github.com/pnpm/pnpm/issues/7608).
+- Updated dependencies [1e4dd79]
+- Updated dependencies [0ef168b]
+  - @pnpm/plugin-commands-installation@17.0.0
+  - @pnpm/plugin-commands-env@5.1.0
+  - @pnpm/lifecycle@17.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/package-bins@9.0.4
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/sort-packages@6.0.5
+  - @pnpm/crypto.base32-hash@3.0.0
+
 ## 10.0.1
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-outdated
 
+## 12.0.2
+
+### Patch Changes
+
+- f6e7ace: The `pnpm outdated` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs).
+- Updated dependencies [0f0e441]
+- Updated dependencies [f6e7ace]
+- Updated dependencies [0ef168b]
+  - @pnpm/outdated@15.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/default-resolver@20.0.4
+
 ## 12.0.1
 
 ### Patch Changes

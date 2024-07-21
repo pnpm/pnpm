@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-env
 
+## 5.1.0
+
+### Minor Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/fetch@8.0.4
+  - @pnpm/remove-bins@6.0.5
+  - @pnpm/node.fetcher@4.0.9
+  - @pnpm/node.resolver@3.0.9
+
 ## 5.0.12
 
 ### Patch Changes

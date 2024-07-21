@@ -1,5 +1,38 @@
 # @pnpm/plugin-commands-installation
 
+## 17.0.0
+
+### Major Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- 1e4dd79: The `pnpm deploy` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs).
+- Updated dependencies [0f0e441]
+- Updated dependencies [f6e7ace]
+- Updated dependencies [0ef168b]
+  - @pnpm/core@15.1.0
+  - @pnpm/outdated@15.1.0
+  - @pnpm/plugin-commands-env@5.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/plugin-commands-rebuild@12.0.2
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/dedupe.check@2.0.6
+  - @pnpm/pnpmfile@6.0.7
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/get-context@12.0.1
+  - @pnpm/manifest-utils@6.0.5
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/resolver-base@13.0.1
+  - @pnpm/package-store@20.3.3
+  - @pnpm/filter-workspace-packages@10.0.2
+  - @pnpm/workspace.find-packages@4.0.2
+  - @pnpm/workspace.pkgs-graph@4.0.2
+  - @pnpm/sort-packages@6.0.5
+  - @pnpm/store-connection-manager@8.3.3
+
 ## 16.0.1
 
 ### Patch Changes

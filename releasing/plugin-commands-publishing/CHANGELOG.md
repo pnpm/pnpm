@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-publishing
 
+## 10.0.0
+
+### Major Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/plugin-commands-env@5.1.0
+  - @pnpm/lifecycle@17.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/pick-registry-for-package@6.0.4
+  - @pnpm/client@11.1.5
+  - @pnpm/package-bins@9.0.4
+  - @pnpm/exportable-manifest@7.0.1
+  - @pnpm/resolver-base@13.0.1
+  - @pnpm/sort-packages@6.0.5
+
 ## 9.0.1
 
 ### Patch Changes

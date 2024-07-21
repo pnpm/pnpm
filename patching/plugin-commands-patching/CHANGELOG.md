@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-patching
 
+## 6.2.4
+
+### Patch Changes
+
+- 726753f: Correct the error message when trying to run `pnpm patch` without `node_modules/.modules.yaml` [#8257](https://github.com/pnpm/pnpm/issues/8257).
+- Updated dependencies [1e4dd79]
+- Updated dependencies [0ef168b]
+  - @pnpm/plugin-commands-installation@17.0.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/pick-registry-for-package@6.0.4
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/patching.apply-patch@3.0.1
+  - @pnpm/store-connection-manager@8.3.3
+  - @pnpm/pick-fetcher@3.0.0
+
 ## 6.2.3
 
 ### Patch Changes

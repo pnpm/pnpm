@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.pkg-requires-build",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Checks if a package requires to be built",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

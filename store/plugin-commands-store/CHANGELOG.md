@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-store
 
+## 9.2.4
+
+### Patch Changes
+
+- 5aa98b6: Add registries information to the calculation of dlx cache hash.
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/normalize-registries@6.0.4
+  - @pnpm/pick-registry-for-package@6.0.4
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/get-context@12.0.1
+  - @pnpm/store.cafs@3.0.6
+  - @pnpm/store-controller-types@18.1.3
+  - @pnpm/store-connection-manager@8.3.3
+
 ## 9.2.3
 
 ### Patch Changes

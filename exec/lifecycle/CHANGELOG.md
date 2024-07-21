@@ -1,5 +1,21 @@
 # @pnpm/lifecycle
 
+## 17.1.0
+
+### Minor Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/link-bins@10.0.7
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/store-controller-types@18.1.3
+
 ## 17.0.8
 
 ### Patch Changes

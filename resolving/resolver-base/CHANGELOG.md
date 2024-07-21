@@ -1,5 +1,12 @@
 # @pnpm/resolver-base
 
+## 13.0.1
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+
 ## 13.0.0
 
 ### Major Changes

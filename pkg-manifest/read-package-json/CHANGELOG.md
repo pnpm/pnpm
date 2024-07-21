@@ -1,5 +1,12 @@
 # @pnpm/read-package-json
 
+## 9.0.5
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+
 ## 9.0.4
 
 ### Patch Changes
