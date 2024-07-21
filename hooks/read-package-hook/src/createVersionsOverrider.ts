@@ -7,7 +7,7 @@ import normalizePath from 'normalize-path'
 import { isIntersectingRange } from './isIntersectingRange'
 
 export function createVersionsOverrider (
-  overrides: VersionOverrideBase[],
+  overrides: Array<Omit<VersionOverrideBase, 'selector'>>,
   rootDir: string
 ): ReadPackageHook {
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
@@ -40,7 +40,7 @@ interface LocalTarget {
 
 type LocalProtocol = 'link:' | 'file:'
 
-function createLocalTarget (override: VersionOverrideBase, rootDir: string): LocalTarget | undefined {
+function createLocalTarget (override: Omit<VersionOverrideBase, 'selector'>, rootDir: string): LocalTarget | undefined {
   let protocol: LocalProtocol | undefined
   if (override.newPref.startsWith('file:')) {
     protocol = 'file:'

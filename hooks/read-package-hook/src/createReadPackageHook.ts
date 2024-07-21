@@ -23,7 +23,7 @@ export function createReadPackageHook (
   }: {
     ignoreCompatibilityDb?: boolean
     lockfileDir: string
-    overrides?: VersionOverride[]
+    overrides?: Array<Omit<VersionOverride, 'selector'>>
     ignoredOptionalDependencies?: string[]
     packageExtensions?: Record<string, PackageExtension>
     readPackageHook?: ReadPackageHook[] | ReadPackageHook
