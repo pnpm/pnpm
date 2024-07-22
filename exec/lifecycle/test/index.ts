@@ -1,9 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
-import { runLifecycleHook, runPostinstallHooks } from '@pnpm/lifecycle'
+import { runLifecycleHook, runLifecycleHooksConcurrently, runPostinstallHooks } from '@pnpm/lifecycle'
 import { PnpmError } from '@pnpm/error'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { fixtures } from '@pnpm/test-fixtures'
+import type { ProjectRootDir } from '@pnpm/types'
+import type { StoreController } from '@pnpm/store-controller-types'
 
 const f = fixtures(path.join(__dirname, 'fixtures'))
 const rootModulesDir = path.join(__dirname, '..', 'node_modules')
@@ -99,4 +101,16 @@ test('preinstall script does not trigger node-gyp rebuild', async () => {
   })
 
   expect(server.getLines()).toStrictEqual(['preinstall'])
+})
+
+test('runLifecycleHooksConcurrently() should check binding.gyp', async () => {
+  const pkgRoot = f.find('no-scripts-with-gyp')
+  const pkg = await import(path.join(pkgRoot, 'package.json'))
+
+  await expect(runLifecycleHooksConcurrently(['install'], [{ buildIndex: 0, rootDir: pkgRoot as ProjectRootDir, modulesDir: '', manifest: pkg }], 5, {
+    storeController: { } as StoreController,
+    optional: false,
+    rawConfig: {},
+    unsafePerm: true,
+  })).rejects.toThrow(new PnpmError('ELIFECYCLE', 'no-scripts-with-gyp@1.0.0 install: `node-gyp rebuild`\nExit status 1'))
 })
