@@ -62,22 +62,22 @@
     "verdaccio": "5.20.1"
   },
   "engines": {
-    "pnpm": ">=9.5.0-beta.0"
+    "pnpm": ">=9.6.0"
   },
   "pnpm": {
     "overrides": {
       "clipanion": "3.2.0-rc.6",
       "debug@<3.1.0": ">=3.1.0",
       "glob-parent@<5.1.2": ">=5.1.2",
-      "hosted-git-info@1": "npm:@pnpm/hosted-git-info@1.0.0",
+      "hosted-git-info@1": "catalog:",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
-      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.7",
-      "json5@<2.2.2": ">=2.2.2",
+      "js-yaml@^4.0.0": "catalog:",
+      "json5@<2.2.2": "catalog:",
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
       "nopt@5": "npm:@pnpm/nopt@^0.2.1",
       "verdaccio": "5.20.1",
       "yaml@<2.2.2": ">=2.2.2",
-      "semver@<7.5.2": ">=7.5.2",
+      "semver@<7.5.2": "catalog:",
       "tough-cookie@<4.1.3": ">=4.1.3",
       "@yarnpkg/fslib@2": "3",
       "socks@2": "^2.8.1",
