@@ -49,7 +49,7 @@ export async function runLifecycleHooksConcurrently (
     return importers.map(({ manifest, modulesDir, rootDir, stages: importerStages, targetDirs }) =>
       async () => {
         if (!manifest.scripts?.install && !manifest.scripts?.preinstall) {
-          manifest.scripts ??= {};
+          manifest.scripts ??= {}
           await checkBindingGyp(rootDir, manifest.scripts)
         }
         // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
