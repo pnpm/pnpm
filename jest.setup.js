@@ -1,4 +1,5 @@
 const { finishWorkers } = require('@pnpm/worker')
+const { resolve } = require('path')
 
 jest.retryTimes(1, {
   // Some tests don't clean up their resources completely and cause the retried
@@ -12,3 +13,5 @@ jest.retryTimes(1, {
 afterAll(async () => {
   await finishWorkers()
 })
+
+process.env.npm_config_node_gyp = resolve(__dirname, "./__fixtures__/node-gyp-bin/node-gyp")

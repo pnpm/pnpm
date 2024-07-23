@@ -107,10 +107,13 @@ test('runLifecycleHooksConcurrently() should check binding.gyp', async () => {
   const pkgRoot = f.find('no-scripts-with-gyp')
   const pkg = await import(path.join(pkgRoot, 'package.json'))
 
-  await expect(runLifecycleHooksConcurrently(['install'], [{ buildIndex: 0, rootDir: pkgRoot as ProjectRootDir, modulesDir: '', manifest: pkg }], 5, {
+  await runLifecycleHooksConcurrently(['install'], [{ buildIndex: 0, rootDir: pkgRoot as ProjectRootDir, modulesDir: '', manifest: pkg }], 5, {
     storeController: { } as StoreController,
     optional: false,
     rawConfig: {},
+    extraEnv: { npm_config_node_gyp: process.env.npm_config_node_gyp! },
     unsafePerm: true,
-  })).rejects.toThrow(new PnpmError('ELIFECYCLE', 'no-scripts-with-gyp@1.0.0 install: `node-gyp rebuild`\nExit status 1'))
+  })
+
+  expect(pkg.scripts.install).toEqual('node-gyp rebuild')
 })
