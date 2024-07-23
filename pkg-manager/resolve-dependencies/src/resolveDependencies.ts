@@ -306,8 +306,8 @@ export async function resolveRootDependencies (
   const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
     const pkgAddresses = importerResolutionResult.pkgAddresses
     if (!ctx.hoistPeers) return pkgAddresses
-    const allMissingOptionalPeers: Record<string, string[]> = {}
     while (true) {
+      const allMissingOptionalPeers: Record<string, string[]> = {}
       for (const pkgAddress of importerResolutionResult.pkgAddresses) {
         parentPkgAliases[pkgAddress.alias] = true
       }
@@ -349,21 +349,23 @@ export async function resolveRootDependencies (
         ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
       }
       pkgAddresses.push(...importerResolutionResult.pkgAddresses)
-    }
-    if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
-      const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
-      if (Object.keys(optionalDependencies).length) {
-        const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
-        const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
-          ...options,
-          parentPkgAliases,
-          publishedBy,
-        })
-        importerResolutionResult = {
-          pkgAddresses: resolveDependenciesResult.pkgAddresses,
-          ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
+      if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
+        const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
+        if (Object.keys(optionalDependencies).length) {
+          const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
+          // eslint-disable-next-line no-await-in-loop
+          const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
+            ...options,
+            parentPkgAliases,
+            publishedBy,
+          })
+          importerResolutionResult = {
+            pkgAddresses: resolveDependenciesResult.pkgAddresses,
+            // eslint-disable-next-line no-await-in-loop
+            ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
+          }
+          pkgAddresses.push(...importerResolutionResult.pkgAddresses)
         }
-        pkgAddresses.push(...importerResolutionResult.pkgAddresses)
       }
     }
     return pkgAddresses
