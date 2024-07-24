@@ -309,9 +309,8 @@ export async function resolveRootDependencies (
       time,
     }
   }
-  let cont = true
   /* eslint-disable no-await-in-loop */
-  while (cont) {
+  while (true) {
     const allMissingOptionalPeersByImporters = await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
       const { parentPkgAliases, preferredVersions, options } = importers[index]
       const allMissingOptionalPeers: Record<string, string[]> = {}
@@ -357,13 +356,13 @@ export async function resolveRootDependencies (
       }
       return allMissingOptionalPeers
     }))
-    cont = false
+    let hasNewMissingPeers = false
     await Promise.all(allMissingOptionalPeersByImporters.map(async (allMissingOptionalPeers, index) => {
       const { preferredVersions, parentPkgAliases, options } = importers[index]
       if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
         const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
         if (Object.keys(optionalDependencies).length) {
-          cont = true
+          hasNewMissingPeers = true
           const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
           const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
             ...options,
@@ -377,6 +376,7 @@ export async function resolveRootDependencies (
         }
       }
     }))
+    if (!hasNewMissingPeers) break
   }
   /* eslint-enable no-await-in-loop */
   return {
