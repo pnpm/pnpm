@@ -1339,9 +1339,10 @@ async function resolveDependency (
   }
   let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
   const nameAndVersion = `${pkg.name}@${pkg.version}`
-  const patchFile = ctx.patchedDependencies?.[nameAndVersion]
+  const patchKey = ctx.patchedDependencies?.[nameAndVersion] ? nameAndVersion : pkg.name
+  const patchFile = ctx.patchedDependencies?.[patchKey]
   if (patchFile) {
-    ctx.appliedPatches.add(nameAndVersion)
+    ctx.appliedPatches.add(patchKey)
     pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patchFile.hash})` as PkgIdWithPatchHash
   }
 
