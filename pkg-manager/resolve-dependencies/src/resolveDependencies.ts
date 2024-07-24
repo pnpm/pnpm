@@ -309,12 +309,10 @@ export async function resolveRootDependencies (
       time,
     }
   }
-  // const pkgAddressesByImporters: Array<Array<PkgAddress | LinkedDependency>> = []
   let cont = true
+  /* eslint-disable no-await-in-loop */
   while (cont) {
-    const allMissingOptionalPeersByImporters: Array<Record<string, string[]>> = []
-    // eslint-disable-next-line no-await-in-loop
-    await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
+    const allMissingOptionalPeersByImporters = await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
       const { parentPkgAliases, preferredVersions, options } = importers[index]
       const allMissingOptionalPeers: Record<string, string[]> = {}
       while (true) {
@@ -347,7 +345,6 @@ export async function resolveRootDependencies (
         if (!Object.keys(dependencies).length) break
         const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
-        // eslint-disable-next-line no-await-in-loop
         const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
           ...options,
           parentPkgAliases,
@@ -355,14 +352,12 @@ export async function resolveRootDependencies (
         })
         importerResolutionResult.pkgAddresses.push(...resolveDependenciesResult.pkgAddresses)
         Object.assign(importerResolutionResult,
-          // eslint-disable-next-line no-await-in-loop
           filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases)
         )
       }
-      allMissingOptionalPeersByImporters[index] = allMissingOptionalPeers
+      return allMissingOptionalPeers
     }))
     cont = false
-    // eslint-disable-next-line no-await-in-loop
     await Promise.all(allMissingOptionalPeersByImporters.map(async (allMissingOptionalPeers, index) => {
       const { preferredVersions, parentPkgAliases, options } = importers[index]
       if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
@@ -370,7 +365,6 @@ export async function resolveRootDependencies (
         if (Object.keys(optionalDependencies).length) {
           cont = true
           const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
-          // eslint-disable-next-line no-await-in-loop
           const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
             ...options,
             parentPkgAliases,
@@ -378,13 +372,13 @@ export async function resolveRootDependencies (
           })
           pkgAddressesByImportersWithoutPeers[index].pkgAddresses.push(...resolveDependenciesResult.pkgAddresses)
           Object.assign(pkgAddressesByImportersWithoutPeers[index],
-            // eslint-disable-next-line no-await-in-loop
             filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases)
           )
         }
       }
     }))
   }
+  /* eslint-enable no-await-in-loop */
   return {
     pkgAddressesByImporters: pkgAddressesByImportersWithoutPeers.map(({ pkgAddresses }) => pkgAddresses),
     time,
