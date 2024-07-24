@@ -14,8 +14,10 @@ export type GetPatchedDependencyOptions = {
   lockfileDir: string
 } & Pick<Config, 'virtualStoreDir' | 'modulesDir'>
 
-export async function getPatchedDependency (rawDependency: string, opts: GetPatchedDependencyOptions): Promise<ParseWantedDependencyResult> {
-  const dep = parseWantedDependency(rawDependency)
+export type GetPatchedDependencyResult = ParseWantedDependencyResult & { applyToAll?: boolean }
+
+export async function getPatchedDependency (rawDependency: string, opts: GetPatchedDependencyOptions): Promise<GetPatchedDependencyResult> {
+  const dep: GetPatchedDependencyResult = parseWantedDependency(rawDependency)
 
   const { versions, preferredVersions } = await getVersionsFromLockfile(dep, opts)
 
@@ -28,12 +30,13 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
 
   dep.alias = dep.alias ?? rawDependency
   if (preferredVersions.length > 1) {
-    const { version } = await prompt<{
+    const { version, applyToAll } = await prompt<{
       version: string
-    }>({
+      applyToAll: boolean
+    }>([{
       type: 'select',
       name: 'version',
-      message: 'Choose which version to patch',
+      message: 'Choose which version to edit',
       choices: preferredVersions.map(preferred => ({
         name: preferred.version,
         message: preferred.version,
@@ -44,8 +47,13 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
         const selectedVersion = preferredVersions.find(preferred => preferred.version === selected)!
         return selectedVersion.gitTarballUrl ?? selected
       },
-    })
+    }, {
+      type: 'confirm',
+      name: 'applyToAll',
+      message: 'Apply this patch to all versions?',
+    }])
     dep.pref = version
+    dep.applyToAll = applyToAll
   } else {
     const preferred = preferredVersions[0]
     dep.pref = preferred.gitTarballUrl ?? preferred.version

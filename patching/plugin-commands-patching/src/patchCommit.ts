@@ -18,6 +18,7 @@ import tempy from 'tempy'
 import { writePackage } from './writePackage'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
+import { readStateValue, deleteStateKey } from './stateFile'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -52,17 +53,33 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
   const patchesDir = path.join(lockfileDir, patchesDirName)
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
-  const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
-  const gitTarballUrl = await getGitTarballUrlFromLockfile({
-    alias: patchedPkgManifest.name,
-    pref: patchedPkgManifest.version,
-  }, {
+  const stateValue = await readStateValue({
+    cacheDir: opts.cacheDir,
+    editDir: userDir,
     lockfileDir,
-    modulesDir: opts.modulesDir,
-    virtualStoreDir: opts.virtualStoreDir,
   })
+  const applyToAll: boolean = stateValue?.applyToAll ?? true
+  const patchKey = applyToAll
+    ? patchedPkgManifest.name
+    : `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
+  let gitTarballUrl: string | undefined
+  if (!applyToAll) {
+    gitTarballUrl = await getGitTarballUrlFromLockfile({
+      alias: patchedPkgManifest.name,
+      pref: patchedPkgManifest.version,
+    }, {
+      lockfileDir,
+      modulesDir: opts.modulesDir,
+      virtualStoreDir: opts.virtualStoreDir,
+    })
+  }
   const srcDir = tempy.directory()
-  await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : pkgNameAndVersion), srcDir, opts)
+  await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : patchKey), srcDir, opts)
+  await deleteStateKey({
+    cacheDir: opts.cacheDir,
+    editDir: userDir,
+    lockfileDir,
+  })
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
 
@@ -71,7 +88,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   }
   await fs.promises.mkdir(patchesDir, { recursive: true })
 
-  const patchFileName = pkgNameAndVersion.replace('/', '__')
+  const patchFileName = patchKey.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
   const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
 
@@ -84,7 +101,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   } else if (!rootProjectManifest.pnpm.patchedDependencies) {
     rootProjectManifest.pnpm.patchedDependencies = {}
   }
-  rootProjectManifest.pnpm.patchedDependencies![pkgNameAndVersion] = `${patchesDirName}/${patchFileName}.patch`
+  rootProjectManifest.pnpm.patchedDependencies![patchKey] = `${patchesDirName}/${patchFileName}.patch`
   await writeProjectManifest(rootProjectManifest)
 
   if (opts?.selectedProjectsGraph?.[lockfileDir]) {

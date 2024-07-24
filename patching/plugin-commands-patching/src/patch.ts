@@ -16,6 +16,7 @@ import { PnpmError } from '@pnpm/error'
 import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { writePackage } from './writePackage'
 import { getPatchedDependency } from './getPatchedDependency'
+import { writeStateValue } from './stateFile'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -85,6 +86,16 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
   })
 
   await writePackage(patchedDep, editDir, opts)
+
+  await writeStateValue({
+    cacheDir: opts.cacheDir,
+    editDir,
+    lockfileDir,
+    value: {
+      selector: params[0],
+      applyToAll: patchedDep.applyToAll,
+    },
+  })
 
   if (!opts.ignoreExisting) {
     let rootProjectManifest = opts.rootProjectManifest
