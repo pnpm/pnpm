@@ -303,55 +303,76 @@ export async function resolveRootDependencies (
     ctx.allPreferredVersions = {}
   }
   const { pkgAddressesByImportersWithoutPeers, publishedBy, time } = await resolveDependenciesOfImporters(ctx, importers)
-  const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
-    const pkgAddresses = importerResolutionResult.pkgAddresses
-    if (!ctx.hoistPeers) return pkgAddresses
-    while (true) {
+  if (!ctx.hoistPeers) {
+    return {
+      pkgAddressesByImporters: pkgAddressesByImportersWithoutPeers.map(({ pkgAddresses }) => pkgAddresses),
+      time,
+    }
+  }
+  // const pkgAddressesByImporters: Array<Array<PkgAddress | LinkedDependency>> = []
+  let cont = true
+  while (cont) {
+    const allMissingOptionalPeersByImporters: Array<Record<string, string[]>> = []
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
+      const { parentPkgAliases, preferredVersions, options } = importers[index]
+      const pkgAddresses = importerResolutionResult.pkgAddresses
       const allMissingOptionalPeers: Record<string, string[]> = {}
-      for (const pkgAddress of importerResolutionResult.pkgAddresses) {
-        parentPkgAliases[pkgAddress.alias] = true
-      }
-      const [missingOptionalPeers, missingRequiredPeers] = partition(([, { optional }]) => optional, Object.entries(importerResolutionResult.missingPeers ?? {}))
-      for (const missingPeerName of Object.keys(missingRequiredPeers)) {
-        parentPkgAliases[missingPeerName] = true
-      }
-      if (ctx.autoInstallPeers) {
-        // All the missing peers should get installed in the root.
-        // Otherwise, pending nodes will not work.
-        // even those peers should be hoisted that are not autoinstalled
-        for (const [resolvedPeerName, resolvedPeerAddress] of Object.entries(importerResolutionResult.resolvedPeers ?? {})) {
-          if (!parentPkgAliases[resolvedPeerName]) {
-            pkgAddresses.push(resolvedPeerAddress)
+      while (true) {
+        for (const pkgAddress of importerResolutionResult.pkgAddresses) {
+          parentPkgAliases[pkgAddress.alias] = true
+        }
+        const [missingOptionalPeers, missingRequiredPeers] = partition(([, { optional }]) => optional, Object.entries(importerResolutionResult.missingPeers ?? {}))
+        for (const missingPeerName of Object.keys(missingRequiredPeers)) {
+          parentPkgAliases[missingPeerName] = true
+        }
+        if (ctx.autoInstallPeers) {
+          // All the missing peers should get installed in the root.
+          // Otherwise, pending nodes will not work.
+          // even those peers should be hoisted that are not autoinstalled
+          for (const [resolvedPeerName, resolvedPeerAddress] of Object.entries(importerResolutionResult.resolvedPeers ?? {})) {
+            if (!parentPkgAliases[resolvedPeerName]) {
+              pkgAddresses.push(resolvedPeerAddress)
+            }
           }
         }
-      }
-      for (const [missingOptionalPeerName, { range: missingOptionalPeerRange }] of missingOptionalPeers) {
-        if (!allMissingOptionalPeers[missingOptionalPeerName]) {
-          allMissingOptionalPeers[missingOptionalPeerName] = [missingOptionalPeerRange]
-        } else if (!allMissingOptionalPeers[missingOptionalPeerName].includes(missingOptionalPeerRange)) {
-          allMissingOptionalPeers[missingOptionalPeerName].push(missingOptionalPeerRange)
+        for (const [missingOptionalPeerName, { range: missingOptionalPeerRange }] of missingOptionalPeers) {
+          if (!allMissingOptionalPeers[missingOptionalPeerName]) {
+            allMissingOptionalPeers[missingOptionalPeerName] = [missingOptionalPeerRange]
+          } else if (!allMissingOptionalPeers[missingOptionalPeerName].includes(missingOptionalPeerRange)) {
+            allMissingOptionalPeers[missingOptionalPeerName].push(missingOptionalPeerRange)
+          }
         }
-      }
-      if (!missingRequiredPeers.length) break
-      const dependencies = hoistPeers(missingRequiredPeers, ctx)
-      if (!Object.keys(dependencies).length) break
-      const wantedDependencies = getNonDevWantedDependencies({ dependencies })
+        if (!missingRequiredPeers.length) break
+        const dependencies = hoistPeers(missingRequiredPeers, ctx)
+        if (!Object.keys(dependencies).length) break
+        const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
-      // eslint-disable-next-line no-await-in-loop
-      const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
-        ...options,
-        parentPkgAliases,
-        publishedBy,
-      })
-      importerResolutionResult = {
-        pkgAddresses: resolveDependenciesResult.pkgAddresses,
         // eslint-disable-next-line no-await-in-loop
-        ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
+        const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
+          ...options,
+          parentPkgAliases,
+          publishedBy,
+        })
+        importerResolutionResult = {
+          pkgAddresses: resolveDependenciesResult.pkgAddresses,
+          // eslint-disable-next-line no-await-in-loop
+          ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
+        }
+        pkgAddressesByImportersWithoutPeers[index] = importerResolutionResult
+        pkgAddresses.push(...importerResolutionResult.pkgAddresses)
+        pkgAddressesByImportersWithoutPeers[index].pkgAddresses = pkgAddresses
       }
-      pkgAddresses.push(...importerResolutionResult.pkgAddresses)
+      allMissingOptionalPeersByImporters[index] = allMissingOptionalPeers
+    }))
+    cont = false
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.all(allMissingOptionalPeersByImporters.map(async (allMissingOptionalPeers, index) => {
+      const { preferredVersions, parentPkgAliases, options } = importers[index]
       if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
         const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
         if (Object.keys(optionalDependencies).length) {
+          cont = true
           const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
           // eslint-disable-next-line no-await-in-loop
           const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
@@ -359,18 +380,20 @@ export async function resolveRootDependencies (
             parentPkgAliases,
             publishedBy,
           })
-          importerResolutionResult = {
-            pkgAddresses: resolveDependenciesResult.pkgAddresses,
+          pkgAddressesByImportersWithoutPeers[index] = {
+            pkgAddresses: [...pkgAddressesByImportersWithoutPeers[index].pkgAddresses, ...resolveDependenciesResult.pkgAddresses],
             // eslint-disable-next-line no-await-in-loop
             ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
           }
-          pkgAddresses.push(...importerResolutionResult.pkgAddresses)
+          // pkgAddressesByImportersWithoutPeers[index].pkgAddresses.push(...pkgAddressesByImportersWithoutPeers[index].pkgAddresses)
         }
       }
-    }
-    return pkgAddresses
-  }, pkgAddressesByImportersWithoutPeers, importers))
-  return { pkgAddressesByImporters, time }
+    }))
+  }
+  return {
+    pkgAddressesByImporters: pkgAddressesByImportersWithoutPeers.map(({ pkgAddresses }) => pkgAddresses),
+    time,
+  }
 }
 
 interface ResolvedDependenciesResult {
