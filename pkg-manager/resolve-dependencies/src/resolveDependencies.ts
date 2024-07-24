@@ -316,7 +316,6 @@ export async function resolveRootDependencies (
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
       const { parentPkgAliases, preferredVersions, options } = importers[index]
-      const pkgAddresses = importerResolutionResult.pkgAddresses
       const allMissingOptionalPeers: Record<string, string[]> = {}
       while (true) {
         for (const pkgAddress of importerResolutionResult.pkgAddresses) {
@@ -332,7 +331,7 @@ export async function resolveRootDependencies (
           // even those peers should be hoisted that are not autoinstalled
           for (const [resolvedPeerName, resolvedPeerAddress] of Object.entries(importerResolutionResult.resolvedPeers ?? {})) {
             if (!parentPkgAliases[resolvedPeerName]) {
-              pkgAddresses.push(resolvedPeerAddress)
+              importerResolutionResult.pkgAddresses.push(resolvedPeerAddress)
             }
           }
         }
@@ -354,14 +353,11 @@ export async function resolveRootDependencies (
           parentPkgAliases,
           publishedBy,
         })
-        importerResolutionResult = {
-          pkgAddresses: resolveDependenciesResult.pkgAddresses,
+        importerResolutionResult.pkgAddresses.push(...resolveDependenciesResult.pkgAddresses)
+        Object.assign(importerResolutionResult,
           // eslint-disable-next-line no-await-in-loop
-          ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
-        }
-        pkgAddressesByImportersWithoutPeers[index] = importerResolutionResult
-        pkgAddresses.push(...importerResolutionResult.pkgAddresses)
-        pkgAddressesByImportersWithoutPeers[index].pkgAddresses = pkgAddresses
+          filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases)
+        )
       }
       allMissingOptionalPeersByImporters[index] = allMissingOptionalPeers
     }))
@@ -380,12 +376,11 @@ export async function resolveRootDependencies (
             parentPkgAliases,
             publishedBy,
           })
-          pkgAddressesByImportersWithoutPeers[index] = {
-            pkgAddresses: [...pkgAddressesByImportersWithoutPeers[index].pkgAddresses, ...resolveDependenciesResult.pkgAddresses],
+          pkgAddressesByImportersWithoutPeers[index].pkgAddresses.push(...resolveDependenciesResult.pkgAddresses)
+          Object.assign(pkgAddressesByImportersWithoutPeers[index],
             // eslint-disable-next-line no-await-in-loop
-            ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
-          }
-          // pkgAddressesByImportersWithoutPeers[index].pkgAddresses.push(...pkgAddressesByImportersWithoutPeers[index].pkgAddresses)
+            filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases)
+          )
         }
       }
     }))
