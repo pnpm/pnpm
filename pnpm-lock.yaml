@@ -3578,6 +3578,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 5.0.0
       '@pnpm/patch-package':
         specifier: 'catalog:'
         version: 0.0.0

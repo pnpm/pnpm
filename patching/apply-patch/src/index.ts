@@ -1,7 +1,9 @@
 import { PnpmError } from '@pnpm/error'
 import { applyPatch } from '@pnpm/patch-package/dist/applyPatches'
+import { globalWarn } from '@pnpm/logger'
 
 export interface ApplyPatchToDirOpts {
+  allowFailure: boolean
   patchedDir: string
   patchFilePath: string
 }
@@ -13,6 +15,7 @@ export function applyPatchToDir (opts: ApplyPatchToDirOpts): void {
   process.chdir(opts.patchedDir)
   let success = false
   try {
+    // TODO: allowFailure should be added to @pnpm/patch-package itself?
     success = applyPatch({
       patchFilePath: opts.patchFilePath,
     })
@@ -25,6 +28,11 @@ export function applyPatchToDir (opts: ApplyPatchToDirOpts): void {
     process.chdir(cwd)
   }
   if (!success) {
-    throw new PnpmError('PATCH_FAILED', `Could not apply patch ${opts.patchFilePath} to ${opts.patchedDir}`)
+    const message = `Could not apply patch ${opts.patchFilePath} to ${opts.patchedDir}`
+    if (opts.allowFailure) {
+      globalWarn(message)
+    } else {
+      throw new PnpmError('PATCH_FAILED', message)
+    }
   }
 }

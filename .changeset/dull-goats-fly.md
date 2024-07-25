@@ -1,4 +1,5 @@
 ---
+"@pnpm/patching.apply-patch": major
 "@pnpm/plugin-commands-patching": minor
 "@pnpm/resolve-dependencies": minor
 "pnpm": minor

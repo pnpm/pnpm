@@ -9,6 +9,7 @@ describe('applyPatchToDir()', () => {
     const patchFilePath = f.find('invalid.patch')
     expect(() => {
       applyPatchToDir({
+        allowFailure: false,
         patchFilePath,
         patchedDir: tempDir(),
       })
@@ -17,6 +18,7 @@ describe('applyPatchToDir()', () => {
   it('should fail if the patch file is not found', () => {
     expect(() => {
       applyPatchToDir({
+        allowFailure: false,
         patchFilePath: 'does-not-exist.patch',
         patchedDir: tempDir(),
       })
