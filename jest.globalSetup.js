@@ -7,7 +7,7 @@ module.exports = () => {
     // You can test the issue by running:
     //   pnpm --filter=core run test test/install/auth.ts
     useNodeVersion: '20.16.0',
-    stdio: 'ignore',
+    stdio: 'inherit',
   })
   let killed = false
   server.on('error', (err) => {
