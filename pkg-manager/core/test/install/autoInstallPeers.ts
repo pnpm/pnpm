@@ -619,3 +619,48 @@ test('auto install hoisted peer dependency', async () => {
     '@pnpm.e2e/peer-c@2.0.0',
   ])
 })
+
+test('auto install peer of optional peer', async () => {
+  const project = prepareEmpty()
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'project-1',
+          dependencies: {
+            '@pnpm.e2e/has-optional-peer-with-peer': '1.0.0',
+          },
+        },
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'project-2',
+          dependencies: {
+            '@pnpm.e2e/has-y-peer': '1.0.0',
+          },
+        },
+        rootDir: path.resolve('project-2') as ProjectRootDir,
+      },
+    ],
+    autoInstallPeers: true,
+  }))
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.snapshots)).toStrictEqual([
+    '@pnpm.e2e/has-optional-peer-with-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))',
+    '@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0)',
+    '@pnpm/y@2.0.0',
+  ])
+  project.hasNot('@pnpm.e2e/peer-a')
+})
