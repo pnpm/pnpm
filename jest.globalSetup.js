@@ -1,6 +1,7 @@
 const { start, prepare } = require('@pnpm/registry-mock')
 
 module.exports = () => {
+  if (process.env.PNPM_REGISTRY_MOCK_PORT == null) return
   prepare()
   const server = start({
     // Verdaccio stopped working properly on Node.js 22.
