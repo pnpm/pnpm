@@ -7,7 +7,7 @@ import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import stripAnsi from 'strip-ansi'
 import { DEFAULT_OPTS } from './utils'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 
 const f = fixtures(__dirname)
 
@@ -123,7 +123,7 @@ test('pnpm licenses: path should be correct for workspaces', async () => {
   f.copy('workspace-licenses', workspaceDir)
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
-    await readProjects(workspaceDir, [])
+    await filterPackagesFromDir(workspaceDir, [])
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
@@ -173,7 +173,7 @@ test('pnpm licenses: filter outputs', async () => {
   f.copy('workspace-licenses', workspaceDir)
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
-    await readProjects(workspaceDir, [])
+    await filterPackagesFromDir(workspaceDir, [])
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({

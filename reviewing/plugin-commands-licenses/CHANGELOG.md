@@ -1,5 +1,127 @@
 # @pnpm/plugin-commands-licenses
 
+## 4.1.11
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.5
+- @pnpm/config@21.6.2
+- @pnpm/lockfile-file@9.1.3
+- @pnpm/license-scanner@3.1.9
+
+## 4.1.10
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/license-scanner@3.1.8
+  - @pnpm/cli-utils@3.1.4
+
+## 4.1.9
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [9b5b869]
+  - @pnpm/config@21.6.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/license-scanner@3.1.7
+
+## 4.1.8
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/license-scanner@3.1.6
+
+## 4.1.7
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/config@21.4.0
+  - @pnpm/license-scanner@3.1.5
+  - @pnpm/cli-utils@3.1.1
+
+## 4.1.6
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+
+## 4.1.5
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/license-scanner@3.1.4
+- @pnpm/cli-utils@3.0.7
+
+## 4.1.4
+
+### Patch Changes
+
+- 34bc8f4: Details in the `pnpm licenses` output are misplaced [#8071](https://github.com/pnpm/pnpm/pull/8071).
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/license-scanner@3.1.3
+
+## 4.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+- Updated dependencies [37538f5]
+  - @pnpm/error@6.0.1
+  - @pnpm/command@5.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/license-scanner@3.1.2
+  - @pnpm/store-path@9.0.1
+
+## 4.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 4.1.1
+
+### Patch Changes
+
+- 21de734: Details in the `pnpm outdated` output are wrapped correctly [#8037](https://github.com/pnpm/pnpm/pull/8037).
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/license-scanner@3.1.1
+
+## 4.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/license-scanner@3.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/cli-utils@3.0.3
+
 ## 4.0.4
 
 ### Patch Changes

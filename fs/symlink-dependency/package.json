@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/symlink-dependency",
   "description": "Symlink a dependency to node_modules",
-  "version": "8.0.0",
+  "version": "8.0.5",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -42,7 +42,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "symlink-dir": "^6.0.0"
+    "symlink-dir": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

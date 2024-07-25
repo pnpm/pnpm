@@ -1,5 +1,6 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { filterLockfileByImportersAndEngine } from '@pnpm/filter-lockfile'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 
 const REGIONAL_ARCH = Object.assign({}, process.arch)
 const REGIONAL_CPU = Object.assign({}, process.platform)
@@ -28,7 +29,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -46,7 +47,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -57,21 +58,21 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'dev-dep@1.0.0': {
+        ['dev-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'not-skipped-optional@1.0.0': {
+        ['not-skipped-optional@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'optional-dep@1.0.0': {
+        ['optional-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             foo: '1.0.0',
@@ -82,10 +83,10 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
           optional: true,
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             'prod-dep-dep': '1.0.0',
@@ -95,12 +96,12 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       currentEngine: {
         nodeVersion: '10.0.0',
@@ -213,7 +214,7 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -231,7 +232,7 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -242,21 +243,21 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'dev-dep@1.0.0': {
+        ['dev-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'not-skipped-optional@1.0.0': {
+        ['not-skipped-optional@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'optional-dep@1.0.0': {
+        ['optional-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             foo: '1.0.0',
@@ -266,10 +267,10 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
           optional: true,
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             'prod-dep-dep': '1.0.0',
@@ -279,12 +280,12 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       currentEngine: {
         nodeVersion: '10.0.0',
@@ -387,7 +388,7 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -405,7 +406,7 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -416,21 +417,21 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'dev-dep@1.0.0': {
+        ['dev-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'not-skipped-optional@1.0.0': {
+        ['not-skipped-optional@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'optional-dep@1.0.0': {
+        ['optional-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             foo: '1.0.0',
@@ -439,10 +440,10 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
           optional: true,
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             bar: '1.0.0',
             'prod-dep-dep': '1.0.0',
@@ -452,12 +453,12 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       currentEngine: {
         nodeVersion: '10.0.0',
@@ -558,7 +559,7 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
   const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'project-2': 'link:project-2',
           },
@@ -568,7 +569,7 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
             'project-2': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-3': 'link:project-3',
             foo: '1.0.0',
@@ -577,7 +578,7 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
             foo: '^1.0.0',
           },
         },
-        'project-3': {
+        ['project-3' as ProjectId]: {
           dependencies: {
             bar: '1.0.0',
           },
@@ -588,15 +589,15 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'bar@1.0.0': {
+        ['bar@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'foo@1.0.0': {
+        ['foo@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       currentEngine: {
         nodeVersion: '10.0.0',

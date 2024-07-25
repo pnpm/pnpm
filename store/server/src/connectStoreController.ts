@@ -53,6 +53,7 @@ export async function connectStoreController (
           opts,
         })
       },
+      clearResolutionCache: () => {},
     })
   })
 }

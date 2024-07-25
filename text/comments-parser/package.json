@@ -28,7 +28,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "strip-comments-strings": "1.2.0"
+    "strip-comments-strings": "catalog:"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/text/comments-parser#readme",
   "funding": "https://opencollective.com/pnpm",

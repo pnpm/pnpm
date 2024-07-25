@@ -7,7 +7,7 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type SupportedArchitectures, type DependenciesField } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type DependenciesField, type ProjectId } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import mapValues from 'ramda/src/map'
 import pickBy from 'ramda/src/pickBy'
@@ -18,14 +18,14 @@ const lockfileLogger = logger('lockfile')
 
 export interface FilterLockfileResult {
   lockfile: Lockfile
-  selectedImporterIds: string[]
+  selectedImporterIds: ProjectId[]
 }
 
 export function filterLockfileByEngine (
   lockfile: Lockfile,
   opts: FilterLockfileOptions
 ): FilterLockfileResult {
-  const importerIds = Object.keys(lockfile.importers)
+  const importerIds = Object.keys(lockfile.importers) as ProjectId[]
   return filterLockfileByImportersAndEngine(lockfile, importerIds, opts)
 }
 
@@ -45,10 +45,10 @@ export interface FilterLockfileOptions {
 
 export function filterLockfileByImportersAndEngine (
   lockfile: Lockfile,
-  importerIds: string[],
+  importerIds: ProjectId[],
   opts: FilterLockfileOptions
 ): FilterLockfileResult {
-  const importerIdSet = new Set(importerIds) as Set<string>
+  const importerIdSet = new Set(importerIds)
 
   const directDepPaths = toImporterDepPaths(lockfile, importerIds, {
     include: opts.include,
@@ -93,8 +93,8 @@ export function filterLockfileByImportersAndEngine (
 
 function pickPkgsWithAllDeps (
   lockfile: Lockfile,
-  depPaths: string[],
-  importerIdSet: Set<string>,
+  depPaths: DepPath[],
+  importerIdSet: Set<ProjectId>,
   opts: {
     currentEngine: {
       nodeVersion?: string
@@ -118,9 +118,9 @@ function pkgAllDeps (
   ctx: {
     lockfile: Lockfile
     pickedPackages: PackageSnapshots
-    importerIdSet: Set<string>
+    importerIdSet: Set<ProjectId>
   },
-  depPaths: string[],
+  depPaths: DepPath[],
   parentIsInstallable: boolean,
   opts: {
     currentEngine: {
@@ -198,12 +198,12 @@ function pkgAllDeps (
 
 function toImporterDepPaths (
   lockfile: Lockfile,
-  importerIds: string[],
+  importerIds: ProjectId[],
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean }
-    importerIdSet: Set<string>
+    importerIdSet: Set<ProjectId>
   }
-): string[] {
+): DepPath[] {
   const importerDeps = importerIds
     .map(importerId => lockfile.importers[importerId])
     .map(importer => ({
@@ -230,15 +230,15 @@ function toImporterDepPaths (
 }
 
 interface ParsedDepRefs {
-  depPaths: string[]
-  importerIds: string[]
+  depPaths: DepPath[]
+  importerIds: ProjectId[]
 }
 
 function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfile): ParsedDepRefs {
   return refsByPkgNames
     .reduce((acc, [pkgName, ref]) => {
       if (ref.startsWith('link:')) {
-        const importerId = ref.substring(5)
+        const importerId = ref.substring(5) as ProjectId
         if (lockfile.importers[importerId]) {
           acc.importerIds.push(importerId)
         }

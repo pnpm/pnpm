@@ -1,5 +1,123 @@
 # @pnpm/mount-modules
 
+## 0.6.10
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/config@21.6.2
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/store.cafs@3.0.6
+
+## 0.6.9
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/config@21.6.1
+
+## 0.6.8
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/store.cafs@3.0.4
+
+## 0.6.7
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/store.cafs@3.0.3
+
+## 0.6.6
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/config@21.4.0
+  - @pnpm/lockfile-utils@11.0.1
+
+## 0.6.5
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+  - @pnpm/config@21.3.0
+
+## 0.6.4
+
+### Patch Changes
+
+- @pnpm/store.cafs@3.0.2
+- @pnpm/config@21.2.3
+
+## 0.6.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/config@21.2.2
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/store.cafs@3.0.1
+
+## 0.6.2
+
+### Patch Changes
+
+- @pnpm/config@21.2.1
+- @pnpm/lockfile-file@9.0.5
+- @pnpm/store-path@9.0.1
+
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/lockfile-file@9.0.4
+
+## 0.6.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/lockfile-file@9.0.3
+
 ## 0.5.3
 
 ### Patch Changes

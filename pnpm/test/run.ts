@@ -232,3 +232,61 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
   expect(output).toContain('2')
   expect(output).not.toContain('script2: 2')
 })
+
+test('recursive run when some packages define different node versions', async () => {
+  preparePackages([
+    {
+      name: 'node-version-undefined',
+      scripts: {
+        'print-node-version': 'node -v',
+      },
+    },
+    {
+      name: 'node-version-18',
+      scripts: {
+        'print-node-version': 'node -v',
+      },
+      pnpm: {
+        executionEnv: {
+          nodeVersion: '18.0.0',
+        },
+      },
+    },
+    {
+      name: 'node-version-20',
+      scripts: {
+        'print-node-version': 'node -v',
+      },
+      pnpm: {
+        executionEnv: {
+          nodeVersion: '20.0.0',
+        },
+      },
+    },
+  ])
+
+  const runPrintNodeVersion = (args: string[]) =>
+    execPnpmSync(args)
+      .stdout
+      .toString()
+      .trim()
+      .split('\n')
+      .filter(x => /v[0-9]+\.[0-9]+\.[0-9]+/.test(x))
+      .sort()
+
+  expect(
+    runPrintNodeVersion(['run', '-r', 'print-node-version'])
+  ).toStrictEqual([
+    'node-version-18 print-node-version: v18.0.0',
+    'node-version-20 print-node-version: v20.0.0',
+    `node-version-undefined print-node-version: ${process.version}`,
+  ])
+
+  expect(
+    runPrintNodeVersion(['run', '-r', '--use-node-version=19.0.0', 'print-node-version'])
+  ).toStrictEqual([
+    'node-version-18 print-node-version: v18.0.0',
+    'node-version-20 print-node-version: v20.0.0',
+    'node-version-undefined print-node-version: v19.0.0',
+  ])
+})

@@ -1,5 +1,111 @@
 # @pnpm/client
 
+## 11.1.5
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/git-fetcher@13.0.9
+  - @pnpm/tarball-fetcher@19.0.9
+  - @pnpm/fetch@8.0.4
+  - @pnpm/resolver-base@13.0.1
+  - @pnpm/default-resolver@20.0.4
+
+## 11.1.4
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/tarball-fetcher@19.0.8
+  - @pnpm/default-resolver@20.0.3
+  - @pnpm/git-fetcher@13.0.8
+  - @pnpm/directory-fetcher@8.0.4
+
+## 11.1.3
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/directory-fetcher@8.0.4
+  - @pnpm/default-resolver@20.0.2
+  - @pnpm/git-fetcher@13.0.7
+  - @pnpm/tarball-fetcher@19.0.7
+  - @pnpm/fetch@8.0.3
+
+## 11.1.2
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/directory-fetcher@8.0.3
+  - @pnpm/git-fetcher@13.0.6
+  - @pnpm/tarball-fetcher@19.0.6
+  - @pnpm/fetch@8.0.2
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/default-resolver@20.0.1
+
+## 11.1.1
+
+### Patch Changes
+
+- @pnpm/git-fetcher@13.0.5
+- @pnpm/tarball-fetcher@19.0.5
+
+## 11.1.0
+
+### Minor Changes
+
+- 0c08e1c: Added a new function for clearing resolution cache.
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/default-resolver@20.0.0
+  - @pnpm/git-fetcher@13.0.4
+  - @pnpm/tarball-fetcher@19.0.4
+  - @pnpm/directory-fetcher@8.0.2
+
+## 11.0.6
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/directory-fetcher@8.0.2
+  - @pnpm/git-fetcher@13.0.3
+  - @pnpm/tarball-fetcher@19.0.3
+  - @pnpm/fetch@8.0.1
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/default-resolver@19.0.5
+
+## 11.0.5
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@19.0.2
+- @pnpm/network.auth-header@3.0.1
+- @pnpm/default-resolver@19.0.4
+- @pnpm/git-fetcher@13.0.2
+- @pnpm/directory-fetcher@8.0.1
+
+## 11.0.4
+
+### Patch Changes
+
+- @pnpm/default-resolver@19.0.3
+
+## 11.0.3
+
+### Patch Changes
+
+- @pnpm/default-resolver@19.0.2
+
 ## 11.0.2
 
 ### Patch Changes

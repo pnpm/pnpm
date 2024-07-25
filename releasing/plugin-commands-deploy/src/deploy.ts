@@ -11,6 +11,7 @@ import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { deployHook } from './deployHook'
 import { logger } from '@pnpm/logger'
+import { deployCatalogHook } from './deployCatalogHook'
 
 export const shorthands = install.shorthands
 
@@ -101,6 +102,7 @@ export async function handler (
       readPackage: [
         ...(opts.hooks?.readPackage ?? []),
         deployHook,
+        deployCatalogHook.bind(null, opts.catalogs ?? {}),
       ],
     },
     frozenLockfile: false,

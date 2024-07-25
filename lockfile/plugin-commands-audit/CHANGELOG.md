@@ -1,5 +1,139 @@
 # @pnpm/plugin-commands-audit
 
+## 10.2.4
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/audit@8.1.7
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/read-project-manifest@6.0.5
+
+## 10.2.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/audit@8.1.6
+
+## 10.2.2
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/audit@8.1.6
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/read-project-manifest@6.0.4
+
+## 10.2.1
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/audit@8.1.5
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/read-project-manifest@6.0.3
+
+## 10.2.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/config@21.4.0
+  - @pnpm/audit@8.1.4
+  - @pnpm/cli-utils@3.1.1
+
+## 10.1.6
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+
+## 10.1.5
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/cli-utils@3.0.7
+- @pnpm/audit@8.1.3
+
+## 10.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/audit@8.1.3
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/read-project-manifest@6.0.2
+
+## 10.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/audit@8.1.2
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/network.auth-header@3.0.1
+  - @pnpm/read-project-manifest@6.0.1
+
+## 10.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 10.1.1
+
+### Patch Changes
+
+- @pnpm/audit@8.1.1
+- @pnpm/lockfile-file@9.0.4
+
+## 10.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/audit@8.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/cli-utils@3.0.3
+
 ## 10.0.4
 
 ### Patch Changes

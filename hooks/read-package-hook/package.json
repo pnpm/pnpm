@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/hooks.read-package-hook",
-  "version": "4.0.1",
+  "version": "5.0.0",
   "description": "Creates the default package reader hook used by pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,17 +33,17 @@
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@yarnpkg/extensions": "2.0.1",
-    "normalize-path": "^3.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.6.0"
+    "@yarnpkg/extensions": "catalog:",
+    "normalize-path": "catalog:",
+    "ramda": "catalog:",
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/hooks.read-package-hook": "workspace:*",
-    "@types/normalize-path": "^3.0.2",
-    "@types/ramda": "0.29.12",
-    "@types/semver": "7.5.3",
-    "@yarnpkg/core": "4.0.3"
+    "@types/normalize-path": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
+    "@yarnpkg/core": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

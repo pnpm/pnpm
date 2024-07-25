@@ -1,5 +1,54 @@
 # @pnpm/exportable-manifest
 
+## 7.0.1
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/read-project-manifest@6.0.5
+
+## 7.0.0
+
+### Major Changes
+
+- 9c63679: Creating an exportable manifest now requires a `Catalog` object to be passed to `createExportableManifest` in order to replace `catalog:` protocol specifiers.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/read-project-manifest@6.0.4
+
+## 6.1.0
+
+### Minor Changes
+
+- 398472c: Handle workspace protocol with any semver range specifier, when used in peer dependencies [#7578](https://github.com/pnpm/pnpm/issues/7578).
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/read-project-manifest@6.0.3
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/read-project-manifest@6.0.2
+
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/read-project-manifest@6.0.1
+
 ## 6.0.0
 
 ### Major Changes

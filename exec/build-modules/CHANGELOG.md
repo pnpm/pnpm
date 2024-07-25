@@ -1,5 +1,144 @@
 # @pnpm/build-modules
 
+## 13.0.7
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/lifecycle@17.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/calc-dep-state@7.0.4
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/link-bins@10.0.7
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/store-controller-types@18.1.3
+  - @pnpm/worker@1.0.7
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 13.0.6
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/link-bins@10.0.6
+  - @pnpm/worker@1.0.6
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 13.0.5
+
+### Patch Changes
+
+- fd884c1: Improve output of the `pnpm patch` command.
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/calc-dep-state@7.0.3
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/link-bins@10.0.5
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/worker@1.0.5
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 13.0.4
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/calc-dep-state@7.0.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/link-bins@10.0.4
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/worker@1.0.4
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 13.0.3
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@7.0.1
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/patching.apply-patch@3.0.1
+- @pnpm/lifecycle@17.0.5
+- @pnpm/link-bins@10.0.3
+
+## 13.0.2
+
+### Patch Changes
+
+- Updated dependencies [80aaa9f]
+  - @pnpm/link-bins@10.0.3
+  - @pnpm/lifecycle@17.0.5
+
+## 13.0.1
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/lifecycle@17.0.4
+  - @pnpm/worker@1.0.3
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+  - @pnpm/link-bins@10.0.2
+
+## 13.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/calc-dep-state@7.0.0
+  - @pnpm/lifecycle@17.0.3
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/link-bins@10.0.2
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/worker@1.0.2
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 12.0.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.2
+- @pnpm/patching.apply-patch@3.0.1
+- @pnpm/link-bins@10.0.1
+- @pnpm/read-package-json@9.0.1
+- @pnpm/worker@1.0.1
+
+## 12.0.3
+
+### Patch Changes
+
+- Updated dependencies [db1d6ff]
+  - @pnpm/deps.graph-sequencer@2.0.1
+
+## 12.0.2
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@6.0.1
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/patching.apply-patch@3.0.0
+- @pnpm/lifecycle@17.0.1
+- @pnpm/link-bins@10.0.0
+
 ## 12.0.1
 
 ### Patch Changes

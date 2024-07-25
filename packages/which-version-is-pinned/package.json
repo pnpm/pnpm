@@ -29,7 +29,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/which-version-is-pinned#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "semver-utils": "^1.1.4"
+    "semver-utils": "catalog:"
   },
   "devDependencies": {
     "@pnpm/which-version-is-pinned": "workspace:*"

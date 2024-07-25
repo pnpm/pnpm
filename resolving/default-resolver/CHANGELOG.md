@@ -1,5 +1,87 @@
 # @pnpm/default-resolver
 
+## 20.0.4
+
+### Patch Changes
+
+- @pnpm/local-resolver@12.0.5
+- @pnpm/npm-resolver@21.0.2
+- @pnpm/resolver-base@13.0.1
+- @pnpm/git-resolver@9.0.5
+- @pnpm/tarball-resolver@9.0.4
+
+## 20.0.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/npm-resolver@21.0.1
+
+## 20.0.2
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/npm-resolver@21.0.0
+  - @pnpm/git-resolver@9.0.4
+  - @pnpm/local-resolver@12.0.4
+  - @pnpm/tarball-resolver@9.0.3
+
+## 20.0.1
+
+### Patch Changes
+
+- @pnpm/local-resolver@12.0.3
+- @pnpm/npm-resolver@20.0.1
+- @pnpm/resolver-base@12.0.2
+- @pnpm/git-resolver@9.0.3
+- @pnpm/tarball-resolver@9.0.2
+
+## 20.0.0
+
+### Major Changes
+
+- 0c08e1c: Breaking change.
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/npm-resolver@20.0.0
+
+## 19.0.5
+
+### Patch Changes
+
+- @pnpm/local-resolver@12.0.2
+- @pnpm/npm-resolver@19.0.4
+- @pnpm/resolver-base@12.0.1
+- @pnpm/git-resolver@9.0.2
+- @pnpm/tarball-resolver@9.0.1
+
+## 19.0.4
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/local-resolver@12.0.1
+  - @pnpm/npm-resolver@19.0.3
+
+## 19.0.3
+
+### Patch Changes
+
+- Updated dependencies [43b6bb7]
+  - @pnpm/npm-resolver@19.0.2
+
+## 19.0.2
+
+### Patch Changes
+
+- Updated dependencies [cb0f459]
+  - @pnpm/npm-resolver@19.0.1
+
 ## 19.0.1
 
 ### Patch Changes

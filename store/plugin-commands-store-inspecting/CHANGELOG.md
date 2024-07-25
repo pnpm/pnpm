@@ -1,5 +1,124 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 0.2.15
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/config@21.6.2
+  - @pnpm/pick-registry-for-package@6.0.4
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/client@11.1.5
+  - @pnpm/store.cafs@3.0.6
+
+## 0.2.14
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/config@21.6.1
+  - @pnpm/client@11.1.4
+
+## 0.2.13
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/types@11.0.0
+  - @pnpm/client@11.1.3
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/store.cafs@3.0.4
+
+## 0.2.12
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/pick-registry-for-package@6.0.2
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/client@11.1.2
+  - @pnpm/store.cafs@3.0.3
+
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/config@21.4.0
+
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+  - @pnpm/config@21.3.0
+  - @pnpm/client@11.1.1
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/client@11.1.0
+  - @pnpm/store.cafs@3.0.2
+  - @pnpm/config@21.2.3
+
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/config@21.2.2
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/client@11.0.6
+  - @pnpm/store.cafs@3.0.1
+
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/config@21.2.1
+  - @pnpm/store-path@9.0.1
+  - @pnpm/client@11.0.5
+
+## 0.2.6
+
+### Patch Changes
+
+- @pnpm/client@11.0.4
+
+## 0.2.5
+
+### Patch Changes
+
+- @pnpm/client@11.0.3
+
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/config@21.2.0
+
 ## 0.2.3
 
 ### Patch Changes

@@ -1,5 +1,77 @@
 # @pnpm/list
 
+## 10.1.7
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/reviewing.dependencies-hierarchy@3.1.7
+
+## 10.1.6
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/reviewing.dependencies-hierarchy@3.1.6
+
+## 10.1.5
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/reviewing.dependencies-hierarchy@3.1.5
+
+## 10.1.4
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@3.1.4
+
+## 10.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/read-project-manifest@6.0.2
+  - @pnpm/reviewing.dependencies-hierarchy@3.1.3
+
+## 10.1.2
+
+### Patch Changes
+
+- @pnpm/read-package-json@9.0.1
+- @pnpm/read-project-manifest@6.0.1
+- @pnpm/reviewing.dependencies-hierarchy@3.1.2
+
+## 10.1.1
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@3.1.1
+
+## 10.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/reviewing.dependencies-hierarchy@3.1.0
+
 ## 10.0.2
 
 ### Patch Changes

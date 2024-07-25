@@ -8,6 +8,7 @@ import {
   link,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
+import { type ProjectRootDir } from '@pnpm/types'
 import sinon from 'sinon'
 import { testDefaults } from './utils'
 
@@ -35,7 +36,7 @@ test('prune removes extraneous packages', async () => {
     manifest,
     mutation: 'install',
     pruneDirectDependencies: true,
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, {
     ...opts,
     pruneStore: true,

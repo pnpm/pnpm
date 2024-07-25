@@ -6,7 +6,7 @@ import {
   pruneSharedLockfile,
 } from '@pnpm/prune-lockfile'
 import { type DirectoryResolution, type Resolution } from '@pnpm/resolver-base'
-import { type Registries } from '@pnpm/types'
+import { type DepPath, type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { type KeyValuePair } from 'ramda'
@@ -28,12 +28,12 @@ export function updateLockfile (
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias) || depNode.peerDependencies[child.alias]?.optional === true,
-      Object.entries(depNode.children).map(([alias, depPath]) => ({ alias, depPath }))
+      Object.entries<DepPath>(depNode.children).map(([alias, depPath]) => ({ alias, depPath }))
     )
-    lockfile.packages[depPath] = toLockfileDependency(depNode, {
+    lockfile.packages[depPath as DepPath] = toLockfileDependency(depNode, {
       depGraph: dependenciesGraph,
       depPath,
-      prevSnapshot: lockfile.packages[depPath],
+      prevSnapshot: lockfile.packages[depPath as DepPath],
       registries,
       registry: dp.getRegistryByPackageName(registries, depNode.name),
       updatedDeps,
@@ -44,7 +44,7 @@ export function updateLockfile (
   const warn = (message: string) => {
     logger.warn({ message, prefix })
   }
-  return pruneSharedLockfile(lockfile, { warn })
+  return pruneSharedLockfile(lockfile, { warn, dependenciesGraph })
 }
 
 function toLockfileDependency (
@@ -53,16 +53,15 @@ function toLockfileDependency (
     depPath: string
     registry: string
     registries: Registries
-    updatedDeps: Array<{ alias: string, depPath: string }>
-    updatedOptionalDeps: Array<{ alias: string, depPath: string }>
+    updatedDeps: Array<{ alias: string, depPath: DepPath }>
+    updatedOptionalDeps: Array<{ alias: string, depPath: DepPath }>
     depGraph: DependenciesGraph
     prevSnapshot?: PackageSnapshot
     lockfileIncludeTarballUrl?: boolean
   }
 ): PackageSnapshot {
   const lockfileResolution = toLockfileResolution(
-    { id: pkg.id, name: pkg.name, version: pkg.version },
-    opts.depPath,
+    { name: pkg.name, version: pkg.version },
     pkg.resolution,
     opts.registry,
     opts.lockfileIncludeTarballUrl
@@ -151,7 +150,7 @@ function toLockfileDependency (
 }
 
 function updateResolvedDeps (
-  updatedDeps: Array<{ alias: string, depPath: string }>,
+  updatedDeps: Array<{ alias: string, depPath: DepPath }>,
   depGraph: DependenciesGraph
 ): Record<string, string> {
   return Object.fromEntries(
@@ -163,7 +162,7 @@ function updateResolvedDeps (
         const depNode = depGraph[depPath]
         return [
           alias,
-          depPathToRef(depNode.depPath, {
+          depPathToRef(depPath, {
             alias,
             realName: depNode.name,
             resolution: depNode.resolution,
@@ -175,11 +174,9 @@ function updateResolvedDeps (
 
 function toLockfileResolution (
   pkg: {
-    id: string
     name: string
     version: string
   },
-  depPath: string,
   resolution: Resolution,
   registry: string,
   lockfileIncludeTarballUrl?: boolean

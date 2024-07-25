@@ -6,7 +6,7 @@ import {
   type LockfileWalkerStep,
 } from '@pnpm/lockfile-walker'
 import { type DepTypes, DepType, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import { type SupportedArchitectures, type DependenciesField, type Registries } from '@pnpm/types'
+import { type SupportedArchitectures, type DependenciesField, type ProjectId, type Registries } from '@pnpm/types'
 import { getPkgInfo } from './getPkgInfo'
 import mapValues from 'ramda/src/map'
 
@@ -34,6 +34,7 @@ LicenseNode,
 export interface LicenseExtractOptions {
   storeDir: string
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   modulesDir?: string
   dir: string
   registries: Registries
@@ -80,6 +81,7 @@ export async function lockfileToLicenseNode (
         {
           storeDir: options.storeDir,
           virtualStoreDir: options.virtualStoreDir,
+          virtualStoreDirMaxLength: options.virtualStoreDirMaxLength,
           dir: options.dir,
           modulesDir: options.modulesDir ?? 'node_modules',
         }
@@ -125,12 +127,12 @@ export async function lockfileToLicenseNodeTree (
   lockfile: Lockfile,
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
-    includedImporterIds?: string[]
+    includedImporterIds?: ProjectId[]
   } & LicenseExtractOptions
 ): Promise<LicenseNodeTree> {
   const importerWalkers = lockfileWalkerGroupImporterSteps(
     lockfile,
-    opts.includedImporterIds ?? Object.keys(lockfile.importers),
+    opts.includedImporterIds ?? Object.keys(lockfile.importers) as ProjectId[],
     { include: opts?.include }
   )
   const depTypes = detectDepTypes(lockfile)
@@ -140,6 +142,7 @@ export async function lockfileToLicenseNodeTree (
         const importerDeps = await lockfileToLicenseNode(importerWalker.step, {
           storeDir: opts.storeDir,
           virtualStoreDir: opts.virtualStoreDir,
+          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
           modulesDir: opts.modulesDir,
           dir: opts.dir,
           registries: opts.registries,

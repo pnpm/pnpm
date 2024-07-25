@@ -7,12 +7,14 @@ import {
 } from '@pnpm/fetching-types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
+  type PkgResolutionId,
   type PreferredVersions,
   type ResolveResult,
   type WantedDependency,
+  type WorkspacePackage,
   type WorkspacePackages,
+  type WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
-import { type DependencyManifest } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
@@ -76,7 +78,7 @@ export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-): NpmResolver {
+): { resolveFromNpm: NpmResolver, clearCache: () => void } {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
@@ -92,18 +94,23 @@ export function createNpmResolver (
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })
-  return resolveNpm.bind(null, {
-    getAuthHeaderValueByURI: getAuthHeader,
-    pickPackage: pickPackage.bind(null, {
-      fetch,
-      filterMetadata: opts.filterMetadata,
-      metaCache,
-      metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : META_DIR,
-      offline: opts.offline,
-      preferOffline: opts.preferOffline,
-      cacheDir: opts.cacheDir,
+  return {
+    resolveFromNpm: resolveNpm.bind(null, {
+      getAuthHeaderValueByURI: getAuthHeader,
+      pickPackage: pickPackage.bind(null, {
+        fetch,
+        filterMetadata: opts.filterMetadata,
+        metaCache,
+        metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : META_DIR,
+        offline: opts.offline,
+        preferOffline: opts.preferOffline,
+        cacheDir: opts.cacheDir,
+      }),
     }),
-  })
+    clearCache: () => {
+      metaCache.clear()
+    },
+  }
 }
 
 export type ResolveFromNpmOptions = {
@@ -198,10 +205,12 @@ async function resolveNpm (
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta })
   }
 
-  if (((workspacePackages?.[pickedPackage.name]) != null) && opts.projectDir) {
-    if (workspacePackages[pickedPackage.name][pickedPackage.version]) {
+  const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)
+  if (workspacePkgsMatchingName && opts.projectDir) {
+    const matchedPkg = workspacePkgsMatchingName.get(pickedPackage.version)
+    if (matchedPkg) {
       return {
-        ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, {
+        ...resolveFromLocalPackage(matchedPkg, spec.normalizedPref, {
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: wantedDependency.injected,
@@ -209,10 +218,10 @@ async function resolveNpm (
         latest: meta['dist-tags'].latest,
       }
     }
-    const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[pickedPackage.name], spec)
+    const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
     if (localVersion && (semver.gt(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
       return {
-        ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][localVersion], spec.normalizedPref, {
+        ...resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec.normalizedPref, {
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: wantedDependency.injected,
@@ -222,7 +231,7 @@ async function resolveNpm (
     }
   }
 
-  const id = `${pickedPackage.name}@${pickedPackage.version}`
+  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
     tarball: pickedPackage.dist.tarball,
@@ -279,7 +288,8 @@ function tryResolveFromWorkspacePackages (
     lockfileDir?: string
   }
 ): ResolveResult {
-  if (!workspacePackages[spec.name]) {
+  const workspacePkgsMatchingName = workspacePackages.get(spec.name)
+  if (!workspacePkgsMatchingName) {
     throw new PnpmError(
       'WORKSPACE_PKG_NOT_FOUND',
       `In ${path.relative(process.cwd(), opts.projectDir)}: "${spec.name}@${opts.wantedDependency.pref ?? ''}" is in the dependencies but no package named "${spec.name}" is present in the workspace`,
@@ -288,47 +298,36 @@ function tryResolveFromWorkspacePackages (
       }
     )
   }
-  const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[spec.name], spec)
+  const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
   if (!localVersion) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
       `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.pref ?? ''} inside the workspace`
     )
   }
-  return resolveFromLocalPackage(workspacePackages[spec.name][localVersion], spec.normalizedPref, opts)
+  return resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec.normalizedPref, opts)
 }
 
 function pickMatchingLocalVersionOrNull (
-  versions: {
-    [version: string]: {
-      dir: string
-      manifest: DependencyManifest
-    }
-  },
+  versions: WorkspacePackagesByVersion,
   spec: RegistryPackageSpec
 ): string | null {
-  const localVersions = Object.keys(versions)
   switch (spec.type) {
   case 'tag':
-    return semver.maxSatisfying(localVersions, '*', {
+    return semver.maxSatisfying(Array.from(versions.keys()), '*', {
       includePrerelease: true,
     })
   case 'version':
-    return versions[spec.fetchSpec] ? spec.fetchSpec : null
+    return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
   case 'range':
-    return resolveWorkspaceRange(spec.fetchSpec, localVersions)
+    return resolveWorkspaceRange(spec.fetchSpec, Array.from(versions.keys()))
   default:
     return null
   }
 }
 
-interface LocalPackage {
-  dir: string
-  manifest: DependencyManifest
-}
-
 function resolveFromLocalPackage (
-  localPackage: LocalPackage,
+  localPackage: WorkspacePackage,
   normalizedPref: string | undefined,
   opts: {
     hardLinkLocalPackages?: boolean
@@ -336,15 +335,15 @@ function resolveFromLocalPackage (
     lockfileDir?: string
   }
 ): ResolveResult {
-  let id!: string
+  let id!: PkgResolutionId
   let directory!: string
   const localPackageDir = resolveLocalPackageDir(localPackage)
   if (opts.hardLinkLocalPackages) {
     directory = normalize(path.relative(opts.lockfileDir!, localPackageDir))
-    id = `file:${directory}`
+    id = `file:${directory}` as PkgResolutionId
   } else {
     directory = localPackageDir
-    id = `link:${normalize(path.relative(opts.projectDir, localPackageDir))}`
+    id = `link:${normalize(path.relative(opts.projectDir, localPackageDir))}` as PkgResolutionId
   }
   return {
     id,
@@ -358,12 +357,12 @@ function resolveFromLocalPackage (
   }
 }
 
-function resolveLocalPackageDir (localPackage: LocalPackage): string {
+function resolveLocalPackageDir (localPackage: WorkspacePackage): string {
   if (
     localPackage.manifest.publishConfig?.directory == null ||
     localPackage.manifest.publishConfig?.linkDirectory === false
-  ) return localPackage.dir
-  return path.join(localPackage.dir, localPackage.manifest.publishConfig.directory)
+  ) return localPackage.rootDir
+  return path.join(localPackage.rootDir, localPackage.manifest.publishConfig.directory)
 }
 
 function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackageSpec {

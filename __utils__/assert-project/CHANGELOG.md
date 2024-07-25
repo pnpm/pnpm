@@ -1,5 +1,73 @@
 # @pnpm/assert-project
 
+## 2.3.55
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/assert-store@1.0.87
+
+## 2.3.54
+
+### Patch Changes
+
+- @pnpm/assert-store@1.0.86
+
+## 2.3.53
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/modules-yaml@13.1.3
+  - @pnpm/assert-store@1.0.85
+
+## 2.3.52
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/modules-yaml@13.1.2
+  - @pnpm/assert-store@1.0.84
+
+## 2.3.51
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-types@7.1.0
+
+## 2.3.50
+
+### Patch Changes
+
+- @pnpm/assert-store@1.0.83
+
+## 2.3.49
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/assert-store@1.0.82
+
+## 2.3.48
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/modules-yaml@13.1.0
+
 ## 2.3.47
 
 ### Patch Changes

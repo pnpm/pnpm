@@ -1,11 +1,12 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 
 test('filterByImporters(): only prod dependencies of one importer', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -21,7 +22,7 @@ test('filterByImporters(): only prod dependencies of one importer', () => {
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -32,17 +33,17 @@ test('filterByImporters(): only prod dependencies of one importer', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'dev-dep@1.0.0': {
+        ['dev-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'optional-dep@1.0.0': {
+        ['optional-dep@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             'prod-dep-dep': '1.0.0',
           },
@@ -51,12 +52,12 @@ test('filterByImporters(): only prod dependencies of one importer', () => {
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       failOnMissingDependencies: true,
       include: {
@@ -64,7 +65,7 @@ test('filterByImporters(): only prod dependencies of one importer', () => {
         devDependencies: false,
         optionalDependencies: false,
       },
-      skipped: new Set<string>(),
+      skipped: new Set<DepPath>(),
     }
   )
 
@@ -116,7 +117,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
     filterLockfileByImporters(
       {
         importers: {
-          'project-1': {
+          ['project-1' as ProjectId]: {
             dependencies: {
               'prod-dep': '1.0.0',
             },
@@ -124,13 +125,13 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
               'prod-dep': '^1.0.0',
             },
           },
-          'project-2': {
+          ['project-2' as ProjectId]: {
             specifiers: {},
           },
         },
         lockfileVersion: LOCKFILE_VERSION,
         packages: {
-          'prod-dep@1.0.0': {
+          ['prod-dep@1.0.0' as DepPath]: {
             dependencies: {
               'prod-dep-dep': '1.0.0',
             },
@@ -140,7 +141,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
           },
         },
       },
-      ['project-1'],
+      ['project-1' as ProjectId],
       {
         failOnMissingDependencies: true,
         include: {
@@ -148,7 +149,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
           devDependencies: false,
           optionalDependencies: false,
         },
-        skipped: new Set<string>(),
+        skipped: new Set<DepPath>(),
       }
     )
   } catch (_: any) { // eslint-disable-line
@@ -162,7 +163,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -170,13 +171,13 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           specifiers: {},
         },
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             'prod-dep-dep': '1.0.0',
           },
@@ -186,7 +187,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       failOnMissingDependencies: false,
       include: {
@@ -194,7 +195,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         devDependencies: false,
         optionalDependencies: false,
       },
-      skipped: new Set<string>(),
+      skipped: new Set<DepPath>(),
     }
   )
 
@@ -230,7 +231,7 @@ test('filterByImporters(): do not include skipped packages', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -246,7 +247,7 @@ test('filterByImporters(): do not include skipped packages', () => {
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -257,17 +258,17 @@ test('filterByImporters(): do not include skipped packages', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'dev-dep@1.0.0': {
+        ['dev-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'optional-dep@1.0.0': {
+        ['optional-dep@1.0.0' as DepPath]: {
           optional: true,
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             'prod-dep-dep': '1.0.0',
           },
@@ -276,12 +277,12 @@ test('filterByImporters(): do not include skipped packages', () => {
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
     },
-    ['project-1'],
+    ['project-1' as ProjectId],
     {
       failOnMissingDependencies: true,
       include: {
@@ -289,7 +290,7 @@ test('filterByImporters(): do not include skipped packages', () => {
         devDependencies: true,
         optionalDependencies: true,
       },
-      skipped: new Set<string>(['optional-dep@1.0.0']),
+      skipped: new Set<DepPath>(['optional-dep@1.0.0' as DepPath]),
     }
   )
 
@@ -345,7 +346,7 @@ test('filterByImporters(): exclude orphan packages', () => {
   const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
-        'project-1': {
+        ['project-1' as ProjectId]: {
           dependencies: {
             'prod-dep': '1.0.0',
           },
@@ -353,7 +354,7 @@ test('filterByImporters(): exclude orphan packages', () => {
             'prod-dep': '^1.0.0',
           },
         },
-        'project-2': {
+        ['project-2' as ProjectId]: {
           dependencies: {
             'project-2-prod-dep': '1.0.0',
           },
@@ -364,24 +365,24 @@ test('filterByImporters(): exclude orphan packages', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        'orphan@1.0.0': {
+        ['orphan@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep-dep@1.0.0': {
+        ['prod-dep-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
-        'prod-dep@1.0.0': {
+        ['prod-dep@1.0.0' as DepPath]: {
           dependencies: {
             'prod-dep-dep': '1.0.0',
           },
           resolution: { integrity: '' },
         },
-        'project-2-prod-dep@1.0.0': {
+        ['project-2-prod-dep@1.0.0' as DepPath]: {
           resolution: { integrity: '' },
         },
       },
     },
-    ['project-1', 'project-2'],
+    ['project-1', 'project-2'] as ProjectId[],
     {
       failOnMissingDependencies: true,
       include: {
@@ -389,7 +390,7 @@ test('filterByImporters(): exclude orphan packages', () => {
         devDependencies: true,
         optionalDependencies: true,
       },
-      skipped: new Set<string>(),
+      skipped: new Set<DepPath>(),
     }
   )
 

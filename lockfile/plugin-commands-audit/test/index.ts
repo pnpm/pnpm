@@ -60,6 +60,8 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
+  virtualStoreDirMaxLength: 120,
+  peersSuffixMaxLength: 1000,
 }
 
 describe('plugin-commands-audit', () => {
@@ -80,6 +82,7 @@ describe('plugin-commands-audit', () => {
       userConfig: {},
       rawConfig,
       registries,
+      virtualStoreDirMaxLength: 120,
     })
     expect(exitCode).toBe(1)
     expect(stripAnsi(output)).toMatchSnapshot()
@@ -97,6 +100,7 @@ describe('plugin-commands-audit', () => {
       userConfig: {},
       rawConfig,
       registries,
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(exitCode).toBe(1)
@@ -114,6 +118,7 @@ describe('plugin-commands-audit', () => {
       userConfig: {},
       rawConfig,
       registries,
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(exitCode).toBe(1)
@@ -130,6 +135,7 @@ describe('plugin-commands-audit', () => {
       userConfig: {},
       rawConfig,
       registries,
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
@@ -147,6 +153,7 @@ describe('plugin-commands-audit', () => {
       userConfig: {},
       rawConfig,
       registries,
+      virtualStoreDirMaxLength: 120,
     })
 
     const json = JSON.parse(output)
@@ -166,6 +173,7 @@ describe('plugin-commands-audit', () => {
       rawConfig,
       dev: true,
       registries,
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(exitCode).toBe(0)
@@ -186,6 +194,7 @@ describe('plugin-commands-audit', () => {
       userConfig: {},
       rawConfig,
       registries,
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(exitCode).toBe(0)
@@ -207,6 +216,7 @@ describe('plugin-commands-audit', () => {
         [`${registries.default.replace(/^https?:/, '')}:_authToken`]: '123',
       },
       registries,
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
@@ -227,6 +237,7 @@ describe('plugin-commands-audit', () => {
       userConfig: {},
       rawConfig,
       registries,
+      virtualStoreDirMaxLength: 120,
     })).rejects.toThrow(AuditEndpointNotExistsError)
   })
 
@@ -255,6 +266,7 @@ describe('plugin-commands-audit', () => {
           },
         },
       },
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(exitCode).toBe(1)
@@ -287,6 +299,7 @@ describe('plugin-commands-audit', () => {
           },
         },
       },
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(exitCode).toBe(1)

@@ -1,18 +1,20 @@
-import { type DependenciesMeta, type PatchFile } from '@pnpm/types'
+import { type DependenciesMeta, type DepPath, type PatchFile, type ProjectId } from '@pnpm/types'
 
-export type { PatchFile }
+export type { PatchFile, ProjectId }
 
 export * from './lockfileFileTypes'
 
 export interface LockfileSettings {
   autoInstallPeers?: boolean
   excludeLinksFromLockfile?: boolean
+  peersSuffixMaxLength?: number
 }
 
 export interface Lockfile {
-  importers: Record<string, ProjectSnapshot>
+  importers: Record<ProjectId, ProjectSnapshot>
   lockfileVersion: string
   time?: Record<string, string>
+  catalogs?: CatalogSnapshots
   packages?: PackageSnapshots
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
@@ -48,7 +50,7 @@ export interface ProjectSnapshot {
 export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>
 
 export interface PackageSnapshots {
-  [packagePath: string]: PackageSnapshot
+  [packagePath: DepPath]: PackageSnapshot
 }
 
 /**
@@ -135,3 +137,24 @@ export type PackageBin = string | { [name: string]: string }
  * }
  */
 export type ResolvedDependencies = Record<string, string>
+
+export interface CatalogSnapshots {
+  [catalogName: string]: { [dependencyName: string]: ResolvedCatalogEntry }
+}
+
+export interface ResolvedCatalogEntry {
+  /**
+   * The real specifier that should be used for this dependency's catalog entry.
+   * This would be the ^1.2.3 portion of:
+   *
+   * @example
+   * catalog:
+   *   foo: ^1.2.3
+   */
+  readonly specifier: string
+
+  /**
+   * The concrete version that the requested specifier resolved to. Ex: 1.2.3
+   */
+  readonly version: string
+}

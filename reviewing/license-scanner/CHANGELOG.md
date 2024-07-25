@@ -1,5 +1,139 @@
 # @pnpm/license-scanner
 
+## 3.1.9
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/package-is-installable@9.0.5
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/lockfile.detect-dep-types@2.0.4
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/lockfile-walker@9.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/store.cafs@3.0.6
+
+## 3.1.8
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/directory-fetcher@8.0.4
+
+## 3.1.7
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/directory-fetcher@8.0.4
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/package-is-installable@9.0.4
+  - @pnpm/lockfile.detect-dep-types@2.0.3
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/lockfile-walker@9.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/store.cafs@3.0.4
+
+## 3.1.6
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/package-is-installable@9.0.3
+  - @pnpm/directory-fetcher@8.0.3
+  - @pnpm/lockfile.detect-dep-types@2.0.2
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/lockfile-walker@9.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/store.cafs@3.0.3
+
+## 3.1.5
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/lockfile.detect-dep-types@2.0.1
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/lockfile-walker@9.0.1
+  - @pnpm/directory-fetcher@8.0.2
+
+## 3.1.4
+
+### Patch Changes
+
+- @pnpm/store.cafs@3.0.2
+- @pnpm/directory-fetcher@8.0.2
+
+## 3.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile.detect-dep-types@2.0.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/lockfile-walker@9.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/package-is-installable@9.0.2
+  - @pnpm/directory-fetcher@8.0.2
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/store.cafs@3.0.1
+
+## 3.1.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/package-is-installable@9.0.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/directory-fetcher@8.0.1
+
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/lockfile-file@9.0.4
+
+## 3.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/lockfile.detect-dep-types@1.0.1
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/lockfile-walker@8.0.1
+  - @pnpm/directory-fetcher@8.0.0
+
 ## 3.0.2
 
 ### Patch Changes

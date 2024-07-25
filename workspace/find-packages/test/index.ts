@@ -1,9 +1,9 @@
 import path from 'path'
 import {
   findWorkspacePackagesNoCheck,
-  arrayOfWorkspacePackagesToMap,
   findWorkspacePackages,
 } from '@pnpm/workspace.find-packages'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { logger } from '@pnpm/logger'
 
 beforeEach(() => {
@@ -14,23 +14,17 @@ afterEach(() => {
   (logger.warn as jest.Mock).mockRestore()
 })
 
-// This is supported for compatibility with Yarn's implementation
-// see https://github.com/pnpm/pnpm/issues/2648
-test('arrayOfWorkspacePackagesToMap() treats private packages with no version as packages with 0.0.0 version', () => {
-  const privateProject = {
-    manifest: {
-      name: 'private-pkg',
-    },
-  }
-  expect(arrayOfWorkspacePackagesToMap([privateProject])).toStrictEqual({
-    'private-pkg': {
-      '0.0.0': privateProject,
-    },
-  })
-})
-
 test('findWorkspacePackagesNoCheck() skips engine checks', async () => {
-  const pkgs = await findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-engine'))
+  const fixturePath = path.join(__dirname, '__fixtures__/bad-engine')
+
+  const workspaceManifest = await readWorkspaceManifest(fixturePath)
+  if (workspaceManifest?.packages == null) {
+    throw new Error(`Unexpected test setup failure. No pnpm-workspace.yaml packages were defined at ${fixturePath}`)
+  }
+
+  const pkgs = await findWorkspacePackagesNoCheck(fixturePath, {
+    patterns: workspaceManifest.packages,
+  })
   expect(pkgs.length).toBe(1)
   expect(pkgs[0].manifest.name).toBe('pkg')
 })
@@ -38,7 +32,13 @@ test('findWorkspacePackagesNoCheck() skips engine checks', async () => {
 test('findWorkspacePackages() output warnings for non-root workspace project', async () => {
   const fixturePath = path.join(__dirname, '__fixtures__/warning-for-non-root-project')
 
+  const workspaceManifest = await readWorkspaceManifest(fixturePath)
+  if (workspaceManifest?.packages == null) {
+    throw new Error(`Unexpected test setup failure. No pnpm-workspace.yaml packages were defined at ${fixturePath}`)
+  }
+
   const pkgs = await findWorkspacePackages(fixturePath, {
+    patterns: workspaceManifest.packages,
     sharedWorkspaceLockfile: true,
   })
   expect(pkgs.length).toBe(3)

@@ -3,7 +3,9 @@
   "compilerOptions": {
     "outDir": "lib",
     "rootDir": "src",
-    "lib": ["ESNext.Disposable"]
+    "lib": [
+      "ESNext.Disposable"
+    ]
   },
   "include": [
     "src/**/*.ts",
@@ -13,6 +15,5 @@
     {
       "path": "../prepare"
     }
-  ],
-  "composite": true
+  ]
 }

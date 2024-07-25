@@ -27,6 +27,9 @@ export function createPackageStore (
     networkConcurrency?: number
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     verifyStoreIntegrity: boolean
+    virtualStoreDirMaxLength: number
+    strictStorePkgContentCheck?: boolean
+    clearResolutionCache: () => void
   }
 ): StoreController {
   const storeDir = initOpts.storeDir
@@ -46,6 +49,8 @@ export function createPackageStore (
     networkConcurrency: initOpts.networkConcurrency,
     storeDir: initOpts.storeDir,
     verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
+    virtualStoreDirMaxLength: initOpts.virtualStoreDirMaxLength,
+    strictStorePkgContentCheck: initOpts.strictStorePkgContentCheck,
   })
 
   return {
@@ -63,6 +68,7 @@ export function createPackageStore (
     prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
     requestPackage: packageRequester.requestPackage,
     upload,
+    clearResolutionCache: initOpts.clearResolutionCache,
   }
 
   async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }): Promise<void> {

@@ -10,7 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/matcher"
+    },
+    {
+      "path": "../../config/parse-overrides"
     },
     {
       "path": "../../config/pick-registry-for-package"
@@ -47,7 +56,9 @@
     },
     {
       "path": "../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../resolving/resolver-base"
     }
-  ],
-  "composite": true
+  ]
 }

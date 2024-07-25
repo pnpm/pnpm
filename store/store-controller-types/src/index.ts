@@ -1,4 +1,5 @@
 import {
+  type PkgResolutionId,
   type DirectoryResolution,
   type PreferredVersions,
   type Resolution,
@@ -53,6 +54,7 @@ export interface StoreController {
   close: () => Promise<void>
   prune: (removeAlienFiles?: boolean) => Promise<void>
   upload: UploadPkgToStore
+  clearResolutionCache: () => void
 }
 
 export interface PkgRequestFetchResult {
@@ -60,19 +62,14 @@ export interface PkgRequestFetchResult {
   files: PackageFilesResponse
 }
 
-export type FetchPackageToStoreFunction = (
-  opts: FetchPackageToStoreOptions
-) => {
+export interface FetchResponse {
   filesIndexFile: string
   fetching: () => Promise<PkgRequestFetchResult>
 }
 
-export type FetchPackageToStoreFunctionAsync = (
-  opts: FetchPackageToStoreOptions
-) => Promise<{
-  filesIndexFile: string
-  fetching: () => Promise<PkgRequestFetchResult>
-}>
+export type FetchPackageToStoreFunction = (opts: FetchPackageToStoreOptions) => FetchResponse
+
+export type FetchPackageToStoreFunctionAsync = (opts: FetchPackageToStoreOptions) => Promise<FetchResponse>
 
 export type GetFilesIndexFilePath = (opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>) => {
   filesIndexFile: string
@@ -110,7 +107,7 @@ export type RequestPackageFunction = (
 export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
   currentPkg?: {
-    id?: string
+    id?: PkgResolutionId
     resolution?: Resolution
   }
   /**
@@ -147,7 +144,7 @@ export interface PackageResponse {
     isInstallable?: boolean
     resolution: Resolution
     manifest?: PackageManifest
-    id: string
+    id: PkgResolutionId
     normalizedPref?: string
     updated: boolean
     publishedAt?: string

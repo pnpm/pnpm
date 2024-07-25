@@ -3,6 +3,7 @@ import path from 'path'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
+import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -117,11 +118,11 @@ test('adding a new dependency to one of the workspace projects', async () => {
   let [{ manifest }] = (await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ], testDefaults({
     allProjects: [
@@ -135,7 +136,7 @@ test('adding a new dependency to one of the workspace projects', async () => {
             '@pnpm.e2e/bar': '100.0.0',
           },
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 1,
@@ -147,7 +148,7 @@ test('adding a new dependency to one of the workspace projects', async () => {
             '@pnpm.e2e/foobarqar': '1.0.0',
           },
         },
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
     ],
     nodeLinker: 'hoisted',
@@ -210,7 +211,7 @@ test('running install scripts in a workspace that has no root project', async ()
       },
     },
     mutation: 'install',
-    rootDir: path.resolve('project-1'),
+    rootDir: path.resolve('project-1') as ProjectRootDir,
   }, testDefaults({ fastUnpack: false, nodeLinker: 'hoisted' }))
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
@@ -273,45 +274,29 @@ test('linking bins of local projects when node-linker is set to hoisted', async 
   ])
   fs.writeFileSync('project-2/index.js', '#!/usr/bin/env node\nconsole.log("hello")', 'utf8')
 
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-  }
-
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ], testDefaults({
     allProjects: [
       {
         buildIndex: 0,
         manifest: project1Manifest,
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 1,
         manifest: project2Manifest,
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
     ],
     nodeLinker: 'hoisted',
-    workspacePackages,
   }))
 
   expect(fs.existsSync('project-1/node_modules/.bin/project-2')).toBeTruthy()

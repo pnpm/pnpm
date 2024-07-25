@@ -2,6 +2,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type TarballResolution } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
+import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import clone from 'ramda/src/clone'
 import {
@@ -32,13 +33,13 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
   await expect(mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ frozenLockfile: true }))).rejects.toThrowError(/Package name mismatch found while reading/)
 
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults())
 
   expect(project.readLockfile()).toStrictEqual(correctLockfile)
@@ -51,7 +52,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ preferFrozenLockfile: false }))
 
   expect(project.readLockfile()).toStrictEqual(correctLockfile)
@@ -78,14 +79,14 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
     mutateModulesInSingleProject({
       manifest,
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))
   ).rejects.toThrowError(/Got unexpected checksum/)
 
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({}, { retry: { retries: 0 } }))
 
   {
@@ -102,7 +103,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ preferFrozenLockfile: false, reporter }, { retry: { retries: 0 } }))
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({

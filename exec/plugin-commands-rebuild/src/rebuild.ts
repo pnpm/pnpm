@@ -6,6 +6,7 @@ import {
   createOrConnectStoreController,
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
+import { type ProjectRootDir } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import {
@@ -119,7 +120,7 @@ export async function handler (
         {
           buildIndex: 0,
           manifest: await readProjectManifestOnly(rebuildOpts.dir, opts),
-          rootDir: rebuildOpts.dir,
+          rootDir: rebuildOpts.dir as ProjectRootDir,
         },
       ],
       rebuildOpts
@@ -131,7 +132,7 @@ export async function handler (
       {
         buildIndex: 0,
         manifest: await readProjectManifestOnly(rebuildOpts.dir, opts),
-        rootDir: rebuildOpts.dir,
+        rootDir: rebuildOpts.dir as ProjectRootDir,
       },
     ],
     params,

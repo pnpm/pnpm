@@ -88,7 +88,7 @@
       "path": "../../worker"
     },
     {
-      "path": "../../workspace/filter-workspace-packages"
+      "path": "../../workspace/filter-packages-from-dir"
     },
     {
       "path": "../../workspace/find-packages"
@@ -99,6 +99,5 @@
     {
       "path": "../lifecycle"
     }
-  ],
-  "composite": true
+  ]
 }

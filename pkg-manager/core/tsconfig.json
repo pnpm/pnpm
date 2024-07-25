@@ -25,10 +25,19 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../catalogs/protocol-parser"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/matcher"
     },
     {
       "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../config/parse-overrides"
     },
     {
       "path": "../../crypto/object-hasher"
@@ -168,6 +177,5 @@
     {
       "path": "../resolve-dependencies"
     }
-  ],
-  "composite": true
+  ]
 }

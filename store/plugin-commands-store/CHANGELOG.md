@@ -1,5 +1,173 @@
 # @pnpm/plugin-commands-store
 
+## 9.2.4
+
+### Patch Changes
+
+- 5aa98b6: Add registries information to the calculation of dlx cache hash.
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/normalize-registries@6.0.4
+  - @pnpm/pick-registry-for-package@6.0.4
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/get-context@12.0.1
+  - @pnpm/store.cafs@3.0.6
+  - @pnpm/store-controller-types@18.1.3
+  - @pnpm/store-connection-manager@8.3.3
+
+## 9.2.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/store-connection-manager@8.3.2
+
+## 9.2.2
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/get-context@12.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/store-connection-manager@8.3.1
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/normalize-registries@6.0.3
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/store.cafs@3.0.4
+
+## 9.2.1
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/store-connection-manager@8.3.0
+  - @pnpm/config@21.5.0
+  - @pnpm/get-context@11.2.1
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/normalize-registries@6.0.2
+  - @pnpm/pick-registry-for-package@6.0.2
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/store.cafs@3.0.3
+  - @pnpm/store-controller-types@18.1.1
+
+## 9.2.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/get-context@11.2.0
+  - @pnpm/config@21.4.0
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/store-connection-manager@8.2.2
+
+## 9.1.6
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/store-connection-manager@8.2.1
+
+## 9.1.5
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-connection-manager@8.2.0
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/store.cafs@3.0.2
+  - @pnpm/config@21.2.3
+  - @pnpm/cli-utils@3.0.7
+
+## 9.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/normalize-registries@6.0.1
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/get-context@11.1.3
+  - @pnpm/store.cafs@3.0.1
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/store-connection-manager@8.1.4
+
+## 9.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/get-context@11.1.2
+  - @pnpm/store-connection-manager@8.1.3
+  - @pnpm/store-path@9.0.1
+
+## 9.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+- @pnpm/store-connection-manager@8.1.2
+
+## 9.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/get-context@11.1.1
+  - @pnpm/store-connection-manager@8.1.1
+
+## 9.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/store-connection-manager@8.1.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/get-context@11.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/cli-utils@3.0.3
+
 ## 9.0.5
 
 ### Patch Changes

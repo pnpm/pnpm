@@ -1,5 +1,7 @@
 # @pnpm/exe
 
+## 9.5.0
+
 ## 7.1.8
 
 ### Patch Changes

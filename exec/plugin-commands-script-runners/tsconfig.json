@@ -28,6 +28,12 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../env/plugin-commands-env"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
       "path": "../../packages/crypto.base32-hash"
     },
     {
@@ -52,6 +58,9 @@
       "path": "../../store/store-path"
     },
     {
+      "path": "../../workspace/filter-packages-from-dir"
+    },
+    {
       "path": "../../workspace/filter-workspace-packages"
     },
     {
@@ -60,6 +69,5 @@
     {
       "path": "../lifecycle"
     }
-  ],
-  "composite": true
+  ]
 }

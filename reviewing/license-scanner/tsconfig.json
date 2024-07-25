@@ -48,6 +48,5 @@
     {
       "path": "../../store/cafs"
     }
-  ],
-  "composite": true
+  ]
 }

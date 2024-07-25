@@ -4,6 +4,7 @@ import {
   pruneLockfile,
   pruneSharedLockfile,
 } from '@pnpm/prune-lockfile'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 import yaml from 'yaml-tag'
 
 const DEFAULT_OPTS = {
@@ -15,7 +16,7 @@ const DEFAULT_OPTS = {
 test('remove one redundant package', () => {
   expect(pruneLockfile({
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           'is-positive': '1.0.0',
         },
@@ -26,12 +27,12 @@ test('remove one redundant package', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@2.0.0': {
+      ['is-positive@2.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -44,7 +45,7 @@ test('remove one redundant package', () => {
     dependencies: {
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS)).toStrictEqual({
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -69,7 +70,7 @@ test('remove one redundant package', () => {
 test('remove redundant linked package', () => {
   expect(pruneLockfile({
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           'is-positive': 'link:../is-positive',
         },
@@ -85,7 +86,7 @@ test('remove redundant linked package', () => {
     version: '1.0.0',
 
     dependencies: {},
-  }, '.', DEFAULT_OPTS)).toStrictEqual({
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         specifiers: {},
@@ -98,7 +99,7 @@ test('remove redundant linked package', () => {
 test('keep all', () => {
   expect(pruneLockfile({
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           'is-negative': '1.0.0',
           'is-positive': '1.0.0',
@@ -111,7 +112,7 @@ test('keep all', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-negative@1.0.0': {
+      ['is-negative@1.0.0' as DepPath]: {
         dependencies: {
           'is-positive': '2.0.0',
         },
@@ -119,12 +120,12 @@ test('keep all', () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@2.0.0': {
+      ['is-positive@2.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -138,7 +139,7 @@ test('keep all', () => {
       'is-negative': '^1.0.0',
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS)).toStrictEqual({
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -178,7 +179,7 @@ test('keep all', () => {
 test('optional dependency should have optional = true', () => {
   expect(pruneLockfile({
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           'parent-of-foo': '1.0.0',
           'pkg-with-good-optional': '1.0.0',
@@ -195,13 +196,13 @@ test('optional dependency should have optional = true', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'foo-child@1.0.0': {
+      ['foo-child@1.0.0' as DepPath]: {
         optional: true,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'foo@1.0.0': {
+      ['foo@1.0.0' as DepPath]: {
         dependencies: {
           'foo-child': '1.0.0',
         },
@@ -210,12 +211,12 @@ test('optional dependency should have optional = true', () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'parent-of-foo@1.0.0': {
+      ['parent-of-foo@1.0.0' as DepPath]: {
         dependencies: {
           foo: '1.0.0',
         },
@@ -223,7 +224,7 @@ test('optional dependency should have optional = true', () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'pkg-with-good-optional@1.0.0': {
+      ['pkg-with-good-optional@1.0.0' as DepPath]: {
         optionalDependencies: {
           foo: '1.0.0',
           'is-positive': '1.0.0',
@@ -244,7 +245,7 @@ test('optional dependency should have optional = true', () => {
     optionalDependencies: {
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS)).toStrictEqual({
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -306,7 +307,7 @@ test('optional dependency should have optional = true', () => {
 test('optional dependency should not have optional = true if used not only as optional', () => {
   expect(pruneLockfile({
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           'is-positive': '1.0.0',
           'pkg-with-good-optional': '1.0.0',
@@ -319,12 +320,12 @@ test('optional dependency should not have optional = true if used not only as op
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'pkg-with-good-optional@1.0.0': {
+      ['pkg-with-good-optional@1.0.0' as DepPath]: {
         optionalDependencies: {
           'is-positive': '1.0.0',
         },
@@ -341,7 +342,7 @@ test('optional dependency should not have optional = true if used not only as op
       'is-positive': '^1.0.0',
       'pkg-with-good-optional': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS)).toStrictEqual({
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -413,7 +414,7 @@ test('subdependency is both optional and dev', () => {
     devDependencies: {
       parent: '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS)).toStrictEqual(yaml`
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual(yaml`
     importers:
       .:
         dependencies:
@@ -486,7 +487,7 @@ test('optional = true is removed if dependency is used both as optional and prod
     optionalDependencies: {
       inflight: '^1.0.6',
     },
-  }, '.', DEFAULT_OPTS)).toStrictEqual(yaml`
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual(yaml`
     importers:
       .:
         dependencies:
@@ -518,7 +519,7 @@ test('optional = true is removed if dependency is used both as optional and prod
 test('remove dependencies that are not in the package', () => {
   expect(pruneLockfile({
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           'is-positive': '1.0.0',
         },
@@ -537,17 +538,17 @@ test('remove dependencies that are not in the package', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'fsevents@1.0.0': {
+      ['fsevents@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-negative@1.0.0': {
+      ['is-negative@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -556,7 +557,7 @@ test('remove dependencies that are not in the package', () => {
   }, {
     name: 'foo',
     version: '1.0.0',
-  }, '.', DEFAULT_OPTS)).toStrictEqual({
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         specifiers: {},
@@ -569,7 +570,7 @@ test('remove dependencies that are not in the package', () => {
 test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKFILE}`, () => {
   expect(pruneLockfile({
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           'is-positive': '1.0.0',
         },
@@ -580,7 +581,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -594,7 +595,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
       'is-negative': '^1.0.0',
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS)).toStrictEqual({
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -620,7 +621,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
 test('keep lockfileMinorVersion, if present', () => {
   expect(pruneLockfile({
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           'is-positive': '1.0.0',
         },
@@ -631,7 +632,7 @@ test('keep lockfileMinorVersion, if present', () => {
     },
     lockfileVersion: '5.2',
     packages: {
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -644,7 +645,7 @@ test('keep lockfileMinorVersion, if present', () => {
     dependencies: {
       'is-positive': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS)).toStrictEqual({
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -669,7 +670,7 @@ test('keep lockfileMinorVersion, if present', () => {
 test('keep linked package even if it is not in package.json', () => {
   expect(pruneLockfile({
     importers: {
-      '.': {
+      ['.' as ProjectId]: {
         dependencies: {
           'is-negative': '1.0.0',
           'is-positive': 'link:../is-positive',
@@ -681,7 +682,7 @@ test('keep linked package even if it is not in package.json', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-negative@1.0.0': {
+      ['is-negative@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -694,7 +695,7 @@ test('keep linked package even if it is not in package.json', () => {
     dependencies: {
       'is-negative': '^1.0.0',
     },
-  }, '.', DEFAULT_OPTS)).toStrictEqual({
+  }, '.' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
     importers: {
       '.': {
         dependencies: {
@@ -720,7 +721,7 @@ test('keep linked package even if it is not in package.json', () => {
 test("prune: don't remove package used by another importer", () => {
   expect(pruneLockfile({
     importers: {
-      'packages/package-1': {
+      ['packages/package-1' as ProjectId]: {
         dependencies: {
           'is-positive': '1.0.0',
         },
@@ -728,7 +729,7 @@ test("prune: don't remove package used by another importer", () => {
           'is-positive': '^1.0.0',
         },
       },
-      'packages/package-2': {
+      ['packages/package-2' as ProjectId]: {
         dependencies: {
           'is-negative': '1.0.0',
         },
@@ -739,17 +740,17 @@ test("prune: don't remove package used by another importer", () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-negative@1.0.0': {
+      ['is-negative@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@2.0.0': {
+      ['is-positive@2.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -760,7 +761,7 @@ test("prune: don't remove package used by another importer", () => {
     version: '1.0.0',
 
     dependencies: { 'is-negative': '^1.0.0' },
-  }, 'packages/package-2', DEFAULT_OPTS)).toStrictEqual({
+  }, 'packages/package-2' as ProjectId, DEFAULT_OPTS)).toStrictEqual({
     importers: {
       'packages/package-1': {
         dependencies: {
@@ -798,7 +799,7 @@ test("prune: don't remove package used by another importer", () => {
 test('pruneSharedLockfile: remove one redundant package', () => {
   expect(pruneSharedLockfile({
     importers: {
-      'packages/package-1': {
+      ['packages/package-1' as ProjectId]: {
         dependencies: {
           'is-positive': '1.0.0',
         },
@@ -809,12 +810,12 @@ test('pruneSharedLockfile: remove one redundant package', () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'is-positive@1.0.0': {
+      ['is-positive@1.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      'is-positive@2.0.0': {
+      ['is-positive@2.0.0' as DepPath]: {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },

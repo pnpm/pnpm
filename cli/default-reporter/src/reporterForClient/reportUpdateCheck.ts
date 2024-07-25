@@ -24,7 +24,7 @@ Update available! ${chalk.red(log.currentVersion)} → ${chalk.green(log.latestV
 ${chalk.magenta('Changelog:')} https://github.com/pnpm/pnpm/releases/tag/v${log.latestVersion}
 ${updateMessage}
 
-Follow ${chalk.magenta('@pnpmjs')} for updates: https://twitter.com/pnpmjs`,
+Follow ${chalk.magenta('@pnpmjs')} for updates: https://x.com/pnpmjs`,
         {
           padding: 1,
           margin: 1,
@@ -54,7 +54,7 @@ function renderUpdateMessage (opts: UpdateMessageOptions): string {
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
   if (opts.env.COREPACK_ROOT) {
-    return `corepack prepare pnpm@${opts.latestVersion} --activate`
+    return `corepack install -g pnpm@${opts.latestVersion}`
   }
   const pkgName = opts.currentPkgIsExecutable ? '@pnpm/exe' : 'pnpm'
   return `pnpm add -g ${pkgName}`

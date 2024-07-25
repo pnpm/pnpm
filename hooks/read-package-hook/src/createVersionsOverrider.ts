@@ -2,32 +2,22 @@ import path from 'path'
 import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
-import { PnpmError } from '@pnpm/error'
-import { parseOverrides, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
+import { type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
 import { isIntersectingRange } from './isIntersectingRange'
 
+export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
+
 export function createVersionsOverrider (
-  overrides: Record<string, string>,
+  overrides: VersionOverrideWithoutRawSelector[],
   rootDir: string
 ): ReadPackageHook {
-  const parsedOverrides = tryParseOverrides(overrides)
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
-    parsedOverrides
+    overrides
       .map((override) => {
-        let linkTarget: string | undefined
-        if (override.newPref.startsWith('link:')) {
-          const pkgPath = override.newPref.substring(5)
-          linkTarget = path.isAbsolute(pkgPath) ? pkgPath : path.join(rootDir, pkgPath)
-        }
-        let linkFileTarget: string | undefined
-        if (override.newPref.startsWith('file:')) {
-          linkFileTarget = override.newPref.substring(5)
-        }
         return {
           ...override,
-          linkTarget,
-          linkFileTarget,
+          localTarget: createLocalTarget(override, rootDir),
         }
       })
   ) as [VersionOverrideWithParent[], VersionOverride[]]
@@ -44,25 +34,34 @@ export function createVersionsOverrider (
   }) as ReadPackageHook
 }
 
-function tryParseOverrides (overrides: Record<string, string>): VersionOverrideBase[] {
-  try {
-    return parseOverrides(overrides)
-  } catch (e) {
-    throw new PnpmError('INVALID_OVERRIDES_SELECTOR', `${(e as PnpmError).message} in pnpm.overrides`)
+interface LocalTarget {
+  protocol: LocalProtocol
+  absolutePath: string
+  specifiedViaRelativePath: boolean
+}
+
+type LocalProtocol = 'link:' | 'file:'
+
+function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir: string): LocalTarget | undefined {
+  let protocol: LocalProtocol | undefined
+  if (override.newPref.startsWith('file:')) {
+    protocol = 'file:'
+  } else if (override.newPref.startsWith('link:')) {
+    protocol = 'link:'
+  } else {
+    return undefined
   }
+  const pkgPath = override.newPref.substring(protocol.length)
+  const specifiedViaRelativePath = !path.isAbsolute(pkgPath)
+  const absolutePath = specifiedViaRelativePath ? path.join(rootDir, pkgPath) : pkgPath
+  return { absolutePath, specifiedViaRelativePath, protocol }
 }
 
 interface VersionOverride extends VersionOverrideBase {
-  linkTarget?: string
-  linkFileTarget?: string
+  localTarget?: LocalTarget
 }
 
-interface VersionOverrideWithParent extends VersionOverride {
-  parentPkg: {
-    name: string
-    pref?: string
-  }
-}
+type VersionOverrideWithParent = VersionOverride & Required<Pick<VersionOverride, 'parentPkg'>>
 
 function overrideDepsOfPkg (
   { manifest, dir }: { manifest: PackageManifest, dir: string | undefined },
@@ -97,20 +96,18 @@ function overrideDeps (
     )
     if (!versionOverride) continue
 
-    if (versionOverride.linkTarget && dir) {
-      deps[versionOverride.targetPkg.name] = `link:${normalizePath(
-        path.relative(dir, versionOverride.linkTarget)
-      )}`
-      continue
-    }
-    if (versionOverride.linkFileTarget) {
-      deps[
-        versionOverride.targetPkg.name
-      ] = `file:${versionOverride.linkFileTarget}`
+    if (versionOverride.localTarget) {
+      deps[versionOverride.targetPkg.name] = `${versionOverride.localTarget.protocol}${resolveLocalOverride(versionOverride.localTarget, dir)}`
       continue
     }
     deps[versionOverride.targetPkg.name] = versionOverride.newPref
   }
+}
+
+function resolveLocalOverride ({ specifiedViaRelativePath, absolutePath }: LocalTarget, pkgDir?: string): string {
+  return specifiedViaRelativePath && pkgDir
+    ? normalizePath(path.relative(pkgDir, absolutePath))
+    : absolutePath
 }
 
 function pickMostSpecificVersionOverride (versionOverrides: VersionOverride[]): VersionOverride | undefined {

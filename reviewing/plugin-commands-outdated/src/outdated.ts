@@ -14,14 +14,13 @@ import {
   type OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { type DependenciesField, type PackageManifest } from '@pnpm/types'
+import { type DependenciesField, type PackageManifest, type ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
 import sortWith from 'ramda/src/sortWith'
 import renderHelp from 'render-help'
 import stripAnsi from 'strip-ansi'
-import wrapAnsi from 'wrap-ansi'
 import {
   DEFAULT_COMPARATORS,
   type OutdatedWithVersionDiff,
@@ -130,6 +129,7 @@ export type OutdatedCommandOptions = {
 | 'allProjects'
 | 'ca'
 | 'cacheDir'
+| 'catalogs'
 | 'cert'
 | 'dev'
 | 'dir'
@@ -174,7 +174,7 @@ export async function handler (
   const manifest = await readProjectManifestOnly(opts.dir, opts)
   const packages = [
     {
-      dir: opts.dir,
+      rootDir: opts.dir as ProjectRootDir,
       manifest,
     },
   ]
@@ -239,11 +239,30 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
   for (let i = 0; i < columnNames.length; i++)
     columnNames[i] = chalk.blueBright(columnNames[i])
 
-  return table([
+  const data = [
     columnNames,
     ...sortOutdatedPackages(outdatedPackages)
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
-  ], TABLE_OPTIONS)
+  ]
+  let detailsColumnMaxWidth = 40
+  if (opts.long) {
+    detailsColumnMaxWidth = outdatedPackages.filter(pkg => pkg.latestManifest && !pkg.latestManifest.deprecated).reduce((maxWidth, pkg) => {
+      const cellWidth = pkg.latestManifest?.homepage?.length ?? 0
+      return Math.max(maxWidth, cellWidth)
+    }, 0)
+  }
+
+  return table(data, {
+    ...TABLE_OPTIONS,
+    columns: {
+      ...TABLE_OPTIONS.columns,
+      // Detail column:
+      3: {
+        width: detailsColumnMaxWidth,
+        wrapWord: true,
+      },
+    },
+  })
 }
 
 function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }): string {
@@ -354,7 +373,7 @@ export function renderDetails ({ latestManifest }: OutdatedPackage): string {
   if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {
-    outputs.push(wrapAnsi(chalk.redBright(latestManifest.deprecated), 40))
+    outputs.push(chalk.redBright(latestManifest.deprecated))
   }
   if (latestManifest.homepage) {
     outputs.push(chalk.underline(latestManifest.homepage))

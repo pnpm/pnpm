@@ -5,6 +5,7 @@ import {
   type SupportedArchitectures,
   type DependenciesField,
   type IncludedDependencies,
+  type ProjectId,
   type ProjectManifest,
   type Registries,
 } from '@pnpm/types'
@@ -73,10 +74,11 @@ export async function findDependencyLicenses (opts: {
   manifest: ProjectManifest
   storeDir: string
   virtualStoreDir: string
+  virtualStoreDirMaxLength: number
   modulesDir?: string
   registries: Registries
   wantedLockfile: Lockfile | null
-  includedImporterIds?: string[]
+  includedImporterIds?: ProjectId[]
   supportedArchitectures?: SupportedArchitectures
 }): Promise<LicensePackage[]> {
   if (opts.wantedLockfile == null) {
@@ -92,6 +94,7 @@ export async function findDependencyLicenses (opts: {
     modulesDir: opts.modulesDir,
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     include: opts.include,
     registries: opts.registries,
     includedImporterIds: opts.includedImporterIds,

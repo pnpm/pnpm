@@ -11,10 +11,10 @@ test('createClient()', () => {
 })
 
 test('createResolver()', () => {
-  const resolver = createResolver({
+  const { resolve } = createResolver({
     authConfig: { registry: 'https://registry.npmjs.org/' },
     cacheDir: '',
     rawConfig: {},
   })
-  expect(typeof resolver === 'function').toBeTruthy()
+  expect(typeof resolve === 'function').toBeTruthy()
 })

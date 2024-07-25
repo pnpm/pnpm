@@ -1,5 +1,208 @@
 # @pnpm/plugin-commands-patching
 
+## 6.2.4
+
+### Patch Changes
+
+- 726753f: Correct the error message when trying to run `pnpm patch` without `node_modules/.modules.yaml` [#8257](https://github.com/pnpm/pnpm/issues/8257).
+- Updated dependencies [1e4dd79]
+- Updated dependencies [0ef168b]
+  - @pnpm/plugin-commands-installation@17.0.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/pick-registry-for-package@6.0.4
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/patching.apply-patch@3.0.1
+  - @pnpm/store-connection-manager@8.3.3
+  - @pnpm/pick-fetcher@3.0.0
+
+## 6.2.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/plugin-commands-installation@16.0.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/store-connection-manager@8.3.2
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 6.2.2
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [84654bd]
+  - @pnpm/config@21.6.0
+  - @pnpm/plugin-commands-installation@16.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/store-connection-manager@8.3.1
+  - @pnpm/pick-fetcher@3.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/modules-yaml@13.1.3
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 6.2.1
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/store-connection-manager@8.3.0
+  - @pnpm/config@21.5.0
+  - @pnpm/plugin-commands-installation@15.1.11
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/pick-registry-for-package@6.0.2
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/modules-yaml@13.1.2
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/patching.apply-patch@3.0.1
+  - @pnpm/pick-fetcher@3.0.0
+
+## 6.2.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- 08dad01: Add `--no-ext-diff` disallow external diff drivers to prevent incorrect diff file formats
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/config@21.4.0
+  - @pnpm/plugin-commands-installation@15.1.10
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/store-connection-manager@8.2.2
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 6.1.9
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/plugin-commands-installation@15.1.9
+  - @pnpm/store-connection-manager@8.2.1
+
+## 6.1.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.8
+
+## 6.1.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.7
+
+## 6.1.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.6
+
+## 6.1.5
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-connection-manager@8.2.0
+  - @pnpm/plugin-commands-installation@15.1.5
+  - @pnpm/config@21.2.3
+  - @pnpm/cli-utils@3.0.7
+  - @pnpm/patching.apply-patch@3.0.1
+
+## 6.1.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/plugin-commands-installation@15.1.4
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/read-project-manifest@6.0.2
+  - @pnpm/patching.apply-patch@3.0.1
+  - @pnpm/store-connection-manager@8.1.4
+  - @pnpm/pick-fetcher@3.0.0
+
+## 6.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/patching.apply-patch@3.0.1
+  - @pnpm/plugin-commands-installation@15.1.3
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/read-project-manifest@6.0.1
+  - @pnpm/store-connection-manager@8.1.3
+
+## 6.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+- @pnpm/plugin-commands-installation@15.1.2
+- @pnpm/store-connection-manager@8.1.2
+
+## 6.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/plugin-commands-installation@15.1.1
+  - @pnpm/store-connection-manager@8.1.1
+
+## 6.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/plugin-commands-installation@15.1.0
+  - @pnpm/store-connection-manager@8.1.0
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/patching.apply-patch@3.0.0
+
 ## 6.0.7
 
 ### Patch Changes

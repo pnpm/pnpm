@@ -1,11 +1,12 @@
 import { lockfileToDepGraph } from '@pnpm/calc-dep-state'
+import { type DepPath } from '@pnpm/types'
 
 test('lockfileToDepGraph', () => {
   expect(lockfileToDepGraph({
     lockfileVersion: '9.0',
     importers: {},
     packages: {
-      'foo@1.0.0': {
+      ['foo@1.0.0' as DepPath]: {
         dependencies: {
           bar: '1.0.0',
         },
@@ -16,7 +17,7 @@ test('lockfileToDepGraph', () => {
           integrity: '',
         },
       },
-      'bar@1.0.0': {
+      ['bar@1.0.0' as DepPath]: {
         dependencies: {
           qar: '1.0.0',
         },
@@ -24,7 +25,7 @@ test('lockfileToDepGraph', () => {
           integrity: '',
         },
       },
-      'qar@1.0.0': {
+      ['qar@1.0.0' as DepPath]: {
         resolution: {
           integrity: '',
         },
@@ -35,18 +36,18 @@ test('lockfileToDepGraph', () => {
       children: {
         qar: 'qar@1.0.0',
       },
-      depPath: 'bar@1.0.0',
+      pkgIdWithPatchHash: 'bar@1.0.0',
     },
     'foo@1.0.0': {
       children: {
         bar: 'bar@1.0.0',
         qar: 'qar@1.0.0',
       },
-      depPath: 'foo@1.0.0',
+      pkgIdWithPatchHash: 'foo@1.0.0',
     },
     'qar@1.0.0': {
       children: {},
-      depPath: 'qar@1.0.0',
+      pkgIdWithPatchHash: 'qar@1.0.0',
     },
   })
 })

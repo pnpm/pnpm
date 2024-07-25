@@ -10,6 +10,7 @@ export const DEFAULT_OPTS = {
     original: [],
   },
   bail: false,
+  bin: 'node_modules/.bin',
   ca: undefined,
   cacheDir: '../cache',
   cert: undefined,
@@ -55,6 +56,7 @@ export const DEFAULT_OPTS = {
     cpu: ['current'],
     libc: ['current'],
   },
+  virtualStoreDirMaxLength: 120,
 }
 
 export const DLX_DEFAULT_OPTS = {
@@ -65,6 +67,7 @@ export const DLX_DEFAULT_OPTS = {
   bin: 'node_modules/.bin',
   cacheDir: path.join(tmp, 'cache'),
   extraEnv: {},
+  extraBinPaths: [],
   cliOptions: {},
   dlxCacheMaxAge: Infinity,
   include: {
@@ -91,4 +94,5 @@ export const DLX_DEFAULT_OPTS = {
     cpu: ['current'],
     libc: ['current'],
   },
+  virtualStoreDirMaxLength: 120,
 }

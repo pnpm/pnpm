@@ -2,6 +2,7 @@ import { promisify } from 'util'
 import { type PnpmError } from '@pnpm/error'
 import { filterWorkspacePackages, type PackageGraph } from '@pnpm/filter-workspace-packages'
 import { type Package } from '@pnpm/workspace.pkgs-graph'
+import { type ProjectRootDir } from '@pnpm/types'
 import './parsePackageSelector'
 import fs from 'fs'
 import execa from 'execa'
@@ -16,10 +17,10 @@ const touch = promisify(touchCB)
 const mkdir = promisify(fs.mkdir)
 
 const PKGS_GRAPH: PackageGraph<Package> = {
-  '/packages/project-0': {
-    dependencies: ['/packages/project-1', '/project-5'],
+  ['/packages/project-0' as ProjectRootDir]: {
+    dependencies: ['/packages/project-1', '/project-5'] as ProjectRootDir[],
     package: {
-      dir: '/packages/project-0',
+      rootDir: '/packages/project-0' as ProjectRootDir,
       manifest: {
         name: 'project-0',
         version: '1.0.0',
@@ -31,10 +32,10 @@ const PKGS_GRAPH: PackageGraph<Package> = {
       },
     },
   },
-  '/packages/project-1': {
-    dependencies: ['/project-2', '/project-4'],
+  ['/packages/project-1' as ProjectRootDir]: {
+    dependencies: ['/project-2', '/project-4'] as ProjectRootDir[],
     package: {
-      dir: '/packages/project-1',
+      rootDir: '/packages/project-1' as ProjectRootDir,
       manifest: {
         name: 'project-1',
         version: '1.0.0',
@@ -47,10 +48,10 @@ const PKGS_GRAPH: PackageGraph<Package> = {
       },
     },
   },
-  '/project-2': {
-    dependencies: [],
+  ['/project-2' as ProjectRootDir]: {
+    dependencies: [] as ProjectRootDir[],
     package: {
-      dir: '/project-2',
+      rootDir: '/project-2' as ProjectRootDir,
       manifest: {
         name: 'project-2',
         version: '1.0.0',
@@ -61,10 +62,10 @@ const PKGS_GRAPH: PackageGraph<Package> = {
       },
     },
   },
-  '/project-3': {
-    dependencies: [],
+  ['/project-3' as ProjectRootDir]: {
+    dependencies: [] as ProjectRootDir[],
     package: {
-      dir: '/project-3',
+      rootDir: '/project-3' as ProjectRootDir,
       manifest: {
         name: 'project-3',
         version: '1.0.0',
@@ -75,10 +76,10 @@ const PKGS_GRAPH: PackageGraph<Package> = {
       },
     },
   },
-  '/project-4': {
-    dependencies: [],
+  ['/project-4' as ProjectRootDir]: {
+    dependencies: [] as ProjectRootDir[],
     package: {
-      dir: '/project-4',
+      rootDir: '/project-4' as ProjectRootDir,
       manifest: {
         name: 'project-4',
         version: '1.0.0',
@@ -89,10 +90,10 @@ const PKGS_GRAPH: PackageGraph<Package> = {
       },
     },
   },
-  '/project-5': {
-    dependencies: [],
+  ['/project-5' as ProjectRootDir]: {
+    dependencies: [] as ProjectRootDir[],
     package: {
-      dir: '/project-5',
+      rootDir: '/project-5' as ProjectRootDir,
       manifest: {
         name: 'project-5',
         version: '1.0.0',
@@ -103,10 +104,10 @@ const PKGS_GRAPH: PackageGraph<Package> = {
       },
     },
   },
-  '/project-5/packages/project-6': {
-    dependencies: [],
+  ['/project-5/packages/project-6' as ProjectRootDir]: {
+    dependencies: [] as ProjectRootDir[],
     package: {
-      dir: '/project-5/packages/project-6',
+      rootDir: '/project-5/packages/project-6' as ProjectRootDir,
       manifest: {
         name: 'project-6',
         version: '1.0.0',
@@ -210,10 +211,10 @@ test('select just a package by name', async () => {
 
 test('select package without specifying its scope', async () => {
   const PKGS_GRAPH: PackageGraph<Package> = {
-    '/packages/bar': {
+    ['/packages/bar' as ProjectRootDir]: {
       dependencies: [],
       package: {
-        dir: '/packages/bar',
+        rootDir: '/packages/bar' as ProjectRootDir,
         manifest: {
           name: '@foo/bar',
           version: '1.0.0',
@@ -233,20 +234,20 @@ test('select package without specifying its scope', async () => {
 
 test('when a scoped package with the same name exists, only pick the exact match', async () => {
   const PKGS_GRAPH: PackageGraph<Package> = {
-    '/packages/@foo/bar': {
+    ['/packages/@foo/bar' as ProjectRootDir]: {
       dependencies: [],
       package: {
-        dir: '/packages/@foo/bar',
+        rootDir: '/packages/@foo/bar' as ProjectRootDir,
         manifest: {
           name: '@foo/bar',
           version: '1.0.0',
         },
       },
     },
-    '/packages/bar': {
+    ['/packages/bar' as ProjectRootDir]: {
       dependencies: [],
       package: {
-        dir: '/packages/bar',
+        rootDir: '/packages/bar' as ProjectRootDir,
         manifest: {
           name: 'bar',
           version: '1.0.0',
@@ -266,20 +267,20 @@ test('when a scoped package with the same name exists, only pick the exact match
 
 test('when two scoped packages match the searched name, don\'t select any', async () => {
   const PKGS_GRAPH: PackageGraph<Package> = {
-    '/packages/@foo/bar': {
+    ['/packages/@foo/bar' as ProjectRootDir]: {
       dependencies: [],
       package: {
-        dir: '/packages/@foo/bar',
+        rootDir: '/packages/@foo/bar' as ProjectRootDir,
         manifest: {
           name: '@foo/bar',
           version: '1.0.0',
         },
       },
     },
-    '/packages/@types/bar': {
+    ['/packages/@types/bar' as ProjectRootDir]: {
       dependencies: [],
       package: {
-        dir: '/packages/@types/bar',
+        rootDir: '/packages/@types/bar' as ProjectRootDir,
         manifest: {
           name: '@types/bar',
           version: '1.0.0',
@@ -347,27 +348,27 @@ test('select changed packages', async () => {
     return
   }
 
-  const workspaceDir = tempy.directory()
+  const workspaceDir = tempy.directory() as ProjectRootDir
   await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
   await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
   await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
   await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
 
-  const pkg1Dir = path.join(workspaceDir, 'package-1')
+  const pkg1Dir = path.join(workspaceDir, 'package-1') as ProjectRootDir
 
   await mkdir(pkg1Dir)
   await touch(path.join(pkg1Dir, 'file1.js'))
 
-  const pkg2Dir = path.join(workspaceDir, 'package-2')
+  const pkg2Dir = path.join(workspaceDir, 'package-2') as ProjectRootDir
 
   await mkdir(pkg2Dir)
   await touch(path.join(pkg2Dir, 'file2.js'))
 
-  const pkg3Dir = path.join(workspaceDir, 'package-3')
+  const pkg3Dir = path.join(workspaceDir, 'package-3') as ProjectRootDir
 
   await mkdir(pkg3Dir)
 
-  const pkgKorDir = path.join(workspaceDir, 'package-kor')
+  const pkgKorDir = path.join(workspaceDir, 'package-kor') as ProjectRootDir
 
   await mkdir(pkgKorDir)
   await touch(path.join(pkgKorDir, 'fileKor한글.js'))
@@ -377,11 +378,11 @@ test('select changed packages', async () => {
 
   const pkg20Dir = path.join(workspaceDir, 'package-20')
 
-  const pkgsGraph = {
+  const pkgsGraph: PackageGraph<Package> = {
     [workspaceDir]: {
       dependencies: [],
       package: {
-        dir: workspaceDir,
+        rootDir: workspaceDir as ProjectRootDir,
         manifest: {
           name: 'root',
           version: '0.0.0',
@@ -391,7 +392,7 @@ test('select changed packages', async () => {
     [pkg1Dir]: {
       dependencies: [],
       package: {
-        dir: pkg1Dir,
+        rootDir: pkg1Dir as ProjectRootDir,
         manifest: {
           name: 'package-1',
           version: '0.0.0',
@@ -401,7 +402,7 @@ test('select changed packages', async () => {
     [pkg2Dir]: {
       dependencies: [],
       package: {
-        dir: pkg2Dir,
+        rootDir: pkg2Dir as ProjectRootDir,
         manifest: {
           name: 'package-2',
           version: '0.0.0',
@@ -411,7 +412,7 @@ test('select changed packages', async () => {
     [pkg3Dir]: {
       dependencies: [pkg2Dir],
       package: {
-        dir: pkg3Dir,
+        rootDir: pkg3Dir as ProjectRootDir,
         manifest: {
           name: 'package-3',
           version: '0.0.0',
@@ -421,7 +422,7 @@ test('select changed packages', async () => {
     [pkgKorDir]: {
       dependencies: [],
       package: {
-        dir: pkgKorDir,
+        rootDir: pkgKorDir as ProjectRootDir,
         manifest: {
           name: 'package-kor',
           version: '0.0.0',
@@ -431,7 +432,7 @@ test('select changed packages', async () => {
     [pkg20Dir]: {
       dependencies: [],
       package: {
-        dir: pkg20Dir,
+        rootDir: pkg20Dir as ProjectRootDir,
         manifest: {
           name: 'package-20',
           version: '0.0.0',
@@ -508,7 +509,7 @@ test('select all packages except one', async () => {
   ], { workspaceDir: process.cwd() })
 
   expect(Object.keys(selectedProjectsGraph))
-    .toStrictEqual(Object.keys(omit(['/packages/project-1'], PKGS_GRAPH)))
+    .toStrictEqual(Object.keys(omit(['/packages/project-1' as ProjectRootDir], PKGS_GRAPH)))
 })
 
 test('select by parentDir and exclude one package by pattern', async () => {

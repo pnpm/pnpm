@@ -131,7 +131,7 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
-            <img src="https://pnpm.io/img/users/jetbrains.svg" width="85" />
+            <img src="https://pnpm.io/img/users/jetbrains.svg" width="180" />
           </picture>
         </a>
       </td>

@@ -21,6 +21,5 @@
     {
       "path": "../lockfile-utils"
     }
-  ],
-  "composite": true
+  ]
 }

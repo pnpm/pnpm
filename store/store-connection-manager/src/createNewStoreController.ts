@@ -41,16 +41,17 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
+| 'virtualStoreDirMaxLength'
 > & {
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
-} & Partial<Pick<Config, 'userConfig' | 'deployAllFiles' | 'sslConfigs'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
+} & Partial<Pick<Config, 'userConfig' | 'deployAllFiles' | 'sslConfigs' | 'strictStorePkgContentCheck'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
 ): Promise<{ ctrl: StoreController, dir: string }> {
   const fullMetadata = opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
-  const { resolve, fetchers } = createClient({
+  const { resolve, fetchers, clearResolutionCache } = createClient({
     customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
     unsafePerm: opts.unsafePerm,
@@ -105,6 +106,9 @@ export async function createNewStoreController (
       verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
         ? opts.verifyStoreIntegrity
         : true,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
+      clearResolutionCache,
     }),
     dir: opts.storeDir,
   }

@@ -1,5 +1,210 @@
 # @pnpm/plugin-commands-script-runners
 
+## 11.0.0
+
+### Major Changes
+
+- 5aa98b6: Add registries information to the calculation of dlx cache hash.
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- 999d2ef: Silent reporting fixed with the `pnpm exec` command [#7608](https://github.com/pnpm/pnpm/issues/7608).
+- Updated dependencies [1e4dd79]
+- Updated dependencies [0ef168b]
+  - @pnpm/plugin-commands-installation@17.0.0
+  - @pnpm/plugin-commands-env@5.1.0
+  - @pnpm/lifecycle@17.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/package-bins@9.0.4
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/sort-packages@6.0.5
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 10.0.1
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/plugin-commands-env@5.0.12
+  - @pnpm/plugin-commands-installation@16.0.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 10.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Minor Changes
+
+- 1b03682: Read authentication information from .npmrc in the current directory when running `dlx` [#7996](https://github.com/pnpm/pnpm/issues/7996).
+
+### Patch Changes
+
+- 98f20a7: Fix `dlx` not actually using node version specified by `--use-node-version`.
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [84654bd]
+- Updated dependencies [9b5b869]
+  - @pnpm/config@21.6.0
+  - @pnpm/plugin-commands-installation@16.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/plugin-commands-env@5.0.11
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/package-bins@9.0.3
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/sort-packages@6.0.4
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 9.1.11
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/plugin-commands-installation@15.1.11
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/package-bins@9.0.2
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/sort-packages@6.0.3
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 9.1.10
+
+### Patch Changes
+
+- 271386f: Set `reporter-hide-prefix` to `true` by default for `pnpm exec`. In order to show prefix, the user now has to explicitly set `reporter-hide-prefix=false` [#8174](https://github.com/pnpm/pnpm/issues/8174).
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/plugin-commands-installation@15.1.10
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/lifecycle@17.0.5
+
+## 9.1.9
+
+### Patch Changes
+
+- bc0618c: `exec` now also streams prefixed output when `--recursive` or `--parallel` is specified just as `run` does [#8065](https://github.com/pnpm/pnpm/issues/8065).
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/lifecycle@17.0.5
+  - @pnpm/plugin-commands-installation@15.1.9
+
+## 9.1.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.8
+
+## 9.1.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.7
+
+## 9.1.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.6
+
+## 9.1.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.5
+- @pnpm/lifecycle@17.0.4
+- @pnpm/config@21.2.3
+- @pnpm/cli-utils@3.0.7
+- @pnpm/crypto.base32-hash@3.0.0
+
+## 9.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/lifecycle@17.0.3
+  - @pnpm/package-bins@9.0.1
+  - @pnpm/plugin-commands-installation@15.1.4
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/read-project-manifest@6.0.2
+  - @pnpm/sort-packages@6.0.2
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 9.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+- Updated dependencies [37538f5]
+  - @pnpm/error@6.0.1
+  - @pnpm/command@5.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/lifecycle@17.0.2
+  - @pnpm/plugin-commands-installation@15.1.3
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/read-project-manifest@6.0.1
+  - @pnpm/store-path@9.0.1
+
+## 9.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+- @pnpm/plugin-commands-installation@15.1.2
+
+## 9.1.1
+
+### Patch Changes
+
+- @pnpm/sort-packages@6.0.1
+- @pnpm/plugin-commands-installation@15.1.1
+
+## 9.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/plugin-commands-installation@15.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/lifecycle@17.0.1
+
 ## 9.0.7
 
 ### Patch Changes

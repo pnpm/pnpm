@@ -4,7 +4,7 @@ import { deploy } from '@pnpm/plugin-commands-deploy'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
 import { logger } from '@pnpm/logger'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { DEFAULT_OPTS } from './utils'
 
 test('deploy', async () => {
@@ -47,7 +47,7 @@ test('deploy', async () => {
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   })
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -92,7 +92,7 @@ test('deploy fails when the destination directory exists and is not empty', asyn
   fs.writeFileSync(deployPath, 'aaa', 'utf8')
   const deployFullPath = path.resolve(deployPath)
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project' }])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project' }])
 
   await expect(() =>
     deploy.handler({
@@ -134,7 +134,7 @@ test('forced deploy succeeds with a warning when destination directory exists an
   fs.writeFileSync(deployPath, 'aaa', 'utf8')
   const deployFullPath = path.resolve(deployPath)
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project' }])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -193,7 +193,7 @@ test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDepen
     },
   ])
 
-  const { allProjects, selectedProjectsGraph, allProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project-1' }])
+  const { allProjects, selectedProjectsGraph, allProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -212,4 +212,54 @@ test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDepen
   const project = assertProject(path.resolve('deploy'))
   project.has('is-positive')
   expect(fs.existsSync('sub-dir/deploy')).toBe(false)
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/8297 (pnpm deploy doesn't replace catalog: protocol)
+test('deploy works when workspace packages use catalog protocol', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'is-positive': 'catalog:',
+      },
+    },
+    {
+      name: 'project-2',
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-positive': 'catalog:',
+      },
+    },
+    {
+      name: 'project-3',
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    catalogs: {
+      default: {
+        'is-positive': '1.0.0',
+      },
+    },
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  // Make sure the is-positive cataloged dependency was actually installed.
+  expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/is-positive')).toBeTruthy()
 })

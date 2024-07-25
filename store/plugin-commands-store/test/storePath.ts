@@ -20,6 +20,7 @@ test('CLI prints the current store path', async () => {
     storeDir: '/home/example/.pnpm-store',
     userConfig: {},
     dlxCacheMaxAge: 0,
+    virtualStoreDirMaxLength: 120,
   }, ['path'])
 
   const expectedStorePath = os.platform() === 'win32'

@@ -22,6 +22,7 @@ const argv = process.argv.slice(2)
   case 'dist-tag':
   case 'docs':
   case 'edit':
+  case 'home':
   case 'info':
   case 'login':
   case 'logout':

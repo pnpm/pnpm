@@ -16,6 +16,12 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../catalogs/config"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -26,6 +32,9 @@
     },
     {
       "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../env/plugin-commands-env"
     },
     {
       "path": "../../exec/lifecycle"
@@ -61,11 +70,10 @@
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../../workspace/filter-workspace-packages"
+      "path": "../../workspace/filter-packages-from-dir"
     },
     {
       "path": "../../workspace/sort-packages"
     }
-  ],
-  "composite": true
+  ]
 }

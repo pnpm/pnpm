@@ -1,5 +1,91 @@
 # @pnpm/plugin-commands-doctor
 
+## 3.0.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.5
+- @pnpm/config@21.6.2
+
+## 3.0.12
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+
+## 3.0.11
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+  - @pnpm/config@21.6.0
+  - @pnpm/cli-utils@3.1.3
+
+## 3.0.10
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/cli-utils@3.1.2
+
+## 3.0.9
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/cli-utils@3.1.1
+
+## 3.0.8
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+
+## 3.0.7
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/cli-utils@3.0.7
+
+## 3.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.6
+- @pnpm/config@21.2.2
+
+## 3.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.5
+- @pnpm/config@21.2.1
+
+## 3.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/config@21.2.0
+  - @pnpm/cli-utils@3.0.3
+
 ## 3.0.2
 
 ### Patch Changes

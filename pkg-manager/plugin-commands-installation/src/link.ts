@@ -10,7 +10,8 @@ import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
-import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
@@ -22,6 +23,7 @@ import {
   type WorkspacePackages,
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
+import { type Project } from '@pnpm/types'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import pick from 'ramda/src/pick'
@@ -43,6 +45,7 @@ type LinkOpts = CreateStoreControllerOptions & Pick<Config,
 | 'saveOptional'
 | 'saveProd'
 | 'workspaceDir'
+| 'workspacePackagePatterns'
 | 'sharedWorkspaceLockfile'
 > & Partial<Pick<Config, 'linkWorkspacePackages'>>
 
@@ -121,13 +124,16 @@ export async function handler (
   const cwd = process.cwd()
 
   const storeControllerCache = new Map<string, Promise<{ dir: string, ctrl: StoreController }>>()
-  let workspacePackagesArr
+  let workspacePackagesArr: Project[]
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
-    workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
+    workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
+      ...opts,
+      patterns: opts.workspacePackagePatterns,
+    })
     workspacePackages = arrayOfWorkspacePackagesToMap(workspacePackagesArr) as WorkspacePackages
   } else {
-    workspacePackages = {}
+    workspacePackages = new Map()
   }
 
   const store = await createOrConnectStoreControllerCached(storeControllerCache, opts)
@@ -191,11 +197,14 @@ export async function handler (
   if (pkgNames.length > 0) {
     let globalPkgNames!: string[]
     if (opts.workspaceDir) {
-      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
+      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
+        ...opts,
+        patterns: opts.workspacePackagePatterns,
+      })
 
       const pkgsFoundInWorkspace = workspacePackagesArr
         .filter(({ manifest }) => manifest.name && pkgNames.includes(manifest.name))
-      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.dir))
+      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.rootDir))
 
       if ((pkgsFoundInWorkspace.length > 0) && !linkOpts.targetDependenciesField) {
         linkOpts.targetDependenciesField = 'dependencies'

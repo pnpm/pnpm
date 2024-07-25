@@ -1,5 +1,159 @@
 # @pnpm/plugin-commands-outdated
 
+## 12.0.2
+
+### Patch Changes
+
+- f6e7ace: The `pnpm outdated` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs).
+- Updated dependencies [0f0e441]
+- Updated dependencies [f6e7ace]
+- Updated dependencies [0ef168b]
+  - @pnpm/outdated@15.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/default-resolver@20.0.4
+
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/default-resolver@20.0.3
+  - @pnpm/outdated@15.0.1
+  - @pnpm/cli-utils@3.1.4
+
+## 12.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [9b5b869]
+  - @pnpm/config@21.6.0
+  - @pnpm/outdated@15.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/default-resolver@20.0.2
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/modules-yaml@13.1.3
+
+## 11.1.8
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/modules-yaml@13.1.2
+  - @pnpm/outdated@14.0.12
+  - @pnpm/default-resolver@20.0.1
+
+## 11.1.7
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/config@21.4.0
+  - @pnpm/outdated@14.0.11
+  - @pnpm/cli-utils@3.1.1
+
+## 11.1.6
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/outdated@14.0.10
+
+## 11.1.5
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/default-resolver@20.0.0
+  - @pnpm/outdated@14.0.9
+  - @pnpm/config@21.2.3
+  - @pnpm/cli-utils@3.0.7
+
+## 11.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/outdated@14.0.8
+  - @pnpm/default-resolver@19.0.5
+
+## 11.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+- Updated dependencies [37538f5]
+  - @pnpm/error@6.0.1
+  - @pnpm/command@5.0.1
+  - @pnpm/outdated@14.0.7
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/default-resolver@19.0.4
+  - @pnpm/store-path@9.0.1
+
+## 11.1.2
+
+### Patch Changes
+
+- @pnpm/default-resolver@19.0.3
+- @pnpm/outdated@14.0.6
+- @pnpm/cli-utils@3.0.4
+
+## 11.1.1
+
+### Patch Changes
+
+- 21de734: Details in the `pnpm outdated` output are wrapped correctly [#8037](https://github.com/pnpm/pnpm/pull/8037).
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/outdated@14.0.5
+  - @pnpm/default-resolver@19.0.2
+
+## 11.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/outdated@14.0.4
+  - @pnpm/cli-utils@3.0.3
+
 ## 11.0.4
 
 ### Patch Changes

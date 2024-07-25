@@ -5,6 +5,7 @@ import { type LockfileV9 as Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import { type ProjectRootDir } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -72,7 +73,7 @@ test('nothing is needlessly removed from node_modules', async () => {
     dependencyNames: ['ajv-keywords'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, opts)
 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
@@ -95,7 +96,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ preferFrozenLockfile: false }))
 
   const lockfile = project.readLockfile()
@@ -132,23 +133,23 @@ test('the right peer dependency is used in every workspace package', async () =>
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: manifest1,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: manifest2,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -276,7 +277,7 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
           ajv: '4.10.0',
         },
       },
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -288,18 +289,18 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
           'ajv-keywords': '1.5.0',
         },
       },
-      rootDir: path.resolve('pkg'),
+      rootDir: path.resolve('pkg') as ProjectRootDir,
     },
   ]
   const reporter = jest.fn()
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('pkg'),
+      rootDir: path.resolve('pkg') as ProjectRootDir,
     },
   ], testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
 
@@ -316,11 +317,11 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('pkg'),
+      rootDir: path.resolve('pkg') as ProjectRootDir,
     },
   ], testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
 
@@ -511,7 +512,7 @@ test('the list of transitive peer dependencies is kept up to date', async () => 
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ update: true, depth: Infinity }))
 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))).toBeTruthy()
@@ -550,7 +551,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariation1 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`, 120),
     'node_modules'
   )
   await okFile(path.join(pkgVariation1, '@pnpm.e2e/abc'))
@@ -561,7 +562,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariation2 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`, 120),
     'node_modules'
   )
   await okFile(path.join(pkgVariation2, '@pnpm.e2e/abc'))
@@ -589,7 +590,7 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariation1 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`, 120),
     'node_modules'
   )
   await okFile(path.join(pkgVariation1, '@pnpm.e2e/abc'))
@@ -600,7 +601,7 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariation2 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '2.0.0' }])}`),
+    depPathToFilename(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '2.0.0' }])}`, 120),
     'node_modules'
   )
   await okFile(path.join(pkgVariation2, '@pnpm.e2e/abc'))
@@ -661,7 +662,7 @@ test('peer bins are linked', async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/for-testing-peers-having-bins'], testDefaults({ fastUnpack: false }))
 
   const suffix = createPeersDirSuffix([{ name: '@pnpm.e2e/peer-with-bin', version: '1.0.0' }])
-  const pkgVariation = path.join('.pnpm', depPathToFilename(`@pnpm.e2e/pkg-with-peer-having-bin@1.0.0${suffix}`), 'node_modules')
+  const pkgVariation = path.join('.pnpm', depPathToFilename(`@pnpm.e2e/pkg-with-peer-having-bin@1.0.0${suffix}`, 120), 'node_modules')
 
   project.isExecutable(path.join(pkgVariation, '@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin', 'peer-with-bin'))
 
@@ -797,7 +798,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     dependencyNames: ['ajv'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({
     autoInstallPeers: false,
     lockfileDir,
@@ -932,7 +933,7 @@ test('peer dependency is resolved from parent package', async () => {
     dependencySelectors: ['@pnpm.e2e/tango@1.0.0'],
     manifest: {},
     mutation: 'installSome',
-    rootDir: path.resolve('pkg'),
+    rootDir: path.resolve('pkg') as ProjectRootDir,
   }, testDefaults())
 
   const lockfile = readYamlFile<Lockfile>(WANTED_LOCKFILE)
@@ -952,14 +953,14 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
     dependencySelectors: ['most@1.7.3'],
     manifest: {},
     mutation: 'installSome',
-    rootDir: path.resolve('pkg'),
+    rootDir: path.resolve('pkg') as ProjectRootDir,
   }, testDefaults())
 
   await mutateModulesInSingleProject({
     dependencySelectors: ['is-positive'],
     manifest,
     mutation: 'installSome',
-    rootDir: path.resolve('pkg'),
+    rootDir: path.resolve('pkg') as ProjectRootDir,
   }, testDefaults())
 
   const lockfile = readYamlFile<Lockfile>(WANTED_LOCKFILE)
@@ -981,7 +982,7 @@ test('peer dependency is resolved from parent package via its alias', async () =
     dependencySelectors: ['@pnpm.e2e/tango@npm:@pnpm.e2e/tango-tango@1.0.0'],
     manifest: {},
     mutation: 'installSome',
-    rootDir: path.resolve('pkg'),
+    rootDir: path.resolve('pkg') as ProjectRootDir,
   }, testDefaults())
 
   const lockfile = readYamlFile<Lockfile>(WANTED_LOCKFILE)
@@ -1014,7 +1015,7 @@ test('peer dependency is saved', async () => {
     dependencyNames: ['is-positive'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults())
 
   expect(mutatedImporter.manifest).toStrictEqual(
@@ -1190,7 +1191,7 @@ test('local tarball dependency with peer dependency', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults())
 
   {
@@ -1214,13 +1215,13 @@ test('peer dependency that is resolved by a dev dependency', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ fastUnpack: false, lockfileOnly: true, strictPeerDependencies: false }))
 
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({
     frozenLockfile: true,
     include: {
@@ -1260,23 +1261,23 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('ajv'),
+      rootDir: path.resolve('ajv') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      rootDir: path.resolve('ajv'),
+      rootDir: path.resolve('ajv') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects }))
@@ -1350,30 +1351,30 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: manifest1,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: manifest2,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects, autoInstallPeers: false, dedupePeerDependents: true }))
   importers[1] = {
     dependencySelectors: ['@pnpm.e2e/abc@1.0.0'],
     mutation: 'installSome',
-    rootDir: path.resolve('project-2'),
+    rootDir: path.resolve('project-2') as ProjectRootDir,
   }
   await mutateModules(importers, testDefaults({ allProjects, autoInstallPeers: false, dedupePeerDependents: true }))
 
@@ -1494,23 +1495,23 @@ test('peer having peer is resolved correctly', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: manifest1,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: manifest2,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -1560,23 +1561,23 @@ test('peer having peer is resolved correctly. The peer is also in the dependenci
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: manifest1,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: manifest2,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -1632,23 +1633,23 @@ test('peer having peer is resolved correctly. The peer is also in the dependenci
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: manifest1,
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: manifest2,
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({
@@ -1728,7 +1729,7 @@ test('3 circular peers in workspace root', async () => {
           '@pnpm.e2e/peer-a': '1.0.0',
         },
       },
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -1740,18 +1741,18 @@ test('3 circular peers in workspace root', async () => {
           '@pnpm.e2e/circular-peers-1-of-3': '1.0.0',
         },
       },
-      rootDir: path.resolve('pkg'),
+      rootDir: path.resolve('pkg') as ProjectRootDir,
     },
   ]
   const reporter = jest.fn()
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('pkg'),
+      rootDir: path.resolve('pkg') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
   ], testDefaults({ allProjects, reporter, autoInstallPeers: false, resolvePeersFromWorkspaceRoot: true, strictPeerDependencies: false }))
 
@@ -1826,4 +1827,18 @@ test('optional peer dependency is resolved if it is installed anywhere in the de
 
   const lockfile = project.readLockfile()
   expect(lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeDefined()
+})
+
+test('peer dependency cache is invalidated correctly when the peer of a peer mismatch', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/repeat-peers.a@1.0.0', '@pnpm.e2e/repeat-peers.x@1.0.0'],
+    testDefaults({ autoInstallPeers: true })
+  )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@1.0.0))']).toBeTruthy()
+  expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@2.0.0))']).toBeTruthy()
 })

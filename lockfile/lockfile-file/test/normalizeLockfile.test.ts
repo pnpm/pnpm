@@ -1,4 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { type ProjectId } from '@pnpm/types'
 import { convertToLockfileFile } from '../lib/lockfileFormatConverters'
 
 test('empty overrides and neverBuiltDependencies are removed during lockfile normalization', () => {
@@ -8,7 +9,7 @@ test('empty overrides and neverBuiltDependencies are removed during lockfile nor
     patchedDependencies: {},
     packages: {},
     importers: {
-      foo: {
+      ['foo' as ProjectId]: {
         dependencies: {
           bar: 'link:../bar',
         },
@@ -39,7 +40,7 @@ test('redundant fields are removed from "time"', () => {
     lockfileVersion: LOCKFILE_VERSION,
     packages: {},
     importers: {
-      foo: {
+      ['foo' as ProjectId]: {
         dependencies: {
           bar: '1.0.0',
         },

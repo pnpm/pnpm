@@ -3,7 +3,7 @@ import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { detectDepTypes, type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
-import { type DependenciesField } from '@pnpm/types'
+import { type DependenciesField, type ProjectId } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import mapValues from 'ramda/src/map'
 
@@ -29,7 +29,7 @@ export async function lockfileToAuditTree (
     lockfileDir: string
   }
 ): Promise<AuditTree> {
-  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers), { include: opts?.include })
+  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers) as ProjectId[], { include: opts?.include })
   const dependencies: Record<string, AuditNode> = {}
   const depTypes = detectDepTypes(lockfile)
   await Promise.all(

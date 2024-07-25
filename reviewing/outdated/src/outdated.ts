@@ -1,4 +1,11 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import {
+  matchCatalogResolveResult,
+  resolveFromCatalog,
+  type CatalogResolutionFound,
+  type WantedDependency,
+} from '@pnpm/catalogs.resolver'
+import { type Catalogs } from '@pnpm/catalogs.types'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   getLockfileImporterId,
@@ -21,6 +28,7 @@ import * as dp from '@pnpm/dependency-path'
 import semver from 'semver'
 import { createMatcher } from '@pnpm/matcher'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
+import { parseOverrides } from '@pnpm/parse-overrides'
 
 export * from './createManifestGetter'
 
@@ -38,6 +46,7 @@ export interface OutdatedPackage {
 
 export async function outdated (
   opts: {
+    catalogs?: Catalogs
     compatible?: boolean
     currentLockfile: Lockfile | null
     getLatestManifest: GetLatestManifestFunction
@@ -61,7 +70,7 @@ export async function outdated (
     if (overrides) {
       const readPackageHook = createReadPackageHook({
         lockfileDir: opts.lockfileDir,
-        overrides,
+        overrides: parseOverrides(overrides, opts.catalogs ?? {}),
       })
       const manifest = await readPackageHook?.(opts.manifest, opts.lockfileDir)
       if (manifest) return manifest
@@ -72,7 +81,7 @@ export async function outdated (
 
   const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest())
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
-  const currentLockfile = opts.currentLockfile ?? { importers: { [importerId]: {} } }
+  const currentLockfile: Lockfile = opts.currentLockfile ?? { lockfileVersion: LOCKFILE_VERSION, importers: { [importerId]: { specifiers: {} } } }
 
   const outdated: OutdatedPackage[] = []
 
@@ -90,6 +99,8 @@ export async function outdated (
       if (opts.match != null) {
         pkgs = pkgs.filter((pkgName) => opts.match!(pkgName))
       }
+
+      const _replaceCatalogProtocolIfNecessary = replaceCatalogProtocolIfNecessary.bind(null, opts.catalogs ?? {})
 
       await Promise.all(
         pkgs.map(async (alias) => {
@@ -121,11 +132,12 @@ export async function outdated (
           const { name: packageName } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
           const name = dp.parse(relativeDepPath).name ?? packageName
 
+          const pref = _replaceCatalogProtocolIfNecessary({ alias, pref: allDeps[alias] })
           // If the npm resolve parser cannot parse the spec of the dependency,
           // it means that the package is not from a npm-compatible registry.
           // In that case, we can't check whether the package is up-to-date
           if (
-            parsePref(allDeps[alias], alias, 'latest', pickRegistryForPackage(opts.registries, name)) == null
+            parsePref(pref, alias, 'latest', pickRegistryForPackage(opts.registries, name)) == null
           ) {
             if (current !== wanted) {
               outdated.push({
@@ -189,4 +201,14 @@ function packageHasNoDeps (manifest: ProjectManifest): boolean {
 
 function isEmpty (obj: object): boolean {
   return Object.keys(obj).length === 0
+}
+
+function replaceCatalogProtocolIfNecessary (catalogs: Catalogs, wantedDependency: WantedDependency) {
+  return matchCatalogResolveResult(resolveFromCatalog(catalogs, wantedDependency), {
+    unused: () => wantedDependency.pref,
+    found: (found: CatalogResolutionFound) => found.resolution.specifier,
+    misconfiguration: (misconfiguration) => {
+      throw misconfiguration.error
+    },
+  })
 }

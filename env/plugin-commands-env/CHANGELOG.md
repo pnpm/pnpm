@@ -1,5 +1,129 @@
 # @pnpm/plugin-commands-env
 
+## 5.1.0
+
+### Minor Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/fetch@8.0.4
+  - @pnpm/remove-bins@6.0.5
+  - @pnpm/node.fetcher@4.0.9
+  - @pnpm/node.resolver@3.0.9
+
+## 5.0.12
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/node.fetcher@4.0.8
+  - @pnpm/config@21.6.1
+  - @pnpm/node.resolver@3.0.8
+  - @pnpm/cli-utils@3.1.4
+
+## 5.0.11
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+  - @pnpm/config@21.6.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/fetch@8.0.3
+  - @pnpm/remove-bins@6.0.4
+  - @pnpm/node.fetcher@4.0.7
+  - @pnpm/node.resolver@3.0.7
+
+## 5.0.10
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/fetch@8.0.2
+  - @pnpm/remove-bins@6.0.3
+  - @pnpm/node.fetcher@4.0.6
+  - @pnpm/node.resolver@3.0.6
+
+## 5.0.9
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/node.fetcher@4.0.5
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/node.fetcher@4.0.5
+  - @pnpm/node.resolver@3.0.5
+
+## 5.0.7
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/node.fetcher@4.0.4
+- @pnpm/cli-utils@3.0.7
+- @pnpm/node.resolver@3.0.4
+
+## 5.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.6
+- @pnpm/config@21.2.2
+- @pnpm/fetch@8.0.1
+- @pnpm/remove-bins@6.0.2
+- @pnpm/node.fetcher@4.0.3
+- @pnpm/node.resolver@3.0.3
+
+## 5.0.5
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/node.fetcher@4.0.2
+  - @pnpm/store-path@9.0.1
+  - @pnpm/node.resolver@3.0.2
+  - @pnpm/remove-bins@6.0.1
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/config@21.2.0
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/node.fetcher@4.0.1
+
 ## 5.0.2
 
 ### Patch Changes

@@ -34,6 +34,8 @@ interface StrictLinkOptions {
 
   useGitBranchLockfile: boolean
   mergeGitBranchLockfiles: boolean
+  virtualStoreDirMaxLength: number
+  peersSuffixMaxLength: number
 }
 
 export type LinkOptions =
@@ -67,5 +69,6 @@ async function defaults (opts: LinkOptions): Promise<StrictLinkOptions> {
     storeController: opts.storeController,
     storeDir: opts.storeDir,
     useLockfile: true,
+    virtualStoreDirMaxLength: 120,
   } as StrictLinkOptions
 }

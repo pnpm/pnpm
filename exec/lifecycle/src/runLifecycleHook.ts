@@ -1,7 +1,7 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
-import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
+import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
 import isWindows from 'is-windows'
@@ -24,6 +24,7 @@ export interface RunLifecycleHookOptions {
   shellEmulator?: boolean
   stdio?: string
   unsafePerm: boolean
+  prepareExecutionEnv?: PrepareExecutionEnv
 }
 
 export async function runLifecycleHook (
@@ -94,13 +95,17 @@ Please unset the script-shell option, or configure it to a .exe instead.
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
     : undefined
+  const extraBinPaths = (await opts.prepareExecutionEnv?.({
+    extraBinPaths: opts.extraBinPaths,
+    executionEnv: (manifest as ProjectManifest).pnpm?.executionEnv,
+  }))?.extraBinPaths ?? opts.extraBinPaths
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,
       'frozen-lockfile': false,
     },
     dir: opts.rootModulesDir,
-    extraBinPaths: opts.extraBinPaths ?? [],
+    extraBinPaths,
     extraEnv: {
       ...opts.extraEnv,
       INIT_CWD: opts.initCwd ?? process.cwd(),

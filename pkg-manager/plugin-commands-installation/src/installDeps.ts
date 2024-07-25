@@ -5,13 +5,14 @@ import {
 } from '@pnpm/cli-utils'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
-import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type IncludedDependencies, type Project, type ProjectsGraph } from '@pnpm/types'
+import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir, type PrepareExecutionEnv } from '@pnpm/types'
 import {
   install,
   mutateModulesInSingleProject,
@@ -80,6 +81,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'optional'
 | 'workspaceConcurrency'
 | 'workspaceDir'
+| 'workspacePackagePatterns'
 | 'extraEnv'
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
@@ -113,6 +115,7 @@ export type InstallDepsOptions = Pick<Config,
   dedupe?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
+  prepareExecutionEnv: PrepareExecutionEnv
 } & Partial<Pick<Config, 'pnpmHomeDir'>>
 
 export async function installDeps (
@@ -149,7 +152,9 @@ when running add/update with the --workspace option')
   const forcePublicHoistPattern = typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined' ||
     typeof opts.rawLocalConfig['public-hoist-pattern'] !== 'undefined'
   const allProjects = opts.allProjects ?? (
-    opts.workspaceDir ? await findWorkspacePackages(opts.workspaceDir, opts) : []
+    opts.workspaceDir
+      ? await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
+      : []
   )
   if (opts.workspaceDir) {
     const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
@@ -178,7 +183,7 @@ when running add/update with the --workspace option')
         }).graph
       } else {
         allProjectsGraph = selectedProjectsGraph
-        if (!allProjectsGraph[opts.workspaceDir]) {
+        if (!allProjectsGraph[opts.workspaceDir as ProjectRootDir]) {
           allProjectsGraph = {
             ...allProjectsGraph,
             ...selectProjectByDir(allProjects, opts.workspaceDir),
@@ -285,7 +290,7 @@ when running add/update with the --workspace option')
       mutation: 'installSome' as const,
       peer: opts.savePeer,
       pinnedVersion: getPinnedVersion(opts),
-      rootDir: opts.dir,
+      rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
     const updatedImporter = await mutateModulesInSingleProject(mutatedProject, installOpts)
@@ -325,7 +330,7 @@ when running add/update with the --workspace option')
         {
           buildIndex: 0,
           manifest: await readProjectManifestOnly(opts.dir, opts),
-          rootDir: opts.dir,
+          rootDir: opts.dir as ProjectRootDir,
         },
       ], {
         ...opts,
@@ -339,7 +344,7 @@ when running add/update with the --workspace option')
 }
 
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
-  const project = projects.find(({ dir }) => path.relative(dir, searchedDir) === '')
+  const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
   return { [searchedDir]: { dependencies: [], package: project } }
 }

@@ -1,5 +1,258 @@
 # @pnpm/headless
 
+## 23.1.10
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/lifecycle@17.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/build-modules@13.0.7
+  - @pnpm/package-is-installable@9.0.5
+  - @pnpm/deps.graph-builder@1.1.8
+  - @pnpm/symlink-dependency@8.0.5
+  - @pnpm/filter-lockfile@9.0.9
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-to-pnp@4.1.8
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/calc-dep-state@7.0.4
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/hoist@9.1.9
+  - @pnpm/link-bins@10.0.7
+  - @pnpm/modules-cleaner@15.1.8
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/package-requester@25.2.3
+  - @pnpm/real-hoist@3.0.8
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/store-controller-types@18.1.3
+  - @pnpm/worker@1.0.7
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.5
+
+## 23.1.9
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/symlink-dependency@8.0.4
+  - @pnpm/hoist@9.1.8
+  - @pnpm/link-bins@10.0.6
+  - @pnpm/package-requester@25.2.2
+  - @pnpm/worker@1.0.6
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.4
+  - @pnpm/build-modules@13.0.6
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/real-hoist@3.0.7
+
+## 23.1.8
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies [fd884c1]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/build-modules@13.0.5
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/package-requester@25.2.1
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/package-is-installable@9.0.4
+  - @pnpm/deps.graph-builder@1.1.7
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/symlink-dependency@8.0.3
+  - @pnpm/filter-lockfile@9.0.8
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/lockfile-to-pnp@4.1.7
+  - @pnpm/calc-dep-state@7.0.3
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/hoist@9.1.7
+  - @pnpm/link-bins@10.0.5
+  - @pnpm/modules-cleaner@15.1.7
+  - @pnpm/modules-yaml@13.1.3
+  - @pnpm/real-hoist@3.0.7
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/worker@1.0.5
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.3
+
+## 23.1.7
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [13e55b2]
+  - @pnpm/package-requester@25.2.0
+  - @pnpm/types@10.1.1
+  - @pnpm/package-is-installable@9.0.3
+  - @pnpm/deps.graph-builder@1.1.6
+  - @pnpm/build-modules@13.0.4
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/symlink-dependency@8.0.2
+  - @pnpm/filter-lockfile@9.0.7
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/lockfile-to-pnp@4.1.6
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/calc-dep-state@7.0.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/hoist@9.1.6
+  - @pnpm/link-bins@10.0.4
+  - @pnpm/modules-cleaner@15.1.6
+  - @pnpm/modules-yaml@13.1.2
+  - @pnpm/real-hoist@3.0.6
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/worker@1.0.4
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.2
+
+## 23.1.6
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/deps.graph-builder@1.1.5
+  - @pnpm/filter-lockfile@9.0.6
+  - @pnpm/lockfile-to-pnp@4.1.5
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/calc-dep-state@7.0.1
+  - @pnpm/hoist@9.1.5
+  - @pnpm/modules-cleaner@15.1.5
+  - @pnpm/package-requester@25.1.4
+  - @pnpm/real-hoist@3.0.5
+  - @pnpm/build-modules@13.0.3
+  - @pnpm/symlink-dependency@8.0.1
+  - @pnpm/lifecycle@17.0.5
+  - @pnpm/link-bins@10.0.3
+
+## 23.1.5
+
+### Patch Changes
+
+- Updated dependencies [b3a2f9c]
+- Updated dependencies [80aaa9f]
+  - @pnpm/lockfile-to-pnp@4.1.4
+  - @pnpm/link-bins@10.0.3
+  - @pnpm/build-modules@13.0.2
+  - @pnpm/lifecycle@17.0.5
+  - @pnpm/hoist@9.1.4
+  - @pnpm/package-requester@25.1.3
+
+## 23.1.4
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/deps.graph-builder@1.1.4
+  - @pnpm/build-modules@13.0.1
+  - @pnpm/lifecycle@17.0.4
+  - @pnpm/modules-cleaner@15.1.4
+  - @pnpm/package-requester@25.1.3
+  - @pnpm/worker@1.0.3
+  - @pnpm/symlink-dependency@8.0.1
+  - @pnpm/link-bins@10.0.2
+  - @pnpm/real-hoist@3.0.4
+
+## 23.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/build-modules@13.0.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/calc-dep-state@7.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/package-is-installable@9.0.2
+  - @pnpm/deps.graph-builder@1.1.3
+  - @pnpm/lifecycle@17.0.3
+  - @pnpm/symlink-dependency@8.0.1
+  - @pnpm/filter-lockfile@9.0.5
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/lockfile-to-pnp@4.1.3
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/hoist@9.1.3
+  - @pnpm/link-bins@10.0.2
+  - @pnpm/modules-cleaner@15.1.3
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/package-requester@25.1.2
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/read-project-manifest@6.0.2
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/worker@1.0.2
+  - @pnpm/real-hoist@3.0.4
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.1
+
+## 23.1.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/package-is-installable@9.0.1
+  - @pnpm/lifecycle@17.0.2
+  - @pnpm/filter-lockfile@9.0.4
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/link-bins@10.0.1
+  - @pnpm/package-requester@25.1.1
+  - @pnpm/real-hoist@3.0.3
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/read-project-manifest@6.0.1
+  - @pnpm/worker@1.0.1
+  - @pnpm/deps.graph-builder@1.1.2
+  - @pnpm/build-modules@12.0.4
+  - @pnpm/modules-cleaner@15.1.2
+  - @pnpm/lockfile-to-pnp@4.1.2
+  - @pnpm/hoist@9.1.2
+
+## 23.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/build-modules@12.0.3
+  - @pnpm/deps.graph-builder@1.1.1
+  - @pnpm/filter-lockfile@9.0.3
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/lockfile-to-pnp@4.1.1
+  - @pnpm/hoist@9.1.1
+  - @pnpm/modules-cleaner@15.1.1
+  - @pnpm/real-hoist@3.0.2
+  - @pnpm/package-requester@25.1.0
+
+## 23.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/package-requester@25.1.0
+  - @pnpm/modules-cleaner@15.1.0
+  - @pnpm/lockfile-to-pnp@4.1.0
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/deps.graph-builder@1.1.0
+  - @pnpm/hoist@9.1.0
+  - @pnpm/filter-lockfile@9.0.2
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/calc-dep-state@6.0.1
+  - @pnpm/real-hoist@3.0.1
+  - @pnpm/build-modules@12.0.2
+  - @pnpm/symlink-dependency@8.0.0
+  - @pnpm/lifecycle@17.0.1
+  - @pnpm/link-bins@10.0.0
+
 ## 23.0.4
 
 ### Patch Changes

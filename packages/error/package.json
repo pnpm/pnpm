@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/error",
-  "version": "6.0.0",
+  "version": "6.0.1",
   "description": "An error class for pnpm errors",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -12,8 +12,9 @@
     "node": ">=18.12"
   },
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "jest",
+    "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },

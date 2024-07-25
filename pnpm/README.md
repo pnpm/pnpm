@@ -26,7 +26,7 @@ To quote the [Rush](https://rushjs.io/) team:
 [![Join the chat at Discord](https://img.shields.io/discord/731599538665553971.svg)](https://r.pnpm.io/chat)
 [![OpenCollective](https://opencollective.com/pnpm/backers/badge.svg)](https://opencollective.com/pnpm)
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](https://opencollective.com/pnpm)
-[![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=pnpmjs&region=follow_link)
+[![X Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://x.com/intent/follow?screen_name=pnpmjs&region=follow_link)
 [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://stand-with-ukraine.pp.ua)
 
 ## Platinum Sponsors
@@ -83,7 +83,7 @@ To quote the [Rush](https://rushjs.io/) team:
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
-            <img src="https://pnpm.io/img/users/jetbrains.svg" width="85" />
+            <img src="https://pnpm.io/img/users/jetbrains.svg" width="180" />
           </picture>
         </a>
       </td>
@@ -236,7 +236,7 @@ Benchmarks on an app with lots of dependencies:
 
 - [Frequently Asked Questions](https://pnpm.io/faq)
 - [Chat](https://r.pnpm.io/chat)
-- [Twitter](https://twitter.com/pnpmjs)
+- [X](https://x.com/pnpmjs)
 
 ## Backers
 

@@ -1,4 +1,5 @@
 import { type Lockfile, type PackageSnapshot, type PackageSnapshots } from '@pnpm/lockfile-types'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 import comverToSemver from 'comver-to-semver'
 import semver from 'semver'
 
@@ -22,7 +23,7 @@ export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile): Lockfil
     newLockfile.ignoredOptionalDependencies = ignoredOptionalDependencies
   }
 
-  for (const importerId of Array.from(new Set([...Object.keys(ours.importers), ...Object.keys(theirs.importers)]))) {
+  for (const importerId of Array.from(new Set([...Object.keys(ours.importers), ...Object.keys(theirs.importers)] as ProjectId[]))) {
     newLockfile.importers[importerId] = {
       specifiers: {},
     }
@@ -44,7 +45,7 @@ export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile): Lockfil
   }
 
   const packages: PackageSnapshots = {}
-  for (const depPath of Array.from(new Set([...Object.keys(ours.packages ?? {}), ...Object.keys(theirs.packages ?? {})]))) {
+  for (const depPath of (Array.from(new Set([...Object.keys(ours.packages ?? {}), ...Object.keys(theirs.packages ?? {})]))) as DepPath[]) {
     const ourPkg = ours.packages?.[depPath]
     const theirPkg = theirs.packages?.[depPath]
     const pkg = {

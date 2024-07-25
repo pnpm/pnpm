@@ -9,12 +9,18 @@ import {
   type Modules,
 } from '@pnpm/modules-yaml'
 import { readProjectsContext } from '@pnpm/read-projects-context'
+import { type WorkspacePackages } from '@pnpm/resolver-base'
 import {
+  type DepPath,
   DEPENDENCIES_FIELDS,
   type HoistedDependencies,
+  type ProjectId,
   type ProjectManifest,
   type ReadPackageHook,
   type Registries,
+  type DependencyManifest,
+  type ProjectRootDir,
+  type ProjectRootDirRealPath,
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
@@ -44,7 +50,7 @@ export interface PnpmContext {
   pendingBuilds: string[]
   projects: Record<string, {
     modulesDir: string
-    id: string
+    id: ProjectId
   } & HookOptions & Required<ProjectOptions>>
   rootModulesDir: string
   hoistPattern: string[] | undefined
@@ -52,10 +58,12 @@ export interface PnpmContext {
   publicHoistPattern: string[] | undefined
   lockfileDir: string
   virtualStoreDir: string
-  skipped: Set<string>
+  virtualStoreDirMaxLength: number
+  skipped: Set<DepPath>
   storeDir: string
   wantedLockfile: Lockfile
   wantedLockfileIsModified: boolean
+  workspacePackages: WorkspacePackages
   registries: Registries
 }
 
@@ -64,7 +72,8 @@ export interface ProjectOptions {
   binsDir?: string
   manifest: ProjectManifest
   modulesDir?: string
-  rootDir: string
+  rootDir: ProjectRootDir
+  rootDirRealPath?: ProjectRootDirRealPath
 }
 
 interface HookOptions {
@@ -74,6 +83,7 @@ interface HookOptions {
 export interface GetContextOptions {
   autoInstallPeers: boolean
   excludeLinksFromLockfile: boolean
+  peersSuffixMaxLength: number
   allProjects: Array<ProjectOptions & HookOptions>
   confirmModulesPurge?: boolean
   force: boolean
@@ -92,6 +102,8 @@ export interface GetContextOptions {
   useGitBranchLockfile?: boolean
   mergeGitBranchLockfiles?: boolean
   virtualStoreDir?: string
+  virtualStoreDirMaxLength: number
+  workspacePackages?: WorkspacePackages
 
   hoistPattern?: string[] | undefined
   forceHoistPattern?: boolean
@@ -102,7 +114,7 @@ export interface GetContextOptions {
 }
 interface ImporterToPurge {
   modulesDir: string
-  rootDir: string
+  rootDir: ProjectRootDir
 }
 
 export async function getContext (
@@ -123,6 +135,7 @@ export async function getContext (
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       confirmModulesPurge: opts.confirmModulesPurge && !isCI,
 
       forceHoistPattern: opts.forceHoistPattern,
@@ -180,9 +193,12 @@ export async function getContext (
     skipped: importersContext.skipped,
     storeDir: opts.storeDir,
     virtualStoreDir,
+    virtualStoreDirMaxLength: importersContext.virtualStoreDirMaxLength ?? opts.virtualStoreDirMaxLength,
+    workspacePackages: opts.workspacePackages ?? arrayOfWorkspacePackagesToMap(opts.allProjects),
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
       force: opts.force,
       frozenLockfile: opts.frozenLockfile === true,
       lockfileDir: opts.lockfileDir,
@@ -207,7 +223,7 @@ async function validateModules (
   projects: Array<{
     modulesDir: string
     id: string
-    rootDir: string
+    rootDir: ProjectRootDir
   }>,
   opts: {
     currentHoistPattern?: string[]
@@ -219,6 +235,7 @@ async function validateModules (
     registries: Registries
     storeDir: string
     virtualStoreDir: string
+    virtualStoreDirMaxLength: number
     confirmModulesPurge?: boolean
 
     hoistPattern?: string[] | undefined
@@ -230,6 +247,17 @@ async function validateModules (
   }
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
+  if (opts.virtualStoreDirMaxLength !== modules.virtualStoreDirMaxLength) {
+    if (opts.forceNewModules && (rootProject != null)) {
+      await purgeModulesDirsOfImporter(opts, rootProject)
+      return { purged: true }
+    }
+    throw new PnpmError(
+      'VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF',
+      'This modules directory was created using a different virtual-store-dir-max-length value.' +
+      ' Run "pnpm install" to recreate the modules directory.'
+    )
+  }
   if (
     opts.forcePublicHoistPattern &&
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
@@ -288,7 +316,7 @@ async function validateModules (
   if (importersToPurge.length > 0 && (rootProject == null)) {
     importersToPurge.push({
       modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
-      rootDir: opts.lockfileDir,
+      rootDir: opts.lockfileDir as ProjectRootDir,
     })
   }
 
@@ -405,6 +433,7 @@ export async function getContextForSingleImporter (
   opts: {
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
+    peersSuffixMaxLength: number
     force: boolean
     forceNewModules?: boolean
     confirmModulesPurge?: boolean
@@ -422,6 +451,7 @@ export async function getContextForSingleImporter (
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
     virtualStoreDir?: string
+    virtualStoreDirMaxLength: number
 
     hoistPattern?: string[] | undefined
     forceHoistPattern?: boolean
@@ -445,7 +475,7 @@ export async function getContextForSingleImporter (
   } = await readProjectsContext(
     [
       {
-        rootDir: opts.dir,
+        rootDir: opts.dir as ProjectRootDir,
       },
     ],
     {
@@ -472,6 +502,7 @@ export async function getContextForSingleImporter (
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       confirmModulesPurge: opts.confirmModulesPurge && !isCI,
 
       forceHoistPattern: opts.forceHoistPattern,
@@ -520,10 +551,11 @@ export async function getContextForSingleImporter (
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      peersSuffixMaxLength: opts.peersSuffixMaxLength,
       force: opts.force,
       frozenLockfile: false,
       lockfileDir: opts.lockfileDir,
-      projects: [{ id: importerId, rootDir: opts.dir }],
+      projects: [{ id: importerId, rootDir: opts.dir as ProjectRootDir }],
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,
@@ -556,4 +588,23 @@ function getExtraNodePaths (
     return [path.join(virtualStoreDir, 'node_modules')]
   }
   return []
+}
+
+export function arrayOfWorkspacePackagesToMap (
+  pkgs: Array<Pick<ProjectOptions, 'manifest' | 'rootDir'>>
+): WorkspacePackages {
+  const workspacePkgs: WorkspacePackages = new Map()
+  for (const { manifest, rootDir } of pkgs) {
+    if (!manifest.name) continue
+    let workspacePkgsByVersion = workspacePkgs.get(manifest.name)
+    if (!workspacePkgsByVersion) {
+      workspacePkgsByVersion = new Map()
+      workspacePkgs.set(manifest.name, workspacePkgsByVersion)
+    }
+    workspacePkgsByVersion.set(manifest.version ?? '0.0.0', {
+      manifest: manifest as DependencyManifest,
+      rootDir,
+    })
+  }
+  return workspacePkgs
 }

@@ -1,5 +1,77 @@
 # @pnpm/plugin-commands-setup
 
+## 5.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.5
+
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.4
+
+## 5.1.0
+
+### Minor Changes
+
+- 3beb895: Bundled `pnpm setup` now creates `pnpx` script [#8230](https://github.com/pnpm/pnpm/issues/8230).
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.3
+
+## 5.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.2
+
+## 5.0.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.1
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+
+## 5.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.7
+
+## 5.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.6
+
+## 5.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.5
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.3
+
 ## 5.0.2
 
 ### Patch Changes

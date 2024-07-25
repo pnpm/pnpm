@@ -1,99 +1,106 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
+import {
+  type PkgResolutionId,
+  type PeerDependencyIssuesByProjects,
+  type PkgIdWithPatchHash,
+  type ProjectRootDir,
+} from '@pnpm/types'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import { type DependenciesTreeNode, type PeerDependencies } from '../lib/resolveDependencies'
+import { type NodeId } from '../lib/nextNodeId'
 
 test('resolve peer dependencies of cyclic dependencies', async () => {
   const fooPkg = {
     name: 'foo',
-    depPath: 'foo/1.0.0',
+    pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {
       qar: { version: '1.0.0' },
       zoo: { version: '1.0.0' },
     },
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const barPkg = {
     name: 'bar',
-    depPath: 'bar/1.0.0',
+    pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {
       foo: { version: '1.0.0' },
       zoo: { version: '1.0.0' },
     },
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const { dependenciesGraph } = await resolvePeers({
+    allPeerDepNames: new Set(['foo', 'bar', 'qar', 'zoo']),
     projects: [
       {
-        directNodeIdsByAlias: {
-          foo: '>foo/1.0.0>',
-        },
+        directNodeIdsByAlias: new Map([
+          ['foo', '>foo/1.0.0>' as NodeId],
+        ]),
         topParents: [],
-        rootDir: '',
+        rootDir: '' as ProjectRootDir,
         id: '',
       },
     ],
     resolvedImporters: {},
-    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
-      ['>foo/1.0.0>', {
+    dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>foo/1.0.0>' as NodeId, {
         children: {
-          bar: '>foo/1.0.0>bar/1.0.0>',
+          bar: '>foo/1.0.0>bar/1.0.0>' as NodeId,
         },
         installable: true,
         resolvedPackage: fooPkg,
         depth: 0,
       }],
-      ['>foo/1.0.0>bar/1.0.0>', {
+      ['>foo/1.0.0>bar/1.0.0>' as NodeId, {
         children: {
-          qar: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>',
+          qar: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>' as NodeId,
         },
         installable: true,
         resolvedPackage: barPkg,
         depth: 1,
       }],
-      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>', {
+      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>' as NodeId, {
         children: {
-          zoo: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>',
+          zoo: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>' as NodeId,
         },
         installable: true,
         resolvedPackage: {
           name: 'qar',
-          depPath: 'qar/1.0.0',
+          pkgIdWithPatchHash: 'qar/1.0.0' as PkgIdWithPatchHash,
           version: '1.0.0',
           peerDependencies: {
             foo: { version: '1.0.0' },
             bar: { version: '1.0.0' },
           },
-          id: '',
+          id: '' as PkgResolutionId,
         },
         depth: 2,
       }],
-      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>', {
+      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>' as NodeId, {
         children: {
-          foo: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>foo/1.0.0>',
-          bar: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>bar/1.0.0>',
+          foo: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>foo/1.0.0>' as NodeId,
+          bar: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>bar/1.0.0>' as NodeId,
         },
         installable: true,
         resolvedPackage: {
           name: 'zoo',
-          depPath: 'zoo/1.0.0',
+          pkgIdWithPatchHash: 'zoo/1.0.0' as PkgIdWithPatchHash,
           version: '1.0.0',
           peerDependencies: {
             qar: { version: '1.0.0' },
           },
-          id: '',
+          id: '' as PkgResolutionId,
         },
         depth: 3,
       }],
-      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>foo/1.0.0>', {
+      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>foo/1.0.0>' as NodeId, {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 4,
       }],
-      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>bar/1.0.0>', {
+      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>bar/1.0.0>' as NodeId, {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
@@ -102,6 +109,8 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
     ]),
     virtualStoreDir: '',
     lockfileDir: '',
+    virtualStoreDirMaxLength: 120,
+    peersSuffixMaxLength: 1000,
   })
   expect(Object.keys(dependenciesGraph)).toStrictEqual([
     'foo/1.0.0',
@@ -116,93 +125,96 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
 test('when a package is referenced twice in the dependencies graph and one of the times it cannot resolve its peers, still try to resolve it in the other occurrence', async () => {
   const fooPkg = {
     name: 'foo',
-    depPath: 'foo/1.0.0',
+    pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {
       qar: { version: '1.0.0' },
     },
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const barPkg = {
     name: 'bar',
-    depPath: 'bar/1.0.0',
+    pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {} as PeerDependencies,
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const zooPkg = {
     name: 'zoo',
-    depPath: 'zoo/1.0.0',
+    pkgIdWithPatchHash: 'zoo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {} as PeerDependencies,
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const { dependenciesGraph } = await resolvePeers({
+    allPeerDepNames: new Set(['foo', 'bar', 'qar', 'zoo']),
     projects: [
       {
-        directNodeIdsByAlias: {
-          zoo: '>zoo/1.0.0>',
-          bar: '>bar/1.0.0>',
-        },
+        directNodeIdsByAlias: new Map([
+          ['zoo', '>zoo/1.0.0>' as NodeId],
+          ['bar', '>bar/1.0.0>' as NodeId],
+        ]),
         topParents: [],
-        rootDir: '',
+        rootDir: '' as ProjectRootDir,
         id: '',
       },
     ],
     resolvedImporters: {},
-    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
-      ['>zoo/1.0.0>', {
+    dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>zoo/1.0.0>' as NodeId, {
         children: {
-          foo: '>zoo/1.0.0>foo/1.0.0>',
+          foo: '>zoo/1.0.0>foo/1.0.0>' as NodeId,
         },
         installable: true,
         resolvedPackage: zooPkg,
         depth: 0,
       }],
-      ['>zoo/1.0.0>foo/1.0.0>', {
+      ['>zoo/1.0.0>foo/1.0.0>' as NodeId, {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 1,
       }],
-      ['>bar/1.0.0>', {
+      ['>bar/1.0.0>' as NodeId, {
         children: {
-          zoo: '>bar/1.0.0>zoo/1.0.0>',
-          qar: '>bar/1.0.0>qar/1.0.0>',
+          zoo: '>bar/1.0.0>zoo/1.0.0>' as NodeId,
+          qar: '>bar/1.0.0>qar/1.0.0>' as NodeId,
         },
         installable: true,
         resolvedPackage: barPkg,
         depth: 0,
       }],
-      ['>bar/1.0.0>zoo/1.0.0>', {
+      ['>bar/1.0.0>zoo/1.0.0>' as NodeId, {
         children: {
-          foo: '>bar/1.0.0>zoo/1.0.0>foo/1.0.0>',
+          foo: '>bar/1.0.0>zoo/1.0.0>foo/1.0.0>' as NodeId,
         },
         installable: true,
         resolvedPackage: zooPkg,
         depth: 1,
       }],
-      ['>bar/1.0.0>zoo/1.0.0>foo/1.0.0>', {
+      ['>bar/1.0.0>zoo/1.0.0>foo/1.0.0>' as NodeId, {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 2,
       }],
-      ['>bar/1.0.0>qar/1.0.0>', {
+      ['>bar/1.0.0>qar/1.0.0>' as NodeId, {
         children: {},
         installable: true,
         resolvedPackage: {
           name: 'qar',
-          depPath: 'qar/1.0.0',
+          pkgIdWithPatchHash: 'qar/1.0.0' as PkgIdWithPatchHash,
           version: '1.0.0',
           peerDependencies: {},
-          id: '',
+          id: '' as PkgResolutionId,
         },
         depth: 1,
       }],
     ]),
     virtualStoreDir: '',
+    virtualStoreDirMaxLength: 120,
     lockfileDir: '',
+    peersSuffixMaxLength: 1000,
   })
   expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
     'bar/1.0.0',
@@ -219,161 +231,162 @@ describe('peer dependency issues', () => {
   beforeAll(async () => {
     const fooPkg = {
       name: 'foo',
-      depPath: 'foo/1.0.0',
+      pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
       peerDependencies: {
         peer: { version: '1' },
       },
-      id: '',
+      id: '' as PkgResolutionId,
     }
     const fooWithOptionalPeer = {
       name: 'foo',
-      depPath: 'foo/2.0.0',
+      pkgIdWithPatchHash: 'foo/2.0.0' as PkgIdWithPatchHash,
       version: '2.0.0',
       peerDependencies: {
         peer: { version: '1', optional: true },
       },
-      id: '',
+      id: '' as PkgResolutionId,
     }
     const barPkg = {
       name: 'bar',
-      depPath: 'bar/1.0.0',
+      pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
       peerDependencies: {
         peer: { version: '2' },
       },
-      id: '',
+      id: '' as PkgResolutionId,
     }
     const barWithOptionalPeer = {
       name: 'bar',
-      depPath: 'bar/2.0.0',
+      pkgIdWithPatchHash: 'bar/2.0.0' as PkgIdWithPatchHash,
       version: '2.0.0',
       peerDependencies: {
         peer: { version: '2', optional: true },
       },
-      id: '',
+      id: '' as PkgResolutionId,
     }
     const qarPkg = {
       name: 'qar',
-      depPath: 'qar/1.0.0',
+      pkgIdWithPatchHash: 'qar/1.0.0' as PkgIdWithPatchHash,
       version: '1.0.0',
       peerDependencies: {
         peer: { version: '^2.2.0' },
       },
-      id: '',
+      id: '' as PkgResolutionId,
     }
     peerDependencyIssuesByProjects = (await resolvePeers({
+      allPeerDepNames: new Set(),
       projects: [
         {
-          directNodeIdsByAlias: {
-            foo: '>project1>foo/1.0.0>',
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project1>foo/1.0.0>' as NodeId],
+          ]),
           topParents: [],
-          rootDir: '',
-          id: 'project1',
+          rootDir: '' as ProjectRootDir,
+          id: 'project1' as PkgResolutionId,
         },
         {
-          directNodeIdsByAlias: {
-            bar: '>project2>bar/1.0.0>',
-          },
+          directNodeIdsByAlias: new Map([
+            ['bar', '>project2>bar/1.0.0>' as NodeId],
+          ]),
           topParents: [],
-          rootDir: '',
-          id: 'project2',
+          rootDir: '' as ProjectRootDir,
+          id: 'project2' as PkgResolutionId,
         },
         {
-          directNodeIdsByAlias: {
-            foo: '>project3>foo/1.0.0>',
-            bar: '>project3>bar/1.0.0>',
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project3>foo/1.0.0>' as NodeId],
+            ['bar', '>project3>bar/1.0.0>' as NodeId],
+          ]),
           topParents: [],
-          rootDir: '',
-          id: 'project3',
+          rootDir: '' as ProjectRootDir,
+          id: 'project3' as PkgResolutionId,
         },
         {
-          directNodeIdsByAlias: {
-            bar: '>project4>bar/1.0.0>',
-            qar: '>project4>qar/1.0.0>',
-          },
+          directNodeIdsByAlias: new Map([
+            ['bar', '>project4>bar/1.0.0>' as NodeId],
+            ['qar', '>project4>qar/1.0.0>' as NodeId],
+          ]),
           topParents: [],
-          rootDir: '',
-          id: 'project4',
+          rootDir: '' as ProjectRootDir,
+          id: 'project4' as PkgResolutionId,
         },
         {
-          directNodeIdsByAlias: {
-            foo: '>project5>foo/1.0.0>',
-            bar: '>project5>bar/2.0.0>',
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project5>foo/1.0.0>' as NodeId],
+            ['bar', '>project5>bar/2.0.0>' as NodeId],
+          ]),
           topParents: [],
-          rootDir: '',
-          id: 'project5',
+          rootDir: '' as ProjectRootDir,
+          id: 'project5' as PkgResolutionId,
         },
         {
-          directNodeIdsByAlias: {
-            foo: '>project6>foo/2.0.0>',
-            bar: '>project6>bar/2.0.0>',
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project6>foo/2.0.0>' as NodeId],
+            ['bar', '>project6>bar/2.0.0>' as NodeId],
+          ]),
           topParents: [],
-          rootDir: '',
-          id: 'project6',
+          rootDir: '' as ProjectRootDir,
+          id: 'project6' as PkgResolutionId,
         },
       ],
       resolvedImporters: {},
-      dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
-        ['>project1>foo/1.0.0>', {
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>project1>foo/1.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: fooPkg,
           depth: 0,
         }],
-        ['>project2>bar/1.0.0>', {
+        ['>project2>bar/1.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: barPkg,
           depth: 0,
         }],
-        ['>project3>foo/1.0.0>', {
+        ['>project3>foo/1.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: fooPkg,
           depth: 0,
         }],
-        ['>project3>bar/1.0.0>', {
+        ['>project3>bar/1.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: barPkg,
           depth: 0,
         }],
-        ['>project4>bar/1.0.0>', {
+        ['>project4>bar/1.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: barPkg,
           depth: 0,
         }],
-        ['>project4>qar/1.0.0>', {
+        ['>project4>qar/1.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: qarPkg,
           depth: 0,
         }],
-        ['>project5>foo/1.0.0>', {
+        ['>project5>foo/1.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: fooPkg,
           depth: 0,
         }],
-        ['>project5>bar/2.0.0>', {
+        ['>project5>bar/2.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: barWithOptionalPeer,
           depth: 0,
         }],
-        ['>project6>foo/2.0.0>', {
+        ['>project6>foo/2.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: fooWithOptionalPeer,
           depth: 0,
         }],
-        ['>project6>bar/2.0.0>', {
+        ['>project6>bar/2.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: barWithOptionalPeer,
@@ -381,7 +394,9 @@ describe('peer dependency issues', () => {
         }],
       ]),
       virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
       lockfileDir: '',
+      peersSuffixMaxLength: 1000,
     })).peerDependencyIssuesByProjects
   })
   it('should find peer dependency conflicts', () => {
@@ -409,62 +424,65 @@ describe('unmet peer dependency issues', () => {
   let peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   beforeAll(async () => {
     peerDependencyIssuesByProjects = (await resolvePeers({
+      allPeerDepNames: new Set(),
       projects: [
         {
-          directNodeIdsByAlias: {
-            foo: '>project1>foo/1.0.0>',
-            peer1: '>project1>peer1/1.0.0-rc.0>',
-            peer2: '>project1>peer2/1.1.0-rc.0>',
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project1>foo/1.0.0>' as NodeId],
+            ['peer1', '>project1>peer1/1.0.0-rc.0>' as NodeId],
+            ['peer2', '>project1>peer2/1.1.0-rc.0>' as NodeId],
+          ]),
           topParents: [],
-          rootDir: '',
-          id: 'project1',
+          rootDir: '' as ProjectRootDir,
+          id: 'project1' as PkgResolutionId,
         },
       ],
       resolvedImporters: {},
-      dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
-        ['>project1>foo/1.0.0>', {
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>project1>foo/1.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: {
             name: 'foo',
             version: '1.0.0',
-            depPath: 'foo/1.0.0',
+            pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
             peerDependencies: {
               peer1: { version: '*' },
               peer2: { version: '>=1' },
             },
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 0,
         }],
-        ['>project1>peer1/1.0.0-rc.0>', {
+        ['>project1>peer1/1.0.0-rc.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: {
             name: 'peer1',
             version: '1.0.0-rc.0',
-            depPath: 'peer/1.0.0-rc.0',
+            pkgIdWithPatchHash: 'peer/1.0.0-rc.0' as PkgIdWithPatchHash,
             peerDependencies: {},
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 0,
         }],
-        ['>project1>peer2/1.1.0-rc.0>', {
+        ['>project1>peer2/1.1.0-rc.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: {
             name: 'peer2',
             version: '1.1.0-rc.0',
-            depPath: 'peer/1.1.0-rc.0',
+            pkgIdWithPatchHash: 'peer/1.1.0-rc.0' as PkgIdWithPatchHash,
             peerDependencies: {},
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 0,
         }],
       ]),
       virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
       lockfileDir: '',
+      peersSuffixMaxLength: 1000,
     })).peerDependencyIssuesByProjects
   })
   it('should not warn when the found package has prerelease version and the wanted range is *', () => {
@@ -479,62 +497,65 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
   let peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   beforeAll(async () => {
     peerDependencyIssuesByProjects = (await resolvePeers({
+      allPeerDepNames: new Set(['dep']),
       projects: [
         {
-          directNodeIdsByAlias: {
-            foo: '>project>foo/1.0.0>',
-          },
+          directNodeIdsByAlias: new Map([
+            ['foo', '>project>foo/1.0.0>' as NodeId],
+          ]),
           topParents: [],
-          rootDir: '',
-          id: 'project',
+          rootDir: '' as ProjectRootDir,
+          id: 'project' as PkgResolutionId,
         },
       ],
       resolvedImporters: {},
-      dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
-        ['>project>foo/1.0.0>', {
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>project>foo/1.0.0>' as NodeId, {
           children: {
-            dep: '>project>foo/1.0.0>dep/1.0.0>',
-            bar: '>project>foo/1.0.0>bar/1.0.0>',
+            dep: '>project>foo/1.0.0>dep/1.0.0>' as NodeId,
+            bar: '>project>foo/1.0.0>bar/1.0.0>' as NodeId,
           },
           installable: true,
           resolvedPackage: {
             name: 'foo',
-            depPath: 'foo/1.0.0',
+            pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
             version: '1.0.0',
             peerDependencies: {},
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 0,
         }],
-        ['>project>foo/1.0.0>dep/1.0.0>', {
+        ['>project>foo/1.0.0>dep/1.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: {
             name: 'dep',
-            depPath: 'dep/1.0.0',
+            pkgIdWithPatchHash: 'dep/1.0.0' as PkgIdWithPatchHash,
             version: '1.0.0',
             peerDependencies: {},
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 1,
         }],
-        ['>project>foo/1.0.0>bar/1.0.0>', {
+        ['>project>foo/1.0.0>bar/1.0.0>' as NodeId, {
           children: {},
           installable: true,
           resolvedPackage: {
             name: 'bar',
-            depPath: 'bar/1.0.0',
+            pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
             version: '1.0.0',
             peerDependencies: {
               dep: { version: '10' },
             },
-            id: '',
+            id: '' as PkgResolutionId,
           },
           depth: 1,
         }],
       ]),
       virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
       lockfileDir: '',
+      peersSuffixMaxLength: 1000,
     })).peerDependencyIssuesByProjects
   })
   it('should return from where the bad peer dependency is resolved', () => {
@@ -545,87 +566,88 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
 test('resolve peer dependencies with npm aliases', async () => {
   const fooPkg = {
     name: 'foo',
-    depPath: 'foo/1.0.0',
+    pkgIdWithPatchHash: 'foo/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {
       bar: { version: '1.0.0' },
     },
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const fooAliasPkg = {
     name: 'foo',
-    depPath: 'foo/2.0.0',
+    pkgIdWithPatchHash: 'foo/2.0.0' as PkgIdWithPatchHash,
     version: '2.0.0',
     peerDependencies: {
       bar: { version: '2.0.0' },
     },
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const barPkg = {
     name: 'bar',
-    depPath: 'bar/1.0.0',
+    pkgIdWithPatchHash: 'bar/1.0.0' as PkgIdWithPatchHash,
     version: '1.0.0',
     peerDependencies: {},
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const barAliasPkg = {
     name: 'bar',
-    depPath: 'bar/2.0.0',
+    pkgIdWithPatchHash: 'bar/2.0.0' as PkgIdWithPatchHash,
     version: '2.0.0',
     peerDependencies: {},
-    id: '',
+    id: '' as PkgResolutionId,
   }
   const { dependenciesGraph } = await resolvePeers({
+    allPeerDepNames: new Set(['bar']),
     projects: [
       {
-        directNodeIdsByAlias: {
-          foo: '>foo/1.0.0>',
-          bar: '>bar/1.0.0>',
-          'foo-next': '>foo/2.0.0>',
-          'bar-next': '>bar/2.0.0>',
-        },
+        directNodeIdsByAlias: new Map([
+          ['foo', '>foo/1.0.0>' as NodeId],
+          ['bar', '>bar/1.0.0>' as NodeId],
+          ['foo-next', '>foo/2.0.0>' as NodeId],
+          ['bar-next', '>bar/2.0.0>' as NodeId],
+        ]),
         topParents: [],
-        rootDir: '',
-        id: '',
+        rootDir: '' as ProjectRootDir,
+        id: '' as PkgResolutionId,
       },
     ],
     resolvedImporters: {},
-    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
-      ['>foo/1.0.0>', {
+    dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>foo/1.0.0>' as NodeId, {
         children: {
-          bar: '>foo/1.0.0>bar/1.0.0>',
+          bar: '>foo/1.0.0>bar/1.0.0>' as NodeId,
         },
         installable: true,
         resolvedPackage: fooPkg,
         depth: 0,
       }],
-      ['>foo/1.0.0>bar/1.0.0>', {
+      ['>foo/1.0.0>bar/1.0.0>' as NodeId, {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
         depth: 1,
       }],
-      ['>foo/2.0.0>', {
+      ['>foo/2.0.0>' as NodeId, {
         children: {
-          bar: '>foo/2.0.0>bar/2.0.0>',
+          bar: '>foo/2.0.0>bar/2.0.0>' as NodeId,
         },
         installable: true,
         resolvedPackage: fooAliasPkg,
         depth: 0,
       }],
-      ['>foo/2.0.0>bar/2.0.0>', {
+      ['>foo/2.0.0>bar/2.0.0>' as NodeId, {
         children: {},
         installable: true,
         resolvedPackage: barAliasPkg,
         depth: 1,
       }],
-      ['>bar/1.0.0>', {
+      ['>bar/1.0.0>' as NodeId, {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
         depth: 0,
       }],
-      ['>bar/2.0.0>', {
+      ['>bar/2.0.0>' as NodeId, {
         children: {},
         installable: true,
         resolvedPackage: barAliasPkg,
@@ -633,7 +655,9 @@ test('resolve peer dependencies with npm aliases', async () => {
       }],
     ]),
     virtualStoreDir: '',
+    virtualStoreDirMaxLength: 120,
     lockfileDir: '',
+    peersSuffixMaxLength: 1000,
   })
   expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
     'bar/1.0.0',

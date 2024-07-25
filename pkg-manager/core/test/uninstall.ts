@@ -10,7 +10,7 @@ import { type Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type PackageManifest } from '@pnpm/types'
+import { type ProjectRootDir, type PackageManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -35,7 +35,7 @@ test('uninstall package with no dependencies', async () => {
     dependencyNames: ['is-negative'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ save: true, reporter }))).manifest
 
   expect(reporter.calledWithMatch({
@@ -88,7 +88,7 @@ test('uninstall a dependency that is not present in node_modules', async () => {
     dependencyNames: ['is-negative'],
     manifest: {},
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ reporter }))
 
   expect(reporter.calledWithMatch({
@@ -107,7 +107,7 @@ test('uninstall scoped package', async () => {
     dependencyNames: ['@zkochan/logger'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ save: true }))).manifest
 
   project.storeHas('@zkochan/logger', '0.1.0')
@@ -126,7 +126,7 @@ test('uninstall tarball dependency', async () => {
     dependencyNames: ['is-array'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, opts)).manifest
 
   project.storeHas('is-array', '1.0.1')
@@ -142,7 +142,7 @@ test('uninstall package with dependencies and do not touch other deps', async ()
     dependencyNames: ['camelcase-keys'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ pruneStore: true, save: true }))).manifest
 
   project.storeHasNot('camelcase-keys', '3.0.0')
@@ -175,7 +175,7 @@ test('uninstall package with its bin files', async () => {
     dependencyNames: ['@pnpm.e2e/sh-hello-world'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ save: true }))
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
@@ -200,7 +200,7 @@ test('relative link is uninstalled', async () => {
     dependencyNames: [linkedPkgName],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, opts)
 
   project.hasNot(linkedPkgName)
@@ -222,7 +222,7 @@ test('pendingBuilds gets updated after uninstall', async () => {
     dependencyNames: ['@pnpm.e2e/with-postinstall-b'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ save: true }))
 
   const modules2 = project.readModulesManifest()
@@ -258,11 +258,11 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
     [
       {
         mutation: 'install',
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         mutation: 'install',
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
     ],
     testDefaults({
@@ -270,30 +270,15 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
         {
           buildIndex: 0,
           manifest: pkgs[0],
-          rootDir: path.resolve('project-1'),
+          rootDir: path.resolve('project-1') as ProjectRootDir,
         },
         {
           buildIndex: 0,
           manifest: pkgs[1],
-          rootDir: path.resolve('project-2'),
+          rootDir: path.resolve('project-2') as ProjectRootDir,
         },
       ],
       store,
-      workspacePackages: {
-        'project-2': {
-          '1.0.0': {
-            dir: path.resolve('project-2'),
-            manifest: {
-              name: 'project-2',
-              version: '1.0.0',
-
-              dependencies: {
-                'is-negative': '1.0.0',
-              },
-            },
-          },
-        },
-      },
     })
   )
 
@@ -304,7 +289,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
     dependencyNames: ['is-positive', 'project-2'],
     manifest: pkgs[0],
     mutation: 'uninstallSome',
-    rootDir: path.resolve('project-1'),
+    rootDir: path.resolve('project-1') as ProjectRootDir,
   }, testDefaults({
     lockfileDir: process.cwd(),
     store,
@@ -360,7 +345,7 @@ test('uninstall remove modules that is not in package.json', async () => {
     dependencyNames: ['foo'],
     manifest: {},
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults())
 
   project.hasNot('foo')

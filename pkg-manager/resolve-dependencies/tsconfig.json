@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/pick-registry-for-package"
     },
     {
@@ -59,7 +65,9 @@
     },
     {
       "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../workspace/spec-parser"
     }
-  ],
-  "composite": true
+  ]
 }

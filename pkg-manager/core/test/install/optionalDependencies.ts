@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { type LockfileV9 as Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { type ProjectRootDir } from '@pnpm/types'
 import deepRequireCwd from 'deep-require-cwd'
 import { sync as readYamlFile } from 'read-yaml-file'
 import {
@@ -124,7 +125,7 @@ test('skip optional dependency that does not support the current OS', async () =
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ frozenLockfile: true }))
 
   project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
@@ -219,11 +220,11 @@ test('optional subdependency is not removed from current lockfile when new depen
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -237,7 +238,7 @@ test('optional subdependency is not removed from current lockfile when new depen
           '@pnpm.e2e/pkg-with-optional': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -245,7 +246,7 @@ test('optional subdependency is not removed from current lockfile when new depen
         name: 'project-2',
         version: '1.0.0',
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers,
@@ -307,7 +308,7 @@ test('optional subdependency is skipped', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults()
   )
 
@@ -322,7 +323,7 @@ test('optional subdependency is skipped', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ force: true, frozenLockfile: true }))
 
   expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeTruthy()
@@ -372,7 +373,7 @@ test('only that package is skipped which is an optional dependency only and not 
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ frozenLockfile: true }))
 
   {
@@ -474,11 +475,11 @@ test('skip optional dependency that does not support the current OS, when doing 
     [
       {
         mutation: 'install',
-        rootDir: path.resolve('project1'),
+        rootDir: path.resolve('project1') as ProjectRootDir,
       },
       {
         mutation: 'install',
-        rootDir: path.resolve('project2'),
+        rootDir: path.resolve('project2') as ProjectRootDir,
       },
     ],
     testDefaults({
@@ -493,7 +494,7 @@ test('skip optional dependency that does not support the current OS, when doing 
               '@pnpm.e2e/not-compatible-with-any-os': '*',
             },
           },
-          rootDir: path.resolve('project1'),
+          rootDir: path.resolve('project1') as ProjectRootDir,
         },
         {
           buildIndex: 0,
@@ -505,7 +506,7 @@ test('skip optional dependency that does not support the current OS, when doing 
               '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
             },
           },
-          rootDir: path.resolve('project2'),
+          rootDir: path.resolve('project2') as ProjectRootDir,
         },
       ],
       lockfileDir: process.cwd(),
@@ -516,7 +517,7 @@ test('skip optional dependency that does not support the current OS, when doing 
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: path.resolve('project1'),
+    rootDir: path.resolve('project1') as ProjectRootDir,
   }, testDefaults({
     frozenLockfile: false,
     lockfileDir: process.cwd(),
@@ -697,4 +698,19 @@ test('complex scenario with same optional dependencies appearing in many places 
 
   expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.18.20/node_modules/@esbuild').length).toEqual(1)
   expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.20.2/node_modules/@esbuild').length).toEqual(1)
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/8066
+test('dependency that is both optional and non-optional is installed, when optional dependencies should be skipped', async () => {
+  prepareEmpty()
+  await addDependenciesToPackage({}, ['@babel/cli@7.24.5', 'del@6.1.1'], testDefaults({
+    include: {
+      dependencies: true,
+      optionalDependencies: false,
+      devDependencies: true,
+    },
+  }))
+
+  const dirs = fs.readdirSync('node_modules/.pnpm')
+  expect(dirs.find(dir => dir.startsWith('fill-range@'))).toBeDefined()
 })

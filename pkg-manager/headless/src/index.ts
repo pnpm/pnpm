@@ -56,7 +56,17 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
-import { type DependencyManifest, type HoistedDependencies, type ProjectManifest, type Registries, DEPENDENCIES_FIELDS, type SupportedArchitectures } from '@pnpm/types'
+import {
+  type DepPath,
+  type DependencyManifest,
+  type HoistedDependencies,
+  type ProjectId,
+  type ProjectManifest,
+  type Registries,
+  DEPENDENCIES_FIELDS,
+  type SupportedArchitectures,
+  type ProjectRootDir,
+} from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
@@ -89,9 +99,9 @@ export interface Project {
   buildIndex: number
   manifest: ProjectManifest
   modulesDir: string
-  id: string
+  id: ProjectId
   pruneDirectDependencies?: boolean
-  rootDir: string
+  rootDir: ProjectRootDir
 }
 
 export interface HeadlessOptions {
@@ -129,6 +139,7 @@ export interface HeadlessOptions {
   lockfileDir: string
   modulesDir?: string
   virtualStoreDir?: string
+  virtualStoreDirMaxLength: number
   patchedDependencies?: Record<string, PatchFile>
   scriptsPrependNodePath?: boolean | 'warn-only'
   scriptShell?: string
@@ -155,7 +166,7 @@ export interface HeadlessOptions {
   ownLifecycleHooksStdio?: 'inherit' | 'pipe'
   pendingBuilds: string[]
   resolveSymlinksInInjectedDirs?: boolean
-  skipped: Set<string>
+  skipped: Set<DepPath>
   enableModulesDir?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
   useGitBranchLockfile?: boolean
@@ -217,7 +228,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     unsafePerm: opts.unsafePerm || false,
   }
 
-  const skipped = opts.skipped || new Set<string>()
+  const skipped = opts.skipped || new Set<DepPath>()
   const filterOpts = {
     include: opts.include,
     registries: opts.registries,
@@ -248,6 +259,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           skipped,
           storeController: opts.storeController,
           virtualStoreDir,
+          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
           wantedLockfile: filterLockfileByEngine(wantedLockfile, filterOpts).lockfile,
         }
       )
@@ -266,7 +278,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   })
 
   const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
-    ? Object.keys(wantedLockfile.importers)
+    ? Object.keys(wantedLockfile.importers) as ProjectId[]
     : selectedProjects.map(({ id }) => id)
   const { lockfile: filteredLockfile, selectedImporterIds: importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, filterOpts)
   if (opts.excludeLinksFromLockfile) {
@@ -338,6 +350,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       importerNames,
       lockfileDir,
       virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       registries: opts.registries,
     })
   }
@@ -424,6 +437,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistedModulesDir,
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         hoistedWorkspacePackages: opts.hoistWorkspacePackages
           ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
             if (project.manifest.name && project.id !== '.') {
@@ -531,6 +545,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
     pkgLocationsByDepPath,
     virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   })
 
   if (opts.enableModulesDir !== false) {
@@ -598,6 +613,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       skipped: Array.from(skipped),
       storeDir: opts.storeDir,
       virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }, {
       makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
     })
@@ -708,7 +724,7 @@ async function linkBinsOfImporter (
     binsDir: string
     manifest: ProjectManifest
     modulesDir: string
-    rootDir: string
+    rootDir: ProjectRootDir
   },
   { extraNodePaths, preferSymlinkedExecutables }: { extraNodePaths?: string[], preferSymlinkedExecutables?: boolean } = {}
 ): Promise<string[]> {
@@ -729,7 +745,7 @@ async function getRootPackagesToLink (
   opts: {
     registries: Registries
     projectDir: string
-    importerId: string
+    importerId: ProjectId
     importerModulesDir: string
     importerManifestsByImporterId: { [id: string]: ProjectManifest }
     lockfileDir: string

@@ -1,5 +1,201 @@
 # @pnpm/resolve-dependencies
 
+## 34.0.2
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/pick-registry-for-package@6.0.4
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/lockfile.preferred-versions@1.0.8
+  - @pnpm/prune-lockfile@6.1.4
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/manifest-utils@6.0.5
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/npm-resolver@21.0.2
+  - @pnpm/resolver-base@13.0.1
+  - @pnpm/store-controller-types@18.1.3
+  - @pnpm/pick-fetcher@3.0.0
+
+## 34.0.1
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+- Updated dependencies [afe520d]
+  - @pnpm/npm-resolver@21.0.1
+
+## 34.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- 9bf9f71: When encountering an external dependency using the `catalog:` protocol, a clearer error will be shown. Previously a confusing `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` error was thrown. The new error message will explain that the author of the dependency needs to run `pnpm publish` to replace the catalog protocol.
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/npm-resolver@21.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/pick-fetcher@3.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/lockfile.preferred-versions@1.0.7
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/prune-lockfile@6.1.3
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/manifest-utils@6.0.4
+  - @pnpm/read-package-json@9.0.4
+
+## 33.1.1
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/pick-registry-for-package@6.0.2
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/lockfile.preferred-versions@1.0.6
+  - @pnpm/prune-lockfile@6.1.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/manifest-utils@6.0.3
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/npm-resolver@20.0.1
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/pick-fetcher@3.0.0
+
+## 33.1.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/prune-lockfile@6.1.1
+  - @pnpm/lockfile.preferred-versions@1.0.5
+  - @pnpm/npm-resolver@20.0.0
+
+## 33.0.4
+
+### Patch Changes
+
+- 74c1057: Improved the performance of the resolution stage by changing how missing peer dependencies are detected [#8144](https://github.com/pnpm/pnpm/pull/8144).
+
+## 33.0.3
+
+### Patch Changes
+
+- 4b65113: Temporary fix. Don't hoist peer dependencies, when peers deduplication is on.
+
+## 33.0.2
+
+### Patch Changes
+
+- 81d90c9: Reduce memory usage during peer dependency resolution by using numbers for Node IDs.
+- 27c33f0: Fix a bug in which a dependency that is both optional for one package but non-optional for another is omitted when `optional=false` [#8066](https://github.com/pnpm/pnpm/issues/8066).
+- Updated dependencies [27c33f0]
+  - @pnpm/prune-lockfile@6.1.0
+
+## 33.0.1
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+- Updated dependencies [0c08e1c]
+  - @pnpm/npm-resolver@20.0.0
+  - @pnpm/store-controller-types@18.1.0
+
+## 33.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- ef73c19: Decrease memory consumption [#8084](https://github.com/pnpm/pnpm/pull/8084).
+- 471ee65: Reduce memory usage by peer dependencies resolution [#8072](https://github.com/pnpm/pnpm/issues/8072).
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/lockfile.preferred-versions@1.0.4
+  - @pnpm/prune-lockfile@6.0.2
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/manifest-utils@6.0.2
+  - @pnpm/read-package-json@9.0.2
+  - @pnpm/npm-resolver@19.0.4
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/pick-fetcher@3.0.0
+
+## 32.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/read-package-json@9.0.1
+  - @pnpm/npm-resolver@19.0.3
+  - @pnpm/lockfile.preferred-versions@1.0.3
+
+## 32.1.2
+
+### Patch Changes
+
+- 2cb67d7: Improve the performance of the peers resolution stage by utilizing more cache [#8058](https://github.com/pnpm/pnpm/pull/8058).
+- Updated dependencies [43b6bb7]
+  - @pnpm/npm-resolver@19.0.2
+
+## 32.1.1
+
+### Patch Changes
+
+- 7a0536e: Fix `Cannot read properties of undefined (reading 'missingPeersOfChildren')` exception that happens on install [#8041](https://github.com/pnpm/pnpm/issues/8041).
+- cb0f459: `pnpm update` should not fail when there's an aliased local workspace dependency [#7975](https://github.com/pnpm/pnpm/issues/7975).
+- Updated dependencies [cb0f459]
+- Updated dependencies [7a0536e]
+- Updated dependencies [cb0f459]
+  - @pnpm/workspace.spec-parser@1.0.0
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/npm-resolver@19.0.1
+  - @pnpm/lockfile.preferred-versions@1.0.2
+
+## 32.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- 1a6f7fb: A dependency is hoisted to resolve an optional peer dependency only if it satisfies the range provided for the optional peer dependency [#8028](https://github.com/pnpm/pnpm/pull/8028).
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/prune-lockfile@6.0.1
+  - @pnpm/lockfile.preferred-versions@1.0.1
+  - @pnpm/npm-resolver@19.0.0
+
 ## 32.0.4
 
 ### Patch Changes

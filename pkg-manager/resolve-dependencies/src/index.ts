@@ -20,12 +20,15 @@ import {
   type DependencyManifest,
   type PeerDependencyIssuesByProjects,
   type ProjectManifest,
+  type ProjectId,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
 import isSubdir from 'is-subdir'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
 import { depPathToRef } from './depPathToRef'
+import { type NodeId } from './nextNodeId'
 import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies'
 import {
   type Importer,
@@ -37,17 +40,18 @@ import {
 } from './resolveDependencyTree'
 import {
   type DependenciesByProjectId,
-  type GenericDependenciesGraph,
-  type GenericDependenciesGraphNode,
   resolvePeers,
+  type GenericDependenciesGraphWithResolvedChildren,
+  type GenericDependenciesGraphNodeWithResolvedChildren,
 } from './resolvePeers'
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
 import { updateProjectManifest } from './updateProjectManifest'
+import { getCatalogSnapshots } from './getCatalogSnapshots'
 
-export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
+export type DependenciesGraph = GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
 
-export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPackage
+export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChildren & ResolvedPackage
 
 export {
   getWantedDependencies,
@@ -60,12 +64,12 @@ export {
 
 interface ProjectToLink {
   binsDir: string
-  directNodeIdsByAlias: { [alias: string]: string }
-  id: string
+  directNodeIdsByAlias: Map<string, NodeId>
+  id: ProjectId
   linkedDependencies: LinkedDependency[]
   manifest: ProjectManifest
   modulesDir: string
-  rootDir: string
+  rootDir: ProjectRootDir
   topParents: Array<{ name: string, version: string }>
 }
 
@@ -90,7 +94,7 @@ export interface ImporterToResolve extends Importer<{
 
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
-  dependenciesGraph: GenericDependenciesGraph<ResolvedPackage>
+  dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -129,11 +133,14 @@ export async function resolveDependencies (
     dependenciesTree,
     outdatedDependencies,
     resolvedImporters,
-    resolvedPackagesByDepPath,
+    resolvedPkgsById,
     wantedToBeSkippedPackageIds,
     appliedPatches,
     time,
+    allPeerDepNames,
   } = await resolveDependencyTree(projectsToResolve, opts)
+
+  opts.storeController.clearResolutionCache()
 
   // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
   if (
@@ -166,7 +173,7 @@ export async function resolveDependencies (
       const target = !opts.excludeLinksFromLockfile || isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)
         ? linkedDependency.resolution.directory
         : path.join(project.modulesDir, linkedDependency.alias)
-      const linkedDir = createNodeIdForLinkedLocalPkg(opts.lockfileDir, target)
+      const linkedDir = createNodeIdForLinkedLocalPkg(opts.lockfileDir, target) as string
       topParents.push({
         name: linkedDependency.alias,
         version: linkedDependency.version,
@@ -191,14 +198,17 @@ export async function resolveDependencies (
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
   } = await resolvePeers({
+    allPeerDepNames,
     dependenciesTree,
     dedupePeerDependents: opts.dedupePeerDependents,
     dedupeInjectedDeps: opts.dedupeInjectedDeps,
     lockfileDir: opts.lockfileDir,
     projects: projectsToLink,
     virtualStoreDir: opts.virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
     resolvedImporters,
+    peersSuffixMaxLength: opts.peersSuffixMaxLength,
   })
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
@@ -245,7 +255,7 @@ export async function resolveDependencies (
 
     importers[index].manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
 
-    for (const [alias, depPath] of Object.entries(dependenciesByProjectId[project.id])) {
+    for (const [alias, depPath] of dependenciesByProjectId[project.id].entries()) {
       const projectSnapshot = opts.wantedLockfile.importers[project.id]
       if (project.manifest.dependenciesMeta != null) {
         projectSnapshot.dependenciesMeta = project.manifest.dependenciesMeta
@@ -273,9 +283,9 @@ export async function resolveDependencies (
     if (rootDeps) {
       for (const [id, deps] of Object.entries(dependenciesByProjectId)) {
         if (id === '.') continue
-        for (const [alias, depPath] of Object.entries(deps)) {
-          if (depPath === rootDeps[alias]) {
-            delete deps[alias]
+        for (const [alias, depPath] of deps.entries()) {
+          if (depPath === rootDeps.get(alias)) {
+            deps.delete(alias)
           }
         }
       }
@@ -296,9 +306,11 @@ export async function resolveDependencies (
     }
   }
 
+  newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
+
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
-    await Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ fetching }) => {
+    await Promise.all(Object.values(resolvedPkgsById).map(async ({ fetching }) => {
       try {
         await fetching?.()
       } catch {}

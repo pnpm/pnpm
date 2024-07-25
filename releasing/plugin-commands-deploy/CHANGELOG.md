@@ -1,5 +1,147 @@
 # @pnpm/plugin-commands-deploy
 
+## 5.1.14
+
+### Patch Changes
+
+- 1e4dd79: The `pnpm deploy` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs).
+- Updated dependencies [1e4dd79]
+- Updated dependencies [0ef168b]
+  - @pnpm/plugin-commands-installation@17.0.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/fs.indexed-pkg-importer@6.0.6
+
+## 5.1.13
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/fs.indexed-pkg-importer@6.0.5
+  - @pnpm/plugin-commands-installation@16.0.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/directory-fetcher@8.0.4
+
+## 5.1.12
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [84654bd]
+  - @pnpm/plugin-commands-installation@16.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/directory-fetcher@8.0.4
+  - @pnpm/fs.indexed-pkg-importer@6.0.4
+
+## 5.1.11
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/plugin-commands-installation@15.1.11
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/directory-fetcher@8.0.3
+  - @pnpm/fs.indexed-pkg-importer@6.0.3
+
+## 5.1.10
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.10
+- @pnpm/cli-utils@3.1.1
+- @pnpm/fs.indexed-pkg-importer@6.0.2
+- @pnpm/directory-fetcher@8.0.2
+
+## 5.1.9
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/plugin-commands-installation@15.1.9
+
+## 5.1.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.8
+
+## 5.1.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.7
+
+## 5.1.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.6
+
+## 5.1.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.5
+- @pnpm/fs.indexed-pkg-importer@6.0.2
+- @pnpm/cli-utils@3.0.7
+- @pnpm/directory-fetcher@8.0.2
+
+## 5.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/directory-fetcher@8.0.2
+  - @pnpm/plugin-commands-installation@15.1.4
+  - @pnpm/fs.indexed-pkg-importer@6.0.1
+
+## 5.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/plugin-commands-installation@15.1.3
+  - @pnpm/directory-fetcher@8.0.1
+
+## 5.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+- @pnpm/plugin-commands-installation@15.1.2
+
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.1
+
+## 5.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/plugin-commands-installation@15.1.0
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/fs.indexed-pkg-importer@6.0.0
+  - @pnpm/directory-fetcher@8.0.0
+
 ## 5.0.7
 
 ### Patch Changes

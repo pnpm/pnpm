@@ -1,5 +1,98 @@
 # @pnpm/filter-workspace-packages
 
+## 10.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@4.0.2
+- @pnpm/workspace.pkgs-graph@4.0.2
+
+## 10.0.1
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@4.0.1
+- @pnpm/workspace.find-packages@4.0.1
+
+## 10.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+  - @pnpm/workspace.find-packages@4.0.0
+  - @pnpm/workspace.pkgs-graph@4.0.0
+
+## 9.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/workspace.find-packages@3.0.0
+  - @pnpm/workspace.pkgs-graph@3.0.6
+
+## 8.0.10
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.1.1
+
+## 8.0.9
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+  - @pnpm/workspace.find-packages@2.1.0
+
+## 8.0.8
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@3.0.5
+- @pnpm/workspace.find-packages@2.0.7
+
+## 8.0.7
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.0.6
+- @pnpm/workspace.pkgs-graph@3.0.4
+
+## 8.0.6
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/workspace.find-packages@2.0.5
+  - @pnpm/workspace.pkgs-graph@3.0.3
+
+## 8.0.5
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@3.0.2
+- @pnpm/workspace.find-packages@2.0.4
+
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@3.0.1
+
+## 8.0.3
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.0.3
+
 ## 8.0.2
 
 ### Patch Changes

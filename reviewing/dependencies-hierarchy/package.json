@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/reviewing.dependencies-hierarchy",
-  "version": "3.0.2",
+  "version": "3.1.7",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -39,21 +39,21 @@
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
-    "@pnpm/npm-package-arg": "^1.0.0",
+    "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "normalize-path": "^3.0.0",
-    "realpath-missing": "^1.1.0",
-    "resolve-link-target": "^2.0.0",
-    "semver": "^7.6.0"
+    "normalize-path": "catalog:",
+    "realpath-missing": "catalog:",
+    "resolve-link-target": "catalog:",
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/normalize-path": "^3.0.2",
-    "@types/semver": "7.5.3"
+    "@types/normalize-path": "catalog:",
+    "@types/semver": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

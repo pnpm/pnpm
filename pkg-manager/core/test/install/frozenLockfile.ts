@@ -6,6 +6,7 @@ import {
   type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
+import { type ProjectRootDir } from '@pnpm/types'
 import sinon from 'sinon'
 import { testDefaults } from '../utils'
 
@@ -54,11 +55,11 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
   const projects: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('p1'),
+      rootDir: path.resolve('p1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('p2'),
+      rootDir: path.resolve('p2') as ProjectRootDir,
     },
   ]
   const project1 = {
@@ -70,7 +71,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
         'is-positive': '1.0.0',
       },
     },
-    rootDir: path.resolve('p1'),
+    rootDir: path.resolve('p1') as ProjectRootDir,
   }
   const project2 = {
     buildIndex: 0,
@@ -81,7 +82,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
         'is-negative': '1.0.0',
       },
     },
-    rootDir: path.resolve('p2'),
+    rootDir: path.resolve('p2') as ProjectRootDir,
   }
   await mutateModules(projects, testDefaults({
     allProjects: [project1, project2],
@@ -238,11 +239,11 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
   const mutatedProjects: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('p1'),
+      rootDir: path.resolve('p1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('p2'),
+      rootDir: path.resolve('p2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -255,7 +256,7 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
           p2: 'link:../p2',
         },
       },
-      rootDir: path.resolve('p1'),
+      rootDir: path.resolve('p1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -266,7 +267,7 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
           'is-negative': '1.0.0',
         },
       },
-      rootDir: path.resolve('p2'),
+      rootDir: path.resolve('p2') as ProjectRootDir,
     },
   ]
   await mutateModules(mutatedProjects, testDefaults({ allProjects }))

@@ -1,5 +1,128 @@
 # @pnpm/cli-utils
 
+## 3.1.5
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-meta@6.0.4
+  - @pnpm/default-reporter@13.1.8
+  - @pnpm/config@21.6.2
+  - @pnpm/package-is-installable@9.0.5
+  - @pnpm/manifest-utils@6.0.5
+  - @pnpm/read-project-manifest@6.0.5
+
+## 3.1.4
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/default-reporter@13.1.7
+
+## 3.1.3
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [9bf9f71]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/default-reporter@13.1.6
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-meta@6.0.3
+  - @pnpm/package-is-installable@9.0.4
+  - @pnpm/manifest-utils@6.0.4
+  - @pnpm/read-project-manifest@6.0.4
+
+## 3.1.2
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/default-reporter@13.1.5
+  - @pnpm/cli-meta@6.0.2
+  - @pnpm/package-is-installable@9.0.3
+  - @pnpm/manifest-utils@6.0.3
+  - @pnpm/read-project-manifest@6.0.3
+
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/default-reporter@13.1.4
+
+## 3.1.0
+
+### Minor Changes
+
+- b7ca13f: If `package-manager-strict-version` is set to `true` pnpm will fail if its version will not exactly match the version in the `packageManager` field of `package.json`.
+
+### Patch Changes
+
+- b7ca13f: pnpm doesn't fail if its version doesn't match the one specified in the "packageManager" field of `package.json` [#8087](https://github.com/pnpm/pnpm/issues/8087).
+- Updated dependencies [b7ca13f]
+  - @pnpm/config@21.3.0
+  - @pnpm/default-reporter@13.1.3
+
+## 3.0.7
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/default-reporter@13.1.2
+
+## 3.0.6
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-meta@6.0.1
+  - @pnpm/default-reporter@13.1.1
+  - @pnpm/config@21.2.2
+  - @pnpm/package-is-installable@9.0.2
+  - @pnpm/manifest-utils@6.0.2
+  - @pnpm/read-project-manifest@6.0.2
+
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+- Updated dependencies [524990f]
+  - @pnpm/error@6.0.1
+  - @pnpm/default-reporter@13.1.0
+  - @pnpm/config@21.2.1
+  - @pnpm/package-is-installable@9.0.1
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/read-project-manifest@6.0.1
+
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [43b6bb7]
+  - @pnpm/default-reporter@13.0.3
+
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/config@21.2.0
+  - @pnpm/default-reporter@13.0.2
+
 ## 3.0.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "14.0.3",
+  "version": "15.1.0",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,6 +33,8 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
@@ -44,15 +46,17 @@
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.6.0"
+    "ramda": "catalog:",
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/outdated": "workspace:*",
-    "@types/ramda": "0.29.12",
-    "@types/semver": "7.5.3"
+    "@pnpm/resolver-base": "workspace:*",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
-import { createBase32Hash } from '@pnpm/crypto.base32-hash'
+import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -12,6 +12,8 @@ import ssri from 'ssri'
 const STORE_VERSION = 'v3'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+
+const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, { default: REGISTRY })
 
 test('remove unreferenced packages', async () => {
   const project = prepare()
@@ -49,6 +51,7 @@ test('remove unreferenced packages', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: 120,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -73,6 +76,7 @@ test('remove unreferenced packages', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: 120,
   }, ['prune'])
 
   expect(reporter).not.toHaveBeenCalledWith(
@@ -109,6 +113,7 @@ test.skip('remove packages that are used by project that no longer exist', async
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: 120,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -148,6 +153,7 @@ test('keep dependencies used by others', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: 120,
   }, ['prune'])
 
   project.storeHasNot('camelcase-keys', '3.0.0')
@@ -173,6 +179,7 @@ test('keep dependency used by package', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: 120,
   }, ['prune'])
 
   project.storeHas('is-positive', '3.1.0')
@@ -196,6 +203,7 @@ test('prune will skip scanning non-directory in storeDir', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: 120,
   }, ['prune'])
 })
 
@@ -223,6 +231,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: 120,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -261,6 +270,7 @@ test('prune removes alien files from the store if the --force flag is used', asy
     userConfig: {},
     force: true,
     dlxCacheMaxAge: Infinity,
+    virtualStoreDirMaxLength: 120,
   }, ['prune'])
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -280,7 +290,7 @@ function createSampleDlxCacheLinkTarget (dirPath: string): void {
 }
 
 function createSampleDlxCacheItem (cacheDir: string, cmd: string, now: Date, age: number): void {
-  const hash = createBase32Hash(cmd)
+  const hash = createCacheKey(cmd)
   const newDate = new Date(now.getTime() - age * 60_000)
   const timeError = 432 // just an arbitrary amount, nothing is special about this number
   const pid = 71014 // just an arbitrary number to represent pid
@@ -326,6 +336,7 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: 7,
+    virtualStoreDirMaxLength: 120,
   }, ['prune'])
 
   expect(
@@ -333,7 +344,7 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
       .sort()
   ).toStrictEqual(
     ['foo', 'bar']
-      .map(createBase32Hash)
+      .map(cmd => createCacheKey(cmd))
       .sort()
   )
 })

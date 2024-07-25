@@ -1,5 +1,79 @@
 # @pnpm/pnpmfile
 
+## 6.0.7
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/hooks.types@2.0.5
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/store-controller-types@18.1.3
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 6.0.6
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/hooks.types@2.0.4
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 6.0.5
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/hooks.types@2.0.3
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/hooks.types@2.0.2
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 6.0.3
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/hooks.types@2.0.1
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/crypto.base32-hash@3.0.0
+
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
 ## 6.0.0
 
 ### Major Changes

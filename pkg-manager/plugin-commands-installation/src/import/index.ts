@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
@@ -21,7 +22,6 @@ import renderHelp from 'render-help'
 import { parse as parseYarnLock, type LockFileObject } from '@yarnpkg/lockfile'
 import * as yarnCore from '@yarnpkg/core'
 import { parseSyml } from '@yarnpkg/parsers'
-import exists from 'path-exists'
 import { recursive } from '../recursive'
 import { yarnLockFileKeyNormalizer } from './yarnUtil'
 
@@ -99,6 +99,7 @@ export type ImportCommandOptions = Pick<Config,
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
 | 'sharedWorkspaceLockfile'
+| 'workspacePackagePatterns'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 > & CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
@@ -112,12 +113,12 @@ export async function handler (
   await rimraf(path.join(opts.dir, WANTED_LOCKFILE))
   const versionsByPackageNames = {}
   let preferredVersions = {}
-  if (await exists(path.join(opts.dir, 'yarn.lock'))) {
+  if (fs.existsSync(path.join(opts.dir, 'yarn.lock'))) {
     const yarnPackageLockFile = await readYarnLockFile(opts.dir)
     getAllVersionsFromYarnLockFile(yarnPackageLockFile, versionsByPackageNames)
   } else if (
-    await exists(path.join(opts.dir, 'package-lock.json')) ||
-    await exists(path.join(opts.dir, 'npm-shrinkwrap.json'))
+    fs.existsSync(path.join(opts.dir, 'package-lock.json')) ||
+    fs.existsSync(path.join(opts.dir, 'npm-shrinkwrap.json'))
   ) {
     const npmPackageLock = await readNpmLockfile(opts.dir)
     if (npmPackageLock.lockfileVersion < 3) {
@@ -132,7 +133,10 @@ export async function handler (
 
   // For a workspace with shared lockfile
   if (opts.workspaceDir) {
-    const allProjects = opts.allProjects ?? await findWorkspacePackages(opts.workspaceDir, opts)
+    const allProjects = opts.allProjects ?? await findWorkspacePackages(opts.workspaceDir, {
+      ...opts,
+      patterns: opts.workspacePackagePatterns,
+    })
     const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
     if (selectedProjectsGraph != null) {
       const sequencedGraph = sequenceGraph(selectedProjectsGraph)
@@ -328,7 +332,7 @@ function getAllVersionsFromYarnLockFile (
 }
 
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
-  const project = projects.find(({ dir }) => path.relative(dir, searchedDir) === '')
+  const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
   return { [searchedDir]: { dependencies: [], package: project } }
 }

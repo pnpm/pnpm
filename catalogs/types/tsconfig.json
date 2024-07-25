@@ -1,0 +1,13 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "composite": true,
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": []
+}

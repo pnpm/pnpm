@@ -1,4 +1,6 @@
-import { type DependencyManifest } from '@pnpm/types'
+import { type ProjectRootDir, type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
+
+export { type PkgResolutionId }
 
 /**
  * tarball hosted remotely
@@ -32,7 +34,7 @@ export type Resolution =
   ({ type: string } & object)
 
 export interface ResolveResult {
-  id: string
+  id: PkgResolutionId
   latest?: string
   publishedAt?: string
   manifest?: DependencyManifest
@@ -41,14 +43,14 @@ export interface ResolveResult {
   resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'url' | string
 }
 
-export interface WorkspacePackages {
-  [name: string]: {
-    [version: string]: {
-      dir: string
-      manifest: DependencyManifest
-    }
-  }
+export interface WorkspacePackage {
+  rootDir: ProjectRootDir
+  manifest: DependencyManifest
 }
+
+export type WorkspacePackagesByVersion = Map<string, WorkspacePackage>
+
+export type WorkspacePackages = Map<string, WorkspacePackagesByVersion>
 
 // This weight is set for selectors that are used on direct dependencies.
 // It is important to give a bigger weight to direct dependencies.

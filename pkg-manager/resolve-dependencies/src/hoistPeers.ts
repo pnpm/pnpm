@@ -27,3 +27,28 @@ export function hoistPeers (
   }
   return dependencies
 }
+
+export function getHoistableOptionalPeers (
+  allMissingOptionalPeers: Record<string, string[]>,
+  allPreferredVersions: PreferredVersions
+): Record<string, string> {
+  const optionalDependencies: Record<string, string> = {}
+  for (const [missingOptionalPeerName, ranges] of Object.entries(allMissingOptionalPeers)) {
+    if (!allPreferredVersions[missingOptionalPeerName]) continue
+
+    let maxSatisfyingVersion: string | undefined
+    for (const [version, specType] of Object.entries(allPreferredVersions[missingOptionalPeerName])) {
+      if (
+        specType === 'version' &&
+        ranges.every(range => semver.satisfies(version, range)) &&
+        (!maxSatisfyingVersion || semver.gt(version, maxSatisfyingVersion))
+      ) {
+        maxSatisfyingVersion = version
+      }
+    }
+    if (maxSatisfyingVersion) {
+      optionalDependencies[missingOptionalPeerName] = maxSatisfyingVersion
+    }
+  }
+  return optionalDependencies
+}

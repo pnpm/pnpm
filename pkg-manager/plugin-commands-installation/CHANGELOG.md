@@ -1,5 +1,285 @@
 # @pnpm/plugin-commands-installation
 
+## 17.0.0
+
+### Major Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- 1e4dd79: The `pnpm deploy` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs).
+- Updated dependencies [0f0e441]
+- Updated dependencies [f6e7ace]
+- Updated dependencies [0ef168b]
+  - @pnpm/core@15.1.0
+  - @pnpm/outdated@15.1.0
+  - @pnpm/plugin-commands-env@5.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/plugin-commands-rebuild@12.0.2
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/dedupe.check@2.0.6
+  - @pnpm/pnpmfile@6.0.7
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/get-context@12.0.1
+  - @pnpm/manifest-utils@6.0.5
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/resolver-base@13.0.1
+  - @pnpm/package-store@20.3.3
+  - @pnpm/filter-workspace-packages@10.0.2
+  - @pnpm/workspace.find-packages@4.0.2
+  - @pnpm/workspace.pkgs-graph@4.0.2
+  - @pnpm/sort-packages@6.0.5
+  - @pnpm/store-connection-manager@8.3.3
+
+## 16.0.1
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/core@15.0.1
+  - @pnpm/outdated@15.0.1
+  - @pnpm/workspace.pkgs-graph@4.0.1
+  - @pnpm/plugin-commands-rebuild@12.0.1
+  - @pnpm/package-store@20.3.2
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/store-connection-manager@8.3.2
+  - @pnpm/filter-workspace-packages@10.0.1
+  - @pnpm/workspace.find-packages@4.0.1
+
+## 16.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- 84654bd: Installation with filtering should work, when `dedupe-peer-dependents` is set to `true` [#6300](https://github.com/pnpm/pnpm/issues/6300).
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [9b5b869]
+  - @pnpm/config@21.6.0
+  - @pnpm/filter-workspace-packages@10.0.0
+  - @pnpm/plugin-commands-rebuild@12.0.0
+  - @pnpm/get-context@12.0.0
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/workspace.find-packages@4.0.0
+  - @pnpm/workspace.pkgs-graph@4.0.0
+  - @pnpm/outdated@15.0.0
+  - @pnpm/core@15.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/store-connection-manager@8.3.1
+  - @pnpm/package-store@20.3.1
+  - @pnpm/dedupe.check@2.0.5
+  - @pnpm/pnpmfile@6.0.6
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/manifest-utils@6.0.4
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/sort-packages@6.0.4
+
+## 15.1.11
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- 04b8363: The `getConfig` function from `@pnpm/config` now reads the `pnpm-workspace.yaml` file and stores `workspacePackagePatterns` in the `Config` object. An internal refactor was made in pnpm to reuse this value instead of re-reading `pnpm-workspace.yaml` multiple times.
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies
+- Updated dependencies [04b8363]
+  - @pnpm/store-connection-manager@8.3.0
+  - @pnpm/plugin-commands-rebuild@11.3.0
+  - @pnpm/package-store@20.3.0
+  - @pnpm/config@21.5.0
+  - @pnpm/core@14.2.1
+  - @pnpm/types@10.1.1
+  - @pnpm/filter-workspace-packages@9.0.0
+  - @pnpm/workspace.find-packages@3.0.0
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/dedupe.check@2.0.4
+  - @pnpm/pnpmfile@6.0.5
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/manifest-utils@6.0.3
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/outdated@14.0.12
+  - @pnpm/workspace.pkgs-graph@3.0.6
+  - @pnpm/sort-packages@6.0.3
+
+## 15.1.10
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/plugin-commands-rebuild@11.2.0
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/core@14.2.0
+  - @pnpm/config@21.4.0
+  - @pnpm/outdated@14.0.11
+  - @pnpm/dedupe.check@2.0.3
+  - @pnpm/pnpmfile@6.0.4
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/store-connection-manager@8.2.2
+  - @pnpm/package-store@20.2.1
+  - @pnpm/workspace.find-packages@2.1.1
+  - @pnpm/filter-workspace-packages@8.0.10
+
+## 15.1.9
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/workspace.find-packages@2.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/core@14.1.9
+  - @pnpm/plugin-commands-rebuild@11.1.6
+  - @pnpm/filter-workspace-packages@8.0.9
+  - @pnpm/store-connection-manager@8.2.1
+  - @pnpm/outdated@14.0.10
+  - @pnpm/package-store@20.2.0
+
+## 15.1.8
+
+### Patch Changes
+
+- @pnpm/core@14.1.8
+
+## 15.1.7
+
+### Patch Changes
+
+- @pnpm/core@14.1.7
+
+## 15.1.6
+
+### Patch Changes
+
+- Updated dependencies [27c33f0]
+  - @pnpm/core@14.1.6
+
+## 15.1.5
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-connection-manager@8.2.0
+  - @pnpm/package-store@20.2.0
+  - @pnpm/outdated@14.0.9
+  - @pnpm/workspace.pkgs-graph@3.0.5
+  - @pnpm/plugin-commands-rebuild@11.1.5
+  - @pnpm/pnpmfile@6.0.3
+  - @pnpm/core@14.1.5
+  - @pnpm/filter-workspace-packages@8.0.8
+  - @pnpm/config@21.2.3
+  - @pnpm/cli-utils@3.0.7
+  - @pnpm/workspace.find-packages@2.0.7
+
+## 15.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/core@14.1.4
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/dedupe.check@2.0.2
+  - @pnpm/plugin-commands-rebuild@11.1.4
+  - @pnpm/pnpmfile@6.0.2
+  - @pnpm/manifest-utils@6.0.2
+  - @pnpm/read-project-manifest@6.0.2
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/outdated@14.0.8
+  - @pnpm/package-store@20.1.2
+  - @pnpm/filter-workspace-packages@8.0.7
+  - @pnpm/workspace.find-packages@2.0.6
+  - @pnpm/workspace.pkgs-graph@3.0.4
+  - @pnpm/sort-packages@6.0.2
+  - @pnpm/store-connection-manager@8.1.4
+
+## 15.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+- Updated dependencies [37538f5]
+  - @pnpm/error@6.0.1
+  - @pnpm/command@5.0.1
+  - @pnpm/core@14.1.3
+  - @pnpm/outdated@14.0.7
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/dedupe.check@2.0.1
+  - @pnpm/plugin-commands-rebuild@11.1.3
+  - @pnpm/pnpmfile@6.0.1
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/read-project-manifest@6.0.1
+  - @pnpm/store-connection-manager@8.1.3
+  - @pnpm/filter-workspace-packages@8.0.6
+  - @pnpm/find-workspace-dir@7.0.1
+  - @pnpm/workspace.find-packages@2.0.5
+  - @pnpm/package-store@20.1.1
+  - @pnpm/workspace.pkgs-graph@3.0.3
+
+## 15.1.2
+
+### Patch Changes
+
+- @pnpm/core@14.1.2
+- @pnpm/outdated@14.0.6
+- @pnpm/workspace.pkgs-graph@3.0.2
+- @pnpm/cli-utils@3.0.4
+- @pnpm/filter-workspace-packages@8.0.5
+- @pnpm/plugin-commands-rebuild@11.1.2
+- @pnpm/workspace.find-packages@2.0.4
+- @pnpm/package-store@20.1.0
+- @pnpm/store-connection-manager@8.1.2
+
+## 15.1.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@11.1.1
+- @pnpm/core@14.1.1
+- @pnpm/sort-packages@6.0.1
+- @pnpm/outdated@14.0.5
+- @pnpm/workspace.pkgs-graph@3.0.1
+- @pnpm/filter-workspace-packages@8.0.4
+- @pnpm/package-store@20.1.0
+- @pnpm/store-connection-manager@8.1.1
+
+## 15.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/store-connection-manager@8.1.0
+  - @pnpm/plugin-commands-rebuild@11.1.0
+  - @pnpm/package-store@20.1.0
+  - @pnpm/core@14.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/outdated@14.0.4
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/workspace.find-packages@2.0.3
+  - @pnpm/filter-workspace-packages@8.0.3
+
 ## 15.0.7
 
 ### Patch Changes

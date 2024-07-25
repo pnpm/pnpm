@@ -15,7 +15,7 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import tempy from 'tempy'
-import { type PkgRequestFetchResult } from '@pnpm/store-controller-types'
+import { type PkgResolutionId, type PkgRequestFetchResult } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(__dirname)
@@ -39,6 +39,7 @@ test('request package', async () => {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
   expect(typeof requestPackage).toBe('function')
 
@@ -80,6 +81,7 @@ test('request package but skip fetching', async () => {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
   expect(typeof requestPackage).toBe('function')
 
@@ -119,13 +121,14 @@ test('request package but skip fetching, when resolution is already available', 
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
   expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     currentPkg: {
-      id: 'is-positive@1.0.0',
+      id: 'is-positive@1.0.0' as PkgResolutionId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -188,12 +191,13 @@ test('refetch local tarball if its integrity has changed', async () => {
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        id: pkgId,
+        id: pkgId as PkgResolutionId,
         resolution: {
           integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
           tarball,
@@ -219,12 +223,13 @@ test('refetch local tarball if its integrity has changed', async () => {
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        id: pkgId,
+        id: pkgId as PkgResolutionId,
         resolution: {
           integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
           tarball,
@@ -245,12 +250,13 @@ test('refetch local tarball if its integrity has changed', async () => {
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        id: pkgId,
+        id: pkgId as PkgResolutionId,
         resolution: {
           integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
           tarball,
@@ -291,6 +297,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
@@ -313,6 +320,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
@@ -332,6 +340,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
       cafs,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
@@ -354,6 +363,7 @@ test('fetchPackageToStore()', async () => {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
 
   const pkgId = 'is-positive@1.0.0'
@@ -419,6 +429,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
 
   const pkgId = 'is-positive@1.0.0'
@@ -504,6 +515,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
 
   const pkgId = 'is-positive@1.0.0'
@@ -555,6 +567,7 @@ test('always return a package manifest in the response', async () => {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
   expect(typeof requestPackage).toBe('function')
   const projectDir = tempy.directory()
@@ -575,7 +588,7 @@ test('always return a package manifest in the response', async () => {
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       currentPkg: {
-        id: 'is-positive@1.0.0',
+        id: 'is-positive@1.0.0' as PkgResolutionId,
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -617,6 +630,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
 
   const pkgId = 'is-positive@1.0.0'
@@ -671,6 +685,7 @@ test('refetch package to store if it has been modified', async () => {
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
 
     const fetchResult = packageRequester.fetchPackageToStore({
@@ -709,6 +724,7 @@ test('refetch package to store if it has been modified', async () => {
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
 
     const fetchResult = packageRequester.fetchPackageToStore({
@@ -732,7 +748,7 @@ test('refetch package to store if it has been modified', async () => {
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
-    message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId))} to store. It was either modified or had no integrity checksums`,
+    message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId, 120))} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',
     prefix: lockfileDir,
   }))
@@ -748,6 +764,7 @@ test('do not fetch an optional package that is not installable', async () => {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
   expect(typeof requestPackage).toBe('function')
 
@@ -785,6 +802,7 @@ test('fetch a git package without a package.json', async () => {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
   expect(typeof requestPackage).toBe('function')
   const projectDir = tempy.directory()
@@ -818,6 +836,7 @@ test('throw exception if the package data in the store differs from the expected
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
 
     const projectDir = tempy.directory()
@@ -840,6 +859,7 @@ test('throw exception if the package data in the store differs from the expected
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
     const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
@@ -867,6 +887,7 @@ test('throw exception if the package data in the store differs from the expected
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
     const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
@@ -894,6 +915,7 @@ test('throw exception if the package data in the store differs from the expected
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
     const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
@@ -920,6 +942,7 @@ test('throw exception if the package data in the store differs from the expected
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
     const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
@@ -950,6 +973,7 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
     })
 
     const projectDir = tempy.directory()
@@ -969,6 +993,7 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '3.1.0' }, {
@@ -996,6 +1021,7 @@ test('the version in the bundled manifest should be normalized', async () => {
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
   })
 
   const pkgResponse = await requestPackage({ alias: 'react-terminal', pref: '1.2.1' }, {
@@ -1024,6 +1050,7 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: false,
+      virtualStoreDirMaxLength: 120,
     })
 
     const projectDir = tempy.directory()
@@ -1047,6 +1074,7 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
       networkConcurrency: 1,
       storeDir,
       verifyStoreIntegrity: false,
+      virtualStoreDirMaxLength: 120,
     })
 
     const fetchResult = requestPackage.fetchPackageToStore({

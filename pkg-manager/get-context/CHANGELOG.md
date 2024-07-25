@@ -1,5 +1,98 @@
 # @pnpm/get-context
 
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/read-projects-context@9.1.7
+  - @pnpm/resolver-base@13.0.1
+
+## 12.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/modules-yaml@13.1.3
+  - @pnpm/read-projects-context@9.1.6
+
+## 11.2.1
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- Updated dependencies [13e55b2]
+  - @pnpm/read-projects-context@9.1.5
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/modules-yaml@13.1.2
+
+## 11.2.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/read-projects-context@9.1.4
+
+## 11.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/read-projects-context@9.1.3
+
+## 11.1.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/read-projects-context@9.1.2
+
+## 11.1.1
+
+### Patch Changes
+
+- @pnpm/lockfile-file@9.0.4
+- @pnpm/read-projects-context@9.1.1
+
+## 11.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/read-projects-context@9.1.0
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/lockfile-file@9.0.3
+
 ## 11.0.2
 
 ### Patch Changes

@@ -1,5 +1,143 @@
 # pnpm
 
+## 9.6.0
+
+### Minor Changes
+
+- Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+- Overrides now support the [`catalogs:` protocol](https://pnpm.io/catalogs) [#8303](https://github.com/pnpm/pnpm/issues/8303).
+
+### Patch Changes
+
+- The `pnpm deploy` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs) [#8298](https://github.com/pnpm/pnpm/pull/8298).
+- The `pnpm outdated` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs) [#8304](https://github.com/pnpm/pnpm/pull/8304).
+- Correct the error message when trying to run `pnpm patch` without `node_modules/.modules.yaml` [#8257](https://github.com/pnpm/pnpm/issues/8257).
+- Silent reporting fixed with the `pnpm exec` command [#7608](https://github.com/pnpm/pnpm/issues/7608).
+- Add registries information to the calculation of dlx cache hash [#8299](https://github.com/pnpm/pnpm/pull/8299).
+
+## 9.5.0
+
+### Minor Changes
+
+- Added support for [catalogs](https://github.com/pnpm/rfcs/blob/main/text/0001-catalogs.md) [8122](#https://github.com/pnpm/pnpm/pull/8122).
+
+  Catalogs may be declared in the `pnpm-workspace.yaml` file. For example:
+
+  ```yaml
+  # Default catalogs
+  catalog:
+    chalk: ^4.1.2
+  # Named catalogs
+  catalogs:
+    react16:
+      react: ^16.7.0
+      react-dom: ^16.7.0
+    react17:
+      react: ^17.10.0
+      react-dom: ^17.10.0
+  ```
+
+  Then, in `package.json` files, use the `catalog:` protocol to reference a "default" or "named" catalog:
+
+  ```json
+  {
+    "dependencies": {
+      "chalk": "catalog:",
+      "react": "catalog:react16",
+      "react-dom": "catalog:react16"
+    }
+  }
+  ```
+
+- Bundled `pnpm setup` now creates the `pnpx` script [#8230](https://github.com/pnpm/pnpm/issues/8230).
+
+### Patch Changes
+
+- Read authentication information from `.npmrc` in the current directory when running `dlx` [#7996](https://github.com/pnpm/pnpm/issues/7996).
+- Updated `@pnpm/tabtab` to v0.5.4, enabling zsh autocomplete lazy loading [#8236](https://github.com/pnpm/pnpm/pull/8236).
+- Installation with filtering will now work, when `dedupe-peer-dependents` is set to `true` [#6300](https://github.com/pnpm/pnpm/issues/6300).
+- Fixed `dlx` not actually using the Node.js version specified by `--use-node-version`.
+
+## 9.4.0
+
+### Minor Changes
+
+- Some registries allow the exact same content to be published under different package names and/or versions. This breaks the validity checks of packages in the store. To avoid errors when verifying the names and versions of such packages in the store, you may now set the `strict-store-pkg-content-check` setting to `false` [#4724](https://github.com/pnpm/pnpm/issues/4724).
+
+### Patch Changes
+
+- Fix `package-manager-strict-version` missing in config [#8195](https://github.com/pnpm/pnpm/issues/8195).
+- If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- Handle workspace protocol with any semver range specifier, when used in peer dependencies [#7578](https://github.com/pnpm/pnpm/issues/7578).
+
+## 9.3.0
+
+### Minor Changes
+
+- **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Set `reporter-hide-prefix` to `true` by default for `pnpm exec`. In order to show prefix, the user now has to explicitly set `reporter-hide-prefix=false` [#8174](https://github.com/pnpm/pnpm/issues/8174).
+
+## 9.2.0
+
+### Minor Changes
+
+- If `package-manager-strict-version` is set to `true`, pnpm will fail if its version doesn't exactly match the version in the "packageManager" field of `package.json`.
+
+### Patch Changes
+
+- Update `@yarnpkg/pnp` to the latest version, fixing issue with `node:` imports [#8161](https://github.com/pnpm/pnpm/issues/8161).
+- Deduplicate bin names to prevent race condition and corrupted bin scripts [#7833](https://github.com/pnpm/pnpm/issues/7833).
+- pnpm doesn't fail if its version doesn't match the one specified in the "packageManager" field of `package.json` [#8087](https://github.com/pnpm/pnpm/issues/8087).
+- `exec` now also streams prefixed output when `--recursive` or `--parallel` is specified just as `run` does [#8065](https://github.com/pnpm/pnpm/issues/8065).
+
+## 9.1.4
+
+### Patch Changes
+
+- Improved the performance of the resolution stage by changing how missing peer dependencies are detected [#8144](https://github.com/pnpm/pnpm/pull/8144).
+
+## 9.1.3
+
+### Patch Changes
+
+- Fix a bug in which a dependency that is both optional for one package but non-optional for another is omitted when `optional=false` [#8066](https://github.com/pnpm/pnpm/issues/8066).
+- Clear resolution cache before starting peer dependencies resolution [#8109](https://github.com/pnpm/pnpm/pull/8109).
+- Reduce memory usage by peer dependencies resolution [#8072](https://github.com/pnpm/pnpm/issues/8072).
+
+## 9.1.2
+
+### Patch Changes
+
+- Reduced memory usage during peer dependencies resolution [#8084](https://github.com/pnpm/pnpm/pull/8084).
+- Details in the `pnpm licenses` output are not misplaced anymore [#8071](https://github.com/pnpm/pnpm/pull/8071).
+
+## 9.1.1
+
+### Patch Changes
+
+- Improve the performance of the peers resolution stage by utilizing more cache [#8058](https://github.com/pnpm/pnpm/pull/8058).
+- Overrides with `link:` now preserve absolute path [#8053](https://github.com/pnpm/pnpm/issues/8053).
+- Fix incorrect path when resolving relative `file:` overrides for workspace package [#8053](https://github.com/pnpm/pnpm/issues/8053).
+- Print a better error message when `resolution-mode` is set to `time-based` and the registry fails to return the `"time"` field in the package's metadata.
+- Fix shell completion on MinGW-w64 environment.
+
+## 9.1.0
+
+### Minor Changes
+
+- New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- A dependency is hoisted to resolve an optional peer dependency only if it satisfies the range provided for the optional peer dependency [#8028](https://github.com/pnpm/pnpm/pull/8028).
+- Details in the `pnpm outdated` output are wrapped correctly [#8037](https://github.com/pnpm/pnpm/pull/8037).
+- Fix `Cannot read properties of undefined (reading 'missingPeersOfChildren')` exception that happens on install [#8041](https://github.com/pnpm/pnpm/issues/8041).
+- Explicitly throw an error when user attempts to run `publish` or `pack` when `bundledDependencies` is set but `node-linker` isn't `hoisted`.
+- `pnpm update` should not fail when there's an aliased local workspace dependency [#7975](https://github.com/pnpm/pnpm/issues/7975).
+
 ## 9.0.6
 
 ### Patch Changes
@@ -447,7 +585,7 @@
 ### Minor Changes
 
 - Improve performance of installation by using a worker pool for extracting packages and writing them to the content-addressable store [#6850](https://github.com/pnpm/pnpm/pull/6850)
-- The default value of the `resolution-mode` setting is changed to `highest`. This setting was changed to `lowest-direct` in v8.0.0 and some users were [not happy with the change](https://github.com/pnpm/pnpm/issues/6463). A [twitter poll](https://twitter.com/pnpmjs/status/1693707270897517022) concluded that most of the users want the old behaviour (`resolution-mode` set to `highest` by default). This is a semi-breaking change but should not affect users that commit their lockfile [#6463](https://github.com/pnpm/pnpm/issues/6463).
+- The default value of the `resolution-mode` setting is changed to `highest`. This setting was changed to `lowest-direct` in v8.0.0 and some users were [not happy with the change](https://github.com/pnpm/pnpm/issues/6463). A [poll](https://x.com/pnpmjs/status/1693707270897517022) concluded that most of the users want the old behaviour (`resolution-mode` set to `highest` by default). This is a semi-breaking change but should not affect users that commit their lockfile [#6463](https://github.com/pnpm/pnpm/issues/6463).
 
 ### Patch Changes
 

@@ -25,11 +25,11 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "semver": "^7.6.0"
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/resolve-workspace-range": "workspace:*",
-    "@types/semver": "7.5.3"
+    "@types/semver": "catalog:"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

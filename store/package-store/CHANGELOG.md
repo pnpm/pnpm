@@ -1,5 +1,119 @@
 # @pnpm/package-store
 
+## 20.3.3
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/fetcher-base@16.0.4
+  - @pnpm/package-requester@25.2.3
+  - @pnpm/resolver-base@13.0.1
+  - @pnpm/store.cafs@3.0.6
+  - @pnpm/store-controller-types@18.1.3
+  - @pnpm/worker@1.0.7
+  - @pnpm/create-cafs-store@7.0.6
+
+## 20.3.2
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/create-cafs-store@7.0.5
+  - @pnpm/package-requester@25.2.2
+  - @pnpm/worker@1.0.6
+
+## 20.3.1
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/fetcher-base@16.0.3
+  - @pnpm/package-requester@25.2.1
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/store.cafs@3.0.4
+  - @pnpm/worker@1.0.5
+  - @pnpm/create-cafs-store@7.0.4
+
+## 20.3.0
+
+### Minor Changes
+
+- 7c6c923: Some registries allow the exact same content to be published under different package names and/or versions. This breaks the validity checks of packages in the store. To avoid errors when verifying the names and versions of such packages in the store, you may now set the `strict-store-pkg-content-check` setting to `false` [#4724](https://github.com/pnpm/pnpm/issues/4724).
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [13e55b2]
+  - @pnpm/package-requester@25.2.0
+  - @pnpm/types@10.1.1
+  - @pnpm/fetcher-base@16.0.2
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/store.cafs@3.0.3
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/worker@1.0.4
+  - @pnpm/create-cafs-store@7.0.3
+
+## 20.2.1
+
+### Patch Changes
+
+- @pnpm/package-requester@25.1.4
+- @pnpm/create-cafs-store@7.0.2
+
+## 20.2.0
+
+### Minor Changes
+
+- 0c08e1c: Added a new function for clearing resolution cache.
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/package-requester@25.1.3
+  - @pnpm/store.cafs@3.0.2
+  - @pnpm/create-cafs-store@7.0.2
+  - @pnpm/worker@1.0.3
+
+## 20.1.2
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/fetcher-base@16.0.1
+  - @pnpm/package-requester@25.1.2
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/store.cafs@3.0.1
+  - @pnpm/store-controller-types@18.0.1
+  - @pnpm/worker@1.0.2
+  - @pnpm/create-cafs-store@7.0.1
+
+## 20.1.1
+
+### Patch Changes
+
+- @pnpm/package-requester@25.1.1
+- @pnpm/worker@1.0.1
+
+## 20.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/package-requester@25.1.0
+  - @pnpm/create-cafs-store@7.0.0
+
 ## 20.0.1
 
 ### Patch Changes

@@ -22,6 +22,7 @@ export interface GetPkgInfoOpts {
   readonly skipped: Set<string>
   readonly wantedPackages: PackageSnapshots
   readonly virtualStoreDir?: string
+  readonly virtualStoreDirMaxLength: number
   readonly depTypes: DepTypes
 
   /**
@@ -79,7 +80,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
     version = opts.ref
   }
   const fullPackagePath = depPath
-    ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath), 'node_modules', name)
+    ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', name)
     : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {

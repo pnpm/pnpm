@@ -5,6 +5,7 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import { addDistTag } from '@pnpm/registry-mock'
+import { type ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils'
 
 test('save to package.json (is-positive@^1.0.0)', async () => {
@@ -210,7 +211,7 @@ test('an update bumps the versions in the manifest', async () => {
       },
     },
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
     update: true,
   },
   testDefaults())

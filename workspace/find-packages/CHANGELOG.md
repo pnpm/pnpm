@@ -1,5 +1,100 @@
 # @pnpm/find-workspace-packages
 
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/fs.find-packages@4.0.1
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.4
+
+## 4.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/fs.find-packages@4.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+
+## 3.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/fs.find-packages@3.0.3
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+
+## 2.1.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.1
+
+## 2.1.0
+
+### Minor Changes
+
+- b7ca13f: If `package-manager-strict-version` is set to `true` pnpm will fail if its version will not exactly match the version in the `packageManager` field of `package.json`.
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+
+## 2.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.7
+
+## 2.0.6
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/fs.find-packages@3.0.2
+
+## 2.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.5
+- @pnpm/workspace.read-manifest@2.0.1
+- @pnpm/fs.find-packages@3.0.1
+
+## 2.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 2.0.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.3
+
 ## 2.0.2
 
 ### Patch Changes

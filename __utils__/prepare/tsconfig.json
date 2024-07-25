@@ -15,6 +15,5 @@
     {
       "path": "../assert-project"
     }
-  ],
-  "composite": true
+  ]
 }
