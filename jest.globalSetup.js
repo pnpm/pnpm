@@ -10,6 +10,9 @@ module.exports = () => {
     stdio: 'ignore',
   })
   let killed = false
+  server.on('error', (err) => {
+    console.log(err)
+  })
   server.on('close', () => {
     if (!killed) {
       console.log('Error: The registry server was killed!')
