@@ -44,7 +44,7 @@ export interface DependenciesGraphNode {
   requiresBuild?: boolean
   hasBin: boolean
   filesIndexFile?: string
-  patchFile?: PatchFile
+  patchFile?: PatchFile & { allowFailure: boolean }
 }
 
 export interface DependenciesGraph {
@@ -183,6 +183,19 @@ export async function lockfileToDepGraph (
             throw err
           }
         }
+        const pkgNameAndVersion = `${pkgName}@${pkgVersion}`
+        let patchFile: (PatchFile & { allowFailure: boolean }) | undefined
+        if (opts.patchedDependencies?.[pkgNameAndVersion]) {
+          patchFile = {
+            ...opts.patchedDependencies[pkgNameAndVersion],
+            allowFailure: false,
+          }
+        } else if (opts.patchedDependencies?.[pkgName]) {
+          patchFile = {
+            ...opts.patchedDependencies[pkgName],
+            allowFailure: true,
+          }
+        }
         graph[dir] = {
           children: {},
           pkgIdWithPatchHash,
@@ -196,7 +209,7 @@ export async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-          patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
+          patchFile,
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
       })

@@ -234,6 +234,19 @@ async function fetchDeps (
         throw err
       }
     }
+    const pkgNameAndVersion = `${pkgName}@${pkgVersion}`
+    let patchFile: (PatchFile & { allowFailure: boolean }) | undefined
+    if (opts.patchedDependencies?.[pkgNameAndVersion]) {
+      patchFile = {
+        ...opts.patchedDependencies[pkgNameAndVersion],
+        allowFailure: false,
+      }
+    } else if (opts.patchedDependencies?.[pkgName]) {
+      patchFile = {
+        ...opts.patchedDependencies[pkgName],
+        allowFailure: true,
+      }
+    }
     opts.graph[dir] = {
       alias: dep.name,
       children: {},
@@ -248,7 +261,7 @@ async function fetchDeps (
       name: pkgName,
       optional: !!pkgSnapshot.optional,
       optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-      patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
+      patchFile,
     }
     if (!opts.pkgLocationsByDepPath[depPath]) {
       opts.pkgLocationsByDepPath[depPath] = []

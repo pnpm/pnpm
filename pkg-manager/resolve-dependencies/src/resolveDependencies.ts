@@ -230,7 +230,7 @@ export interface ResolvedPackage {
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
-  patchFile?: PatchFile
+  patchFile?: PatchFile & { allowFailure: boolean }
   prepare: boolean
   pkgIdWithPatchHash: PkgIdWithPatchHash
   requiresBuild?: boolean
@@ -1340,7 +1340,10 @@ async function resolveDependency (
   let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
   const nameAndVersion = `${pkg.name}@${pkg.version}`
   const patchKey = ctx.patchedDependencies?.[nameAndVersion] ? nameAndVersion : pkg.name
-  const patchFile = ctx.patchedDependencies?.[patchKey]
+  const patchFile: (PatchFile & { allowFailure: boolean }) | undefined = ctx.patchedDependencies?.[patchKey] && {
+    ...ctx.patchedDependencies[patchKey],
+    allowFailure: patchKey !== nameAndVersion,
+  }
   if (patchFile) {
     ctx.appliedPatches.add(patchKey)
     pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patchFile.hash})` as PkgIdWithPatchHash
@@ -1574,7 +1577,7 @@ function getResolvedPackage (
     force: boolean
     hasBin: boolean
     parentImporterId: string
-    patchFile?: PatchFile
+    patchFile?: PatchFile & { allowFailure: boolean }
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean
