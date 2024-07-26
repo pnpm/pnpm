@@ -15,7 +15,6 @@ export function applyPatchToDir (opts: ApplyPatchToDirOpts): void {
   process.chdir(opts.patchedDir)
   let success = false
   try {
-    // TODO: allowFailure should be added to @pnpm/patch-package itself?
     success = applyPatch({
       patchFilePath: opts.patchFilePath,
     })
