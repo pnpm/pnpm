@@ -1,7 +1,10 @@
 ---
+"@pnpm/build-modules": major
+"@pnpm/deps.graph-builder": major
+"@pnpm/headless": minor
 "@pnpm/patching.apply-patch": major
 "@pnpm/plugin-commands-patching": minor
-"@pnpm/resolve-dependencies": minor
+"@pnpm/resolve-dependencies": major
 "pnpm": minor
 ---
 
