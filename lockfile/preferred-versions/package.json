@@ -33,7 +33,7 @@
     "@pnpm/lockfile.preferred-versions": "workspace:*"
   },
   "dependencies": {
-    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",

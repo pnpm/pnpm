@@ -5,7 +5,7 @@ import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   type PackageSnapshot,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
 import { type DepPath } from '@pnpm/types'

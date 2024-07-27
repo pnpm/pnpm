@@ -40,13 +40,13 @@
       "path": "../fs"
     },
     {
-      "path": "../lockfile-utils"
-    },
-    {
       "path": "../lockfile-walker"
     },
     {
       "path": "../types"
+    },
+    {
+      "path": "../utils"
     }
   ]
 }

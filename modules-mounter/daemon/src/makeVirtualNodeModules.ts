@@ -1,7 +1,7 @@
 import path from 'path'
 import { type Lockfile } from '@pnpm/lockfile.fs'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import * as dp from '@pnpm/dependency-path'
 import normalize from 'normalize-path'
 

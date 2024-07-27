@@ -19,7 +19,7 @@
       "path": "../fs"
     },
     {
-      "path": "../lockfile-utils"
+      "path": "../utils"
     }
   ]
 }

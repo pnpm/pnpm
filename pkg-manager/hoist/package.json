@@ -44,7 +44,7 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/types": "workspace:*",

@@ -16,10 +16,10 @@
       "path": "../../lockfile/filtering"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/types"
     },
     {
-      "path": "../../lockfile/types"
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/core-loggers"

@@ -32,7 +32,7 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile.filtering": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",

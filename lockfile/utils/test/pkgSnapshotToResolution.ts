@@ -1,4 +1,4 @@
-import { pkgSnapshotToResolution } from '@pnpm/lockfile-utils'
+import { pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
 test('pkgSnapshotToResolution()', () => {
   expect(pkgSnapshotToResolution('foo@1.0.0', {

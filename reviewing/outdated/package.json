@@ -41,7 +41,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.read-package-hook": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",

@@ -73,9 +73,6 @@
       "path": "../../lockfile/lockfile-to-pnp"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
-    },
-    {
       "path": "../../lockfile/lockfile-walker"
     },
     {
@@ -86,6 +83,9 @@
     },
     {
       "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../lockfile/verification"

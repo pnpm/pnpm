@@ -23,7 +23,7 @@
     "@pnpm/local-resolver",
     "@pnpm/lockfile-file",
     "@pnpm/lockfile-types",
-    "@pnpm/lockfile-utils",
+    "@pnpm/lockfile.utils",
     "@pnpm/logger",
     "@pnpm/modules-cleaner",
     "@pnpm/modules-yaml",

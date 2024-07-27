@@ -28,13 +28,13 @@
       "path": "../../resolving/git-resolver"
     },
     {
-      "path": "../lockfile-utils"
-    },
-    {
       "path": "../merge-lockfile-changes"
     },
     {
       "path": "../types"
+    },
+    {
+      "path": "../utils"
     }
   ]
 }

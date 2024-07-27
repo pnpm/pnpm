@@ -4,7 +4,7 @@ import { getFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } fr
 import { type Lockfile, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import { type DepPath } from '@pnpm/types'
 import * as schemas from 'hyperdrive-schemas'
 import loadJsonFile from 'load-json-file'

@@ -7,7 +7,7 @@ import {
   type ProjectSnapshot,
   type PackageSnapshots,
 } from '@pnpm/lockfile.types'
-import { refIsLocalDirectory, refIsLocalTarball } from '@pnpm/lockfile-utils'
+import { refIsLocalDirectory, refIsLocalTarball } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { refToRelative } from '@pnpm/dependency-path'
 import { type DirectoryResolution, type WorkspacePackages } from '@pnpm/resolver-base'

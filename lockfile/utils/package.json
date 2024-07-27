@@ -1,6 +1,6 @@
 {
-  "name": "@pnpm/lockfile-utils",
-  "version": "11.0.4",
+  "name": "@pnpm/lockfile.utils",
+  "version": "0.0.0",
   "description": "Utils for dealing with pnpm-lock.yaml",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-utils",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/utils",
   "keywords": [
     "pnpm9",
     "pnpm",
@@ -29,9 +29,9 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-utils#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/utils#readme",
   "devDependencies": {
-    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@types/ramda": "catalog:",
     "tempy": "catalog:",
     "write-yaml-file": "catalog:",

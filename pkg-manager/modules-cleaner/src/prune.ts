@@ -10,7 +10,7 @@ import {
   type PackageSnapshots,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.types'
-import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
+import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { type StoreController } from '@pnpm/store-controller-types'

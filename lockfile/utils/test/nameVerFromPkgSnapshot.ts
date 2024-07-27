@@ -1,4 +1,4 @@
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 
 test('nameVerFromPkgSnapshot()', () => {
   expect(nameVerFromPkgSnapshot('foo@some-weird-path', {

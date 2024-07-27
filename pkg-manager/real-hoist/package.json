@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@yarnpkg/nm": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
