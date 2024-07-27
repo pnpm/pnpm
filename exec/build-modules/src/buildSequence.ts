@@ -1,5 +1,5 @@
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
-import { type PkgIdWithPatchHash, type DepPath, type PackageManifest, type PatchFile } from '@pnpm/types'
+import { type PkgIdWithPatchHash, type DepPath, type PackageManifest, type PatchInfo } from '@pnpm/types'
 import filter from 'ramda/src/filter'
 
 export interface DependenciesGraphNode<T extends string> {
@@ -18,7 +18,7 @@ export interface DependenciesGraphNode<T extends string> {
   optionalDependencies: Set<string>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   requiresBuild?: boolean | any // this is a dirty workaround added in https://github.com/pnpm/pnpm/pull/4898
-  patchFile?: PatchFile & { allowFailure: boolean }
+  patchInfo?: PatchInfo
 }
 
 export type DependenciesGraph<T extends string> = Record<T, DependenciesGraphNode<T>>
@@ -41,7 +41,7 @@ export function buildSequence<T extends string> (
 }
 
 function getSubgraphToBuild<T extends string> (
-  graph: Record<string, Pick<DependenciesGraphNode<T>, 'children' | 'requiresBuild' | 'patchFile'>>,
+  graph: Record<string, Pick<DependenciesGraphNode<T>, 'children' | 'requiresBuild' | 'patchInfo'>>,
   entryNodes: T[],
   nodesToBuild: Set<T>,
   walked: Set<T>
@@ -54,7 +54,7 @@ function getSubgraphToBuild<T extends string> (
     walked.add(depPath)
     const childShouldBeBuilt = getSubgraphToBuild(graph, Object.values(node.children), nodesToBuild, walked) ||
       node.requiresBuild ||
-      node.patchFile != null
+      node.patchInfo != null
     if (childShouldBeBuilt) {
       nodesToBuild.add(depPath)
       currentShouldBeBuilt = true

@@ -32,6 +32,11 @@ export interface PatchFile {
   hash: string
 }
 
+export interface PatchInfo {
+  allowFailure: boolean
+  file: PatchFile
+}
+
 export type PkgResolutionId = string & { __brand: 'PkgResolutionId' }
 
 export type PkgId = string & { __brand: 'PkgId' }

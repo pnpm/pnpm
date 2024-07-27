@@ -36,6 +36,7 @@ import {
   type AllowedDeprecatedVersions,
   type PackageManifest,
   type PatchFile,
+  type PatchInfo,
   type ReadPackageHook,
   type Registries,
   type PkgIdWithPatchHash,
@@ -230,7 +231,7 @@ export interface ResolvedPackage {
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
-  patchFile?: PatchFile & { allowFailure: boolean }
+  patchInfo?: PatchInfo
   prepare: boolean
   pkgIdWithPatchHash: PkgIdWithPatchHash
   requiresBuild?: boolean
@@ -1340,13 +1341,13 @@ async function resolveDependency (
   let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
   const nameAndVersion = `${pkg.name}@${pkg.version}`
   const patchKey = ctx.patchedDependencies?.[nameAndVersion] ? nameAndVersion : pkg.name
-  const patchFile: (PatchFile & { allowFailure: boolean }) | undefined = ctx.patchedDependencies?.[patchKey] && {
-    ...ctx.patchedDependencies[patchKey],
+  const patchInfo: PatchInfo | undefined = ctx.patchedDependencies?.[patchKey] && {
     allowFailure: patchKey !== nameAndVersion,
+    file: ctx.patchedDependencies[patchKey],
   }
-  if (patchFile) {
+  if (patchInfo) {
     ctx.appliedPatches.add(patchKey)
-    pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patchFile.hash})` as PkgIdWithPatchHash
+    pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patchInfo.file.hash})` as PkgIdWithPatchHash
   }
 
   // We are building the dependency tree only until there are new packages
@@ -1458,7 +1459,7 @@ async function resolveDependency (
       pkgIdWithPatchHash,
       force: ctx.force,
       hasBin,
-      patchFile,
+      patchInfo,
       pkg,
       pkgResponse,
       prepare,
@@ -1577,7 +1578,7 @@ function getResolvedPackage (
     force: boolean
     hasBin: boolean
     parentImporterId: string
-    patchFile?: PatchFile & { allowFailure: boolean }
+    patchInfo?: PatchInfo
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean
@@ -1607,7 +1608,7 @@ function getResolvedPackage (
     name: options.pkg.name,
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
-    patchFile: options.patchFile,
+    patchInfo: options.patchInfo,
     peerDependencies,
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,

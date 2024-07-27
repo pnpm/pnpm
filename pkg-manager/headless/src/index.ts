@@ -849,14 +849,14 @@ async function linkAllPkgs (
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
         sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
           isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
-          patchFileHash: depNode.patchFile?.hash,
+          patchFileHash: depNode.patchInfo?.file.hash,
         })
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-        requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
+        requiresBuild: depNode.patchInfo != null || depNode.requiresBuild,
         sideEffectsCacheKey,
       })
       if (importMethod) {

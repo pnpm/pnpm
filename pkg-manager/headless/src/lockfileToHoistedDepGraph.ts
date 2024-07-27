@@ -13,7 +13,7 @@ import {
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DepPath, type SupportedArchitectures, type PatchFile, type ProjectId, type Registries } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type PatchFile, type PatchInfo, type ProjectId, type Registries } from '@pnpm/types'
 import {
   type FetchPackageToStoreFunction,
   type StoreController,
@@ -235,16 +235,16 @@ async function fetchDeps (
       }
     }
     const pkgNameAndVersion = `${pkgName}@${pkgVersion}`
-    let patchFile: (PatchFile & { allowFailure: boolean }) | undefined
+    let patchInfo: PatchInfo | undefined
     if (opts.patchedDependencies?.[pkgNameAndVersion]) {
-      patchFile = {
-        ...opts.patchedDependencies[pkgNameAndVersion],
+      patchInfo = {
         allowFailure: false,
+        file: opts.patchedDependencies[pkgNameAndVersion],
       }
     } else if (opts.patchedDependencies?.[pkgName]) {
-      patchFile = {
-        ...opts.patchedDependencies[pkgName],
+      patchInfo = {
         allowFailure: true,
+        file: opts.patchedDependencies[pkgName],
       }
     }
     opts.graph[dir] = {
@@ -261,7 +261,7 @@ async function fetchDeps (
       name: pkgName,
       optional: !!pkgSnapshot.optional,
       optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-      patchFile,
+      patchInfo,
     }
     if (!opts.pkgLocationsByDepPath[depPath]) {
       opts.pkgLocationsByDepPath[depPath] = []

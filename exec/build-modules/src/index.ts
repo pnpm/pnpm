@@ -67,7 +67,7 @@ export async function buildModules<T extends string> (
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
-      return (node.requiresBuild || node.patchFile != null) && !node.isBuilt
+      return (node.requiresBuild || node.patchInfo != null) && !node.isBuilt
     })
     if (opts.depsToBuild != null) {
       chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
@@ -127,9 +127,9 @@ async function buildDependency<T extends string> (
   }
   try {
     await linkBinsOfDependencies(depNode, depGraph, opts)
-    const isPatched = depNode.patchFile?.path != null
-    if (isPatched) {
-      applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patchFile!.path, allowFailure: depNode.patchFile!.allowFailure })
+    if (depNode.patchInfo) {
+      const { file, allowFailure } = depNode.patchInfo
+      applyPatchToDir({ allowFailure, patchedDir: depNode.dir, patchFilePath: file.path })
     }
     const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
       depPath,
@@ -145,10 +145,10 @@ async function buildDependency<T extends string> (
       shellEmulator: opts.shellEmulator,
       unsafePerm: opts.unsafePerm || false,
     })
-    if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite) {
+    if ((depNode.patchInfo != null || hasSideEffects) && opts.sideEffectsCacheWrite) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
-          patchFileHash: depNode.patchFile?.hash,
+          patchFileHash: depNode.patchInfo?.file.hash,
           isBuilt: hasSideEffects,
         })
         await opts.storeController.upload(depNode.dir, {

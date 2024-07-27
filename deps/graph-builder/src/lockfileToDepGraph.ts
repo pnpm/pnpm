@@ -15,7 +15,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
+import { type DepPath, type SupportedArchitectures, type PatchFile, type PatchInfo, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchResponse,
@@ -44,7 +44,7 @@ export interface DependenciesGraphNode {
   requiresBuild?: boolean
   hasBin: boolean
   filesIndexFile?: string
-  patchFile?: PatchFile & { allowFailure: boolean }
+  patchInfo?: PatchInfo
 }
 
 export interface DependenciesGraph {
@@ -184,16 +184,16 @@ export async function lockfileToDepGraph (
           }
         }
         const pkgNameAndVersion = `${pkgName}@${pkgVersion}`
-        let patchFile: (PatchFile & { allowFailure: boolean }) | undefined
+        let patchInfo: PatchInfo | undefined
         if (opts.patchedDependencies?.[pkgNameAndVersion]) {
-          patchFile = {
-            ...opts.patchedDependencies[pkgNameAndVersion],
+          patchInfo = {
             allowFailure: false,
+            file: opts.patchedDependencies[pkgNameAndVersion],
           }
         } else if (opts.patchedDependencies?.[pkgName]) {
-          patchFile = {
-            ...opts.patchedDependencies[pkgName],
+          patchInfo = {
             allowFailure: true,
+            file: opts.patchedDependencies[pkgName],
           }
         }
         graph[dir] = {
@@ -209,7 +209,7 @@ export async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-          patchFile,
+          patchInfo,
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
       })

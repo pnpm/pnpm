@@ -143,7 +143,7 @@ function toLockfileDependency (
   if (pkg.hasBin) {
     result['hasBin'] = true
   }
-  if (pkg.patchFile) {
+  if (pkg.patchInfo) {
     result['patched'] = true
   }
   return result

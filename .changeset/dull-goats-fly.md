@@ -1,5 +1,6 @@
 ---
 "@pnpm/build-modules": major
+"@pnpm/core": minor
 "@pnpm/deps.graph-builder": major
 "@pnpm/headless": minor
 "@pnpm/patching.apply-patch": major
