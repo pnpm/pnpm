@@ -1,5 +1,5 @@
 ---
-"@pnpm/lockfile.lockfile-checker": major
+"@pnpm/lockfile.verification": major
 ---
 
 Initial release.

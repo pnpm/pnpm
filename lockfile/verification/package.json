@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/lockfile.lockfile-checker",
+  "name": "@pnpm/lockfile.verification",
   "version": "0.0.0",
   "description": "Checks a lockfile",
   "main": "lib/index.js",
@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-checker",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/verification",
   "keywords": [
     "pnpm9",
     "pnpm",
@@ -28,7 +28,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-checker#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/verification#readme",
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
   },
@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
-    "@pnpm/lockfile.lockfile-checker": "workspace:*",
+    "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"

@@ -67,9 +67,6 @@
       "path": "../../lockfile/filter-lockfile"
     },
     {
-      "path": "../../lockfile/lockfile-checker"
-    },
-    {
       "path": "../../lockfile/lockfile-file"
     },
     {
@@ -89,6 +86,9 @@
     },
     {
       "path": "../../lockfile/prune-lockfile"
+    },
+    {
+      "path": "../../lockfile/verification"
     },
     {
       "path": "../../packages/calc-dep-state"
