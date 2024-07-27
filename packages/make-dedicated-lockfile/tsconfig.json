@@ -13,7 +13,7 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
       "path": "../../lockfile/prune-lockfile"

@@ -773,9 +773,9 @@ importers:
 
   .meta-updater:
     dependencies:
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../lockfile/lockfile-file
+        version: link:../lockfile/fs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
@@ -1573,12 +1573,12 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2727,9 +2727,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../lockfile-file
+        version: link:../fs
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2811,7 +2811,7 @@ importers:
         specifier: 'catalog:'
         version: 1.1.0
 
-  lockfile/lockfile-file:
+  lockfile/fs:
     dependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -2874,7 +2874,7 @@ importers:
         specifier: 'catalog:'
         version: 5.0.1
     devDependencies:
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: 'link:'
       '@types/js-yaml':
@@ -2907,12 +2907,12 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../lockfile-file
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../lockfile-utils
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -3043,9 +3043,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../lockfile-file
+        version: link:../fs
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
@@ -3225,12 +3225,12 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 5.0.0
@@ -3446,9 +3446,9 @@ importers:
       '@pnpm/find-workspace-dir':
         specifier: workspace:*
         version: link:../../workspace/find-workspace-dir
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 5.0.0
@@ -3667,12 +3667,12 @@ importers:
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -3873,9 +3873,6 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../link-bins
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-to-pnp':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-to-pnp
@@ -3885,6 +3882,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-walker
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/lockfile.preferred-versions':
         specifier: workspace:*
         version: link:../../lockfile/preferred-versions
@@ -4145,9 +4145,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4224,15 +4224,15 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../link-bins
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-to-pnp':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-to-pnp
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4934,9 +4934,9 @@ importers:
 
   pkg-manager/read-projects-context:
     dependencies:
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4972,9 +4972,9 @@ importers:
         specifier: 'catalog:'
         version: 4.0.2(typanion@3.14.0)
     devDependencies:
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/real-hoist':
         specifier: workspace:*
         version: 'link:'
@@ -6118,15 +6118,15 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../lockfile/detect-dep-types
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
@@ -6188,9 +6188,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
@@ -6200,6 +6197,9 @@ importers:
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../lockfile/detect-dep-types
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -6313,12 +6313,12 @@ importers:
       '@pnpm/hooks.read-package-hook':
         specifier: workspace:*
         version: link:../../hooks/read-package-hook
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -6386,9 +6386,9 @@ importers:
       '@pnpm/license-scanner':
         specifier: workspace:*
         version: link:../license-scanner
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -6529,9 +6529,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
@@ -6904,9 +6904,9 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/plugin-commands-script-runners':
         specifier: workspace:*
         version: link:../../exec/plugin-commands-script-runners

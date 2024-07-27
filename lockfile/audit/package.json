@@ -35,7 +35,7 @@
   "devDependencies": {
     "@pnpm/audit": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
     "nock": "catalog:"

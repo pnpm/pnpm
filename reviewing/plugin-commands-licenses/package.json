@@ -51,7 +51,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/license-scanner": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",

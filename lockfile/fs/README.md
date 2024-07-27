@@ -1,4 +1,4 @@
-# @pnpm/lockfile-file
+# @pnpm/lockfile.fs
 
 > Read/write pnpm-lock.yaml files
 
@@ -9,7 +9,7 @@ the `package-lock.json` of npm or the `yarn.lock` of Yarn.
 ## Install
 
 ```
-pnpm add @pnpm/lockfile-file
+pnpm add @pnpm/lockfile.fs
 ```
 
 ## API

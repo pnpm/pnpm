@@ -47,7 +47,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",

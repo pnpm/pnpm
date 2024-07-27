@@ -6,7 +6,7 @@ import {
 import {
   type Lockfile,
   type PackageSnapshot,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,

@@ -1,6 +1,6 @@
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as readYamlFile } from 'read-yaml-file'

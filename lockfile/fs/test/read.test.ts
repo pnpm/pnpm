@@ -6,7 +6,7 @@ import {
   readWantedLockfile,
   writeCurrentLockfile,
   writeWantedLockfile,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 import tempy from 'tempy'
 

@@ -32,7 +32,7 @@ import {
   writeLockfiles,
   writeCurrentLockfile,
   type PatchFile,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
   extendProjectsWithTargetDirs,

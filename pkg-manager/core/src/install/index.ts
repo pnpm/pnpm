@@ -33,7 +33,7 @@ import {
   writeWantedLockfile,
   cleanGitBranchLockfiles,
   type PatchFile,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'

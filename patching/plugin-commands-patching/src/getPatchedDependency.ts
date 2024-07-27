@@ -1,7 +1,7 @@
 import path from 'path'
 import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { prompt } from 'enquirer'
-import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile-file'
+import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { PnpmError } from '@pnpm/error'
 import { readModulesManifest } from '@pnpm/modules-yaml'

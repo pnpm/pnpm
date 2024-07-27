@@ -3,7 +3,7 @@ import {
   type PackageSnapshot,
   type PackageSnapshots,
   type TarballResolution,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,

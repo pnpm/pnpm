@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { type LockfileV9 as Lockfile } from '@pnpm/lockfile-file'
+import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
 import deepRequireCwd from 'deep-require-cwd'

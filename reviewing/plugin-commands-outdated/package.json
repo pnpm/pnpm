@@ -48,7 +48,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/default-resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/outdated": "workspace:*",

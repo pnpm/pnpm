@@ -5,7 +5,7 @@ import {
   readCurrentLockfile,
   readWantedLockfile,
   writeLockfiles,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import tempy from 'tempy'
 import yaml from 'yaml-tag'
 import { getCurrentBranch } from '@pnpm/git-utils'

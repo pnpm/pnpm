@@ -37,7 +37,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/real-hoist": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*"

@@ -13,7 +13,7 @@
       "path": "../../config/normalize-registries"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
       "path": "../../packages/types"

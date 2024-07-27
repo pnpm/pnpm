@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile-file'
+import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile.fs'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import isSubdir from 'is-subdir'

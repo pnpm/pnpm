@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@yarnpkg/pnp": "catalog:",

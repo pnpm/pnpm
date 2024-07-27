@@ -43,7 +43,7 @@
       "path": "../../lockfile/filter-lockfile"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
       "path": "../../lockfile/lockfile-to-pnp"

@@ -36,7 +36,7 @@
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile-to-pnp": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",

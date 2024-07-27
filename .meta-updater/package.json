@@ -7,7 +7,7 @@
     "compile": "tsc --build"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/normalize-path": "catalog:",
     "is-subdir": "catalog:",

@@ -11,7 +11,7 @@ import {
   readCurrentLockfile,
   readWantedLockfile,
   readWantedLockfileAndAutofixConflicts,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { isCI } from 'ci-info'

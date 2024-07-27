@@ -16,7 +16,7 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../lockfile-file"
+      "path": "../fs"
     },
     {
       "path": "../lockfile-utils"

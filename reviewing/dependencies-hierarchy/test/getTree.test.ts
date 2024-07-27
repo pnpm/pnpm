@@ -1,5 +1,5 @@
 import { refToRelative } from '@pnpm/dependency-path'
-import { type PackageSnapshots } from '@pnpm/lockfile-file'
+import { type PackageSnapshots } from '@pnpm/lockfile.fs'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { type DepPath } from '@pnpm/types'
 import { getTree } from '../lib/getTree'

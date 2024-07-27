@@ -40,7 +40,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",

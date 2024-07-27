@@ -10,7 +10,7 @@ import {
   type ProjectSnapshot,
   writeCurrentLockfile,
   writeLockfiles,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { logger, streamParser } from '@pnpm/logger'
 import {
   getPref,
