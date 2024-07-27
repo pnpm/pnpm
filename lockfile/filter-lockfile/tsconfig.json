@@ -25,13 +25,13 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../lockfile-types"
-    },
-    {
       "path": "../lockfile-utils"
     },
     {
       "path": "../lockfile-walker"
+    },
+    {
+      "path": "../types"
     }
   ]
 }

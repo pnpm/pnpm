@@ -31,7 +31,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/filter-lockfile": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",

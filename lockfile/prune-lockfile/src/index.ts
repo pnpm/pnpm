@@ -4,14 +4,14 @@ import {
   type PackageSnapshots,
   type ProjectSnapshot,
   type ResolvedDependencies,
-} from '@pnpm/lockfile-types'
+} from '@pnpm/lockfile.types'
 import { type DepPath, type PackageManifest, type ProjectId } from '@pnpm/types'
 import { refToRelative } from '@pnpm/dependency-path'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
 import unnest from 'ramda/src/unnest'
 
-export * from '@pnpm/lockfile-types'
+export * from '@pnpm/lockfile.types'
 
 // cannot import DependenciesGraph from @pnpm/resolve-dependencies due to circular dependency
 type DependenciesGraph = Record<DepPath, { optional?: boolean }>

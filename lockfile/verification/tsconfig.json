@@ -34,10 +34,10 @@
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../lockfile-types"
+      "path": "../lockfile-utils"
     },
     {
-      "path": "../lockfile-utils"
+      "path": "../types"
     }
   ]
 }

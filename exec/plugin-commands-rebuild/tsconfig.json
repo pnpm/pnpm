@@ -40,13 +40,13 @@
       "path": "../../deps/graph-sequencer"
     },
     {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
       "path": "../../lockfile/lockfile-utils"
     },
     {
       "path": "../../lockfile/lockfile-walker"
+    },
+    {
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/calc-dep-state"

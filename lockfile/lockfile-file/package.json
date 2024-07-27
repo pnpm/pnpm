@@ -51,7 +51,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/git-resolver": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/merge-lockfile-changes": "workspace:*",
     "@pnpm/types": "workspace:*",

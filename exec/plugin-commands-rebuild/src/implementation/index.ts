@@ -15,7 +15,7 @@ import {
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
 import { linkBins } from '@pnpm/link-bins'
-import { type TarballResolution } from '@pnpm/lockfile-types'
+import { type TarballResolution } from '@pnpm/lockfile.types'
 import {
   type Lockfile,
   nameVerFromPkgSnapshot,

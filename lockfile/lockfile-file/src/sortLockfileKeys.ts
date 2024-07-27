@@ -1,6 +1,6 @@
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import sortKeys from 'sort-keys'
-import { type LockfileFileV9, type LockfileFile } from '@pnpm/lockfile-types'
+import { type LockfileFileV9, type LockfileFile } from '@pnpm/lockfile.types'
 
 const ORDERED_KEYS = {
   resolution: 1,

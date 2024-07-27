@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { type LockfileV9 as Lockfile } from '@pnpm/lockfile-types'
+import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'

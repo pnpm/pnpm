@@ -22,7 +22,7 @@
       "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/error"

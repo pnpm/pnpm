@@ -9,7 +9,7 @@ import {
   type Lockfile,
   type PackageSnapshots,
   type ProjectSnapshot,
-} from '@pnpm/lockfile-types'
+} from '@pnpm/lockfile.types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { readModulesDir } from '@pnpm/read-modules-dir'

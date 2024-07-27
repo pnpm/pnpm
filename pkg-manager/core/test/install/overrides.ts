@@ -6,7 +6,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type MutatedProject, type ProjectOptions, addDependenciesToPackage, mutateModulesInSingleProject, mutateModules } from '@pnpm/core'
-import { type LockfileFileV9 } from '@pnpm/lockfile-types'
+import { type LockfileFileV9 } from '@pnpm/lockfile.types'
 import { type ProjectRootDir, type ProjectManifest } from '@pnpm/types'
 import {
   testDefaults,

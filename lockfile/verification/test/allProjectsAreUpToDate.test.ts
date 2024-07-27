@@ -3,7 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
 import { writeFile, mkdir } from 'fs/promises'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import { type Lockfile } from '@pnpm/lockfile.types'
 
 const fooManifest = {
   name: 'foo',

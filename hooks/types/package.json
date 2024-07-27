@@ -31,7 +31,7 @@
     "@pnpm/hooks.types": "workspace:*"
   },
   "dependencies": {
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",

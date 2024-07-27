@@ -1,4 +1,4 @@
-import { type Lockfile } from '@pnpm/lockfile-types'
+import { type Lockfile } from '@pnpm/lockfile.types'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 import { mergeLockfileChanges } from '../src'
 

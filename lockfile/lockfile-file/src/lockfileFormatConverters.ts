@@ -12,7 +12,7 @@ import {
   type PackageInfo,
   type LockfileFileV9,
   type PackageSnapshots,
-} from '@pnpm/lockfile-types'
+} from '@pnpm/lockfile.types'
 import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'

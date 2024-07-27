@@ -1,4 +1,4 @@
-import { type Lockfile } from '@pnpm/lockfile-types'
+import { type Lockfile } from '@pnpm/lockfile.types'
 import { type DependenciesField, type DepPath, type ProjectId } from '@pnpm/types'
 import { filterLockfileByImporters } from './filterLockfileByImporters'
 

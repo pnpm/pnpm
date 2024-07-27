@@ -1,4 +1,4 @@
-import { type PackageSnapshot } from '@pnpm/lockfile-types'
+import { type PackageSnapshot } from '@pnpm/lockfile.types'
 import * as dp from '@pnpm/dependency-path'
 import { type PkgResolutionId } from '@pnpm/types'
 

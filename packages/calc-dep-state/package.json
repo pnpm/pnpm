@@ -32,7 +32,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/types": "workspace:*",
     "sort-keys": "catalog:"

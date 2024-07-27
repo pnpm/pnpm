@@ -229,7 +229,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   const relative = normalizePath(path.relative(workspaceDir, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {
-  case '@pnpm/lockfile-types':
+  case '@pnpm/lockfile.types':
     scripts = { ...manifest.scripts }
     break
   case '@pnpm/headless':

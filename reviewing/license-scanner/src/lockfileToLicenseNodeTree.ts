@@ -1,4 +1,4 @@
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
+import { type Lockfile, type TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import {

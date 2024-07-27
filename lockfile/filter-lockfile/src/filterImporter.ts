@@ -1,4 +1,4 @@
-import { type ProjectSnapshot } from '@pnpm/lockfile-types'
+import { type ProjectSnapshot } from '@pnpm/lockfile.types'
 import { type DependenciesField } from '@pnpm/types'
 
 export function filterImporter (

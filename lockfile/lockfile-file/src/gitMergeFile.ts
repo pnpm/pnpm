@@ -1,4 +1,4 @@
-import { type Lockfile, type LockfileFile } from '@pnpm/lockfile-types'
+import { type Lockfile, type LockfileFile } from '@pnpm/lockfile.types'
 import { mergeLockfileChanges } from '@pnpm/merge-lockfile-changes'
 import yaml from 'js-yaml'
 import { convertToLockfileObject } from './lockfileFormatConverters'

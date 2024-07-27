@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { type LockfileFileV9, type Lockfile, type LockfileFile } from '@pnpm/lockfile-types'
+import { type LockfileFileV9, type Lockfile, type LockfileFile } from '@pnpm/lockfile.types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import yaml from 'js-yaml'

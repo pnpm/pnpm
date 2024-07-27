@@ -22,7 +22,7 @@
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../lockfile-types"
+      "path": "../types"
     }
   ]
 }

@@ -10,7 +10,7 @@ import {
   type Lockfile,
   type PackageSnapshot,
   type ResolvedDependencies,
-} from '@pnpm/lockfile-types'
+} from '@pnpm/lockfile.types'
 import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,

@@ -1,4 +1,4 @@
-import { type Lockfile, type PackageSnapshot, type PackageSnapshots } from '@pnpm/lockfile-types'
+import { type Lockfile, type PackageSnapshot, type PackageSnapshots } from '@pnpm/lockfile.types'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 import comverToSemver from 'comver-to-semver'
 import semver from 'semver'

@@ -13,10 +13,10 @@
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/lockfile-utils"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/types"
     },
     {
       "path": "../constants"

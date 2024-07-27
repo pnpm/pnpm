@@ -1,5 +1,5 @@
 import path from 'path'
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
+import { type Lockfile, type TarballResolution } from '@pnpm/lockfile.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { type ProjectId, type DepPath } from '@pnpm/types'
 import { packageIdFromSnapshot } from './packageIdFromSnapshot'

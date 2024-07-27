@@ -13,13 +13,13 @@
       "path": "../../config/matcher"
     },
     {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
       "path": "../../lockfile/lockfile-utils"
     },
     {
       "path": "../../lockfile/lockfile-walker"
+    },
+    {
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/constants"

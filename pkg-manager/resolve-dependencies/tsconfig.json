@@ -22,9 +22,6 @@
       "path": "../../fetching/pick-fetcher"
     },
     {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
       "path": "../../lockfile/lockfile-utils"
     },
     {
@@ -32,6 +29,9 @@
     },
     {
       "path": "../../lockfile/prune-lockfile"
+    },
+    {
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/constants"

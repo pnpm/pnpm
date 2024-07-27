@@ -1,5 +1,5 @@
 import url from 'url'
-import { type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile-types'
+import { type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.types'
 import { type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'

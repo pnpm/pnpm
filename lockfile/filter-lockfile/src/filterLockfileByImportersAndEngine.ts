@@ -3,7 +3,7 @@ import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
   type Lockfile,
   type PackageSnapshots,
-} from '@pnpm/lockfile-types'
+} from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'

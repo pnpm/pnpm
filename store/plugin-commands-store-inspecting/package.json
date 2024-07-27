@@ -39,7 +39,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/store-path": "workspace:*",

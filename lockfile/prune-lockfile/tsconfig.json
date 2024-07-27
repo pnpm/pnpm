@@ -19,7 +19,7 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../lockfile-types"
+      "path": "../types"
     }
   ]
 }
