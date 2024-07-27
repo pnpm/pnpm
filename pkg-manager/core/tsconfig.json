@@ -67,6 +67,9 @@
       "path": "../../lockfile/filter-lockfile"
     },
     {
+      "path": "../../lockfile/lockfile-checker"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {
