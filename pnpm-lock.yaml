@@ -3062,7 +3062,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  lockfile/prune-lockfile:
+  lockfile/pruner:
     dependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -3080,7 +3080,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
-      '@pnpm/prune-lockfile':
+      '@pnpm/lockfile.pruner':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
@@ -3449,12 +3449,12 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
+      '@pnpm/lockfile.pruner':
+        specifier: workspace:*
+        version: link:../../lockfile/pruner
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 5.0.0
-      '@pnpm/prune-lockfile':
-        specifier: workspace:*
-        version: link:../../lockfile/prune-lockfile
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -3882,6 +3882,9 @@ importers:
       '@pnpm/lockfile.preferred-versions':
         specifier: workspace:*
         version: link:../../lockfile/preferred-versions
+      '@pnpm/lockfile.pruner':
+        specifier: workspace:*
+        version: link:../../lockfile/pruner
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
@@ -3924,9 +3927,6 @@ importers:
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: link:../direct-dep-linker
-      '@pnpm/prune-lockfile':
-        specifier: workspace:*
-        version: link:../../lockfile/prune-lockfile
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
@@ -5045,6 +5045,9 @@ importers:
       '@pnpm/lockfile.preferred-versions':
         specifier: workspace:*
         version: link:../../lockfile/preferred-versions
+      '@pnpm/lockfile.pruner':
+        specifier: workspace:*
+        version: link:../../lockfile/pruner
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -5066,9 +5069,6 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
-      '@pnpm/prune-lockfile':
-        specifier: workspace:*
-        version: link:../../lockfile/prune-lockfile
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json

@@ -34,7 +34,7 @@
     "@pnpm/package-requester",
     "@pnpm/package-store",
     "@pnpm/pkgid-to-filename",
-    "@pnpm/prune-lockfile",
+    "@pnpm/lockfile.pruner",
     "@pnpm/read-projects-context",
     "@pnpm/read-project-manifest",
     "@pnpm/read-modules-dir",

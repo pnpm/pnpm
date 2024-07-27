@@ -7,7 +7,7 @@ import {
   readWantedLockfile,
   writeWantedLockfile,
 } from '@pnpm/lockfile.fs'
-import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
+import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import pickBy from 'ramda/src/pickBy'

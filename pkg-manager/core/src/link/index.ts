@@ -20,7 +20,7 @@ import {
   type PackageSpecObject,
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
-import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
+import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {

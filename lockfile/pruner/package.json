@@ -1,6 +1,6 @@
 {
-  "name": "@pnpm/prune-lockfile",
-  "version": "6.1.4",
+  "name": "@pnpm/lockfile.pruner",
+  "version": "0.0.0",
   "description": "Prune a pnpm-lock.yaml",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/prune-lockfile",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/pruner",
   "keywords": [
     "pnpm9",
     "pnpm",
@@ -29,9 +29,9 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/prune-lockfile#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/pruner#readme",
   "devDependencies": {
-    "@pnpm/prune-lockfile": "workspace:*",
+    "@pnpm/lockfile.pruner": "workspace:*",
     "@types/ramda": "catalog:",
     "yaml-tag": "catalog:"
   },

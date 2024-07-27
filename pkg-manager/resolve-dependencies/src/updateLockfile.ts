@@ -4,7 +4,7 @@ import {
   type LockfileResolution,
   type PackageSnapshot,
   pruneSharedLockfile,
-} from '@pnpm/prune-lockfile'
+} from '@pnpm/lockfile.pruner'
 import { type DirectoryResolution, type Resolution } from '@pnpm/resolver-base'
 import { type DepPath, type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'

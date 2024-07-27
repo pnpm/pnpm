@@ -3,7 +3,7 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   pruneLockfile,
   pruneSharedLockfile,
-} from '@pnpm/prune-lockfile'
+} from '@pnpm/lockfile.pruner'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 import yaml from 'yaml-tag'
 

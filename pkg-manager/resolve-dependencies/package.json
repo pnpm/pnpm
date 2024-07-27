@@ -42,7 +42,7 @@
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
-    "@pnpm/prune-lockfile": "workspace:*",
+    "@pnpm/lockfile.pruner": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",

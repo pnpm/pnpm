@@ -16,7 +16,7 @@
       "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/prune-lockfile"
+      "path": "../../lockfile/pruner"
     },
     {
       "path": "../../pkg-manifest/exportable-manifest"

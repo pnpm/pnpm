@@ -76,7 +76,7 @@
       "path": "../../lockfile/preferred-versions"
     },
     {
-      "path": "../../lockfile/prune-lockfile"
+      "path": "../../lockfile/pruner"
     },
     {
       "path": "../../lockfile/types"
