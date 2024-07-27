@@ -1,9 +1,9 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
-import { allProjectsAreUpToDate } from '../lib/install/allProjectsAreUpToDate'
+import { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
 import { writeFile, mkdir } from 'fs/promises'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile-types'
 
 const fooManifest = {
   name: 'foo',

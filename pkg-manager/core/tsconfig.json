@@ -88,6 +88,9 @@
       "path": "../../lockfile/prune-lockfile"
     },
     {
+      "path": "../../lockfile/verification"
+    },
+    {
       "path": "../../packages/calc-dep-state"
     },
     {

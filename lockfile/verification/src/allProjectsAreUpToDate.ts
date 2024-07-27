@@ -6,8 +6,8 @@ import {
   type Lockfile,
   type ProjectSnapshot,
   type PackageSnapshots,
-} from '@pnpm/lockfile-file'
-import { refIsLocalDirectory, refIsLocalTarball, satisfiesPackageManifest } from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile-types'
+import { refIsLocalDirectory, refIsLocalTarball } from '@pnpm/lockfile-utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { refToRelative } from '@pnpm/dependency-path'
 import { type DirectoryResolution, type WorkspacePackages } from '@pnpm/resolver-base'
@@ -23,6 +23,7 @@ import any from 'ramda/src/any'
 import semver from 'semver'
 import getVersionSelectorType from 'version-selector-type'
 import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate'
+import { satisfiesPackageManifest } from './satisfiesPackageManifest'
 
 export async function allProjectsAreUpToDate (
   projects: Array<Pick<ProjectOptions, 'manifest' | 'rootDir'> & { id: ProjectId }>,

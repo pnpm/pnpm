@@ -3159,6 +3159,64 @@ importers:
         specifier: 'catalog:'
         version: 1.1.0
 
+  lockfile/verification:
+    dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/get-context':
+        specifier: workspace:*
+        version: link:../../pkg-manager/get-context
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../lockfile-types
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../lockfile-utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      p-every:
+        specifier: 'catalog:'
+        version: 2.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      semver:
+        specifier: 'catalog:'
+        version: 7.6.2
+      version-selector-type:
+        specifier: 'catalog:'
+        version: 3.0.0
+    devDependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/lockfile.verification':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
+
   modules-mounter/daemon:
     dependencies:
       '@pnpm/config':
@@ -3830,6 +3888,9 @@ importers:
       '@pnpm/lockfile.preferred-versions':
         specifier: workspace:*
         version: link:../../lockfile/preferred-versions
+      '@pnpm/lockfile.verification':
+        specifier: workspace:*
+        version: link:../../lockfile/verification
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -3869,9 +3930,6 @@ importers:
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-package-json
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -3914,9 +3972,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-      p-every:
-        specifier: 'catalog:'
-        version: 2.0.0
       p-filter:
         specifier: 'catalog:'
         version: 2.1.0
@@ -3941,9 +3996,6 @@ importers:
       sort-keys:
         specifier: 'catalog:'
         version: 4.2.0
-      version-selector-type:
-        specifier: 'catalog:'
-        version: 3.0.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -3972,6 +4024,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)

@@ -35,7 +35,8 @@ import {
   type PatchFile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
-import { extendProjectsWithTargetDirs, satisfiesPackageManifest } from '@pnpm/lockfile-utils'
+import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
+import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
@@ -80,7 +81,6 @@ import props from 'ramda/src/props'
 import sortKeys from 'sort-keys'
 import { parseWantedDependencies } from '../parseWantedDependencies'
 import { removeDeps } from '../uninstall/removeDeps'
-import { allProjectsAreUpToDate } from './allProjectsAreUpToDate'
 import {
   extendOptions,
   type InstallOptions,

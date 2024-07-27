@@ -1,4 +1,4 @@
-import { satisfiesPackageManifest } from '@pnpm/lockfile-utils'
+import { satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 
 const DEFAULT_PKG_FIELDS = {
   name: 'project',

@@ -35,6 +35,7 @@
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
+    "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-to-pnp": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
@@ -52,7 +53,6 @@
     "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
     "@pnpm/prune-lockfile": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@pnpm/resolve-dependencies": "workspace:*",
@@ -66,7 +66,6 @@
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
-    "p-every": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
     "p-map-values": "catalog:",
@@ -74,8 +73,7 @@
     "ramda": "catalog:",
     "run-groups": "catalog:",
     "semver": "catalog:",
-    "sort-keys": "catalog:",
-    "version-selector-type": "catalog:"
+    "sort-keys": "catalog:"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
@@ -87,6 +85,7 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
