@@ -22,7 +22,7 @@
   "keywords": [
     "pnpm9",
     "pnpm",
-    "audit"
+    "lockfile"
   ],
   "license": "MIT",
   "bugs": {
