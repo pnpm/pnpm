@@ -22,7 +22,7 @@ import {
   packageIsIndependent,
   type PackageSnapshots,
 } from '@pnpm/lockfile.utils'
-import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
+import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'

@@ -4,7 +4,7 @@ import {
   type Lockfile,
   type PackageSnapshots,
 } from '@pnpm/lockfile.types'
-import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
+import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger } from '@pnpm/logger'
 import { type DependenciesField, type DepPath, type ProjectId } from '@pnpm/types'
 import { filterImporter } from './filterImporter'

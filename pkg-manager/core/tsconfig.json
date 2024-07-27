@@ -73,9 +73,6 @@
       "path": "../../lockfile/lockfile-to-pnp"
     },
     {
-      "path": "../../lockfile/lockfile-walker"
-    },
-    {
       "path": "../../lockfile/preferred-versions"
     },
     {
@@ -89,6 +86,9 @@
     },
     {
       "path": "../../lockfile/verification"
+    },
+    {
+      "path": "../../lockfile/walker"
     },
     {
       "path": "../../packages/calc-dep-state"

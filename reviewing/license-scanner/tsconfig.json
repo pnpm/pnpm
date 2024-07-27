@@ -22,13 +22,13 @@
       "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-walker"
-    },
-    {
       "path": "../../lockfile/types"
     },
     {
       "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../lockfile/walker"
     },
     {
       "path": "../../packages/constants"

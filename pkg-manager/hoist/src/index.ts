@@ -7,7 +7,7 @@ import {
   type Lockfile,
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
+import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { type DepPath, type HoistedDependencies, type ProjectId } from '@pnpm/types'
