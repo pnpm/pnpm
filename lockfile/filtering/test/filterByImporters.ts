@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
+import { filterLockfileByImporters } from '@pnpm/lockfile.filtering'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 
 test('filterByImporters(): only prod dependencies of one importer', () => {

@@ -73,7 +73,7 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/deps.graph-builder": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/filter-lockfile": "workspace:*",
+    "@pnpm/lockfile.filtering": "workspace:*",
     "@pnpm/hoist": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",

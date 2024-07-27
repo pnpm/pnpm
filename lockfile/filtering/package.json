@@ -1,6 +1,6 @@
 {
-  "name": "@pnpm/filter-lockfile",
-  "version": "9.0.9",
+  "name": "@pnpm/lockfile.filtering",
+  "version": "0.0.0",
   "description": "Filters a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/filter-lockfile",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/filtering",
   "keywords": [
     "pnpm9",
     "pnpm",
@@ -29,12 +29,12 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/filter-lockfile#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/filtering#readme",
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
   },
   "devDependencies": {
-    "@pnpm/filter-lockfile": "workspace:*",
+    "@pnpm/lockfile.filtering": "workspace:*",
     "@types/ramda": "catalog:",
     "detect-libc": "catalog:",
     "tempy": "catalog:",

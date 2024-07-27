@@ -2759,7 +2759,7 @@ importers:
         specifier: 'catalog:'
         version: 1.0.1
 
-  lockfile/filter-lockfile:
+  lockfile/filtering:
     dependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -2792,7 +2792,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
-      '@pnpm/filter-lockfile':
+      '@pnpm/lockfile.filtering':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
@@ -3849,9 +3849,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/filter-lockfile':
-        specifier: workspace:*
-        version: link:../../lockfile/filter-lockfile
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../get-context
@@ -3882,6 +3879,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-walker
+      '@pnpm/lockfile.filtering':
+        specifier: workspace:*
+        version: link:../../lockfile/filtering
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -4212,9 +4212,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/filter-lockfile':
-        specifier: workspace:*
-        version: link:../../lockfile/filter-lockfile
       '@pnpm/hoist':
         specifier: workspace:*
         version: link:../hoist
@@ -4230,6 +4227,9 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile.filtering':
+        specifier: workspace:*
+        version: link:../../lockfile/filtering
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -4506,12 +4506,12 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/filter-lockfile':
-        specifier: workspace:*
-        version: link:../../lockfile/filter-lockfile
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile.filtering':
+        specifier: workspace:*
+        version: link:../../lockfile/filtering
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types

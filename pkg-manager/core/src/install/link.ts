@@ -8,7 +8,7 @@ import {
 } from '@pnpm/core-loggers'
 import {
   filterLockfileByImporters,
-} from '@pnpm/filter-lockfile'
+} from '@pnpm/lockfile.filtering'
 import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
 import { type InstallationResultStats } from '@pnpm/headless'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'

@@ -17,7 +17,7 @@ import {
 import {
   filterLockfileByEngine,
   filterLockfileByImportersAndEngine,
-} from '@pnpm/filter-lockfile'
+} from '@pnpm/lockfile.filtering'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import {
   runLifecycleHooksConcurrently,

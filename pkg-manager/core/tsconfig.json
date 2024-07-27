@@ -64,7 +64,7 @@
       "path": "../../hooks/types"
     },
     {
-      "path": "../../lockfile/filter-lockfile"
+      "path": "../../lockfile/filtering"
     },
     {
       "path": "../../lockfile/fs"

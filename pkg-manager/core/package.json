@@ -27,7 +27,7 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/filter-lockfile": "workspace:*",
+    "@pnpm/lockfile.filtering": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/headless": "workspace:*",
     "@pnpm/hoist": "workspace:*",

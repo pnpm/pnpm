@@ -40,7 +40,7 @@
       "path": "../../fs/symlink-dependency"
     },
     {
-      "path": "../../lockfile/filter-lockfile"
+      "path": "../../lockfile/filtering"
     },
     {
       "path": "../../lockfile/fs"

@@ -13,7 +13,7 @@
       "path": "../../fs/read-modules-dir"
     },
     {
-      "path": "../../lockfile/filter-lockfile"
+      "path": "../../lockfile/filtering"
     },
     {
       "path": "../../lockfile/lockfile-utils"
