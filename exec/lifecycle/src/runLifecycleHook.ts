@@ -71,14 +71,20 @@ Please unset the script-shell option, or configure it to a .exe instead.
   const m = { _id: getId(manifest), ...manifest }
   m.scripts = { ...m.scripts }
 
-  if (stage === 'start' && !m.scripts.start) {
-    if (!existsSync('server.js')) {
-      throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+  switch (stage) {
+  case 'start':
+    if (!m.scripts.start) {
+      if (!existsSync('server.js')) {
+        throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+      }
+      m.scripts.start = 'node server.js'
     }
-    m.scripts.start = 'node server.js'
-  }
-  if (stage === 'install' && !m.scripts.install && !m.scripts.preinstall) {
-    checkBindingGyp(opts.pkgRoot, m.scripts)
+    break
+  case 'install':
+    if (!m.scripts.install && !m.scripts.preinstall) {
+      checkBindingGyp(opts.pkgRoot, m.scripts)
+    }
+    break
   }
   if (opts.args?.length && m.scripts?.[stage]) {
     const escapedArgs = opts.args.map((arg) => JSON.stringify(arg))
