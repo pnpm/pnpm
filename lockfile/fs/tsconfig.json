@@ -28,7 +28,7 @@
       "path": "../../resolving/git-resolver"
     },
     {
-      "path": "../merge-lockfile-changes"
+      "path": "../merger"
     },
     {
       "path": "../types"

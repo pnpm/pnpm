@@ -2828,6 +2828,9 @@ importers:
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
+      '@pnpm/lockfile.merger':
+        specifier: workspace:*
+        version: link:../merger
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -2837,9 +2840,6 @@ importers:
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
-      '@pnpm/merge-lockfile-changes':
-        specifier: workspace:*
-        version: link:../merge-lockfile-changes
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2939,7 +2939,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
 
-  lockfile/merge-lockfile-changes:
+  lockfile/merger:
     dependencies:
       '@pnpm/lockfile.types':
         specifier: workspace:*
@@ -2957,7 +2957,7 @@ importers:
         specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
-      '@pnpm/merge-lockfile-changes':
+      '@pnpm/lockfile.merger':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':

@@ -53,7 +53,7 @@
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/merge-lockfile-changes": "workspace:*",
+    "@pnpm/lockfile.merger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "@zkochan/rimraf": "catalog:",

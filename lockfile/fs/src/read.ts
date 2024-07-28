@@ -6,7 +6,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { mergeLockfileChanges } from '@pnpm/merge-lockfile-changes'
+import { mergeLockfileChanges } from '@pnpm/lockfile.merger'
 import { type Lockfile } from '@pnpm/lockfile.types'
 import { type ProjectId } from '@pnpm/types'
 import comverToSemver from 'comver-to-semver'
