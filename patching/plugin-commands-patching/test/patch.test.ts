@@ -466,7 +466,7 @@ describe('patching should work when there is a no EOL in the patched file', () =
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
-      dir: process.cwd(),
+      ...defaultPatchOption,
       rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
@@ -495,7 +495,7 @@ describe('patching should work when there is a no EOL in the patched file', () =
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
-      dir: process.cwd(),
+      ...defaultPatchOption,
       rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
@@ -858,7 +858,7 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
-      dir: customModulesDirFixture,
+      ...defaultPatchOption,
       rootProjectManifestDir: customModulesDirFixture,
       saveLockfile: true,
       frozenLockfile: false,
