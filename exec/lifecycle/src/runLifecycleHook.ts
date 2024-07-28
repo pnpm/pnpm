@@ -32,7 +32,7 @@ export async function runLifecycleHook (
   stage: string,
   manifest: ProjectManifest | DependencyManifest,
   opts: RunLifecycleHookOptions
-): Promise<void> {
+): Promise<boolean> {
   const optional = opts.optional === true
 
   // To remediate CVE_2024_27980, Node.js does not allow .bat or .cmd files to
@@ -92,7 +92,7 @@ Please unset the script-shell option, or configure it to a .exe instead.
   }
   // This script is used to prevent the usage of npm or Yarn.
   // It does nothing, when pnpm is used, so we may skip its execution.
-  if (m.scripts[stage] === 'npx only-allow pnpm') return
+  if (m.scripts[stage] === 'npx only-allow pnpm' || !m.scripts[stage]) return false
   if (opts.stdio !== 'inherit') {
     lifecycleLogger.debug({
       depPath: opts.depPath,
@@ -141,6 +141,7 @@ Please unset the script-shell option, or configure it to a .exe instead.
     stdio: opts.stdio ?? 'pipe',
     unsafePerm: opts.unsafePerm,
   })
+  return true
 
   function npmLog (prefix: string, logId: string, stdtype: string, line: string): void {
     switch (stdtype) {

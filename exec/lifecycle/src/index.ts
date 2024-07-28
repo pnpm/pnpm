@@ -27,12 +27,12 @@ export async function runPostinstallHooks (
   if (pkg.scripts.preinstall) {
     await runLifecycleHook('preinstall', pkg, opts)
   }
-  await runLifecycleHook('install', pkg, opts)
+  const executedAnInstallScript = await runLifecycleHook('install', pkg, opts)
   if (pkg.scripts.postinstall) {
     await runLifecycleHook('postinstall', pkg, opts)
   }
 
   return pkg.scripts.preinstall != null ||
-    pkg.scripts.install != null ||
+    executedAnInstallScript ||
     pkg.scripts.postinstall != null
 }
