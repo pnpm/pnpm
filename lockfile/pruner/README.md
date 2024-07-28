@@ -1,11 +1,11 @@
-# @pnpm/prune-lockfile
+# @pnpm/lockfile.pruner
 
 > Prune a pnpm-lock.yaml
 
 ## Install
 
 ```
-pnpm add @pnpm/prune-lockfile
+pnpm add @pnpm/lockfile.pruner
 ```
 
 ## License

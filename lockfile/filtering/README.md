@@ -1,11 +1,11 @@
-# @pnpm/filter-lockfile
+# @pnpm/lockfile.filtering
 
 > Filters a lockfile
 
 ## Install
 
 ```
-pnpm add @pnpm/filter-lockfile
+pnpm add @pnpm/lockfile.filtering
 ```
 
 ## License
