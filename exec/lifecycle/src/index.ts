@@ -1,9 +1,6 @@
-import path from 'path'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import exists from 'path-exists'
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook'
 import { runLifecycleHooksConcurrently, type RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently'
-import type { ProjectManifest } from '@pnpm/types'
 
 export function makeNodeRequireOption (modulePath: string): { NODE_OPTIONS: string } {
   let { NODE_OPTIONS } = process.env
@@ -27,10 +24,6 @@ export async function runPostinstallHooks (
     pkg.scripts = {}
   }
 
-  if (!pkg.scripts.install && !pkg.scripts.preinstall) {
-    await checkBindingGyp(opts.pkgRoot, pkg)
-  }
-
   if (pkg.scripts.preinstall) {
     await runLifecycleHook('preinstall', pkg, opts)
   }
@@ -44,18 +37,4 @@ export async function runPostinstallHooks (
   return pkg.scripts.preinstall != null ||
     pkg.scripts.install != null ||
     pkg.scripts.postinstall != null
-}
-
-/**
- * Run node-gyp when binding.gyp is available. Only do this when there are no
- * `install` and `preinstall` scripts (see `npm help scripts`).
- */
-export async function checkBindingGyp (
-  root: string,
-  manifest: ProjectManifest
-): Promise<void> {
-  if (await exists(path.join(root, 'binding.gyp'))) {
-    manifest.scripts ??= {}
-    manifest.scripts.install = 'node-gyp rebuild'
-  }
 }

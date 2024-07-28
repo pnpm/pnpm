@@ -1,9 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'fs'
 import path from 'path'
 import { runLifecycleHook, runLifecycleHooksConcurrently, runPostinstallHooks } from '@pnpm/lifecycle'
 import { PnpmError } from '@pnpm/error'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { fixtures } from '@pnpm/test-fixtures'
+import { tempDir } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 import type { StoreController } from '@pnpm/store-controller-types'
 
@@ -104,16 +106,30 @@ test('preinstall script does not trigger node-gyp rebuild', async () => {
 })
 
 test('runLifecycleHooksConcurrently() should check binding.gyp', async () => {
-  const pkgRoot = f.find('no-scripts-with-gyp')
-  const pkg = await import(path.join(pkgRoot, 'package.json'))
+  const projectDir = tempDir(false)
 
-  await runLifecycleHooksConcurrently(['install'], [{ buildIndex: 0, rootDir: pkgRoot as ProjectRootDir, modulesDir: '', manifest: pkg }], 5, {
-    storeController: { } as StoreController,
+  fs.writeFileSync(path.join(projectDir, 'binding.gyp'), JSON.stringify({
+    targets: [
+      {
+        target_name: 'run_js_script',
+        actions: [
+          {
+            action_name: 'execute_postinstall',
+            inputs: [],
+            outputs: ['foo'],
+            action: ['node', '-e', 'require(\'fs\').writeFileSync(\'foo\', \'\', \'utf8\')'],
+          },
+        ],
+      },
+    ],
+  }), 'utf8')
+
+  await runLifecycleHooksConcurrently(['install'], [{ buildIndex: 0, rootDir: projectDir as ProjectRootDir, modulesDir: '', manifest: {} }], 5, {
+    storeController: {} as StoreController,
     optional: false,
     rawConfig: {},
-    extraEnv: { npm_config_node_gyp: process.env.npm_config_node_gyp! },
     unsafePerm: true,
   })
 
-  expect(pkg.scripts.install).toEqual('node-gyp rebuild')
+  expect(fs.existsSync(path.join(projectDir, 'foo'))).toBeTruthy()
 })

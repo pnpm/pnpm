@@ -1,7 +1,8 @@
+import path from 'path'
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
-import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv } from '@pnpm/types'
+import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv, type PackageScripts } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
 import isWindows from 'is-windows'
@@ -75,6 +76,9 @@ Please unset the script-shell option, or configure it to a .exe instead.
       throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
     }
     m.scripts.start = 'node server.js'
+  }
+  if (stage === 'install' && !m.scripts.install && !m.scripts.preinstall) {
+    checkBindingGyp(opts.pkgRoot, m.scripts)
   }
   if (opts.args?.length && m.scripts?.[stage]) {
     const escapedArgs = opts.args.map((arg) => JSON.stringify(arg))
@@ -159,6 +163,19 @@ Please unset the script-shell option, or configure it to a .exe instead.
       })
     }
     }
+  }
+}
+
+/**
+ * Run node-gyp when binding.gyp is available. Only do this when there are no
+ * `install` and `preinstall` scripts (see `npm help scripts`).
+ */
+function checkBindingGyp (
+  root: string,
+  scripts: PackageScripts
+) {
+  if (existsSync(path.join(root, 'binding.gyp'))) {
+    scripts.install = 'node-gyp rebuild'
   }
 }
 
