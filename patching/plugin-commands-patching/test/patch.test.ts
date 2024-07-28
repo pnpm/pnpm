@@ -367,22 +367,33 @@ describe('prompt to choose version', () => {
     })
     prompt.mockResolvedValue({
       version: '5.3.0',
+      applyToAll: false,
     })
     prompt.mockClear()
     const output = await patch.handler(defaultPatchOption, ['chalk'])
 
-    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining([
+    expect(prompt.mock.calls).toMatchObject([[[
       {
-        name: '4.1.2',
-        message: '4.1.2',
-        value: '4.1.2',
+        type: 'select',
+        name: 'version',
+        choices: [
+          {
+            name: '4.1.2',
+            message: '4.1.2',
+            value: '4.1.2',
+          },
+          {
+            name: '5.3.0',
+            message: '5.3.0',
+            value: '5.3.0',
+          },
+        ],
       },
       {
-        name: '5.3.0',
-        message: '5.3.0',
-        value: '5.3.0',
+        type: 'confirm',
+        name: 'applyToAll',
       },
-    ]))
+    ]]])
 
     const patchDir = getPatchDirFromPatchOutput(output)
     const tempDir = os.tmpdir()
@@ -740,22 +751,33 @@ describe('patch and commit in workspaces', () => {
 
     prompt.mockResolvedValue({
       version: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+      applyToAll: false,
     })
     prompt.mockClear()
     const output = await patch.handler(defaultPatchOption, ['hi'])
-    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining([
+    expect(prompt.mock.calls).toMatchObject([[[
       {
-        name: '0.0.0',
-        message: '0.0.0',
-        value: '0.0.0',
+        type: 'select',
+        name: 'version',
+        choices: [
+          {
+            name: '0.0.0',
+            message: '0.0.0',
+            value: '0.0.0',
+          },
+          {
+            name: '1.0.0',
+            message: '1.0.0',
+            value: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+            hint: 'Git Hosted',
+          },
+        ],
       },
       {
-        name: '1.0.0',
-        message: '1.0.0',
-        value: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
-        hint: 'Git Hosted',
+        type: 'confirm',
+        name: 'applyToAll',
       },
-    ]))
+    ]]])
     const patchDir = getPatchDirFromPatchOutput(output)
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('module.exports = \'Hi\'')
