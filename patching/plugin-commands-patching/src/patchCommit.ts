@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -58,7 +59,12 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     editDir: userDir,
     lockfileDir,
   })
-  const applyToAll: boolean = stateValue?.applyToAll ?? true
+  if (!stateValue) {
+    throw new PnpmError('INVALID_PATCH_DIR', `${userDir} is not a valid patch directory`, {
+      hint: 'A valid patch directory should be created by `pnpm patch`',
+    })
+  }
+  const { applyToAll } = stateValue
   const patchKey = applyToAll
     ? patchedPkgManifest.name
     : `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
