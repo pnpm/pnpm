@@ -14,10 +14,10 @@ export type GetPatchedDependencyOptions = {
   lockfileDir: string
 } & Pick<Config, 'virtualStoreDir' | 'modulesDir'>
 
-export type GetPatchedDependencyResult = ParseWantedDependencyResult & { applyToAll?: boolean }
+export type GetPatchedDependencyResult = ParseWantedDependencyResult & { applyToAll: boolean }
 
 export async function getPatchedDependency (rawDependency: string, opts: GetPatchedDependencyOptions): Promise<GetPatchedDependencyResult> {
-  const dep: GetPatchedDependencyResult = parseWantedDependency(rawDependency)
+  const dep = parseWantedDependency(rawDependency)
 
   const { versions, preferredVersions } = await getVersionsFromLockfile(dep, opts)
 
@@ -52,13 +52,19 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
       name: 'applyToAll',
       message: 'Apply this patch to all versions?',
     }])
-    dep.pref = version
-    dep.applyToAll = applyToAll
+    return {
+      ...dep,
+      applyToAll,
+      pref: version,
+    }
   } else {
     const preferred = preferredVersions[0]
-    dep.pref = preferred.gitTarballUrl ?? preferred.version
+    return {
+      ...dep,
+      applyToAll: !dep.pref,
+      pref: preferred.gitTarballUrl ?? preferred.version,
+    }
   }
-  return dep
 }
 
 export interface LockfileVersion {

@@ -107,7 +107,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
     }
     if (rootProjectManifest?.pnpm?.patchedDependencies) {
       tryPatchWithExistingPatchFile({
-        allowFailure: patchedDep.applyToAll ?? false,
+        allowFailure: patchedDep.applyToAll,
         patchedDep,
         patchedDir: editDir,
         patchedDependencies: rootProjectManifest.pnpm.patchedDependencies,

@@ -6,7 +6,7 @@ export type StateKey = `${string}:${string}`
 
 export interface StateValue {
   selector: string
-  applyToAll?: boolean
+  applyToAll: boolean
 }
 
 export type State = Record<StateKey, StateValue>
