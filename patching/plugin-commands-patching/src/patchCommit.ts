@@ -87,13 +87,15 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   })
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
-  if (applyToAll) {
-    // TODO: apply patchContent to all versions that has name matches patchedPkgManifest.name except version matching patchedPkgManifest.version
-  }
 
   if (!patchContent.length) {
     return `No changes were found to the following directory: ${userDir}`
   }
+
+  if (applyToAll) {
+    // TODO: apply patchContent to all versions that has name matches patchedPkgManifest.name except version matching patchedPkgManifest.version
+  }
+
   await fs.promises.mkdir(patchesDir, { recursive: true })
 
   const patchFileName = patchKey.replace('/', '__')
