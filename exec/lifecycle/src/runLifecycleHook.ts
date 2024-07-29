@@ -1,7 +1,8 @@
+import path from 'path'
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
-import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv } from '@pnpm/types'
+import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv, type PackageScripts } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
 import isWindows from 'is-windows'
@@ -31,7 +32,7 @@ export async function runLifecycleHook (
   stage: string,
   manifest: ProjectManifest | DependencyManifest,
   opts: RunLifecycleHookOptions
-): Promise<void> {
+): Promise<boolean> {
   const optional = opts.optional === true
 
   // To remediate CVE_2024_27980, Node.js does not allow .bat or .cmd files to
@@ -70,11 +71,20 @@ Please unset the script-shell option, or configure it to a .exe instead.
   const m = { _id: getId(manifest), ...manifest }
   m.scripts = { ...m.scripts }
 
-  if (stage === 'start' && !m.scripts.start) {
-    if (!existsSync('server.js')) {
-      throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+  switch (stage) {
+  case 'start':
+    if (!m.scripts.start) {
+      if (!existsSync('server.js')) {
+        throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+      }
+      m.scripts.start = 'node server.js'
     }
-    m.scripts.start = 'node server.js'
+    break
+  case 'install':
+    if (!m.scripts.install && !m.scripts.preinstall) {
+      checkBindingGyp(opts.pkgRoot, m.scripts)
+    }
+    break
   }
   if (opts.args?.length && m.scripts?.[stage]) {
     const escapedArgs = opts.args.map((arg) => JSON.stringify(arg))
@@ -82,7 +92,7 @@ Please unset the script-shell option, or configure it to a .exe instead.
   }
   // This script is used to prevent the usage of npm or Yarn.
   // It does nothing, when pnpm is used, so we may skip its execution.
-  if (m.scripts[stage] === 'npx only-allow pnpm') return
+  if (m.scripts[stage] === 'npx only-allow pnpm' || !m.scripts[stage]) return false
   if (opts.stdio !== 'inherit') {
     lifecycleLogger.debug({
       depPath: opts.depPath,
@@ -131,6 +141,7 @@ Please unset the script-shell option, or configure it to a .exe instead.
     stdio: opts.stdio ?? 'pipe',
     unsafePerm: opts.unsafePerm,
   })
+  return true
 
   function npmLog (prefix: string, logId: string, stdtype: string, line: string): void {
     switch (stdtype) {
@@ -159,6 +170,19 @@ Please unset the script-shell option, or configure it to a .exe instead.
       })
     }
     }
+  }
+}
+
+/**
+ * Run node-gyp when binding.gyp is available. Only do this when there are no
+ * `install` and `preinstall` scripts (see `npm help scripts`).
+ */
+function checkBindingGyp (
+  root: string,
+  scripts: PackageScripts
+) {
+  if (existsSync(path.join(root, 'binding.gyp'))) {
+    scripts.install = 'node-gyp rebuild'
   }
 }
 
