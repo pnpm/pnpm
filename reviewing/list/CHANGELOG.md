@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 10.1.8
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@3.1.8
+
 ## 10.1.7
 
 ### Patch Changes

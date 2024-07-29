@@ -1,5 +1,11 @@
 # @pnpm/lockfile-types
 
+## 1.0.0
+
+### Major Changes
+
+- 797ef0f: Rename project from `@pnpm/lockfile-types` to `@pnpm/lockfile.types`.
+
 ## 7.1.3
 
 ### Patch Changes

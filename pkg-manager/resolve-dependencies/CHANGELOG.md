@@ -1,5 +1,19 @@
 # @pnpm/resolve-dependencies
 
+## 34.0.3
+
+### Patch Changes
+
+- 9682129: Peer dependencies of optional peer dependencies should be automatically installed [#8323](https://github.com/pnpm/pnpm/issues/8323).
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [daa45df]
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.pruner@0.0.1
+  - @pnpm/lockfile.types@1.0.0
+  - @pnpm/lockfile.preferred-versions@1.0.9
+  - @pnpm/npm-resolver@21.0.2
+
 ## 34.0.2
 
 ### Patch Changes

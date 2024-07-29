@@ -1,5 +1,20 @@
 # @pnpm/lockfile-file
 
+## 1.0.0
+
+### Major Changes
+
+- 8055a30: Package renamed from `@pnpm/lockfile-file`.
+
+### Patch Changes
+
+- Updated dependencies [be0c57c]
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.merger@1.0.0
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.types@1.0.0
+
 ## 9.1.3
 
 ### Patch Changes

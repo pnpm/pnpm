@@ -1,5 +1,16 @@
 # @pnpm/lockfile-walker
 
+## 1.0.0
+
+### Major Changes
+
+- c92f4bf: Renamed package from `@pnpm/lockfile-walker`.
+
+### Patch Changes
+
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.types@1.0.0
+
 ## 9.0.4
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/prepare-package
 
+## 6.0.10
+
+### Patch Changes
+
+- Updated dependencies [9899576]
+  - @pnpm/lifecycle@17.1.1
+
 ## 6.0.9
 
 ### Patch Changes

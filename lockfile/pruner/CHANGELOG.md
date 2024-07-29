@@ -1,5 +1,13 @@
 # @pnpm/prune-lockfile
 
+## 0.0.1
+
+### Patch Changes
+
+- daa45df: Package renamed from `@pnpm/prune-lockfile`.
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.types@1.0.0
+
 ## 6.1.4
 
 ### Patch Changes

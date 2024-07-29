@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store-inspecting",
-  "version": "0.2.15",
+  "version": "0.2.16",
   "description": "The inspecting store commands of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

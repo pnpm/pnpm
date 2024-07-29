@@ -1,5 +1,16 @@
 # @pnpm/merge-lockfile-changes
 
+## 1.0.0
+
+### Major Changes
+
+- be0c57c: Package renamed from `@pnpm/merge-lockfile-changes`.
+
+### Patch Changes
+
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.types@1.0.0
+
 ## 6.0.5
 
 ### Patch Changes

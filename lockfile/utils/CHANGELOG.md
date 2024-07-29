@@ -1,5 +1,16 @@
 # @pnpm/lockfile-utils
 
+## 1.0.0
+
+### Major Changes
+
+- c5ef9b0: Package renamed from `@pnpm/lockfile-utils".
+
+### Patch Changes
+
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.types@1.0.0
+
 ## 11.0.4
 
 ### Patch Changes

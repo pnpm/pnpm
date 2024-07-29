@@ -1,5 +1,20 @@
 # @pnpm/filter-lockfile
 
+## 1.0.0
+
+### Major Changes
+
+- 8055a30: Renamed package from `@pnpm/filter-lockfile`.
+
+### Patch Changes
+
+- Updated dependencies [c92f4bf]
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.walker@1.0.0
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.types@1.0.0
+
 ## 9.0.9
 
 ### Patch Changes

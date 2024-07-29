@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-outdated
 
+## 12.0.3
+
+### Patch Changes
+
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.fs@1.0.0
+  - @pnpm/outdated@15.1.1
+  - @pnpm/config@21.6.3
+  - @pnpm/cli-utils@3.1.6
+
 ## 12.0.2
 
 ### Patch Changes
