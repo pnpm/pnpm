@@ -395,7 +395,7 @@ describe('prompt to choose version', () => {
     }
   })
 
-  test('prompt to choose version if multiple versions found for patched package', async () => {
+  test('prompt to choose version if multiple versions found for patched package, no apply to all', async () => {
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -457,6 +457,73 @@ describe('prompt to choose version', () => {
       'chalk@5.3.0': 'patches/chalk@5.3.0.patch',
     })
     const patchContent = fs.readFileSync('patches/chalk@5.3.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git')
+    expect(patchContent).toContain('// test patching')
+    expect(fs.readFileSync('node_modules/.pnpm/ava@5.2.0/node_modules/chalk/source/index.js', 'utf8')).toContain('// test patching')
+  })
+
+  test('prompt to choose version if multiple versions found for patched package, apply to all', async () => {
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
+    prompt.mockResolvedValue({
+      version: '5.3.0',
+      applyToAll: true,
+    })
+    prompt.mockClear()
+    const output = await patch.handler(defaultPatchOption, ['chalk'])
+
+    expect(prompt.mock.calls).toMatchObject([[[
+      {
+        type: 'select',
+        name: 'version',
+        choices: [
+          {
+            name: '4.1.2',
+            message: '4.1.2',
+            value: '4.1.2',
+          },
+          {
+            name: '5.3.0',
+            message: '5.3.0',
+            value: '5.3.0',
+          },
+        ],
+      },
+      {
+        type: 'confirm',
+        name: 'applyToAll',
+      },
+    ]]])
+
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const tempDir = os.tmpdir()
+
+    expect(patchDir).toContain(tempDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
+    expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('5.3.0')
+    expect(fs.existsSync(path.join(patchDir, 'source/index.js'))).toBe(true)
+
+    fs.appendFileSync(path.join(patchDir, 'source/index.js'), '// test patching', 'utf8')
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'chalk': 'patches/chalk.patch',
+    })
+    const patchContent = fs.readFileSync('patches/chalk.patch', 'utf8')
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
     expect(fs.readFileSync('node_modules/.pnpm/ava@5.2.0/node_modules/chalk/source/index.js', 'utf8')).toContain('// test patching')
