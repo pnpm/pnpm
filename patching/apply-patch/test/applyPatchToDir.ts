@@ -58,7 +58,7 @@ describe('applyPatchToDir() without allowFailure', () => {
         patchFilePath,
         patchedDir: tempDir(),
       })
-    }).toThrowError(`Applying patch "${patchFilePath}" failed: hunk header integrity check failed`)
+    }).toThrow(`Applying patch "${patchFilePath}" failed: hunk header integrity check failed`)
   })
   it('should fail if the patch file is not found', () => {
     expect(() => {
@@ -67,7 +67,7 @@ describe('applyPatchToDir() without allowFailure', () => {
         patchFilePath: 'does-not-exist.patch',
         patchedDir: tempDir(),
       })
-    }).toThrowError('Patch file not found')
+    }).toThrow('Patch file not found')
   })
 })
 
@@ -105,7 +105,7 @@ describe('applyPatchToDir() with allowFailure', () => {
         patchFilePath,
         patchedDir: tempDir(),
       })
-    }).toThrowError(`Applying patch "${patchFilePath}" failed: hunk header integrity check failed`)
+    }).toThrow(`Applying patch "${patchFilePath}" failed: hunk header integrity check failed`)
   })
   it('should fail if the patch file is not found', () => {
     expect(() => {
@@ -114,6 +114,6 @@ describe('applyPatchToDir() with allowFailure', () => {
         patchFilePath: 'does-not-exist.patch',
         patchedDir: tempDir(),
       })
-    }).toThrowError('Patch file not found')
+    }).toThrow('Patch file not found')
   })
 })
