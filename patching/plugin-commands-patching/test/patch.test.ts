@@ -395,7 +395,7 @@ describe('prompt to choose version', () => {
     }
   })
 
-  test('prompt to choose version if multiple version founded for patched package', async () => {
+  test('prompt to choose version if multiple versions found for patched package', async () => {
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
