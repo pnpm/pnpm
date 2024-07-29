@@ -521,7 +521,7 @@ describe('prompt to choose version', () => {
 
     const { manifest } = await readProjectManifest(process.cwd())
     expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
-      'chalk': 'patches/chalk.patch',
+      chalk: 'patches/chalk.patch',
     })
     const patchContent = fs.readFileSync('patches/chalk.patch', 'utf8')
     expect(patchContent).toContain('diff --git')
