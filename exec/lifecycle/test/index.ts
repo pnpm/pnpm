@@ -8,6 +8,9 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { tempDir } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
 import { type StoreController } from '@pnpm/store-controller-types'
+import isWindows from 'is-windows'
+
+const skipOnWindows = isWindows() ? test.skip : test
 
 const f = fixtures(path.join(__dirname, 'fixtures'))
 const rootModulesDir = path.join(__dirname, '..', 'node_modules')
@@ -105,7 +108,7 @@ test('preinstall script does not trigger node-gyp rebuild', async () => {
   expect(server.getLines()).toStrictEqual(['preinstall'])
 })
 
-test('runLifecycleHooksConcurrently() should check binding.gyp', async () => {
+skipOnWindows('runLifecycleHooksConcurrently() should check binding.gyp', async () => {
   const projectDir = tempDir(false)
 
   fs.writeFileSync(path.join(projectDir, 'binding.gyp'), JSON.stringify({
