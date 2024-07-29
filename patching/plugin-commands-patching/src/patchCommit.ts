@@ -65,9 +65,8 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     })
   }
   const { applyToAll } = stateValue
-  const patchKey = applyToAll
-    ? patchedPkgManifest.name
-    : `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
+  const nameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
+  const patchKey = applyToAll ? patchedPkgManifest.name : nameAndVersion
   let gitTarballUrl: string | undefined
   if (!applyToAll) {
     gitTarballUrl = await getGitTarballUrlFromLockfile({
@@ -80,7 +79,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     })
   }
   const srcDir = tempy.directory()
-  await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : patchKey), srcDir, opts)
+  await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion), srcDir, opts)
   await deleteStateKey({
     cacheDir: opts.cacheDir,
     editDir: userDir,
@@ -88,6 +87,9 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   })
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
+  if (applyToAll) {
+    // TODO: apply patchContent to all versions that has name matches patchedPkgManifest.name except version matching patchedPkgManifest.version
+  }
 
   if (!patchContent.length) {
     return `No changes were found to the following directory: ${userDir}`
