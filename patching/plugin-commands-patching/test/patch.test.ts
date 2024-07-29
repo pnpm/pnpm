@@ -59,7 +59,7 @@ describe('patch and commit', () => {
     })
   })
 
-  test('patch and commit', async () => {
+  test('patch and commit with exact version', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
     const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
@@ -89,6 +89,44 @@ describe('patch and commit', () => {
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
     const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git')
+    expect(patchContent).toContain('// test patching')
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+
+    expect(patchContent).not.toContain('The MIT License (MIT)')
+    expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
+  })
+
+  test('patch and commit without exact version', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
+
+    // store patch files in a temporary directory when not given editDir option
+    expect(patchDir).toContain(tempDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    // sanity check to ensure that the license file contains the expected string
+    expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'is-positive': 'patches/is-positive.patch',
+    })
+    const patchContent = fs.readFileSync('patches/is-positive.patch', 'utf8')
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
