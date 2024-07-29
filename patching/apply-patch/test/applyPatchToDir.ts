@@ -15,10 +15,29 @@ describe('applyPatchToDir()', () => {
       })
     }).toThrowError(`Applying patch "${patchFilePath}" failed: hunk header integrity check failed`)
   })
+  it('should fail on invalid patch even with allowFailure', () => {
+    const patchFilePath = f.find('invalid.patch')
+    expect(() => {
+      applyPatchToDir({
+        allowFailure: true,
+        patchFilePath,
+        patchedDir: tempDir(),
+      })
+    }).toThrowError(`Applying patch "${patchFilePath}" failed: hunk header integrity check failed`)
+  })
   it('should fail if the patch file is not found', () => {
     expect(() => {
       applyPatchToDir({
         allowFailure: false,
+        patchFilePath: 'does-not-exist.patch',
+        patchedDir: tempDir(),
+      })
+    }).toThrowError('Patch file not found')
+  })
+  it('should fail if the patch file is not found even with allowFailure', () => {
+    expect(() => {
+      applyPatchToDir({
+        allowFailure: true,
         patchFilePath: 'does-not-exist.patch',
         patchedDir: tempDir(),
       })
