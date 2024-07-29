@@ -4,22 +4,12 @@ import { tempDir } from '@pnpm/prepare'
 
 const f = fixtures(__dirname)
 
-describe('applyPatchToDir()', () => {
+describe('applyPatchToDir() without allowFailure', () => {
   it('should fail on invalid patch', () => {
     const patchFilePath = f.find('invalid.patch')
     expect(() => {
       applyPatchToDir({
         allowFailure: false,
-        patchFilePath,
-        patchedDir: tempDir(),
-      })
-    }).toThrowError(`Applying patch "${patchFilePath}" failed: hunk header integrity check failed`)
-  })
-  it('should fail on invalid patch even with allowFailure', () => {
-    const patchFilePath = f.find('invalid.patch')
-    expect(() => {
-      applyPatchToDir({
-        allowFailure: true,
         patchFilePath,
         patchedDir: tempDir(),
       })
@@ -34,7 +24,20 @@ describe('applyPatchToDir()', () => {
       })
     }).toThrowError('Patch file not found')
   })
-  it('should fail if the patch file is not found even with allowFailure', () => {
+})
+
+describe('applyPatchToDir() with allowFailure', () => {
+  it('should fail on invalid patch', () => {
+    const patchFilePath = f.find('invalid.patch')
+    expect(() => {
+      applyPatchToDir({
+        allowFailure: true,
+        patchFilePath,
+        patchedDir: tempDir(),
+      })
+    }).toThrowError(`Applying patch "${patchFilePath}" failed: hunk header integrity check failed`)
+  })
+  it('should fail if the patch file is not found', () => {
     expect(() => {
       applyPatchToDir({
         allowFailure: true,
