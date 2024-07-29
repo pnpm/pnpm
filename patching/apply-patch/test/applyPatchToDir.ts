@@ -41,11 +41,13 @@ describe('applyPatchToDir() without allowFailure', () => {
   it('should fail when patch fails to apply', () => {
     const patchFilePath = f.find('non-applicable.patch')
     const patchedDir = prepareDirToPatch()
-    expect(() => applyPatchToDir({
-      allowFailure: false,
-      patchFilePath,
-      patchedDir,
-    })).toThrow(`Could not apply patch ${patchFilePath} to ${patchedDir}`)
+    expect(() => {
+      applyPatchToDir({
+        allowFailure: false,
+        patchFilePath,
+        patchedDir,
+      })
+    }).toThrow(`Could not apply patch ${patchFilePath} to ${patchedDir}`)
     expect(fs.readFileSync(path.join(patchedDir, 'patch-target.txt'), 'utf-8')).toBe(fs.readFileSync(f.find('patch-target.txt'), 'utf-8'))
   })
   it('should fail on invalid patch', () => {
