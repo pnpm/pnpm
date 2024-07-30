@@ -175,3 +175,49 @@ test('package name with version is prioritized over bare package name as keys of
     expect(text.trim().split('\n').length).toBe(4)
   }
 })
+
+test('package name with version as a patchedDependencies key does not affect other versions', async () => {
+  const patchFixture2 = f.find('patchedDependencies/console-log-replace-2nd-line.patch')
+  const patchFixture3 = f.find('patchedDependencies/console-log-replace-4th-line.patch')
+  prepareEmpty()
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/depends-on-console-log@1.0.0'])
+
+  addPatch('@pnpm.e2e/console-log@2.0.0', patchFixture2, 'patches/console-log@2.0.0.patch')
+  addPatch('@pnpm.e2e/console-log@3.0.0', patchFixture3, 'patches/console-log@3.0.0.patch')
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: false,
+  })
+
+  // v1 remains unpatched
+  expect(patchedFileContent(1)).toBe(unpatchedFileContent(1))
+
+  // patch 2 applies to v2
+  {
+    const text = patchedFileContent(2)
+    expect(text).not.toBe(unpatchedFileContent(2))
+    expect(text).toContain('first line')
+    expect(text).toContain('SECOND LINE')
+    expect(text).not.toContain('second line')
+    expect(text).toContain('third line')
+    expect(text.trim().split('\n').length).toBe(3)
+  }
+
+  // patch 3 applies to v3
+  {
+    const text = patchedFileContent(3)
+    expect(text).not.toBe(unpatchedFileContent(3))
+    expect(text).toContain('first line')
+    expect(text).toContain('second line')
+    expect(text).toContain('third line')
+    expect(text).toContain('FOURTH LINE')
+    expect(text).not.toContain('fourth line')
+    expect(text.trim().split('\n').length).toBe(4)
+  }
+})
