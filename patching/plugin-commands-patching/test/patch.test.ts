@@ -374,6 +374,100 @@ describe('patch and commit', () => {
   })
 })
 
+describe('multiple versions', () => {
+  let defaultPatchOption: patch.PatchCommandOptions
+  let cacheDir: string
+  let storeDir: string
+  beforeEach(() => {
+    prepare({
+      dependencies: {
+        '@pnpm.e2e/depends-on-console-log': '1.0.0',
+      },
+    })
+    cacheDir = path.resolve('cache')
+    storeDir = path.resolve('store')
+    defaultPatchOption = {
+      ...basePatchOption,
+      cacheDir,
+      dir: process.cwd(),
+      storeDir,
+    }
+  })
+
+  test('choosing apply to all should apply the patch to all applicable versions', async () => {
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
+    prompt.mockResolvedValue({
+      version: '1.0.0',
+      applyToAll: true,
+    })
+    prompt.mockClear()
+    const output = await patch.handler(defaultPatchOption, ['@pnpm.e2e/console-log'])
+
+    expect(prompt.mock.calls).toMatchObject([[[
+      {
+        type: 'select',
+        name: 'version',
+        choices: ['1.0.0', '2.0.0', '3.0.0'].map(x => ({ name: x, message: x, value: x })),
+      },
+      {
+        type: 'confirm',
+        name: 'applyToAll',
+      },
+    ]]])
+
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const fileToPatch = path.join(patchDir, 'index.js')
+    const originalContent = fs.readFileSync(fileToPatch, 'utf-8')
+    const patchedContent = originalContent.replace('first line', 'FIRST LINE')
+    fs.writeFileSync(fileToPatch, patchedContent)
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      '@pnpm.e2e/console-log': 'patches/@pnpm.e2e__console-log.patch',
+    })
+
+    const patchFileContent = fs.readFileSync('patches/@pnpm.e2e__console-log.patch', 'utf-8')
+    expect(patchFileContent).toContain('diff --git')
+    expect(patchFileContent).toContain("\n+console.log('FIRST LINE')")
+    expect(patchFileContent).toContain("\n-console.log('first line')")
+
+    expect(
+      fs.readFileSync(
+        'node_modules/.pnpm/@pnpm.e2e+depends-on-console-log@1.0.0/node_modules/console-log-1/index.js',
+        'utf-8'
+      )
+    ).toContain('FIRST LINE')
+    expect(
+      fs.readFileSync(
+        'node_modules/.pnpm/@pnpm.e2e+depends-on-console-log@1.0.0/node_modules/console-log-2/index.js',
+        'utf-8'
+      )
+    ).toContain('FIRST LINE')
+    expect(
+      fs.readFileSync(
+        'node_modules/.pnpm/@pnpm.e2e+depends-on-console-log@1.0.0/node_modules/console-log-3/index.js',
+        'utf-8'
+      )
+    ).toContain('FIRST LINE')
+  })
+})
+
 describe('prompt to choose version', () => {
   let defaultPatchOption: patch.PatchCommandOptions
   let cacheDir: string
