@@ -6,7 +6,7 @@ import {
   readCurrentLockfile,
   readWantedLockfile,
   type ResolvedDependencies,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'

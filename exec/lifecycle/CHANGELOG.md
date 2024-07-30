@@ -1,5 +1,13 @@
 # @pnpm/lifecycle
 
+## 17.1.1
+
+### Patch Changes
+
+- 9899576: `pnpm install` should run `node-gyp rebuild` if the project has a `binding.gyp` file even if the project doesn't have an install script [#8293](https://github.com/pnpm/pnpm/issues/8293).
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/link-bins@10.0.7
+
 ## 17.1.0
 
 ### Minor Changes

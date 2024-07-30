@@ -1,5 +1,12 @@
 # @pnpm/dedupe.check
 
+## 2.0.7
+
+### Patch Changes
+
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.types@1.0.0
+
 ## 2.0.6
 
 ### Patch Changes

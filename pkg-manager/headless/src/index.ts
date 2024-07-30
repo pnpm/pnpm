@@ -17,7 +17,7 @@ import {
 import {
   filterLockfileByEngine,
   filterLockfileByImportersAndEngine,
-} from '@pnpm/filter-lockfile'
+} from '@pnpm/lockfile.filtering'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import {
   runLifecycleHooksConcurrently,
@@ -32,12 +32,12 @@ import {
   writeLockfiles,
   writeCurrentLockfile,
   type PatchFile,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
   extendProjectsWithTargetDirs,
   nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import {
   type LogBase,
   logger,

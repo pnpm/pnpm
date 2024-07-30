@@ -1,5 +1,16 @@
 # @pnpm/modules-cleaner
 
+## 15.1.9
+
+### Patch Changes
+
+- Updated dependencies [8055a30]
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.filtering@1.0.0
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.types@1.0.0
+
 ## 15.1.8
 
 ### Patch Changes

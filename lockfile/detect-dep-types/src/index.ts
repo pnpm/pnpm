@@ -1,4 +1,4 @@
-import { type Lockfile, type PackageSnapshots, type ResolvedDependencies } from '@pnpm/lockfile-types'
+import { type Lockfile, type PackageSnapshots, type ResolvedDependencies } from '@pnpm/lockfile.types'
 import * as dp from '@pnpm/dependency-path'
 import { type DepPath } from '@pnpm/types'
 

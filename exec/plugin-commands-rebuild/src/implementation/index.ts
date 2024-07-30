@@ -15,14 +15,14 @@ import {
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
 import { linkBins } from '@pnpm/link-bins'
-import { type TarballResolution } from '@pnpm/lockfile-types'
+import { type TarballResolution } from '@pnpm/lockfile.types'
 import {
   type Lockfile,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
   type PackageSnapshots,
-} from '@pnpm/lockfile-utils'
-import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
+} from '@pnpm/lockfile.utils'
+import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'

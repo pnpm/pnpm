@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile-file'
+import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile.fs'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import isSubdir from 'is-subdir'
@@ -220,7 +220,8 @@ async function updateTSConfig (
   }
 }
 
-let registryMockPort = 7769
+const registryMockPortForCore = 7769
+let registryMockPort = registryMockPortForCore
 
 type UpdatedManifest = ProjectManifest & Record<string, unknown>
 
@@ -228,7 +229,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   const relative = normalizePath(path.relative(workspaceDir, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {
-  case '@pnpm/lockfile-types':
+  case '@pnpm/lockfile.types':
     scripts = { ...manifest.scripts }
     break
   case '@pnpm/headless':
@@ -246,9 +247,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-deploy':
   case CLI_PKG_NAME:
   case '@pnpm/core': {
-    // @pnpm/core tests currently works only with port 4873 due to the usage of
+    // @pnpm/core tests currently works only with port 7769 due to the usage of
     // the next package: pkg-with-tarball-dep-from-registry
-    const port = manifest.name === '@pnpm/core' ? 4873 : ++registryMockPort
+    const port = manifest.name === '@pnpm/core' ? registryMockPortForCore : ++registryMockPort
     scripts = {
       ...(manifest.scripts as Record<string, string>),
     }

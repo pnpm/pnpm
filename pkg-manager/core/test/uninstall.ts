@@ -6,7 +6,7 @@ import {
   type RootLog,
   type StatsLog,
 } from '@pnpm/core-loggers'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'

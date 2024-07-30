@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-installation
 
+## 17.0.1
+
+### Patch Changes
+
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.types@1.0.0
+  - @pnpm/plugin-commands-rebuild@12.0.3
+  - @pnpm/core@15.1.1
+  - @pnpm/outdated@15.1.1
+  - @pnpm/get-context@12.0.2
+  - @pnpm/dedupe.check@2.0.7
+  - @pnpm/pnpmfile@6.0.8
+  - @pnpm/config@21.6.3
+  - @pnpm/cli-utils@3.1.6
+  - @pnpm/plugin-commands-env@5.1.1
+  - @pnpm/package-store@20.3.3
+  - @pnpm/store-connection-manager@8.3.4
+  - @pnpm/workspace.find-packages@4.0.3
+  - @pnpm/filter-workspace-packages@10.0.3
+
 ## 17.0.0
 
 ### Major Changes

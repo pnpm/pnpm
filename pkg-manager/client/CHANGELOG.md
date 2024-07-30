@@ -1,5 +1,13 @@
 # @pnpm/client
 
+## 11.1.6
+
+### Patch Changes
+
+- @pnpm/git-fetcher@13.0.10
+- @pnpm/tarball-fetcher@19.0.10
+- @pnpm/directory-fetcher@8.0.5
+
 ## 11.1.5
 
 ### Patch Changes

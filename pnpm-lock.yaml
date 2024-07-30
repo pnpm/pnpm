@@ -773,9 +773,9 @@ importers:
 
   .meta-updater:
     dependencies:
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../lockfile/lockfile-file
+        version: link:../lockfile/fs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
@@ -813,9 +813,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
+        version: link:../../lockfile/types
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -1523,9 +1523,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
+        version: link:../../lockfile/types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1573,12 +1573,12 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
-      '@pnpm/lockfile-utils':
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
+        version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -1879,6 +1879,9 @@ importers:
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -1949,15 +1952,15 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/lockfile-utils':
+        version: link:../../lockfile/types
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
-      '@pnpm/lockfile-walker':
+        version: link:../../lockfile/utils
+      '@pnpm/lockfile.walker':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-walker
+        version: link:../../lockfile/walker
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2597,9 +2600,9 @@ importers:
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../types
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
+        version: link:../../lockfile/types
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2671,9 +2674,9 @@ importers:
 
   hooks/types:
     dependencies:
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
+        version: link:../../lockfile/types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2696,18 +2699,18 @@ importers:
       '@pnpm/list':
         specifier: workspace:*
         version: link:../../reviewing/list
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../lockfile-types
-      '@pnpm/lockfile-utils':
-        specifier: workspace:*
-        version: link:../lockfile-utils
-      '@pnpm/lockfile-walker':
-        specifier: workspace:*
-        version: link:../lockfile-walker
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../detect-dep-types
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../utils
+      '@pnpm/lockfile.walker':
+        specifier: workspace:*
+        version: link:../walker
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2727,9 +2730,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../lockfile-file
+        version: link:../fs
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2745,9 +2748,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../lockfile-types
+        version: link:../types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2759,7 +2762,7 @@ importers:
         specifier: 'catalog:'
         version: 1.0.1
 
-  lockfile/filter-lockfile:
+  lockfile/filtering:
     dependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -2770,15 +2773,15 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../lockfile-types
-      '@pnpm/lockfile-utils':
+        version: link:../types
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../lockfile-utils
-      '@pnpm/lockfile-walker':
+        version: link:../utils
+      '@pnpm/lockfile.walker':
         specifier: workspace:*
-        version: link:../lockfile-walker
+        version: link:../walker
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2792,7 +2795,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
-      '@pnpm/filter-lockfile':
+      '@pnpm/lockfile.filtering':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
@@ -2811,7 +2814,7 @@ importers:
         specifier: 'catalog:'
         version: 1.1.0
 
-  lockfile/lockfile-file:
+  lockfile/fs:
     dependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -2828,18 +2831,18 @@ importers:
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.merger':
         specifier: workspace:*
-        version: link:../lockfile-types
-      '@pnpm/lockfile-utils':
+        version: link:../merger
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../lockfile-utils
+        version: link:../types
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
-      '@pnpm/merge-lockfile-changes':
-        specifier: workspace:*
-        version: link:../merge-lockfile-changes
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2874,7 +2877,7 @@ importers:
         specifier: 'catalog:'
         version: 5.0.1
     devDependencies:
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: 'link:'
       '@types/js-yaml':
@@ -2907,12 +2910,12 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../lockfile-file
-      '@pnpm/lockfile-utils':
+        version: link:../fs
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../lockfile-utils
+        version: link:../utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2939,80 +2942,11 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
 
-  lockfile/lockfile-types:
+  lockfile/merger:
     dependencies:
-      '@pnpm/types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../packages/types
-    devDependencies:
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: 'link:'
-
-  lockfile/lockfile-utils:
-    dependencies:
-      '@pnpm/dependency-path':
-        specifier: workspace:*
-        version: link:../../packages/dependency-path
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../lockfile-types
-      '@pnpm/pick-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/pick-fetcher
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      get-npm-tarball-url:
-        specifier: 'catalog:'
-        version: 2.1.0
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-    devDependencies:
-      '@pnpm/lockfile-utils':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
-      tempy:
-        specifier: 'catalog:'
-        version: 1.0.1
-      write-yaml-file:
-        specifier: 'catalog:'
-        version: 5.0.0
-      yaml-tag:
-        specifier: 'catalog:'
-        version: 1.1.0
-
-  lockfile/lockfile-walker:
-    dependencies:
-      '@pnpm/dependency-path':
-        specifier: workspace:*
-        version: link:../../packages/dependency-path
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../lockfile-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-    devDependencies:
-      '@pnpm/lockfile-walker':
-        specifier: workspace:*
-        version: 'link:'
-      tempy:
-        specifier: 'catalog:'
-        version: 1.0.1
-
-  lockfile/merge-lockfile-changes:
-    dependencies:
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../lockfile-types
+        version: link:../types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3026,7 +2960,7 @@ importers:
         specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
-      '@pnpm/merge-lockfile-changes':
+      '@pnpm/lockfile.merger':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
@@ -3053,9 +2987,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../lockfile-file
+        version: link:../fs
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
@@ -3111,9 +3045,9 @@ importers:
 
   lockfile/preferred-versions:
     dependencies:
-      '@pnpm/lockfile-utils':
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../lockfile-utils
+        version: link:../utils
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -3131,7 +3065,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  lockfile/prune-lockfile:
+  lockfile/pruner:
     dependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -3139,9 +3073,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../lockfile-types
+        version: link:../types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3149,7 +3083,7 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
-      '@pnpm/prune-lockfile':
+      '@pnpm/lockfile.pruner':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
@@ -3159,6 +3093,133 @@ importers:
         specifier: 'catalog:'
         version: 1.1.0
 
+  lockfile/types:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: 'link:'
+
+  lockfile/utils:
+    dependencies:
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/pick-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/pick-fetcher
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      get-npm-tarball-url:
+        specifier: 'catalog:'
+        version: 2.1.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+    devDependencies:
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      tempy:
+        specifier: 'catalog:'
+        version: 1.0.1
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
+      yaml-tag:
+        specifier: 'catalog:'
+        version: 1.1.0
+
+  lockfile/verification:
+    dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/get-context':
+        specifier: workspace:*
+        version: link:../../pkg-manager/get-context
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      p-every:
+        specifier: 'catalog:'
+        version: 2.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      semver:
+        specifier: 'catalog:'
+        version: 7.6.2
+      version-selector-type:
+        specifier: 'catalog:'
+        version: 3.0.0
+    devDependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/lockfile.verification':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
+
+  lockfile/walker:
+    dependencies:
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/lockfile.walker':
+        specifier: workspace:*
+        version: 'link:'
+      tempy:
+        specifier: 'catalog:'
+        version: 1.0.1
+
   modules-mounter/daemon:
     dependencies:
       '@pnpm/config':
@@ -3167,12 +3228,12 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
-      '@pnpm/lockfile-utils':
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
+        version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 5.0.0
@@ -3283,12 +3344,12 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../dependency-path
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/lockfile-utils':
+        version: link:../../lockfile/types
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
+        version: link:../../lockfile/utils
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -3388,15 +3449,15 @@ importers:
       '@pnpm/find-workspace-dir':
         specifier: workspace:*
         version: link:../../workspace/find-workspace-dir
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.pruner':
+        specifier: workspace:*
+        version: link:../../lockfile/pruner
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 5.0.0
-      '@pnpm/prune-lockfile':
-        specifier: workspace:*
-        version: link:../../lockfile/prune-lockfile
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -3612,12 +3673,12 @@ importers:
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
-      '@pnpm/lockfile-utils':
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
+        version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -3794,9 +3855,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/filter-lockfile':
-        specifier: workspace:*
-        version: link:../../lockfile/filter-lockfile
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../get-context
@@ -3818,21 +3876,30 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../link-bins
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-to-pnp':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-to-pnp
-      '@pnpm/lockfile-utils':
+      '@pnpm/lockfile.filtering':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
-      '@pnpm/lockfile-walker':
+        version: link:../../lockfile/filtering
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-walker
+        version: link:../../lockfile/fs
       '@pnpm/lockfile.preferred-versions':
         specifier: workspace:*
         version: link:../../lockfile/preferred-versions
+      '@pnpm/lockfile.pruner':
+        specifier: workspace:*
+        version: link:../../lockfile/pruner
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
+      '@pnpm/lockfile.verification':
+        specifier: workspace:*
+        version: link:../../lockfile/verification
+      '@pnpm/lockfile.walker':
+        specifier: workspace:*
+        version: link:../../lockfile/walker
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -3866,15 +3933,9 @@ importers:
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: link:../direct-dep-linker
-      '@pnpm/prune-lockfile':
-        specifier: workspace:*
-        version: link:../../lockfile/prune-lockfile
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-package-json
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -3917,9 +3978,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-      p-every:
-        specifier: 'catalog:'
-        version: 2.0.0
       p-filter:
         specifier: 'catalog:'
         version: 2.1.0
@@ -3944,9 +4002,6 @@ importers:
       sort-keys:
         specifier: 'catalog:'
         version: 4.2.0
-      version-selector-type:
-        specifier: 'catalog:'
-        version: 3.0.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -3966,15 +4021,18 @@ importers:
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
+        version: link:../../lockfile/types
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
@@ -4093,9 +4151,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4160,9 +4218,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/filter-lockfile':
-        specifier: workspace:*
-        version: link:../../lockfile/filter-lockfile
       '@pnpm/hoist':
         specifier: workspace:*
         version: link:../hoist
@@ -4172,15 +4227,18 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../link-bins
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-to-pnp':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-to-pnp
-      '@pnpm/lockfile-utils':
+      '@pnpm/lockfile.filtering':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
+        version: link:../../lockfile/filtering
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4320,15 +4378,15 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../link-bins
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/lockfile-utils':
+        version: link:../../lockfile/types
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
-      '@pnpm/lockfile-walker':
+        version: link:../../lockfile/utils
+      '@pnpm/lockfile.walker':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-walker
+        version: link:../../lockfile/walker
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4454,15 +4512,15 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/filter-lockfile':
+      '@pnpm/lockfile.filtering':
         specifier: workspace:*
-        version: link:../../lockfile/filter-lockfile
-      '@pnpm/lockfile-types':
+        version: link:../../lockfile/filtering
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/lockfile-utils':
+        version: link:../../lockfile/types
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
+        version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4695,9 +4753,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
+        version: link:../../lockfile/types
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4882,9 +4940,9 @@ importers:
 
   pkg-manager/read-projects-context:
     dependencies:
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4913,16 +4971,16 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-utils':
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
+        version: link:../../lockfile/utils
       '@yarnpkg/nm':
         specifier: 'catalog:'
         version: 4.0.2(typanion@3.14.0)
     devDependencies:
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/real-hoist':
         specifier: workspace:*
         version: 'link:'
@@ -4990,15 +5048,18 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/lockfile-utils':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
       '@pnpm/lockfile.preferred-versions':
         specifier: workspace:*
         version: link:../../lockfile/preferred-versions
+      '@pnpm/lockfile.pruner':
+        specifier: workspace:*
+        version: link:../../lockfile/pruner
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -5014,9 +5075,6 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
-      '@pnpm/prune-lockfile':
-        specifier: workspace:*
-        version: link:../../lockfile/prune-lockfile
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -5325,9 +5383,9 @@ importers:
       '@pnpm/find-workspace-dir':
         specifier: workspace:*
         version: link:../workspace/find-workspace-dir
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../lockfile/lockfile-types
+        version: link:../lockfile/types
       '@pnpm/logger':
         specifier: 'catalog:'
         version: 5.0.0
@@ -5672,9 +5730,9 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
+        version: link:../../lockfile/types
       '@pnpm/plugin-commands-deploy':
         specifier: workspace:*
         version: 'link:'
@@ -6066,15 +6124,15 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
-      '@pnpm/lockfile-utils':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../lockfile/detect-dep-types
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
@@ -6136,21 +6194,21 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/lockfile-utils':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
-      '@pnpm/lockfile-walker':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-walker
       '@pnpm/lockfile.detect-dep-types':
         specifier: workspace:*
         version: link:../../lockfile/detect-dep-types
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
+      '@pnpm/lockfile.walker':
+        specifier: workspace:*
+        version: link:../../lockfile/walker
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -6261,12 +6319,12 @@ importers:
       '@pnpm/hooks.read-package-hook':
         specifier: workspace:*
         version: link:../../hooks/read-package-hook
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
-      '@pnpm/lockfile-utils':
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
+        version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -6334,9 +6392,9 @@ importers:
       '@pnpm/license-scanner':
         specifier: workspace:*
         version: link:../license-scanner
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -6477,9 +6535,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
@@ -6800,9 +6858,9 @@ importers:
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
-      '@pnpm/lockfile-utils':
+      '@pnpm/lockfile.utils':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
+        version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -6852,9 +6910,9 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile.fs':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/fs
       '@pnpm/plugin-commands-script-runners':
         specifier: workspace:*
         version: link:../../exec/plugin-commands-script-runners
@@ -6903,9 +6961,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/lockfile-types':
+      '@pnpm/lockfile.types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
+        version: link:../../lockfile/types
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
@@ -7489,7 +7547,6 @@ packages:
   '@babel/plugin-proposal-dynamic-import@7.18.6':
     resolution: {integrity: sha512-1auuwmK+Rz13SJj36R+jqFPMJWyKEDd7lLSdOj4oJK0UTgGueSAtkrCvz9ewmgyU/P941Rv2fQwZJN8s6QruXw==}
     engines: {node: '>=6.9.0'}
-    deprecated: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-dynamic-import instead.
     peerDependencies:
       '@babel/core': ^7.0.0-0
 
@@ -8088,7 +8145,6 @@ packages:
   '@humanwhocodes/config-array@0.11.14':
     resolution: {integrity: sha512-3T8LkOmg45BV5FICb15QQMsyUSWrQ8AygVfC7ZG32zOalnqrilm018ZVCw0eapXux8FtA33q8PSRSstjee3jSg==}
     engines: {node: '>=10.10.0'}
-    deprecated: Use @eslint/config-array instead
 
   '@humanwhocodes/module-importer@1.0.1':
     resolution: {integrity: sha512-bxveV4V8v5Yb4ncFTT3rPSgZBOpCkjfK0y4oVVVJwIuDVBRMDXrPyXRL988i5ap9m9bnyEEjWfm5WkBmtffLfA==}
@@ -8096,7 +8152,6 @@ packages:
 
   '@humanwhocodes/object-schema@2.0.3':
     resolution: {integrity: sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==}
-    deprecated: Use @eslint/object-schema instead
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -10108,7 +10163,6 @@ packages:
 
   eslint-config-standard-with-typescript@39.1.1:
     resolution: {integrity: sha512-t6B5Ep8E4I18uuoYeYxINyqcXb2UbC0SOOTxRtBSt2JUs+EzeXbfe2oaiPs71AIdnoWhXDO2fYOHz8df3kV84A==}
-    deprecated: Please use eslint-config-love, instead.
     peerDependencies:
       '@typescript-eslint/eslint-plugin': ^6.4.0
       eslint: ^8.0.1
@@ -10616,7 +10670,6 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
 
   glob@8.1.0:
     resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
@@ -10693,7 +10746,6 @@ packages:
   har-validator@5.1.5:
     resolution: {integrity: sha512-nmT2T0lljbxdQZfspsno9hgrG3Uir6Ks5afism62poxqBM6sDnMEuPmzTq8XN0OEwqKLLdh1jQI3qyE66Nzb3w==}
     engines: {node: '>=6'}
-    deprecated: this library is no longer supported
 
   hard-rejection@2.1.0:
     resolution: {integrity: sha512-VIZB+ibDhx7ObhAe7OVtoEbuP4h/MuOTHJ+J8h/eBXotJYl0fBgR72xDFCKgIh22OJZIOVNxBMWuhAr10r8HdA==}
@@ -10874,7 +10926,6 @@ packages:
 
   inflight@1.0.6:
     resolution: {integrity: sha512-k92I/b08q4wvFscXCLvqfsHCrjrF7yiXsQuIVvVE7N82W3+aqpzuUdBbfhWcy/FZR3/4IgflMgKLOsvPDrGCJA==}
-    deprecated: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
@@ -12585,7 +12636,6 @@ packages:
   request@2.88.0:
     resolution: {integrity: sha512-NAqBSrijGLZdM0WZNsInLJpkJokL72XYjUpnB0iwsRgxh7dB6COrHnTBNwN0E+lHDAJzu7kLAkDeY08z2/A0hg==}
     engines: {node: '>= 4'}
-    deprecated: request has been deprecated, see https://github.com/request/request/issues/3142
 
   request@2.88.2:
     resolution: {integrity: sha512-MsvtOrfG9ZcrOwAW+Qi+F6HbD0CWXEh9ou77uOb7FM2WPhwT7smM833PzanhJLsgXjN89Ir6V2PczXNnMpwKhw==}
@@ -12673,7 +12723,6 @@ packages:
   right-pad@1.0.1:
     resolution: {integrity: sha512-bYBjgxmkvTAfgIYy328fmkwhp39v8lwVgWhhrzxPV3yHtcSqyYKe9/XOhvW48UFjATg3VuJbpsp5822ACNvkmw==}
     engines: {node: '>= 0.10'}
-    deprecated: Please use String.prototype.padEnd() over this package.
 
   rimraf-then@1.0.1:
     resolution: {integrity: sha512-qTVCDUsBDO74PHen/pEMTHeQXxrCSeTcFhqjy86mkRH5nuGZpEv41ZgGunxmjbl29kvrKJGrgVFThoqXeRORfQ==}
@@ -13399,6 +13448,7 @@ packages:
 
   uid-number@0.0.6:
     resolution: {integrity: sha512-c461FXIljswCuscZn67xq9PpszkPT6RjheWFQTgCyabJrTUozElanb0YEqv2UGgk247YpcJkFBuSGNvBlpXM9w==}
+    deprecated: This package is no longer supported.
 
   umask@1.1.0:
     resolution: {integrity: sha512-lE/rxOhmiScJu9L6RTNVgB/zZbF+vGC0/p6D3xnkAePI2o0sMyFG966iR5Ki50OI/0mNi2yaRnxfLsPmEZF/JA==}
@@ -14692,7 +14742,7 @@ snapshots:
   '@jest/console@29.7.0':
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       chalk: 4.1.2
       jest-message-util: 29.7.0
       jest-util: 29.7.0
@@ -14705,14 +14755,14 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.24.7)
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       ci-info: 3.9.0
       exit: 0.1.2
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-changed-files: 29.7.0
-      jest-config: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))
+      jest-config: 29.7.0(@babel/types@7.24.7)(@types/node@20.14.9)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))
       jest-haste-map: 29.7.0
       jest-message-util: 29.7.0
       jest-regex-util: 29.6.3
@@ -14738,7 +14788,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       jest-mock: 29.7.0
 
   '@jest/expect-utils@29.7.0':
@@ -14756,7 +14806,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@sinonjs/fake-timers': 10.3.0
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       jest-message-util: 29.7.0
       jest-mock: 29.7.0
       jest-util: 29.7.0
@@ -14778,7 +14828,7 @@ snapshots:
       '@jest/transform': 29.7.0(@babel/types@7.24.7)
       '@jest/types': 29.6.3
       '@jridgewell/trace-mapping': 0.3.25
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       chalk: 4.1.2
       collect-v8-coverage: 1.0.2
       exit: 0.1.2
@@ -14850,7 +14900,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       '@types/yargs': 17.0.32
       chalk: 4.1.2
 
@@ -15487,7 +15537,7 @@ snapshots:
 
   '@types/isexe@2.0.2':
     dependencies:
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
 
   '@types/istanbul-lib-coverage@2.0.6': {}
 
@@ -15610,7 +15660,7 @@ snapshots:
 
   '@types/touch@3.1.5':
     dependencies:
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
 
   '@types/treeify@1.0.3': {}
 
@@ -15798,7 +15848,7 @@ snapshots:
   '@yarnpkg/core@4.0.3(typanion@3.14.0)':
     dependencies:
       '@arcanis/slice-ansi': 1.1.1
-      '@types/semver': 7.5.3
+      '@types/semver': 7.5.8
       '@types/treeify': 1.0.3
       '@yarnpkg/fslib': 3.1.0
       '@yarnpkg/libzip': 3.1.0(@yarnpkg/fslib@3.1.0)
@@ -18448,7 +18498,7 @@ snapshots:
       '@jest/expect': 29.7.0
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       chalk: 4.1.2
       co: 4.6.0
       dedent: 1.5.3
@@ -18521,6 +18571,38 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
+  jest-config@29.7.0(@babel/types@7.24.7)(@types/node@20.14.9)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5)):
+    dependencies:
+      '@babel/core': 7.24.7
+      '@jest/test-sequencer': 29.7.0
+      '@jest/types': 29.6.3
+      babel-jest: 29.7.0(@babel/core@7.24.7)(@babel/types@7.24.7)
+      chalk: 4.1.2
+      ci-info: 3.9.0
+      deepmerge: 4.3.1
+      glob: 7.2.3
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
+      jest-circus: 29.7.0(@babel/types@7.24.7)
+      jest-environment-node: 29.7.0
+      jest-get-type: 29.6.3
+      jest-regex-util: 29.6.3
+      jest-resolve: 29.7.0
+      jest-runner: 29.7.0(@babel/types@7.24.7)
+      jest-util: 29.7.0
+      jest-validate: 29.7.0
+      micromatch: 4.0.7
+      parse-json: 5.2.0
+      pretty-format: 29.7.0
+      slash: 3.0.0
+      strip-json-comments: 3.1.1
+    optionalDependencies:
+      '@types/node': 20.14.9
+      ts-node: 10.9.2(@types/node@18.19.34)(typescript@5.4.5)
+    transitivePeerDependencies:
+      - '@babel/types'
+      - babel-plugin-macros
+      - supports-color
+
   jest-diff@29.7.0:
     dependencies:
       chalk: 4.1.2
@@ -18545,7 +18627,7 @@ snapshots:
       '@jest/environment': 29.7.0
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       jest-mock: 29.7.0
       jest-util: 29.7.0
 
@@ -18555,7 +18637,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@types/graceful-fs': 4.1.9
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
@@ -18594,7 +18676,7 @@ snapshots:
   jest-mock@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       jest-util: 29.7.0
 
   jest-pnp-resolver@1.2.3(jest-resolve@29.7.0):
@@ -18629,7 +18711,7 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.24.7)
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       chalk: 4.1.2
       emittery: 0.13.1
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
@@ -18658,7 +18740,7 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.24.7)
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       chalk: 4.1.2
       cjs-module-lexer: 1.3.1
       collect-v8-coverage: 1.0.2
@@ -18705,7 +18787,7 @@ snapshots:
   jest-util@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
@@ -18724,7 +18806,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
@@ -18733,7 +18815,7 @@ snapshots:
 
   jest-worker@29.7.0:
     dependencies:
-      '@types/node': 18.19.34
+      '@types/node': 20.14.9
       jest-util: 29.7.0
       merge-stream: 2.0.0
       supports-color: 8.1.1

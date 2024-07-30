@@ -1,6 +1,6 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import { type Lockfile } from '@pnpm/lockfile.types'
 import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import sortKeys from 'sort-keys'

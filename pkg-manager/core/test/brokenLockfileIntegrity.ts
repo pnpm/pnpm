@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type TarballResolution } from '@pnpm/lockfile-file'
+import { type TarballResolution } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectRootDir } from '@pnpm/types'

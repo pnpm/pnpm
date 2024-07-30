@@ -1,13 +1,13 @@
 {
   "name": "@pnpm-private/updater",
-  "version": "2.0.10",
+  "version": "2.0.11",
   "private": true,
   "type": "module",
   "scripts": {
     "compile": "tsc --build"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/normalize-path": "catalog:",
     "is-subdir": "catalog:",

@@ -3,7 +3,7 @@ import {
   type Lockfile,
   type ProjectId,
   nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import * as dp from '@pnpm/dependency-path'
 import { hoist as _hoist, HoisterDependencyKind, type HoisterTree, type HoisterResult } from '@yarnpkg/nm'
 

@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 11.0.1
+
+### Patch Changes
+
+- Updated dependencies [9899576]
+  - @pnpm/lifecycle@17.1.1
+  - @pnpm/plugin-commands-installation@17.0.1
+  - @pnpm/config@21.6.3
+  - @pnpm/cli-utils@3.1.6
+  - @pnpm/plugin-commands-env@5.1.1
+  - @pnpm/crypto.base32-hash@3.0.0
+
 ## 11.0.0
 
 ### Major Changes

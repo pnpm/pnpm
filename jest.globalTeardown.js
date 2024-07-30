@@ -1,3 +1,3 @@
 module.exports = () => {
-  global.killServer()
+  global.killServer?.()
 }

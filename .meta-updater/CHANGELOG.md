@@ -1,5 +1,12 @@
 # @pnpm-private/updater
 
+## 2.0.11
+
+### Patch Changes
+
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.fs@1.0.0
+
 ## 2.0.10
 
 ### Patch Changes

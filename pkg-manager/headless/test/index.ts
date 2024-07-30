@@ -12,7 +12,7 @@ import {
   type StatsLog,
 } from '@pnpm/core-loggers'
 import { headlessInstall } from '@pnpm/headless'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
 import { type DepPath } from '@pnpm/types'

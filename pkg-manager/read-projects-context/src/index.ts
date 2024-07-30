@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import util from 'util'
 import path from 'path'
-import { getLockfileImporterId } from '@pnpm/lockfile-file'
+import { getLockfileImporterId } from '@pnpm/lockfile.fs'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import {

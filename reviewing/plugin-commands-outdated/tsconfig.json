@@ -31,7 +31,7 @@
       "path": "../../config/matcher"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
       "path": "../../packages/constants"

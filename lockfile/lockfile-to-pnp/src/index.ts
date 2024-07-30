@@ -1,9 +1,9 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import { type Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import { generateInlinedScript, type PackageRegistry } from '@yarnpkg/pnp'

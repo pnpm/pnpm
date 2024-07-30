@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/mount-modules",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "description": "Mounts a node_modules directory with FUSE",
   "main": "lib/index.js",
   "bin": "bin/mount-modules.js",
@@ -44,8 +44,8 @@
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/logger": "catalog:",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",

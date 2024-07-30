@@ -7,7 +7,7 @@ import { globalWarn } from '@pnpm/logger'
 import {
   type Lockfile,
   type ProjectSnapshot,
-} from '@pnpm/lockfile-types'
+} from '@pnpm/lockfile.types'
 import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,

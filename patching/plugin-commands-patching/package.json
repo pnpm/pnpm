@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-patching",
-  "version": "6.2.4",
+  "version": "6.2.5",
   "description": "Commands for creating patches",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -47,8 +47,8 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",

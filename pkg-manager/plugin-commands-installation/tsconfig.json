@@ -52,7 +52,7 @@
       "path": "../../hooks/pnpmfile"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/constants"

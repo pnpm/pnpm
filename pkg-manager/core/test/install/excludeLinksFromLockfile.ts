@@ -8,7 +8,7 @@ import {
   type MutatedProject,
   type ProjectOptions,
 } from '@pnpm/core'
-import { type Lockfile, type LockfileFile } from '@pnpm/lockfile-types'
+import { type Lockfile, type LockfileFile } from '@pnpm/lockfile.types'
 import { type ProjectRootDir, type ProjectId } from '@pnpm/types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'

@@ -31,10 +31,10 @@
       "path": "../../fs/packlist"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/constants"

@@ -1,4 +1,4 @@
-import { type CatalogSnapshots } from '@pnpm/lockfile-types'
+import { type CatalogSnapshots } from '@pnpm/lockfile.types'
 import { type ResolvedDirectDependency } from './resolveDependencyTree'
 
 export function getCatalogSnapshots (resolvedDirectDeps: readonly ResolvedDirectDependency[]): CatalogSnapshots {

@@ -1,6 +1,6 @@
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileV9 as Lockfile } from '@pnpm/lockfile-file'
+import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'

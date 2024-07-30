@@ -1,5 +1,5 @@
 import type { PreResolutionHook } from '@pnpm/hooks.types'
-import type { Lockfile } from '@pnpm/lockfile-types'
+import type { Lockfile } from '@pnpm/lockfile.types'
 import type { Log } from '@pnpm/core-loggers'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'

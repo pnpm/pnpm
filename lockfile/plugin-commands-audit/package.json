@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-audit",
-  "version": "10.2.4",
+  "version": "10.2.5",
   "description": "pnpm commands for dependencies audit",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -47,7 +47,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",

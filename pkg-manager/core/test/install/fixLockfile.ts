@@ -4,7 +4,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, type MutatedProject, mutateModules } from '@pnpm/core'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { sync as readYamlFile } from 'read-yaml-file'
-import { type LockfileV9 as Lockfile, type PackageSnapshots } from '@pnpm/lockfile-file'
+import { type LockfileV9 as Lockfile, type PackageSnapshots } from '@pnpm/lockfile.fs'
 import { type ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils'
 

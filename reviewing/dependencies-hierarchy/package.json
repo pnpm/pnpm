@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/reviewing.dependencies-hierarchy",
-  "version": "3.1.7",
+  "version": "3.1.8",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,8 +33,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/dependencies-hierarchy#readme",
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",

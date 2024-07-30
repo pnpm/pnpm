@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/hooks.types",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "Types for hooks",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,7 +31,7 @@
     "@pnpm/hooks.types": "workspace:*"
   },
   "dependencies": {
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",

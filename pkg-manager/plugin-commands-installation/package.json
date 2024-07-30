@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "17.0.0",
+  "version": "17.0.1",
   "description": "Commands for installation",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -70,7 +70,7 @@
     "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/outdated": "workspace:*",

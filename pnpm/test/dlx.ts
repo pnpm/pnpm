@@ -261,7 +261,12 @@ test('dlx uses the node version specified by --use-node-version', async () => {
     stdio: [null, 'pipe', 'inherit'],
   })
 
-  const nodeInfo = JSON.parse(execResult.stdout.toString())
+  let nodeInfo
+  try {
+    nodeInfo = JSON.parse(execResult.stdout.toString())
+  } catch (err) {
+    nodeInfo = execResult.stdout.toString()
+  }
   expect(nodeInfo).toMatchObject({
     versions: {
       node: '20.0.0',

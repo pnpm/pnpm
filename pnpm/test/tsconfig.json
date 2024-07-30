@@ -65,10 +65,10 @@
       "path": "../../exec/run-npm"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/plugin-commands-audit"
     },
     {
-      "path": "../../lockfile/plugin-commands-audit"
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/constants"

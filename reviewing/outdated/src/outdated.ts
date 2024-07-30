@@ -11,8 +11,8 @@ import {
   getLockfileImporterId,
   type Lockfile,
   type ProjectSnapshot,
-} from '@pnpm/lockfile-file'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.fs'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { parsePref } from '@pnpm/npm-resolver'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'

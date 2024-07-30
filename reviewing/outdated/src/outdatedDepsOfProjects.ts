@@ -3,7 +3,7 @@ import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   readCurrentLockfile,
   readWantedLockfile,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { createMatcher } from '@pnpm/matcher'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {

@@ -65,9 +65,9 @@ export async function runLifecycleHooksConcurrently (
         }
         let isBuilt = false
         for (const stage of (importerStages ?? stages)) {
-          if (!manifest.scripts?.[stage]) continue
-          await runLifecycleHook(stage, manifest, runLifecycleHookOpts) // eslint-disable-line no-await-in-loop
-          isBuilt = true
+          if (await runLifecycleHook(stage, manifest, runLifecycleHookOpts)) { // eslint-disable-line no-await-in-loop
+            isBuilt = true
+          }
         }
         if (targetDirs == null || targetDirs.length === 0 || !isBuilt) return
         const filesResponse = await fetchFromDir(rootDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })

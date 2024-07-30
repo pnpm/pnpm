@@ -6,8 +6,8 @@ import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/link-bins'
 import {
   type Lockfile,
   nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
-import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
+} from '@pnpm/lockfile.utils'
+import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { type DepPath, type HoistedDependencies, type ProjectId } from '@pnpm/types'

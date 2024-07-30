@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 21.6.3
+
+### Patch Changes
+
+- @pnpm/pnpmfile@6.0.8
+
 ## 21.6.2
 
 ### Patch Changes

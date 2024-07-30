@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "15.1.8",
+  "version": "15.1.9",
   "description": "Exports util functions to clean up node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,9 +30,9 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/filter-lockfile": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.filtering": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",

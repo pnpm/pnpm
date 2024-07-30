@@ -37,16 +37,16 @@
       "path": "../detect-dep-types"
     },
     {
-      "path": "../lockfile-file"
+      "path": "../fs"
     },
     {
-      "path": "../lockfile-types"
+      "path": "../types"
     },
     {
-      "path": "../lockfile-utils"
+      "path": "../utils"
     },
     {
-      "path": "../lockfile-walker"
+      "path": "../walker"
     }
   ]
 }
