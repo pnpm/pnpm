@@ -50,6 +50,7 @@ test('bare package name as a patchedDependencies key should apply to all version
 
   {
     const text = patchedFileContent(1)
+    expect(text).not.toBe(unpatchedFileContent(1))
     expect(text).toContain('FIRST LINE')
     expect(text).not.toContain('first line')
     expect(text).toContain('second line')
@@ -58,6 +59,7 @@ test('bare package name as a patchedDependencies key should apply to all version
 
   {
     const text = patchedFileContent(2)
+    expect(text).not.toBe(unpatchedFileContent(2))
     expect(text).toContain('FIRST LINE')
     expect(text).not.toContain('first line')
     expect(text).toContain('second line')
@@ -67,6 +69,7 @@ test('bare package name as a patchedDependencies key should apply to all version
 
   {
     const text = patchedFileContent(3)
+    expect(text).not.toBe(unpatchedFileContent(3))
     expect(text).toContain('FIRST LINE')
     expect(text).not.toContain('first line')
     expect(text).toContain('second line')
