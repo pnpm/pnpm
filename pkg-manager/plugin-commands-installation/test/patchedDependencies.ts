@@ -225,3 +225,26 @@ test('package name with version as a patchedDependencies key does not affect oth
     expect(text.trim().split('\n').length).toBe(4)
   }
 })
+
+test('failure to apply patch with package name and version would cause throw an error', async () => {
+  const patchFixture = f.find('patchedDependencies/console-log-replace-4th-line.patch')
+  prepareEmpty()
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/depends-on-console-log@1.0.0'])
+  fs.rmSync('pnpm-lock.yaml')
+
+  addPatch('@pnpm.e2e/console-log@1.0.0', patchFixture, 'patches/console-log@1.0.0.patch')
+
+  const promise = install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: false,
+  })
+  await expect(promise).rejects.toHaveProperty(['message'], expect.stringContaining('Could not apply patch'))
+  await expect(promise).rejects.toHaveProperty(['message'], expect.stringContaining(path.resolve('patches/console-log@1.0.0.patch')))
+
+  expect(patchedFileContent(1)).toBe(unpatchedFileContent(1))
+})
