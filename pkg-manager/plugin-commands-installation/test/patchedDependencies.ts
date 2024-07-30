@@ -1,10 +1,23 @@
 import fs from 'fs'
 import path from 'path'
 import { type ProjectManifest } from '@pnpm/types'
+import { globalWarn } from '@pnpm/logger'
 import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { DEFAULT_OPTS } from './utils'
+
+jest.mock('@pnpm/logger', () => {
+  const originalModule = jest.requireActual('@pnpm/logger')
+  return {
+    ...originalModule,
+    globalWarn: jest.fn(),
+  }
+})
+
+beforeEach(() => {
+  ;(globalWarn as jest.Mock).mockClear()
+})
 
 const f = fixtures(__dirname)
 
@@ -78,6 +91,8 @@ test('bare package name as a patchedDependencies key should apply to all version
     expect(text).toContain('fourth line')
     expect(text.trim().split('\n').length).toBe(4)
   }
+
+  expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Could not apply patch'))
 })
 
 test('bare package name as a patchedDependencies key should apply to all possible versions and skip non-applicable versions', async () => {
@@ -100,6 +115,7 @@ test('bare package name as a patchedDependencies key should apply to all possibl
 
   // the common patch does not apply to v1
   expect(patchedFileContent(1)).toBe(unpatchedFileContent(1))
+  expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining(`Could not apply patch ${path.resolve('patches/console-log.patch')}`))
 
   // the common patch applies to v2
   {
@@ -177,6 +193,8 @@ test('package name with version is prioritized over bare package name as keys of
     expect(text).toContain('fourth line')
     expect(text.trim().split('\n').length).toBe(4)
   }
+
+  expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Could not apply patch'))
 })
 
 test('package name with version as a patchedDependencies key does not affect other versions', async () => {
