@@ -29,7 +29,7 @@ const patchedFilePath = (v: 1 | 2 | 3) => `${patchedModulesDir}/console-log-${v}
 const patchedFileContent = (v: 1 | 2 | 3) => fs.readFileSync(patchedFilePath(v), 'utf-8')
 
 test('bare package name as a patchedDependencies key should apply to all versions if all are applicable', async () => {
-  const patchFixture = f.find('patchedDependencies/console-log-replace-first-line.patch')
+  const patchFixture = f.find('patchedDependencies/console-log-replace-1st-line.patch')
   prepareEmpty()
 
   await add.handler({
