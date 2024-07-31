@@ -249,7 +249,7 @@ async function fetchDeps (
       name: pkgName,
       optional: !!pkgSnapshot.optional,
       optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-      patchInfo: getPatchInfo(opts.patchedDependencies, pkgName, pkgVersion),
+      patch: getPatchInfo(opts.patchedDependencies, pkgName, pkgVersion),
     }
     if (!opts.pkgLocationsByDepPath[depPath]) {
       opts.pkgLocationsByDepPath[depPath] = []

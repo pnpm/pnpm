@@ -45,7 +45,7 @@ export interface DependenciesGraphNode {
   requiresBuild?: boolean
   hasBin: boolean
   filesIndexFile?: string
-  patchInfo?: PatchInfo
+  patch?: PatchInfo
 }
 
 export interface DependenciesGraph {
@@ -197,7 +197,7 @@ export async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-          patchInfo: getPatchInfo(opts.patchedDependencies, pkgName, pkgVersion),
+          patch: getPatchInfo(opts.patchedDependencies, pkgName, pkgVersion),
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
       })

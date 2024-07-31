@@ -232,7 +232,7 @@ export interface ResolvedPackage {
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
-  patchInfo?: PatchInfo
+  patch?: PatchInfo
   prepare: boolean
   pkgIdWithPatchHash: PkgIdWithPatchHash
   requiresBuild?: boolean
@@ -1354,10 +1354,10 @@ async function resolveDependency (
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
   let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
-  const patchInfo = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
-  if (patchInfo) {
-    ctx.appliedPatches.add(patchInfo.key)
-    pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patchInfo.file.hash})` as PkgIdWithPatchHash
+  const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
+  if (patch) {
+    ctx.appliedPatches.add(patch.key)
+    pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.file.hash})` as PkgIdWithPatchHash
   }
 
   // We are building the dependency tree only until there are new packages
@@ -1469,7 +1469,7 @@ async function resolveDependency (
       pkgIdWithPatchHash,
       force: ctx.force,
       hasBin,
-      patchInfo,
+      patch,
       pkg,
       pkgResponse,
       prepare,
@@ -1588,7 +1588,7 @@ function getResolvedPackage (
     force: boolean
     hasBin: boolean
     parentImporterId: string
-    patchInfo?: PatchInfo
+    patch?: PatchInfo
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean
@@ -1618,7 +1618,7 @@ function getResolvedPackage (
     name: options.pkg.name,
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
-    patchInfo: options.patchInfo,
+    patch: options.patch,
     peerDependencies,
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
