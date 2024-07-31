@@ -90,10 +90,8 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
   writeEditDirState({
     editDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
-    value: {
-      selector: params[0],
-      applyToAll: patchedDep.applyToAll,
-    },
+    patchedPkg: params[0],
+    applyToAll: patchedDep.applyToAll,
   })
 
   if (!opts.ignoreExisting) {

@@ -5,7 +5,7 @@ import util from 'util'
 export type EditDir = string & { __brand: 'patch-edit-dir' }
 
 export interface EditDirState {
-  selector: string
+  patchedPkg: string
   applyToAll: boolean
 }
 
@@ -28,14 +28,15 @@ export function readEditDirState (opts: ReadEditDirStateOptions): EditDirState |
   return state[key]
 }
 
-export interface WriteEditDirStateOptions extends ReadEditDirStateOptions {
-  value: EditDirState
-}
+export interface WriteEditDirStateOptions extends ReadEditDirStateOptions, EditDirState {}
 
 export function writeEditDirState (opts: WriteEditDirStateOptions): void {
   modifyStateFile(opts.modulesDir, state => {
     const key = createEditDirKey(opts)
-    state[key] = opts.value
+    state[key] = {
+      patchedPkg: opts.patchedPkg,
+      applyToAll: opts.applyToAll,
+    }
   })
 }
 
