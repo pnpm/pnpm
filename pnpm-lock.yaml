@@ -705,8 +705,8 @@ importers:
         specifier: workspace:*
         version: link:__utils__/eslint-config
       '@pnpm/meta-updater':
-        specifier: 2.0.2
-        version: 2.0.2
+        specifier: 2.0.3
+        version: 2.0.3
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
@@ -8412,8 +8412,8 @@ packages:
     resolution: {integrity: sha512-c2diPZzejRYnL6b00Ko70TnOlbsqydUOvAjOZ7THTs0ptXG/AARcwNp9YO5EXFq775TTmsSUBo99qisYF1ogNA==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/meta-updater@2.0.2':
-    resolution: {integrity: sha512-aJ2UpfLNR9R4an4vYiGs7+zoUHUhHCxvVwO1NFontnZEgWJSmevLaDGcD7P/TIQl6w4P8qCmGQwBTuSyi483pw==}
+  '@pnpm/meta-updater@2.0.3':
+    resolution: {integrity: sha512-wVQLcAjcg5SuMpWY2KhgjfdijlvB2U3L7PajmUy6BVCS6n5yEFRkEGt1PQ/8La1bZeoPRIPUB4P5tjb3Nh3ZQA==}
     engines: {node: '>=18.12.0'}
     hasBin: true
 
@@ -15172,12 +15172,13 @@ snapshots:
     dependencies:
       escape-string-regexp: 4.0.0
 
-  '@pnpm/meta-updater@2.0.2':
+  '@pnpm/meta-updater@2.0.3':
     dependencies:
       '@pnpm/find-workspace-dir': 7.0.1
       '@pnpm/logger': 5.0.0
       '@pnpm/types': 11.0.0
       '@pnpm/workspace.find-packages': 4.0.0(@pnpm/logger@5.0.0)
+      '@pnpm/workspace.read-manifest': 2.2.0
       load-json-file: 7.0.1
       meow: 11.0.0
       print-diff: 2.0.0
