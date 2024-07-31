@@ -15,14 +15,14 @@ export function getPatchInfo (
     return {
       file: patchedDependencies[pkgNameAndVersion],
       key: pkgNameAndVersion,
-      strict: false,
+      strict: true,
     }
   }
   if (patchedDependencies[pkgName]) {
     return {
       file: patchedDependencies[pkgName],
       key: pkgName,
-      strict: true,
+      strict: false,
     }
   }
   return undefined

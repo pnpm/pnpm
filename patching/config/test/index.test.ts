@@ -4,7 +4,7 @@ test('getPatchInfo(undefined, ...) returns undefined', () => {
   expect(getPatchInfo(undefined, 'foo', '1.0.0')).toBeUndefined()
 })
 
-test('getPatchInfo(_, name, version) returns strict=false if name@version exists', () => {
+test('getPatchInfo(_, name, version) returns strict=true if name@version exists', () => {
   expect(getPatchInfo({
     'foo@1.0.0': {
       path: 'patches/foo@1.0.0.patch',
@@ -16,11 +16,11 @@ test('getPatchInfo(_, name, version) returns strict=false if name@version exists
       hash: expect.any(String),
     },
     key: 'foo@1.0.0',
-    strict: false,
+    strict: true,
   })
 })
 
-test('getPatchInfo(_, name, version) returns strict=true if name exists and name@version does not exist', () => {
+test('getPatchInfo(_, name, version) returns strict=false if name exists and name@version does not exist', () => {
   expect(getPatchInfo({
     foo: {
       path: 'patches/foo.patch',
@@ -32,7 +32,7 @@ test('getPatchInfo(_, name, version) returns strict=true if name exists and name
       hash: expect.any(String),
     },
     key: 'foo',
-    strict: true,
+    strict: false,
   })
 })
 
@@ -52,7 +52,7 @@ test('getPatchInfo(_, name, version) prioritizes name@version over name if both 
       hash: expect.any(String),
     },
     key: 'foo@1.0.0',
-    strict: false,
+    strict: true,
   })
 })
 
