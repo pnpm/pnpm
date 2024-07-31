@@ -36,7 +36,7 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
     }>([{
       type: 'select',
       name: 'version',
-      message: 'Choose which version to edit',
+      message: 'Choose which version to patch',
       choices: preferredVersions.map(preferred => ({
         name: preferred.version,
         message: preferred.version,
