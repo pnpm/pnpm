@@ -4,35 +4,35 @@ test('getPatchInfo(undefined, ...) returns undefined', () => {
   expect(getPatchInfo(undefined, 'foo', '1.0.0')).toBeUndefined()
 })
 
-test('getPatchInfo(_, name, version) returns appliedToAnyVersion=false if name@version exists', () => {
+test('getPatchInfo(_, name, version) returns strict=false if name@version exists', () => {
   expect(getPatchInfo({
     'foo@1.0.0': {
       path: 'patches/foo@1.0.0.patch',
       hash: '00000000000000000000000000000000',
     },
   }, 'foo', '1.0.0')).toStrictEqual({
-    appliedToAnyVersion: false,
     file: {
       path: 'patches/foo@1.0.0.patch',
       hash: expect.any(String),
     },
     key: 'foo@1.0.0',
+    strict: false,
   })
 })
 
-test('getPatchInfo(_, name, version) returns appliedToAnyVersion=true if name exists and name@version does not exist', () => {
+test('getPatchInfo(_, name, version) returns strict=true if name exists and name@version does not exist', () => {
   expect(getPatchInfo({
     foo: {
       path: 'patches/foo.patch',
       hash: '00000000000000000000000000000000',
     },
   }, 'foo', '1.0.0')).toStrictEqual({
-    appliedToAnyVersion: true,
     file: {
       path: 'patches/foo.patch',
       hash: expect.any(String),
     },
     key: 'foo',
+    strict: true,
   })
 })
 
@@ -47,12 +47,12 @@ test('getPatchInfo(_, name, version) prioritizes name@version over name if both 
       hash: '00000000000000000000000000000000',
     },
   }, 'foo', '1.0.0')).toStrictEqual({
-    appliedToAnyVersion: false,
     file: {
       path: 'patches/foo@1.0.0.patch',
       hash: expect.any(String),
     },
     key: 'foo@1.0.0',
+    strict: false,
   })
 })
 

@@ -33,7 +33,7 @@ export interface PatchFile {
 }
 
 export interface PatchInfo {
-  appliedToAnyVersion: boolean
+  strict: boolean
   file: PatchFile
 }
 
