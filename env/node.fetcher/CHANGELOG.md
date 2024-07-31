@@ -1,5 +1,48 @@
 # @pnpm/node.fetcher
 
+## 4.0.10
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@19.0.10
+- @pnpm/create-cafs-store@7.0.6
+
+## 4.0.9
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.4
+- @pnpm/tarball-fetcher@19.0.9
+- @pnpm/create-cafs-store@7.0.6
+- @pnpm/pick-fetcher@3.0.0
+
+## 4.0.8
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+- Updated dependencies [afe520d]
+  - @pnpm/tarball-fetcher@19.0.8
+  - @pnpm/create-cafs-store@7.0.5
+
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.3
+- @pnpm/pick-fetcher@3.0.0
+- @pnpm/tarball-fetcher@19.0.7
+- @pnpm/create-cafs-store@7.0.4
+
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.2
+- @pnpm/tarball-fetcher@19.0.6
+- @pnpm/create-cafs-store@7.0.3
+- @pnpm/pick-fetcher@3.0.0
+
 ## 4.0.5
 
 ### Patch Changes

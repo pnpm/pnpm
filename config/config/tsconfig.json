@@ -16,6 +16,12 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../catalogs/config"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../hooks/pnpmfile"
     },
     {
@@ -32,6 +38,9 @@
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../workspace/read-manifest"
     },
     {
       "path": "../matcher"

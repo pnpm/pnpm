@@ -9,6 +9,7 @@ import {
   NoMatchingVersionError,
 } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
+import { type ProjectRootDir } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import omit from 'ramda/src/omit'
@@ -978,17 +979,17 @@ test('resolve from local directory when it matches the latest version of the pac
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '1.0.0': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1016,17 +1017,17 @@ test('resolve injected dependency from local directory when it matches the lates
     projectDir: '/home/istvan/src',
     lockfileDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '1.0.0': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1054,17 +1055,17 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
     alwaysTryWorkspacePackages: false,
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '1.0.0': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
@@ -1088,17 +1089,17 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
     alwaysTryWorkspacePackages: false,
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '1.0.0': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1121,17 +1122,17 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
     alwaysTryWorkspacePackages: false,
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '1.0.0': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1162,17 +1163,17 @@ test('use version from the registry if it is newer than the local one', async ()
   }, {
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '3.0.0': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
@@ -1205,17 +1206,17 @@ test('preferWorkspacePackages: use version from the workspace even if there is n
     preferWorkspacePackages: true,
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '3.0.0': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult).toStrictEqual(
@@ -1244,17 +1245,17 @@ test('use local version if it is newer than the latest in the registry', async (
   }, {
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '3.2.0': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.2.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.2.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1281,31 +1282,31 @@ test('resolve from local directory when package is not found in the registry', a
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1' }, {
     projectDir: '/home/istvan/src/foo',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '1.0.0': {
-          dir: '/home/istvan/src/is-positive-1.0.0',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive-1.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
-        },
-        '1.1.0': {
-          dir: '/home/istvan/src/is-positive',
+        }],
+        ['1.1.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.1.0',
           },
-        },
-        '2.0.0': {
-          dir: '/home/istvan/src/is-positive-2.0.0',
+        }],
+        ['2.0.0', {
+          rootDir: '/home/istvan/src/is-positive-2.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '2.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1332,31 +1333,31 @@ test('resolve from local directory when package is not found in the registry and
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: 'latest' }, {
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '1.0.0': {
-          dir: '/home/istvan/src/is-positive-1.0.0',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive-1.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
-        },
-        '1.1.0': {
-          dir: '/home/istvan/src/is-positive',
+        }],
+        ['1.1.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.1.0',
           },
-        },
-        '2.0.0': {
-          dir: '/home/istvan/src/is-positive-2.0.0',
+        }],
+        ['2.0.0', {
+          rootDir: '/home/istvan/src/is-positive-2.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '2.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1383,17 +1384,17 @@ test('resolve from local directory when package is not found in the registry and
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: 'latest' }, {
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '3.0.0-alpha.1.2.3': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0-alpha.1.2.3', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0-alpha.1.2.3',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1420,31 +1421,31 @@ test('resolve from local directory when package is not found in the registry and
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.1.0' }, {
     projectDir: '/home/istvan/src/foo',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '1.0.0': {
-          dir: '/home/istvan/src/is-positive-1.0.0',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['1.0.0', {
+          rootDir: '/home/istvan/src/is-positive-1.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
-        },
-        '1.1.0': {
-          dir: '/home/istvan/src/is-positive',
+        }],
+        ['1.1.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '1.1.0',
           },
-        },
-        '2.0.0': {
-          dir: '/home/istvan/src/is-positive-2.0.0',
+        }],
+        ['2.0.0', {
+          rootDir: '/home/istvan/src/is-positive-2.0.0' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '2.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1471,17 +1472,17 @@ test('resolve from local directory when the requested version is not found in th
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '100.0.0' }, {
     projectDir: '/home/istvan/src/foo',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '100.0.0': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['100.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '100.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1504,17 +1505,17 @@ test('workspace protocol: resolve from local directory even when it does not mat
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '3.0.0': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1541,17 +1542,17 @@ test('workspace protocol: resolve from local package that has a pre-release vers
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: 'workspace:*' }, {
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '3.0.0-alpha.1.2.3': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0-alpha.1.2.3', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0-alpha.1.2.3',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('local-filesystem')
@@ -1578,17 +1579,17 @@ test("workspace protocol: don't resolve from local package that has a pre-releas
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '2' }, {
     projectDir: '/home/istvan/src',
     registry,
-    workspacePackages: {
-      'is-positive': {
-        '3.0.0-alpha.1.2.3': {
-          dir: '/home/istvan/src/is-positive',
+    workspacePackages: new Map([
+      ['is-positive', new Map([
+        ['3.0.0-alpha.1.2.3', {
+          rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
           manifest: {
             name: 'is-positive',
             version: '3.0.0-alpha.1.2.3',
           },
-        },
-      },
-    },
+        }],
+      ])],
+    ]),
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
@@ -1611,7 +1612,7 @@ test('workspace protocol: resolution fails if there is no matching local package
     await resolveFromNpm({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
       projectDir,
       registry,
-      workspacePackages: {},
+      workspacePackages: new Map(),
     })
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -1634,17 +1635,17 @@ test('workspace protocol: resolution fails if there is no matching local package
     await resolveFromNpm({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
       projectDir,
       registry,
-      workspacePackages: {
-        'is-positive': {
-          '2.0.0': {
-            dir: '/home/istvan/src/is-positive',
+      workspacePackages: new Map([
+        ['is-positive', new Map([
+          ['2.0.0', {
+            rootDir: '/home/istvan/src/is-positive' as ProjectRootDir,
             manifest: {
               name: 'is-positive',
               version: '2.0.0',
             },
-          },
-        },
-      },
+          }],
+        ])],
+      ]),
     })
   } catch (_err: any) { // eslint-disable-line
     err = _err

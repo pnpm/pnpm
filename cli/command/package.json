@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/command",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "description": "Types and utils for pnpm commands",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,7 +29,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/command#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/tabtab": "^0.5.3"
+    "@pnpm/tabtab": "catalog:"
   },
   "devDependencies": {
     "@pnpm/command": "workspace:*"

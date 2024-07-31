@@ -1,5 +1,81 @@
 # @pnpm/license-scanner
 
+## 3.1.10
+
+### Patch Changes
+
+- Updated dependencies [c92f4bf]
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [8055a30]
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.walker@1.0.0
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.fs@1.0.0
+  - @pnpm/lockfile.types@1.0.0
+  - @pnpm/lockfile.detect-dep-types@2.0.5
+  - @pnpm/directory-fetcher@8.0.5
+
+## 3.1.9
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/package-is-installable@9.0.5
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/lockfile.detect-dep-types@2.0.4
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/lockfile-walker@9.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/store.cafs@3.0.6
+
+## 3.1.8
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/directory-fetcher@8.0.4
+
+## 3.1.7
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/directory-fetcher@8.0.4
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/package-is-installable@9.0.4
+  - @pnpm/lockfile.detect-dep-types@2.0.3
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/lockfile-walker@9.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/store.cafs@3.0.4
+
+## 3.1.6
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/package-is-installable@9.0.3
+  - @pnpm/directory-fetcher@8.0.3
+  - @pnpm/lockfile.detect-dep-types@2.0.2
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/lockfile-walker@9.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/store.cafs@3.0.3
+
 ## 3.1.5
 
 ### Patch Changes

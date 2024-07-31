@@ -1,5 +1,33 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 3.0.5
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.5
+- @pnpm/core-loggers@10.0.4
+
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/symlink-dependency@8.0.4
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.3
+- @pnpm/core-loggers@10.0.3
+
+## 3.0.2
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.2
+- @pnpm/core-loggers@10.0.2
+
 ## 3.0.1
 
 ### Patch Changes

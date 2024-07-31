@@ -1,5 +1,62 @@
 # @pnpm/lifecycle
 
+## 17.1.1
+
+### Patch Changes
+
+- 9899576: `pnpm install` should run `node-gyp rebuild` if the project has a `binding.gyp` file even if the project doesn't have an install script [#8293](https://github.com/pnpm/pnpm/issues/8293).
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/link-bins@10.0.7
+
+## 17.1.0
+
+### Minor Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/link-bins@10.0.7
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/store-controller-types@18.1.3
+
+## 17.0.8
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/link-bins@10.0.6
+  - @pnpm/directory-fetcher@8.0.4
+
+## 17.0.7
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/directory-fetcher@8.0.4
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/link-bins@10.0.5
+  - @pnpm/read-package-json@9.0.4
+
+## 17.0.6
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/directory-fetcher@8.0.3
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/link-bins@10.0.4
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/store-controller-types@18.1.1
+
 ## 17.0.5
 
 ### Patch Changes

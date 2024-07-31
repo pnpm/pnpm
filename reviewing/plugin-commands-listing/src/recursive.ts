@@ -18,23 +18,23 @@ export async function listRecursive (
 ): Promise<string> {
   const depth = opts.depth ?? 0
   if (opts.lockfileDir) {
-    return render(pkgs.map((pkg) => pkg.dir), params, {
+    return render(pkgs.map((pkg) => pkg.rootDir), params, {
       ...opts,
       alwaysPrintRootPackage: depth === -1,
       lockfileDir: opts.lockfileDir,
     })
   }
-  const outputs = (await Promise.all(pkgs.map(async ({ dir }) => {
+  const outputs = (await Promise.all(pkgs.map(async ({ rootDir }) => {
     try {
-      return await render([dir], params, {
+      return await render([rootDir], params, {
         ...opts,
         alwaysPrintRootPackage: depth === -1,
-        lockfileDir: opts.lockfileDir ?? dir,
+        lockfileDir: opts.lockfileDir ?? rootDir,
       })
     } catch (err: unknown) {
       assert(util.types.isNativeError(err))
       const errWithPrefix = Object.assign(err, {
-        prefix: dir,
+        prefix: rootDir,
       })
       logger.info(errWithPrefix)
       throw errWithPrefix

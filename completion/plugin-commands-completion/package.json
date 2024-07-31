@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-completion",
-  "version": "1.0.9",
+  "version": "1.0.14",
   "description": "Commands for shell completions",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -26,20 +26,21 @@
   },
   "devDependencies": {
     "@pnpm/plugin-commands-completion": "workspace:*",
-    "@types/ramda": "0.29.12"
+    "@types/ramda": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:^",
     "@pnpm/command": "workspace:^",
     "@pnpm/error": "workspace:^",
     "@pnpm/find-workspace-dir": "workspace:^",
-    "@pnpm/nopt": "^0.2.1",
+    "@pnpm/nopt": "catalog:",
     "@pnpm/parse-cli-args": "workspace:^",
-    "@pnpm/tabtab": "^0.5.3",
+    "@pnpm/tabtab": "catalog:",
     "@pnpm/workspace.find-packages": "workspace:^",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "render-help": "^1.0.3",
-    "split-cmd": "^1.1.0"
+    "@pnpm/workspace.read-manifest": "workspace:^",
+    "ramda": "catalog:",
+    "render-help": "catalog:",
+    "split-cmd": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

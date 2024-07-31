@@ -28,13 +28,13 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../exec/plugin-commands-script-runners"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/fs"
     },
     {
-      "path": "../../packages/crypto.base32-hash"
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/dependency-path"

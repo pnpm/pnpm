@@ -1,5 +1,43 @@
 # @pnpm/npm-resolver
 
+## 21.0.2
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/resolver-base@13.0.1
+
+## 21.0.1
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+
+## 21.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/core-loggers@10.0.3
+
+## 20.0.1
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/resolver-base@12.0.2
+
 ## 20.0.0
 
 ### Major Changes

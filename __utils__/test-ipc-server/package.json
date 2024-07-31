@@ -10,8 +10,8 @@
   "devDependencies": {
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
-    "@types/node": "^18.19.34",
-    "execa": "npm:safe-execa@0.1.2"
+    "@types/node": "catalog:",
+    "execa": "catalog:"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",

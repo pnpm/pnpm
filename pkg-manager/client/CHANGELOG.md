@@ -1,5 +1,63 @@
 # @pnpm/client
 
+## 11.1.6
+
+### Patch Changes
+
+- @pnpm/git-fetcher@13.0.10
+- @pnpm/tarball-fetcher@19.0.10
+- @pnpm/directory-fetcher@8.0.5
+
+## 11.1.5
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/git-fetcher@13.0.9
+  - @pnpm/tarball-fetcher@19.0.9
+  - @pnpm/fetch@8.0.4
+  - @pnpm/resolver-base@13.0.1
+  - @pnpm/default-resolver@20.0.4
+
+## 11.1.4
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/tarball-fetcher@19.0.8
+  - @pnpm/default-resolver@20.0.3
+  - @pnpm/git-fetcher@13.0.8
+  - @pnpm/directory-fetcher@8.0.4
+
+## 11.1.3
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/directory-fetcher@8.0.4
+  - @pnpm/default-resolver@20.0.2
+  - @pnpm/git-fetcher@13.0.7
+  - @pnpm/tarball-fetcher@19.0.7
+  - @pnpm/fetch@8.0.3
+
+## 11.1.2
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/directory-fetcher@8.0.3
+  - @pnpm/git-fetcher@13.0.6
+  - @pnpm/tarball-fetcher@19.0.6
+  - @pnpm/fetch@8.0.2
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/default-resolver@20.0.1
+
 ## 11.1.1
 
 ### Patch Changes

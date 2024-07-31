@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-workspace-packages",
-  "version": "8.0.10",
+  "version": "10.0.3",
   "description": "Filters packages in a workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,23 +33,23 @@
     "@pnpm/matcher": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.pkgs-graph": "workspace:*",
-    "execa": "npm:safe-execa@0.1.2",
-    "find-up": "^5.0.0",
-    "is-subdir": "^1.2.0",
-    "micromatch": "^4.0.7",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "execa": "catalog:",
+    "find-up": "catalog:",
+    "is-subdir": "catalog:",
+    "micromatch": "catalog:",
+    "ramda": "catalog:"
   },
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@types/is-windows": "^1.0.2",
-    "@types/micromatch": "^4.0.7",
-    "@types/ramda": "0.29.12",
-    "@types/touch": "^3.1.5",
-    "ci-info": "^3.9.0",
-    "is-windows": "^1.0.2",
-    "tempy": "^1.0.1",
-    "touch": "3.1.0"
+    "@types/is-windows": "catalog:",
+    "@types/micromatch": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/touch": "catalog:",
+    "ci-info": "catalog:",
+    "is-windows": "catalog:",
+    "tempy": "catalog:",
+    "touch": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

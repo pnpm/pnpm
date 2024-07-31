@@ -3,7 +3,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { update, install } from '@pnpm/plugin-commands-installation'
 import * as enquirer from 'enquirer'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
@@ -67,7 +67,7 @@ test('interactive recursive should not error on git specifier override', async (
     updateDependencies: [],
   })
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   const sharedOptions = {
     ...DEFAULT_OPTIONS,
     allProjects,

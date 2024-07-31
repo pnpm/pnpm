@@ -1,6 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { dedupeDiffCheck } from '@pnpm/dedupe.check'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions, rcOptionsTypes as installCommandRcOptionsTypes } from './install'
 import { installDeps } from './installDeps'
@@ -63,5 +64,6 @@ export async function handler (opts: DedupeCommandOptions): Promise<void> {
     include,
     includeDirect: include,
     lockfileCheck: opts.check ? dedupeDiffCheck : undefined,
+    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }, [])
 }

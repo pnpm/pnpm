@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-meta",
-  "version": "6.0.1",
+  "version": "6.0.4",
   "description": "Reads the metainfo of the currently running pnpm instance",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@pnpm/types": "workspace:*",
-    "load-json-file": "^6.2.0"
+    "load-json-file": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

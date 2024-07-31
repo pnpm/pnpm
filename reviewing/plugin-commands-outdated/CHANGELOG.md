@@ -1,5 +1,79 @@
 # @pnpm/plugin-commands-outdated
 
+## 12.0.3
+
+### Patch Changes
+
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.fs@1.0.0
+  - @pnpm/outdated@15.1.1
+  - @pnpm/config@21.6.3
+  - @pnpm/cli-utils@3.1.6
+
+## 12.0.2
+
+### Patch Changes
+
+- f6e7ace: The `pnpm outdated` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs).
+- Updated dependencies [0f0e441]
+- Updated dependencies [f6e7ace]
+- Updated dependencies [0ef168b]
+  - @pnpm/outdated@15.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/default-resolver@20.0.4
+
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/default-resolver@20.0.3
+  - @pnpm/outdated@15.0.1
+  - @pnpm/cli-utils@3.1.4
+
+## 12.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [9b5b869]
+  - @pnpm/config@21.6.0
+  - @pnpm/outdated@15.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/default-resolver@20.0.2
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/modules-yaml@13.1.3
+
+## 11.1.8
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/modules-yaml@13.1.2
+  - @pnpm/outdated@14.0.12
+  - @pnpm/default-resolver@20.0.1
+
 ## 11.1.7
 
 ### Patch Changes

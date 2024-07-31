@@ -31,13 +31,13 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/parse-cli-args#readme",
   "devDependencies": {
     "@pnpm/parse-cli-args": "workspace:*",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
-    "@pnpm/nopt": "^0.2.1",
-    "didyoumean2": "^6.0.1"
+    "@pnpm/nopt": "catalog:",
+    "didyoumean2": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

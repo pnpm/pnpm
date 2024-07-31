@@ -1,5 +1,46 @@
 # @pnpm/tarball-fetcher
 
+## 19.0.10
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.10
+
+## 19.0.9
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.9
+- @pnpm/fetcher-base@16.0.4
+- @pnpm/core-loggers@10.0.4
+- @pnpm/worker@1.0.7
+
+## 19.0.8
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+  - @pnpm/worker@1.0.6
+  - @pnpm/prepare-package@6.0.8
+
+## 19.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.3
+- @pnpm/prepare-package@6.0.7
+- @pnpm/core-loggers@10.0.3
+- @pnpm/worker@1.0.5
+
+## 19.0.6
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.6
+- @pnpm/fetcher-base@16.0.2
+- @pnpm/core-loggers@10.0.2
+- @pnpm/worker@1.0.4
+
 ## 19.0.5
 
 ### Patch Changes

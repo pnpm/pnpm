@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "13.0.3",
+  "version": "13.0.8",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -45,13 +45,13 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
-    "p-defer": "^3.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "run-groups": "^3.0.1"
+    "p-defer": "catalog:",
+    "ramda": "catalog:",
+    "run-groups": "catalog:"
   },
   "devDependencies": {
     "@pnpm/build-modules": "workspace:*",
-    "@types/ramda": "0.29.12"
+    "@types/ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

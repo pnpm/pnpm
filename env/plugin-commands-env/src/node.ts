@@ -6,6 +6,7 @@ import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
 import { fetchNode } from '@pnpm/node.fetcher'
 import { getStorePath } from '@pnpm/store-path'
+import { type PrepareExecutionEnvOptions, type PrepareExecutionEnvResult } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { getNodeMirror } from './getNodeMirror'
@@ -34,6 +35,25 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'pnpmHomeDir'
 > & Partial<Pick<Config, 'configDir' | 'cliOptions' | 'sslConfigs'>> & {
   remote?: boolean
+}
+
+const nodeFetchPromises: Record<string, Promise<string>> = {}
+
+export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {
+  if (!executionEnv?.nodeVersion) return { extraBinPaths: extraBinPaths ?? [] }
+
+  let nodePathPromise = nodeFetchPromises[executionEnv.nodeVersion]
+  if (!nodePathPromise) {
+    nodePathPromise = getNodeBinDir({
+      ...config,
+      useNodeVersion: executionEnv.nodeVersion,
+    })
+    nodeFetchPromises[executionEnv.nodeVersion] = nodePathPromise
+  }
+
+  return {
+    extraBinPaths: [await nodePathPromise, ...extraBinPaths ?? []],
+  }
 }
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {

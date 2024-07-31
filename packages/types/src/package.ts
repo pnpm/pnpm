@@ -1,3 +1,5 @@
+import { type ExecutionEnv } from './env'
+
 export type Dependencies = Record<string, string>
 
 export type PackageBin = string | { [commandName: string]: string }
@@ -146,6 +148,7 @@ export interface ProjectManifest extends BaseManifest {
     }
     requiredScripts?: string[]
     supportedArchitectures?: SupportedArchitectures
+    executionEnv?: ExecutionEnv
   }
   private?: boolean
   resolutions?: Record<string, string>

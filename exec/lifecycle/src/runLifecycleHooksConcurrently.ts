@@ -4,7 +4,7 @@ import { logger } from '@pnpm/logger'
 import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { type StoreController } from '@pnpm/store-controller-types'
-import { type ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import runGroups from 'run-groups'
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook'
 
@@ -22,7 +22,7 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 export interface Importer {
   buildIndex: number
   manifest: ProjectManifest
-  rootDir: string
+  rootDir: ProjectRootDir
   modulesDir: string
   stages?: string[]
   targetDirs?: string[]
@@ -57,7 +57,7 @@ export async function runLifecycleHooksConcurrently (
             logger.warn({ message, prefix: rootDir })
           },
         })
-        const runLifecycleHookOpts = {
+        const runLifecycleHookOpts: RunLifecycleHookOptions = {
           ...opts,
           depPath: rootDir,
           pkgRoot: rootDir,
@@ -65,9 +65,9 @@ export async function runLifecycleHooksConcurrently (
         }
         let isBuilt = false
         for (const stage of (importerStages ?? stages)) {
-          if (!manifest.scripts?.[stage]) continue
-          await runLifecycleHook(stage, manifest, runLifecycleHookOpts) // eslint-disable-line no-await-in-loop
-          isBuilt = true
+          if (await runLifecycleHook(stage, manifest, runLifecycleHookOpts)) { // eslint-disable-line no-await-in-loop
+            isBuilt = true
+          }
         }
         if (targetDirs == null || targetDirs.length === 0 || !isBuilt) return
         const filesResponse = await fetchFromDir(rootDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })

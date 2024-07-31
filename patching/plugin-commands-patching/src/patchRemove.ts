@@ -5,6 +5,7 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { PnpmError } from '@pnpm/error'
+import { type ProjectRootDir } from '@pnpm/types'
 import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
 import pick from 'ramda/src/pick'
@@ -31,7 +32,7 @@ export type PatchRemoveCommandOptions = install.InstallCommandOptions & Pick<Con
 
 export async function handler (opts: PatchRemoveCommandOptions, params: string[]): Promise<void> {
   let patchesToRemove = params
-  const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+  const lockfileDir = (opts.lockfileDir ?? opts.dir ?? process.cwd()) as ProjectRootDir
   const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
   const rootProjectManifest = opts.rootProjectManifest ?? manifest ?? {}
   const patchedDependencies = rootProjectManifest.pnpm?.patchedDependencies ?? {}

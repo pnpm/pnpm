@@ -9,7 +9,7 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
-import { type DepPath } from '@pnpm/types'
+import { type DepPath, type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
@@ -123,7 +123,7 @@ test('should remove hoisted dependencies', async () => {
     dependencyNames: ['express'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ hoistPattern: '*' }))
 
   project.hasNot('express')
@@ -152,7 +152,7 @@ test('should rehoist when uninstalling a package', async () => {
     dependencyNames: ['debug'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ hoistPattern: '*' }))
 
   expect(project.requireModule('.pnpm/node_modules/debug/package.json').version).toEqual('2.6.9')
@@ -260,7 +260,7 @@ test('should remove aliased hoisted dependencies', async () => {
     dependencyNames: ['@pnpm.e2e/pkg-with-1-aliased-dep'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ hoistPattern: '*' }))
 
   project.hasNot('@pnpm.e2e/pkg-with-1-aliased-dep')
@@ -337,7 +337,7 @@ test('should uninstall correctly peer dependencies', async () => {
     dependencyNames: ['@pnpm.e2e/using-ajv'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ hoistPattern: '*' }))
 
   // symlink to peer dependency is deleted
@@ -373,23 +373,23 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
   const mutatedProjects: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('package'),
+      rootDir: path.resolve('package') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: workspaceRootManifest,
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: workspacePackageManifest,
-      rootDir: path.resolve('package'),
+      rootDir: path.resolve('package') as ProjectRootDir,
     },
   ]
   await mutateModules(mutatedProjects, testDefaults({ allProjects, hoistPattern: '*' }))
@@ -457,23 +457,23 @@ test('hoist when updating in one of the workspace projects', async () => {
   const mutatedProjects: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('package'),
+      rootDir: path.resolve('package') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: workspaceRootManifest,
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: workspacePackageManifest,
-      rootDir: path.resolve('package'),
+      rootDir: path.resolve('package') as ProjectRootDir,
     },
   ]
   await mutateModules(mutatedProjects, testDefaults({ allProjects, hoistPattern: '*' }))
@@ -530,7 +530,7 @@ test('should recreate node_modules with hoisting', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ hoistPattern: '*' }))
 
   project.has('@pnpm.e2e/pkg-with-1-dep')
@@ -608,11 +608,11 @@ test('hoist packages which is in the dependencies tree of the selected projects'
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('.'),
+      rootDir: path.resolve('.') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -622,7 +622,7 @@ test('hoist packages which is in the dependencies tree of the selected projects'
         name: 'root',
         version: '1.0.0',
       },
-      rootDir: path.resolve('.'),
+      rootDir: path.resolve('.') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -633,7 +633,7 @@ test('hoist packages which is in the dependencies tree of the selected projects'
           'is-positive': '3.0.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
 
@@ -776,7 +776,7 @@ test('only hoist packages which is in the dependencies tree of the selected proj
       },
     },
     mutation: 'install',
-    rootDir: path.resolve('project-2'),
+    rootDir: path.resolve('project-2') as ProjectRootDir,
   }, testDefaults({ hoistPattern: '*' }))
 
   root.has('.pnpm/node_modules/@babel/runtime-corejs3')
@@ -858,53 +858,38 @@ test('hoistWorkspacePackages should hoist all workspace projects', async () => {
   const mutatedProjects: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('package'),
+      rootDir: path.resolve('package') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('package2'),
+      rootDir: path.resolve('package2') as ProjectRootDir,
     },
   ]
   const allProjects = [
     {
       buildIndex: 0,
       manifest: workspaceRootManifest,
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: workspacePackageManifest,
-      rootDir: path.resolve('package'),
+      rootDir: path.resolve('package') as ProjectRootDir,
     },
     {
       buildIndex: 0,
       manifest: workspacePackageManifest2,
-      rootDir: path.resolve('package2'),
+      rootDir: path.resolve('package2') as ProjectRootDir,
     },
   ]
-  const workspacePackages = {
-    [workspacePackageManifest.name]: {
-      [workspacePackageManifest.version]: {
-        dir: path.resolve('package'),
-        manifest: workspacePackageManifest,
-      },
-    },
-    [workspacePackageManifest2.name]: {
-      [workspacePackageManifest2.version]: {
-        dir: path.resolve('package2'),
-        manifest: workspacePackageManifest2,
-      },
-    },
-  }
   await mutateModules(mutatedProjects, testDefaults({
     allProjects,
     hoistPattern: '*',
     hoistWorkspacePackages: true,
-    workspacePackages,
   }))
 
   projects['root'].has('@pnpm.e2e/pkg-with-1-dep')
@@ -929,7 +914,6 @@ test('hoistWorkspacePackages should hoist all workspace projects', async () => {
     frozenLockfile: true,
     hoistPattern: '*',
     hoistWorkspacePackages: true,
-    workspacePackages,
   }))
   projects['root'].has('.pnpm/node_modules/package')
   projects['root'].has('.pnpm/node_modules/package2')

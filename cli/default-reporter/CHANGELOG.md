@@ -1,5 +1,55 @@
 # @pnpm/default-reporter
 
+## 13.1.9
+
+### Patch Changes
+
+- @pnpm/config@21.6.3
+
+## 13.1.8
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/render-peer-issues@5.0.5
+  - @pnpm/config@21.6.2
+  - @pnpm/core-loggers@10.0.4
+
+## 13.1.7
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+
+## 13.1.6
+
+### Patch Changes
+
+- 9bf9f71: When encountering an external dependency using the `catalog:` protocol, a clearer error will be shown. Previously a confusing `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` error was thrown. The new error message will explain that the author of the dependency needs to run `pnpm publish` to replace the catalog protocol.
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/types@11.0.0
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/render-peer-issues@5.0.4
+
+## 13.1.5
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/render-peer-issues@5.0.3
+
 ## 13.1.4
 
 ### Patch Changes

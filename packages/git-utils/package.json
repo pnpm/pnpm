@@ -33,11 +33,11 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/git-utils#readme",
   "dependencies": {
-    "execa": "npm:safe-execa@0.1.2"
+    "execa": "catalog:"
   },
   "devDependencies": {
     "@pnpm/git-utils": "workspace:*",
-    "tempy": "^1.0.1"
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

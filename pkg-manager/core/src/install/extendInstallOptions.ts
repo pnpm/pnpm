@@ -1,9 +1,10 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
 import { type ProjectOptions } from '@pnpm/get-context'
 import { type HoistingLimits } from '@pnpm/headless'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile.fs'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
@@ -14,7 +15,9 @@ import {
   type PackageExtension,
   type ReadPackageHook,
   type Registries,
+  type PrepareExecutionEnv,
 } from '@pnpm/types'
+import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 import { pnpmPkgJson } from '../pnpmPkgJson'
 import { type ReporterFunction } from '../types'
 import { type PreResolutionHookContext } from '@pnpm/hooks.types'
@@ -22,6 +25,7 @@ import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
+  catalogs: Catalogs
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enablePnp: boolean
@@ -97,7 +101,10 @@ export interface StrictInstallOptions {
   updateToLatest?: boolean
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
-  workspacePackages: WorkspacePackages
+  // We can automatically calculate these
+  // unless installation runs on a workspace
+  // that doesn't share a lockfile
+  workspacePackages?: WorkspacePackages
   pruneStore: boolean
   virtualStoreDir?: string
   dir: string
@@ -146,6 +153,7 @@ export interface StrictInstallOptions {
   hoistWorkspacePackages?: boolean
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
+  prepareExecutionEnv?: PrepareExecutionEnv
 }
 
 export type InstallOptions =
@@ -228,7 +236,6 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     mergeGitBranchLockfiles: false,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     verifyStoreIntegrity: true,
-    workspacePackages: {},
     enableModulesDir: true,
     modulesCacheMaxAge: 7 * 24 * 60,
     resolveSymlinksInInjectedDirs: false,
@@ -246,6 +253,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
 
 export type ProcessedInstallOptions = StrictInstallOptions & {
   readPackageHook?: ReadPackageHook
+  parsedOverrides: VersionOverride[]
 }
 
 export function extendOptions (
@@ -266,11 +274,12 @@ export function extendOptions (
     ...defaultOpts,
     ...opts,
     storeDir: defaultOpts.storeDir,
+    parsedOverrides: parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {}),
   }
   extendedOpts.readPackageHook = createReadPackageHook({
     ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,
     readPackageHook: extendedOpts.hooks?.readPackage,
-    overrides: extendedOpts.overrides,
+    overrides: extendedOpts.parsedOverrides,
     lockfileDir: extendedOpts.lockfileDir,
     packageExtensions: extendedOpts.packageExtensions,
     ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,

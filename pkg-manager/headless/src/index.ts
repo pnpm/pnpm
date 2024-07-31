@@ -17,7 +17,7 @@ import {
 import {
   filterLockfileByEngine,
   filterLockfileByImportersAndEngine,
-} from '@pnpm/filter-lockfile'
+} from '@pnpm/lockfile.filtering'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import {
   runLifecycleHooksConcurrently,
@@ -32,12 +32,12 @@ import {
   writeLockfiles,
   writeCurrentLockfile,
   type PatchFile,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
   extendProjectsWithTargetDirs,
   nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import {
   type LogBase,
   logger,
@@ -65,6 +65,7 @@ import {
   type Registries,
   DEPENDENCIES_FIELDS,
   type SupportedArchitectures,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { symlinkAllModules } from '@pnpm/worker'
@@ -100,7 +101,7 @@ export interface Project {
   modulesDir: string
   id: ProjectId
   pruneDirectDependencies?: boolean
-  rootDir: string
+  rootDir: ProjectRootDir
 }
 
 export interface HeadlessOptions {
@@ -723,7 +724,7 @@ async function linkBinsOfImporter (
     binsDir: string
     manifest: ProjectManifest
     modulesDir: string
-    rootDir: string
+    rootDir: ProjectRootDir
   },
   { extraNodePaths, preferSymlinkedExecutables }: { extraNodePaths?: string[], preferSymlinkedExecutables?: boolean } = {}
 ): Promise<string[]> {

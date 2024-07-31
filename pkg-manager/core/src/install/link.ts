@@ -8,11 +8,11 @@ import {
 } from '@pnpm/core-loggers'
 import {
   filterLockfileByImporters,
-} from '@pnpm/filter-lockfile'
+} from '@pnpm/lockfile.filtering'
 import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
 import { type InstallationResultStats } from '@pnpm/headless'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'

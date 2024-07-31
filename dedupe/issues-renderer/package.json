@@ -30,13 +30,13 @@
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "@pnpm/dedupe.types": "workspace:*",
-    "archy": "^1.0.0",
-    "chalk": "^4.1.2"
+    "archy": "catalog:",
+    "chalk": "catalog:"
   },
   "devDependencies": {
     "@pnpm/dedupe.issues-renderer": "workspace:*",
-    "@types/archy": "0.0.33",
-    "strip-ansi": "^6.0.1"
+    "@types/archy": "catalog:",
+    "strip-ansi": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

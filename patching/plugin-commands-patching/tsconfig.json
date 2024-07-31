@@ -31,10 +31,10 @@
       "path": "../../fs/packlist"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/constants"
@@ -44,6 +44,9 @@
     },
     {
       "path": "../../packages/parse-wanted-dependency"
+    },
+    {
+      "path": "../../packages/types"
     },
     {
       "path": "../../pkg-manager/modules-yaml"
@@ -61,7 +64,7 @@
       "path": "../../store/store-connection-manager"
     },
     {
-      "path": "../../workspace/filter-workspace-packages"
+      "path": "../../workspace/filter-packages-from-dir"
     },
     {
       "path": "../apply-patch"

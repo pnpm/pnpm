@@ -42,7 +42,7 @@
       "path": "../audit"
     },
     {
-      "path": "../lockfile-file"
+      "path": "../fs"
     }
   ]
 }

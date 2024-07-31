@@ -9,6 +9,7 @@ import {
 import { prepareEmpty } from '@pnpm/prepare'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
+import { type ProjectRootDir } from '@pnpm/types'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import isInnerLink from 'is-inner-link'
@@ -58,7 +59,7 @@ test('unlink 1 package that exists in package.json', async () => {
     dependencyNames: ['is-subdir'],
     manifest,
     mutation: 'unlinkSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, opts)
 
   expect(typeof project.requireModule('is-subdir')).toBe('function')
@@ -87,7 +88,7 @@ test("don't update package when unlinking", async () => {
     dependencyNames: ['@pnpm.e2e/foo'],
     manifest,
     mutation: 'unlinkSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, opts)
 
   expect(project.requireModule('@pnpm.e2e/foo/package.json').version).toBe('100.0.0')
@@ -119,7 +120,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
     dependencyNames: ['@pnpm.e2e/foo'],
     manifest,
     mutation: 'unlinkSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, opts)
 
   expect(project.requireModule('@pnpm.e2e/foo/package.json').version).toBe('100.0.0')
@@ -159,7 +160,7 @@ test('unlink 2 packages. One of them exists in package.json', async () => {
     dependencyNames: ['is-subdir', 'is-positive'],
     manifest,
     mutation: 'unlinkSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, opts)
 
   expect(typeof project.requireModule('is-subdir')).toBe('function')
@@ -198,7 +199,7 @@ test('unlink all packages', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'unlink',
-    rootDir: path.resolve('project'),
+    rootDir: path.resolve('project') as ProjectRootDir,
   }, opts)
 
   expect(typeof project.requireModule('is-subdir')).toBe('function')
@@ -214,7 +215,7 @@ test("don't warn about scoped packages when running unlink w/o params", async ()
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'unlink',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ reporter }))
 
   expect(reporter.calledWithMatch({
@@ -234,7 +235,7 @@ test("don't unlink package that is not a link", async () => {
     dependencyNames: ['is-positive'],
     manifest,
     mutation: 'unlinkSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ reporter }))
 
   expect(reporter.calledWithMatch({
@@ -288,7 +289,7 @@ test('unlink would remove global bin', async () => {
     dependencyNames: ['is-subdir'],
     manifest,
     mutation: 'unlinkSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, opts)
 
   expect(fs.existsSync(path.resolve('bin/is-subdir'))).toBeFalsy()

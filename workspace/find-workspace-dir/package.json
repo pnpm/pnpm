@@ -30,7 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/find-workspace-dir#readme",
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "find-up": "^5.0.0"
+    "find-up": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

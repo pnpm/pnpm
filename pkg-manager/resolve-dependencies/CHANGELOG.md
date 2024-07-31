@@ -1,5 +1,93 @@
 # @pnpm/resolve-dependencies
 
+## 34.0.3
+
+### Patch Changes
+
+- 9682129: Peer dependencies of optional peer dependencies should be automatically installed [#8323](https://github.com/pnpm/pnpm/issues/8323).
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [daa45df]
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.pruner@0.0.1
+  - @pnpm/lockfile.types@1.0.0
+  - @pnpm/lockfile.preferred-versions@1.0.9
+  - @pnpm/npm-resolver@21.0.2
+
+## 34.0.2
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/pick-registry-for-package@6.0.4
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/lockfile.preferred-versions@1.0.8
+  - @pnpm/prune-lockfile@6.1.4
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/manifest-utils@6.0.5
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/npm-resolver@21.0.2
+  - @pnpm/resolver-base@13.0.1
+  - @pnpm/store-controller-types@18.1.3
+  - @pnpm/pick-fetcher@3.0.0
+
+## 34.0.1
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+- Updated dependencies [afe520d]
+  - @pnpm/npm-resolver@21.0.1
+
+## 34.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- 9bf9f71: When encountering an external dependency using the `catalog:` protocol, a clearer error will be shown. Previously a confusing `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` error was thrown. The new error message will explain that the author of the dependency needs to run `pnpm publish` to replace the catalog protocol.
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/npm-resolver@21.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/pick-fetcher@3.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/lockfile.preferred-versions@1.0.7
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/prune-lockfile@6.1.3
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/manifest-utils@6.0.4
+  - @pnpm/read-package-json@9.0.4
+
+## 33.1.1
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/pick-registry-for-package@6.0.2
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/lockfile.preferred-versions@1.0.6
+  - @pnpm/prune-lockfile@6.1.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/manifest-utils@6.0.3
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/npm-resolver@20.0.1
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/store-controller-types@18.1.1
+  - @pnpm/pick-fetcher@3.0.0
+
 ## 33.1.0
 
 ### Minor Changes

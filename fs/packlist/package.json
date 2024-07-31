@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/packlist#readme",
   "dependencies": {
-    "npm-packlist": "5.1.3"
+    "npm-packlist": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

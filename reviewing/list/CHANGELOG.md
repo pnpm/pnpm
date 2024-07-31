@@ -1,5 +1,42 @@
 # @pnpm/list
 
+## 10.1.8
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@3.1.8
+
+## 10.1.7
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/reviewing.dependencies-hierarchy@3.1.7
+
+## 10.1.6
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/read-package-json@9.0.4
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/reviewing.dependencies-hierarchy@3.1.6
+
+## 10.1.5
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/read-package-json@9.0.3
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/reviewing.dependencies-hierarchy@3.1.5
+
 ## 10.1.4
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.read-manifest",
-  "version": "2.0.1",
+  "version": "2.2.0",
   "description": "Reads a workspace manifest file",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,7 +31,7 @@
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "read-yaml-file": "^2.1.0"
+    "read-yaml-file": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

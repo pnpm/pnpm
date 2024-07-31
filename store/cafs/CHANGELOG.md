@@ -1,5 +1,33 @@
 # @pnpm/store.cafs
 
+## 3.0.6
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.4
+- @pnpm/store-controller-types@18.1.3
+
+## 3.0.5
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+- afe520d: Update symlink-dir to v6.0.1.
+
+## 3.0.4
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.3
+- @pnpm/store-controller-types@18.1.2
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.2
+- @pnpm/store-controller-types@18.1.1
+
 ## 3.0.2
 
 ### Patch Changes

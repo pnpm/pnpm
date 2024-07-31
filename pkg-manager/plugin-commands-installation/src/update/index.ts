@@ -10,7 +10,8 @@ import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { PnpmError } from '@pnpm/error'
-import { type IncludedDependencies } from '@pnpm/types'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
@@ -185,12 +186,12 @@ async function interactiveUpdate (
     ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     : [
       {
-        dir: opts.dir,
+        rootDir: opts.dir as ProjectRootDir,
         manifest: await readProjectManifestOnly(opts.dir, opts),
       },
     ]
   const rootDir = opts.workspaceDir ?? opts.dir
-  const rootProject = projects.find((project) => project.dir === rootDir)
+  const rootProject = projects.find((project) => project.rootDir === rootDir)
   const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
     ...opts,
     compatible: opts.latest !== true,
@@ -304,6 +305,7 @@ async function update (
       : undefined,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
+    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }, dependencies)
 }
 

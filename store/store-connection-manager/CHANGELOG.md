@@ -1,5 +1,63 @@
 # @pnpm/store-connection-manager
 
+## 8.3.4
+
+### Patch Changes
+
+- @pnpm/config@21.6.3
+- @pnpm/client@11.1.6
+- @pnpm/package-store@20.3.3
+- @pnpm/server@18.2.3
+
+## 8.3.3
+
+### Patch Changes
+
+- @pnpm/cli-meta@6.0.4
+- @pnpm/config@21.6.2
+- @pnpm/client@11.1.5
+- @pnpm/package-store@20.3.3
+- @pnpm/server@18.2.3
+
+## 8.3.2
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/client@11.1.4
+  - @pnpm/package-store@20.3.2
+  - @pnpm/server@18.2.2
+
+## 8.3.1
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+  - @pnpm/config@21.6.0
+  - @pnpm/client@11.1.3
+  - @pnpm/package-store@20.3.1
+  - @pnpm/cli-meta@6.0.3
+  - @pnpm/server@18.2.2
+
+## 8.3.0
+
+### Minor Changes
+
+- 7c6c923: Some registries allow the exact same content to be published under different package names and/or versions. This breaks the validity checks of packages in the store. To avoid errors when verifying the names and versions of such packages in the store, you may now set the `strict-store-pkg-content-check` setting to `false` [#4724](https://github.com/pnpm/pnpm/issues/4724).
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [04b8363]
+  - @pnpm/package-store@20.3.0
+  - @pnpm/config@21.5.0
+  - @pnpm/server@18.2.1
+  - @pnpm/cli-meta@6.0.2
+  - @pnpm/client@11.1.2
+
 ## 8.2.2
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "9.1.5",
+  "version": "9.1.10",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@pnpm/hoist": "workspace:*",
-    "@types/ramda": "0.29.12"
+    "@types/ramda": "catalog:"
   },
   "directories": {
     "test": "test"
@@ -43,16 +43,16 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
-    "@pnpm/lockfile-walker": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "3.0.0",
-    "is-subdir": "^1.2.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "resolve-link-target": "^2.0.0",
-    "symlink-dir": "^6.0.0"
+    "@pnpm/util.lex-comparator": "catalog:",
+    "is-subdir": "catalog:",
+    "ramda": "catalog:",
+    "resolve-link-target": "catalog:",
+    "symlink-dir": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -2,10 +2,22 @@ import path from 'path'
 import { createVersionsOverrider } from '../lib/createVersionsOverrider'
 
 test('createVersionsOverrider() matches sub-ranges', () => {
-  const overrider = createVersionsOverrider({
-    'foo@2': '2.12.0',
-    'qar@>2': '1.0.0',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+        pref: '2',
+      },
+      newPref: '2.12.0',
+    },
+    {
+      targetPkg: {
+        name: 'qar',
+        pref: '>2',
+      },
+      newPref: '1.0.0',
+    },
+  ], process.cwd())
   expect(
     overrider({
       dependencies: { foo: '^2.10.0' },
@@ -18,10 +30,22 @@ test('createVersionsOverrider() matches sub-ranges', () => {
 })
 
 test('createVersionsOverrider() does not fail on non-range selectors', () => {
-  const overrider = createVersionsOverrider({
-    'foo@2': '2.12.0',
-    'bar@github:org/bar': '2.12.0',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+        pref: '2',
+      },
+      newPref: '2.12.0',
+    },
+    {
+      targetPkg: {
+        name: 'bar',
+        pref: 'github:org/bar',
+      },
+      newPref: '2.12.0',
+    },
+  ], process.cwd())
   expect(
     overrider({
       dependencies: {
@@ -38,10 +62,30 @@ test('createVersionsOverrider() does not fail on non-range selectors', () => {
 })
 
 test('createVersionsOverrider() overrides dependencies of specified packages only', () => {
-  const overrider = createVersionsOverrider({
-    'foo@1>bar@^1.2.0': '3.0.0',
-    'qar@1>bar@>4': '3.0.0',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: 'foo',
+        pref: '1',
+      },
+      targetPkg: {
+        name: 'bar',
+        pref: '^1.2.0',
+      },
+      newPref: '3.0.0',
+    },
+    {
+      parentPkg: {
+        name: 'qar',
+        pref: '1',
+      },
+      targetPkg: {
+        name: 'bar',
+        pref: '>4',
+      },
+      newPref: '3.0.0',
+    },
+  ], process.cwd())
   expect(overrider({
     name: 'foo',
     version: '1.2.0',
@@ -97,11 +141,26 @@ test('createVersionsOverrider() overrides dependencies of specified packages onl
 })
 
 test('createVersionsOverrider() overrides all types of dependencies', () => {
-  const overrider = createVersionsOverrider({
-    foo: '3.0.0',
-    bar: '3.0.0',
-    qar: '3.0.0',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newPref: '3.0.0',
+    },
+    {
+      targetPkg: {
+        name: 'bar',
+      },
+      newPref: '3.0.0',
+    },
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newPref: '3.0.0',
+    },
+  ], process.cwd())
   expect(overrider({
     name: 'foo',
     version: '1.2.0',
@@ -130,9 +189,14 @@ test('createVersionsOverrider() overrides all types of dependencies', () => {
 })
 
 test('createVersionsOverrider() overrides dependencies with links', () => {
-  const overrider = createVersionsOverrider({
-    qar: 'link:../qar',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newPref: 'link:../qar',
+    },
+  ], process.cwd())
   expect(overrider({
     name: 'foo',
     version: '1.2.0',
@@ -150,9 +214,14 @@ test('createVersionsOverrider() overrides dependencies with links', () => {
 
 test('createVersionsOverrider() overrides dependencies with absolute links', () => {
   const qarAbsolutePath = path.resolve(process.cwd(), './qar')
-  const overrider = createVersionsOverrider({
-    qar: `link:${qarAbsolutePath}`,
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newPref: `link:${qarAbsolutePath}`,
+    },
+  ], process.cwd())
 
   expect(overrider({
     name: 'foo',
@@ -170,9 +239,18 @@ test('createVersionsOverrider() overrides dependencies with absolute links', () 
 })
 
 test('createVersionsOverrider() overrides dependency of pkg matched by name and version', () => {
-  const overrider = createVersionsOverrider({
-    'yargs@^7.1.0>yargs-parser': '^20.0.0',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: 'yargs',
+        pref: '^7.1.0',
+      },
+      targetPkg: {
+        name: 'yargs-parser',
+      },
+      newPref: '^20.0.0',
+    },
+  ], process.cwd())
   expect(
     overrider({
       name: 'yargs',
@@ -191,9 +269,18 @@ test('createVersionsOverrider() overrides dependency of pkg matched by name and 
 })
 
 test('createVersionsOverrider() does not override dependency of pkg matched by name and version', () => {
-  const overrider = createVersionsOverrider({
-    'yargs@^8.1.0>yargs-parser': '^20.0.0',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: 'yargs',
+        pref: '^8.1.0',
+      },
+      targetPkg: {
+        name: 'yargs-parser',
+      },
+      newPref: '^20.0.0',
+    },
+  ], process.cwd())
   expect(
     overrider({
       name: 'yargs',
@@ -212,9 +299,17 @@ test('createVersionsOverrider() does not override dependency of pkg matched by n
 })
 
 test('createVersionsOverrider() should work for scoped parent and unscoped child', () => {
-  const overrider = createVersionsOverrider({
-    '@scoped/package>unscoped-package': 'workspace:*',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: '@scoped/package',
+      },
+      targetPkg: {
+        name: 'unscoped-package',
+      },
+      newPref: 'workspace:*',
+    },
+  ], process.cwd())
   expect(
     overrider({
       name: '@scoped/package',
@@ -233,9 +328,17 @@ test('createVersionsOverrider() should work for scoped parent and unscoped child
 })
 
 test('createVersionsOverrider() should work for unscoped parent and scoped child', () => {
-  const overrider = createVersionsOverrider({
-    'unscoped-package>@scoped/package': 'workspace:*',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: 'unscoped-package',
+      },
+      targetPkg: {
+        name: '@scoped/package',
+      },
+      newPref: 'workspace:*',
+    },
+  ], process.cwd())
   expect(
     overrider({
       name: 'unscoped-package',
@@ -254,9 +357,17 @@ test('createVersionsOverrider() should work for unscoped parent and scoped child
 })
 
 test('createVersionsOverrider() should work for scoped parent and scoped child', () => {
-  const overrider = createVersionsOverrider({
-    '@scoped/package>@scoped/package2': 'workspace:*',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: '@scoped/package',
+      },
+      targetPkg: {
+        name: '@scoped/package2',
+      },
+      newPref: 'workspace:*',
+    },
+  ], process.cwd())
   expect(
     overrider({
       name: '@scoped/package',
@@ -276,9 +387,14 @@ test('createVersionsOverrider() should work for scoped parent and scoped child',
 
 test('createVersionsOverrider() overrides dependencies with file with relative path for root package', () => {
   const rootDir = process.cwd()
-  const overrider = createVersionsOverrider({
-    qar: 'file:../qar',
-  }, rootDir)
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newPref: 'file:../qar',
+    },
+  ], rootDir)
   expect(overrider({
     name: 'foo',
     version: '1.2.0',
@@ -296,9 +412,14 @@ test('createVersionsOverrider() overrides dependencies with file with relative p
 
 test('createVersionsOverrider() overrides dependencies with file with relative path for workspace package', () => {
   const rootDir = process.cwd()
-  const overrider = createVersionsOverrider({
-    qar: 'file:../qar',
-  }, rootDir)
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newPref: 'file:../qar',
+    },
+  ], rootDir)
   expect(overrider({
     name: 'foo',
     version: '1.2.0',
@@ -316,9 +437,14 @@ test('createVersionsOverrider() overrides dependencies with file with relative p
 
 test('createVersionsOverrider() overrides dependencies with file specified with absolute path', () => {
   const absolutePath = path.join(__dirname, 'qar')
-  const overrider = createVersionsOverrider({
-    qar: `file:${absolutePath}`,
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newPref: `file:${absolutePath}`,
+    },
+  ], process.cwd())
   expect(overrider({
     name: 'foo',
     version: '1.2.0',
@@ -335,13 +461,48 @@ test('createVersionsOverrider() overrides dependencies with file specified with 
 })
 
 test('createVersionOverride() should use the most specific rule when both override rules match the same target', () => {
-  const overrider = createVersionsOverrider({
-    foo: '3.0.0',
-    'foo@3': '4.0.0',
-    'foo@2': '2.12.0',
-    'bar>foo@2': 'github:org/foo',
-    'bar>foo@3': '5.0.0',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newPref: '3.0.0',
+    },
+    {
+      targetPkg: {
+        name: 'foo',
+        pref: '3',
+      },
+      newPref: '4.0.0',
+    },
+    {
+      targetPkg: {
+        name: 'foo',
+        pref: '2',
+      },
+      newPref: '2.12.0',
+    },
+    {
+      parentPkg: {
+        name: 'bar',
+      },
+      targetPkg: {
+        name: 'foo',
+        pref: '2',
+      },
+      newPref: 'github:org/foo',
+    },
+    {
+      parentPkg: {
+        name: 'bar',
+      },
+      targetPkg: {
+        name: 'foo',
+        pref: '3',
+      },
+      newPref: '5.0.0',
+    },
+  ], process.cwd())
   expect(
     overrider({
       dependencies: {
@@ -407,16 +568,16 @@ test('createVersionOverride() should use the most specific rule when both overri
   })
 })
 
-test('createVersionOverrider() throws error when supplied an invalid selector', () => {
-  expect(() => createVersionsOverrider({
-    'foo > bar': '2',
-  }, process.cwd())).toThrowError('Cannot parse the "foo > bar" selector in pnpm.overrides')
-})
-
 test('createVersionsOverrider() matches intersections', () => {
-  const overrider = createVersionsOverrider({
-    'foo@<1.2.4': '>=1.2.4',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+        pref: '<1.2.4',
+      },
+      newPref: '>=1.2.4',
+    },
+  ], process.cwd())
   expect(
     overrider({
       dependencies: { foo: '^1.2.3' },
@@ -427,9 +588,17 @@ test('createVersionsOverrider() matches intersections', () => {
 })
 
 test('createVersionsOverrider() overrides peerDependencies of another dependency', () => {
-  const overrider = createVersionsOverrider({
-    'react-dom>react': '18.1.0',
-  }, process.cwd())
+  const overrider = createVersionsOverrider([
+    {
+      parentPkg: {
+        name: 'react-dom',
+      },
+      targetPkg: {
+        name: 'react',
+      },
+      newPref: '18.1.0',
+    },
+  ], process.cwd())
   expect(
     overrider({
       name: 'react-dom',

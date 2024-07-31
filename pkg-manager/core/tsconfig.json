@@ -25,10 +25,19 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../catalogs/protocol-parser"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/matcher"
     },
     {
       "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../config/parse-overrides"
     },
     {
       "path": "../../crypto/object-hasher"
@@ -55,28 +64,31 @@
       "path": "../../hooks/types"
     },
     {
-      "path": "../../lockfile/filter-lockfile"
+      "path": "../../lockfile/filtering"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
       "path": "../../lockfile/lockfile-to-pnp"
     },
     {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
-      "path": "../../lockfile/lockfile-utils"
-    },
-    {
-      "path": "../../lockfile/lockfile-walker"
-    },
-    {
       "path": "../../lockfile/preferred-versions"
     },
     {
-      "path": "../../lockfile/prune-lockfile"
+      "path": "../../lockfile/pruner"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../lockfile/verification"
+    },
+    {
+      "path": "../../lockfile/walker"
     },
     {
       "path": "../../packages/calc-dep-state"

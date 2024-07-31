@@ -40,16 +40,16 @@
       "path": "../../fs/symlink-dependency"
     },
     {
-      "path": "../../lockfile/filter-lockfile"
+      "path": "../../lockfile/filtering"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
       "path": "../../lockfile/lockfile-to-pnp"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/calc-dep-state"

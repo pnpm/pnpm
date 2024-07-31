@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store-inspecting",
-  "version": "0.2.11",
+  "version": "0.2.16",
   "description": "The inspecting store commands of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,24 +31,24 @@
   "devDependencies": {
     "@pnpm/plugin-commands-store-inspecting": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "execa": "npm:safe-execa@0.1.2",
-    "tempy": "^1.0.1"
+    "execa": "catalog:",
+    "tempy": "catalog:"
   },
   "dependencies": {
     "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "chalk": "^4.1.2",
-    "load-json-file": "^6.2.0",
-    "render-help": "^1.0.3",
-    "sort-keys": "^4.2.0"
+    "chalk": "catalog:",
+    "load-json-file": "catalog:",
+    "render-help": "catalog:",
+    "sort-keys": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -10,7 +10,7 @@ import {
 } from '@pnpm/core-loggers'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
@@ -884,7 +884,7 @@ test('do not update deps when lockfile is present', async () => {
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ preferFrozenLockfile: false }))
 
   const latestLockfile = project.readLockfile()
@@ -902,7 +902,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       },
     },
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults())
 
   writeYamlFile(path.resolve('pnpm-lock.yaml'), {
@@ -952,7 +952,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       },
     },
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ preferFrozenLockfile: false }))
 
   expect(
@@ -979,7 +979,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
       },
     },
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults())
 
   const lockfile = project.readLockfile()
@@ -1034,7 +1034,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
       },
     },
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ preferFrozenLockfile: false }))
 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
@@ -1053,7 +1053,7 @@ test('globally installed package which don\'t have bins should log warning messa
       },
     },
     mutation: 'install',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, opts)
 
   expect(reporter.calledWithMatch({
@@ -1188,7 +1188,7 @@ test('installing dependencies with the same name in different case', async () =>
         file: 'https://registry.npmjs.org/file/-/file-0.2.2.tgz',
       },
     },
-    rootDir: path.resolve('project-1'),
+    rootDir: path.resolve('project-1') as ProjectRootDir,
   }, testDefaults({ fastUnpack: false }))
 
   // if it did not fail, it is fine
@@ -1205,7 +1205,7 @@ test('two dependencies have the same version and name. The only difference is th
         b: 'npm:jsonstream@1.0.3',
       },
     },
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({
     fastUnpack: false,
     registries: {

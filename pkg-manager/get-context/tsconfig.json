@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
       "path": "../../packages/constants"
@@ -23,6 +23,9 @@
     },
     {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../resolving/resolver-base"
     },
     {
       "path": "../modules-yaml"

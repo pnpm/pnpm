@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-package-json",
-  "version": "9.0.2",
+  "version": "9.0.5",
   "description": "Read a package.json",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,13 +32,13 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "load-json-file": "^6.2.0",
-    "normalize-package-data": "^5.0.0"
+    "load-json-file": "catalog:",
+    "normalize-package-data": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/read-package-json": "workspace:*",
-    "@types/normalize-package-data": "^2.4.4"
+    "@types/normalize-package-data": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

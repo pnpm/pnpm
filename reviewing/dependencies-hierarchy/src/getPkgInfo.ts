@@ -3,11 +3,11 @@ import {
   type PackageSnapshot,
   type PackageSnapshots,
   type TarballResolution,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import { type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
 import { type Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'

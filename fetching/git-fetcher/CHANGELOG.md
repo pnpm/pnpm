@@ -1,5 +1,42 @@
 # @pnpm/git-fetcher
 
+## 13.0.10
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.10
+
+## 13.0.9
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.9
+- @pnpm/fetcher-base@16.0.4
+- @pnpm/worker@1.0.7
+
+## 13.0.8
+
+### Patch Changes
+
+- @pnpm/worker@1.0.6
+- @pnpm/prepare-package@6.0.8
+
+## 13.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.3
+- @pnpm/prepare-package@6.0.7
+- @pnpm/worker@1.0.5
+
+## 13.0.6
+
+### Patch Changes
+
+- @pnpm/prepare-package@6.0.6
+- @pnpm/fetcher-base@16.0.2
+- @pnpm/worker@1.0.4
+
 ## 13.0.5
 
 ### Patch Changes

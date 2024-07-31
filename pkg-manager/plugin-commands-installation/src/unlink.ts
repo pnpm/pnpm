@@ -3,6 +3,7 @@ import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { mutateModulesInSingleProject } from '@pnpm/core'
+import { type ProjectRootDir } from '@pnpm/types'
 import renderHelp from 'render-help'
 import { cliOptionsTypes, rcOptionsTypes } from './install'
 import { recursive } from './recursive'
@@ -84,13 +85,13 @@ export async function handler (
       dependencyNames: params,
       manifest: await readProjectManifestOnly(opts.dir, opts),
       mutation: 'unlinkSome',
-      rootDir: opts.dir,
+      rootDir: opts.dir as ProjectRootDir,
     }, unlinkOpts)
     return
   }
   await mutateModulesInSingleProject({
     manifest: await readProjectManifestOnly(opts.dir, opts),
     mutation: 'unlink',
-    rootDir: opts.dir,
+    rootDir: opts.dir as ProjectRootDir,
   }, unlinkOpts)
 }

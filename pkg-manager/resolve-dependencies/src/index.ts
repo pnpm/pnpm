@@ -7,7 +7,7 @@ import { globalWarn } from '@pnpm/logger'
 import {
   type Lockfile,
   type ProjectSnapshot,
-} from '@pnpm/lockfile-types'
+} from '@pnpm/lockfile.types'
 import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
@@ -21,6 +21,7 @@ import {
   type PeerDependencyIssuesByProjects,
   type ProjectManifest,
   type ProjectId,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
@@ -46,6 +47,7 @@ import {
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
 import { updateProjectManifest } from './updateProjectManifest'
+import { getCatalogSnapshots } from './getCatalogSnapshots'
 
 export type DependenciesGraph = GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
 
@@ -67,7 +69,7 @@ interface ProjectToLink {
   linkedDependencies: LinkedDependency[]
   manifest: ProjectManifest
   modulesDir: string
-  rootDir: string
+  rootDir: ProjectRootDir
   topParents: Array<{ name: string, version: string }>
 }
 
@@ -303,6 +305,8 @@ export async function resolveDependencies (
       ...time,
     }
   }
+
+  newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {

@@ -2,7 +2,7 @@ import path from 'path'
 
 import { type Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'
-import { type TarballResolution } from '@pnpm/lockfile-types'
+import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store-path'

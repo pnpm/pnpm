@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pnpmfile",
-  "version": "6.0.4",
+  "version": "6.0.8",
   "description": "Reading a .pnpmfile.cjs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -37,11 +37,11 @@
     "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "chalk": "^4.1.2",
-    "path-absolute": "^1.0.1"
+    "chalk": "catalog:",
+    "path-absolute": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

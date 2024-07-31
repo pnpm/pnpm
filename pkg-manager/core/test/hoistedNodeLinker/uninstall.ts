@@ -7,6 +7,7 @@ import {
   addDependenciesToPackage,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
+import { type ProjectRootDir } from '@pnpm/types'
 import sinon from 'sinon'
 import { testDefaults } from './../utils'
 
@@ -24,7 +25,7 @@ test('uninstall package with no dependencies', async () => {
     dependencyNames: ['is-negative'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).manifest
 
   expect(reporter.calledWithMatch({
@@ -82,7 +83,7 @@ test('uninstall package with dependencies and do not touch other deps', async ()
     dependencyNames: ['camelcase-keys'],
     manifest,
     mutation: 'uninstallSome',
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).manifest
 
   project.storeHasNot('camelcase-keys', '3.0.0')

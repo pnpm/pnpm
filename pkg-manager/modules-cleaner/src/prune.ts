@@ -4,13 +4,13 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { filterLockfile, filterLockfileByImporters } from '@pnpm/filter-lockfile'
+import { filterLockfile, filterLockfileByImporters } from '@pnpm/lockfile.filtering'
 import {
   type Lockfile,
   type PackageSnapshots,
   type ProjectSnapshot,
-} from '@pnpm/lockfile-types'
-import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.types'
+import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -20,6 +20,7 @@ import {
   DEPENDENCIES_FIELDS,
   type HoistedDependencies,
   type ProjectId,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import rimraf from '@zkochan/rimraf'
@@ -36,7 +37,7 @@ export async function prune (
     modulesDir: string
     pruneDirectDependencies?: boolean
     removePackages?: string[]
-    rootDir: string
+    rootDir: ProjectRootDir
   }>,
   opts: {
     dedupeDirectDeps?: boolean
@@ -160,7 +161,7 @@ export async function prune (
               binsDir: path.join(modulesDir, '.bin'),
               modulesDir,
               muteLogs: true,
-              rootDir: prefix,
+              rootDir: prefix as ProjectRootDir,
             })
           }))
         }

@@ -1,5 +1,29 @@
 # @pnpm/render-peer-issues
 
+## 5.0.5
+
+### Patch Changes
+
+- Updated dependencies [0f0e441]
+- Updated dependencies [0ef168b]
+  - @pnpm/parse-overrides@5.1.0
+  - @pnpm/types@11.1.0
+
+## 5.0.4
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+
 ## 5.0.2
 
 ### Patch Changes

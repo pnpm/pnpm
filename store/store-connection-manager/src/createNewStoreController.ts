@@ -45,7 +45,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 > & {
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
-} & Partial<Pick<Config, 'userConfig' | 'deployAllFiles' | 'sslConfigs'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
+} & Partial<Pick<Config, 'userConfig' | 'deployAllFiles' | 'sslConfigs' | 'strictStorePkgContentCheck'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
@@ -107,6 +107,7 @@ export async function createNewStoreController (
         ? opts.verifyStoreIntegrity
         : true,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
       clearResolutionCache,
     }),
     dir: opts.storeDir,

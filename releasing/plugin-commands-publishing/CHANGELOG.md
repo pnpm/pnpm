@@ -1,5 +1,93 @@
 # @pnpm/plugin-commands-publishing
 
+## 10.0.1
+
+### Patch Changes
+
+- Updated dependencies [9899576]
+  - @pnpm/lifecycle@17.1.1
+  - @pnpm/config@21.6.3
+  - @pnpm/client@11.1.6
+  - @pnpm/cli-utils@3.1.6
+  - @pnpm/plugin-commands-env@5.1.1
+  - @pnpm/exportable-manifest@7.0.1
+
+## 10.0.0
+
+### Major Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/plugin-commands-env@5.1.0
+  - @pnpm/lifecycle@17.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/pick-registry-for-package@6.0.4
+  - @pnpm/client@11.1.5
+  - @pnpm/package-bins@9.0.4
+  - @pnpm/exportable-manifest@7.0.1
+  - @pnpm/resolver-base@13.0.1
+  - @pnpm/sort-packages@6.0.5
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/client@11.1.4
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/lifecycle@17.0.8
+  - @pnpm/exportable-manifest@7.0.0
+
+## 9.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies [9c63679]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/exportable-manifest@7.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/client@11.1.3
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/package-bins@9.0.3
+  - @pnpm/sort-packages@6.0.4
+
+## 8.1.8
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [398472c]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/exportable-manifest@6.1.0
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/pick-registry-for-package@6.0.2
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/client@11.1.2
+  - @pnpm/package-bins@9.0.2
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/sort-packages@6.0.3
+
 ## 8.1.7
 
 ### Patch Changes

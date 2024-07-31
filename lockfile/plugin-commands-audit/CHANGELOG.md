@@ -1,5 +1,66 @@
 # @pnpm/plugin-commands-audit
 
+## 10.2.5
+
+### Patch Changes
+
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.fs@1.0.0
+  - @pnpm/audit@8.1.8
+  - @pnpm/config@21.6.3
+  - @pnpm/cli-utils@3.1.6
+
+## 10.2.4
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/audit@8.1.7
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/read-project-manifest@6.0.5
+
+## 10.2.3
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/audit@8.1.6
+
+## 10.2.2
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/audit@8.1.6
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/read-project-manifest@6.0.4
+
+## 10.2.1
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/audit@8.1.5
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/read-project-manifest@6.0.3
+
 ## 10.2.0
 
 ### Minor Changes

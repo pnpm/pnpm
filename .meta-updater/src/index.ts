@@ -1,12 +1,11 @@
 import fs from 'fs'
 import path from 'path'
-import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile-file'
+import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile.fs'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import isSubdir from 'is-subdir'
 import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
-import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 
 const NEXT_TAG = 'next-9'
@@ -43,10 +42,37 @@ export default async (workspaceDir: string) => {
         pnpmMajorKeyword,
         ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
       ]
+      if (manifest.name !== CLI_PKG_NAME) {
+        for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+          if (!manifest[depType]) continue
+          for (const depName of Object.keys(manifest[depType] ?? {})) {
+            if (!manifest[depType]?.[depName].startsWith('workspace:')) {
+              manifest[depType]![depName] = 'catalog:'
+            }
+          }
+        }
+      } else {
+        for (const depType of ['devDependencies'] as const) {
+          if (!manifest[depType]) continue
+          for (const depName of Object.keys(manifest[depType] ?? {})) {
+            if (!manifest[depType]?.[depName].startsWith('workspace:')) {
+              manifest[depType]![depName] = 'catalog:'
+            }
+          }
+        }
+        for (const depType of ['dependencies', 'optionalDependencies'] as const) {
+          if (!manifest[depType]) continue
+          for (const depName of Object.keys(manifest[depType] ?? {})) {
+            if (manifest[depType]?.[depName] === 'catalog:') {
+              throw new Error('The pnpm CLI package cannot have "catalog:" in prod deps as publish-packed does not support them currently')
+            }
+          }
+        }
+      }
       if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
-          for (const depName of ['@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
+          for (const depName of ['@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/win-arm64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
             manifest.optionalDependencies![depName] = `workspace:*`
           }
         }
@@ -92,7 +118,7 @@ async function updateTSConfig (
     if (!spec.startsWith('link:') || spec.length === 5) continue
     const relativePath = spec.slice(5)
     const linkedPkgDir = path.join(dir, relativePath)
-    if (!await exists(path.join(linkedPkgDir, 'tsconfig.json'))) continue
+    if (!fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json'))) continue
     if (!isSubdir(context.workspaceDir, linkedPkgDir)) continue
     if (
       depName === '@pnpm/package-store' && (
@@ -111,7 +137,7 @@ async function updateTSConfig (
 
   async function writeTestTsconfig () {
     const testDir = path.join(dir, 'test')
-    if (!await exists(testDir)) {
+    if (!fs.existsSync(testDir)) {
       return
     }
 
@@ -194,7 +220,8 @@ async function updateTSConfig (
   }
 }
 
-let registryMockPort = 7769
+const registryMockPortForCore = 7769
+let registryMockPort = registryMockPortForCore
 
 type UpdatedManifest = ProjectManifest & Record<string, unknown>
 
@@ -202,7 +229,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   const relative = normalizePath(path.relative(workspaceDir, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {
-  case '@pnpm/lockfile-types':
+  case '@pnpm/lockfile.types':
     scripts = { ...manifest.scripts }
     break
   case '@pnpm/headless':
@@ -220,9 +247,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-deploy':
   case CLI_PKG_NAME:
   case '@pnpm/core': {
-    // @pnpm/core tests currently works only with port 4873 due to the usage of
+    // @pnpm/core tests currently works only with port 7769 due to the usage of
     // the next package: pkg-with-tarball-dep-from-registry
-    const port = manifest.name === '@pnpm/core' ? 4873 : ++registryMockPort
+    const port = manifest.name === '@pnpm/core' ? registryMockPortForCore : ++registryMockPort
     scripts = {
       ...(manifest.scripts as Record<string, string>),
     }
@@ -231,7 +258,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     break
   }
   default:
-    if (await exists(path.join(dir, 'test'))) {
+    if (fs.existsSync(path.join(dir, 'test'))) {
       scripts = {
         ...(manifest.scripts as Record<string, string>),
         _test: 'jest',

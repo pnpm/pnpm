@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/license-scanner",
-  "version": "3.1.5",
+  "version": "3.1.10",
   "description": "Check for licenses packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,26 +36,26 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
-    "@pnpm/lockfile-walker": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "load-json-file": "^6.2.0",
-    "p-limit": "^3.1.0",
-    "path-absolute": "^1.0.1",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.6.2"
+    "load-json-file": "catalog:",
+    "p-limit": "catalog:",
+    "path-absolute": "catalog:",
+    "ramda": "catalog:",
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/license-scanner": "workspace:*",
-    "@types/ramda": "0.29.12",
-    "@types/semver": "^7.5.8"
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

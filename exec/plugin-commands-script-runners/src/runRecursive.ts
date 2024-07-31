@@ -3,6 +3,7 @@ import path from 'path'
 import util from 'util'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
 import { type Config } from '@pnpm/config'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,
@@ -17,11 +18,13 @@ import { existsInDir } from './existsInDir'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
 import { runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
-import { type PackageScripts } from '@pnpm/types'
+import { type PackageScripts, type ProjectRootDir } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
+| 'bin'
 | 'enablePrePostScripts'
 | 'unsafePerm'
+| 'pnpmHomeDir'
 | 'rawConfig'
 | 'rootProjectManifest'
 | 'scriptsPrependNodePath'
@@ -29,7 +32,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'shellEmulator'
 | 'stream'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   resumeFrom?: string
@@ -48,8 +51,8 @@ export async function runRecursive (
 
   const sortedPackageChunks = opts.sort
     ? sortPackages(opts.selectedProjectsGraph)
-    : [Object.keys(opts.selectedProjectsGraph).sort()]
-  let packageChunks = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
+    : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
+  let packageChunks: ProjectRootDir[][] = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
 
   if (opts.resumeFrom) {
     packageChunks = getResumedPackageChunks({
@@ -67,7 +70,7 @@ export async function runRecursive (
       ? 'inherit'
       : 'pipe'
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
-  const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
+  const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
 
   const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
   if (requiredScripts.includes(scriptName)) {
@@ -75,7 +78,7 @@ export async function runRecursive (
       .flat()
       .map((prefix) => opts.selectedProjectsGraph[prefix])
       .filter((pkg) => getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName).length < 1)
-      .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
+      .map((pkg) => pkg.package.manifest.name ?? pkg.package.rootDir)
     if (missingScriptPackages.length) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
     }
@@ -117,11 +120,16 @@ export async function runRecursive (
             rootModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
             scriptsPrependNodePath: opts.scriptsPrependNodePath,
             scriptShell: opts.scriptShell,
+            silent: opts.reporter === 'silent',
             shellEmulator: opts.shellEmulator,
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
           }
-          const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
+          const { executionEnv } = pkg.package.manifest.pnpm ?? {}
+          if (executionEnv != null) {
+            lifecycleOpts.extraBinPaths = (await prepareExecutionEnv(opts, { executionEnv })).extraBinPaths
+          }
+          const pnpPath = workspacePnpPath ?? existsPnp(prefix)
           if (pnpPath) {
             lifecycleOpts.extraEnv = {
               ...lifecycleOpts.extraEnv,

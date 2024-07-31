@@ -62,6 +62,32 @@ function copyCli (currentLocation: string, targetDir: string): void {
   fs.copyFileSync(currentLocation, newExecPath)
 }
 
+function createPnpxScripts (targetDir: string): void {
+  // Why script files instead of aliases?
+  // 1. Aliases wouldn't work on all platform, such as Windows Command Prompt or POSIX `sh`.
+  // 2. Aliases wouldn't work on all environments, such as non-interactive shells and CI environments.
+  // 3. Aliases must be set for different shells while script files are limited to only 2 types: POSIX and Windows.
+  // 4. Aliases cannot be located with the `which` or `where` command.
+  // 5. Editing rc files is more error-prone than just write new files to the filesystem.
+
+  fs.mkdirSync(targetDir, { recursive: true })
+
+  const shellScript = [
+    '#!/bin/sh',
+    'exec pnpm dlx "$@"',
+  ].join('\n')
+  fs.writeFileSync(path.join(targetDir, 'pnpx'), shellScript, { mode: 0o755 })
+
+  const batchScript = [
+    '@echo off',
+    'pnpm dlx %*',
+  ].join('\n')
+  fs.writeFileSync(path.join(targetDir, 'pnpx.cmd'), batchScript)
+
+  const powershellScript = 'pnpm dlx $args'
+  fs.writeFileSync(path.join(targetDir, 'pnpx.ps1'), powershellScript)
+}
+
 export async function handler (
   opts: {
     force?: boolean
@@ -71,6 +97,7 @@ export async function handler (
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
     copyCli(execPath, opts.pnpmHomeDir)
+    createPnpxScripts(opts.pnpmHomeDir)
   }
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {

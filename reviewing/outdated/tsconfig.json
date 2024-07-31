@@ -10,7 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/matcher"
+    },
+    {
+      "path": "../../config/parse-overrides"
     },
     {
       "path": "../../config/pick-registry-for-package"
@@ -19,10 +28,10 @@
       "path": "../../hooks/read-package-hook"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/constants"

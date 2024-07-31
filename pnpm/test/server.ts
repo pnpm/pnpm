@@ -1,3 +1,4 @@
+import fs from 'fs'
 import { type ChildProcess } from 'child_process'
 import { type Readable } from 'stream'
 import { promisify } from 'util'
@@ -12,7 +13,6 @@ import isWindows from 'is-windows'
 import killcb from 'tree-kill'
 import writeJsonFile from 'write-json-file'
 import pAny from 'p-any'
-import pathExists from 'path-exists'
 import {
   execPnpm,
   execPnpmSync,
@@ -51,7 +51,7 @@ function prepareServerTest (serverStartArgs?: readonly string[]): TestSetup {
 
   async function onTestEnd () {
     await expect(execPnpm(['server', 'stop'])).resolves.not.toThrow()
-    await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
+    expect(fs.existsSync(serverJsonPath)).toBeFalsy()
   }
 
   return {
@@ -165,7 +165,7 @@ skipOnWindows('uploading cache can be disabled without breaking install', async 
   const storePath = project.getStorePath()
   const engine = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
   const cacheDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${engine}/package`)
-  await expect(pathExists(cacheDir)).resolves.toBeFalsy()
+  expect(fs.existsSync(cacheDir)).toBeFalsy()
 })
 
 skipOnWindows('installation using store server started in the background', async () => {
@@ -185,7 +185,7 @@ skipOnWindows('installation using store server started in the background', async
     await expect(execPnpm(['uninstall', 'is-positive'])).resolves.not.toThrow()
   } finally {
     await expect(execPnpm(['server', 'stop'])).resolves.not.toThrow()
-    await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
+    expect(fs.existsSync(serverJsonPath)).toBeFalsy()
   }
 })
 
@@ -206,7 +206,7 @@ skipOnWindows('store server started in the background should use store location 
     await expect(execPnpm(['remove', 'is-positive', '--store-dir', '../store2'])).resolves.not.toThrow()
   } finally {
     await expect(execPnpm(['server', 'stop', '--store-dir', '../store2'])).resolves.not.toThrow()
-    await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
+    expect(fs.existsSync(serverJsonPath)).toBeFalsy()
   }
 })
 
@@ -311,7 +311,7 @@ skipOnWindows('parallel server starts against the same store should result in on
     timeoutMillis: 60000,
   })).resolves.not.toThrow()
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
-  await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
+  expect(fs.existsSync(serverJsonPath)).toBeFalsy()
 })
 
 skipOnWindows('installation without store server running in the background', async () => {
@@ -320,7 +320,7 @@ skipOnWindows('installation without store server running in the background', asy
   await expect(execPnpm(['install', 'is-positive@1.0.0', '--no-use-store-server'])).resolves.not.toThrow()
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
-  await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
+  expect(fs.existsSync(serverJsonPath)).toBeFalsy()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 })

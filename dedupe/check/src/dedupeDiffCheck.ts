@@ -1,4 +1,4 @@
-import { type ResolvedDependencies, type Lockfile } from '@pnpm/lockfile-types'
+import { type ResolvedDependencies, type Lockfile } from '@pnpm/lockfile.types'
 import {
   type ResolutionChangesByAlias,
   type DedupeCheckIssues,

@@ -1,5 +1,46 @@
 # @pnpm/prepare-package
 
+## 6.0.10
+
+### Patch Changes
+
+- Updated dependencies [9899576]
+  - @pnpm/lifecycle@17.1.1
+
+## 6.0.9
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/lifecycle@17.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/read-package-json@9.0.5
+
+## 6.0.8
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.8
+
+## 6.0.7
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/read-package-json@9.0.4
+
+## 6.0.6
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/read-package-json@9.0.3
+
 ## 6.0.5
 
 ### Patch Changes

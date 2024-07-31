@@ -1,10 +1,10 @@
 // cspell:ignore ents
 import fs from 'fs'
 import { getFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { type Lockfile, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile-file'
+import { type Lockfile, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import { type DepPath } from '@pnpm/types'
 import * as schemas from 'hyperdrive-schemas'
 import loadJsonFile from 'load-json-file'

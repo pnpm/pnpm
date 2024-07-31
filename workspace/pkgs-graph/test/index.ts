@@ -13,7 +13,7 @@ const BAR5_PATH = pathResolve('/zkochan/src/bar@5')
 test('create package graph', () => {
   const result = createPkgGraph([
     {
-      dir: BAR1_PATH,
+      rootDir: BAR1_PATH,
       manifest: {
         name: 'bar',
         version: '1.0.0',
@@ -25,7 +25,7 @@ test('create package graph', () => {
       },
     },
     {
-      dir: FOO1_PATH,
+      rootDir: FOO1_PATH,
       manifest: {
         name: 'foo',
         version: '1.0.0',
@@ -36,7 +36,7 @@ test('create package graph', () => {
       },
     },
     {
-      dir: BAR2_PATH,
+      rootDir: BAR2_PATH,
       manifest: {
         name: 'bar',
         version: '2.0.0',
@@ -47,7 +47,7 @@ test('create package graph', () => {
       },
     },
     {
-      dir: FOO2_PATH,
+      rootDir: FOO2_PATH,
       manifest: {
         name: 'foo',
         version: '2.0.0',
@@ -59,7 +59,7 @@ test('create package graph', () => {
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
-        dir: BAR1_PATH,
+        rootDir: BAR1_PATH,
         manifest: {
           name: 'bar',
           version: '1.0.0',
@@ -74,7 +74,7 @@ test('create package graph', () => {
     [FOO1_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO1_PATH,
+        rootDir: FOO1_PATH,
         manifest: {
           name: 'foo',
           version: '1.0.0',
@@ -88,7 +88,7 @@ test('create package graph', () => {
     [BAR2_PATH]: {
       dependencies: [FOO2_PATH],
       package: {
-        dir: BAR2_PATH,
+        rootDir: BAR2_PATH,
         manifest: {
           name: 'bar',
           version: '2.0.0',
@@ -102,7 +102,7 @@ test('create package graph', () => {
     [FOO2_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO2_PATH,
+        rootDir: FOO2_PATH,
         manifest: {
           name: 'foo',
           version: '2.0.0',
@@ -115,7 +115,7 @@ test('create package graph', () => {
 test('create package graph using peer dependencies', () => {
   const result = createPkgGraph([
     {
-      dir: BAR1_PATH,
+      rootDir: BAR1_PATH,
       manifest: {
         name: 'bar',
         version: '1.0.0',
@@ -127,7 +127,7 @@ test('create package graph using peer dependencies', () => {
       },
     },
     {
-      dir: FOO1_PATH,
+      rootDir: FOO1_PATH,
       manifest: {
         name: 'foo',
         version: '1.0.0',
@@ -139,7 +139,7 @@ test('create package graph using peer dependencies', () => {
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
-        dir: BAR1_PATH,
+        rootDir: BAR1_PATH,
         manifest: {
           name: 'bar',
           version: '1.0.0',
@@ -154,7 +154,7 @@ test('create package graph using peer dependencies', () => {
     [FOO1_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO1_PATH,
+        rootDir: FOO1_PATH,
         manifest: {
           name: 'foo',
           version: '1.0.0',
@@ -167,7 +167,7 @@ test('create package graph using peer dependencies', () => {
 test('create package graph for local directory dependencies', () => {
   const result = createPkgGraph([
     {
-      dir: BAR1_PATH,
+      rootDir: BAR1_PATH,
       manifest: {
         name: 'bar',
         version: '1.0.0',
@@ -180,7 +180,7 @@ test('create package graph for local directory dependencies', () => {
       },
     },
     {
-      dir: FOO1_PATH,
+      rootDir: FOO1_PATH,
       manifest: {
         name: 'foo',
         version: '1.0.0',
@@ -191,7 +191,7 @@ test('create package graph for local directory dependencies', () => {
       },
     },
     {
-      dir: BAR2_PATH,
+      rootDir: BAR2_PATH,
       manifest: {
         name: 'bar',
         version: '2.0.0',
@@ -202,7 +202,7 @@ test('create package graph for local directory dependencies', () => {
       },
     },
     {
-      dir: FOO2_PATH,
+      rootDir: FOO2_PATH,
       manifest: {
         name: 'foo',
         version: '2.0.0',
@@ -214,7 +214,7 @@ test('create package graph for local directory dependencies', () => {
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
-        dir: BAR1_PATH,
+        rootDir: BAR1_PATH,
         manifest: {
           name: 'bar',
           version: '1.0.0',
@@ -230,7 +230,7 @@ test('create package graph for local directory dependencies', () => {
     [FOO1_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO1_PATH,
+        rootDir: FOO1_PATH,
         manifest: {
           name: 'foo',
           version: '1.0.0',
@@ -244,7 +244,7 @@ test('create package graph for local directory dependencies', () => {
     [BAR2_PATH]: {
       dependencies: [FOO2_PATH],
       package: {
-        dir: BAR2_PATH,
+        rootDir: BAR2_PATH,
         manifest: {
           name: 'bar',
           version: '2.0.0',
@@ -258,7 +258,7 @@ test('create package graph for local directory dependencies', () => {
     [FOO2_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO2_PATH,
+        rootDir: FOO2_PATH,
         manifest: {
           name: 'foo',
           version: '2.0.0',
@@ -271,7 +271,7 @@ test('create package graph for local directory dependencies', () => {
 test('create package graph ignoring the workspace protocol', () => {
   const result = createPkgGraph([
     {
-      dir: BAR1_PATH,
+      rootDir: BAR1_PATH,
       manifest: {
         name: 'bar',
         version: '1.0.0',
@@ -283,7 +283,7 @@ test('create package graph ignoring the workspace protocol', () => {
       },
     },
     {
-      dir: FOO1_PATH,
+      rootDir: FOO1_PATH,
       manifest: {
         name: 'foo',
         version: '1.0.0',
@@ -294,7 +294,7 @@ test('create package graph ignoring the workspace protocol', () => {
       },
     },
     {
-      dir: BAR2_PATH,
+      rootDir: BAR2_PATH,
       manifest: {
         name: 'bar',
         version: '2.0.0',
@@ -305,14 +305,14 @@ test('create package graph ignoring the workspace protocol', () => {
       },
     },
     {
-      dir: FOO2_PATH,
+      rootDir: FOO2_PATH,
       manifest: {
         name: 'foo',
         version: '2.0.0',
       },
     },
     {
-      dir: BAR3_PATH,
+      rootDir: BAR3_PATH,
       manifest: {
         name: 'bar',
         version: '3.0.0',
@@ -323,7 +323,7 @@ test('create package graph ignoring the workspace protocol', () => {
       },
     },
     {
-      dir: BAR4_PATH,
+      rootDir: BAR4_PATH,
       manifest: {
         name: 'bar',
         version: '4.0.0',
@@ -339,7 +339,7 @@ test('create package graph ignoring the workspace protocol', () => {
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
-        dir: BAR1_PATH,
+        rootDir: BAR1_PATH,
         manifest: {
           name: 'bar',
           version: '1.0.0',
@@ -354,7 +354,7 @@ test('create package graph ignoring the workspace protocol', () => {
     [FOO1_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO1_PATH,
+        rootDir: FOO1_PATH,
         manifest: {
           name: 'foo',
           version: '1.0.0',
@@ -368,7 +368,7 @@ test('create package graph ignoring the workspace protocol', () => {
     [BAR2_PATH]: {
       dependencies: [FOO2_PATH],
       package: {
-        dir: BAR2_PATH,
+        rootDir: BAR2_PATH,
         manifest: {
           name: 'bar',
           version: '2.0.0',
@@ -382,7 +382,7 @@ test('create package graph ignoring the workspace protocol', () => {
     [FOO2_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO2_PATH,
+        rootDir: FOO2_PATH,
         manifest: {
           name: 'foo',
           version: '2.0.0',
@@ -392,7 +392,7 @@ test('create package graph ignoring the workspace protocol', () => {
     [BAR3_PATH]: {
       dependencies: [FOO2_PATH],
       package: {
-        dir: BAR3_PATH,
+        rootDir: BAR3_PATH,
         manifest: {
           name: 'bar',
           version: '3.0.0',
@@ -406,7 +406,7 @@ test('create package graph ignoring the workspace protocol', () => {
     [BAR4_PATH]: {
       dependencies: [FOO2_PATH],
       package: {
-        dir: BAR4_PATH,
+        rootDir: BAR4_PATH,
         manifest: {
           name: 'bar',
           version: '4.0.0',
@@ -423,7 +423,7 @@ test('create package graph ignoring the workspace protocol', () => {
 test('create package graph respects linked-workspace-packages = false', () => {
   const result = createPkgGraph([
     {
-      dir: BAR1_PATH,
+      rootDir: BAR1_PATH,
       manifest: {
         dependencies: {
           foo: 'workspace:*',
@@ -433,7 +433,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
       },
     },
     {
-      dir: FOO1_PATH,
+      rootDir: FOO1_PATH,
       manifest: {
         dependencies: {
           bar: '^10.0.0',
@@ -443,7 +443,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
       },
     },
     {
-      dir: BAR2_PATH,
+      rootDir: BAR2_PATH,
       manifest: {
         dependencies: {
           foo: '1.0.1',
@@ -453,7 +453,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
       },
     },
     {
-      dir: BAR3_PATH,
+      rootDir: BAR3_PATH,
       manifest: {
         dependencies: {
           foo: 'workspace:~1.0.0',
@@ -463,7 +463,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
       },
     },
     {
-      dir: BAR4_PATH,
+      rootDir: BAR4_PATH,
       manifest: {
         dependencies: {
           foo: 'workspace:^',
@@ -473,7 +473,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
       },
     },
     {
-      dir: BAR5_PATH,
+      rootDir: BAR5_PATH,
       manifest: {
         dependencies: {
           foo: 'workspace:~',
@@ -488,7 +488,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
-        dir: BAR1_PATH,
+        rootDir: BAR1_PATH,
         manifest: {
           dependencies: {
             foo: 'workspace:*',
@@ -501,7 +501,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
     [FOO1_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO1_PATH,
+        rootDir: FOO1_PATH,
         manifest: {
           dependencies: {
             bar: '^10.0.0',
@@ -516,7 +516,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
       // workspace dependencies
       dependencies: [],
       package: {
-        dir: BAR2_PATH,
+        rootDir: BAR2_PATH,
         manifest: {
           dependencies: {
             foo: '1.0.1',
@@ -529,7 +529,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
     [BAR3_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
-        dir: BAR3_PATH,
+        rootDir: BAR3_PATH,
         manifest: {
           dependencies: {
             foo: 'workspace:~1.0.0',
@@ -542,7 +542,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
     [BAR4_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
-        dir: BAR4_PATH,
+        rootDir: BAR4_PATH,
         manifest: {
           dependencies: {
             foo: 'workspace:^',
@@ -555,7 +555,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
     [BAR5_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
-        dir: BAR5_PATH,
+        rootDir: BAR5_PATH,
         manifest: {
           dependencies: {
             foo: 'workspace:~',
@@ -571,7 +571,7 @@ test('create package graph respects linked-workspace-packages = false', () => {
 test('create package graph respects ignoreDevDeps = true', () => {
   const result = createPkgGraph([
     {
-      dir: BAR1_PATH,
+      rootDir: BAR1_PATH,
       manifest: {
         name: 'bar',
         version: '1.0.0',
@@ -585,7 +585,7 @@ test('create package graph respects ignoreDevDeps = true', () => {
       },
     },
     {
-      dir: FOO1_PATH,
+      rootDir: FOO1_PATH,
       manifest: {
         name: 'foo',
         version: '1.0.0',
@@ -596,7 +596,7 @@ test('create package graph respects ignoreDevDeps = true', () => {
       },
     },
     {
-      dir: BAR2_PATH,
+      rootDir: BAR2_PATH,
       manifest: {
         name: 'bar',
         version: '2.0.0',
@@ -607,7 +607,7 @@ test('create package graph respects ignoreDevDeps = true', () => {
       },
     },
     {
-      dir: FOO2_PATH,
+      rootDir: FOO2_PATH,
       manifest: {
         name: 'foo',
         version: '2.0.0',
@@ -619,7 +619,7 @@ test('create package graph respects ignoreDevDeps = true', () => {
     [BAR1_PATH]: {
       dependencies: [],
       package: {
-        dir: BAR1_PATH,
+        rootDir: BAR1_PATH,
         manifest: {
           name: 'bar',
           version: '1.0.0',
@@ -636,7 +636,7 @@ test('create package graph respects ignoreDevDeps = true', () => {
     [FOO1_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO1_PATH,
+        rootDir: FOO1_PATH,
         manifest: {
           name: 'foo',
           version: '1.0.0',
@@ -650,7 +650,7 @@ test('create package graph respects ignoreDevDeps = true', () => {
     [BAR2_PATH]: {
       dependencies: [FOO2_PATH],
       package: {
-        dir: BAR2_PATH,
+        rootDir: BAR2_PATH,
         manifest: {
           name: 'bar',
           version: '2.0.0',
@@ -664,7 +664,7 @@ test('create package graph respects ignoreDevDeps = true', () => {
     [FOO2_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO2_PATH,
+        rootDir: FOO2_PATH,
         manifest: {
           name: 'foo',
           version: '2.0.0',
@@ -677,7 +677,7 @@ test('create package graph respects ignoreDevDeps = true', () => {
 test('* matches prerelease versions', () => {
   const result = createPkgGraph([
     {
-      dir: BAR1_PATH,
+      rootDir: BAR1_PATH,
       manifest: {
         dependencies: {
           foo: '*',
@@ -687,7 +687,7 @@ test('* matches prerelease versions', () => {
       },
     },
     {
-      dir: FOO1_PATH,
+      rootDir: FOO1_PATH,
       manifest: {
         name: 'foo',
         version: '1.0.0-0',
@@ -699,7 +699,7 @@ test('* matches prerelease versions', () => {
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
-        dir: BAR1_PATH,
+        rootDir: BAR1_PATH,
         manifest: {
           dependencies: {
             foo: '*',
@@ -712,7 +712,7 @@ test('* matches prerelease versions', () => {
     [FOO1_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO1_PATH,
+        rootDir: FOO1_PATH,
         manifest: {
           name: 'foo',
           version: '1.0.0-0',
@@ -726,7 +726,7 @@ test('* matches prerelease versions', () => {
 test('successfully create a package graph even when a workspace package has no version', async () => {
   const result = createPkgGraph([
     {
-      dir: BAR1_PATH,
+      rootDir: BAR1_PATH,
       manifest: {
         dependencies: {
           foo: 'workspace:*',
@@ -736,7 +736,7 @@ test('successfully create a package graph even when a workspace package has no v
       },
     },
     {
-      dir: FOO1_PATH,
+      rootDir: FOO1_PATH,
       manifest: {
         name: 'foo',
       },
@@ -748,7 +748,7 @@ test('successfully create a package graph even when a workspace package has no v
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
-        dir: BAR1_PATH,
+        rootDir: BAR1_PATH,
         manifest: {
           dependencies: {
             foo: 'workspace:*',
@@ -761,7 +761,7 @@ test('successfully create a package graph even when a workspace package has no v
     [FOO1_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO1_PATH,
+        rootDir: FOO1_PATH,
         manifest: {
           name: 'foo',
         },
@@ -773,7 +773,7 @@ test('successfully create a package graph even when a workspace package has no v
 test('create package graph respects workspace alias syntax', async () => {
   const result = createPkgGraph([
     {
-      dir: BAR1_PATH,
+      rootDir: BAR1_PATH,
       manifest: {
         dependencies: {
           'foo-alias': 'workspace:foo@*',
@@ -783,7 +783,7 @@ test('create package graph respects workspace alias syntax', async () => {
       },
     },
     {
-      dir: FOO1_PATH,
+      rootDir: FOO1_PATH,
       manifest: {
         name: 'foo',
       },
@@ -794,7 +794,7 @@ test('create package graph respects workspace alias syntax', async () => {
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
-        dir: BAR1_PATH,
+        rootDir: BAR1_PATH,
         manifest: {
           dependencies: {
             'foo-alias': 'workspace:foo@*',
@@ -807,7 +807,7 @@ test('create package graph respects workspace alias syntax', async () => {
     [FOO1_PATH]: {
       dependencies: [],
       package: {
-        dir: FOO1_PATH,
+        rootDir: FOO1_PATH,
         manifest: {
           name: 'foo',
         },

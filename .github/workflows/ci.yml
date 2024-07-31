@@ -17,7 +17,7 @@ jobs:
         node:
           - '18.12'
           - '20'
-          - '21'
+          - '22'
         platform:
           - ubuntu-latest
           - windows-latest
@@ -43,8 +43,8 @@ jobs:
       with:
         node-version: ${{ matrix.node }}
         cache: 'pnpm'
-    - name: Install npm@7
-      run: npm add --global npm@7
+    - name: Install npm@8
+      run: pnpm add --global npm@8
     - name: pnpm install
       run: pnpm install
     - name: Audit

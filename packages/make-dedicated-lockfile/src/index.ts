@@ -6,8 +6,8 @@ import {
   type ProjectSnapshot,
   readWantedLockfile,
   writeWantedLockfile,
-} from '@pnpm/lockfile-file'
-import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
+} from '@pnpm/lockfile.fs'
+import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import pickBy from 'ramda/src/pickBy'
@@ -36,7 +36,12 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   await writeWantedLockfile(projectDir, dedicatedLockfile)
 
   const { manifest, writeProjectManifest } = await readProjectManifest(projectDir)
-  const publishManifest = await createExportableManifest(projectDir, manifest)
+  const publishManifest = await createExportableManifest(projectDir, manifest, {
+    // Since @pnpm/make-dedicated-lockfile is deprecated, avoid supporting new
+    // features like pnpm catalogs. Passing in an empty catalog object
+    // intentionally.
+    catalogs: {},
+  })
   await writeProjectManifest(publishManifest)
 
   const modulesDir = path.join(projectDir, 'node_modules')

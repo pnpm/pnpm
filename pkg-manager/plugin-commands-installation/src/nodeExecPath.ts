@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import which from '@pnpm/which'
+import which from 'which'
 
 export async function getNodeExecPath (): Promise<string> {
   try {

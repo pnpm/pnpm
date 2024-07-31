@@ -1,5 +1,84 @@
 # @pnpm/outdated
 
+## 15.1.1
+
+### Patch Changes
+
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.fs@1.0.0
+  - @pnpm/client@11.1.6
+  - @pnpm/npm-resolver@21.0.2
+
+## 15.1.0
+
+### Minor Changes
+
+- 0f0e441: Overrides now support catalogs [#8303](https://github.com/pnpm/pnpm/issues/8303).
+
+### Patch Changes
+
+- f6e7ace: The `pnpm outdated` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs).
+- Updated dependencies [0f0e441]
+- Updated dependencies [0ef168b]
+  - @pnpm/hooks.read-package-hook@5.0.0
+  - @pnpm/parse-overrides@5.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/pick-registry-for-package@6.0.4
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/client@11.1.5
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/manifest-utils@6.0.5
+  - @pnpm/npm-resolver@21.0.2
+
+## 15.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/npm-resolver@21.0.1
+  - @pnpm/client@11.1.4
+
+## 15.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/npm-resolver@21.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/client@11.1.3
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/hooks.read-package-hook@4.0.5
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/modules-yaml@13.1.3
+  - @pnpm/manifest-utils@6.0.4
+
+## 14.0.12
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/pick-registry-for-package@6.0.2
+  - @pnpm/hooks.read-package-hook@4.0.4
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/client@11.1.2
+  - @pnpm/modules-yaml@13.1.2
+  - @pnpm/manifest-utils@6.0.3
+  - @pnpm/npm-resolver@20.0.1
+
 ## 14.0.11
 
 ### Patch Changes

@@ -3,7 +3,7 @@ import os from 'os'
 import path from 'path'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { install } from '@pnpm/plugin-commands-installation'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import tempy from 'tempy'
 import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
@@ -545,7 +545,7 @@ describe('patch and commit in workspaces', () => {
   })
 
   test('patch commit should work in workspaces', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -599,7 +599,7 @@ describe('patch and commit in workspaces', () => {
   })
 
   test('patch and patch-commit should work with shared-workspace-lockfile=false', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -661,7 +661,7 @@ describe('patch and commit in workspaces', () => {
   })
 
   test('reusing existing patch file should work with shared-workspace-lockfile=false', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -724,7 +724,7 @@ describe('patch and commit in workspaces', () => {
   })
 
   test('patch and patch-commit for git hosted dependency', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -810,7 +810,7 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
   test('should work with custom modules-dir and virtual-store-dir', async () => {
     const manifest = fs.readFileSync(path.join(customModulesDirFixture, 'package.json'), 'utf8')
     const lockfileYaml = fs.readFileSync(path.join(customModulesDirFixture, 'pnpm-lock.yaml'), 'utf8')
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(customModulesDirFixture, [])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(customModulesDirFixture, [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -928,7 +928,8 @@ describe('patch-remove', () => {
   })
 })
 
-function getPatchDirFromPatchOutput (output: string) {
-  const [firstLine] = output.split('\n')
-  return firstLine.substring(firstLine.indexOf(':') + 1).trim()
+function getPatchDirFromPatchOutput (output: string): string {
+  const match = output.match(/'([^']+)'/)
+  if (match?.[1] == null) throw new Error('No path in output')
+  return match[1]
 }

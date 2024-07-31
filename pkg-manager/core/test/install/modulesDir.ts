@@ -5,6 +5,7 @@ import {
   type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
+import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
@@ -54,11 +55,11 @@ test('using different custom modules directory for every project', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -73,7 +74,7 @@ test('using different custom modules directory for every project', async () => {
         },
       },
       modulesDir: 'modules_1',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -86,7 +87,7 @@ test('using different custom modules directory for every project', async () => {
         },
       },
       modulesDir: 'modules_2',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   await mutateModules(importers, testDefaults({ allProjects }))

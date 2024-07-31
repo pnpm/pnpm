@@ -1,5 +1,11 @@
 # @pnpm/parse-overrides
 
+## 5.1.0
+
+### Minor Changes
+
+- 0f0e441: Overrides now support catalogs [#8303](https://github.com/pnpm/pnpm/issues/8303).
+
 ## 5.0.1
 
 ### Patch Changes

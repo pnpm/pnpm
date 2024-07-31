@@ -3,6 +3,7 @@ import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
+import { type ProjectRootDir } from '@pnpm/types'
 import renderHelp from 'render-help'
 import { cliOptionsTypes } from './install'
 
@@ -58,7 +59,7 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
     manifest: {},
     mutation: 'install',
     pruneDirectDependencies: true,
-    rootDir: process.cwd(),
+    rootDir: process.cwd() as ProjectRootDir,
   }, {
     ...opts,
     ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
