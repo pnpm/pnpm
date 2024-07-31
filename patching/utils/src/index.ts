@@ -9,13 +9,13 @@ export function getPatchInfo (
   const pkgNameAndVersion = `${pkgName}@${pkgVersion}`
   if (patchedDependencies[pkgNameAndVersion]) {
     return {
-      allowFailure: false,
+      appliedToAnyVersion: false,
       file: patchedDependencies[pkgNameAndVersion],
     }
   }
   if (patchedDependencies[pkgName]) {
     return {
-      allowFailure: true,
+      appliedToAnyVersion: true,
       file: patchedDependencies[pkgName],
     }
   }

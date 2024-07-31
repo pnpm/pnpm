@@ -1356,7 +1356,7 @@ async function resolveDependency (
   const nameAndVersion = `${pkg.name}@${pkg.version}`
   const patchKey = ctx.patchedDependencies?.[nameAndVersion] ? nameAndVersion : pkg.name
   const patchInfo: PatchInfo | undefined = ctx.patchedDependencies?.[patchKey] && {
-    allowFailure: patchKey !== nameAndVersion,
+    appliedToAnyVersion: patchKey !== nameAndVersion,
     file: ctx.patchedDependencies[patchKey],
   }
   if (patchInfo) {
