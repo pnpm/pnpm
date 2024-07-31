@@ -12,7 +12,6 @@
     "node": ">=18.12"
   },
   "scripts": {
-    "_test": "jest",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
