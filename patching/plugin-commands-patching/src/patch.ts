@@ -16,7 +16,7 @@ import { PnpmError } from '@pnpm/error'
 import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { writePackage } from './writePackage'
 import { getPatchedDependency } from './getPatchedDependency'
-import { writeStateValue } from './stateFile'
+import { writeEditDirState } from './stateFile'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -87,7 +87,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
 
   await writePackage(patchedDep, editDir, opts)
 
-  await writeStateValue({
+  await writeEditDirState({
     editDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
     value: {

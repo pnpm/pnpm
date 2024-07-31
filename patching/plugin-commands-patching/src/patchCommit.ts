@@ -19,7 +19,7 @@ import tempy from 'tempy'
 import { writePackage } from './writePackage'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
-import { readStateValue, deleteStateKey } from './stateFile'
+import { readEditDirState, deleteEditDirState } from './stateFile'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -54,7 +54,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
   const patchesDir = path.join(lockfileDir, patchesDirName)
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
-  const stateValue = await readStateValue({
+  const stateValue = await readEditDirState({
     editDir: userDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
   })
@@ -79,7 +79,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   }
   const srcDir = tempy.directory()
   await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion), srcDir, opts)
-  await deleteStateKey({
+  await deleteEditDirState({
     editDir: userDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
   })

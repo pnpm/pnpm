@@ -2,48 +2,48 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 
-export type StateKey = string
+export type EditDir = string & { __brand: 'patch-edit-dir' }
 
-export interface StateValue {
+export interface EditDirState {
   selector: string
   applyToAll: boolean
 }
 
-export type State = Record<StateKey, StateValue>
+export type State = Record<EditDir, EditDirState>
 
-export interface StateKeyInput {
+export interface EditDirKeyInput {
   editDir: string
 }
 
-const createStateKey = (opts: StateKeyInput): StateKey => opts.editDir
+const createEditDirKey = (opts: EditDirKeyInput): EditDir => opts.editDir as EditDir
 
-export interface ReadStateValueOptions extends StateKeyInput {
+export interface ReadEditDirStateOptions extends EditDirKeyInput {
   modulesDir: string
 }
 
-export async function readStateValue (opts: ReadStateValueOptions): Promise<StateValue | undefined> {
+export async function readEditDirState (opts: ReadEditDirStateOptions): Promise<EditDirState | undefined> {
   const state = await readStateFile(opts.modulesDir)
   if (!state) return undefined
-  const key = createStateKey(opts)
+  const key = createEditDirKey(opts)
   return state[key]
 }
 
-export interface WriteStateValueOptions extends ReadStateValueOptions {
-  value: StateValue
+export interface WriteEditDirStateOptions extends ReadEditDirStateOptions {
+  value: EditDirState
 }
 
-export async function writeStateValue (opts: WriteStateValueOptions): Promise<void> {
+export async function writeEditDirState (opts: WriteEditDirStateOptions): Promise<void> {
   await modifyStateFile(opts.modulesDir, state => {
-    const key = createStateKey(opts)
+    const key = createEditDirKey(opts)
     state[key] = opts.value
   })
 }
 
-export interface DeleteStateKeyOptions extends ReadStateValueOptions {}
+export interface DeleteEditDirStateOptions extends ReadEditDirStateOptions {}
 
-export async function deleteStateKey (opts: DeleteStateKeyOptions): Promise<void> {
+export async function deleteEditDirState (opts: DeleteEditDirStateOptions): Promise<void> {
   await modifyStateFile(opts.modulesDir, state => {
-    const key = createStateKey(opts)
+    const key = createEditDirKey(opts)
     delete state[key]
   })
 }
