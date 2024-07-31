@@ -48,7 +48,7 @@ export function deleteEditDirState (opts: DeleteEditDirStateOptions): void {
   })
 }
 
-export function modifyStateFile (modulesDir: string, modifyState: (state: State) => void): void {
+function modifyStateFile (modulesDir: string, modifyState: (state: State) => void): void {
   const filePath = getStateFilePath(modulesDir)
   let state = readStateFile(modulesDir)
   if (!state) {
