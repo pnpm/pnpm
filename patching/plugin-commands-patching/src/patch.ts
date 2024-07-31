@@ -88,9 +88,8 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
   await writePackage(patchedDep, editDir, opts)
 
   await writeStateValue({
-    cacheDir: opts.cacheDir,
     editDir,
-    lockfileDir,
+    modulesDir: opts.modulesDir ?? 'node_modules',
     value: {
       selector: params[0],
       applyToAll: patchedDep.applyToAll,

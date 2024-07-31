@@ -55,9 +55,8 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const patchesDir = path.join(lockfileDir, patchesDirName)
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
   const stateValue = await readStateValue({
-    cacheDir: opts.cacheDir,
     editDir: userDir,
-    lockfileDir,
+    modulesDir: opts.modulesDir ?? 'node_modules',
   })
   if (!stateValue) {
     throw new PnpmError('INVALID_PATCH_DIR', `${userDir} is not a valid patch directory`, {
@@ -81,9 +80,8 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const srcDir = tempy.directory()
   await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion), srcDir, opts)
   await deleteStateKey({
-    cacheDir: opts.cacheDir,
     editDir: userDir,
-    lockfileDir,
+    modulesDir: opts.modulesDir ?? 'node_modules',
   })
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
