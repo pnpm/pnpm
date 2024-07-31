@@ -5085,6 +5085,9 @@ importers:
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
+      '@pnpm/patching.utils':
+        specifier: workspace:*
+        version: link:../../patching/utils
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher

@@ -16,6 +16,7 @@ test('getPatchInfo(_, name, version) returns appliedToAnyVersion=false if name@v
       path: 'patches/foo@1.0.0.patch',
       hash: expect.any(String),
     },
+    key: 'foo@1.0.0',
   })
 })
 
@@ -31,6 +32,7 @@ test('getPatchInfo(_, name, version) returns appliedToAnyVersion=true if name ex
       path: 'patches/foo.patch',
       hash: expect.any(String),
     },
+    key: 'foo',
   })
 })
 
@@ -50,6 +52,7 @@ test('getPatchInfo(_, name, version) prioritizes name@version over name if both 
       path: 'patches/foo@1.0.0.patch',
       hash: expect.any(String),
     },
+    key: 'foo@1.0.0',
   })
 })
 

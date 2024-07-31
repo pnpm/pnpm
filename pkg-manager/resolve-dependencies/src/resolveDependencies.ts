@@ -16,6 +16,7 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
+import { getPatchInfo } from '@pnpm/patching.utils'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
   type DirectoryResolution,
@@ -1353,14 +1354,9 @@ async function resolveDependency (
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
   let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
-  const nameAndVersion = `${pkg.name}@${pkg.version}`
-  const patchKey = ctx.patchedDependencies?.[nameAndVersion] ? nameAndVersion : pkg.name
-  const patchInfo: PatchInfo | undefined = ctx.patchedDependencies?.[patchKey] && {
-    appliedToAnyVersion: patchKey !== nameAndVersion,
-    file: ctx.patchedDependencies[patchKey],
-  }
+  const patchInfo = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
   if (patchInfo) {
-    ctx.appliedPatches.add(patchKey)
+    ctx.appliedPatches.add(patchInfo.key)
     pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patchInfo.file.hash})` as PkgIdWithPatchHash
   }
 
