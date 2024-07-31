@@ -1113,6 +1113,9 @@ importers:
 
   cli/default-reporter:
     dependencies:
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../cli-meta
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
@@ -1398,6 +1401,9 @@ importers:
 
   config/package-is-installable:
     dependencies:
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../../cli/cli-meta
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
@@ -3555,6 +3561,9 @@ importers:
 
   packages/plugin-commands-setup:
     dependencies:
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../../cli/cli-meta
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils

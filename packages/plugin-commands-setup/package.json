@@ -30,6 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-setup#readme",
   "dependencies": {
+    "@pnpm/cli-meta": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/os.env.path-extender": "catalog:",
     "render-help": "catalog:"

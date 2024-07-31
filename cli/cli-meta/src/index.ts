@@ -35,3 +35,7 @@ export const packageManager = {
   // This may be a 3.0.0-beta.2
   version: pkgJson.version,
 }
+
+export function detectIfCurrentPkgIsExecutable (proc: NodeJS.Process = process): boolean {
+  return 'pkg' in proc && proc.pkg != null
+}

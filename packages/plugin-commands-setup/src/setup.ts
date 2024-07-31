@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
 import { docsUrl } from '@pnpm/cli-utils'
 import { logger } from '@pnpm/logger'
 import {
@@ -41,8 +42,7 @@ export function help (): string {
 }
 
 function getExecPath (): string {
-  // @ts-expect-error
-  if (process['pkg'] != null) {
+  if (detectIfCurrentPkgIsExecutable()) {
     // If the pnpm CLI was bundled by vercel/pkg then we cannot use the js path for npm_execpath
     // because in that case the js is in a virtual filesystem inside the executor.
     // Instead, we use the path to the exe file.

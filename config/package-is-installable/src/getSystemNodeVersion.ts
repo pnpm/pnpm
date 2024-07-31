@@ -1,9 +1,9 @@
+import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
 import mem from 'mem'
 import * as execa from 'execa'
 
 export function getSystemNodeVersionNonCached (): string {
-  // @ts-expect-error
-  if (process['pkg'] != null) {
+  if (detectIfCurrentPkgIsExecutable()) {
     return execa.sync('node', ['--version']).stdout.toString()
   }
   return process.version
