@@ -1,4 +1,5 @@
 import { type UpdateCheckLog } from '@pnpm/core-loggers'
+import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
 import boxen from 'boxen'
 import chalk from 'chalk'
 import * as Rx from 'rxjs'
@@ -58,8 +59,4 @@ function renderUpdateCommand (opts: UpdateMessageOptions): string {
   }
   const pkgName = opts.currentPkgIsExecutable ? '@pnpm/exe' : 'pnpm'
   return `pnpm add -g ${pkgName}`
-}
-
-function detectIfCurrentPkgIsExecutable (process: NodeJS.Process): boolean {
-  return process['pkg'] != null
 }

@@ -29,6 +29,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/cli-meta": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
