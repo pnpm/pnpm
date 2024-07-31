@@ -30,6 +30,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
+    "@pnpm/patching.types": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {

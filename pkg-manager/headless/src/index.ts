@@ -31,7 +31,6 @@ import {
   readWantedLockfile,
   writeLockfiles,
   writeCurrentLockfile,
-  type PatchFile,
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
@@ -48,6 +47,7 @@ import {
   type IncludedDependencies,
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
+import { type PatchFile } from '@pnpm/patching.types'
 import { type HoistingLimits } from '@pnpm/real-hoist'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'

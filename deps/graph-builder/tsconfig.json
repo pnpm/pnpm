@@ -34,6 +34,9 @@
       "path": "../../patching/config"
     },
     {
+      "path": "../../patching/types"
+    },
+    {
       "path": "../../pkg-manager/modules-yaml"
     },
     {

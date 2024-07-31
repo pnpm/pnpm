@@ -1,6 +1,7 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
-import { type Lockfile, type PatchFile } from '@pnpm/lockfile.types'
+import { type Lockfile } from '@pnpm/lockfile.types'
+import { type PatchFile } from '@pnpm/patching.types'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
 import {

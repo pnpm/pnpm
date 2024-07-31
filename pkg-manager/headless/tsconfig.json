@@ -73,6 +73,9 @@
       "path": "../../patching/config"
     },
     {
+      "path": "../../patching/types"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {

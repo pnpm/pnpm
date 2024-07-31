@@ -36,14 +36,13 @@ import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageManifest,
-  type PatchFile,
-  type PatchInfo,
   type ReadPackageHook,
   type Registries,
   type PkgIdWithPatchHash,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
+import { type PatchFile, type PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'

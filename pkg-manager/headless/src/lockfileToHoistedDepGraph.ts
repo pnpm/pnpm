@@ -14,7 +14,8 @@ import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { getPatchInfo } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DepPath, type SupportedArchitectures, type PatchFile, type ProjectId, type Registries } from '@pnpm/types'
+import { type PatchFile } from '@pnpm/patching.types'
+import { type DepPath, type SupportedArchitectures, type ProjectId, type Registries } from '@pnpm/types'
 import {
   type FetchPackageToStoreFunction,
   type StoreController,

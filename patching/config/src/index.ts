@@ -1,4 +1,4 @@
-import { type PatchFile, type PatchInfo } from '@pnpm/types'
+import { type PatchFile, type PatchInfo } from '@pnpm/patching.types'
 
 export interface ExtendedPatchInfo extends PatchInfo {
   key: string

@@ -1591,6 +1591,9 @@ importers:
       '@pnpm/patching.config':
         specifier: workspace:*
         version: link:../../patching/config
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -1811,6 +1814,9 @@ importers:
       '@pnpm/patching.apply-patch':
         specifier: workspace:*
         version: link:../../patching/apply-patch
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -3098,6 +3104,9 @@ importers:
 
   lockfile/types:
     dependencies:
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3661,9 +3670,9 @@ importers:
 
   patching/config:
     dependencies:
-      '@pnpm/types':
+      '@pnpm/patching.types':
         specifier: workspace:*
-        version: link:../../packages/types
+        version: link:../types
     devDependencies:
       '@pnpm/patching.config':
         specifier: workspace:*
@@ -3789,6 +3798,12 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
+
+  patching/types:
+    devDependencies:
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: 'link:'
 
   pkg-manager/client:
     dependencies:
@@ -4270,6 +4285,9 @@ importers:
       '@pnpm/patching.config':
         specifier: workspace:*
         version: link:../../patching/config
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: link:../direct-dep-linker
@@ -5088,6 +5106,9 @@ importers:
       '@pnpm/patching.config':
         specifier: workspace:*
         version: link:../../patching/config
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher

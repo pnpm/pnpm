@@ -16,7 +16,8 @@ import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { getPatchInfo } from '@pnpm/patching.config'
-import { type DepPath, type SupportedArchitectures, type PatchFile, type PatchInfo, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
+import { type PatchFile, type PatchInfo } from '@pnpm/patching.types'
+import { type DepPath, type SupportedArchitectures, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchResponse,
