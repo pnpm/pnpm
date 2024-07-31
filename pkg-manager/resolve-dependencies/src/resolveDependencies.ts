@@ -16,7 +16,7 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { getPatchInfo } from '@pnpm/patching.utils'
+import { getPatchInfo } from '@pnpm/patching.config'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
   type DirectoryResolution,

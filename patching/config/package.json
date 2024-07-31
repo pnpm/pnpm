@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/patching.utils",
+  "name": "@pnpm/patching.config",
   "version": "0.0.0",
   "description": "Utility functions related to patching",
   "main": "lib/index.js",
@@ -18,7 +18,7 @@
     "compile": "tsc --build && pnpm run lint --fix",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\""
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/patching/utils",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/patching/config",
   "keywords": [
     "pnpm9",
     "pnpm",
@@ -28,12 +28,12 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/utils#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/config#readme",
   "dependencies": {
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/patching.utils": "workspace:*"
+    "@pnpm/patching.config": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

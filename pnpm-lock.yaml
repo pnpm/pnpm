@@ -1588,9 +1588,9 @@ importers:
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
-      '@pnpm/patching.utils':
+      '@pnpm/patching.config':
         specifier: workspace:*
-        version: link:../../patching/utils
+        version: link:../../patching/config
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -3659,6 +3659,16 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
 
+  patching/config:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/patching.config':
+        specifier: workspace:*
+        version: 'link:'
+
   patching/plugin-commands-patching:
     dependencies:
       '@pnpm/cli-utils':
@@ -3779,16 +3789,6 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
-
-  patching/utils:
-    dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-    devDependencies:
-      '@pnpm/patching.utils':
-        specifier: workspace:*
-        version: 'link:'
 
   pkg-manager/client:
     dependencies:
@@ -4267,9 +4267,9 @@ importers:
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../package-requester
-      '@pnpm/patching.utils':
+      '@pnpm/patching.config':
         specifier: workspace:*
-        version: link:../../patching/utils
+        version: link:../../patching/config
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: link:../direct-dep-linker
@@ -5085,9 +5085,9 @@ importers:
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
-      '@pnpm/patching.utils':
+      '@pnpm/patching.config':
         specifier: workspace:*
-        version: link:../../patching/utils
+        version: link:../../patching/config
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher

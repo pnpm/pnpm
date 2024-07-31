@@ -46,7 +46,7 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
-    "@pnpm/patching.utils": "workspace:*",
+    "@pnpm/patching.config": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "path-exists": "catalog:",

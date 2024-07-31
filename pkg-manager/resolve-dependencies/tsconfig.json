@@ -52,7 +52,7 @@
       "path": "../../packages/which-version-is-pinned"
     },
     {
-      "path": "../../patching/utils"
+      "path": "../../patching/config"
     },
     {
       "path": "../../pkg-manifest/manifest-utils"

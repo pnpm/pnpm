@@ -70,7 +70,7 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../patching/utils"
+      "path": "../../patching/config"
     },
     {
       "path": "../../pkg-manifest/read-package-json"
