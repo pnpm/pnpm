@@ -54,7 +54,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
   const patchesDir = path.join(lockfileDir, patchesDirName)
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
-  const stateValue = await readEditDirState({
+  const stateValue = readEditDirState({
     editDir: userDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
   })
@@ -79,7 +79,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   }
   const srcDir = tempy.directory()
   await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion), srcDir, opts)
-  await deleteEditDirState({
+  deleteEditDirState({
     editDir: userDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
   })

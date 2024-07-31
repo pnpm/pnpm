@@ -87,7 +87,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
 
   await writePackage(patchedDep, editDir, opts)
 
-  await writeEditDirState({
+  writeEditDirState({
     editDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
     value: {
