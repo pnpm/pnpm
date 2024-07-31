@@ -1588,6 +1588,9 @@ importers:
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
+      '@pnpm/patching.utils':
+        specifier: workspace:*
+        version: link:../../patching/utils
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -3777,6 +3780,16 @@ importers:
         specifier: 'catalog:'
         version: 5.0.0
 
+  patching/utils:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/patching.utils':
+        specifier: workspace:*
+        version: 'link:'
+
   pkg-manager/client:
     dependencies:
       '@pnpm/default-resolver':
@@ -4254,6 +4267,9 @@ importers:
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../package-requester
+      '@pnpm/patching.utils':
+        specifier: workspace:*
+        version: link:../../patching/utils
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: link:../direct-dep-linker

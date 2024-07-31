@@ -4,6 +4,7 @@
 "@pnpm/deps.graph-builder": major
 "@pnpm/headless": minor
 "@pnpm/patching.apply-patch": major
+"@pnpm/patching.utils": major
 "@pnpm/plugin-commands-patching": minor
 "@pnpm/resolve-dependencies": major
 "pnpm": minor

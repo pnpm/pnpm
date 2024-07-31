@@ -15,6 +15,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
+import { getPatchInfo } from '@pnpm/patching.utils'
 import { type DepPath, type SupportedArchitectures, type PatchFile, type PatchInfo, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
@@ -183,19 +184,6 @@ export async function lockfileToDepGraph (
             throw err
           }
         }
-        const pkgNameAndVersion = `${pkgName}@${pkgVersion}`
-        let patchInfo: PatchInfo | undefined
-        if (opts.patchedDependencies?.[pkgNameAndVersion]) {
-          patchInfo = {
-            allowFailure: false,
-            file: opts.patchedDependencies[pkgNameAndVersion],
-          }
-        } else if (opts.patchedDependencies?.[pkgName]) {
-          patchInfo = {
-            allowFailure: true,
-            file: opts.patchedDependencies[pkgName],
-          }
-        }
         graph[dir] = {
           children: {},
           pkgIdWithPatchHash,
@@ -209,7 +197,7 @@ export async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-          patchInfo,
+          patchInfo: getPatchInfo(opts.patchedDependencies, pkgName, pkgVersion),
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
       })
