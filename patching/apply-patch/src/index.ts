@@ -3,7 +3,7 @@ import { applyPatch } from '@pnpm/patch-package/dist/applyPatches'
 import { globalWarn } from '@pnpm/logger'
 
 export interface ApplyPatchToDirOpts {
-  allowFailure: boolean
+  allowFailure?: boolean
   patchedDir: string
   patchFilePath: string
 }

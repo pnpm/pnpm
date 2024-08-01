@@ -4,7 +4,7 @@
 "@pnpm/deps.graph-builder": major
 "@pnpm/headless": minor
 "@pnpm/lockfile.types": patch
-"@pnpm/patching.apply-patch": major
+"@pnpm/patching.apply-patch": minor
 "@pnpm/patching.config": major
 "@pnpm/patching.types": major
 "@pnpm/plugin-commands-patching": minor
