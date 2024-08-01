@@ -4285,9 +4285,6 @@ importers:
       '@pnpm/patching.config':
         specifier: workspace:*
         version: link:../../patching/config
-      '@pnpm/patching.types':
-        specifier: workspace:*
-        version: link:../../patching/types
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: link:../direct-dep-linker

@@ -85,7 +85,6 @@
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
-    "@pnpm/patching.types": "workspace:*",
     "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",

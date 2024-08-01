@@ -3,6 +3,7 @@ import path from 'path'
 import {
   type Lockfile,
   type PackageSnapshot,
+  type PatchFile,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import {
@@ -14,7 +15,6 @@ import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { getPatchInfo } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type PatchFile } from '@pnpm/patching.types'
 import { type DepPath, type SupportedArchitectures, type ProjectId, type Registries } from '@pnpm/types'
 import {
   type FetchPackageToStoreFunction,

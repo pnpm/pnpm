@@ -27,6 +27,7 @@ import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
   type Lockfile,
+  type PatchFile,
   readCurrentLockfile,
   readWantedLockfile,
   writeLockfiles,
@@ -47,7 +48,6 @@ import {
   type IncludedDependencies,
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
-import { type PatchFile } from '@pnpm/patching.types'
 import { type HoistingLimits } from '@pnpm/real-hoist'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
