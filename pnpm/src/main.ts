@@ -104,7 +104,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (!isExecutedByCorepack() && config.rootProjectManifest?.packageManager != null) {
       const pnpmVersion = '9.5.0'
       const pkgName = detectIfCurrentPkgIsExecutable() ? '@pnpm/exe' : 'pnpm'
-      const dir = path.join(config.pnpmHomeDir, 'versions', pkgName, pnpmVersion)
+      const dir = path.join(config.pnpmHomeDir, '.tools', pkgName, pnpmVersion)
       fs.mkdirSync(dir, { recursive: true })
       fs.writeFileSync(path.join(dir, 'package.json'), '{}')
       await pnpmCmds.add(
