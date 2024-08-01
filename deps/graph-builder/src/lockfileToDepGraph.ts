@@ -102,6 +102,7 @@ export async function lockfileToDepGraph (
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {}
   if (lockfile.packages != null) {
     const pkgSnapshotByLocation: Record<string, PackageSnapshot> = {}
+    const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
     await Promise.all(
       (Object.entries(lockfile.packages) as Array<[DepPath, PackageSnapshot]>).map(async ([depPath, pkgSnapshot]) => {
         if (opts.skipped.has(depPath)) return
@@ -198,7 +199,7 @@ export async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-          patch: getPatchInfo(opts.patchedDependencies, pkgName, pkgVersion),
+          patch: _getPatchInfo(pkgName, pkgVersion),
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
       })
