@@ -2,8 +2,10 @@
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
+import fs from 'fs'
 import loudRejection from 'loud-rejection'
 import { packageManager } from '@pnpm/cli-meta'
+// import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
 import {
   type Config,
@@ -21,6 +23,7 @@ import { formatUnknownOptionsError } from './formatError'
 import { parseCliArgs } from './parseCliArgs'
 import { initReporter, type ReporterType } from './reporter'
 import { isCI } from 'ci-info'
+import spawn from 'cross-spawn'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
 import stripAnsi from 'strip-ansi'
@@ -98,6 +101,26 @@ export async function main (inputArgv: string[]): Promise<void> {
       checkUnknownSetting: false,
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
+    // if (detectIfCurrentPkgIsExecutable() && config.rootProjectManifest?.packageManager != null) {
+    if (config.rootProjectManifest?.packageManager != null) {
+      const pnpmVersion = '9.5.0'
+      const dir = path.join(config.pnpmHomeDir, 'versions', pnpmVersion)
+      fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(path.join(dir, 'package.json'), '{}')
+      await pnpmCmds.add(
+        {
+          ...config,
+          dir,
+          lockfileDir: dir,
+          bin: path.join(dir, 'bin'),
+        },
+        [`@pnpm/exe@${pnpmVersion}`]
+      )
+      const { status } = spawn.sync(path.join(dir, 'bin/pnpm'), process.argv.slice(2), {
+        stdio: 'inherit',
+      })
+      process.exit(status ?? 0)
+    }
     if (isDlxCommand) {
       config.useStderr = true
     }
