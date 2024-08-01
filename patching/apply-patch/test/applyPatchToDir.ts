@@ -37,7 +37,7 @@ describe('applyPatchToDir() without allowFailure', () => {
         patchFilePath,
         patchedDir,
       })
-    ).toBe('applied')
+    ).toBe(true)
     const patchTarget = path.join(patchedDir, 'patch-target.txt')
     expect(fs.readFileSync(patchTarget, 'utf-8')).toBe(fs.readFileSync(successfullyPatched, 'utf-8'))
   })
@@ -86,7 +86,7 @@ describe('applyPatchToDir() with allowFailure', () => {
         patchFilePath,
         patchedDir,
       })
-    ).toBe('applied')
+    ).toBe(true)
     const patchTarget = path.join(patchedDir, 'patch-target.txt')
     expect(fs.readFileSync(patchTarget, 'utf-8')).toBe(fs.readFileSync(successfullyPatched, 'utf-8'))
   })
@@ -99,7 +99,7 @@ describe('applyPatchToDir() with allowFailure', () => {
         patchFilePath,
         patchedDir,
       })
-    ).toBe('skipped')
+    ).toBe(false)
     expect((globalWarn as jest.Mock).mock.calls).toStrictEqual([[
       `Could not apply patch ${patchFilePath} to ${patchedDir}`,
     ]])

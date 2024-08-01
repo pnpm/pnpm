@@ -8,9 +8,7 @@ export interface ApplyPatchToDirOpts {
   patchFilePath: string
 }
 
-export type ApplyPatchToDirResult = 'applied' | 'skipped'
-
-export function applyPatchToDir (opts: ApplyPatchToDirOpts): ApplyPatchToDirResult {
+export function applyPatchToDir (opts: ApplyPatchToDirOpts): boolean {
   // Ideally, we would just run "patch" or "git apply".
   // However, "patch" is not available on Windows and "git apply" is hard to execute on a subdirectory of an existing repository
   const cwd = process.cwd()
@@ -32,10 +30,9 @@ export function applyPatchToDir (opts: ApplyPatchToDirOpts): ApplyPatchToDirResu
     const message = `Could not apply patch ${opts.patchFilePath} to ${opts.patchedDir}`
     if (opts.allowFailure) {
       globalWarn(message)
-      return 'skipped'
     } else {
       throw new PnpmError('PATCH_FAILED', message)
     }
   }
-  return 'applied'
+  return success
 }
