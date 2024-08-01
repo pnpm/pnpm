@@ -41,6 +41,7 @@
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",

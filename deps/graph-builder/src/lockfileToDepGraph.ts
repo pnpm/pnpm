@@ -15,7 +15,9 @@ import {
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
+import { getPatchInfo } from '@pnpm/patching.config'
+import { type PatchFile, type PatchInfo } from '@pnpm/patching.types'
+import { type DepPath, type SupportedArchitectures, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchResponse,
@@ -44,7 +46,7 @@ export interface DependenciesGraphNode {
   requiresBuild?: boolean
   hasBin: boolean
   filesIndexFile?: string
-  patchFile?: PatchFile
+  patch?: PatchInfo
 }
 
 export interface DependenciesGraph {
@@ -100,6 +102,7 @@ export async function lockfileToDepGraph (
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {}
   if (lockfile.packages != null) {
     const pkgSnapshotByLocation: Record<string, PackageSnapshot> = {}
+    const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
     await Promise.all(
       (Object.entries(lockfile.packages) as Array<[DepPath, PackageSnapshot]>).map(async ([depPath, pkgSnapshot]) => {
         if (opts.skipped.has(depPath)) return
@@ -196,7 +199,7 @@ export async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-          patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
+          patch: _getPatchInfo(pkgName, pkgVersion),
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
       })

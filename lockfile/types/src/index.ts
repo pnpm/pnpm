@@ -1,4 +1,5 @@
-import { type DependenciesMeta, type DepPath, type PatchFile, type ProjectId } from '@pnpm/types'
+import { type PatchFile } from '@pnpm/patching.types'
+import { type DependenciesMeta, type DepPath, type ProjectId } from '@pnpm/types'
 
 export type { PatchFile, ProjectId }
 

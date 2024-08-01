@@ -55,8 +55,8 @@ catalogs:
       specifier: 0.0.0
       version: 0.0.0
     '@pnpm/registry-mock':
-      specifier: 3.39.0
-      version: 3.39.0
+      specifier: 3.40.0
+      version: 3.40.0
     '@pnpm/semver-diff':
       specifier: ^1.1.0
       version: 1.1.0
@@ -709,7 +709,7 @@ importers:
         version: 2.0.3
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:__utils__/tsconfig
@@ -821,7 +821,7 @@ importers:
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -855,7 +855,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1594,6 +1594,12 @@ importers:
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
+      '@pnpm/patching.config':
+        specifier: workspace:*
+        version: link:../../patching/config
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -1814,6 +1820,9 @@ importers:
       '@pnpm/patching.apply-patch':
         specifier: workspace:*
         version: link:../../patching/apply-patch
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -2036,7 +2045,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2166,7 +2175,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -3101,6 +3110,9 @@ importers:
 
   lockfile/types:
     dependencies:
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3648,6 +3660,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 5.0.0
       '@pnpm/patch-package':
         specifier: 'catalog:'
         version: 0.0.0
@@ -3661,6 +3676,16 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+
+  patching/config:
+    dependencies:
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@pnpm/patching.config':
+        specifier: workspace:*
+        version: 'link:'
 
   patching/plugin-commands-patching:
     dependencies:
@@ -3763,7 +3788,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3782,6 +3807,12 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
+
+  patching/types:
+    devDependencies:
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: 'link:'
 
   pkg-manager/client:
     dependencies:
@@ -4041,7 +4072,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -4260,6 +4291,9 @@ importers:
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../package-requester
+      '@pnpm/patching.config':
+        specifier: workspace:*
+        version: link:../../patching/config
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: link:../direct-dep-linker
@@ -4326,7 +4360,7 @@ importers:
         version: link:../read-projects-context
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -4686,7 +4720,7 @@ importers:
         version: 'link:'
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -4882,7 +4916,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5075,6 +5109,12 @@ importers:
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
+      '@pnpm/patching.config':
+        specifier: workspace:*
+        version: link:../../patching/config
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher
@@ -5475,7 +5515,7 @@ importers:
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -5747,7 +5787,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
@@ -5856,7 +5896,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -6434,7 +6474,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -6501,7 +6541,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
@@ -6592,7 +6632,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -6930,7 +6970,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.39.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.33
@@ -7553,7 +7593,6 @@ packages:
   '@babel/plugin-proposal-dynamic-import@7.18.6':
     resolution: {integrity: sha512-1auuwmK+Rz13SJj36R+jqFPMJWyKEDd7lLSdOj4oJK0UTgGueSAtkrCvz9ewmgyU/P941Rv2fQwZJN8s6QruXw==}
     engines: {node: '>=6.9.0'}
-    deprecated: This proposal has been merged to the ECMAScript standard and thus this plugin is no longer maintained. Please use @babel/plugin-transform-dynamic-import instead.
     peerDependencies:
       '@babel/core': ^7.0.0-0
 
@@ -8152,7 +8191,6 @@ packages:
   '@humanwhocodes/config-array@0.11.14':
     resolution: {integrity: sha512-3T8LkOmg45BV5FICb15QQMsyUSWrQ8AygVfC7ZG32zOalnqrilm018ZVCw0eapXux8FtA33q8PSRSstjee3jSg==}
     engines: {node: '>=10.10.0'}
-    deprecated: Use @eslint/config-array instead
 
   '@humanwhocodes/module-importer@1.0.1':
     resolution: {integrity: sha512-bxveV4V8v5Yb4ncFTT3rPSgZBOpCkjfK0y4oVVVJwIuDVBRMDXrPyXRL988i5ap9m9bnyEEjWfm5WkBmtffLfA==}
@@ -8160,7 +8198,6 @@ packages:
 
   '@humanwhocodes/object-schema@2.0.3':
     resolution: {integrity: sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==}
-    deprecated: Use @eslint/object-schema instead
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -8507,8 +8544,8 @@ packages:
     resolution: {integrity: sha512-yxfJQayRXlmcs7eQJkNVz4yuZw6x3lYAoODeRCI0S0Ez7G2ql+zoOGeigIe2UxI2B8xN3WyDgZ4G2CqV7t5cBw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/registry-mock@3.39.0':
-    resolution: {integrity: sha512-NzRI8ANvltBNUrgmTvoge5GkMZKaT8HvC2a0vQPof1bTxF0KZ/7UAK0Nv5atyT68YAniekBEeDEhLM9c0EMgtw==}
+  '@pnpm/registry-mock@3.40.0':
+    resolution: {integrity: sha512-9yJHuhHalHVHBhANoZwa6ZQhbcrXGWEULuAP+gA8XYQdTi1Mfn2EKJqZaZjs9pACoJauRh90e86X3/r6HlITpA==}
     engines: {node: '>=10.13'}
     hasBin: true
 
@@ -10174,7 +10211,6 @@ packages:
 
   eslint-config-standard-with-typescript@39.1.1:
     resolution: {integrity: sha512-t6B5Ep8E4I18uuoYeYxINyqcXb2UbC0SOOTxRtBSt2JUs+EzeXbfe2oaiPs71AIdnoWhXDO2fYOHz8df3kV84A==}
-    deprecated: Please use eslint-config-love, instead.
     peerDependencies:
       '@typescript-eslint/eslint-plugin': ^6.4.0
       eslint: ^8.0.1
@@ -10682,7 +10718,6 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
 
   glob@8.1.0:
     resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
@@ -10759,7 +10794,6 @@ packages:
   har-validator@5.1.5:
     resolution: {integrity: sha512-nmT2T0lljbxdQZfspsno9hgrG3Uir6Ks5afism62poxqBM6sDnMEuPmzTq8XN0OEwqKLLdh1jQI3qyE66Nzb3w==}
     engines: {node: '>=6'}
-    deprecated: this library is no longer supported
 
   hard-rejection@2.1.0:
     resolution: {integrity: sha512-VIZB+ibDhx7ObhAe7OVtoEbuP4h/MuOTHJ+J8h/eBXotJYl0fBgR72xDFCKgIh22OJZIOVNxBMWuhAr10r8HdA==}
@@ -10944,7 +10978,6 @@ packages:
 
   inflight@1.0.6:
     resolution: {integrity: sha512-k92I/b08q4wvFscXCLvqfsHCrjrF7yiXsQuIVvVE7N82W3+aqpzuUdBbfhWcy/FZR3/4IgflMgKLOsvPDrGCJA==}
-    deprecated: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
@@ -12663,7 +12696,6 @@ packages:
   request@2.88.0:
     resolution: {integrity: sha512-NAqBSrijGLZdM0WZNsInLJpkJokL72XYjUpnB0iwsRgxh7dB6COrHnTBNwN0E+lHDAJzu7kLAkDeY08z2/A0hg==}
     engines: {node: '>= 4'}
-    deprecated: request has been deprecated, see https://github.com/request/request/issues/3142
 
   request@2.88.2:
     resolution: {integrity: sha512-MsvtOrfG9ZcrOwAW+Qi+F6HbD0CWXEh9ou77uOb7FM2WPhwT7smM833PzanhJLsgXjN89Ir6V2PczXNnMpwKhw==}
@@ -13480,6 +13512,7 @@ packages:
 
   uid-number@0.0.6:
     resolution: {integrity: sha512-c461FXIljswCuscZn67xq9PpszkPT6RjheWFQTgCyabJrTUozElanb0YEqv2UGgk247YpcJkFBuSGNvBlpXM9w==}
+    deprecated: This package is no longer supported.
 
   umask@1.1.0:
     resolution: {integrity: sha512-lE/rxOhmiScJu9L6RTNVgB/zZbF+vGC0/p6D3xnkAePI2o0sMyFG966iR5Ki50OI/0mNi2yaRnxfLsPmEZF/JA==}
@@ -15343,7 +15376,7 @@ snapshots:
       sort-keys: 4.2.0
       strip-bom: 4.0.0
 
-  '@pnpm/registry-mock@3.39.0(encoding@0.1.13)(typanion@3.14.0)':
+  '@pnpm/registry-mock@3.40.0(encoding@0.1.13)(typanion@3.14.0)':
     dependencies:
       anonymous-npm-registry-client: 0.2.0
       execa: 5.1.1

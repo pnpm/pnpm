@@ -116,7 +116,7 @@ async function linkAllPkgsInOrder (
         if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
           sideEffectsCacheKey = _calcDepState(dir, {
             isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
-            patchFileHash: depNode.patchFile?.hash,
+            patchFileHash: depNode.patch?.file.hash,
           })
         }
         // Limiting the concurrency here fixes an out of memory error.
@@ -128,7 +128,7 @@ async function linkAllPkgsInOrder (
             force: true,
             disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
             keepModulesDir: true,
-            requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
+            requiresBuild: depNode.patch != null || depNode.requiresBuild,
             sideEffectsCacheKey,
           })
           if (importMethod) {

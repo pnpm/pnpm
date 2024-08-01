@@ -28,6 +28,9 @@
       "path": "../../patching/apply-patch"
     },
     {
+      "path": "../../patching/types"
+    },
+    {
       "path": "../../pkg-manager/link-bins"
     },
     {

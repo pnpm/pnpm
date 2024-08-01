@@ -463,7 +463,7 @@ async function linkAllPkgs (
       if (opts.sideEffectsCacheRead && files.sideEffects && !isEmpty(files.sideEffects)) {
         sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
           isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
-          patchFileHash: depNode.patchFile?.hash,
+          patchFileHash: depNode.patch?.file.hash,
         })
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
@@ -471,7 +471,7 @@ async function linkAllPkgs (
         filesResponse: files,
         force: opts.force,
         sideEffectsCacheKey,
-        requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
+        requiresBuild: depNode.patch != null || depNode.requiresBuild,
       })
       if (importMethod) {
         progressLogger.debug({

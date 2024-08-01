@@ -59,7 +59,7 @@ describe('patch and commit', () => {
     })
   })
 
-  test('patch and commit', async () => {
+  test('patch and commit with exact version', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
     const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
@@ -89,6 +89,44 @@ describe('patch and commit', () => {
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
     const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git')
+    expect(patchContent).toContain('// test patching')
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+
+    expect(patchContent).not.toContain('The MIT License (MIT)')
+    expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
+  })
+
+  test('patch and commit without exact version', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
+
+    // store patch files in a temporary directory when not given editDir option
+    expect(patchDir).toContain(tempDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    // sanity check to ensure that the license file contains the expected string
+    expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'is-positive': 'patches/is-positive.patch',
+    })
+    const patchContent = fs.readFileSync('patches/is-positive.patch', 'utf8')
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
@@ -336,6 +374,100 @@ describe('patch and commit', () => {
   })
 })
 
+describe('multiple versions', () => {
+  let defaultPatchOption: patch.PatchCommandOptions
+  let cacheDir: string
+  let storeDir: string
+  beforeEach(() => {
+    prepare({
+      dependencies: {
+        '@pnpm.e2e/depends-on-console-log': '1.0.0',
+      },
+    })
+    cacheDir = path.resolve('cache')
+    storeDir = path.resolve('store')
+    defaultPatchOption = {
+      ...basePatchOption,
+      cacheDir,
+      dir: process.cwd(),
+      storeDir,
+    }
+  })
+
+  test('choosing apply to all should apply the patch to all applicable versions', async () => {
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
+    prompt.mockResolvedValue({
+      version: '1.0.0',
+      applyToAll: true,
+    })
+    prompt.mockClear()
+    const output = await patch.handler(defaultPatchOption, ['@pnpm.e2e/console-log'])
+
+    expect(prompt.mock.calls).toMatchObject([[[
+      {
+        type: 'select',
+        name: 'version',
+        choices: ['1.0.0', '2.0.0', '3.0.0'].map(x => ({ name: x, message: x, value: x })),
+      },
+      {
+        type: 'confirm',
+        name: 'applyToAll',
+      },
+    ]]])
+
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const fileToPatch = path.join(patchDir, 'index.js')
+    const originalContent = fs.readFileSync(fileToPatch, 'utf-8')
+    const patchedContent = originalContent.replace('first line', 'FIRST LINE')
+    fs.writeFileSync(fileToPatch, patchedContent)
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      '@pnpm.e2e/console-log': 'patches/@pnpm.e2e__console-log.patch',
+    })
+
+    const patchFileContent = fs.readFileSync('patches/@pnpm.e2e__console-log.patch', 'utf-8')
+    expect(patchFileContent).toContain('diff --git')
+    expect(patchFileContent).toContain("\n+console.log('FIRST LINE')")
+    expect(patchFileContent).toContain("\n-console.log('first line')")
+
+    expect(
+      fs.readFileSync(
+        'node_modules/.pnpm/@pnpm.e2e+depends-on-console-log@1.0.0/node_modules/console-log-1/index.js',
+        'utf-8'
+      )
+    ).toContain('FIRST LINE')
+    expect(
+      fs.readFileSync(
+        'node_modules/.pnpm/@pnpm.e2e+depends-on-console-log@1.0.0/node_modules/console-log-2/index.js',
+        'utf-8'
+      )
+    ).toContain('FIRST LINE')
+    expect(
+      fs.readFileSync(
+        'node_modules/.pnpm/@pnpm.e2e+depends-on-console-log@1.0.0/node_modules/console-log-3/index.js',
+        'utf-8'
+      )
+    ).toContain('FIRST LINE')
+  })
+})
+
 describe('prompt to choose version', () => {
   let defaultPatchOption: patch.PatchCommandOptions
   let cacheDir: string
@@ -357,7 +489,7 @@ describe('prompt to choose version', () => {
     }
   })
 
-  test('prompt to choose version if multiple version founded for patched package', async () => {
+  test('prompt to choose version if multiple versions found for patched package, no apply to all', async () => {
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
@@ -367,22 +499,33 @@ describe('prompt to choose version', () => {
     })
     prompt.mockResolvedValue({
       version: '5.3.0',
+      applyToAll: false,
     })
     prompt.mockClear()
     const output = await patch.handler(defaultPatchOption, ['chalk'])
 
-    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining([
+    expect(prompt.mock.calls).toMatchObject([[[
       {
-        name: '4.1.2',
-        message: '4.1.2',
-        value: '4.1.2',
+        type: 'select',
+        name: 'version',
+        choices: [
+          {
+            name: '4.1.2',
+            message: '4.1.2',
+            value: '4.1.2',
+          },
+          {
+            name: '5.3.0',
+            message: '5.3.0',
+            value: '5.3.0',
+          },
+        ],
       },
       {
-        name: '5.3.0',
-        message: '5.3.0',
-        value: '5.3.0',
+        type: 'confirm',
+        name: 'applyToAll',
       },
-    ]))
+    ]]])
 
     const patchDir = getPatchDirFromPatchOutput(output)
     const tempDir = os.tmpdir()
@@ -408,6 +551,73 @@ describe('prompt to choose version', () => {
       'chalk@5.3.0': 'patches/chalk@5.3.0.patch',
     })
     const patchContent = fs.readFileSync('patches/chalk@5.3.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git')
+    expect(patchContent).toContain('// test patching')
+    expect(fs.readFileSync('node_modules/.pnpm/ava@5.2.0/node_modules/chalk/source/index.js', 'utf8')).toContain('// test patching')
+  })
+
+  test('prompt to choose version if multiple versions found for patched package, apply to all', async () => {
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
+    prompt.mockResolvedValue({
+      version: '5.3.0',
+      applyToAll: true,
+    })
+    prompt.mockClear()
+    const output = await patch.handler(defaultPatchOption, ['chalk'])
+
+    expect(prompt.mock.calls).toMatchObject([[[
+      {
+        type: 'select',
+        name: 'version',
+        choices: [
+          {
+            name: '4.1.2',
+            message: '4.1.2',
+            value: '4.1.2',
+          },
+          {
+            name: '5.3.0',
+            message: '5.3.0',
+            value: '5.3.0',
+          },
+        ],
+      },
+      {
+        type: 'confirm',
+        name: 'applyToAll',
+      },
+    ]]])
+
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const tempDir = os.tmpdir()
+
+    expect(patchDir).toContain(tempDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
+    expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('5.3.0')
+    expect(fs.existsSync(path.join(patchDir, 'source/index.js'))).toBe(true)
+
+    fs.appendFileSync(path.join(patchDir, 'source/index.js'), '// test patching', 'utf8')
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      chalk: 'patches/chalk.patch',
+    })
+    const patchContent = fs.readFileSync('patches/chalk.patch', 'utf8')
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
     expect(fs.readFileSync('node_modules/.pnpm/ava@5.2.0/node_modules/chalk/source/index.js', 'utf8')).toContain('// test patching')
@@ -455,7 +665,7 @@ describe('patching should work when there is a no EOL in the patched file', () =
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
-      dir: process.cwd(),
+      ...defaultPatchOption,
       rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
@@ -484,7 +694,7 @@ describe('patching should work when there is a no EOL in the patched file', () =
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
-      dir: process.cwd(),
+      ...defaultPatchOption,
       rootProjectManifestDir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
@@ -740,22 +950,33 @@ describe('patch and commit in workspaces', () => {
 
     prompt.mockResolvedValue({
       version: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+      applyToAll: false,
     })
     prompt.mockClear()
     const output = await patch.handler(defaultPatchOption, ['hi'])
-    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining([
+    expect(prompt.mock.calls).toMatchObject([[[
       {
-        name: '0.0.0',
-        message: '0.0.0',
-        value: '0.0.0',
+        type: 'select',
+        name: 'version',
+        choices: [
+          {
+            name: '0.0.0',
+            message: '0.0.0',
+            value: '0.0.0',
+          },
+          {
+            name: '1.0.0',
+            message: '1.0.0',
+            value: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+            hint: 'Git Hosted',
+          },
+        ],
       },
       {
-        name: '1.0.0',
-        message: '1.0.0',
-        value: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
-        hint: 'Git Hosted',
+        type: 'confirm',
+        name: 'applyToAll',
       },
-    ]))
+    ]]])
     const patchDir = getPatchDirFromPatchOutput(output)
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('module.exports = \'Hi\'')
@@ -836,7 +1057,7 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
-      dir: customModulesDirFixture,
+      ...defaultPatchOption,
       rootProjectManifestDir: customModulesDirFixture,
       saveLockfile: true,
       frozenLockfile: false,

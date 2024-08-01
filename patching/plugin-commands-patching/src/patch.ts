@@ -16,6 +16,7 @@ import { PnpmError } from '@pnpm/error'
 import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { writePackage } from './writePackage'
 import { getPatchedDependency } from './getPatchedDependency'
+import { writeEditDirState } from './stateFile'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -86,6 +87,13 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
 
   await writePackage(patchedDep, editDir, opts)
 
+  writeEditDirState({
+    editDir,
+    modulesDir: opts.modulesDir ?? 'node_modules',
+    patchedPkg: params[0],
+    applyToAll: patchedDep.applyToAll,
+  })
+
   if (!opts.ignoreExisting) {
     let rootProjectManifest = opts.rootProjectManifest
     if (!opts.sharedWorkspaceLockfile) {
@@ -96,6 +104,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
     }
     if (rootProjectManifest?.pnpm?.patchedDependencies) {
       tryPatchWithExistingPatchFile({
+        allowFailure: patchedDep.applyToAll,
         patchedDep,
         patchedDir: editDir,
         patchedDependencies: rootProjectManifest.pnpm.patchedDependencies,
@@ -116,11 +125,13 @@ To commit your changes, run:
 
 function tryPatchWithExistingPatchFile (
   {
+    allowFailure,
     patchedDep,
     patchedDir,
     patchedDependencies,
     lockfileDir,
   }: {
+    allowFailure: boolean
     patchedDep: ParseWantedDependencyResult
     patchedDir: string
     patchedDependencies: Record<string, string>
@@ -138,5 +149,5 @@ function tryPatchWithExistingPatchFile (
   if (!fs.existsSync(existingPatchFilePath)) {
     throw new PnpmError('PATCH_FILE_NOT_FOUND', `Unable to find patch file ${existingPatchFilePath}`)
   }
-  applyPatchToDir({ patchedDir, patchFilePath: existingPatchFilePath })
+  applyPatchToDir({ patchedDir, patchFilePath: existingPatchFilePath, allowFailure })
 }

@@ -40,6 +40,8 @@
     "@pnpm/lockfile.preferred-versions": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/patching.config": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",

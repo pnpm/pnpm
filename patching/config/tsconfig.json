@@ -10,10 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../../patching/types"
+      "path": "../types"
     }
   ]
 }
