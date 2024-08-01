@@ -29,9 +29,11 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/apply-patch#readme",
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/logger": "catalog:",
     "@pnpm/patch-package": "catalog:"
   },
   "devDependencies": {
