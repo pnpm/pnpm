@@ -9,7 +9,7 @@ import { logger } from '@pnpm/logger'
 import { hardLinkDir } from '@pnpm/worker'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type StoreController } from '@pnpm/store-controller-types'
-import { applyPatchToDir } from '@pnpm/patching.apply-patch'
+import { type ApplyPatchToDirResult, applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { type DependencyManifest } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import pickBy from 'ramda/src/pickBy'
@@ -127,9 +127,10 @@ async function buildDependency<T extends string> (
   }
   try {
     await linkBinsOfDependencies(depNode, depGraph, opts)
+    let patchApplicationResult: ApplyPatchToDirResult | undefined
     if (depNode.patch) {
       const { file, strict } = depNode.patch
-      applyPatchToDir({ allowFailure: !strict, patchedDir: depNode.dir, patchFilePath: file.path })
+      patchApplicationResult = applyPatchToDir({ allowFailure: !strict, patchedDir: depNode.dir, patchFilePath: file.path })
     }
     const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
       depPath,
@@ -145,7 +146,7 @@ async function buildDependency<T extends string> (
       shellEmulator: opts.shellEmulator,
       unsafePerm: opts.unsafePerm || false,
     })
-    if ((depNode.patch != null || hasSideEffects) && opts.sideEffectsCacheWrite) {
+    if ((patchApplicationResult === 'applied' || hasSideEffects) && opts.sideEffectsCacheWrite) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
           patchFileHash: depNode.patch?.file.hash,
