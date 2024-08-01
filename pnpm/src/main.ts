@@ -4,7 +4,7 @@ if (!global['pnpm__startedAt']) {
 }
 import fs from 'fs'
 import loudRejection from 'loud-rejection'
-import { packageManager } from '@pnpm/cli-meta'
+import { detectIfCurrentPkgIsExecutable, packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 // import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
 import {
@@ -101,10 +101,10 @@ export async function main (inputArgv: string[]): Promise<void> {
       checkUnknownSetting: false,
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
-    // if (detectIfCurrentPkgIsExecutable() && config.rootProjectManifest?.packageManager != null) {
-    if (config.rootProjectManifest?.packageManager != null) {
+    if (!isExecutedByCorepack() && config.rootProjectManifest?.packageManager != null) {
       const pnpmVersion = '9.5.0'
-      const dir = path.join(config.pnpmHomeDir, 'versions', pnpmVersion)
+      const pkgName = detectIfCurrentPkgIsExecutable() ? '@pnpm/exe' : 'pnpm'
+      const dir = path.join(config.pnpmHomeDir, 'versions', pkgName, pnpmVersion)
       fs.mkdirSync(dir, { recursive: true })
       fs.writeFileSync(path.join(dir, 'package.json'), '{}')
       await pnpmCmds.add(
@@ -114,7 +114,7 @@ export async function main (inputArgv: string[]): Promise<void> {
           lockfileDir: dir,
           bin: path.join(dir, 'bin'),
         },
-        [`@pnpm/exe@${pnpmVersion}`]
+        [`${pkgName}@${pnpmVersion}`]
       )
       const { status } = spawn.sync(path.join(dir, 'bin/pnpm'), process.argv.slice(2), {
         stdio: 'inherit',
