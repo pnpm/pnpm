@@ -6,7 +6,7 @@ import fs from 'fs'
 import loudRejection from 'loud-rejection'
 import { detectIfCurrentPkgIsExecutable, packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 // import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
-import { getConfig } from '@pnpm/cli-utils'
+import { getConfig, parsePackageManager } from '@pnpm/cli-utils'
 import {
   type Config,
 } from '@pnpm/config'
@@ -102,24 +102,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
     if (!isExecutedByCorepack() && config.rootProjectManifest?.packageManager != null) {
-      const pnpmVersion = '9.5.0'
-      const pkgName = detectIfCurrentPkgIsExecutable() ? '@pnpm/exe' : 'pnpm'
-      const dir = path.join(config.pnpmHomeDir, '.tools', pkgName, pnpmVersion)
-      fs.mkdirSync(dir, { recursive: true })
-      fs.writeFileSync(path.join(dir, 'package.json'), '{}')
-      await pnpmCmds.add(
-        {
-          ...config,
-          dir,
-          lockfileDir: dir,
-          bin: path.join(dir, 'bin'),
-        },
-        [`${pkgName}@${pnpmVersion}`]
-      )
-      const { status } = spawn.sync(path.join(dir, 'bin/pnpm'), process.argv.slice(2), {
-        stdio: 'inherit',
-      })
-      process.exit(status ?? 0)
+      await switchToCorrectPnpm(config.rootProjectManifest.packageManager, config)
     }
     if (isDlxCommand) {
       config.useStderr = true
@@ -347,4 +330,26 @@ function printError (message: string, hint?: string): void {
   if (hint) {
     console.log(hint)
   }
+}
+
+async function switchToCorrectPnpm (packageManagerFieldValue: string, config: Config) {
+  const pm = parsePackageManager(packageManagerFieldValue)
+  if (pm.name !== 'pnpm' || pm.version == null || pm.version === packageManager.version) return
+  const pkgName = detectIfCurrentPkgIsExecutable() ? '@pnpm/exe' : 'pnpm'
+  const dir = path.join(config.pnpmHomeDir, '.tools', pkgName, pm.version)
+  fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(dir, 'package.json'), '{}')
+  await pnpmCmds.add(
+    {
+      ...config,
+      dir,
+      lockfileDir: dir,
+      bin: path.join(dir, 'bin'),
+    },
+    [`${pkgName}@${pm.version}`]
+  )
+  const { status } = spawn.sync(path.join(dir, 'bin/pnpm'), process.argv.slice(2), {
+    stdio: 'inherit',
+  })
+  process.exit(status ?? 0)
 }
