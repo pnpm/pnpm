@@ -225,6 +225,7 @@ export async function mutateModulesInSingleProject (
 export interface MutateModulesResult {
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
+  depsRequiringBuild?: DepPath[]
 }
 
 export async function mutateModules (
@@ -295,9 +296,10 @@ export async function mutateModules (
   return {
     updatedProjects: result.updatedProjects,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
+    depsRequiringBuild: result.depsRequiringBuild,
   }
 
-  async function _install (): Promise<{ updatedProjects: UpdatedProject[], stats?: InstallationResultStats }> {
+  async function _install (): Promise<{ updatedProjects: UpdatedProject[], stats?: InstallationResultStats, depsRequiringBuild?: DepPath[] }> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
       extraNodePaths: ctx.extraNodePaths,
@@ -735,6 +737,7 @@ Note that in CI environments, this setting is enabled by default.`,
     return {
       updatedProjects: result.projects,
       stats: result.stats,
+      depsRequiringBuild: result.depsRequiringBuild,
     }
   }
 }
@@ -948,6 +951,7 @@ interface InstallFunctionResult {
   newLockfile: Lockfile
   projects: UpdatedProject[]
   stats?: InstallationResultStats
+  depsRequiringBuild: DepPath[]
 }
 
 type InstallFunction = (
@@ -1413,6 +1417,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   await waitTillAllFetchingsFinish()
+  const depsRequiringBuild: DepPath[] = []
+  if (opts.returnListOfDepsRequiringBuild) {
+    await Promise.all(Object.entries(dependenciesGraph).map(async ([depPath, { fetching }]) => {
+      const { files } = await fetching()
+      if (files.requiresBuild) {
+        depsRequiringBuild.push(depPath as DepPath)
+      }
+    }))
+  }
 
   summaryLogger.debug({ prefix: opts.lockfileDir })
 
@@ -1437,6 +1450,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       rootDir,
     })),
     stats,
+    depsRequiringBuild,
   }
 }
 

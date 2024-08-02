@@ -154,6 +154,7 @@ export interface StrictInstallOptions {
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
   prepareExecutionEnv?: PrepareExecutionEnv
+  returnListOfDepsRequiringBuild?: boolean
 }
 
 export type InstallOptions =
