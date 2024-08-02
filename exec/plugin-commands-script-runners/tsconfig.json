@@ -28,6 +28,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../env/path"
+    },
+    {
       "path": "../../env/plugin-commands-env"
     },
     {
