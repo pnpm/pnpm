@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { packageManager } from '@pnpm/cli-meta'
+import { isExecutedByCorepack, packageManager } from '@pnpm/cli-meta'
 import { logger, globalWarn } from '@pnpm/logger'
 import { checkPackage, UnsupportedEngineError, type WantedEngine } from '@pnpm/package-is-installable'
 import { type SupportedArchitectures } from '@pnpm/types'
@@ -24,7 +24,7 @@ export function packageIsInstallable (
   const currentPnpmVersion = packageManager.name === 'pnpm'
     ? packageManager.version
     : undefined
-  if (pkg.packageManager && !process.env.COREPACK_ROOT) {
+  if (pkg.packageManager && !isExecutedByCorepack()) {
     const [pmName, pmReference] = pkg.packageManager.split('@')
     if (pmName && pmName !== 'pnpm') {
       const msg = `This project is configured to use ${pmName}`
