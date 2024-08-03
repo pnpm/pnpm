@@ -40,8 +40,8 @@ catalogs:
       specifier: ^0.2.1
       version: 0.2.1
     '@pnpm/npm-conf':
-      specifier: 2.2.2
-      version: 2.2.2
+      specifier: 2.3.0
+      version: 2.3.0
     '@pnpm/npm-lifecycle':
       specifier: ^3.0.4
       version: 3.0.4
@@ -1295,7 +1295,7 @@ importers:
         version: link:../matcher
       '@pnpm/npm-conf':
         specifier: 'catalog:'
-        version: 2.2.2
+        version: 2.3.0
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -8492,6 +8492,10 @@ packages:
     resolution: {integrity: sha512-UA91GwWPhFExt3IizW6bOeY/pQ0BkuNwKjk9iQW9KqxluGCrg4VenZ0/L+2Y0+ZOtme72EVvg6v0zo3AMQRCeA==}
     engines: {node: '>=12'}
 
+  '@pnpm/npm-conf@2.3.0':
+    resolution: {integrity: sha512-DqrO+oXGR7HCuicNy6quk6ALJSDDPKI7RZz1bP5im8mSL8J2e+9w26LdkjuAfpAjOutYUJVbnXnx4IbTQeIgfw==}
+    engines: {node: '>=12'}
+
   '@pnpm/npm-lifecycle@3.0.4':
     resolution: {integrity: sha512-fTzGiezzHeFHmmCZH6pXnii32nv4iNc7ox1DpdA9B00BTakcji33ugVGV2rE4ze6lU6IPOGuJa0NiQHnkuwUUQ==}
     engines: {node: '>=18.12'}
@@ -15266,6 +15270,12 @@ snapshots:
       abbrev: 1.1.1
 
   '@pnpm/npm-conf@2.2.2':
+    dependencies:
+      '@pnpm/config.env-replace': 1.1.0
+      '@pnpm/network.ca-file': 1.0.2
+      config-chain: 1.1.13
+
+  '@pnpm/npm-conf@2.3.0':
     dependencies:
       '@pnpm/config.env-replace': 1.1.0
       '@pnpm/network.ca-file': 1.0.2
