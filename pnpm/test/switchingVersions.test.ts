@@ -30,3 +30,17 @@ test('do not switch to the pnpm version specified in the packageManager field of
 
   expect(stdout.toString()).not.toContain('Version 9.3.0')
 })
+
+test('do not switch to pnpm version that is specified not with a semver version', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  fs.writeFileSync('.npmrc', 'manage-package-manager-versions=true')
+  writeJsonFile('package.json', {
+    packageManager: 'pnpm@kevva/is-positive',
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).toContain('Cannot switch to pnpm@kevva/is-positive')
+})
