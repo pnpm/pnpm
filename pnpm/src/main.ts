@@ -97,7 +97,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       checkUnknownSetting: false,
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
-    if (!isExecutedByCorepack() && config.rootProjectManifest?.packageManager != null) {
+    if (!isExecutedByCorepack() && config.rootProjectManifest?.packageManager != null && config.managePackageManagerVersions) {
       await switchCliVersion(config.rootProjectManifest.packageManager, config)
     }
     if (isDlxCommand) {

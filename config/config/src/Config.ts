@@ -199,6 +199,7 @@ export interface Config {
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength?: number
   strictStorePkgContentCheck: boolean
+  managePackageManagerVersions: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

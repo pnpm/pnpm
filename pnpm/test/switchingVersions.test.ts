@@ -4,18 +4,29 @@ import { prepare } from '@pnpm/prepare'
 import { sync as writeJsonFile } from 'write-json-file'
 import { execPnpmSync } from './utils'
 
-test('switch to the pnpm version specified in the packageManager field of package.json', async () => {
+test('switch to the pnpm version specified in the packageManager field of package.json, when manager-package-manager=versions is true', async () => {
   prepare()
-  const global = path.resolve('..', 'global')
-  const pnpmHome = path.join(global, 'pnpm')
-  fs.mkdirSync(global)
-
-  const env = { PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
-
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  fs.writeFileSync('.npmrc', 'manage-package-manager-versions=true')
   writeJsonFile('package.json', {
     packageManager: 'pnpm@9.3.0',
   })
+
   const { stdout } = execPnpmSync(['help'], { env })
 
   expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
+test('do not switch to the pnpm version specified in the packageManager field of package.json', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFile('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).not.toContain('Version 9.3.0')
 })
