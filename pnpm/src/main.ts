@@ -2,33 +2,28 @@
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
-import fs from 'fs'
 import loudRejection from 'loud-rejection'
-import { detectIfCurrentPkgIsExecutable, packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
-// import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
-import { getConfig, parsePackageManager } from '@pnpm/cli-utils'
-import {
-  type Config,
-} from '@pnpm/config'
+import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
+import { getConfig } from '@pnpm/cli-utils'
+import { type Config } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
-import { prependDirsToPath } from '@pnpm/env.path'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
+import { isCI } from 'ci-info'
+import path from 'path'
+import isEmpty from 'ramda/src/isEmpty'
+import stripAnsi from 'strip-ansi'
+import which from 'which'
 import { checkForUpdates } from './checkForUpdates'
 import { pnpmCmds, rcOptionsTypes } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
 import { parseCliArgs } from './parseCliArgs'
 import { initReporter, type ReporterType } from './reporter'
-import { isCI } from 'ci-info'
-import spawn from 'cross-spawn'
-import path from 'path'
-import isEmpty from 'ramda/src/isEmpty'
-import stripAnsi from 'strip-ansi'
-import which from 'which'
+import { switchCliVersion } from './switchCliVersion'
 
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
@@ -103,7 +98,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
     if (!isExecutedByCorepack() && config.rootProjectManifest?.packageManager != null) {
-      await switchToCorrectPnpm(config.rootProjectManifest.packageManager, config)
+      await switchCliVersion(config.rootProjectManifest.packageManager, config)
     }
     if (isDlxCommand) {
       config.useStderr = true
@@ -331,33 +326,4 @@ function printError (message: string, hint?: string): void {
   if (hint) {
     console.log(hint)
   }
-}
-
-async function switchToCorrectPnpm (packageManagerFieldValue: string, config: Config) {
-  const pm = parsePackageManager(packageManagerFieldValue)
-  if (pm.name !== 'pnpm' || pm.version == null || pm.version === packageManager.version) return
-  const pkgName = detectIfCurrentPkgIsExecutable() ? '@pnpm/exe' : 'pnpm'
-  const dir = path.join(config.pnpmHomeDir, '.tools', pkgName, pm.version)
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
-    fs.writeFileSync(path.join(dir, 'package.json'), '{}')
-    await pnpmCmds.add(
-      {
-        ...config,
-        dir,
-        lockfileDir: dir,
-        bin: path.join(dir, 'bin'),
-      },
-      [`${pkgName}@${pm.version}`]
-    )
-  }
-  const pnpmEnv = prependDirsToPath([path.join(dir, 'bin')])
-  const { status } = spawn.sync('pnpm', process.argv.slice(2), {
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      [pnpmEnv.name]: pnpmEnv.value,
-    },
-  })
-  process.exit(status ?? 0)
 }
