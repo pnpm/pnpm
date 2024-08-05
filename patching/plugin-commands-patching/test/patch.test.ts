@@ -108,7 +108,7 @@ describe('patch and commit', () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive'])
     const patchDir = getPatchDirFromPatchOutput(output)
 
-    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive'))
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@'))
     expect(fs.existsSync(patchDir)).toBe(true)
 
     // sanity check to ensure that the license file contains the expected string
@@ -145,7 +145,7 @@ describe('patch and commit', () => {
     const patchDir = getPatchDirFromPatchOutput(output)
 
     // store patch files in a temporary directory when not given editDir option
-    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive'))
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1.0.0'))
     expect(fs.existsSync(patchDir)).toBe(true)
 
     // sanity check to ensure that the license file contains the expected string
@@ -356,7 +356,7 @@ describe('patch and commit', () => {
   test('patch package with installed version', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1'])
     const patchDir = getPatchDirFromPatchOutput(output)
-    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive'))
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1'))
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('1.0.0')
   })
@@ -534,7 +534,7 @@ describe('prompt to choose version', () => {
 
     const patchDir = getPatchDirFromPatchOutput(output)
 
-    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'chalk'))
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'chalk@'))
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('5.3.0')
     expect(fs.existsSync(path.join(patchDir, 'source/index.js'))).toBe(true)
@@ -600,7 +600,7 @@ describe('prompt to choose version', () => {
 
     const patchDir = getPatchDirFromPatchOutput(output)
 
-    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'chalk'))
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'chalk@'))
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('5.3.0')
     expect(fs.existsSync(path.join(patchDir, 'source/index.js'))).toBe(true)

@@ -14,6 +14,7 @@ import terminalLink from 'terminal-link'
 import { PnpmError } from '@pnpm/error'
 import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { writePackage } from './writePackage'
+import { getEditDirPath } from './getEditDirPath'
 import { getPatchedDependency } from './getPatchedDependency'
 import { writeEditDirState } from './stateFile'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
@@ -76,13 +77,14 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
   if (!params[0]) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm patch` requires the package name')
   }
-  const editDir = opts.editDir ?? path.join(opts.modulesDir ?? 'node_modules', '.pnpm_patches', params[0])
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const patchedDep = await getPatchedDependency(params[0], {
     lockfileDir,
     modulesDir: opts.modulesDir,
     virtualStoreDir: opts.virtualStoreDir,
   })
+
+  const editDir = getEditDirPath(params[0], patchedDep, opts)
 
   if (fs.existsSync(editDir) && fs.readdirSync(editDir).length !== 0) {
     throw new PnpmError('EDIT_DIR_NOT_EMPTY', `The directory ${editDir} is not empty`, {
