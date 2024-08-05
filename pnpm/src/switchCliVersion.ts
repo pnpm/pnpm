@@ -16,7 +16,7 @@ export async function switchCliVersion (packageManagerFieldValue: string, config
     globalWarn(`Cannot switch to ${packageManagerFieldValue}`)
     return
   }
-  const pkgName = detectIfCurrentPkgIsExecutable() ? '@pnpm/exe' : 'pnpm'
+  const pkgName = detectIfCurrentPkgIsExecutable() ? getExePackageName() : 'pnpm'
   const dir = path.join(config.pnpmHomeDir, '.tools', pkgName, pm.version)
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
@@ -40,4 +40,15 @@ export async function switchCliVersion (packageManagerFieldValue: string, config
     },
   })
   process.exit(status ?? 0)
+}
+
+function getExePackageName () {
+  const platform = process.platform === 'win32'
+    ? 'win'
+    : process.platform === 'darwin'
+      ? 'macos'
+      : process.platform
+  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
+
+  return `@pnpm/${platform}-${arch}`
 }
