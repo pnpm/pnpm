@@ -1,5 +1,12 @@
 # @pnpm/exec.pkg-requires-build
 
+## 1.0.5
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+
 ## 1.0.4
 
 ### Patch Changes

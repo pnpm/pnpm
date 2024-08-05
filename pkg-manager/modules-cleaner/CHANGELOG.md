@@ -1,5 +1,19 @@
 # @pnpm/modules-cleaner
 
+## 15.1.10
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.filtering@1.0.1
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/remove-bins@6.0.6
+  - @pnpm/store-controller-types@18.1.4
+
 ## 15.1.9
 
 ### Patch Changes

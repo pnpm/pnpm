@@ -1,5 +1,21 @@
 # @pnpm/outdated
 
+## 15.1.2
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/pick-registry-for-package@6.0.5
+  - @pnpm/hooks.read-package-hook@5.0.1
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/client@11.1.7
+  - @pnpm/modules-yaml@13.1.5
+  - @pnpm/manifest-utils@6.0.6
+  - @pnpm/npm-resolver@21.0.3
+
 ## 15.1.1
 
 ### Patch Changes

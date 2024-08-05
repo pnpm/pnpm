@@ -1,5 +1,14 @@
 # @pnpm/prepare-package
 
+## 6.0.11
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/lifecycle@17.1.2
+  - @pnpm/read-package-json@9.0.6
+
 ## 6.0.10
 
 ### Patch Changes

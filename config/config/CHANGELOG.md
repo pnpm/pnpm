@@ -1,5 +1,18 @@
 # @pnpm/config
 
+## 21.7.0
+
+### Minor Changes
+
+- d20eed3: Substitute environment variables in config keys [#6679](https://github.com/pnpm/pnpm/issues/6679).
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/pnpmfile@6.0.9
+  - @pnpm/read-project-manifest@6.0.6
+
 ## 21.6.3
 
 ### Patch Changes

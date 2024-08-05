@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-completion
 
+## 1.0.15
+
+### Patch Changes
+
+- Updated dependencies [98c8bd6]
+  - @pnpm/cli-utils@3.1.7
+  - @pnpm/workspace.find-packages@4.0.4
+
 ## 1.0.14
 
 ### Patch Changes

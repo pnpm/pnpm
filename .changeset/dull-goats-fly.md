@@ -1,15 +1,4 @@
 ---
-"@pnpm/build-modules": major
-"@pnpm/core": minor
-"@pnpm/deps.graph-builder": major
-"@pnpm/headless": minor
-"@pnpm/lockfile.types": patch
-"@pnpm/patching.apply-patch": minor
-"@pnpm/patching.config": major
-"@pnpm/patching.types": major
-"@pnpm/plugin-commands-patching": minor
-"@pnpm/resolve-dependencies": major
-"@pnpm/types": major
 "pnpm": minor
 ---
 

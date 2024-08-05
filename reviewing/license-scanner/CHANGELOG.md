@@ -1,5 +1,22 @@
 # @pnpm/license-scanner
 
+## 3.1.11
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.detect-dep-types@2.0.6
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/lockfile.walker@1.0.1
+  - @pnpm/package-is-installable@9.0.6
+  - @pnpm/directory-fetcher@8.0.6
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/read-package-json@9.0.6
+  - @pnpm/store.cafs@3.0.7
+
 ## 3.1.10
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/lockfile.detect-dep-types
 
+## 2.0.6
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+  - @pnpm/dependency-path@5.1.4
+
 ## 2.0.5
 
 ### Patch Changes

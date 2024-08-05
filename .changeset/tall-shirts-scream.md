@@ -1,5 +1,4 @@
 ---
-"@pnpm/cli-utils": patch
 "pnpm": patch
 ---
 

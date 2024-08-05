@@ -1,5 +1,4 @@
 ---
-"@pnpm/config": minor
 "pnpm": minor
 ---
 

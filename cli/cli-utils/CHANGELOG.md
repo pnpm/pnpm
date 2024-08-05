@@ -1,5 +1,22 @@
 # @pnpm/cli-utils
 
+## 3.1.7
+
+### Patch Changes
+
+- 98c8bd6: Print warnings to stderr [#8342](https://github.com/pnpm/pnpm/pull/8342).
+- Updated dependencies [cb006df]
+- Updated dependencies [64e2e4f]
+- Updated dependencies [d20eed3]
+- Updated dependencies [e7f6330]
+  - @pnpm/types@12.0.0
+  - @pnpm/cli-meta@6.1.0
+  - @pnpm/config@21.7.0
+  - @pnpm/default-reporter@13.1.10
+  - @pnpm/package-is-installable@9.0.6
+  - @pnpm/manifest-utils@6.0.6
+  - @pnpm/read-project-manifest@6.0.6
+
 ## 3.1.6
 
 ### Patch Changes

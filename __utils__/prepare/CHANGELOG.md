@@ -1,5 +1,13 @@
 # @pnpm/prepare
 
+## 0.0.100
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/assert-project@2.3.57
+
 ## 0.0.99
 
 ### Patch Changes

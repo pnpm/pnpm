@@ -1,5 +1,14 @@
 # @pnpm/store-controller-types
 
+## 18.1.4
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/fetcher-base@16.0.5
+  - @pnpm/resolver-base@13.0.2
+
 ## 18.1.3
 
 ### Patch Changes
