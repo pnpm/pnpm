@@ -11,7 +11,6 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import chalk from 'chalk'
 import terminalLink from 'terminal-link'
-import tempy from 'tempy'
 import { PnpmError } from '@pnpm/error'
 import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { writePackage } from './writePackage'
@@ -77,13 +76,19 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
   if (!params[0]) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm patch` requires the package name')
   }
-  const editDir = opts.editDir ?? tempy.directory()
+  const editDir = opts.editDir ?? path.join(opts.modulesDir ?? 'node_modules', '.pnpm_patches', params[0])
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const patchedDep = await getPatchedDependency(params[0], {
     lockfileDir,
     modulesDir: opts.modulesDir,
     virtualStoreDir: opts.virtualStoreDir,
   })
+
+  if (fs.existsSync(editDir) && fs.readdirSync(editDir).length !== 0) {
+    throw new PnpmError('EDIT_DIR_NOT_EMPTY', `The directory ${editDir} is not empty`, {
+      hint: 'Either run `pnpm patch-commit` to commit or delete it then run `pnpm patch` to recreate it',
+    })
+  }
 
   await writePackage(patchedDep, editDir, opts)
 
