@@ -59,13 +59,21 @@ describe('patch and commit', () => {
     })
   })
 
+  test('patch throws an error when edit dir is not empty', async () => {
+    fs.mkdirSync('node_modules/.pnpm_patches/is-positive@1.0.0', { recursive: true })
+    fs.writeFileSync('node_modules/.pnpm_patches/is-positive@1.0.0/package.json', '{}')
+    await expect(patch.handler(defaultPatchOption, ['is-positive@1.0.0'])).rejects.toMatchObject({
+      code: 'ERR_PNPM_EDIT_DIR_NOT_EMPTY',
+    })
+  })
+
   test('patch and commit with exact version', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
-    const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
 
-    // store patch files in a temporary directory when not given editDir option
-    expect(patchDir).toContain(tempDir)
+    // store patch files in a directory inside modules dir when not given editDir option
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1.0.0'))
+    expect(path.basename(patchDir)).toBe('is-positive@1.0.0')
     expect(fs.existsSync(patchDir)).toBe(true)
 
     // sanity check to ensure that the license file contains the expected string
@@ -100,10 +108,9 @@ describe('patch and commit', () => {
   test('patch and commit without exact version', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive'])
     const patchDir = getPatchDirFromPatchOutput(output)
-    const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
 
-    // store patch files in a temporary directory when not given editDir option
-    expect(patchDir).toContain(tempDir)
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@'))
+    expect(path.basename(patchDir)).toMatch(/^is-positive@[0-9]+\.[0-9]+\.[0-9]+$/)
     expect(fs.existsSync(patchDir)).toBe(true)
 
     // sanity check to ensure that the license file contains the expected string
@@ -138,10 +145,10 @@ describe('patch and commit', () => {
   test('patch and commit with filtered files', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
-    const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
 
-    // store patch files in a temporary directory when not given editDir option
-    expect(patchDir).toContain(tempDir)
+    // store patch files in a directory inside modules dir when not given editDir option
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1.0.0'))
+    expect(path.basename(patchDir)).toBe('is-positive@1.0.0')
     expect(fs.existsSync(patchDir)).toBe(true)
 
     // sanity check to ensure that the license file contains the expected string
@@ -274,6 +281,7 @@ describe('patch and commit', () => {
     expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(true)
 
     // re-patch
+    fs.rmSync(patchDir, { recursive: true })
     output = await patch.handler({ ...defaultPatchOption, rootProjectManifest: manifest }, ['is-positive@1.0.0'])
     patchDir = getPatchDirFromPatchOutput(output)
 
@@ -324,6 +332,7 @@ describe('patch and commit', () => {
     expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(true)
 
     // re-patch with --ignore-patches
+    fs.rmSync(patchDir, { recursive: true })
     output = await patch.handler({ ...defaultPatchOption, ignoreExisting: true }, ['is-positive@1.0.0'])
     patchDir = getPatchDirFromPatchOutput(output)
 
@@ -350,8 +359,8 @@ describe('patch and commit', () => {
   test('patch package with installed version', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1'])
     const patchDir = getPatchDirFromPatchOutput(output)
-    const tempDir = os.tmpdir()
-    expect(patchDir).toContain(tempDir)
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1'))
+    expect(path.basename(patchDir)).toMatch(/^is-positive@1\.[0-9]+\.[0-9]+$/)
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('1.0.0')
   })
@@ -528,9 +537,9 @@ describe('prompt to choose version', () => {
     ]]])
 
     const patchDir = getPatchDirFromPatchOutput(output)
-    const tempDir = os.tmpdir()
 
-    expect(patchDir).toContain(tempDir)
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'chalk@'))
+    expect(path.basename(patchDir)).toMatch(/^chalk@[0-9]+\.[0-9]+\.[0-9]+$/)
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('5.3.0')
     expect(fs.existsSync(path.join(patchDir, 'source/index.js'))).toBe(true)
@@ -595,9 +604,9 @@ describe('prompt to choose version', () => {
     ]]])
 
     const patchDir = getPatchDirFromPatchOutput(output)
-    const tempDir = os.tmpdir()
 
-    expect(patchDir).toContain(tempDir)
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'chalk@'))
+    expect(path.basename(patchDir)).toMatch(/^chalk@[0-9]+\.[0-9]+\.[0-9]+$/)
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('5.3.0')
     expect(fs.existsSync(path.join(patchDir, 'source/index.js'))).toBe(true)
@@ -655,9 +664,9 @@ describe('patching should work when there is a no EOL in the patched file', () =
   it('should work when adding content on a newline', async () => {
     const output = await patch.handler(defaultPatchOption, ['safe-execa@0.1.2'])
     const userPatchDir = getPatchDirFromPatchOutput(output)
-    const tempDir = os.tmpdir()
 
-    expect(userPatchDir).toContain(tempDir)
+    expect(userPatchDir).toContain(path.join('node_modules', '.pnpm_patches', 'safe-execa@0.1.2'))
+    expect(path.basename(userPatchDir)).toBe('safe-execa@0.1.2')
     expect(fs.existsSync(userPatchDir)).toBe(true)
     expect(fs.existsSync(path.join(userPatchDir, 'lib/index.js'))).toBe(true)
 
@@ -684,9 +693,9 @@ describe('patching should work when there is a no EOL in the patched file', () =
   it('should work fine when new content is appended', async () => {
     const output = await patch.handler(defaultPatchOption, ['safe-execa@0.1.2'])
     const userPatchDir = getPatchDirFromPatchOutput(output)
-    const tempDir = os.tmpdir()
 
-    expect(userPatchDir).toContain(tempDir)
+    expect(userPatchDir).toContain(path.join('node_modules', '.pnpm_patches', 'safe-execa@0.1.2'))
+    expect(path.basename(userPatchDir)).toBe('safe-execa@0.1.2')
     expect(fs.existsSync(userPatchDir)).toBe(true)
     expect(fs.existsSync(path.join(userPatchDir, 'lib/index.js'))).toBe(true)
 
@@ -770,9 +779,9 @@ describe('patch and commit in workspaces', () => {
     })
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
-    const tempDir = os.tmpdir()
 
-    expect(patchDir).toContain(tempDir)
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1.0.0'))
+    expect(path.basename(patchDir)).toBe('is-positive@1.0.0')
     expect(fs.existsSync(patchDir)).toBe(true)
 
     expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
@@ -831,9 +840,9 @@ describe('patch and commit in workspaces', () => {
       dir: process.cwd(),
     }, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
-    const tempDir = os.tmpdir()
 
-    expect(patchDir).toContain(tempDir)
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1.0.0'))
+    expect(path.basename(patchDir)).toBe('is-positive@1.0.0')
     expect(fs.existsSync(patchDir)).toBe(true)
 
     expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
@@ -921,6 +930,7 @@ describe('patch and commit in workspaces', () => {
     expect(fs.existsSync('./node_modules/is-positive/license')).toBe(false)
 
     // re-patch project-1
+    fs.rmSync(patchDir, { recursive: true })
     output = await patch.handler({
       ...defaultPatchOption,
       dir: process.cwd(),
@@ -1029,8 +1039,6 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
   })
 
   test('should work with custom modules-dir and virtual-store-dir', async () => {
-    const manifest = fs.readFileSync(path.join(customModulesDirFixture, 'package.json'), 'utf8')
-    const lockfileYaml = fs.readFileSync(path.join(customModulesDirFixture, 'pnpm-lock.yaml'), 'utf8')
     const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(customModulesDirFixture, [])
     await install.handler({
       ...DEFAULT_OPTS,
@@ -1048,8 +1056,8 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
     })
     const output = await patch.handler(defaultPatchOption, ['is-positive@1'])
     const patchDir = getPatchDirFromPatchOutput(output)
-    const tempDir = os.tmpdir()
-    expect(patchDir).toContain(tempDir)
+    expect(patchDir).toContain(path.join('fake_modules', '.pnpm_patches', 'is-positive@1'))
+    expect(path.basename(patchDir)).toMatch(/^is-positive@1\.[0-9]+\.[0-9]+$/)
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('1.0.0')
 
@@ -1071,9 +1079,6 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
       workspaceDir: customModulesDirFixture,
     }, [patchDir])
     expect(fs.readFileSync(path.join(customModulesDirFixture, 'packages/bar/fake_modules/is-positive/index.js'), 'utf8')).toContain('// test patching')
-    // restore package.json and package-lock.yaml
-    fs.writeFileSync(path.join(customModulesDirFixture, 'package.json'), manifest, 'utf8')
-    fs.writeFileSync(path.join(customModulesDirFixture, 'pnpm-lock.yaml'), lockfileYaml, 'utf8')
   })
 })
 

@@ -63,6 +63,7 @@
     "enquirer": "catalog:",
     "escape-string-regexp": "catalog:",
     "fast-glob": "catalog:",
+    "make-empty-dir": "catalog:",
     "normalize-path": "catalog:",
     "ramda": "catalog:",
     "realpath-missing": "catalog:",
