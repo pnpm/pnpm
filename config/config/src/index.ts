@@ -516,6 +516,7 @@ function parsePackageManager (packageManager: string): { name: string, version: 
   const [name, pmReference] = packageManager.split('@')
   // pmReference is semantic versioning, not URL
   if (pmReference.includes(':')) return { name, version: undefined }
+  // Remove the integrity hash. Ex: "pnpm@9.5.0+sha512.140036830124618d624a2187b50d04289d5a087f326c9edfc0ccd733d76c4f52c3a313d4fc148794a2a9d81553016004e6742e8cf850670268a7387fc220c903"
   const [version] = pmReference.split('+')
   return {
     name,
