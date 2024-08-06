@@ -334,7 +334,8 @@ function printError (message: string, hint?: string): void {
 }
 
 function checkPackageManager (pm: WantedPackageManager, config: Config): void {
-  if (pm.name && pm.name !== 'pnpm') {
+  if (!pm.name) return
+  if (pm.name !== 'pnpm') {
     const msg = `This project is configured to use ${pm.name}`
     if (config.packageManagerStrict) {
       throw new PnpmError('OTHER_PM_EXPECTED', msg)

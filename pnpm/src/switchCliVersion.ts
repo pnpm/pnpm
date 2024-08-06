@@ -12,7 +12,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
   const pm = config.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null || pm.version === packageManager.version) return
   if (!semver.valid(pm.version)) {
-    globalWarn(`Cannot switch to pnpm@${pm.version}`)
+    globalWarn(`Cannot switch to pnpm@${pm.version}: "${pm.version}" is not a valid version`)
     return
   }
   const pkgName = detectIfCurrentPkgIsExecutable() ? getExePackageName() : 'pnpm'
