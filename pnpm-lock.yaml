@@ -3755,6 +3755,9 @@ importers:
       fast-glob:
         specifier: 'catalog:'
         version: 3.3.2
+      make-empty-dir:
+        specifier: 'catalog:'
+        version: 3.0.2
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
