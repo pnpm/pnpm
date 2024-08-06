@@ -3,28 +3,28 @@ if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
 import loudRejection from 'loud-rejection'
-import { packageManager } from '@pnpm/cli-meta'
+import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
-import {
-  type Config,
-} from '@pnpm/config'
+import { type Config, type WantedPackageManager } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
+import { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
-import { checkForUpdates } from './checkForUpdates'
-import { pnpmCmds, rcOptionsTypes } from './cmd'
-import { formatUnknownOptionsError } from './formatError'
-import { parseCliArgs } from './parseCliArgs'
-import { initReporter, type ReporterType } from './reporter'
 import { isCI } from 'ci-info'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
 import stripAnsi from 'strip-ansi'
 import which from 'which'
+import { checkForUpdates } from './checkForUpdates'
+import { pnpmCmds, rcOptionsTypes } from './cmd'
+import { formatUnknownOptionsError } from './formatError'
+import { parseCliArgs } from './parseCliArgs'
+import { initReporter, type ReporterType } from './reporter'
+import { switchCliVersion } from './switchCliVersion'
 
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
@@ -98,6 +98,13 @@ export async function main (inputArgv: string[]): Promise<void> {
       checkUnknownSetting: false,
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
+    if (!isExecutedByCorepack() && config.wantedPackageManager != null) {
+      if (config.managePackageManagerVersions) {
+        await switchCliVersion(config)
+      } else {
+        checkPackageManager(config.wantedPackageManager, config)
+      }
+    }
     if (isDlxCommand) {
       config.useStderr = true
     }
@@ -117,6 +124,10 @@ export async function main (inputArgv: string[]): Promise<void> {
     const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
     printError(err.message, hint)
     process.exitCode = 1
+    return
+  }
+  if (cmd == null && cliOptions.version) {
+    console.log(packageManager.version)
     return
   }
 
@@ -323,5 +334,30 @@ function printError (message: string, hint?: string): void {
   console.log(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
   if (hint) {
     console.log(hint)
+  }
+}
+
+function checkPackageManager (pm: WantedPackageManager, config: Config): void {
+  if (!pm.name) return
+  if (pm.name !== 'pnpm') {
+    const msg = `This project is configured to use ${pm.name}`
+    if (config.packageManagerStrict) {
+      throw new PnpmError('OTHER_PM_EXPECTED', msg)
+    }
+    globalWarn(msg)
+  } else {
+    const currentPnpmVersion = packageManager.name === 'pnpm'
+      ? packageManager.version
+      : undefined
+    if (currentPnpmVersion && config.packageManagerStrictVersion && pm.version && pm.version !== currentPnpmVersion) {
+      const msg = `This project is configured to use v${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
+      if (config.packageManagerStrict) {
+        throw new PnpmError('BAD_PM_VERSION', msg, {
+          hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
+        })
+      } else {
+        globalWarn(msg)
+      }
+    }
   }
 }

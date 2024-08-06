@@ -56,6 +56,9 @@
       "path": "../config/plugin-commands-config"
     },
     {
+      "path": "../env/path"
+    },
+    {
       "path": "../env/plugin-commands-env"
     },
     {
@@ -84,6 +87,9 @@
     },
     {
       "path": "../packages/dependency-path"
+    },
+    {
+      "path": "../packages/error"
     },
     {
       "path": "../packages/plugin-commands-doctor"
