@@ -1,19 +1,11 @@
 import path from 'path'
 import { getEditDirPath } from '../src/getEditDirPath'
 
-test('getEditDirPath() returns opts.editDir if it is defined', () => {
-  expect(getEditDirPath('pkg', {
-    alias: 'pkg',
-  }, {
-    editDir: 'user-defined-edit-dir',
-  })).toBe('user-defined-edit-dir')
-})
-
 test('getEditDirPath() returns path to pkg@version inside node_modules/.pnpm_patches', () => {
   expect(getEditDirPath('pkg', {
     alias: 'pkg',
     pref: '0.1.2',
-  })).toBe(path.join('node_modules', '.pnpm_patches', 'pkg@0.1.2'))
+  }, { modulesDir: 'node_modules' })).toBe(path.join('node_modules', '.pnpm_patches', 'pkg@0.1.2'))
 })
 
 test('getEditDirPath() returns path to pkg@version inside .pnpm_patches inside specified modules dir', () => {
@@ -29,17 +21,17 @@ test('getEditDirPath() returns valid path even if pref contains special characte
   expect(getEditDirPath('pkg', {
     alias: 'pkg',
     pref: 'https://codeload.github.com/zkochan/hi/tar.gz',
-  })).toBe(path.join('node_modules', '.pnpm_patches', 'pkg@https+codeload.github.com+zkochan+hi+tar.gz'))
+  }, { modulesDir: 'node_modules' })).toBe(path.join('node_modules', '.pnpm_patches', 'pkg@https+codeload.github.com+zkochan+hi+tar.gz'))
 })
 
 test('getEditDirPath() returns path with name of alias if pref is not available', () => {
   expect(getEditDirPath('pkg', {
     alias: 'resolved-pkg',
-  })).toBe(path.join('node_modules', '.pnpm_patches', 'resolved-pkg'))
+  }, { modulesDir: 'node_modules' })).toBe(path.join('node_modules', '.pnpm_patches', 'resolved-pkg'))
 })
 
 test('getEditDirPath() returns path with name of param if alias is not available', () => {
   expect(getEditDirPath('pkg', {
     pref: '0.1.2',
-  })).toBe(path.join('node_modules', '.pnpm_patches', 'pkg'))
+  }, { modulesDir: 'node_modules' })).toBe(path.join('node_modules', '.pnpm_patches', 'pkg'))
 })
