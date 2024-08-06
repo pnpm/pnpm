@@ -16,7 +16,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
     return
   }
   const pkgName = detectIfCurrentPkgIsExecutable() ? getExePackageName() : 'pnpm'
-  const dir = path.join(config.pnpmHomeDir, '.tools', pkgName, pm.version)
+  const dir = path.join(config.pnpmHomeDir, '.tools', pkgName.replaceAll('/', '+'), pm.version)
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
     fs.writeFileSync(path.join(dir, 'package.json'), '{}')
