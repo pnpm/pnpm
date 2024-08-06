@@ -71,7 +71,7 @@ describe('patch and commit', () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
 
-    // store patch files in a temporary directory when not given editDir option
+    // store patch files in a directory inside modules dir when not given editDir option
     expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1.0.0'))
     expect(fs.existsSync(patchDir)).toBe(true)
 
@@ -144,7 +144,7 @@ describe('patch and commit', () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
 
-    // store patch files in a temporary directory when not given editDir option
+    // store patch files in a directory inside modules dir when not given editDir option
     expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1.0.0'))
     expect(fs.existsSync(patchDir)).toBe(true)
 
