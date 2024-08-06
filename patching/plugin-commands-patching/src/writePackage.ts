@@ -11,7 +11,7 @@ export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'r
 export async function writePackage (dep: ParseWantedDependencyResult, dest: string, opts: WritePackageOptions): Promise<void> {
   const store = await createOrConnectStoreController({
     ...opts,
-    packageImportMethod: 'copy', // TODO: fix the bug where 'clone-or-copy' causes EXDEV error in tests
+    packageImportMethod: 'clone-or-copy',
   })
   const pkgResponse = await store.ctrl.requestPackage(dep, {
     downloadPriority: 1,

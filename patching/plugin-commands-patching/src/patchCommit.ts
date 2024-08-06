@@ -174,9 +174,9 @@ function removeTrailingAndLeadingSlash (p: string): string {
 }
 
 /**
- * Copy files from the source directory to a new temporary directory,
+ * Link files from the source directory to a new temporary directory,
  * but only if not all files in the source directory should be included in the package.
- * If all files should be included, return the original source directory without creating any copies.
+ * If all files should be included, return the original source directory without creating any links.
  * This is required in order for the diff to not include files that are not part of the package.
  */
 async function preparePkgFilesForDiff (src: string): Promise<string> {
@@ -193,7 +193,7 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
       const destFile = path.join(dest, file)
       const destDir = path.dirname(destFile)
       await fs.promises.mkdir(destDir, { recursive: true })
-      await fs.promises.copyFile(srcFile, destFile)
+      await fs.promises.link(srcFile, destFile)
     })
   )
   return dest
