@@ -25,6 +25,13 @@ test('getEditDirPath() returns path to pkg@version inside .pnpm_patches inside s
   })).toBe(path.join('user-defined-modules-dir', '.pnpm_patches', 'pkg@0.1.2'))
 })
 
+test('getEditDirPath() returns valid path even if pref contains special characters', () => {
+  expect(getEditDirPath('pkg', {
+    alias: 'pkg',
+    pref: 'https://codeload.github.com/zkochan/hi/tar.gz',
+  })).toBe(path.join('node_modules', '.pnpm_patches', 'pkg@https+codeload.github.com+zkochan+hi+tar.gz'))
+})
+
 test('getEditDirPath() returns path with name of alias if pref is not available', () => {
   expect(getEditDirPath('pkg', {
     alias: 'resolved-pkg',

@@ -15,7 +15,8 @@ export function getEditDirPath (param: string, patchedDep: ParseWantedDependency
 
 function getEditDirNameFromParsedDep (patchedDep: ParseWantedDependencyResult): string | undefined {
   if (patchedDep.alias && patchedDep.pref) {
-    return `${patchedDep.alias}@${patchedDep.pref}`
+    const pref = patchedDep.pref.replace(/[\\/:*?"<>|]+/g, '+')
+    return `${patchedDep.alias}@${pref}`
   }
 
   if (patchedDep.alias) {
