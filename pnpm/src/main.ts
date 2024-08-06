@@ -5,7 +5,7 @@ if (!global['pnpm__startedAt']) {
 import loudRejection from 'loud-rejection'
 import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
-import { type Config } from '@pnpm/config'
+import { type Config, type WantedPackageManager } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
@@ -102,29 +102,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       if (config.managePackageManagerVersions) {
         await switchCliVersion(config)
       } else {
-        const pm = config.wantedPackageManager
-        if (pm.name && pm.name !== 'pnpm') {
-          const msg = `This project is configured to use ${pm.name}`
-          if (config.packageManagerStrict) {
-            throw new PnpmError('OTHER_PM_EXPECTED', msg)
-          } else {
-            globalWarn(msg)
-          }
-        } else {
-          const currentPnpmVersion = packageManager.name === 'pnpm'
-            ? packageManager.version
-            : undefined
-          if (currentPnpmVersion && config.packageManagerStrictVersion && pm.version && pm.version !== currentPnpmVersion) {
-            const msg = `This project is configured to use v${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
-            if (config.packageManagerStrict) {
-              throw new PnpmError('BAD_PM_VERSION', msg, {
-                hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
-              })
-            } else {
-              globalWarn(msg)
-            }
-          }
-        }
+        checkPackageManager(config.wantedPackageManager, config)
       }
     }
     if (isDlxCommand) {
@@ -352,5 +330,29 @@ function printError (message: string, hint?: string): void {
   console.log(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
   if (hint) {
     console.log(hint)
+  }
+}
+
+function checkPackageManager (pm: WantedPackageManager, config: Config): void {
+  if (pm.name && pm.name !== 'pnpm') {
+    const msg = `This project is configured to use ${pm.name}`
+    if (config.packageManagerStrict) {
+      throw new PnpmError('OTHER_PM_EXPECTED', msg)
+    }
+    globalWarn(msg)
+  } else {
+    const currentPnpmVersion = packageManager.name === 'pnpm'
+      ? packageManager.version
+      : undefined
+    if (currentPnpmVersion && config.packageManagerStrictVersion && pm.version && pm.version !== currentPnpmVersion) {
+      const msg = `This project is configured to use v${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
+      if (config.packageManagerStrict) {
+        throw new PnpmError('BAD_PM_VERSION', msg, {
+          hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
+        })
+      } else {
+        globalWarn(msg)
+      }
+    }
   }
 }

@@ -25,6 +25,7 @@ import {
   type Config,
   type ConfigWithDeprecatedSettings,
   type UniversalOptions,
+  type WantedPackageManager,
 } from './Config'
 import { getWorkspaceConcurrency } from './concurrency'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
@@ -35,7 +36,7 @@ export { types }
 export { getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 export * from './readLocalConfig'
 
-export type { Config, UniversalOptions }
+export type { Config, UniversalOptions, WantedPackageManager }
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
