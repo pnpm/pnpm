@@ -74,6 +74,10 @@ export interface Config {
     name: string
     version: string
   }
+  wantedPackageManager?: {
+    name: string
+    version?: string
+  }
   preferOffline?: boolean
   sideEffectsCache?: boolean // for backward compatibility
   sideEffectsCacheReadonly?: boolean // for backward compatibility

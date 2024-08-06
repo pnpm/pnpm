@@ -1,6 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import { parsePackageManager } from '@pnpm/cli-utils'
 import { type Config } from '@pnpm/config'
 import { globalWarn } from '@pnpm/logger'
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli-meta'
@@ -9,11 +8,11 @@ import spawn from 'cross-spawn'
 import semver from 'semver'
 import { pnpmCmds } from './cmd'
 
-export async function switchCliVersion (packageManagerFieldValue: string, config: Config): Promise<void> {
-  const pm = parsePackageManager(packageManagerFieldValue)
-  if (pm.name !== 'pnpm' || pm.version == null || pm.version === packageManager.version) return
+export async function switchCliVersion (config: Config): Promise<void> {
+  const pm = config.wantedPackageManager
+  if (pm == null || pm.name !== 'pnpm' || pm.version == null || pm.version === packageManager.version) return
   if (!semver.valid(pm.version)) {
-    globalWarn(`Cannot switch to ${packageManagerFieldValue}`)
+    globalWarn(`Cannot switch to pnpm@${pm.version}`)
     return
   }
   const pkgName = detectIfCurrentPkgIsExecutable() ? getExePackageName() : 'pnpm'

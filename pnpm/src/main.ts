@@ -7,6 +7,7 @@ import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
 import { type Config } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
+import { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
@@ -97,8 +98,34 @@ export async function main (inputArgv: string[]): Promise<void> {
       checkUnknownSetting: false,
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
-    if (!isExecutedByCorepack() && config.rootProjectManifest?.packageManager != null && config.managePackageManagerVersions) {
-      await switchCliVersion(config.rootProjectManifest.packageManager, config)
+    if (!isExecutedByCorepack() && config.wantedPackageManager != null) {
+      if (config.managePackageManagerVersions) {
+        await switchCliVersion(config)
+      } else {
+        const pm = config.wantedPackageManager
+        if (pm.name && pm.name !== 'pnpm') {
+          const msg = `This project is configured to use ${pm.name}`
+          if (config.packageManagerStrict) {
+            throw new PnpmError('OTHER_PM_EXPECTED', msg)
+          } else {
+            globalWarn(msg)
+          }
+        } else {
+          const currentPnpmVersion = packageManager.name === 'pnpm'
+            ? packageManager.version
+            : undefined
+          if (currentPnpmVersion && config.packageManagerStrictVersion && pm.version && pm.version !== currentPnpmVersion) {
+            const msg = `This project is configured to use v${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
+            if (config.packageManagerStrict) {
+              throw new PnpmError('BAD_PM_VERSION', msg, {
+                hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
+              })
+            } else {
+              globalWarn(msg)
+            }
+          }
+        }
+      }
     }
     if (isDlxCommand) {
       config.useStderr = true

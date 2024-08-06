@@ -36,6 +36,7 @@
     "@pnpm/default-reporter": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/env.path": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

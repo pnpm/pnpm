@@ -484,8 +484,13 @@ export async function getConfig (opts: {
   }
   pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
   pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
-  if (pnpmConfig.rootProjectManifest?.workspaces?.length && !pnpmConfig.workspaceDir) {
-    warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+  if (pnpmConfig.rootProjectManifest != null) {
+    if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
+      warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+    }
+    if (pnpmConfig.rootProjectManifest.packageManager) {
+      pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
+    }
   }
 
   if (pnpmConfig.workspaceDir != null) {
@@ -504,4 +509,15 @@ function getProcessEnv (env: string): string | undefined {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
+}
+
+function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {
+  const [name, pmReference] = packageManager.split('@')
+  // pmReference is semantic versioning, not URL
+  if (pmReference.includes(':')) return { name, version: undefined }
+  const [version] = pmReference.split('+')
+  return {
+    name,
+    version,
+  }
 }

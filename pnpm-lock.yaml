@@ -5436,6 +5436,9 @@ importers:
       '@pnpm/env.path':
         specifier: workspace:*
         version: link:../env/path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../packages/error
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../workspace/filter-workspace-packages
