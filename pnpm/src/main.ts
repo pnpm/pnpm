@@ -126,6 +126,10 @@ export async function main (inputArgv: string[]): Promise<void> {
     process.exitCode = 1
     return
   }
+  if (cmd == null && cliOptions.version) {
+    console.log(packageManager.version)
+    return
+  }
 
   let write: (text: string) => void = process.stdout.write.bind(process.stdout)
   // chalk reads the FORCE_COLOR env variable
