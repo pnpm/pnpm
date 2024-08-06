@@ -84,7 +84,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
     virtualStoreDir: opts.virtualStoreDir,
   })
 
-  const modulesDir = opts.modulesDir ?? path.join(lockfileDir, 'node_modules')
+  const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
   const editDir = opts.editDir ? opts.editDir : getEditDirPath(params[0], patchedDep, { modulesDir })
 
   if (fs.existsSync(editDir) && fs.readdirSync(editDir).length !== 0) {

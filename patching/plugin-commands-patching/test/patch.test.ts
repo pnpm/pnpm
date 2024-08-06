@@ -1039,8 +1039,6 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
   })
 
   test('should work with custom modules-dir and virtual-store-dir', async () => {
-    const manifest = fs.readFileSync(path.join(customModulesDirFixture, 'package.json'), 'utf8')
-    const lockfileYaml = fs.readFileSync(path.join(customModulesDirFixture, 'pnpm-lock.yaml'), 'utf8')
     const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(customModulesDirFixture, [])
     await install.handler({
       ...DEFAULT_OPTS,
@@ -1081,9 +1079,6 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
       workspaceDir: customModulesDirFixture,
     }, [patchDir])
     expect(fs.readFileSync(path.join(customModulesDirFixture, 'packages/bar/fake_modules/is-positive/index.js'), 'utf8')).toContain('// test patching')
-    // restore package.json and package-lock.yaml
-    fs.writeFileSync(path.join(customModulesDirFixture, 'package.json'), manifest, 'utf8')
-    fs.writeFileSync(path.join(customModulesDirFixture, 'pnpm-lock.yaml'), lockfileYaml, 'utf8')
   })
 })
 
