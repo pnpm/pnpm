@@ -167,7 +167,7 @@ async function updateTSConfig (
       },
       include: [
         '**/*.ts',
-        path.relative(testDir, path.join(context.workspaceDir, '__typings__/**/*.d.ts')),
+        normalizePath(path.relative(testDir, path.join(context.workspaceDir, '__typings__/**/*.d.ts'))),
       ],
       references: (tsConfig as any)?.compilerOptions?.composite === false
         // If composite is explicitly set to false, we can't add the main
@@ -184,7 +184,7 @@ async function updateTSConfig (
         // methods to be defensive against future changes to testDir, dir, or
         // relPath.
         ? linkValues.map(relPath => ({
-          path: path.relative(testDir, path.join(dir, relPath))
+          path: normalizePath(path.relative(testDir, path.join(dir, relPath)))
         }))
 
         // If the main project is composite (the more common case), we can
@@ -205,7 +205,7 @@ async function updateTSConfig (
       include: [
         'src/**/*.ts',
         'test/**/*.ts',
-        path.relative(dir, path.join(context.workspaceDir, '__typings__/**/*.d.ts')),
+        normalizePath(path.relative(dir, path.join(context.workspaceDir, '__typings__/**/*.d.ts'))),
       ],
     }, { indent: 2 })
   ])
