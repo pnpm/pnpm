@@ -8,12 +8,14 @@ export const fetchingProgressLogger = logger('fetching-progress') as Logger<Fetc
 
 export type FetchingProgressMessage = {
   attempt: number
+  downloaded?: number
   packageId: string
   size: number | null
   status: 'started'
 } | {
   downloaded: number
   packageId: string
+  size?: number | null
   status: 'in_progress'
 }
 

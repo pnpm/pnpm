@@ -26,13 +26,13 @@ export function reportBigTarballProgress (
       log.attempt === 1
     ),
     map((startedLog: FetchingProgressLog) => {
-      const size = prettyBytes(startedLog['size'], PRETTY_OPTS)
+      const size = prettyBytes(startedLog.size ?? 0, PRETTY_OPTS)
       return log$.fetchingProgress.pipe(
         filter((log: FetchingProgressLog) => log.status === 'in_progress' && log.packageId === startedLog['packageId']),
-        map((log: FetchingProgressLog) => log['downloaded']),
+        map((log: FetchingProgressLog) => log.downloaded ?? 0),
         startWith(0),
         map((downloadedRaw: number) => {
-          const done = startedLog['size'] === downloadedRaw
+          const done = startedLog.size === downloadedRaw
           const downloaded = prettyBytes(downloadedRaw, PRETTY_OPTS)
           return {
             fixed: !done,
