@@ -20,6 +20,7 @@ import {
 } from '@pnpm/types'
 import pEvery from 'p-every'
 import any from 'ramda/src/any'
+import isEmpty from 'ramda/src/isEmpty'
 import semver from 'semver'
 import getVersionSelectorType from 'version-selector-type'
 import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate'
@@ -58,7 +59,11 @@ export async function allProjectsAreUpToDate (
   })
   return pEvery(projects, (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
-    return !hasLocalTarballDepsInRoot(importer) &&
+    if (importer == null) {
+      return DEPENDENCIES_FIELDS.every((depType) => project.manifest[depType] == null || isEmpty(project.manifest[depType]))
+    }
+    return importer != null &&
+      !hasLocalTarballDepsInRoot(importer) &&
       _satisfiesPackageManifest(importer, project.manifest).satisfies &&
       _linkedPackagesAreUpToDate({
         dir: project.rootDir,
