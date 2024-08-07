@@ -1,5 +1,66 @@
 # @pnpm/core
 
+## 15.2.0
+
+### Minor Changes
+
+- cb006df: Add ability to apply patch to all versions:
+  If the key of `pnpm.patchedDependencies` is a package name without a version (e.g. `pkg`), pnpm will attempt to apply the patch to all versions of
+  the package, failure will be skipped.
+  If it is a package name and an exact version (e.g. `pkg@x.y.z`), pnpm will attempt to apply the patch to that exact version only, failure will
+  cause pnpm to fail.
+
+  If there's only one version of `pkg` installed, `pnpm patch pkg` and subsequent `pnpm patch-commit $edit_dir` will create an entry named `pkg` in
+  `pnpm.patchedDependencies`. And pnpm will attempt to apply this patch to other versions of `pkg` in the future.
+
+  If there's multiple versions of `pkg` installed, `pnpm patch pkg` will ask which version to edit and whether to attempt to apply the patch to all.
+  If the user chooses to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg` entry in `pnpm.patchedDependencies`.
+  If the user chooses not to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg@x.y.z` entry in `pnpm.patchedDependencies` with
+  `x.y.z` being the version the user chose to edit.
+
+  If the user runs `pnpm patch pkg@x.y.z` with `x.y.z` being the exact version of `pkg` that has been installed, `pnpm patch-commit $edit_dir` will always
+  create a `pkg@x.y.z` entry in `pnpm.patchedDependencies`.
+
+- 09876c9: Add an option to return the list of dependencies that require a build.
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/build-modules@14.0.0
+  - @pnpm/headless@23.2.0
+  - @pnpm/resolve-dependencies@35.0.0
+  - @pnpm/types@12.0.0
+  - @pnpm/hooks.types@2.0.7
+  - @pnpm/lockfile.filtering@1.0.1
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/lockfile.pruner@0.0.2
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/lockfile.verification@1.0.1
+  - @pnpm/lockfile.walker@1.0.1
+  - @pnpm/calc-dep-state@7.0.6
+  - @pnpm/hoist@9.1.11
+  - @pnpm/modules-cleaner@15.1.10
+  - @pnpm/normalize-registries@6.0.5
+  - @pnpm/lifecycle@17.1.2
+  - @pnpm/symlink-dependency@8.0.6
+  - @pnpm/hooks.read-package-hook@5.0.1
+  - @pnpm/lockfile-to-pnp@4.1.10
+  - @pnpm/lockfile.preferred-versions@1.0.10
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/get-context@12.0.3
+  - @pnpm/link-bins@10.0.8
+  - @pnpm/modules-yaml@13.1.5
+  - @pnpm/package-requester@25.2.4
+  - @pnpm/remove-bins@6.0.6
+  - @pnpm/manifest-utils@6.0.6
+  - @pnpm/read-project-manifest@6.0.6
+  - @pnpm/resolver-base@13.0.2
+  - @pnpm/store-controller-types@18.1.4
+  - @pnpm/worker@1.0.8
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.6
+
 ## 15.1.1
 
 ### Patch Changes

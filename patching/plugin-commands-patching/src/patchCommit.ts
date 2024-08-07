@@ -14,6 +14,7 @@ import pick from 'ramda/src/pick'
 import equals from 'ramda/src/equals'
 import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
+import makeEmptyDir from 'make-empty-dir'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import { writePackage } from './writePackage'
@@ -85,6 +86,9 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   })
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
+  if (patchedPkgDir !== userDir) {
+    fs.rmSync(patchedPkgDir, { recursive: true })
+  }
 
   if (!patchContent.length) {
     return `No changes were found to the following directory: ${userDir}`
@@ -186,7 +190,8 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
   if (await areAllFilesInPkg(files, src)) {
     return src
   }
-  const dest = tempy.directory()
+  const dest = `${src}_tmp`
+  await makeEmptyDir(dest)
   await Promise.all(
     files.map(async (file) => {
       const srcFile = path.join(src, file)

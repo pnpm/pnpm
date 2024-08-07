@@ -60,8 +60,22 @@ export async function parseCliArgs (
     commandName = opts.fallbackCommand!
     inputArgv.unshift(opts.fallbackCommand!)
   // The run command has special casing for --help and is handled further below.
-  } else if (cmd !== 'run' && noptExploratoryResults['help']) {
-    return getParsedArgsForHelp()
+  } else if (cmd !== 'run') {
+    if (noptExploratoryResults['help']) {
+      return getParsedArgsForHelp()
+    }
+    if (noptExploratoryResults['version'] || noptExploratoryResults['v']) {
+      return {
+        argv: noptExploratoryResults.argv,
+        cmd: null,
+        options: {
+          version: true,
+        },
+        params: noptExploratoryResults.argv.remain,
+        unknownOptions: new Map(),
+        fallbackCommandUsed: false,
+      }
+    }
   }
 
   function getParsedArgsForHelp (): ParsedCliArgs {

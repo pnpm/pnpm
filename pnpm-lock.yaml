@@ -1703,6 +1703,16 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
 
+  env/path:
+    dependencies:
+      path-name:
+        specifier: 'catalog:'
+        version: 1.0.0
+    devDependencies:
+      '@pnpm/env.path':
+        specifier: workspace:*
+        version: 'link:'
+
   env/plugin-commands-env:
     dependencies:
       '@pnpm/cli-utils':
@@ -2097,6 +2107,9 @@ importers:
       '@pnpm/crypto.base32-hash':
         specifier: workspace:*
         version: link:../../packages/crypto.base32-hash
+      '@pnpm/env.path':
+        specifier: workspace:*
+        version: link:../../env/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -2142,9 +2155,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
-      path-name:
-        specifier: 'catalog:'
-        version: 1.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -3767,6 +3777,9 @@ importers:
       fast-glob:
         specifier: 'catalog:'
         version: 3.3.2
+      make-empty-dir:
+        specifier: 'catalog:'
+        version: 3.0.2
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -5438,6 +5451,12 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../packages/dependency-path
+      '@pnpm/env.path':
+        specifier: workspace:*
+        version: link:../env/path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../packages/error
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../workspace/filter-workspace-packages

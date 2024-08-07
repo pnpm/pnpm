@@ -10,6 +10,11 @@ import type { Hooks } from '@pnpm/pnpmfile'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
+export interface WantedPackageManager {
+  name: string
+  version?: string
+}
+
 export interface Config {
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
@@ -74,6 +79,7 @@ export interface Config {
     name: string
     version: string
   }
+  wantedPackageManager?: WantedPackageManager
   preferOffline?: boolean
   sideEffectsCache?: boolean // for backward compatibility
   sideEffectsCacheReadonly?: boolean // for backward compatibility
@@ -199,6 +205,7 @@ export interface Config {
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength?: number
   strictStorePkgContentCheck: boolean
+  managePackageManagerVersions: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

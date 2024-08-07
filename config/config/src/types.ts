@@ -50,6 +50,7 @@ export const types = Object.assign({
   'lockfile-include-tarball-url': Boolean,
   'lockfile-only': Boolean,
   loglevel: ['silent', 'error', 'warn', 'info', 'debug'],
+  'manage-package-manager-versions': Boolean,
   maxsockets: Number,
   'modules-cache-max-age': Number,
   'dlx-cache-max-age': Number,

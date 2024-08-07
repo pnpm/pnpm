@@ -1,5 +1,17 @@
 # @pnpm/lockfile-file
 
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.merger@1.0.1
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/git-resolver@9.0.6
+
 ## 1.0.0
 
 ### Major Changes

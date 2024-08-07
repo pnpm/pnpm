@@ -9,7 +9,7 @@ import { sortPackages } from '@pnpm/sort-packages'
 import { type Project, type ProjectsGraph, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
-import PATH from 'path-name'
+import { prependDirsToPath } from '@pnpm/env.path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { existsInDir } from './existsInDir'
@@ -355,11 +355,10 @@ function isErrorCommandNotFound (command: string, error: CommandError, prependPa
 
   // Windows
   if (process.platform === 'win32') {
-    const prepend = prependPaths.join(path.delimiter)
-    const whichPath = process.env[PATH] ? `${prepend}${path.delimiter}${process.env[PATH] as string}` : prepend
+    const { value: path } = prependDirsToPath(prependPaths)
     return !which.sync(command, {
       nothrow: true,
-      path: whichPath,
+      path,
     })
   }
 

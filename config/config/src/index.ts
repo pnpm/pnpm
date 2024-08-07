@@ -25,6 +25,7 @@ import {
   type Config,
   type ConfigWithDeprecatedSettings,
   type UniversalOptions,
+  type WantedPackageManager,
 } from './Config'
 import { getWorkspaceConcurrency } from './concurrency'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
@@ -35,7 +36,7 @@ export { types }
 export { getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 export * from './readLocalConfig'
 
-export type { Config, UniversalOptions }
+export type { Config, UniversalOptions, WantedPackageManager }
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
@@ -147,6 +148,7 @@ export async function getConfig (opts: {
     'ignore-workspace-root-check': false,
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
+    'manage-package-manager-versions': false,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'dlx-cache-max-age': 24 * 60, // 1 day
     'node-linker': 'isolated',
@@ -483,8 +485,13 @@ export async function getConfig (opts: {
   }
   pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
   pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
-  if (pnpmConfig.rootProjectManifest?.workspaces?.length && !pnpmConfig.workspaceDir) {
-    warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+  if (pnpmConfig.rootProjectManifest != null) {
+    if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
+      warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+    }
+    if (pnpmConfig.rootProjectManifest.packageManager) {
+      pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
+    }
   }
 
   if (pnpmConfig.workspaceDir != null) {
@@ -503,4 +510,16 @@ function getProcessEnv (env: string): string | undefined {
   return process.env[env] ??
     process.env[env.toUpperCase()] ??
     process.env[env.toLowerCase()]
+}
+
+function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {
+  const [name, pmReference] = packageManager.split('@')
+  // pmReference is semantic versioning, not URL
+  if (pmReference.includes(':')) return { name, version: undefined }
+  // Remove the integrity hash. Ex: "pnpm@9.5.0+sha512.140036830124618d624a2187b50d04289d5a087f326c9edfc0ccd733d76c4f52c3a313d4fc148794a2a9d81553016004e6742e8cf850670268a7387fc220c903"
+  const [version] = pmReference.split('+')
+  return {
+    name,
+    version,
+  }
 }

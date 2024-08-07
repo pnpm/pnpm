@@ -1,5 +1,16 @@
 # @pnpm/package-is-installable
 
+## 9.0.6
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+- Updated dependencies [64e2e4f]
+- Updated dependencies [e7f6330]
+  - @pnpm/types@12.0.0
+  - @pnpm/cli-meta@6.1.0
+  - @pnpm/core-loggers@10.0.5
+
 ## 9.0.5
 
 ### Patch Changes

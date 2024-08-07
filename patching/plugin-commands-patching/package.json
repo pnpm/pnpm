@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-patching",
-  "version": "6.2.5",
+  "version": "6.4.0",
   "description": "Commands for creating patches",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -64,6 +64,7 @@
     "enquirer": "catalog:",
     "escape-string-regexp": "catalog:",
     "fast-glob": "catalog:",
+    "make-empty-dir": "catalog:",
     "normalize-path": "catalog:",
     "ramda": "catalog:",
     "realpath-missing": "catalog:",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "11.0.1",
+  "version": "11.0.3",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -51,6 +51,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/crypto.base32-hash": "workspace:*",
+    "@pnpm/env.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/log.group": "catalog:",
@@ -66,7 +67,6 @@
     "didyoumean2": "catalog:",
     "execa": "catalog:",
     "p-limit": "catalog:",
-    "path-name": "catalog:",
     "ramda": "catalog:",
     "realpath-missing": "catalog:",
     "render-help": "catalog:",
