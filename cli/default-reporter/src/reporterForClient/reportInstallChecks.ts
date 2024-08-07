@@ -24,18 +24,17 @@ function formatInstallCheck (
     zoomOutCurrent: boolean
   }
 ): string | undefined {
-  type InstallCheckLogWithPrefix = InstallCheckLog & { prefix?: undefined } // TODO: update @pnpm/logger and then remove this type
   const zoomOutCurrent = opts?.zoomOutCurrent ?? false
   switch (logObj.code) {
   case 'EBADPLATFORM':
     return autozoom(
       currentPrefix,
-      (logObj as InstallCheckLogWithPrefix).prefix,
+      logObj.prefix,
       formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`),
       { zoomOutCurrent }
     )
   case 'ENOTSUP':
-    return autozoom(currentPrefix, (logObj as InstallCheckLogWithPrefix).prefix, logObj.toString(), { zoomOutCurrent })
+    return autozoom(currentPrefix, logObj.prefix, logObj.toString(), { zoomOutCurrent })
   default:
     return undefined
   }
