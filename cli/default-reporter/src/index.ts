@@ -48,7 +48,8 @@ export function initDefaultReporter (
       subscription.unsubscribe()
     }
   }
-  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (process.stdout.columns && process.stdout.columns - 2) ?? 80
+  const proc = opts.context.process ?? process
+  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (proc.stdout.columns && proc.stdout.columns - 2) ?? 80
   const output$ = toOutput$({
     ...opts,
     reportingOptions: {
@@ -73,7 +74,7 @@ export function initDefaultReporter (
     }
   }
   const diff = createDiffer({
-    height: process.stdout.rows,
+    height: proc.stdout.rows,
     outputMaxWidth,
   })
   const subscription = output$
@@ -85,8 +86,8 @@ export function initDefaultReporter (
       next: logUpdate,
     })
   const write = opts.useStderr
-    ? process.stderr.write.bind(process.stderr)
-    : process.stdout.write.bind(process.stdout)
+    ? proc.stderr.write.bind(proc.stderr)
+    : proc.stdout.write.bind(proc.stdout)
   function logUpdate (view: string) {
     // A new line should always be appended in case a prompt needs to appear.
     // Without a new line the prompt will be joined with the previous output.
