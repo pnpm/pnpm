@@ -69,6 +69,7 @@
     "version-selector-type": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/resolve-dependencies": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",

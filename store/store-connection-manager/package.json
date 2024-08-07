@@ -29,6 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/store-connection-manager#readme",
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*"
   },
   "dependencies": {

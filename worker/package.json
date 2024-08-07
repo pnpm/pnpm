@@ -44,6 +44,7 @@
     "load-json-file": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*"
   },

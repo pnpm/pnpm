@@ -32,6 +32,7 @@
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",
     "@pnpm/plugin-commands-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",

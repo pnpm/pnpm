@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:",

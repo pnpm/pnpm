@@ -51,6 +51,7 @@
   },
   "devDependencies": {
     "@pnpm/link-bins": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/node": "catalog:",

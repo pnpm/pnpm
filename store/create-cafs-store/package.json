@@ -27,6 +27,7 @@
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:"
   },

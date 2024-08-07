@@ -54,6 +54,7 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/license-scanner": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"
   },

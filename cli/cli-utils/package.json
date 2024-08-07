@@ -30,6 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/cli-utils#readme",
   "devDependencies": {
     "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:"
   },

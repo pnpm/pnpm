@@ -38,6 +38,7 @@
     "@pnpm/logger": "^5.0.0"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-doctor": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",

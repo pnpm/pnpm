@@ -37,6 +37,7 @@
     "is-windows": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:"

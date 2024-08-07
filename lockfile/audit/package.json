@@ -36,6 +36,7 @@
     "@pnpm/audit": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
     "nock": "catalog:"

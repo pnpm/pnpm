@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@pnpm/fs.hard-link-dir": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*"
   },
   "exports": {

@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/js-yaml": "catalog:",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",

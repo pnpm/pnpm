@@ -36,6 +36,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*"
   },

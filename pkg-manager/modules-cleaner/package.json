@@ -41,6 +41,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/modules-cleaner": "workspace:*",
     "@types/ramda": "catalog:"
   },

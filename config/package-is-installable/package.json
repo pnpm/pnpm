@@ -39,6 +39,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@types/semver": "catalog:"
   },

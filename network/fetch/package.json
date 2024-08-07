@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "https-proxy-server-express": "catalog:",
     "nock": "catalog:"
   },
