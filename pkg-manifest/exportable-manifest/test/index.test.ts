@@ -99,6 +99,7 @@ test('workspace deps are replaced', async () => {
     peerDependencies: {
       foo: 'workspace:>= || ^3.9.0',
       baz: '^1.0.0 || workspace:>',
+      bar: 'workspace:^3.0.0',
     },
   }
 
@@ -135,6 +136,7 @@ test('workspace deps are replaced', async () => {
     peerDependencies: {
       baz: '^1.0.0 || >1.2.3',
       foo: '>=4.5.6 || ^3.9.0',
+      bar: '^3.0.0',
     },
   })
 })
