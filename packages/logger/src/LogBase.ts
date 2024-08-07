@@ -4,6 +4,7 @@ export interface LogBaseTemplate {
   level?: LogLevel
   prefix?: string
   message?: string
+  pkgsStack?: Array<{ id: string, name: string, version: string }>
 }
 
 export interface LogBaseDebug extends LogBaseTemplate {

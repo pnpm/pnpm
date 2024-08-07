@@ -23,9 +23,9 @@ export function reportError (logObj: Log, config?: Config, peerDependencyRules?:
   const errorInfo = getErrorInfo(logObj, config, peerDependencyRules)
   if (!errorInfo) return null
   let output = formatErrorSummary(errorInfo.title, (logObj as LogObjWithPossibleError).err?.code)
-  if ('pkgsStack' in logObj && logObj.pkgsStack != null) { // QUESTION: pkgsStack is not defined anywhere. What is it?
-    if (Array.isArray(logObj.pkgsStack) && logObj.pkgsStack.length > 0) {
-      output += `\n\n${formatPkgsStack(logObj['pkgsStack'])}`
+  if (logObj.pkgsStack != null) {
+    if (logObj.pkgsStack.length > 0) {
+      output += `\n\n${formatPkgsStack(logObj.pkgsStack)}`
     } else if ('prefix' in logObj && logObj.prefix) {
       output += `\n\nThis error happened while installing a direct dependency of ${logObj.prefix}`
     }
@@ -473,7 +473,7 @@ function reportSpecNotSupportedByAnyResolverError (err: Error, logObj: Log): Err
 }
 
 function reportExternalCatalogProtocolError (err: Error, logObj: Log): ErrorInfo {
-  const pkgsStack: Array<{ id: string, name: string, version: string }> | undefined = logObj['pkgsStack']
+  const { pkgsStack } = logObj
   const problemDep = pkgsStack?.[0]
 
   let body = `\
