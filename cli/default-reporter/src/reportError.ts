@@ -461,7 +461,7 @@ function reportSpecNotSupportedByAnyResolverError (err: Error, logObj: Log): Err
   // repo dependency that was published incorrectly. For example, it may be been
   // mistakenly published with 'npm publish' instead of 'pnpm publish'. Report a
   // more clear error in this case.
-  if (logObj['package']?.['pref']?.startsWith('catalog:')) {
+  if (logObj.package?.pref?.startsWith('catalog:')) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return reportExternalCatalogProtocolError(err, logObj as any)
   }
