@@ -2,17 +2,17 @@ import bole from 'bole'
 import ndjson from 'ndjson'
 import { LogBase } from './LogBase'
 
-export type Reporter = (logObj: LogBase) => void
+export type Reporter<LogObj extends LogBase> = (logObj: LogObj) => void
 
-export interface StreamParser {
-  on: (event: 'data', reporter: Reporter) => void
-  removeListener: (event: 'data', reporter: Reporter) => void
+export interface StreamParser<LogObj extends LogBase> {
+  on: (event: 'data', reporter: Reporter<LogObj>) => void
+  removeListener: (event: 'data', reporter: Reporter<LogObj>) => void
 }
 
-export const streamParser: StreamParser = createStreamParser()
+export const streamParser: StreamParser<LogBase> = createStreamParser()
 
-export function createStreamParser (): StreamParser {
-  const sp: StreamParser = ndjson.parse()
+export function createStreamParser<LogObj extends LogBase> (): StreamParser<LogObj> {
+  const sp: StreamParser<LogObj> = ndjson.parse()
   bole.output([
     {
       level: 'debug', stream: sp,

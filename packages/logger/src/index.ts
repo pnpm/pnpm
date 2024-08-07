@@ -13,6 +13,8 @@ export {
   globalWarn,
 } from './logger'
 export {
+  type Reporter,
+  type StreamParser,
   createStreamParser,
   streamParser,
 } from './streamParser'
