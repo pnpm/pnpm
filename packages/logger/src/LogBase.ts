@@ -1,10 +1,13 @@
 import { LogLevel } from './LogLevel'
 
-export interface LogBaseTemplate {
+export interface OptionalErrorProperties {
+  pkgsStack?: Array<{ id: string, name: string, version: string }>
+}
+
+export interface LogBaseTemplate extends OptionalErrorProperties {
   level?: LogLevel
   prefix?: string
   message?: string
-  pkgsStack?: Array<{ id: string, name: string, version: string }>
 }
 
 export interface LogBaseDebug extends LogBaseTemplate {
