@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/outdated#readme",
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",

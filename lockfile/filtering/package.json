@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/filtering#readme",
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "^5.1.0"
   },
   "devDependencies": {
     "@pnpm/lockfile.filtering": "workspace:*",

@@ -34,7 +34,7 @@
     "@types/ramda": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",

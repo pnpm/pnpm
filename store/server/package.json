@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/server#readme",
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "^5.1.0"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",

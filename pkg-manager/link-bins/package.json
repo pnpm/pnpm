@@ -62,7 +62,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "^5.1.0"
   },
   "exports": {
     ".": "./lib/index.js"

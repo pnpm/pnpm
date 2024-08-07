@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "^5.1.0"
   },
   "keywords": [
     "pnpm9"
