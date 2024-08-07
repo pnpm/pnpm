@@ -40,7 +40,7 @@
     "@pnpm/workspace.read-manifest": "workspace:*"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

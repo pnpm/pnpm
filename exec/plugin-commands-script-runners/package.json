@@ -74,7 +74,7 @@
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

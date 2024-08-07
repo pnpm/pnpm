@@ -16,7 +16,7 @@
     ".": "./lib/index.js"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
     "@pnpm/deps.graph-builder": "workspace:*",
