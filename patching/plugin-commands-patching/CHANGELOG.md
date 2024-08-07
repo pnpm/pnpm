@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-patching
 
+## 6.4.0
+
+### Minor Changes
+
+- 1731386: Change the default edit dir location when running `pnpm patch` from a temporary directory to `node_modules/.pnpm_patches/pkg[@version]` to allow the code editor to open the edit dir in the same file tree as the main project.
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+  - @pnpm/config@21.8.0
+  - @pnpm/plugin-commands-installation@17.0.3
+  - @pnpm/store-connection-manager@8.3.6
+
 ## 6.3.0
 
 ### Minor Changes

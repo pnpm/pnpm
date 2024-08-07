@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-script-runners
 
+## 11.0.3
+
+### Patch Changes
+
+- 26b065c: Added usage of `@pnpm/env.path`.
+- Updated dependencies [26b065c]
+- Updated dependencies [26b065c]
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+  - @pnpm/config@21.8.0
+  - @pnpm/env.path@1.0.0
+  - @pnpm/plugin-commands-env@5.1.3
+  - @pnpm/plugin-commands-installation@17.0.3
+
 ## 11.0.2
 
 ### Patch Changes

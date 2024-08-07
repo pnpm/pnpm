@@ -1,5 +1,17 @@
 # @pnpm/cli-utils
 
+## 4.0.0
+
+### Major Changes
+
+- 26b065c: Removed packageManager field check.
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+  - @pnpm/config@21.8.0
+  - @pnpm/default-reporter@13.1.11
+
 ## 3.1.7
 
 ### Patch Changes

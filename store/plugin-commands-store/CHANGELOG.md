@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-store
 
+## 9.2.7
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+  - @pnpm/config@21.8.0
+  - @pnpm/store-connection-manager@8.3.6
+
 ## 9.2.6
 
 ### Patch Changes
