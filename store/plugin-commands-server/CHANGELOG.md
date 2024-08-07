@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-server
 
+## 7.0.20
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+
 ## 7.0.19
 
 ### Patch Changes

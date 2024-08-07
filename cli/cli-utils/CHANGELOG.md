@@ -1,5 +1,12 @@
 # @pnpm/cli-utils
 
+## 4.0.1
+
+### Patch Changes
+
+- Updated dependencies [a64e440]
+  - @pnpm/default-reporter@13.1.12
+
 ## 4.0.0
 
 ### Major Changes

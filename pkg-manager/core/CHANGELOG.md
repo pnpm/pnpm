@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 15.2.1
+
+### Patch Changes
+
+- Updated dependencies [dc902fd]
+  - @pnpm/lockfile.verification@1.0.2
+
 ## 15.2.0
 
 ### Minor Changes

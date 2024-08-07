@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-listing
 
+## 10.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+
 ## 10.0.5
 
 ### Patch Changes

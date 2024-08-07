@@ -1,5 +1,11 @@
 # @pnpm/lockfile.verification
 
+## 1.0.2
+
+### Patch Changes
+
+- dc902fd: Don't crash when the lockfile doesn't have a project in it during verification.
+
 ## 1.0.1
 
 ### Patch Changes

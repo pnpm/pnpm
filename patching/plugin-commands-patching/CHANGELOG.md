@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-patching
 
+## 6.4.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+- @pnpm/plugin-commands-installation@17.0.4
+
 ## 6.4.0
 
 ### Minor Changes

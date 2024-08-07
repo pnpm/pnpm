@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 13.1.12
+
+### Patch Changes
+
+- a64e440: write output to the stdout passed in via the context argument.
+
 ## 13.1.11
 
 ### Patch Changes
