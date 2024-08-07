@@ -1,6 +1,7 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
+import { type WorkspacePackages } from '@pnpm/resolver-base'
+import { type DependencyManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
 import { writeFile, mkdir } from 'fs/promises'
 import { type Lockfile } from '@pnpm/lockfile.types'
@@ -532,5 +533,128 @@ test('allProjectsAreUpToDate(): returns true if workspace dependency\'s version 
   expect(await allProjectsAreUpToDate(projects, {
     ...options,
     lockfileDir: process.cwd(),
+  })).toBeTruthy()
+})
+
+test('allProjectsAreUpToDate(): returns false if one of the importers is not present in the lockfile', async () => {
+  const fooManifest: DependencyManifest = {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      'is-odd': '1.0.0',
+    },
+  }
+  const barManifest: DependencyManifest = {
+    name: 'bar',
+    version: '1.0.0',
+    dependencies: {
+      'is-even': '1.0.0',
+    },
+  }
+  const workspacePackages: WorkspacePackages = new Map([
+    ['foo', new Map([
+      ['1.0.0', {
+        rootDir: 'foo' as ProjectRootDir,
+        manifest: fooManifest,
+      }],
+    ])],
+    ['bar', new Map([
+      ['1.0.0', {
+        rootDir: 'bar' as ProjectRootDir,
+        manifest: barManifest,
+      }],
+    ])],
+  ])
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'bar' as ProjectId,
+      manifest: barManifest,
+      rootDir: 'bar' as ProjectRootDir,
+    },
+    {
+      id: 'foo' as ProjectId,
+      manifest: fooManifest,
+      rootDir: 'foo' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['bar' as ProjectId]: {
+          dependencies: {
+            'is-even': '1.0.0',
+          },
+          specifiers: {
+            'is-even': '1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages,
+    lockfileDir: '',
+  })).toBeFalsy()
+})
+
+test('allProjectsAreUpToDate(): returns true if one of the importers is not present in the lockfile but the importer has no dependencies', async () => {
+  const fooManifest: DependencyManifest = {
+    name: 'foo',
+    version: '1.0.0',
+  }
+  const barManifest: DependencyManifest = {
+    name: 'bar',
+    version: '1.0.0',
+    dependencies: {
+      'is-even': '1.0.0',
+    },
+  }
+  const workspacePackages: WorkspacePackages = new Map([
+    ['foo', new Map([
+      ['1.0.0', {
+        rootDir: 'foo' as ProjectRootDir,
+        manifest: fooManifest,
+      }],
+    ])],
+    ['bar', new Map([
+      ['1.0.0', {
+        rootDir: 'bar' as ProjectRootDir,
+        manifest: barManifest,
+      }],
+    ])],
+  ])
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'bar' as ProjectId,
+      manifest: barManifest,
+      rootDir: 'bar' as ProjectRootDir,
+    },
+    {
+      id: 'foo' as ProjectId,
+      manifest: fooManifest,
+      rootDir: 'foo' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['bar' as ProjectId]: {
+          dependencies: {
+            'is-even': '1.0.0',
+          },
+          specifiers: {
+            'is-even': '1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages,
+    lockfileDir: '',
   })).toBeTruthy()
 })

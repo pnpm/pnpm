@@ -21,6 +21,7 @@ delete process.env.npm_config_virtual_store_dir
 delete process.env.npm_config_shared_workspace_lockfile
 delete process.env.npm_config_side_effects_cache
 delete process.env.npm_config_node_version
+delete process.env.npm_config_fetch_retries
 
 const env = {
   PNPM_HOME: __dirname,
@@ -984,6 +985,27 @@ test('read PNPM_HOME defined in environment variables', async () => {
     },
   })
   expect(config.pnpmHomeDir).toBe(homeDir)
+
+  process.env = oldEnv
+})
+
+test('xxx', async () => {
+  const oldEnv = process.env
+  process.env = {
+    ...oldEnv,
+    FOO: 'fetch-retries',
+  }
+
+  const { config } = await getConfig({
+    cliOptions: {
+      dir: f.find('has-env-in-key'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.fetchRetries).toBe(999)
 
   process.env = oldEnv
 })

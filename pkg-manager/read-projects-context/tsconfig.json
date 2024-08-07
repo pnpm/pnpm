@@ -16,6 +16,9 @@
       "path": "../../lockfile/fs"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {

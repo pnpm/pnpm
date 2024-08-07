@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "34.0.3",
+  "version": "35.0.0",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -40,6 +40,8 @@
     "@pnpm/lockfile.preferred-versions": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/patching.config": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",
@@ -67,6 +69,7 @@
     "version-selector-type": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/resolve-dependencies": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",

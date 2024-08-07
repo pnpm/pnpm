@@ -27,11 +27,6 @@ export interface SslConfig {
 
 export type HoistedDependencies = Record<DepPath | ProjectId, Record<string, 'public' | 'private'>>
 
-export interface PatchFile {
-  path: string
-  hash: string
-}
-
 export type PkgResolutionId = string & { __brand: 'PkgResolutionId' }
 
 export type PkgId = string & { __brand: 'PkgId' }

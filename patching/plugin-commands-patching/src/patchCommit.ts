@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -13,11 +14,13 @@ import pick from 'ramda/src/pick'
 import equals from 'ramda/src/equals'
 import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
+import makeEmptyDir from 'make-empty-dir'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import { writePackage } from './writePackage'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
+import { readEditDirState, deleteEditDirState } from './stateFile'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -52,26 +55,47 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
   const patchesDir = path.join(lockfileDir, patchesDirName)
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
-  const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
-  const gitTarballUrl = await getGitTarballUrlFromLockfile({
-    alias: patchedPkgManifest.name,
-    pref: patchedPkgManifest.version,
-  }, {
-    lockfileDir,
-    modulesDir: opts.modulesDir,
-    virtualStoreDir: opts.virtualStoreDir,
+  const stateValue = readEditDirState({
+    editDir: userDir,
+    modulesDir: opts.modulesDir ?? 'node_modules',
   })
+  if (!stateValue) {
+    throw new PnpmError('INVALID_PATCH_DIR', `${userDir} is not a valid patch directory`, {
+      hint: 'A valid patch directory should be created by `pnpm patch`',
+    })
+  }
+  const { applyToAll } = stateValue
+  const nameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
+  const patchKey = applyToAll ? patchedPkgManifest.name : nameAndVersion
+  let gitTarballUrl: string | undefined
+  if (!applyToAll) {
+    gitTarballUrl = await getGitTarballUrlFromLockfile({
+      alias: patchedPkgManifest.name,
+      pref: patchedPkgManifest.version,
+    }, {
+      lockfileDir,
+      modulesDir: opts.modulesDir,
+      virtualStoreDir: opts.virtualStoreDir,
+    })
+  }
   const srcDir = tempy.directory()
-  await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : pkgNameAndVersion), srcDir, opts)
+  await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion), srcDir, opts)
+  deleteEditDirState({
+    editDir: userDir,
+    modulesDir: opts.modulesDir ?? 'node_modules',
+  })
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
+  if (patchedPkgDir !== userDir) {
+    fs.rmSync(patchedPkgDir, { recursive: true })
+  }
 
   if (!patchContent.length) {
     return `No changes were found to the following directory: ${userDir}`
   }
   await fs.promises.mkdir(patchesDir, { recursive: true })
 
-  const patchFileName = pkgNameAndVersion.replace('/', '__')
+  const patchFileName = patchKey.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
   const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
 
@@ -84,7 +108,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   } else if (!rootProjectManifest.pnpm.patchedDependencies) {
     rootProjectManifest.pnpm.patchedDependencies = {}
   }
-  rootProjectManifest.pnpm.patchedDependencies![pkgNameAndVersion] = `${patchesDirName}/${patchFileName}.patch`
+  rootProjectManifest.pnpm.patchedDependencies![patchKey] = `${patchesDirName}/${patchFileName}.patch`
   await writeProjectManifest(rootProjectManifest)
 
   if (opts?.selectedProjectsGraph?.[lockfileDir]) {
@@ -166,7 +190,8 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
   if (await areAllFilesInPkg(files, src)) {
     return src
   }
-  const dest = tempy.directory()
+  const dest = `${src}_tmp`
+  await makeEmptyDir(dest)
   await Promise.all(
     files.map(async (file) => {
       const srcFile = path.join(src, file)

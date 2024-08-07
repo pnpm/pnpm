@@ -67,7 +67,13 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../patching/config"
     },
     {
       "path": "../../pkg-manifest/read-package-json"

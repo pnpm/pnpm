@@ -1,5 +1,30 @@
 # @pnpm/config
 
+## 21.8.0
+
+### Minor Changes
+
+- 26b065c: Added pnpm version management to pnpm. If the `manage-package-manager-versions` setting is set to `true`, pnpm will switch to the version specified in the `packageManager` field of `package.json` [#8363](https://github.com/pnpm/pnpm/pull/8363). This is the same field used by Corepack. Example:
+
+  ```json
+  {
+    "packageManager": "pnpm@9.3.0"
+  }
+  ```
+
+## 21.7.0
+
+### Minor Changes
+
+- d20eed3: Substitute environment variables in config keys [#6679](https://github.com/pnpm/pnpm/issues/6679).
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/pnpmfile@6.0.9
+  - @pnpm/read-project-manifest@6.0.6
+
 ## 21.6.3
 
 ### Patch Changes

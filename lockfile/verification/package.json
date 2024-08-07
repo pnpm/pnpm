@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.verification",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Checks a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -49,6 +49,7 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"

@@ -46,10 +46,19 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {
       "path": "../../packages/which-version-is-pinned"
+    },
+    {
+      "path": "../../patching/config"
+    },
+    {
+      "path": "../../patching/types"
     },
     {
       "path": "../../pkg-manifest/manifest-utils"

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.find-packages",
-  "version": "4.0.3",
+  "version": "4.0.6",
   "description": "Finds packages inside a workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,6 +36,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*"
   },

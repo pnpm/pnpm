@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "13.0.8",
+  "version": "14.0.0",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -41,6 +41,7 @@
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -51,6 +52,7 @@
   },
   "devDependencies": {
     "@pnpm/build-modules": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

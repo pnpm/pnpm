@@ -1,5 +1,16 @@
 # @pnpm/link-bins
 
+## 10.0.8
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/package-bins@9.0.5
+  - @pnpm/manifest-utils@6.0.6
+  - @pnpm/read-package-json@9.0.6
+  - @pnpm/read-project-manifest@6.0.6
+
 ## 10.0.7
 
 ### Patch Changes

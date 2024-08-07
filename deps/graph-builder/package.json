@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/deps.graph-builder",
   "description": "A package for building a dependency graph from a lockfile",
-  "version": "1.1.9",
+  "version": "2.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@pnpm/deps.graph-builder": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/deps/graph-builder#readme",
@@ -46,6 +47,8 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
+    "@pnpm/patching.config": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "path-exists": "catalog:",

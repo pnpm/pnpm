@@ -1,5 +1,19 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 3.1.9
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.detect-dep-types@2.0.6
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/normalize-registries@6.0.5
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/modules-yaml@13.1.5
+  - @pnpm/read-package-json@9.0.6
+
 ## 3.1.8
 
 ### Patch Changes

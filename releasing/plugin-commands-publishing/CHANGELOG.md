@@ -1,5 +1,41 @@
 # @pnpm/plugin-commands-publishing
 
+## 10.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+- @pnpm/plugin-commands-env@5.1.4
+
+## 10.0.3
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+  - @pnpm/config@21.8.0
+  - @pnpm/plugin-commands-env@5.1.3
+
+## 10.0.2
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+- Updated dependencies [98c8bd6]
+- Updated dependencies [d20eed3]
+  - @pnpm/types@12.0.0
+  - @pnpm/cli-utils@3.1.7
+  - @pnpm/config@21.7.0
+  - @pnpm/pick-registry-for-package@6.0.5
+  - @pnpm/plugin-commands-env@5.1.2
+  - @pnpm/lifecycle@17.1.2
+  - @pnpm/client@11.1.7
+  - @pnpm/package-bins@9.0.5
+  - @pnpm/exportable-manifest@7.0.2
+  - @pnpm/resolver-base@13.0.2
+  - @pnpm/sort-packages@6.0.6
+
 ## 10.0.1
 
 ### Patch Changes

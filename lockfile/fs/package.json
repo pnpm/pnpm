@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.fs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Read/write pnpm-lock.yaml files",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/js-yaml": "catalog:",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",

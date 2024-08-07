@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-setup",
-  "version": "5.1.3",
+  "version": "5.1.6",
   "description": "pnpm commands for setting up pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@pnpm/error": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-setup": "workspace:*",
     "@pnpm/prepare": "workspace:*"
   },

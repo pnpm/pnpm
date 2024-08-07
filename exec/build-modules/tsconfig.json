@@ -22,10 +22,16 @@
       "path": "../../packages/core-loggers"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {
       "path": "../../patching/apply-patch"
+    },
+    {
+      "path": "../../patching/types"
     },
     {
       "path": "../../pkg-manager/link-bins"

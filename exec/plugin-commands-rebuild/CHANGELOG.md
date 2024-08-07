@@ -1,5 +1,51 @@
 # @pnpm/plugin-commands-rebuild
 
+## 12.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+- @pnpm/workspace.find-packages@4.0.6
+
+## 12.0.5
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+  - @pnpm/config@21.8.0
+  - @pnpm/workspace.find-packages@4.0.5
+  - @pnpm/store-connection-manager@8.3.6
+
+## 12.0.4
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+- Updated dependencies [98c8bd6]
+- Updated dependencies [d20eed3]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+  - @pnpm/cli-utils@3.1.7
+  - @pnpm/config@21.7.0
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/lockfile.walker@1.0.1
+  - @pnpm/calc-dep-state@7.0.6
+  - @pnpm/normalize-registries@6.0.5
+  - @pnpm/lifecycle@17.1.2
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/get-context@12.0.3
+  - @pnpm/link-bins@10.0.8
+  - @pnpm/modules-yaml@13.1.5
+  - @pnpm/store.cafs@3.0.7
+  - @pnpm/store-controller-types@18.1.4
+  - @pnpm/worker@1.0.8
+  - @pnpm/workspace.find-packages@4.0.4
+  - @pnpm/sort-packages@6.0.6
+  - @pnpm/store-connection-manager@8.3.5
+
 ## 12.0.3
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/calc-dep-state
 
+## 7.0.6
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/dependency-path@5.1.4
+
 ## 7.0.5
 
 ### Patch Changes

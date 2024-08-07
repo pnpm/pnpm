@@ -39,3 +39,7 @@ export const packageManager = {
 export function detectIfCurrentPkgIsExecutable (proc: NodeJS.Process = process): boolean {
   return 'pkg' in proc && proc.pkg != null
 }
+
+export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.COREPACK_ROOT != null
+}

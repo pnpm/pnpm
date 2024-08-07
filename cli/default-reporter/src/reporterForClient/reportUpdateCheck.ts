@@ -1,5 +1,5 @@
 import { type UpdateCheckLog } from '@pnpm/core-loggers'
-import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
+import { detectIfCurrentPkgIsExecutable, isExecutedByCorepack } from '@pnpm/cli-meta'
 import boxen from 'boxen'
 import chalk from 'chalk'
 import * as Rx from 'rxjs'
@@ -54,7 +54,7 @@ function renderUpdateMessage (opts: UpdateMessageOptions): string {
 }
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
-  if (opts.env.COREPACK_ROOT) {
+  if (isExecutedByCorepack(opts.env)) {
     return `corepack install -g pnpm@${opts.latestVersion}`
   }
   const pkgName = opts.currentPkgIsExecutable ? '@pnpm/exe' : 'pnpm'

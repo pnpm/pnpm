@@ -22,6 +22,9 @@
       "path": "../../packages/dependency-path"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {

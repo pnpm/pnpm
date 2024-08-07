@@ -56,6 +56,35 @@ test('run pre/postinstall scripts', async () => {
   }
 })
 
+test('return the list of packages that should be build', async () => {
+  prepareEmpty()
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project') as ProjectRootDir,
+    },
+  ]
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project') as ProjectRootDir,
+    },
+  ]
+  const { depsRequiringBuild } = await mutateModules(importers,
+    testDefaults({ allProjects, enableModulesDir: false, returnListOfDepsRequiringBuild: true })
+  )
+
+  expect(depsRequiringBuild).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'])
+})
+
 test('run pre/postinstall scripts, when PnP is used and no symlinks', async () => {
   prepareEmpty()
   await addDependenciesToPackage({},

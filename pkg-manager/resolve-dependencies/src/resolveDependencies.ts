@@ -16,6 +16,7 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
+import { getPatchInfo } from '@pnpm/patching.config'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
   type DirectoryResolution,
@@ -35,13 +36,13 @@ import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageManifest,
-  type PatchFile,
   type ReadPackageHook,
   type Registries,
   type PkgIdWithPatchHash,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
+import { type PatchFile, type PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'
@@ -230,7 +231,7 @@ export interface ResolvedPackage {
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
-  patchFile?: PatchFile
+  patch?: PatchInfo
   prepare: boolean
   pkgIdWithPatchHash: PkgIdWithPatchHash
   requiresBuild?: boolean
@@ -1352,11 +1353,10 @@ async function resolveDependency (
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
   let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
-  const nameAndVersion = `${pkg.name}@${pkg.version}`
-  const patchFile = ctx.patchedDependencies?.[nameAndVersion]
-  if (patchFile) {
-    ctx.appliedPatches.add(nameAndVersion)
-    pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patchFile.hash})` as PkgIdWithPatchHash
+  const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
+  if (patch) {
+    ctx.appliedPatches.add(patch.key)
+    pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.file.hash})` as PkgIdWithPatchHash
   }
 
   // We are building the dependency tree only until there are new packages
@@ -1468,7 +1468,7 @@ async function resolveDependency (
       pkgIdWithPatchHash,
       force: ctx.force,
       hasBin,
-      patchFile,
+      patch,
       pkg,
       pkgResponse,
       prepare,
@@ -1587,7 +1587,7 @@ function getResolvedPackage (
     force: boolean
     hasBin: boolean
     parentImporterId: string
-    patchFile?: PatchFile
+    patch?: PatchInfo
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean
@@ -1617,7 +1617,7 @@ function getResolvedPackage (
     name: options.pkg.name,
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
-    patchFile: options.patchFile,
+    patch: options.patch,
     peerDependencies,
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,

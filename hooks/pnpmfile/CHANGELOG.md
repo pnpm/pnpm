@@ -1,5 +1,17 @@
 # @pnpm/pnpmfile
 
+## 6.0.9
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+  - @pnpm/hooks.types@2.0.7
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/store-controller-types@18.1.4
+  - @pnpm/crypto.base32-hash@3.0.0
+
 ## 6.0.8
 
 ### Patch Changes
