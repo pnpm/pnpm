@@ -12,10 +12,14 @@ export interface LogBaseTemplate extends OptionalErrorProperties {
 
 export interface LogBaseDebug extends LogBaseTemplate {
   level: 'debug'
+  prefix?: never
+  message?: never
 }
 
 export interface LogBaseError extends LogBaseTemplate {
   level: 'error'
+  prefix?: never
+  message?: never
 }
 
 export interface LogBaseInfo extends LogBaseTemplate {
