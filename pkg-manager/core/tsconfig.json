@@ -112,6 +112,9 @@
       "path": "../../packages/git-utils"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/parse-wanted-dependency"
     },
     {

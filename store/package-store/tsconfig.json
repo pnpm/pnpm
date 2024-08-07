@@ -16,6 +16,9 @@
       "path": "../../fetching/fetcher-base"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {

@@ -13,6 +13,9 @@
       "path": "../../exec/prepare-package"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {
