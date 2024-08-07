@@ -5,9 +5,16 @@ import {
 
 export const requestRetryLogger = logger<RequestRetryMessage>('request-retry')
 
+export interface RequestRetryError extends Error {
+  httpStatusCode?: number
+  status?: number
+  errno?: number
+  code?: string
+}
+
 export interface RequestRetryMessage {
   attempt: number
-  error: Error
+  error: RequestRetryError
   maxRetries: number
   method: string
   timeout: number
