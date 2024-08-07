@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/verification#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",

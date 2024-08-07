@@ -31,8 +31,8 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     '@pnpm/logger':
-      specifier: ^5.0.0
-      version: 5.0.0
+      specifier: ^5.1.0
+      version: 5.1.0
     '@pnpm/network.agent':
       specifier: ^2.0.0
       version: 2.0.0
@@ -1064,8 +1064,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -1132,8 +1132,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/render-peer-issues':
         specifier: workspace:*
         version: link:../../packages/render-peer-issues
@@ -1411,8 +1411,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1497,7 +1497,7 @@ importers:
     devDependencies:
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.1.0
       '@pnpm/plugin-commands-config':
         specifier: workspace:*
         version: 'link:'
@@ -1586,8 +1586,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/utils
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -1709,8 +1709,8 @@ importers:
         specifier: workspace:*
         version: link:../../network/fetch
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/node.fetcher':
         specifier: workspace:*
         version: link:../node.fetcher
@@ -1809,8 +1809,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/patching.apply-patch':
         specifier: workspace:*
         version: link:../../patching/apply-patch
@@ -1858,8 +1858,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
         version: 3.0.4(typanion@3.14.0)
@@ -1968,8 +1968,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/walker
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -2095,8 +2095,8 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins
@@ -2263,8 +2263,8 @@ importers:
         specifier: workspace:*
         version: link:../../fs/packlist
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -2313,8 +2313,8 @@ importers:
         specifier: 'catalog:'
         version: 2.0.0
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
@@ -2377,8 +2377,8 @@ importers:
         specifier: workspace:*
         version: link:../../fs/graceful-fs
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
@@ -2482,8 +2482,8 @@ importers:
   fs/hard-link-dir:
     dependencies:
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
     devDependencies:
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
@@ -2501,8 +2501,8 @@ importers:
         specifier: workspace:*
         version: link:../graceful-fs
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -2576,8 +2576,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core-loggers
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2610,8 +2610,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/types
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -2718,8 +2718,8 @@ importers:
         specifier: workspace:*
         version: link:../walker
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -2789,8 +2789,8 @@ importers:
         specifier: workspace:*
         version: link:../walker
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -2847,8 +2847,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2923,8 +2923,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3167,8 +3167,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -3242,7 +3242,7 @@ importers:
         version: link:../../lockfile/utils
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.1.0
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -3301,8 +3301,8 @@ importers:
         specifier: workspace:*
         version: link:../fetching-types
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/network.agent':
         specifier: 'catalog:'
         version: 2.0.0
@@ -3376,8 +3376,8 @@ importers:
   packages/core-loggers:
     dependencies:
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -3463,7 +3463,7 @@ importers:
         version: link:../../lockfile/pruner
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.1.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -3515,8 +3515,8 @@ importers:
         specifier: workspace:*
         version: link:../../config/config
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -3568,8 +3568,8 @@ importers:
         specifier: workspace:*
         version: link:../../cli/cli-utils
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
         version: 2.0.0
@@ -3686,8 +3686,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/utils
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -3907,8 +3907,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/walker
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -4121,8 +4121,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core-loggers
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
@@ -4161,8 +4161,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/fs
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -4246,8 +4246,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/utils
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/modules-cleaner':
         specifier: workspace:*
         version: link:../modules-cleaner
@@ -4394,8 +4394,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/walker
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
@@ -4431,8 +4431,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -4528,8 +4528,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/utils
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
@@ -4624,8 +4624,8 @@ importers:
         specifier: workspace:*
         version: link:../../fs/graceful-fs
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -4763,8 +4763,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/types
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -4950,8 +4950,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/fs
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -5003,8 +5003,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core-loggers
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../package-bins
@@ -5067,8 +5067,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/utils
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -5394,7 +5394,7 @@ importers:
         version: link:../lockfile/types
       '@pnpm/logger':
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 5.1.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../pkg-manager/modules-yaml
@@ -5718,8 +5718,8 @@ importers:
         specifier: workspace:*
         version: link:../../fs/is-empty-dir-or-nothing
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
@@ -5785,8 +5785,8 @@ importers:
         specifier: workspace:*
         version: link:../../exec/lifecycle
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
@@ -5977,8 +5977,8 @@ importers:
         specifier: workspace:*
         version: link:../../fs/graceful-fs
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -6020,8 +6020,8 @@ importers:
         specifier: workspace:*
         version: link:../../fs/graceful-fs
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: link:../../workspace/resolve-workspace-range
@@ -6216,8 +6216,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/walker
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -6332,8 +6332,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/utils
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -6472,8 +6472,8 @@ importers:
         specifier: workspace:*
         version: link:../list
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -6685,8 +6685,8 @@ importers:
         specifier: workspace:*
         version: link:../../fs/indexed-pkg-importer
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
@@ -6725,8 +6725,8 @@ importers:
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../../pkg-manager/package-requester
@@ -6795,8 +6795,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/server':
         specifier: workspace:*
         version: link:../server
@@ -6868,8 +6868,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/utils
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
@@ -7017,8 +7017,8 @@ importers:
         specifier: workspace:*
         version: link:../../network/fetch
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
@@ -7084,8 +7084,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../package-store
@@ -7205,8 +7205,8 @@ importers:
         specifier: workspace:*
         version: link:../fs/graceful-fs
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs
@@ -7316,8 +7316,8 @@ importers:
         specifier: workspace:*
         version: link:../../fs/find-packages
       '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.1.0
+        version: 5.1.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -8411,6 +8411,10 @@ packages:
 
   '@pnpm/logger@5.0.0':
     resolution: {integrity: sha512-YfcB2QrX+Wx1o6LD1G2Y2fhDhOix/bAY/oAnMpHoNLsKkWIRbt1oKLkIFvxBMzLwAEPqnYWguJrYC+J6i4ywbw==}
+    engines: {node: '>=12.17'}
+
+  '@pnpm/logger@5.1.0':
+    resolution: {integrity: sha512-qNk+4uMTLKIVfpZLvT8T5ptGHjNLLaCz9mu4y1+vqYnJVECBWDckh+ToEX22vzaGvl6oUg4x/T2pf3NGv6e8fQ==}
     engines: {node: '>=12.17'}
 
   '@pnpm/manifest-utils@6.0.4':
@@ -15203,6 +15207,11 @@ snapshots:
       ci-info: 3.9.0
 
   '@pnpm/logger@5.0.0':
+    dependencies:
+      bole: 5.0.13
+      ndjson: 2.0.0
+
+  '@pnpm/logger@5.1.0':
     dependencies:
       bole: 5.0.13
       ndjson: 2.0.0
