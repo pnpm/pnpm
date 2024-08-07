@@ -2,6 +2,7 @@ import { type LogLevel } from './LogLevel'
 
 export interface OptionalErrorProperties {
   pkgsStack?: Array<{ id: string, name: string, version: string }>
+  hint?: string
 }
 
 export interface LogBaseTemplate extends OptionalErrorProperties {

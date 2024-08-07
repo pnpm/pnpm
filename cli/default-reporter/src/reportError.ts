@@ -468,7 +468,7 @@ function reportSpecNotSupportedByAnyResolverError (err: Error, logObj: Log): Err
 
   return {
     title: err.message ?? '',
-    body: logObj['hint'],
+    body: logObj.hint,
   }
 }
 
