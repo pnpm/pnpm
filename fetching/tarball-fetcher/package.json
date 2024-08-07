@@ -53,6 +53,7 @@
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetch": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*",

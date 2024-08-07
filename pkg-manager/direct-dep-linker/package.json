@@ -15,6 +15,7 @@
     "@pnpm/logger": "^5.0.0"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
     "@types/ramda": "catalog:"
   },

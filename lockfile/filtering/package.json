@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@pnpm/lockfile.filtering": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:",
     "detect-libc": "catalog:",
     "tempy": "catalog:",

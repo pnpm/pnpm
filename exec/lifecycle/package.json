@@ -49,8 +49,9 @@
   },
   "devDependencies": {
     "@pnpm/lifecycle": "workspace:*",
-    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/rimraf": "catalog:",

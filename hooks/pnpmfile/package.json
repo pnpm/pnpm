@@ -30,6 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/hooks/pnpmfile#readme",
   "devDependencies": {
     "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/pnpmfile": "workspace:*"
   },
   "dependencies": {

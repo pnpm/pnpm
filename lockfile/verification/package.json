@@ -49,6 +49,7 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"

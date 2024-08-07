@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@pnpm/hoist": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "directories": {

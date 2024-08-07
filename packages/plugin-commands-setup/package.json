@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@pnpm/error": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-setup": "workspace:*",
     "@pnpm/prepare": "workspace:*"
   },

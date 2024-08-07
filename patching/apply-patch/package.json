@@ -30,13 +30,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/apply-patch#readme",
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "workspace:*"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/patch-package": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*"

@@ -43,6 +43,7 @@
   "devDependencies": {
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "tempy": "catalog:"

@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@pnpm/local-resolver": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ssri": "catalog:"
   },

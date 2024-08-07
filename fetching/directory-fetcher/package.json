@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@pnpm/directory-fetcher": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@zkochan/rimraf": "catalog:"
   },

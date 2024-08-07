@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/fs-extra": "catalog:"
   },

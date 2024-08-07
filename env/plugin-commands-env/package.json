@@ -54,6 +54,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "catalog:",

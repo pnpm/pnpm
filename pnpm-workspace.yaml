@@ -43,7 +43,6 @@ catalog:
   "@pnpm/exec": ^2.0.0
   "@pnpm/fs.packlist": 2.0.0
   "@pnpm/log.group": 3.0.0
-  "@pnpm/logger": ^5.0.0
   "@pnpm/network.agent": ^2.0.0
   "@pnpm/nopt": ^0.2.1
   "@pnpm/npm-conf": 2.3.0
@@ -111,6 +110,7 @@ catalog:
   archy: ^1.0.0
   better-path-resolve: 1.0.0
   bin-links: ^4.0.4
+  bole: ^5.0.14
   boxen: ^5.1.2
   camelcase-keys: ^6.2.2
   camelcase: ^6.3.0
@@ -167,6 +167,7 @@ catalog:
   make-empty-dir: ^3.0.2
   mem: ^8.1.1
   micromatch: ^4.0.7
+  ndjson: ^2.0.0
   nerf-dart: 1.0.0
   nock: 13.3.4
   node-fetch: npm:@pnpm/node-fetch@1.0.0

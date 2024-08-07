@@ -42,7 +42,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/logger": "catalog:",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ini": "catalog:"

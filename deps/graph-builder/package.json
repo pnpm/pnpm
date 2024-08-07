@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@pnpm/deps.graph-builder": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/deps/graph-builder#readme",

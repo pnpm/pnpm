@@ -35,6 +35,7 @@
     "realpath-missing": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*"
   },
   "bugs": {

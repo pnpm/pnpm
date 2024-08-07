@@ -33,6 +33,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing#readme",
   "devDependencies": {
     "@pnpm/catalogs.config": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",

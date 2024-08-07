@@ -89,6 +89,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/plugin-commands-doctor"
     },
     {

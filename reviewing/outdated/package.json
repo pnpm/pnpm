@@ -53,6 +53,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/outdated": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@types/ramda": "catalog:",

@@ -20,6 +20,7 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/headless": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",

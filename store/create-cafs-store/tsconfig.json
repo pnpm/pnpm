@@ -22,6 +22,9 @@
       "path": "../../fs/indexed-pkg-importer"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../cafs"
     },
     {

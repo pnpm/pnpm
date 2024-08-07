@@ -37,6 +37,7 @@
     "@pnpm/logger": "^5.0.0"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/mount-modules": "workspace:*",
     "@types/normalize-path": "catalog:",
     "rimraf": "catalog:"
@@ -46,7 +47,7 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/logger": "catalog:",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",

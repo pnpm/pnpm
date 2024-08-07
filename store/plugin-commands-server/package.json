@@ -29,6 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-server#readme",
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-server": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:",

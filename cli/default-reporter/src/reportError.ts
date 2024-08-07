@@ -100,7 +100,7 @@ function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerD
     }
     }
   }
-  return { title: logObj['message'] }
+  return { title: logObj.message! }
 }
 
 function formatPkgsStack (pkgsStack: Array<{ id: string, name: string, version: string }>) {

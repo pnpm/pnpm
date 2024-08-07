@@ -40,7 +40,7 @@
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/logger": "catalog:",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/nopt": "catalog:",
     "@pnpm/parse-cli-args": "workspace:*",
