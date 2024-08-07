@@ -6,8 +6,8 @@ import {
 export const requestRetryLogger = logger<RequestRetryMessage>('request-retry')
 
 export interface RequestRetryError extends Error {
-  httpStatusCode?: number
-  status?: number
+  httpStatusCode?: string
+  status?: string
   errno?: number
   code?: string
 }
