@@ -55,7 +55,7 @@ export function reportMisc (
         return Rx.of({ msg: errorOutput })
       }
       default:
-        return Rx.of({ msg: obj['message'] })
+        return Rx.of({ msg: obj.message! })
       }
     })
   )
