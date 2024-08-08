@@ -1,5 +1,6 @@
-import { type WantedDependency, resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import { type WantedDependency, resolveFromCatalog, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
+import { PnpmError } from '@pnpm/error'
 
 describe('default catalog', () => {
   const catalogs = {
@@ -106,5 +107,49 @@ describe('misconfiguration', () => {
 
     expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
       .toThrow("The entry for 'bar' in catalog 'foo' declares a dependency using the 'link' protocol. This is not yet supported, but may be in a future version of pnpm.")
+  })
+})
+
+describe('matchCatalogResolveResult', () => {
+  test('matches found resolution', () => {
+    const matcher = {
+      found: jest.fn(),
+      misconfiguration: jest.fn(),
+      unused: jest.fn(),
+    }
+    const result = { type: 'found', resolution: { catalogName: 'foo', specifier: '1.0.0' } } as const
+    matchCatalogResolveResult(result, matcher)
+
+    expect(matcher.found).toHaveBeenCalledWith(result)
+    expect(matcher.misconfiguration).not.toHaveBeenCalled()
+    expect(matcher.unused).not.toHaveBeenCalled()
+  })
+
+  test('matches misconfiguration', () => {
+    const matcher = {
+      found: jest.fn(),
+      misconfiguration: jest.fn(),
+      unused: jest.fn(),
+    }
+    const result = { type: 'misconfiguration', catalogName: 'foo', error: new PnpmError('test', 'info') } as const
+    matchCatalogResolveResult(result, matcher)
+
+    expect(matcher.found).not.toHaveBeenCalled()
+    expect(matcher.misconfiguration).toHaveBeenCalledWith(result)
+    expect(matcher.unused).not.toHaveBeenCalled()
+  })
+
+  test('matches unused', () => {
+    const matcher = {
+      found: jest.fn(),
+      misconfiguration: jest.fn(),
+      unused: jest.fn(),
+    }
+    const result = { type: 'unused' } as const
+    matchCatalogResolveResult(result, matcher)
+
+    expect(matcher.found).not.toHaveBeenCalled()
+    expect(matcher.misconfiguration).not.toHaveBeenCalled()
+    expect(matcher.unused).toHaveBeenCalledWith(result)
   })
 })
