@@ -1,16 +1,15 @@
 import bole from 'bole'
-import { type PnpmError } from '@pnpm/error'
 
 bole.setFastTime()
 
-export const logger = bole('pnpm') as Logger<object, PnpmError>
+export const logger = bole('pnpm') as Logger<object>
 
-export interface Logger<T, E extends Error = Error> {
+export interface Logger<T> {
   <Y>(name: string): Logger<Y>
   debug: (log?: T) => void
   info: (log: { message: string, prefix: string }) => void
-  warn: (log: { message: string, prefix: string, error?: E }) => void
-  error: (err: E, log?: string | E) => void
+  warn: (log: { message: string, prefix: string, error?: Error }) => void
+  error: (err: Error, log?: string | Error) => void
 }
 
 const globalLogger = bole('pnpm:global')

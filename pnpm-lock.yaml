@@ -3467,9 +3467,6 @@ importers:
 
   packages/logger:
     dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../error
       bole:
         specifier: 'catalog:'
         version: 5.0.14

@@ -30,7 +30,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/logger#readme",
   "dependencies": {
-    "@pnpm/error": "workspace:*",
     "bole": "catalog:",
     "ndjson": "catalog:"
   },
