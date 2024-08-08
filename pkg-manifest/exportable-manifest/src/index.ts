@@ -174,13 +174,8 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
     const manifest = await resolveManifest(depName, modulesDir)
     const semverRangeToken = semverRangGroup !== '*' ? semverRangGroup : ''
 
-    return depSpec.replace(
-      workspaceSemverRegex,
-      `${semverRangeToken}${manifest.version}`
-    )
+    return depSpec.replace(workspaceSemverRegex, `${semverRangeToken}${manifest.version}`)
   }
 
-  depSpec = depSpec.replace('workspace:', '')
-
-  return depSpec
+  return depSpec.replace('workspace:', '')
 }
