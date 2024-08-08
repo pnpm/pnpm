@@ -1,5 +1,11 @@
 # @pnpm/core
 
+## 15.2.2
+
+### Patch Changes
+
+- 8e055d2: Don't fail on skipped optional dependencies, when searching for dependencies that should be built.
+
 ## 15.2.1
 
 ### Patch Changes
