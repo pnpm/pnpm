@@ -96,12 +96,14 @@ test('workspace deps are replaced', async () => {
       baz: 'workspace:baz@^',
       foo: 'workspace:*',
       qux: 'workspace:^',
+      waldo: 'workspace:^',
     },
     peerDependencies: {
       foo: 'workspace:>= || ^3.9.0',
       baz: '^1.0.0 || workspace:>',
       bar: 'workspace:^3.0.0',
       qux: 'workspace:^',
+      waldo: 'workspace:^1.x',
     },
   }
 
@@ -123,6 +125,10 @@ test('workspace deps are replaced', async () => {
       name: 'qux',
       version: '1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay',
     },
+    {
+      name: 'waldo',
+      version: '1.9.0',
+    },
   ])
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
@@ -139,12 +145,14 @@ test('workspace deps are replaced', async () => {
       baz: '^1.2.3',
       foo: '4.5.6',
       qux: '^1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay',
+      waldo: '^1.9.0',
     },
     peerDependencies: {
       baz: '^1.0.0 || >1.2.3',
       foo: '>=4.5.6 || ^3.9.0',
       bar: '^3.0.0',
       qux: '^1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay',
+      waldo: '^1.x',
     },
   })
 })
