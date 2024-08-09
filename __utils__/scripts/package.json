@@ -4,7 +4,10 @@
   "private": true,
   "dependencies": {
     "execa": "catalog:",
-    "make-empty-dir": "catalog:"
+    "fast-glob": "catalog:",
+    "make-empty-dir": "catalog:",
+    "p-limit": "catalog:",
+    "read-yaml-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm/scripts": "workspace:*"
