@@ -7,7 +7,7 @@
       "dist/refclone.darwin-arm64-*.node",
       "dist/templates/*"
     ],
-    "targets": ["node18-macos-arm64"],
+    "targets": ["node20-macos-arm64"],
     "outputPath": "../macos-arm64"
   }
 }
