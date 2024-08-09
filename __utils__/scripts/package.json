@@ -7,7 +7,6 @@
     "fast-glob": "catalog:",
     "make-empty-dir": "catalog:",
     "normalize-path": "catalog:",
-    "p-limit": "catalog:",
     "read-yaml-file": "catalog:"
   },
   "devDependencies": {

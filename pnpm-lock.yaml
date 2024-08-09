@@ -971,9 +971,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-      p-limit:
-        specifier: 'catalog:'
-        version: 3.1.0
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
