@@ -7,7 +7,7 @@
       "dist/refclone.darwin-x64-*.node",
       "dist/templates/*"
     ],
-    "targets": ["node18-macos-x64"],
+    "targets": ["node20-macos-x64"],
     "outputPath": "../macos-x64"
   }
 }
