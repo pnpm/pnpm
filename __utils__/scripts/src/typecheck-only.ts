@@ -46,7 +46,6 @@ async function main (): Promise<void> {
     references: tsconfigFiles
       .filter(projectPath => !projectPath.includes('__typecheck__'))
       .filter(projectPath => !projectPath.includes('__utils__/tsconfig'))
-      .filter(projectPath => !projectPath.startsWith('pnpm/'))
       .map(projectPath => path.resolve(projectPath))
       .map(projectPath => path.relative(typeCheckDir, projectPath))
       .map(projectPath => normalizePath(projectPath))
