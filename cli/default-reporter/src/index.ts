@@ -1,6 +1,6 @@
 import { type Config } from '@pnpm/config'
 import type * as logs from '@pnpm/core-loggers'
-import { type LogLevel } from '@pnpm/logger'
+import { type LogLevel, type StreamParser } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
 import createDiffer from 'ansi-diff'
@@ -17,7 +17,7 @@ export { formatWarn }
 export function initDefaultReporter (
   opts: {
     useStderr?: boolean
-    streamParser: object
+    streamParser: StreamParser<logs.Log>
     reportingOptions?: {
       appendOnly?: boolean
       logLevel?: LogLevel
@@ -102,7 +102,7 @@ export function initDefaultReporter (
 
 export function toOutput$ (
   opts: {
-    streamParser: object
+    streamParser: StreamParser<logs.Log>
     reportingOptions?: {
       appendOnly?: boolean
       logLevel?: LogLevel
@@ -149,7 +149,7 @@ export function toOutput$ (
   const requestRetryPushStream = new Rx.Subject<logs.RequestRetryLog>()
   const updateCheckPushStream = new Rx.Subject<logs.UpdateCheckLog>()
   setTimeout(() => {
-    opts.streamParser['on']('data', (log: logs.Log) => {
+    opts.streamParser.on('data', (log: logs.Log) => {
       switch (log.name) {
       case 'pnpm:context':
         contextPushStream.next(log)

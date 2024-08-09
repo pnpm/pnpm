@@ -22,6 +22,10 @@ export interface AuditAction {
   resolves: AuditResolution[]
 }
 
+export type AuditLevelString = 'low' | 'moderate' | 'high' | 'critical'
+
+export type AuditLevelNumber = 0 | 1 | 2 | 3
+
 export interface AuditAdvisory {
   findings: [
     {
@@ -51,7 +55,7 @@ export interface AuditAdvisory {
   recommendation: string
   references: string
   access: string
-  severity: string
+  severity: AuditLevelString
   cwe: string
   metadata: {
     module_type: string

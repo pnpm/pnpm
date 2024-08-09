@@ -1,4 +1,9 @@
 /* eslint-disable import/first */
+export type Global = typeof globalThis & {
+  pnpm__startedAt?: number
+  [REPORTER_INITIALIZED]?: ReporterType // eslint-disable-line @typescript-eslint/no-use-before-define
+}
+declare const global: Global
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
@@ -84,6 +89,8 @@ export async function main (inputArgv: string[]): Promise<void> {
   let config: Config & {
     argv: { remain: string[], cooked: string[], original: string[] }
     fallbackCommandUsed: boolean
+    parseable?: boolean
+    json?: boolean
   }
   try {
     // When we just want to print the location of the global bin directory,

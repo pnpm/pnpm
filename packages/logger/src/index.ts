@@ -1,3 +1,11 @@
+export { type LogLevel } from './LogLevel'
+export {
+  type LogBase,
+  type LogBaseDebug,
+  type LogBaseError,
+  type LogBaseInfo,
+  type LogBaseWarn,
+} from './LogBase'
 export {
   type Logger,
   logger,
@@ -5,12 +13,8 @@ export {
   globalWarn,
 } from './logger'
 export {
-  type LogBaseDebug,
-  type LogBaseError,
-  type LogBaseInfo,
-  type LogBaseWarn,
-  type LogBase,
-  type LogLevel,
+  type Reporter,
+  type StreamParser,
   createStreamParser,
   streamParser,
 } from './streamParser'

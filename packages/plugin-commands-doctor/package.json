@@ -35,7 +35,7 @@
     "render-help": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",

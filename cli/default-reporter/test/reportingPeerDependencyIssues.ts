@@ -57,31 +57,32 @@ test('print peer dependency issues error', (done) => {
     streamParser: createStreamParser(),
   })
 
-  const err = new Error('some error')
-  err['code'] = 'ERR_PNPM_PEER_DEP_ISSUES'
-  err['issuesByProjects'] = {
-    '.': {
-      missing: {},
-      bad: {
-        a: [
-          {
-            foundVersion: '2',
-            parents: [
-              {
-                name: 'b',
-                version: '1.0.0',
-              },
-            ],
-            optional: false,
-            resolvedFrom: [],
-            wantedRange: '3',
-          },
-        ],
+  const err = Object.assign(new Error('some error'), {
+    code: 'ERR_PNPM_PEER_DEP_ISSUES',
+    issuesByProjects: {
+      '.': {
+        missing: {},
+        bad: {
+          a: [
+            {
+              foundVersion: '2',
+              parents: [
+                {
+                  name: 'b',
+                  version: '1.0.0',
+                },
+              ],
+              optional: false,
+              resolvedFrom: [],
+              wantedRange: '3',
+            },
+          ],
+        },
+        conflicts: [],
+        intersections: {},
       },
-      conflicts: [],
-      intersections: {},
     },
-  }
+  })
   logger.error(err, err)
 
   expect.assertions(1)

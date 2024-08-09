@@ -1,7 +1,9 @@
 import { promisify } from 'util'
 import { logger } from '@pnpm/logger'
 import pidTree from 'pidtree'
-import { REPORTER_INITIALIZED } from './main'
+import { type Global, REPORTER_INITIALIZED } from './main'
+
+declare const global: Global
 
 const getDescendentProcesses = promisify((pid: number, callback: (error: Error | undefined, result: number[]) => void) => {
   pidTree(pid, { root: false }, callback)
