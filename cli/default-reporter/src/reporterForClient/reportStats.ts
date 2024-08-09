@@ -131,7 +131,7 @@ function statsForNotCurrentPackage (
       : stats$
   )
   return cookedStats$.pipe(
-    filter((stats) => stats !== null && Boolean(stats['removed'] || stats['added'])),
+    filter((stats) => stats !== null && Boolean(stats['removed'] || stats['added'])), // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
     map((stats) => {
       const parts = [] as string[]
 
@@ -144,6 +144,7 @@ function statsForNotCurrentPackage (
 
       let msg = zoomOut(opts.currentPrefix, stats.prefix!, parts.join(' '))
       const rest = Math.max(0, opts.width - 1 - stringLength(msg))
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
       return Rx.of({ msg })
     })

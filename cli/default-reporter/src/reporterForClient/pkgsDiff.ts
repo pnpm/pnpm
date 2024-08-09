@@ -131,8 +131,8 @@ export function getPkgsDiff (
 
           for (const depType of ['peer', 'prod', 'optional', 'dev'] as const) {
             const prop = propertyByDependencyType[depType]
-            const initialDeps = Object.keys(initialPackageManifest[prop] || {})
-            const updatedDeps = Object.keys(updatedPackageManifest[prop] || {})
+            const initialDeps = Object.keys(initialPackageManifest[prop] ?? {})
+            const updatedDeps = Object.keys(updatedPackageManifest[prop] ?? {})
             const removedDeps = difference(initialDeps, updatedDeps)
 
             for (const removedDep of removedDeps) {
