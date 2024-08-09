@@ -107,7 +107,7 @@
     },
     "onlyBuiltDependencies": [],
     "patchedDependencies": {
-      "pkg@5.8.1": "__patches__/pkg.patch",
+      "@yao-pkg/pkg": "__patches__/pkg.patch",
       "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch"
     },
     "updateConfig": {
