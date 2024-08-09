@@ -1,8 +1,9 @@
 /* eslint-disable import/first */
-declare const global: typeof globalThis & {
+export type Global = typeof globalThis & {
   pnpm__startedAt?: number
   [REPORTER_INITIALIZED]?: ReporterType // eslint-disable-line @typescript-eslint/no-use-before-define
 }
+declare const global: Global
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
