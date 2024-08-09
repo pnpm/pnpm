@@ -2,6 +2,11 @@ import { promisify } from 'util'
 import { logger } from '@pnpm/logger'
 import pidTree from 'pidtree'
 import { REPORTER_INITIALIZED } from './main'
+import { type ReporterType } from './reporter'
+
+declare const global: typeof globalThis & {
+  [REPORTER_INITIALIZED]?: ReporterType // eslint-disable-line @typescript-eslint/no-use-before-define
+}
 
 const getDescendentProcesses = promisify((pid: number, callback: (error: Error | undefined, result: number[]) => void) => {
   pidTree(pid, { root: false }, callback)
