@@ -669,6 +669,9 @@ patchedDependencies:
   graceful-fs@4.2.11:
     hash: ivtm2a2cfr5pomcfbedhmr5v2q
     path: __patches__/graceful-fs@4.2.11.patch
+  mdast-util-to-string@2.0.0:
+    hash: zxx4zzbv6v2vjobk6zrexxytxe
+    path: __patches__/mdast-util-to-string@2.0.0.patch
   pkg@5.8.1:
     hash: pp6fkuhwkrqq7cjcj7uqpf37e4
     path: __patches__/pkg.patch
@@ -802,6 +805,15 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  __typecheck__:
+    devDependencies:
+      '@pnpm-private/typecheck':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/tsconfig':
+        specifier: workspace:*
+        version: link:../__utils__/tsconfig
+
   __typings__:
     devDependencies:
       '@pnpm-private/typings':
@@ -905,7 +917,7 @@ importers:
     dependencies:
       mdast-util-to-string:
         specifier: ^2.0.0
-        version: 2.0.0
+        version: 2.0.0(patch_hash=zxx4zzbv6v2vjobk6zrexxytxe)
       remark-parse:
         specifier: ^9.0.0
         version: 9.0.0(unified@9.2.2)
@@ -956,6 +968,9 @@ importers:
       make-empty-dir:
         specifier: 'catalog:'
         version: 3.0.2
+      normalize-path:
+        specifier: 'catalog:'
+        version: 3.0.0
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
@@ -966,6 +981,9 @@ importers:
       '@pnpm/scripts':
         specifier: workspace:*
         version: 'link:'
+      '@types/normalize-path':
+        specifier: 'catalog:'
+        version: 3.0.2
 
   __utils__/test-fixtures:
     dependencies:
@@ -19259,7 +19277,7 @@ snapshots:
   mdast-util-from-markdown@0.8.5:
     dependencies:
       '@types/mdast': 3.0.15
-      mdast-util-to-string: 2.0.0
+      mdast-util-to-string: 2.0.0(patch_hash=zxx4zzbv6v2vjobk6zrexxytxe)
       micromark: 2.11.4
       parse-entities: 2.0.0
       unist-util-stringify-position: 2.0.3
@@ -19270,12 +19288,12 @@ snapshots:
     dependencies:
       '@types/unist': 2.0.10
       longest-streak: 2.0.4
-      mdast-util-to-string: 2.0.0
+      mdast-util-to-string: 2.0.0(patch_hash=zxx4zzbv6v2vjobk6zrexxytxe)
       parse-entities: 2.0.0
       repeat-string: 1.6.1
       zwitch: 1.0.5
 
-  mdast-util-to-string@2.0.0: {}
+  mdast-util-to-string@2.0.0(patch_hash=zxx4zzbv6v2vjobk6zrexxytxe): {}
 
   media-typer@0.3.0: {}
 
