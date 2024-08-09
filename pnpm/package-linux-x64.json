@@ -6,7 +6,7 @@
       "dist/scripts/*",
       "dist/templates/*"
     ],
-    "targets": ["node18-linux-x64"],
+    "targets": ["node20-linux-x64"],
     "outputPath": "../linux-x64"
   }
 }

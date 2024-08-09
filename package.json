@@ -57,9 +57,9 @@
     "publish-packed": "^4.1.2",
     "rimraf": "catalog:",
     "shx": "^0.3.4",
-    "ts-jest": "29.1.1",
+    "ts-jest": "29.2.3",
     "ts-node": "^10.9.2",
-    "typescript": "5.4.5",
+    "typescript": "5.5.4",
     "verdaccio": "5.20.1"
   },
   "engines": {
@@ -108,7 +108,7 @@
     },
     "onlyBuiltDependencies": [],
     "patchedDependencies": {
-      "pkg@5.8.1": "__patches__/pkg.patch",
+      "@yao-pkg/pkg": "__patches__/pkg.patch",
       "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch",
       "mdast-util-to-string@2.0.0": "__patches__/mdast-util-to-string@2.0.0.patch"
     },

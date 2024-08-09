@@ -125,7 +125,7 @@ export function execPnpxSync (
 }
 
 function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
-  const env = {
+  const env: Record<string, string> = {
     npm_config_fetch_retries: '4',
     npm_config_hoist: 'true',
     npm_config_registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -137,7 +137,7 @@ function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
   }
   for (const [key, value] of Object.entries(process.env)) {
     if (key.toLowerCase() === 'path' || key === 'COLORTERM' || key === 'APPDATA') {
-      env[key] = value
+      env[key] = value!
     }
   }
   return env

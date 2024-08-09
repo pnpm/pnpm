@@ -1,4 +1,4 @@
-import { audit, type AuditReport, type AuditVulnerabilityCounts } from '@pnpm/audit'
+import { audit, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts } from '@pnpm/audit'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config'
@@ -20,14 +20,14 @@ const AUDIT_LEVEL_NUMBER = {
   moderate: 1,
   high: 2,
   critical: 3,
-}
+} satisfies Record<AuditLevelString, AuditLevelNumber>
 
 const AUDIT_COLOR = {
   low: chalk.bold,
   moderate: chalk.bold.yellow,
   high: chalk.bold.red,
   critical: chalk.bold.red,
-}
+} satisfies Record<AuditLevelString, chalk.Chalk>
 
 const AUDIT_TABLE_OPTIONS = {
   ...TABLE_OPTIONS,
@@ -261,7 +261,7 @@ function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerab
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
     Object.entries(vulnerabilities)
       .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
-      .map(([auditLevel, vulnerabilitiesCount]: [string, number]) => AUDIT_COLOR[auditLevel](`${vulnerabilitiesCount} ${auditLevel}`))
+      .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount} ${auditLevel}`))
       .join(' | ')
   }`
 }

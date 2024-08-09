@@ -1,47 +1,18 @@
 import bole from 'bole'
 import ndjson from 'ndjson'
+import { type LogBase } from './LogBase'
 
-export type LogLevel = 'error' | 'warn' | 'info' | 'debug'
+export type Reporter<LogObj extends LogBase> = (logObj: LogObj) => void
 
-export interface LogBaseTemplate {
-  level?: LogLevel
-  prefix?: string
-  message?: string
+export interface StreamParser<LogObj extends LogBase> {
+  on: (event: 'data', reporter: Reporter<LogObj>) => void
+  removeListener: (event: 'data', reporter: Reporter<LogObj>) => void
 }
 
-export interface LogBaseDebug extends LogBaseTemplate {
-  level: 'debug'
-}
+export const streamParser: StreamParser<LogBase> = createStreamParser()
 
-export interface LogBaseError extends LogBaseTemplate {
-  level: 'error'
-}
-
-export interface LogBaseInfo extends LogBaseTemplate {
-  level: 'info'
-  prefix: string
-  message: string
-}
-
-export interface LogBaseWarn extends LogBaseTemplate {
-  level: 'warn'
-  prefix: string
-  message: string
-}
-
-export type LogBase = LogBaseDebug | LogBaseError | LogBaseInfo | LogBaseWarn
-
-export type Reporter = (logObj: LogBase) => void
-
-export interface StreamParser {
-  on: (event: 'data', reporter: Reporter) => void
-  removeListener: (event: 'data', reporter: Reporter) => void
-}
-
-export const streamParser: StreamParser = createStreamParser()
-
-export function createStreamParser (): StreamParser {
-  const sp: StreamParser = ndjson.parse()
+export function createStreamParser<LogObj extends LogBase> (): StreamParser<LogObj> {
+  const sp: StreamParser<LogObj> = ndjson.parse()
   bole.output([
     {
       level: 'debug', stream: sp,

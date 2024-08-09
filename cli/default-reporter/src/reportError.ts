@@ -23,11 +23,11 @@ export function reportError (logObj: Log, config?: Config, peerDependencyRules?:
   const errorInfo = getErrorInfo(logObj, config, peerDependencyRules)
   if (!errorInfo) return null
   let output = formatErrorSummary(errorInfo.title, (logObj as LogObjWithPossibleError).err?.code)
-  if (logObj['pkgsStack'] != null) {
-    if (logObj['pkgsStack'].length > 0) {
-      output += `\n\n${formatPkgsStack(logObj['pkgsStack'])}`
-    } else if (logObj['prefix']) {
-      output += `\n\nThis error happened while installing a direct dependency of ${logObj['prefix'] as string}`
+  if (logObj.pkgsStack != null) {
+    if (logObj.pkgsStack.length > 0) {
+      output += `\n\n${formatPkgsStack(logObj.pkgsStack)}`
+    } else if ('prefix' in logObj && logObj.prefix) {
+      output += `\n\nThis error happened while installing a direct dependency of ${logObj.prefix}`
     }
   }
   if (errorInfo.body) {
@@ -50,8 +50,8 @@ interface ErrorInfo {
 }
 
 function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerDependencyRules): ErrorInfo | null {
-  if (logObj['err']) {
-    const err = logObj['err'] as (PnpmError & { stack: object })
+  if ('err' in logObj && logObj.err) {
+    const err = logObj.err as (PnpmError & { stack: object })
     switch (err.code) {
     case 'ERR_PNPM_UNEXPECTED_STORE':
       return reportUnexpectedStore(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -70,7 +70,7 @@ function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerD
     case 'ERR_PNPM_MISSING_TIME':
       return { title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' }
     case 'ERR_PNPM_NO_MATCHING_VERSION':
-      return formatNoMatchingVersion(err, logObj)
+      return formatNoMatchingVersion(err, logObj as unknown as { packageMeta: PackageMeta })
     case 'ERR_PNPM_RECURSIVE_FAIL':
       return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_BAD_TARBALL_SIZE':
@@ -91,11 +91,11 @@ function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerD
     default: {
       // Errors with unknown error codes are printed with stack trace
       if (!err.code?.startsWith?.('ERR_PNPM_')) {
-        return formatGenericError(err.message ?? logObj['message'], err.stack)
+        return formatGenericError(err.message ?? (logObj as { message: string }).message, err.stack)
       }
       return {
         title: err.message ?? '',
-        body: logObj['hint'],
+        body: (logObj as { hint?: string }).hint,
       }
     }
     }
@@ -109,12 +109,16 @@ ${pkgsStack[0].name}@${pkgsStack[0].version}\
 ${pkgsStack.slice(1).map(({ name, version }) => `${EOL} at ${name}@${version}`).join('')}`
 }
 
-function formatNoMatchingVersion (err: Error, msg: object) {
-  const meta: {
-    name: string
-    'dist-tags': Record<string, string> & { latest: string }
-    versions: Record<string, object>
-  } = msg['packageMeta']
+interface PackageMeta {
+  name: string
+  'dist-tags': Record<string, string> & {
+    latest: string
+  }
+  versions: Record<string, object>
+}
+
+function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta }) {
+  const meta: PackageMeta = msg.packageMeta
   let output = `The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
 
   if (!equals(Object.keys(meta['dist-tags']), ['latest'])) {
@@ -457,19 +461,19 @@ function reportSpecNotSupportedByAnyResolverError (err: Error, logObj: Log): Err
   // repo dependency that was published incorrectly. For example, it may be been
   // mistakenly published with 'npm publish' instead of 'pnpm publish'. Report a
   // more clear error in this case.
-  if (logObj['package']?.['pref']?.startsWith('catalog:')) {
+  if (logObj.package?.pref?.startsWith('catalog:')) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return reportExternalCatalogProtocolError(err, logObj as any)
   }
 
   return {
     title: err.message ?? '',
-    body: logObj['hint'],
+    body: logObj.hint,
   }
 }
 
 function reportExternalCatalogProtocolError (err: Error, logObj: Log): ErrorInfo {
-  const pkgsStack: Array<{ id: string, name: string, version: string }> | undefined = logObj['pkgsStack']
+  const { pkgsStack } = logObj
   const problemDep = pkgsStack?.[0]
 
   let body = `\

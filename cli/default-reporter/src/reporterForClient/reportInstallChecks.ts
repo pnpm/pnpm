@@ -29,12 +29,12 @@ function formatInstallCheck (
   case 'EBADPLATFORM':
     return autozoom(
       currentPrefix,
-      logObj['prefix'],
+      logObj.prefix,
       formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`),
       { zoomOutCurrent }
     )
   case 'ENOTSUP':
-    return autozoom(currentPrefix, logObj['prefix'], logObj.toString(), { zoomOutCurrent })
+    return autozoom(currentPrefix, logObj.prefix, logObj.toString(), { zoomOutCurrent })
   default:
     return undefined
   }

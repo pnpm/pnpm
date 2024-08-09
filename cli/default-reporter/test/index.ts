@@ -644,34 +644,36 @@ ${formatError('ERROR', 'f failed')}`)
     },
   })
 
-  const err = new PnpmError('RECURSIVE_FAIL', '...')
-  err['failures'] = [
-    {
-      message: 'a failed',
-      prefix: '/a',
-    },
-    {
-      message: 'b failed',
-      prefix: '/b',
-    },
-    {
-      message: 'c failed',
-      prefix: '/c',
-    },
-    {
-      message: 'd failed',
-      prefix: '/d',
-    },
-    {
-      message: 'e failed',
-      prefix: '/e',
-    },
-    {
-      message: 'f failed',
-      prefix: '/f',
-    },
-  ]
-  err['passes'] = 7
+  const err = Object.assign(new PnpmError('RECURSIVE_FAIL', '...'), {
+    failures: [
+      {
+        message: 'a failed',
+        prefix: '/a',
+      },
+      {
+        message: 'b failed',
+        prefix: '/b',
+      },
+      {
+        message: 'c failed',
+        prefix: '/c',
+      },
+      {
+        message: 'd failed',
+        prefix: '/d',
+      },
+      {
+        message: 'e failed',
+        prefix: '/e',
+      },
+      {
+        message: 'f failed',
+        prefix: '/f',
+      },
+    ],
+    passes: 7,
+  })
+
   logger.error(err, err)
 })
 
