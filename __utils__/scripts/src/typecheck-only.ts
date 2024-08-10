@@ -16,7 +16,9 @@ async function main (): Promise<void> {
   const packages = await findWorkspacePackages(repoRoot, {
     patterns: workspace!.packages,
   })
-  const patterns = packages.flatMap(({ rootDir }) => [`${rootDir}/tsconfig.json`, `${rootDir}/test/tsconfig.json`])
+  const patterns = packages
+    .map(({ rootDir }) => normalizePath(path.relative(repoRoot, rootDir)))
+    .flatMap(rootDir => [`${rootDir}/tsconfig.json`, `${rootDir}/test/tsconfig.json`])
   const tsconfigFiles = await glob(patterns, {
     onlyFiles: true,
   })
