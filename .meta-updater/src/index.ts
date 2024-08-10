@@ -145,7 +145,6 @@ async function updateTSConfig (
     await writeJsonFile(path.join(dir, 'test/tsconfig.json'), {
       extends: '../tsconfig.json',
       compilerOptions: {
-        composite: true,
         noEmit: false,
         outDir: '../test.lib',
         rootDir: '.'
