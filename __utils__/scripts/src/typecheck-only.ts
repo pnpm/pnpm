@@ -1,7 +1,7 @@
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import assert from 'assert/strict'
-import execa from 'execa'
+import { sync as execa } from 'execa'
 import fs from 'fs'
 import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
@@ -16,7 +16,7 @@ async function main (): Promise<void> {
   const packages = await findWorkspacePackages(repoRoot, {
     patterns: workspace!.packages,
   })
-  const patterns = packages.map(({ rootDir }) => `${rootDir}/tsconfig.json`)
+  const patterns = packages.flatMap(({ rootDir }) => [`${rootDir}/tsconfig.json`, `${rootDir}/test/tsconfig.json`])
   const tsconfigFiles = await glob(patterns, {
     onlyFiles: true,
   })
@@ -50,7 +50,7 @@ async function main (): Promise<void> {
     JSON.stringify(typeCheckTSConfig, undefined, 2)
   )
 
-  await execa('tsc', ['--build'], {
+  execa('tsc', ['--build'], {
     cwd: typeCheckDir,
     stdio: 'inherit',
   })
