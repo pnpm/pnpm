@@ -8,12 +8,10 @@ import normalizePath from 'normalize-path'
 import path from 'path'
 
 const repoRoot = path.resolve(__dirname, '../../../')
-const typeCheckDir = path.resolve(__dirname, '../../../__typecheck__')
-const typingsDir = path.resolve(__dirname, '../../../__typings__')
+const typeCheckDir = path.resolve(repoRoot, '__typecheck__')
+const typingsDir = path.resolve(__dirname, '__typings__')
 
 async function main (): Promise<void> {
-  process.chdir(repoRoot)
-
   const workspace = await readWorkspaceManifest(repoRoot)
   const packages = await findWorkspacePackages(repoRoot, {
     patterns: workspace!.packages,
@@ -39,12 +37,13 @@ async function main (): Promise<void> {
       path.relative(typeCheckDir, repoRoot),
     ],
     references: tsconfigFiles
-      .filter(projectPath => !projectPath.includes('__typecheck__'))
-      .filter(projectPath => !projectPath.includes('__utils__/tsconfig'))
-      .map(projectPath => path.resolve(projectPath))
-      .map(projectPath => path.relative(typeCheckDir, projectPath))
-      .map(projectPath => normalizePath(projectPath))
-      .map(path => ({ path })),
+      .filter(projectPath => {
+        return !projectPath.includes('__typecheck__') &&
+          !projectPath.includes('__utils__/tsconfig')
+      })
+      .map(projectPath => ({
+        path: normalizePath(path.relative(typeCheckDir, projectPath)),
+      })),
   }
   fs.writeFileSync(
     path.join(typeCheckDir, 'tsconfig.json'),
