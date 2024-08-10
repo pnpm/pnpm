@@ -20,6 +20,7 @@ async function main (): Promise<void> {
     .map(({ rootDir }) => normalizePath(path.relative(repoRoot, rootDir)))
     .flatMap(rootDir => [`${rootDir}/tsconfig.json`, `${rootDir}/test/tsconfig.json`])
   const tsconfigFiles = await glob(patterns, {
+    cwd: repoRoot,
     onlyFiles: true,
   })
   assert.notEqual(tsconfigFiles.length, 0)
