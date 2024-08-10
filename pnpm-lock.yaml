@@ -959,6 +959,12 @@ importers:
 
   __utils__/scripts:
     dependencies:
+      '@pnpm/workspace.find-packages':
+        specifier: 'workspace:'
+        version: link:../../workspace/find-packages
+      '@pnpm/workspace.read-manifest':
+        specifier: 'workspace:'
+        version: link:../../workspace/read-manifest
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
@@ -971,9 +977,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-      read-yaml-file:
-        specifier: 'catalog:'
-        version: 2.1.0
     devDependencies:
       '@pnpm/scripts':
         specifier: workspace:*

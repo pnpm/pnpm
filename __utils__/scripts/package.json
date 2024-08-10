@@ -3,11 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
+    "@pnpm/workspace.read-manifest": "workspace:",
+    "@pnpm/workspace.find-packages": "workspace:",
     "execa": "catalog:",
     "fast-glob": "catalog:",
     "make-empty-dir": "catalog:",
-    "normalize-path": "catalog:",
-    "read-yaml-file": "catalog:"
+    "normalize-path": "catalog:"
   },
   "devDependencies": {
     "@types/normalize-path": "catalog:",

@@ -1,29 +1,24 @@
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import assert from 'assert/strict'
 import execa from 'execa'
 import fs from 'fs'
 import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
 import path from 'path'
-import readYamlFile from 'read-yaml-file'
 
 const repoRoot = path.resolve(__dirname, '../../../')
 const typeCheckDir = path.resolve(__dirname, '../../../__typecheck__')
 const typingsDir = path.resolve(__dirname, '../../../__typings__')
-const workspaceFile = path.resolve(repoRoot, 'pnpm-workspace.yaml')
-
-interface Workspace {
-  packages: string[]
-}
 
 async function main (): Promise<void> {
   process.chdir(repoRoot)
 
-  const workspace = await readYamlFile<Workspace>(workspaceFile)
-  const patterns = workspace.packages
-    .map(pattern => pattern.trim())
-    .filter(pattern => !pattern.startsWith('!'))
-    .flatMap(pattern => [pattern, `${pattern}/test`])
-    .map(pattern => `${pattern}/tsconfig.json`)
+  const workspace = await readWorkspaceManifest(repoRoot)
+  const packages = await findWorkspacePackages(repoRoot, {
+    patterns: workspace!.packages,
+  })
+  const patterns = packages.map(({ rootDir }) => `${rootDir}/tsconfig.json`)
   const tsconfigFiles = await glob(patterns, {
     onlyFiles: true,
   })
