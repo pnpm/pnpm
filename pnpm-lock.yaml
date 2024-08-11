@@ -37,8 +37,8 @@ catalogs:
       specifier: ^0.2.1
       version: 0.2.1
     '@pnpm/npm-conf':
-      specifier: 2.3.0
-      version: 2.3.0
+      specifier: 2.3.1
+      version: 2.3.1
     '@pnpm/npm-lifecycle':
       specifier: ^3.0.4
       version: 3.0.4
@@ -1325,7 +1325,7 @@ importers:
         version: link:../matcher
       '@pnpm/npm-conf':
         specifier: 'catalog:'
-        version: 2.3.0
+        version: 2.3.1
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -5437,7 +5437,7 @@ importers:
     optionalDependencies:
       node-gyp:
         specifier: ^10.1.0
-        version: 10.1.0
+        version: 10.2.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -7313,7 +7313,7 @@ importers:
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
         specifier: 'catalog:'
-        version: 0.4.9(@types/node@20.14.9)
+        version: 0.4.9(@types/node@22.2.0)
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
@@ -8565,6 +8565,10 @@ packages:
     resolution: {integrity: sha512-DqrO+oXGR7HCuicNy6quk6ALJSDDPKI7RZz1bP5im8mSL8J2e+9w26LdkjuAfpAjOutYUJVbnXnx4IbTQeIgfw==}
     engines: {node: '>=12'}
 
+  '@pnpm/npm-conf@2.3.1':
+    resolution: {integrity: sha512-c83qWb22rNRuB0UaVCI0uRPNRr8Z0FWnEIvT47jiHAmOIUHbBOg5XvV7pM5x+rKn9HRpjxquDbXYSXr3fAKFcw==}
+    engines: {node: '>=12'}
+
   '@pnpm/npm-lifecycle@3.0.4':
     resolution: {integrity: sha512-fTzGiezzHeFHmmCZH6pXnii32nv4iNc7ox1DpdA9B00BTakcji33ugVGV2rE4ze6lU6IPOGuJa0NiQHnkuwUUQ==}
     engines: {node: '>=18.12'}
@@ -8895,6 +8899,9 @@ packages:
 
   '@types/node@20.5.1':
     resolution: {integrity: sha512-4tT2UrL5LBqDwoed9wZ6N3umC4Yhz3W3FloMmiiG4JwmUJWpie0c7lcnUNd4gtMKuDEO4wRVS8B6Xa0uMRsMKg==}
+
+  '@types/node@22.2.0':
+    resolution: {integrity: sha512-bm6EG6/pCpkxDf/0gDNDdtDILMOHgaQBVOJGdwsqClnxA3xL6jtMv76rLBc006RVMWbmaf0xbmom4Z/5o2nRkQ==}
 
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
@@ -12103,6 +12110,11 @@ packages:
     engines: {node: ^16.14.0 || >=18.0.0}
     hasBin: true
 
+  node-gyp@10.2.0:
+    resolution: {integrity: sha512-sp3FonBAaFe4aYTcFdZUn2NYkbP7xroPGYvQmP4Nl5PxamznItBnNCgjrVTKrEfQynInMsJvZrdmqUnysCJ8rw==}
+    engines: {node: ^16.14.0 || >=18.0.0}
+    hasBin: true
+
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
 
@@ -13622,6 +13634,9 @@ packages:
 
   undici-types@5.26.5:
     resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
+
+  undici-types@6.13.0:
+    resolution: {integrity: sha512-xtFJHudx8S2DSoujjMd1WeWvn7KKWFRESZTMeL1RptAYERu29D6jphMjjY+vn96jvN3kVPDNxU/E13VTaXj6jg==}
 
   unified@9.2.2:
     resolution: {integrity: sha512-Sg7j110mtefBD+qunSLO1lqOEKdrwBFBrR6Qd8f4uwkhWNlbkaqwHse6e7QvD3AP/MNoJdEDLaf8OxYyoWgorQ==}
@@ -15463,6 +15478,12 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
+  '@pnpm/npm-conf@2.3.1':
+    dependencies:
+      '@pnpm/config.env-replace': 1.1.0
+      '@pnpm/network.ca-file': 1.0.2
+      config-chain: 1.1.13
+
   '@pnpm/npm-lifecycle@3.0.4(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
@@ -15714,9 +15735,9 @@ snapshots:
       '@reflink/reflink-win32-arm64-msvc': 0.1.16
       '@reflink/reflink-win32-x64-msvc': 0.1.16
 
-  '@rushstack/worker-pool@0.4.9(@types/node@20.14.9)':
+  '@rushstack/worker-pool@0.4.9(@types/node@22.2.0)':
     optionalDependencies:
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
 
   '@sinclair/typebox@0.27.8': {}
 
@@ -15901,6 +15922,11 @@ snapshots:
       undici-types: 5.26.5
 
   '@types/node@20.5.1': {}
+
+  '@types/node@22.2.0':
+    dependencies:
+      undici-types: 6.13.0
+    optional: true
 
   '@types/normalize-package-data@2.4.4': {}
 
@@ -19800,6 +19826,22 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  node-gyp@10.2.0:
+    dependencies:
+      env-paths: 2.2.1
+      exponential-backoff: 3.1.1
+      glob: 10.4.2
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
+      make-fetch-happen: 13.0.1
+      nopt: 7.2.1
+      proc-log: 4.2.0
+      semver: 7.6.2
+      tar: 6.2.1
+      which: 4.0.0
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
+
   node-int64@0.4.0: {}
 
   node-releases@2.0.14: {}
@@ -21413,6 +21455,9 @@ snapshots:
   unc-path-regex@0.1.2: {}
 
   undici-types@5.26.5: {}
+
+  undici-types@6.13.0:
+    optional: true
 
   unified@9.2.2:
     dependencies:
