@@ -12,10 +12,11 @@ export interface EditDirState {
 export type State = Record<EditDir, EditDirState>
 
 export interface EditDirKeyInput {
+  dir: string
   editDir: string
 }
 
-const createEditDirKey = (opts: EditDirKeyInput): EditDir => opts.editDir as EditDir
+const createEditDirKey = (opts: EditDirKeyInput): EditDir => path.resolve(opts.dir, opts.editDir) as EditDir
 
 export interface ReadEditDirStateOptions extends EditDirKeyInput {
   modulesDir: string
