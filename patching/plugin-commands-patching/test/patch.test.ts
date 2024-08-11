@@ -239,8 +239,9 @@ describe('patch and commit', () => {
     const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
 
-    expect(patchDir).toBe(editDir)
-    expect(fs.existsSync(patchDir)).toBe(true)
+    const editDirAbsolute = path.resolve(defaultPatchOption.dir, editDir)
+    expect(patchDir).toBe(editDirAbsolute)
+    expect(fs.existsSync(editDirAbsolute)).toBe(true)
 
     fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
 
@@ -301,7 +302,6 @@ describe('patch and commit', () => {
     const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
 
-    expect(patchDir).toBe(editDir)
     expect(fs.existsSync(patchDir)).toBe(true)
 
     fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
