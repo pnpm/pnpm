@@ -1420,7 +1420,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   const depsRequiringBuild: DepPath[] = []
   if (opts.returnListOfDepsRequiringBuild) {
     await Promise.all(Object.entries(dependenciesGraph).map(async ([depPath, node]) => {
-      if (node == null) return // We cannot detect if a skipped optional dependency requires build
+      if (node?.fetching == null) return // We cannot detect if a skipped optional dependency requires build
       const { files } = await node.fetching()
       if (files.requiresBuild) {
         depsRequiringBuild.push(depPath as DepPath)
