@@ -15,7 +15,7 @@ export interface EditDirKeyInput {
   editDir: string
 }
 
-const createEditDirKey = (opts: EditDirKeyInput): EditDir => path.resolve(opts.editDir) as EditDir
+const createEditDirKey = (opts: EditDirKeyInput): EditDir => opts.editDir as EditDir
 
 export interface ReadEditDirStateOptions extends EditDirKeyInput {
   modulesDir: string
