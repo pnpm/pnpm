@@ -184,17 +184,17 @@ export async function handler (
   const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
 
   let exitCode = 0
-  const mapPrefixToPrependPathsEntries: Array<[ProjectRootDir, string[]]> = await Promise.all(chunks.flat().map(async prefix => {
+  const mapPrefixToPrependPaths: Record<ProjectRootDir, string[]> = {}
+  await Promise.all(chunks.flat().map(async prefix => {
     const executionEnv = await prepareExecutionEnv(opts, {
       extraBinPaths: opts.extraBinPaths,
       executionEnv: opts.selectedProjectsGraph[prefix].package.manifest.pnpm?.executionEnv,
     })
-    return [prefix, [
+    mapPrefixToPrependPaths[prefix] = [
       './node_modules/.bin',
       ...executionEnv.extraBinPaths,
-    ]]
+    ]
   }))
-  const mapPrefixToPrependPaths: Record<ProjectRootDir, string[]> = Object.fromEntries(mapPrefixToPrependPathsEntries)
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
