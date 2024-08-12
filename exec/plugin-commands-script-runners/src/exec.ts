@@ -125,18 +125,31 @@ export function getExecutionDuration (start: [number, number]): number {
   return (end[0] * 1e9 + end[1]) / 1e6
 }
 
+export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
+  bail?: boolean
+  unsafePerm?: boolean
+  reverse?: boolean
+  sort?: boolean
+  workspaceConcurrency?: number
+  shellMode?: boolean
+  resumeFrom?: string
+  reportSummary?: boolean
+  implicitlyFellbackFromRun?: boolean
+} & Pick<Config,
+| 'dir'
+| 'extraBinPaths'
+| 'extraEnv'
+| 'lockfileDir'
+| 'modulesDir'
+| 'nodeOptions'
+| 'recursive'
+| 'reporterHidePrefix'
+| 'userAgent'
+| 'workspaceDir'
+>
+
 export async function handler (
-  opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
-    bail?: boolean
-    unsafePerm?: boolean
-    reverse?: boolean
-    sort?: boolean
-    workspaceConcurrency?: number
-    shellMode?: boolean
-    resumeFrom?: string
-    reportSummary?: boolean
-    implicitlyFellbackFromRun?: boolean
-  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'reporterHidePrefix' | 'workspaceDir' | 'nodeOptions'>,
+  opts: ExecOpts,
   params: string[]
 ): Promise<{ exitCode: number }> {
   // For backward compatibility
