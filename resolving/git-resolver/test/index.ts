@@ -28,21 +28,15 @@ test('resolveFromGit() with commit', async () => {
 })
 
 test('resolveFromGit() with no commit', async () => {
-  // This is repeated twice because there was a bug which caused the normalizedPref
-  // to contain the commit hash on second call.
-  // The issue occurred because .hosted field (which is class from the 'hosted-git-info' package)
-  // was mutated. A 'committish' field was added to it.
-  for (let i = 0; i < 2; i++) {
-    const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative' }) // eslint-disable-line no-await-in-loop
-    expect(resolveResult).toStrictEqual({
-      id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
-      normalizedPref: 'github:zkochan/is-negative',
-      resolution: {
-        tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
-      },
-      resolvedVia: 'git-repository',
-    })
-  }
+  const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative' })
+  expect(resolveResult).toStrictEqual({
+    id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
+    normalizedPref: 'github:zkochan/is-negative',
+    resolution: {
+      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
+    },
+    resolvedVia: 'git-repository',
+  })
 })
 
 test('resolveFromGit() with no commit, when main branch is not master', async () => {
