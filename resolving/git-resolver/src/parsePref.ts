@@ -3,21 +3,22 @@ import urlLib, { URL } from 'url'
 import { fetch } from '@pnpm/fetch'
 
 import git from 'graceful-git'
-import HostedGit from 'hosted-git-info'
+import GitHost from 'hosted-git-info'
+import assert from 'assert'
 
-export interface HostedPackageSpec {
-  fetchSpec: string
-  hosted?: {
-    type: string
-    user: string
-    project: string
-    committish: string
-    tarball: () => string | undefined
-  }
-  normalizedPref: string
+export interface GitParams {
   gitCommittish: string | null
   gitRange?: string
   path?: string
+}
+
+export interface PackageSpec extends GitParams {
+  fetchSpec: string
+  normalizedPref: string
+}
+
+export interface HostedPackageSpec extends PackageSpec {
+  hosted: GitHost
 }
 
 const gitProtocols = new Set([
@@ -31,123 +32,80 @@ const gitProtocols = new Set([
   'ssh',
 ])
 
-export async function parsePref (pref: string): Promise<HostedPackageSpec | null> {
-  const hosted = HostedGit.fromUrl(pref)
+export async function parsePref (
+  pref: string
+): Promise<PackageSpec | HostedPackageSpec | null> {
+  const hosted = GitHost.fromUrl(pref)
   if (hosted != null) {
     return fromHostedGit(hosted)
   }
-  const colonsPos = pref.indexOf(':')
-  if (colonsPos === -1) return null
-  const protocol = pref.slice(0, colonsPos)
-  if (protocol && gitProtocols.has(protocol.toLocaleLowerCase())) {
-    const correctPref = correctUrl(pref)
-    const url = new URL(correctPref)
-    if (!url?.protocol) return null
-
-    const hash = (url.hash?.length > 1) ? decodeURIComponent(url.hash.slice(1)) : null
-    return {
-      fetchSpec: urlToFetchSpec(url),
-      normalizedPref: pref,
-      ...parseGitParams(hash),
-    }
+  try {
+    return parseGitUrl(pref)
+  } catch (err) {
+    return null
   }
-  return null
 }
 
-function urlToFetchSpec (url: URL): string {
-  url.hash = ''
-  const fetchSpec = urlLib.format(url)
-  if (fetchSpec.startsWith('git+')) {
-    return fetchSpec.slice(4)
-  }
-  return fetchSpec
-}
-
-async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // eslint-disable-line
-  let fetchSpec: string | null = null
-  // try git/https url before fallback to ssh url
+async function fromHostedGit (hosted: GitHost): Promise<HostedPackageSpec> {
   const gitHttpsUrl = hosted.https({ noCommittish: true, noGitPlus: true })
-  if (gitHttpsUrl && await isRepoPublic(gitHttpsUrl) && await accessRepository(gitHttpsUrl)) {
-    fetchSpec = gitHttpsUrl
-  } else {
-    const gitSshUrl = hosted.ssh({ noCommittish: true })
-    if (gitSshUrl && await accessRepository(gitSshUrl)) {
-      fetchSpec = gitSshUrl
-    }
-  }
+  const gitSshUrl = hosted.sshurl({ noCommittish: true, noGitPlus: false })
 
-  if (!fetchSpec) {
-    const httpsUrl: string | null = hosted.https({ noGitPlus: true, noCommittish: true })
-    if (httpsUrl) {
-      if (hosted.auth && await accessRepository(httpsUrl)) {
-        return {
-          fetchSpec: httpsUrl,
-          hosted: {
-            ...hosted,
-            _fill: hosted._fill,
-            tarball: undefined,
-          },
-          normalizedPref: `git+${httpsUrl}`,
-          ...parseGitParams(hosted.committish),
-        }
-      } else {
-        try {
-          // when git ls-remote private repo, it asks for login credentials.
-          // use HTTP HEAD request to test whether this is a private repo, to avoid login prompt.
-          // this is very similar to yarn's behavior.
-          // npm instead tries git ls-remote directly which prompts user for login credentials.
+  const hasAuth = Boolean(hosted.auth)
+  const isPublic = await isRepoPublic(gitHttpsUrl)
 
-          // HTTP HEAD on https://domain/user/repo, strip out ".git"
-          const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
-          if (response.ok) {
-            fetchSpec = httpsUrl
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-    }
-  }
+  // try git/https url before fallback to ssh
+  const fetchSpec =
+    (isPublic && (await isRepoAccessible(gitHttpsUrl))) || hasAuth
+      ? gitHttpsUrl
+      : gitSshUrl
 
-  if (!fetchSpec) {
-    // use ssh url for likely private repo
-    fetchSpec = hosted.sshurl({ noCommittish: true })
+  if (!isPublic) {
+    hosted.tarball = () => ''
   }
 
   return {
-    fetchSpec: fetchSpec!,
-    hosted: {
-      ...hosted,
-      _fill: hosted._fill,
-      tarball: hosted.tarball,
-    },
+    fetchSpec,
+    hosted,
     normalizedPref: hosted.shortcut(),
     ...parseGitParams(hosted.committish),
   }
 }
 
+/**
+ * When git ls-remote private repo, it asks for login credentials.
+ * use HTTP HEAD request to test whether this is a private repo, to avoid login prompt.
+ * this is very similar to yarn's behavior.
+ * npm instead tries git ls-remote directly which prompts user for login credentials.
+ *
+ * HTTP HEAD on https://domain/user/repo, strip out ".git"
+ */
 async function isRepoPublic (httpsUrl: string): Promise<boolean> {
   try {
-    const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
+    const response = await fetch(httpsUrl.replace(/\.git$/, ''), {
+      method: 'HEAD',
+      follow: 0,
+      retry: { retries: 0 },
+    })
     return response.ok
   } catch (_err) {
     return false
   }
 }
 
-async function accessRepository (repository: string): Promise<boolean> {
+/**
+ * Returns true if the provided repository uri is accessible via the git cli.
+ */
+async function isRepoAccessible (repository: string): Promise<boolean> {
   try {
     await git(['ls-remote', '--exit-code', repository, 'HEAD'], { retries: 0 })
     return true
-  } catch (err: any) { // eslint-disable-line
+  } catch (err) {
     return false
   }
 }
 
-type GitParsedParams = Pick<HostedPackageSpec, 'gitCommittish' | 'gitRange' | 'path'>
-
-function parseGitParams (committish: string | null): GitParsedParams {
-  const result: GitParsedParams = { gitCommittish: null }
+function parseGitParams (committish: string | undefined): GitParams {
+  const result: GitParams = { gitCommittish: null }
   if (!committish) {
     return result
   }
@@ -165,19 +123,45 @@ function parseGitParams (committish: string | null): GitParsedParams {
   return result
 }
 
-// handle SCP-like URLs
-// see https://github.com/yarnpkg/yarn/blob/5682d55/src/util/git.js#L103
-function correctUrl (gitUrl: string): string {
-  const parsed = urlLib.parse(gitUrl.replace(/^git\+/, '')) // eslint-disable-line n/no-deprecated-api
+/**
+ * @throws {AssertionError} If `pref` does not feature a valid git protocol
+ * @throws {TypeError} If the resultant `fetchSpec` is not a valid URL
+ * @throws {URIError} If the `auth` property is present but cannot be decoded
+ * @returns A validated package specification
+ */
+function parseGitUrl (pref: string): PackageSpec {
+  const parsed = urlLib.parse(pref.replace(/^git\+/, '')) // eslint-disable-line n/no-deprecated-api
 
-  if (parsed.protocol === 'ssh:' &&
+  assert(
+    parsed.protocol && gitProtocols.has(parsed.protocol.slice(0, -1)),
+    'pref features a valid git protocol'
+  )
+
+  // handle SCP-like URLs
+  // see https://github.com/yarnpkg/yarn/blob/5682d55/src/util/git.js#L103
+  if (
+    parsed.protocol === 'ssh:' &&
     parsed.hostname &&
     parsed.pathname &&
     parsed.pathname.startsWith('/:') &&
-    parsed.port === null) {
+    parsed.port === null
+  ) {
     parsed.pathname = parsed.pathname.replace(/^\/:/, '')
-    return urlLib.format(parsed)
   }
 
-  return gitUrl
+  const hash =
+    parsed.hash?.length && parsed.hash.length > 1
+      ? decodeURIComponent(parsed.hash.slice(1))
+      : undefined
+  parsed.hash = ''
+
+  const fetchSpec = urlLib.format(parsed)
+  // throw if result is not a valid url
+  new URL(fetchSpec) // eslint-disable-line no-new
+
+  return {
+    fetchSpec,
+    normalizedPref: pref,
+    ...parseGitParams(hash),
+  }
 }
