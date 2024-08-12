@@ -484,8 +484,9 @@ test('resolve a private repository using the HTTPS protocol without auth token',
 })
 
 test('resolve a private repository using the HTTPS protocol and an auth token', async () => {
+  const sha = '0'.repeat(40)
   git.mockImplementation(async (args: string[]) => {
-    if (!args.includes('https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git')) throw new Error('')
+    expect(args).toContain(`https://${sha}:x-oauth-basic@github.com/foo/bar.git`)
     if (args.includes('--refs')) {
       return {
         stdout: '\
@@ -493,16 +494,16 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
 ',
       }
     }
-    return { stdout: '0000000000000000000000000000000000000000\tHEAD' }
+    return { stdout: `${sha}\tHEAD` }
   })
   mockFetchAsPrivate()
-  const resolveResult = await resolveFromGit({ pref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git' })
+  const resolveResult = await resolveFromGit({ pref: `git+https://${sha}:x-oauth-basic@github.com/foo/bar.git` })
   expect(resolveResult).toStrictEqual({
-    id: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git#0000000000000000000000000000000000000000',
-    normalizedPref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git',
+    id: `git+https://${sha}:x-oauth-basic@github.com/foo/bar.git#${sha}`,
+    normalizedPref: `git+https://${sha}:x-oauth-basic@github.com/foo/bar.git`,
     resolution: {
-      commit: '0000000000000000000000000000000000000000',
-      repo: 'https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git',
+      commit: sha,
+      repo: `https://${sha}:x-oauth-basic@github.com/foo/bar.git`,
       type: 'git',
     },
     resolvedVia: 'git-repository',
@@ -511,7 +512,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
 
 test('resolve an internal repository using SSH protocol with range semver', async () => {
   git.mockImplementation(async (args: string[]) => {
-    if (!args.includes('ssh://git@example.com/org/repo.git')) throw new Error('')
+    expect(args).toContain('ssh://git@example.com/org/repo.git')
     if (args.includes('--refs')) {
       return {
         stdout: '\
@@ -541,7 +542,7 @@ cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39',
 
 test('resolve an internal repository using SSH protocol with range semver and SCP-like URL', async () => {
   git.mockImplementation(async (args: string[]) => {
-    if (!args.includes('ssh://git@example.com/org/repo.git')) throw new Error('')
+    expect(args).toContain('ssh://git@example.com/org/repo.git')
     if (args.includes('--refs')) {
       return {
         stdout: '\
