@@ -23,13 +23,18 @@ export interface HostedPackageSpec extends PackageSpec {
 
 const gitProtocols = new Set([
   'git',
+  'http',
+  'https',
+  'rsync',
+  'ftp',
+  'file',
+  'ssh',
   'git+http',
   'git+https',
   'git+rsync',
   'git+ftp',
   'git+file',
   'git+ssh',
-  'ssh',
 ])
 
 export async function parsePref (
