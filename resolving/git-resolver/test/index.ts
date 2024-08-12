@@ -500,7 +500,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
   const resolveResult = await resolveFromGit({ pref: `git+https://${sha}:x-oauth-basic@github.com/foo/bar.git` })
   expect(resolveResult).toStrictEqual({
     id: `git+https://${sha}:x-oauth-basic@github.com/foo/bar.git#${sha}`,
-    normalizedPref: `git+https://${sha}:x-oauth-basic@github.com/foo/bar.git`,
+    normalizedPref: 'github:foo/bar',
     resolution: {
       commit: sha,
       repo: `https://${sha}:x-oauth-basic@github.com/foo/bar.git`,
