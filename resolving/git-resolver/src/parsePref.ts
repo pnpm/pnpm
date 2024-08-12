@@ -2,9 +2,9 @@
 import urlLib, { URL } from 'url'
 import { fetch } from '@pnpm/fetch'
 
-import git from 'graceful-git'
 import GitHost from 'hosted-git-info'
 import assert from 'assert'
+import { spawnSync } from 'child_process'
 
 export interface GitParams {
   gitCommittish: string | null
@@ -102,7 +102,7 @@ async function isRepoPublic (httpsUrl: string): Promise<boolean> {
  */
 async function isRepoAccessible (repository: string): Promise<boolean> {
   try {
-    await git(['ls-remote', '--exit-code', repository, 'HEAD'], { retries: 0 })
+    spawnSync('git', ['ls-remote', '--exit-code', repository, 'HEAD'], { shell: true })
     return true
   } catch (err) {
     return false
