@@ -240,8 +240,7 @@ test.skip('resolveFromGit() with commit from non-github repo with no commit', as
   })
 })
 
-// Stopped working. Environmental issue.
-test.skip('resolveFromGit() bitbucket with commit', async () => {
+test('resolveFromGit() bitbucket with commit', async () => {
   // TODO: make it pass on Windows
   if (isWindows()) {
     return
@@ -257,8 +256,7 @@ test.skip('resolveFromGit() bitbucket with commit', async () => {
   })
 })
 
-// Stopped working. Environmental issue.
-test.skip('resolveFromGit() bitbucket with no commit', async () => {
+test('resolveFromGit() bitbucket with no commit', async () => {
   const resolveResult = await resolveFromGit({ pref: 'bitbucket:pnpmjs/git-resolver' })
   const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
@@ -272,8 +270,7 @@ test.skip('resolveFromGit() bitbucket with no commit', async () => {
   })
 })
 
-// Stopped working. Environmental issue.
-test.skip('resolveFromGit() bitbucket with branch', async () => {
+test('resolveFromGit() bitbucket with branch', async () => {
   const resolveResult = await resolveFromGit({ pref: 'bitbucket:pnpmjs/git-resolver#master' })
   const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
   const hash: string = result.stdout.trim().split('\t')[0]
@@ -287,8 +284,7 @@ test.skip('resolveFromGit() bitbucket with branch', async () => {
   })
 })
 
-// Stopped working. Environmental issue.
-test.skip('resolveFromGit() bitbucket with tag', async () => {
+test('resolveFromGit() bitbucket with tag', async () => {
   const resolveResult = await resolveFromGit({ pref: 'bitbucket:pnpmjs/git-resolver#0.3.4' })
   expect(resolveResult).toStrictEqual({
     id: 'https://bitbucket.org/pnpmjs/git-resolver/get/87cf6a67064d2ce56e8cd20624769a5512b83ff9.tar.gz',
@@ -301,10 +297,13 @@ test.skip('resolveFromGit() bitbucket with tag', async () => {
 })
 
 test('resolveFromGit() gitlab with colon in the URL', async () => {
-  const resolveResult = await resolveFromGit({ pref: 'ssh://git@gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc' })
+  const resolveResult = await resolveFromGit({
+    pref: 'ssh://git@gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
+  })
   expect(resolveResult).toStrictEqual({
     id: 'git+ssh://git@gitlab/pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
-    normalizedPref: 'ssh://git@gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
+    normalizedPref:
+      'ssh://git@gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
     resolution: {
       commit: '988c61e11dc8d9ca0b5580cb15291951812549dc',
       repo: 'ssh://git@gitlab/pnpm/git-resolver',
@@ -314,57 +313,80 @@ test('resolveFromGit() gitlab with colon in the URL', async () => {
   })
 })
 
-// This test stopped working. Probably an environmental issue.
-test.skip('resolveFromGit() gitlab with commit', async () => {
-  const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc' })
+test('resolveFromGit() gitlab with commit', async () => {
+  const resolveResult = await resolveFromGit({
+    pref: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
+  })
   expect(resolveResult).toStrictEqual({
-    id: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=988c61e11dc8d9ca0b5580cb15291951812549dc',
-    normalizedPref: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
+    id: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?sha=988c61e11dc8d9ca0b5580cb15291951812549dc',
+    normalizedPref:
+      'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
     resolution: {
-      tarball: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=988c61e11dc8d9ca0b5580cb15291951812549dc',
+      tarball:
+        'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?sha=988c61e11dc8d9ca0b5580cb15291951812549dc',
     },
     resolvedVia: 'git-repository',
   })
 })
 
-// This test stopped working. Probably an environmental issue.
-test.skip('resolveFromGit() gitlab with no commit', async () => {
-  const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver' })
-  const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
+test('resolveFromGit() gitlab with no commit', async () => {
+  const resolveResult = await resolveFromGit({
+    pref: 'gitlab:pnpm/git-resolver',
+  })
+  const result = await git(
+    [
+      'ls-remote',
+      '--refs',
+      'https://gitlab.com/pnpm/git-resolver.git',
+      'master',
+    ],
+    { retries: 0 }
+  )
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
-    id: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
+    id: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?sha=${hash}`,
     normalizedPref: 'gitlab:pnpm/git-resolver',
     resolution: {
-      tarball: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
+      tarball: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?sha=${hash}`,
     },
     resolvedVia: 'git-repository',
   })
 })
 
-// This test stopped working. Probably an environmental issue.
-test.skip('resolveFromGit() gitlab with branch', async () => {
-  const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver#master' })
-  const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
+test('resolveFromGit() gitlab with branch', async () => {
+  const resolveResult = await resolveFromGit({
+    pref: 'gitlab:pnpm/git-resolver#master',
+  })
+  const result = await git(
+    [
+      'ls-remote',
+      '--refs',
+      'https://gitlab.com/pnpm/git-resolver.git',
+      'master',
+    ],
+    { retries: 0 }
+  )
   const hash: string = result.stdout.trim().split('\t')[0]
   expect(resolveResult).toStrictEqual({
-    id: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
+    id: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?sha=${hash}`,
     normalizedPref: 'gitlab:pnpm/git-resolver#master',
     resolution: {
-      tarball: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=${hash}`,
+      tarball: `https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?sha=${hash}`,
     },
     resolvedVia: 'git-repository',
   })
 })
 
-// This test stopped working. Probably an environmental issue.
-test.skip('resolveFromGit() gitlab with tag', async () => {
-  const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver#0.3.4' })
+test('resolveFromGit() gitlab with tag', async () => {
+  const resolveResult = await resolveFromGit({
+    pref: 'gitlab:pnpm/git-resolver#0.3.4',
+  })
   expect(resolveResult).toStrictEqual({
-    id: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=87cf6a67064d2ce56e8cd20624769a5512b83ff9',
+    id: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?sha=87cf6a67064d2ce56e8cd20624769a5512b83ff9',
     normalizedPref: 'gitlab:pnpm/git-resolver#0.3.4',
     resolution: {
-      tarball: 'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?ref=87cf6a67064d2ce56e8cd20624769a5512b83ff9',
+      tarball:
+        'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz?sha=87cf6a67064d2ce56e8cd20624769a5512b83ff9',
     },
     resolvedVia: 'git-repository',
   })
