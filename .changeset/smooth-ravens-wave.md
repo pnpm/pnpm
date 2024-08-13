@@ -1,5 +1,6 @@
 ---
 "@pnpm/exportable-manifest": patch
+pnpm: patch
 ---
 
-fix(exportable-manifest): replace semver in peerDependency with workspace protocol
+Replace semver in peerDependency with workspace protocol [#8355](https://github.com/pnpm/pnpm/issues/8355).
