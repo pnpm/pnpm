@@ -1,53 +1,27 @@
-import {
-  type TarballResolution,
-  type GitResolution,
-  type ResolveResult,
-  type PkgResolutionId,
+import type {
+  TarballResolution,
+  GitResolution,
+  ResolveResult,
+  PkgResolutionId,
 } from '@pnpm/resolver-base'
-import git from 'graceful-git'
-import semver from 'semver'
-import { parsePref, type PackageSpec } from './parsePref'
+import { type HostedPackageSpec, parsePref, type PackageSpec } from './parsePref'
 import { createGitHostedPkgId } from './createGitHostedPkgId'
+import { getCommitFromRange, isSsh, getCommitFromRef } from './util'
 
 export { createGitHostedPkgId }
 
 export type { PackageSpec }
 
-export type GitResolver = (wantedDependency: {
-  pref: string
-}) => Promise<ResolveResult | null>
+export type GitResolver = (wantedDependency: { pref: string }) => Promise<ResolveResult | null>
 
 export function createGitResolver (opts: unknown): GitResolver {
   return async function resolveGit (
     wantedDependency
   ): Promise<ResolveResult | null> {
-    const parsedSpec = await parsePref(wantedDependency.pref)
+    const spec = await parsePref(wantedDependency.pref)
+    if (spec === null) return null
 
-    if (parsedSpec === null) return null
-
-    const commit = await resolveRef(
-      parsedSpec.fetchSpec,
-      parsedSpec.gitCommittish || 'HEAD', // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
-      parsedSpec.gitRange
-    )
-
-    const tarball = 'hosted' in parsedSpec &&
-      // don't use tarball for ssh url, they are likely private repo
-      !isSsh(parsedSpec.fetchSpec) &&
-      // use resolved committish
-      parsedSpec.hosted.tarball({ committish: commit })
-
-    const resolution: GitResolution | TarballResolution = tarball
-      ? { tarball }
-      : {
-        commit,
-        repo: parsedSpec.fetchSpec,
-        type: 'git',
-      }
-
-    if (parsedSpec.path) {
-      resolution.path = parsedSpec.path
-    }
+    const resolution = resolveSpec(spec)
 
     const id =
       'tarball' in resolution
@@ -58,101 +32,34 @@ export function createGitResolver (opts: unknown): GitResolver {
 
     return {
       id,
-      normalizedPref: parsedSpec.normalizedPref,
+      normalizedPref: spec.normalizedPref,
       resolution,
       resolvedVia: 'git-repository',
     }
   }
 }
 
-function resolveVTags (vTags: string[], range: string): string | null {
-  return semver.maxSatisfying(vTags, range, true)
-}
+function resolveSpec (spec: PackageSpec | HostedPackageSpec): GitResolution | TarballResolution {
+  const commit = spec.gitRange
+    ? getCommitFromRange(spec.fetchSpec, spec.gitRange)
+    : getCommitFromRef(spec.fetchSpec, spec.gitCommittish || 'HEAD') // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
 
-async function getRepoRefs (
-  repo: string,
-  ref: string | null
-): Promise<Record<string, string>> {
-  const gitArgs = [repo]
-  if (ref !== 'HEAD') {
-    gitArgs.unshift('--refs')
-  }
-  if (ref) {
-    gitArgs.push(ref)
-  }
-  // graceful-git by default retries 10 times, reduce to single retry
-  const result = await git(['ls-remote', ...gitArgs], { retries: 1 })
-  const refs: Record<string, string> = result.stdout
-    .split('\n')
-    .reduce((obj: Record<string, string>, line: string) => {
-      const [commit, refName] = line.split('\t')
-      obj[refName] = commit
-      return obj
-    }, {})
-  return refs
-}
+  const tarball = 'hosted' in spec &&
+    // don't use tarball for private repo
+    !isSsh(spec.fetchSpec) &&
+    // use resolved committish
+    spec.hosted.tarball({ committish: commit })
 
-async function resolveRef (
-  repo: string,
-  ref: string,
-  range?: string
-): Promise<string> {
-  if (ref.match(/^[0-9a-f]{7,40}$/) != null) {
-    return ref
-  }
-  const refs = await getRepoRefs(repo, range ? null : ref)
-  return resolveRefFromRefs(refs, repo, ref, range)
-}
-
-function resolveRefFromRefs (
-  refs: { [ref: string]: string },
-  repo: string,
-  ref: string,
-  range?: string
-): string {
-  if (!range) {
-    const commitId =
-      refs[ref] ||
-      refs[`refs/${ref}`] ||
-      refs[`refs/tags/${ref}^{}`] || // prefer annotated tags
-      refs[`refs/tags/${ref}`] ||
-      refs[`refs/heads/${ref}`]
-
-    if (!commitId) {
-      throw new Error(`Could not resolve ${ref} to a commit of ${repo}.`)
+  const resolution: GitResolution | TarballResolution = tarball
+    ? { tarball }
+    : {
+      commit,
+      repo: spec.fetchSpec,
+      type: 'git',
     }
 
-    return commitId
-  } else {
-    const vTags = Object.keys(refs)
-      // using the same semantics of version tags as https://github.com/zkat/pacote
-      .filter((key: string) =>
-        /^refs\/tags\/v?(\d+\.\d+\.\d+(?:[-+].+)?)(\^{})?$/.test(key)
-      )
-      .map((key: string) => {
-        return key.replace(/^refs\/tags\//, '').replace(/\^{}$/, '') // accept annotated tags
-      })
-      .filter((key: string) => semver.valid(key, true))
-    const refVTag = resolveVTags(vTags, range)
-    const commitId =
-      refVTag &&
-      (refs[`refs/tags/${refVTag}^{}`] || // prefer annotated tags
-        refs[`refs/tags/${refVTag}`])
-
-    if (!commitId) {
-      throw new Error(
-        `Could not resolve ${range} to a commit of ${repo}. Available versions are: ${vTags.join(
-          ', '
-        )}`
-      )
-    }
-
-    return commitId
+  if (spec.path) {
+    resolution.path = spec.path
   }
-}
-
-function isSsh (gitSpec: string): boolean {
-  return (
-    gitSpec.slice(0, 10) === 'git+ssh://' || gitSpec.slice(0, 4) === 'git@'
-  )
+  return resolution
 }

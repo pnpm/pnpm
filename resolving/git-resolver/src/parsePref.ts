@@ -56,11 +56,13 @@ async function fromHostedGit (hosted: GitHost): Promise<HostedPackageSpec> {
   const gitSshUrl = hosted.sshurl({ noCommittish: true, noGitPlus: false })
 
   const hasAuth = Boolean(hosted.auth)
-  const isPublic = await isRepoPublic(gitHttpsUrl)
+  const isAccessibleViaFetch = await isRepoPublic(gitHttpsUrl)
+  const isAccessibleViaGit = await isRepoAccessible(gitHttpsUrl)
+  const isPublic = isAccessibleViaGit || isAccessibleViaFetch
 
   // try git/https url before fallback to ssh
   const fetchSpec =
-    (isPublic && (await isRepoAccessible(gitHttpsUrl))) || hasAuth
+    isPublic || hasAuth
       ? gitHttpsUrl
       : gitSshUrl
 
