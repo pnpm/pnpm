@@ -42,10 +42,14 @@ test('findWorkspacePackages() output warnings for non-root workspace project', a
     sharedWorkspaceLockfile: true,
   })
   expect(pkgs.length).toBe(3)
-  expect(logger.warn).toHaveBeenCalledTimes(3)
   const fooPath = path.join(fixturePath, 'packages/foo')
   const barPath = path.join(fixturePath, 'packages/bar')
-  expect(logger.warn).toHaveBeenNthCalledWith(1, { prefix: barPath, message: `The field "pnpm" was found in ${barPath}/package.json. This will not take effect. You should configure "pnpm" at the root of the workspace instead.` })
-  expect(logger.warn).toHaveBeenNthCalledWith(2, { prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. You should configure "resolutions" at the root of the workspace instead.` })
-  expect(logger.warn).toHaveBeenNthCalledWith(3, { prefix: fooPath, message: `The field "pnpm" was found in ${fooPath}/package.json. This will not take effect. You should configure "pnpm" at the root of the workspace instead.` })
+  expect(
+    (logger.warn as jest.Mock).mock.calls
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+  ).toStrictEqual([
+    [{ prefix: barPath, message: `The field "pnpm.overrides" was found in ${barPath}/package.json. This will not take effect. You should configure "pnpm.overrides" at the root of the workspace instead.` }],
+    [{ prefix: fooPath, message: `The field "pnpm.overrides" was found in ${fooPath}/package.json. This will not take effect. You should configure "pnpm.overrides" at the root of the workspace instead.` }],
+    [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. You should configure "resolutions" at the root of the workspace instead.` }],
+  ])
 })
