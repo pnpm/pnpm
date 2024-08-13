@@ -61,13 +61,28 @@ export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?
   return pkgs
 }
 
+const uselessNonRootManifestFields: Array<keyof ProjectManifest> = ['resolutions']
+
+type ProjectManifestPnpm = Required<ProjectManifest>['pnpm']
+const usefulNonRootPnpmFields: Array<keyof ProjectManifestPnpm> = ['executionEnv']
+
 function checkNonRootProjectManifest ({ manifest, rootDir }: Project): void {
-  for (const rootOnlyField of ['pnpm', 'resolutions']) {
-    if (manifest?.[rootOnlyField as keyof ProjectManifest]) {
-      logger.warn({
-        message: `The field "${rootOnlyField}" was found in ${rootDir}/package.json. This will not take effect. You should configure "${rootOnlyField}" at the root of the workspace instead.`,
-        prefix: rootDir,
-      })
+  const warn = printNonRootFieldWarning.bind(null, rootDir)
+  for (const field of uselessNonRootManifestFields) {
+    if (field in manifest) {
+      warn(field)
     }
   }
+  for (const field in manifest.pnpm) {
+    if (!usefulNonRootPnpmFields.includes(field as keyof ProjectManifestPnpm)) {
+      warn(`pnpm.${field}`)
+    }
+  }
+}
+
+function printNonRootFieldWarning (prefix: string, propertyPath: string): void {
+  logger.warn({
+    message: `The field "${propertyPath}" was found in ${prefix}/package.json. This will not take effect. You should configure "${propertyPath}" at the root of the workspace instead.`,
+    prefix,
+  })
 }
