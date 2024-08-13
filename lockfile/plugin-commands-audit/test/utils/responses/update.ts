@@ -17,6 +17,7 @@ async function writeResponse (lockfileDir: string, filename: string, opts: {
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
+  // @ts-expect-error
   const auditReport = await audit(lockfile!, {
     agentOptions: {},
     include,

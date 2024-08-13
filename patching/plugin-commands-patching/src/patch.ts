@@ -85,7 +85,9 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
   })
 
   const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
-  const editDir = opts.editDir ? opts.editDir : getEditDirPath(params[0], patchedDep, { modulesDir })
+  const editDir = opts.editDir
+    ? path.resolve(opts.dir, opts.editDir)
+    : getEditDirPath(params[0], patchedDep, { modulesDir })
 
   if (fs.existsSync(editDir) && fs.readdirSync(editDir).length !== 0) {
     throw new PnpmError('EDIT_DIR_NOT_EMPTY', `The directory ${editDir} is not empty`, {

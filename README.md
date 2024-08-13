@@ -181,11 +181,6 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
-      <td align="center" valign="middle">
-        <a href="https://vpsserver.com/en-us/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <img src="https://pnpm.io/img/users/vpsserver.svg" width="180" />
-        </a>
-      </td>
     </tr>
   </tbody>
 </table>

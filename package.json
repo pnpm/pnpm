@@ -15,7 +15,7 @@
     "test-pkgs-main": "pnpm remove-temp-dir && pnpm run --no-sort --workspace-concurrency=1 -r _test",
     "test-branch": "pnpm pretest && pnpm lint --quiet && git remote set-branches --add origin main && git fetch && pnpm run test-pkgs-branch",
     "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/main] run --no-sort _test",
-    "compile-only": "pnpm --workspace-concurrency=1 --filter=pnpm --filter=@pnpm/make-dedicated-lockfile --filter=@pnpm/mount-modules run compile",
+    "compile-only": "ts-node __utils__/scripts/src/typecheck-only.ts && pnpm -F pnpm compile",
     "compile": "pnpm compile-only && pnpm run update-manifests",
     "watch": "pnpm --filter=@pnpm/fetch run compile && pnpm --filter=pnpm run compile --watch",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
@@ -108,7 +108,8 @@
     "onlyBuiltDependencies": [],
     "patchedDependencies": {
       "@yao-pkg/pkg": "__patches__/pkg.patch",
-      "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch"
+      "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch",
+      "mdast-util-to-string@2.0.0": "__patches__/mdast-util-to-string@2.0.0.patch"
     },
     "updateConfig": {
       "ignoreDependencies": [

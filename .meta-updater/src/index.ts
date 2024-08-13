@@ -106,6 +106,7 @@ async function updateTSConfig (
 ): Promise<object | null> {
   if (tsConfig == null) return tsConfig
   if (manifest.name === '@pnpm/tsconfig') return tsConfig
+  if (manifest.name === '@pnpm-private/typecheck') return tsConfig
   const relative = normalizePath(path.relative(context.workspaceDir, dir)) as ProjectId
   const importer = context.lockfile.importers[relative]
   if (!importer) return tsConfig
@@ -144,25 +145,8 @@ async function updateTSConfig (
     await writeJsonFile(path.join(dir, 'test/tsconfig.json'), {
       extends: '../tsconfig.json',
       compilerOptions: {
-        // The composite flag allows projects to be specified as references in
-        // other projects. Test projects should not be dependencies of other
-        // files and don't need composite set.
-        //
-        // Some tests perform a relative import into the "src" directory to test
-        // non-publicly exported idenfiers.
-        //
-        //   import { foo } from "../src/foo"
-        //
-        // Instead of:
-        //
-        //   import { foo } from "@pnpm/example"
-        //
-        // The relative "../src" imports would error if composite is enabled
-        // since composite would require files in "src" to be part of the test
-        // project.
-        composite: false,
-        noEmit: true,
-
+        noEmit: false,
+        outDir: '../test.lib',
         rootDir: '.'
       },
       include: [
