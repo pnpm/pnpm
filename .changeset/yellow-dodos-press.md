@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-The contents of the state.json file should not be deleted after applying the patch.
+Remember the state of edit dir, allow running `pnpm patch-commit` the second time without having to re-run `pnpm patch`.
