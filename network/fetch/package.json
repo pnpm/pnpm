@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetch",
-  "version": "8.0.4",
+  "version": "8.0.5",
   "description": "node-fetch with retries",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,7 +29,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/network/fetch#readme",
   "dependencies": {
@@ -42,6 +42,7 @@
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "https-proxy-server-express": "catalog:",
     "nock": "catalog:"
   },

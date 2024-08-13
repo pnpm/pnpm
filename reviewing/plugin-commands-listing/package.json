@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-listing",
-  "version": "10.0.3",
+  "version": "10.0.6",
   "description": "The list and why commands of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,6 +31,7 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-listing": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -52,7 +53,7 @@
     "render-help": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

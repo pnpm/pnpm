@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "23.1.11",
+  "version": "23.2.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0",
+    "@pnpm/logger": "^5.1.0",
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
@@ -20,6 +20,7 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/headless": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",

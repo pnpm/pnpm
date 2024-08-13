@@ -30,9 +30,6 @@ catalogs:
     '@pnpm/log.group':
       specifier: 3.0.0
       version: 3.0.0
-    '@pnpm/logger':
-      specifier: ^5.0.0
-      version: 5.0.0
     '@pnpm/network.agent':
       specifier: ^2.0.0
       version: 2.0.0
@@ -40,8 +37,8 @@ catalogs:
       specifier: ^0.2.1
       version: 0.2.1
     '@pnpm/npm-conf':
-      specifier: 2.3.0
-      version: 2.3.0
+      specifier: 2.3.1
+      version: 2.3.1
     '@pnpm/npm-lifecycle':
       specifier: ^3.0.4
       version: 3.0.4
@@ -228,6 +225,9 @@ catalogs:
     bin-links:
       specifier: ^4.0.4
       version: 4.0.4
+    bole:
+      specifier: ^5.0.14
+      version: 5.0.14
     boxen:
       specifier: ^5.1.2
       version: 5.1.2
@@ -402,6 +402,9 @@ catalogs:
     micromatch:
       specifier: ^4.0.7
       version: 4.0.7
+    ndjson:
+      specifier: ^2.0.0
+      version: 2.0.0
     nerf-dart:
       specifier: 1.0.0
       version: 1.0.0
@@ -478,8 +481,8 @@ catalogs:
       specifier: ^0.6.0
       version: 0.6.0
     pkg:
-      specifier: 5.8.1
-      version: 5.8.1
+      specifier: npm:@yao-pkg/pkg@5.12.0
+      version: 5.12.0
     preferred-pm:
       specifier: ^3.1.3
       version: 3.1.3
@@ -663,12 +666,15 @@ packageExtensionsChecksum: c10f23a87945689e805208f26d04480d
 pnpmfileChecksum: jkgwyaxgwfm2r3i2qpv7ox7i2u
 
 patchedDependencies:
+  '@yao-pkg/pkg':
+    hash: pp6fkuhwkrqq7cjcj7uqpf37e4
+    path: __patches__/pkg.patch
   graceful-fs@4.2.11:
     hash: ivtm2a2cfr5pomcfbedhmr5v2q
     path: __patches__/graceful-fs@4.2.11.patch
-  pkg@5.8.1:
-    hash: pp6fkuhwkrqq7cjcj7uqpf37e4
-    path: __patches__/pkg.patch
+  mdast-util-to-string@2.0.0:
+    hash: zxx4zzbv6v2vjobk6zrexxytxe
+    path: __patches__/mdast-util-to-string@2.0.0.patch
 
 importers:
 
@@ -742,7 +748,7 @@ importers:
         version: 9.0.11
       jest:
         specifier: ^29.7.0
-        version: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))
+        version: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))
       keyv:
         specifier: 4.5.4
         version: 4.5.4
@@ -759,14 +765,14 @@ importers:
         specifier: ^0.3.4
         version: 0.3.4
       ts-jest:
-        specifier: 29.1.1
-        version: 29.1.1(@babel/core@7.24.7)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.7)(@babel/types@7.24.7))(jest@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5)))(typescript@5.4.5)
+        specifier: 29.2.3
+        version: 29.2.3(@babel/core@7.24.7)(@jest/transform@29.7.0(@babel/types@7.24.7))(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.7)(@babel/types@7.24.7))(jest@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4)))(typescript@5.5.4)
       ts-node:
         specifier: ^10.9.2
-        version: 10.9.2(@types/node@18.19.34)(typescript@5.4.5)
+        version: 10.9.2(@types/node@18.19.34)(typescript@5.5.4)
       typescript:
-        specifier: 5.4.5
-        version: 5.4.5
+        specifier: 5.5.4
+        version: 5.5.4
       verdaccio:
         specifier: 5.20.1
         version: 5.20.1(encoding@0.1.13)(typanion@3.14.0)
@@ -798,6 +804,15 @@ importers:
       '@pnpm-private/updater':
         specifier: workspace:*
         version: 'link:'
+
+  __typecheck__:
+    devDependencies:
+      '@pnpm-private/typecheck':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/tsconfig':
+        specifier: workspace:*
+        version: link:../__utils__/tsconfig
 
   __typings__:
     devDependencies:
@@ -868,19 +883,19 @@ importers:
     dependencies:
       '@typescript-eslint/eslint-plugin':
         specifier: 6.18.1
-        version: 6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)
+        version: 6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0)(typescript@5.5.4)
       '@typescript-eslint/parser':
         specifier: 6.18.1
-        version: 6.18.1(eslint@8.57.0)(typescript@5.4.5)
+        version: 6.18.1(eslint@8.57.0)(typescript@5.5.4)
       eslint:
         specifier: ^8.57.0
         version: 8.57.0
       eslint-config-standard-with-typescript:
         specifier: ^39.1.1
-        version: 39.1.1(@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.2.0(eslint@8.57.0))(eslint@8.57.0)(typescript@5.4.5)
+        version: 39.1.1(@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0)(typescript@5.5.4))(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.2.0(eslint@8.57.0))(eslint@8.57.0)(typescript@5.5.4)
       eslint-plugin-import:
         specifier: ^2.29.1
-        version: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)
+        version: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0)
       eslint-plugin-n:
         specifier: ^16.6.2
         version: 16.6.2(eslint@8.57.0)
@@ -891,8 +906,8 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0(eslint@8.57.0)
       typescript:
-        specifier: 5.4.5
-        version: 5.4.5
+        specifier: 5.5.4
+        version: 5.5.4
     devDependencies:
       '@pnpm/eslint-config':
         specifier: workspace:*
@@ -902,7 +917,7 @@ importers:
     dependencies:
       mdast-util-to-string:
         specifier: ^2.0.0
-        version: 2.0.0
+        version: 2.0.0(patch_hash=zxx4zzbv6v2vjobk6zrexxytxe)
       remark-parse:
         specifier: ^9.0.0
         version: 9.0.0(unified@9.2.2)
@@ -944,16 +959,31 @@ importers:
 
   __utils__/scripts:
     dependencies:
+      '@pnpm/workspace.find-packages':
+        specifier: 4.0.6
+        version: 4.0.6(@pnpm/logger@5.2.0)
+      '@pnpm/workspace.read-manifest':
+        specifier: 2.2.0
+        version: 2.2.0
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
+      fast-glob:
+        specifier: 'catalog:'
+        version: 3.3.2
       make-empty-dir:
         specifier: 'catalog:'
         version: 3.0.2
+      normalize-path:
+        specifier: 'catalog:'
+        version: 3.0.0
     devDependencies:
       '@pnpm/scripts':
         specifier: workspace:*
         version: 'link:'
+      '@types/normalize-path':
+        specifier: 'catalog:'
+        version: 3.0.2
 
   __utils__/test-fixtures:
     dependencies:
@@ -1063,9 +1093,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -1088,6 +1115,9 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -1131,9 +1161,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/render-peer-issues':
         specifier: workspace:*
         version: link:../../packages/render-peer-issues
@@ -1180,6 +1207,9 @@ importers:
       '@pnpm/default-reporter':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
@@ -1295,7 +1325,7 @@ importers:
         version: link:../matcher
       '@pnpm/npm-conf':
         specifier: 'catalog:'
-        version: 2.3.0
+        version: 2.3.1
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -1410,9 +1440,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1429,6 +1456,9 @@ importers:
         specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: 'link:'
@@ -1496,8 +1526,8 @@ importers:
         version: 4.0.1
     devDependencies:
       '@pnpm/logger':
-        specifier: 'catalog:'
-        version: 5.0.0
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/plugin-commands-config':
         specifier: workspace:*
         version: 'link:'
@@ -1585,9 +1615,6 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -1616,6 +1643,9 @@ importers:
       '@pnpm/deps.graph-builder':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -1700,6 +1730,16 @@ importers:
         specifier: 'catalog:'
         version: 7.5.3
 
+  env/path:
+    dependencies:
+      path-name:
+        specifier: 'catalog:'
+        version: 1.0.0
+    devDependencies:
+      '@pnpm/env.path':
+        specifier: workspace:*
+        version: 'link:'
+
   env/plugin-commands-env:
     dependencies:
       '@pnpm/cli-utils':
@@ -1714,9 +1754,6 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/node.fetcher':
         specifier: workspace:*
         version: link:../node.fetcher
@@ -1760,6 +1797,9 @@ importers:
         specifier: 'catalog:'
         version: 4.3.0
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: 'link:'
@@ -1814,9 +1854,6 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/patching.apply-patch':
         specifier: workspace:*
         version: link:../../patching/apply-patch
@@ -1848,6 +1885,9 @@ importers:
       '@pnpm/build-modules':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -1866,9 +1906,6 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
         version: 3.0.4(typanion@3.14.0)
@@ -1894,6 +1931,9 @@ importers:
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -1976,9 +2016,6 @@ importers:
       '@pnpm/lockfile.walker':
         specifier: workspace:*
         version: link:../../lockfile/walker
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -2037,6 +2074,9 @@ importers:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/plugin-commands-rebuild':
         specifier: workspace:*
         version: 'link:'
@@ -2094,6 +2134,9 @@ importers:
       '@pnpm/crypto.base32-hash':
         specifier: workspace:*
         version: link:../../packages/crypto.base32-hash
+      '@pnpm/env.path':
+        specifier: workspace:*
+        version: link:../../env/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -2103,9 +2146,6 @@ importers:
       '@pnpm/log.group':
         specifier: 'catalog:'
         version: 3.0.0
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins
@@ -2142,9 +2182,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
-      path-name:
-        specifier: 'catalog:'
-        version: 1.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -2167,6 +2204,9 @@ importers:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/plugin-commands-script-runners':
         specifier: workspace:*
         version: 'link:'
@@ -2271,9 +2311,6 @@ importers:
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -2287,6 +2324,9 @@ importers:
       '@pnpm/directory-fetcher':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2321,9 +2361,6 @@ importers:
       '@pnpm/fs.packlist':
         specifier: 'catalog:'
         version: 2.0.0
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
@@ -2343,6 +2380,9 @@ importers:
       '@pnpm/git-fetcher':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -2385,9 +2425,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
@@ -2422,6 +2459,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -2489,14 +2529,13 @@ importers:
         version: 4.1.9
 
   fs/hard-link-dir:
-    dependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
     devDependencies:
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -2509,9 +2548,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../graceful-fs
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -2543,6 +2579,9 @@ importers:
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -2584,9 +2623,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2594,6 +2630,9 @@ importers:
         specifier: 'catalog:'
         version: 6.0.1
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -2618,9 +2657,6 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -2637,6 +2673,9 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: 'link:'
@@ -2726,9 +2765,6 @@ importers:
       '@pnpm/lockfile.walker':
         specifier: workspace:*
         version: link:../walker
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -2748,6 +2784,9 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../fs
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2797,9 +2836,6 @@ importers:
       '@pnpm/lockfile.walker':
         specifier: workspace:*
         version: link:../walker
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -2813,6 +2849,9 @@ importers:
       '@pnpm/lockfile.filtering':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -2855,9 +2894,6 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2895,6 +2931,9 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@types/js-yaml':
         specifier: 'catalog:'
         version: 4.0.9
@@ -2931,9 +2970,6 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2950,6 +2986,9 @@ importers:
       '@pnpm/lockfile-to-pnp':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
@@ -3178,9 +3217,6 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -3209,6 +3245,9 @@ importers:
       '@pnpm/lockfile.verification':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -3253,8 +3292,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/utils
       '@pnpm/logger':
-        specifier: 'catalog:'
-        version: 5.0.0
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -3312,9 +3351,6 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../fetching-types
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/network.agent':
         specifier: 'catalog:'
         version: 2.0.0
@@ -3331,6 +3367,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       https-proxy-server-express:
         specifier: 'catalog:'
         version: 0.1.2
@@ -3387,9 +3426,6 @@ importers:
 
   packages/core-loggers:
     dependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -3397,6 +3433,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../logger
 
   packages/crypto.base32-hash:
     dependencies:
@@ -3453,6 +3492,19 @@ importers:
         specifier: 'catalog:'
         version: 1.0.1
 
+  packages/logger:
+    dependencies:
+      bole:
+        specifier: 'catalog:'
+        version: 5.0.14
+      ndjson:
+        specifier: 'catalog:'
+        version: 2.0.0
+    devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: 'link:'
+
   packages/make-dedicated-lockfile:
     dependencies:
       '@pnpm/error':
@@ -3474,8 +3526,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/pruner
       '@pnpm/logger':
-        specifier: 'catalog:'
-        version: 5.0.0
+        specifier: workspace:*
+        version: link:../logger
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -3526,13 +3578,13 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../logger
       '@pnpm/plugin-commands-doctor':
         specifier: workspace:*
         version: 'link:'
@@ -3579,9 +3631,6 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
         version: 2.0.0
@@ -3592,6 +3641,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../logger
       '@pnpm/plugin-commands-setup':
         specifier: workspace:*
         version: 'link:'
@@ -3660,13 +3712,13 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/logger':
-        specifier: 'catalog:'
-        version: 5.0.0
       '@pnpm/patch-package':
         specifier: 'catalog:'
         version: 0.0.0
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/patching.apply-patch':
         specifier: workspace:*
         version: 'link:'
@@ -3710,9 +3762,6 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -3755,6 +3804,9 @@ importers:
       fast-glob:
         specifier: 'catalog:'
         version: 3.3.2
+      make-empty-dir:
+        specifier: 'catalog:'
+        version: 3.0.2
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -3780,6 +3832,9 @@ importers:
         specifier: 'catalog:'
         version: 2.1.1
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/plugin-commands-patching':
         specifier: workspace:*
         version: 'link:'
@@ -3937,9 +3992,6 @@ importers:
       '@pnpm/lockfile.walker':
         specifier: workspace:*
         version: link:../../lockfile/walker
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -4061,6 +4113,9 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
@@ -4151,9 +4206,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
@@ -4170,6 +4222,9 @@ importers:
         specifier: 'catalog:'
         version: 2.0.0
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: 'link:'
@@ -4191,9 +4246,6 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -4225,6 +4277,9 @@ importers:
       '@pnpm/get-context':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -4276,9 +4331,6 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/modules-cleaner':
         specifier: workspace:*
         version: link:../modules-cleaner
@@ -4349,6 +4401,9 @@ importers:
       '@pnpm/headless':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
@@ -4427,9 +4482,6 @@ importers:
       '@pnpm/lockfile.walker':
         specifier: workspace:*
         version: link:../../lockfile/walker
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
@@ -4455,6 +4507,9 @@ importers:
       '@pnpm/hoist':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -4464,9 +4519,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -4519,6 +4571,9 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -4561,9 +4616,6 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
@@ -4583,6 +4635,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/modules-cleaner':
         specifier: workspace:*
         version: 'link:'
@@ -4657,9 +4712,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -4715,6 +4767,9 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/package-requester':
         specifier: workspace:*
         version: 'link:'
@@ -4796,9 +4851,6 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -4905,6 +4957,9 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -4983,9 +5038,6 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -4999,6 +5051,9 @@ importers:
         specifier: 'catalog:'
         version: 1.1.0
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/read-projects-context':
         specifier: workspace:*
         version: 'link:'
@@ -5036,9 +5091,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../package-bins
@@ -5058,6 +5110,9 @@ importers:
         specifier: 'catalog:'
         version: 1.0.2
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/remove-bins':
         specifier: workspace:*
         version: 'link:'
@@ -5100,9 +5155,6 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -5188,6 +5240,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/resolve-dependencies':
         specifier: workspace:*
         version: 'link:'
@@ -5382,7 +5437,7 @@ importers:
     optionalDependencies:
       node-gyp:
         specifier: ^10.1.0
-        version: 10.1.0
+        version: 10.2.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -5423,6 +5478,12 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../packages/dependency-path
+      '@pnpm/env.path':
+        specifier: workspace:*
+        version: link:../env/path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../packages/error
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../workspace/filter-workspace-packages
@@ -5433,8 +5494,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile/types
       '@pnpm/logger':
-        specifier: 'catalog:'
-        version: 5.0.0
+        specifier: workspace:*
+        version: link:../packages/logger
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../pkg-manager/modules-yaml
@@ -5693,7 +5754,7 @@ importers:
         version: safe-execa@0.1.2
       pkg:
         specifier: 'catalog:'
-        version: 5.8.1(patch_hash=pp6fkuhwkrqq7cjcj7uqpf37e4)(encoding@0.1.13)
+        version: '@yao-pkg/pkg@5.12.0(patch_hash=pp6fkuhwkrqq7cjcj7uqpf37e4)(encoding@0.1.13)'
 
   pnpm/artifacts/linux-arm64:
     devDependencies:
@@ -5757,9 +5818,6 @@ importers:
       '@pnpm/fs.is-empty-dir-or-nothing':
         specifier: workspace:*
         version: link:../../fs/is-empty-dir-or-nothing
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
@@ -5779,6 +5837,9 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/plugin-commands-deploy':
         specifier: workspace:*
         version: 'link:'
@@ -5824,9 +5885,6 @@ importers:
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
@@ -5888,6 +5946,9 @@ importers:
       '@pnpm/catalogs.config':
         specifier: workspace:*
         version: link:../../catalogs/config
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
         version: 'link:'
@@ -6016,9 +6077,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -6038,6 +6096,9 @@ importers:
       '@pnpm/local-resolver':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
@@ -6059,9 +6120,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: link:../../workspace/resolve-workspace-range
@@ -6120,6 +6178,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -6255,9 +6316,6 @@ importers:
       '@pnpm/lockfile.walker':
         specifier: workspace:*
         version: link:../../lockfile/walker
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -6292,6 +6350,9 @@ importers:
       '@pnpm/license-scanner':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -6371,9 +6432,6 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -6402,6 +6460,9 @@ importers:
         specifier: 'catalog:'
         version: 7.6.2
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/outdated':
         specifier: workspace:*
         version: 'link:'
@@ -6511,9 +6572,6 @@ importers:
       '@pnpm/list':
         specifier: workspace:*
         version: link:../list
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -6530,6 +6588,9 @@ importers:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
@@ -6724,9 +6785,6 @@ importers:
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
         version: link:../../fs/indexed-pkg-importer
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
@@ -6749,6 +6807,9 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -6764,9 +6825,6 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../../pkg-manager/package-requester
@@ -6801,6 +6859,9 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../../pkg-manager/client
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/package-store':
         specifier: workspace:*
         version: 'link:'
@@ -6834,9 +6895,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/server':
         specifier: workspace:*
         version: link:../server
@@ -6874,6 +6932,9 @@ importers:
         specifier: 'catalog:'
         version: 1.2.2
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/plugin-commands-server':
         specifier: workspace:*
         version: 'link:'
@@ -6907,9 +6968,6 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
@@ -6959,6 +7017,9 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/plugin-commands-script-runners':
         specifier: workspace:*
         version: link:../../exec/plugin-commands-script-runners
@@ -7056,9 +7117,6 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
@@ -7078,6 +7136,9 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../../pkg-manager/client
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../../pkg-manager/package-requester
@@ -7123,9 +7184,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../package-store
@@ -7145,6 +7203,9 @@ importers:
         specifier: 'catalog:'
         version: 2.0.0
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: 'link:'
@@ -7244,9 +7305,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../fs/graceful-fs
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../store/cafs
@@ -7255,11 +7313,14 @@ importers:
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
         specifier: 'catalog:'
-        version: 0.4.9(@types/node@20.14.9)
+        version: 0.4.9(@types/node@22.2.0)
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../packages/logger
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
@@ -7355,9 +7416,6 @@ importers:
       '@pnpm/fs.find-packages':
         specifier: workspace:*
         version: link:../../fs/find-packages
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -7365,6 +7423,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: 'link:'
@@ -7482,8 +7543,8 @@ packages:
     resolution: {integrity: sha512-nykK+LEK86ahTkX/3TgauT0ikKoNCfKHEaZYTUVupJdTLzGNvrblu4u6fa7DhZONAltdf8e662t/abY8idrd/g==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/generator@7.18.2':
-    resolution: {integrity: sha512-W1lG5vUwFvfMd8HVXqdfbuG7RuaSrTCCD8cl8fP8wOivdbtbIg2Db3IWUcgvfxKbbn6ZBGYRW/Zk1MIwK49mgw==}
+  '@babel/generator@7.23.0':
+    resolution: {integrity: sha512-lN85QRR+5IbYrMWM6Y4pE/noaQtg4pNiqeNGX60eqOfo6gtEj6uw/JagelB8vVztSd7R6M5n1+PQkDbHbBRU4g==}
     engines: {node: '>=6.9.0'}
 
   '@babel/generator@7.24.7':
@@ -7576,8 +7637,8 @@ packages:
     resolution: {integrity: sha512-EStJpq4OuY8xYfhGVXngigBJRWxftKX9ksiGDnmlY3o7B/V7KIAc9X4oiK87uPJSc/vs5L869bem5fhZa8caZw==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/parser@7.18.4':
-    resolution: {integrity: sha512-FDge0dFazETFcxGw/EXzOkN8uJp0PC7Qbm+Pe9T+av2zlBpOgunFHkQPPn+eRuClU73JF+98D531UgayY89tow==}
+  '@babel/parser@7.23.0':
+    resolution: {integrity: sha512-vvPKKdMemU85V9WE/l5wZEmImpCtLqbnTvqDS2U1fJ96KrxoW7KrXhNsNCblQlg8Ck4b85yxdTyelsMUgFUXiw==}
     engines: {node: '>=6.0.0'}
     hasBin: true
     peerDependencies:
@@ -7704,8 +7765,8 @@ packages:
     resolution: {integrity: sha512-yb65Ed5S/QAcewNPh0nZczy9JdYXkkAbIsEo+P7BE7yO3txAY30Y/oPa3QkQ5It3xVG2kpKMg9MsdxZaO31uKA==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/types@7.19.0':
-    resolution: {integrity: sha512-YuGopBq3ke25BVSiS6fgF49Ul9gH1x70Bcr6bqRLjWCkcX8Hre1/5+z+IiWOIerRMSSEfGZVB9z9kyq7wVs9YA==}
+  '@babel/types@7.23.0':
+    resolution: {integrity: sha512-0oIyUfKoI3mSqMvsxBdclDwxXKXAUA8v/apZbc+iSyARYou1o8ZGDxbUYyLFoW2arqS2jDGqJuZvv1d/io1axg==}
     engines: {node: '>=6.9.0'}
 
   '@babel/types@7.24.7':
@@ -8340,16 +8401,24 @@ packages:
     resolution: {integrity: sha512-OIqo9qF5qUl9Zlu7zV2aaX9PbtozRiFM6VPrn3PmIrNfYnCh3HyB/ojAp36oglz4+xVJ+mUqx4+aZmstN4ALpg==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/catalogs.protocol-parser@0.1.0':
+    resolution: {integrity: sha512-T3WvT+IBHsoDwv8RBQo3b+SBnXTQMpHZ1Yo7tJWcImBzrkuc4eP7KYB/yGP240PNgyrvCTrnuImRX9MNZD5flg==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/catalogs.resolver@0.1.0':
+    resolution: {integrity: sha512-3S0JXQx/M2DDJdFzcoJFLXjkmhGFjYkFnR66VS/B07xTaZmQpclPp2vKL7PRI7JSliiN3Vt0ksuzYWHV2Lzsjg==}
+    engines: {node: '>=18.12'}
+
   '@pnpm/catalogs.types@0.1.0':
     resolution: {integrity: sha512-i52GQCj77GqebPBmmxxTcBRYch8eIdXGC+1REkv//272YNMt5bv5Okq0DvtE8A8RkPurGxFdYVXuqqrTdgBZEw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/cli-meta@6.0.3':
-    resolution: {integrity: sha512-fLXOOOE+V7GAwk5BNbdNp/uiCXBVddC1F2nTn/NoSjYc9T8QwjmjdjnKWar5lKQJ3HqZUtINMo27TjrEahHcJg==}
+  '@pnpm/cli-meta@6.1.0':
+    resolution: {integrity: sha512-NCzIKUu1rCVXvflu9c9b8BqT5fdiSsCQw+ywBGP6fyET6L9YhoAFwsUf2+0JpCbLivo88IdKrqkQNyIFBFtrZw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/cli-utils@3.1.3':
-    resolution: {integrity: sha512-8RGFC/GKgfwQPiPGn1tfDgbqoUTalFm8u38xo3w5PB969DcAXAmut85k+v8kSO5iI+XPF+5irv4Wutd6vPKWRA==}
+  '@pnpm/cli-utils@4.0.1':
+    resolution: {integrity: sha512-qiN1m4YPD+fqhQT8G+7YtJxsnF9SxM09XR/anG+z5t8z1mYRDELVKedEUlPk6vUsKGW1TY6OIJkbSoh+4GCXpw==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': ^5.0.0
@@ -8366,16 +8435,16 @@ packages:
     resolution: {integrity: sha512-tV71wOtu8ULW4Fv5c7MWph3Sfle1wkT2q83qF2Cx/0J5E2dpUsClO9evAouL4fbdmPonkXJbRYL5cGHKuqxr4w==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/config@21.6.0':
-    resolution: {integrity: sha512-3CPMkyE/lnZRAsRz+H++UipPmg7SxBma5STiCDRQXbAj8DCaJ9+tnpw9YrLpdZol3wM4I3VBHAkXGLiXVgMbJQ==}
+  '@pnpm/config@21.8.0':
+    resolution: {integrity: sha512-/8Cb/onSMVu7X+txSagp9eltwP1mVxEEXrfCb8kT03NiAofvdqDVCqcPIaEbhn4EHr75BueQQzasxSNXxmQkAA==}
     engines: {node: '>=18.12'}
 
   '@pnpm/constants@8.0.0':
     resolution: {integrity: sha512-yQosGUvYPpAjb1jOFcdbwekRjZRVxN6C0hHzfRCZrMKbxGjt/E0g0RcFlEDNVZ95tm4oMMcr7nEPa7H7LX3emw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/core-loggers@10.0.3':
-    resolution: {integrity: sha512-G038bkMTuvmgG3XtuajnfoBS/u2CoeywRzJZb3qxvcj1XpLFTDAhHyUv/2Rr+yh6KDOVAuTWqdk+WNfeNf6yrw==}
+  '@pnpm/core-loggers@10.0.5':
+    resolution: {integrity: sha512-HAgskgqFbBqq8xGzYdC5vnzB/AxER3Q1VshZeFpt5ex8u/IcnEyCIgp8A4m8TZ1FqG7BLmUZ7ws4XD/pcwNbYA==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': ^5.0.0
@@ -8392,8 +8461,8 @@ packages:
     resolution: {integrity: sha512-iCv/dc5dyXN/egiIu89qQn6yuLsQhiFjn0t1N+UKf4jSdMp59WFHjGh04jSsbxbGG91s6K9SQghOBW8BbZjinw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/default-reporter@13.1.6':
-    resolution: {integrity: sha512-IJezWIgLUi0cF4N8F5amnoThpQNNCH6U60U+mAi89uav5b4BAeRSDlmJ3ktDlIgmYILlJwwIYNbUxN+eNijPPA==}
+  '@pnpm/default-reporter@13.1.12':
+    resolution: {integrity: sha512-TT91aYZayxqBhJEuapE4QbSQ1KGVkoXmLum3GqcydnsGxXY7sSEz8zhuY3+WPQvHPj5sxFN2+F4bXhVlTPD36Q==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': ^5.0.0
@@ -8406,16 +8475,16 @@ packages:
     resolution: {integrity: sha512-b5ALfWEOFQprWKntN7MF8XWCyslBk2c8u20GEDcDDQOs6c0HyHlWxX5lig8riQKdS000U6YyS4L4b32NOleXAQ==}
     engines: {node: '>=10'}
 
-  '@pnpm/fetcher-base@16.0.3':
-    resolution: {integrity: sha512-6ddoPp1kHRlllj9Qt0TrMxkKNT10WD6e/TcKUiZQbe74fCWasMVqqZAS4z+EuKetkg92NqmUChQ2wp4Xry5YZA==}
+  '@pnpm/fetcher-base@16.0.5':
+    resolution: {integrity: sha512-f6LPAexXgHS9AUcKcGKOJRbrHM0m08JXtzeK+8Ijpq7omVTrjUNRXQRIPlp15ycqbAO9ppNtD5v8li+dtdGyYw==}
     engines: {node: '>=18.12'}
 
   '@pnpm/find-workspace-dir@7.0.1':
     resolution: {integrity: sha512-o1LAFM/5MChI6qBolMBOznzatch01UK3wIgoAE/b779qs1FakksB278nMRTwRY58PZSBT+RxZ2RCMjlxPLeVWw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/fs.find-packages@4.0.0':
-    resolution: {integrity: sha512-3pu2XikY2lfCY17YK6vTEjQHIaFvvfsP3ZdQSxeBFDCckLwJSnWexCzPkngnKFX5hEYzNqn8t3oCb92ZznMLlQ==}
+  '@pnpm/fs.find-packages@4.0.2':
+    resolution: {integrity: sha512-ucwEzEiOXe8k8Ekg4PSRRx8Tq3xSK8gZ8ecCxscytdqVuShmsnZLcKasCSXc508w0mOPeQtsgvAGUWI6+VdRdA==}
     engines: {node: '>=18.12'}
 
   '@pnpm/fs.packlist@2.0.0':
@@ -8430,16 +8499,16 @@ packages:
     resolution: {integrity: sha512-933nhV2Prp51522poxX6Chvb7kEW3U3kzVWoqDU1+icB+QE7z/2qQ8wYHsBt4jm0Uil/sF67t77ugOr8bR63kg==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/hooks.types@2.0.4':
-    resolution: {integrity: sha512-dffq6qcSzWy+C2fY+ig/etjB+cdLeGqmlqAqcpEpHr5qE2tOHDr6sjFdO5DOQPeQhtP9tyTsrfL0QSa423MQvQ==}
+  '@pnpm/hooks.types@2.0.7':
+    resolution: {integrity: sha512-7rFgjOnpHqCZeEEJZRGJBlwZL1On2ViiS/ogVroy9nCGZqtI++PbeHhCBqVQyKHwo6a7UWLJ5g1rLQdwUpuCGw==}
     engines: {node: '>=18.12'}
 
   '@pnpm/hosted-git-info@1.0.0':
     resolution: {integrity: sha512-QzmNiLShTnNyeTHr+cykG5hYjwph0+v49KHV36Dh8uA2rRMWw30qoZMARuxd00SYdoTwT8bIouqqmzi6TWfJHQ==}
     engines: {node: '>=10'}
 
-  '@pnpm/lockfile-types@7.1.2':
-    resolution: {integrity: sha512-+64KoK8gtTS5lxslW8ATtwwEbikW4e9i/OV5eaR+X+//5SeUA796uCN96sKu6q6OzpZi3/aVU4VgVe15MT9XKA==}
+  '@pnpm/lockfile.types@1.0.1':
+    resolution: {integrity: sha512-o3rr7czGHQT6C4optU9yyqxFuEEaF+ihpI2/gmCEKaMfXNKGE+bsffsVHrorR7DmfxMVQ9btMrq7tocvETZgHA==}
     engines: {node: '>=18.12'}
 
   '@pnpm/log.group@3.0.0':
@@ -8450,8 +8519,12 @@ packages:
     resolution: {integrity: sha512-YfcB2QrX+Wx1o6LD1G2Y2fhDhOix/bAY/oAnMpHoNLsKkWIRbt1oKLkIFvxBMzLwAEPqnYWguJrYC+J6i4ywbw==}
     engines: {node: '>=12.17'}
 
-  '@pnpm/manifest-utils@6.0.4':
-    resolution: {integrity: sha512-PCZHHMsFqLbJQuBZPAoWwCjUymev00qSyhw5Ds0CNXc5UPtHmNYshVnu30iqU3KHgWlXniRJsniPeDNAEbeQrA==}
+  '@pnpm/logger@5.2.0':
+    resolution: {integrity: sha512-dCdSs2wPCweMkRLdISAKBOKSWeq/9iS9aanWgjoUkFs06KN2o5XGFg53oCXg/KbZhF9AXS3vMHPwTebzCeAEsA==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/manifest-utils@6.0.6':
+    resolution: {integrity: sha512-q1DWttEs7q+8MUo3Z55Bniyv1Po7E+TIf6VLzMgTkH9Z1GByPoO/fwltLZLdhmD1pqsqitAxNHJ4u+QBLdrkWg==}
     engines: {node: '>=18.12'}
 
   '@pnpm/matcher@6.0.0':
@@ -8488,12 +8561,12 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  '@pnpm/npm-conf@2.2.2':
-    resolution: {integrity: sha512-UA91GwWPhFExt3IizW6bOeY/pQ0BkuNwKjk9iQW9KqxluGCrg4VenZ0/L+2Y0+ZOtme72EVvg6v0zo3AMQRCeA==}
-    engines: {node: '>=12'}
-
   '@pnpm/npm-conf@2.3.0':
     resolution: {integrity: sha512-DqrO+oXGR7HCuicNy6quk6ALJSDDPKI7RZz1bP5im8mSL8J2e+9w26LdkjuAfpAjOutYUJVbnXnx4IbTQeIgfw==}
+    engines: {node: '>=12'}
+
+  '@pnpm/npm-conf@2.3.1':
+    resolution: {integrity: sha512-c83qWb22rNRuB0UaVCI0uRPNRr8Z0FWnEIvT47jiHAmOIUHbBOg5XvV7pM5x+rKn9HRpjxquDbXYSXr3fAKFcw==}
     engines: {node: '>=12'}
 
   '@pnpm/npm-lifecycle@3.0.4':
@@ -8516,14 +8589,14 @@ packages:
     resolution: {integrity: sha512-ad4jgJSzrR+jupsrcBC5NmbQOIrJHAZiZc4bBQfdrqeU8B7X/hA0sdOwC4UoWMvk2y+J9DwdNu8cH1t/EqGqPw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/package-is-installable@9.0.4':
-    resolution: {integrity: sha512-0jPnJtsh3XgzYpmfTWQryvPWLHH6zMBUIxbDfTn8DMKeUhjrCfIlC1OSsS8MtoVm1aysRifldA+6TK9F2qIYfA==}
+  '@pnpm/package-is-installable@9.0.6':
+    resolution: {integrity: sha512-QBt73RrkDMxen/B3MB8U1C8uhH1XXxn9fOBybk3YdEixVbdd/Wj/LhyvMvMb50/uCQP2OsWOrosqpcie6C+E7g==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': ^5.0.0
 
-  '@pnpm/parse-overrides@5.0.1':
-    resolution: {integrity: sha512-KD/cE0ovH2JkH5qeAuAo9TyU23Nqk0smlNf6O1t72zdIAOygvjAh5AzThGbYioBNWQP7h1MA7cAzrrDZRcrxgw==}
+  '@pnpm/parse-overrides@5.1.0':
+    resolution: {integrity: sha512-RlNgiDIFNNK/4eTHOa549LYz51YCMiQroJEiUwCCWpOJlwPj+bIlcwpp9aOYGvH+ESjGIE5A9vfFFA6ilMPWKA==}
     engines: {node: '>=18.12'}
 
   '@pnpm/parse-wanted-dependency@6.0.0':
@@ -8535,8 +8608,12 @@ packages:
     engines: {node: '>=14', npm: '>5'}
     hasBin: true
 
-  '@pnpm/pnpmfile@6.0.6':
-    resolution: {integrity: sha512-LSe3UsCTOlzWQeXfb9dut2ozVPaQLrinF8Rie4GcbxD7UK6wHPerX4EqzM9IULzTaI8PkQ+ss4+vglnpV0Q6sw==}
+  '@pnpm/patching.types@1.0.0':
+    resolution: {integrity: sha512-juCdQCC1USqLcOhVPl1tYReoTO9YH4fTullMnFXXcmpsDM7Dkn3tzuOQKC3oPoJ2ozv+0EeWWMtMGqn2+IM3pQ==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/pnpmfile@6.0.9':
+    resolution: {integrity: sha512-NxoxKQzZ0/TFN07Q0+AYj+LdM1oP3VYEFIpL0MurO0RKTmulngQ/yv5tSfSNiCrd4/Dl2cdx9yi1s6YB8+ztXA==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': ^5.0.0
@@ -8544,8 +8621,8 @@ packages:
   '@pnpm/ramda@0.28.1':
     resolution: {integrity: sha512-zcAG+lvU0fMziNeGXpPyCyCJYp5ZVrPElEE4t14jAmViaihohocZ+dDkcRIyAomox8pQsuZnv1EyHR+pOhmUWw==}
 
-  '@pnpm/read-project-manifest@6.0.4':
-    resolution: {integrity: sha512-yxfJQayRXlmcs7eQJkNVz4yuZw6x3lYAoODeRCI0S0Ez7G2ql+zoOGeigIe2UxI2B8xN3WyDgZ4G2CqV7t5cBw==}
+  '@pnpm/read-project-manifest@6.0.6':
+    resolution: {integrity: sha512-LFTWzfJbu6+l86bw/uUAsPU05n1oTqg6jzqyTXYDJPfVclqTfPnHiZoC1nvVvQlE7iVg3bhJ7SXg9IyzK7RWDQ==}
     engines: {node: '>=18.12'}
 
   '@pnpm/registry-mock@3.40.0':
@@ -8553,12 +8630,12 @@ packages:
     engines: {node: '>=10.13'}
     hasBin: true
 
-  '@pnpm/render-peer-issues@5.0.4':
-    resolution: {integrity: sha512-gslZMRlNkJ4ylr4F2VXer8CgzmCulNI/yyFondfjs+LRxUR/ybSiUbLqXByzedjQvkq0pB7gHgV2fMZ27fiLwA==}
+  '@pnpm/render-peer-issues@5.0.6':
+    resolution: {integrity: sha512-vWYvhMYEKdR4I1VYlHbo7X1A50Ne+Tg9FJiymLiihoiDHk/rgwilV/NT7ErTYSBMQ1N6O+7MjJjY37MrcHjmKQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/resolver-base@13.0.0':
-    resolution: {integrity: sha512-hUAn2OqHEBB3MRLlbvtczI0KdNM9CJgd0hDRuLDrcaVrhZrhHDwgLywls+hWbgNvUpcdMR7k+uEIo+07Vu/Qvg==}
+  '@pnpm/resolver-base@13.0.2':
+    resolution: {integrity: sha512-GS1FTXvo0/UqUQWw/kjpjZAgyxCYfwBJIoKK+QVbxOh3t4GdE/nO7zybU7iKaO5ga9KhjD+HWUk103h1rhrEoA==}
     engines: {node: '>=18.12'}
 
   '@pnpm/self-installer@2.2.1':
@@ -8573,8 +8650,8 @@ packages:
   '@pnpm/slice-ansi@1.1.2':
     resolution: {integrity: sha512-Wv4TV9FxdzG+eAyEy5wc6bcSxgBqIcsSCUOthEyC6DysxxUlj2Ie+ZdLrGnjs2/a5pRc95Bjs2e0HzXJPlsL8w==}
 
-  '@pnpm/store-controller-types@18.1.2':
-    resolution: {integrity: sha512-1vfHCg67/yvl6yDxgXUqSEukY0TRqNOntg3CVcIZwud33GOc2Ak7GgTZWCJAZIIzmc/o8rClNgb8TKket3bN6A==}
+  '@pnpm/store-controller-types@18.1.4':
+    resolution: {integrity: sha512-4Zk2+jeBBbpYgTFwqz8fUYPmnMBzonB9e0nPCj5iZydAHlevwzO4PG0FTg/SrSz1BDnors0umM4qMjClzdIIuA==}
     engines: {node: '>=18.12'}
 
   '@pnpm/tabtab@0.5.4':
@@ -8589,6 +8666,10 @@ packages:
     resolution: {integrity: sha512-BSdk9nlYLHHHLrTFNpmdrXrXVc+1sY/E1Fs1zqR8pY/KjpjVhxkruLZuXitPRPxbk4jSqm7UnG5WCz008iiaig==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/types@12.0.0':
+    resolution: {integrity: sha512-7iookhjwjR4YwszOcGSXS4iY0oDYCGZ1kKvkHiufk/hcs2Fqh34dS5p0K5mOilwAFKcdjbl8QyNDogcOmKf3pg==}
+    engines: {node: '>=18.12'}
+
   '@pnpm/util.lex-comparator@3.0.0':
     resolution: {integrity: sha512-ead+l3IiuVXwKDf/QJPX6G93cwhXki3yOVEA/VdAO7AhZ5vUuSBxHe6gQKEbB0QacJ4H5VsYxeM1xUgwjjOO/Q==}
     engines: {node: '>=18.12'}
@@ -8598,8 +8679,8 @@ packages:
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
     hasBin: true
 
-  '@pnpm/workspace.find-packages@4.0.0':
-    resolution: {integrity: sha512-YMdlQed2c0x2E1MRkKTreDV7JeFwhBZPjMy34w/BRMG8qnhbSGmhF85b+EPYPIH6Q/RH6JoPs0IxdMuGDWpzpg==}
+  '@pnpm/workspace.find-packages@4.0.6':
+    resolution: {integrity: sha512-TTNCAaxnMO+J8ANTm1AIfTZEuW0OXy+h1djOINonT0FXLMhaH5JdZpf1vkb47m8jo8EvOwmfi9wpy47Wj8VW2g==}
     engines: {node: '>=18.12'}
     peerDependencies:
       '@pnpm/logger': ^5.0.0
@@ -8608,8 +8689,8 @@ packages:
     resolution: {integrity: sha512-8rWN1LjG8qCqR32UcDVBBaXfmQhl1Ye698KB1L+MlJTa/S568UyQOfINdC8eL5ba6vggoDp4opgUcY8FoEdNhQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/write-project-manifest@6.0.3':
-    resolution: {integrity: sha512-0KLOjeLlBBgFa8c1NAI00l/UIyyhMnc505g1btWzhKAsCa9847uYitAT4FQETJVQzWroP7XaFu72OKbkxWBxBg==}
+  '@pnpm/write-project-manifest@6.0.5':
+    resolution: {integrity: sha512-JpiY/IoWFpIJxMUXv5Phxi+ft+Th3b2zffR/ml984SE++GwnrH9b47aqo998A8ffbLa6aaj8yQbErleMS/oy2g==}
     engines: {node: '>=18.12'}
 
   '@reflink/reflink-darwin-arm64@0.1.16':
@@ -8819,6 +8900,9 @@ packages:
   '@types/node@20.5.1':
     resolution: {integrity: sha512-4tT2UrL5LBqDwoed9wZ6N3umC4Yhz3W3FloMmiiG4JwmUJWpie0c7lcnUNd4gtMKuDEO4wRVS8B6Xa0uMRsMKg==}
 
+  '@types/node@22.2.0':
+    resolution: {integrity: sha512-bm6EG6/pCpkxDf/0gDNDdtDILMOHgaQBVOJGdwsqClnxA3xL6jtMv76rLBc006RVMWbmaf0xbmom4Z/5o2nRkQ==}
+
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
 
@@ -9008,6 +9092,14 @@ packages:
   '@verdaccio/utils@6.0.0-6-next.23':
     resolution: {integrity: sha512-PpKgisv6cRm43JNyFaUTTclyOy8VRubjniA3CmbEQIAImZ1YQMSAQ06nsWpZEhIx4NuRXmB5CiUHg2U4/0+oCg==}
     engines: {node: '>=12'}
+
+  '@yao-pkg/pkg-fetch@3.5.9':
+    resolution: {integrity: sha512-usMwwqFCd2B7k+V87u6kiTesyDSlw+3LpiuYBWe+UgryvSOk/NXjx3XVCub8hQoi0bCREbdQ6NDBqminyHJJrg==}
+    hasBin: true
+
+  '@yao-pkg/pkg@5.12.0':
+    resolution: {integrity: sha512-KZVpiDKRi2gtrVtKwhz/ZUKBOicVNggxaYQzPBjULuOLJ/UypTmAz5a2g+utLMn+WogbLE3vLfmC+TWp8v3+aQ==}
+    hasBin: true
 
   '@yarnpkg/core@4.0.3':
     resolution: {integrity: sha512-O+WGCjB9aIBxdRMBxXdsIy08MW4RbxfCS2AfywWb8DPS9H0LICahUJgNAaE0fwCsW7/gNzQbLYlh9DQQwzONrA==}
@@ -9394,8 +9486,8 @@ packages:
     resolution: {integrity: sha512-jWi7abTbYwajOytWCQc37VulmWiRae5RyTpaCyDcS5/lMdtwSz5lOpDE67srw/HYe35f1z3fDQw+3txg7gNtWw==}
     engines: {node: '>= 0.8', npm: 1.2.8000 || >= 1.4.16}
 
-  bole@5.0.13:
-    resolution: {integrity: sha512-JQ3xWh2nYsVUuJx7ZN4fzU3vHpzceWb7CC06LUXWwdY++Hzd7Wola7zN3Ud5XgmOVoH/6KzrdMmJokol/xtejw==}
+  bole@5.0.14:
+    resolution: {integrity: sha512-IFDlSAH1GKiQEp4NUa2Eg8RplcV2oXOFCHD/nfNqVlRNf9RgNRdxtR2g3P+Cz57uP5jAGSrq2bGUqXLQeh/h4w==}
 
   boxen@5.1.2:
     resolution: {integrity: sha512-9gYgQKXx+1nP8mP7CzFyaUARhg7D3n1dF/FnErWmu9l6JvGpNUN278h0aSb+QjoiKSWG+iZ3uHrcqk0qrY9RQQ==}
@@ -10110,6 +10202,11 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
+  ejs@3.1.10:
+    resolution: {integrity: sha512-UeJmFfOrAQS8OJWPZ4qtgHyWExa088/MtK5UEyoJGFH67cDEXkZSviOiKRCZ4Xij0zxI3JECgYs3oKx+AizQBA==}
+    engines: {node: '>=0.10.0'}
+    hasBin: true
+
   electron-to-chromium@1.4.816:
     resolution: {integrity: sha512-EKH5X5oqC6hLmiS7/vYtZHZFTNdhsYG5NVPRN6Yn0kQHNBlT59+xSM8HBy66P5fxWpKgZbPqb+diC64ng295Jw==}
 
@@ -10458,6 +10555,9 @@ packages:
   file-entry-cache@7.0.2:
     resolution: {integrity: sha512-TfW7/1iI4Cy7Y8L6iqNdZQVvdXn0f8B4QcIXmkIbtTIe/Okm/nSlHb4IwGzRVOd3WfSieCgvf5cMzEfySAIl0g==}
     engines: {node: '>=12.0.0'}
+
+  filelist@1.0.4:
+    resolution: {integrity: sha512-w1cEuf3S+DrLCQL7ET6kz+gmlJdbq9J7yXCSjK/OZCPA+qEN1WyF4ZAf0YYJa4/shHJra2t/d/r8SV4Ji+x+8Q==}
 
   filename-reserved-regex@2.0.0:
     resolution: {integrity: sha512-lc1bnsSr4L4Bdif8Xb/qrtokGbq5zlsms/CYH8PP+WtCkGNF65DPiQY8vG3SakEdRn8Dlnm+gW/qWKKjS5sZzQ==}
@@ -11283,6 +11383,11 @@ packages:
     resolution: {integrity: sha512-JVYhQnN59LVPFCEcVa2C3CrEKYacvjRfqIQl+h8oi91aLYQVWRYbxjPcv1bUiUy/kLmQaANrYfNMCO3kuEDHfw==}
     engines: {node: '>=14'}
 
+  jake@10.9.2:
+    resolution: {integrity: sha512-2P4SQ0HrLQ+fw6llpLnOaGAvN2Zu6778SJMrCUwns4fOoG9ayrTiZk3VV8sCPkVZF8ab0zksVpS8FDY5pRCNBA==}
+    engines: {node: '>=10'}
+    hasBin: true
+
   jest-changed-files@29.7.0:
     resolution: {integrity: sha512-fEArFiwf1BpQ+4bXSprcDc3/x4HSzL4al2tozwVpDFpsxALjLYdyiIK4e5Vz66GQJIbXJ82+35PtysofptNX2w==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
@@ -11834,6 +11939,10 @@ packages:
     resolution: {integrity: sha512-RHiac9mvaRw0x3AYRgDC1CxAP7HTcNrrECeA8YYJeWnpo+2Q5CegtZjaotWTWxDG3UeGA1coE05iH1mPjT/2mg==}
     engines: {node: '>=16 || 14 >=14.17'}
 
+  minimatch@9.0.4:
+    resolution: {integrity: sha512-KqWh+VchfxcMNRAJjj2tnsSJdNbHsVgnkBhTNrW7AjVo6OvLtxw8zfT9oLw1JSohlFzJ8jCoTgaoXvJ+kHt6fw==}
+    engines: {node: '>=16 || 14 >=14.17'}
+
   minimatch@9.0.5:
     resolution: {integrity: sha512-G6T0ZX48xgozx7587koeX9Ys2NYy6Gmv//P89sEte9V9whIapMNF4idKxnW2QtCcLiTWlb/wfCabAtAFWhhBow==}
     engines: {node: '>=16 || 14 >=14.17'}
@@ -11998,6 +12107,11 @@ packages:
 
   node-gyp@10.1.0:
     resolution: {integrity: sha512-B4J5M1cABxPc5PwfjhbV5hoy2DP9p8lFXASnEN6hugXOa61416tnTZ29x9sSwAd0o99XNIcpvDDy1swAExsVKA==}
+    engines: {node: ^16.14.0 || >=18.0.0}
+    hasBin: true
+
+  node-gyp@10.2.0:
+    resolution: {integrity: sha512-sp3FonBAaFe4aYTcFdZUn2NYkbP7xroPGYvQmP4Nl5PxamznItBnNCgjrVTKrEfQynInMsJvZrdmqUnysCJ8rw==}
     engines: {node: ^16.14.0 || >=18.0.0}
     hasBin: true
 
@@ -12385,19 +12499,6 @@ packages:
   pkg-dir@4.2.0:
     resolution: {integrity: sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==}
     engines: {node: '>=8'}
-
-  pkg-fetch@3.4.2:
-    resolution: {integrity: sha512-0+uijmzYcnhC0hStDjm/cl2VYdrmVVBpe7Q8k9YBojxmR5tG8mvR9/nooQq3QSXiQqORDVOTY3XqMEqJVIzkHA==}
-    hasBin: true
-
-  pkg@5.8.1:
-    resolution: {integrity: sha512-CjBWtFStCfIiT4Bde9QpJy0KeH19jCfwZRJqHFDFXfhUklCx8JoFmMj3wgnEYIwGmZVNkhsStPHEOnrtrQhEXA==}
-    hasBin: true
-    peerDependencies:
-      node-notifier: '>=9.0.1'
-    peerDependenciesMeta:
-      node-notifier:
-        optional: true
 
   pkginfo@0.4.1:
     resolution: {integrity: sha512-8xCNE/aT/EXKenuMDZ+xTVwkT8gsoHN2z/Q29l80u0ppGEXVvsKRzNMbtKhg8LS8k1tJLAHHylf6p4VFmP6XUQ==}
@@ -13354,12 +13455,13 @@ packages:
     peerDependencies:
       typescript: '>=4.2.0'
 
-  ts-jest@29.1.1:
-    resolution: {integrity: sha512-D6xjnnbP17cC85nliwGiL+tpoKN0StpgE0TeOjXQTU6MVCfsB4v7aW05CgQ/1OywGb0x/oy9hHFnN+sczTiRaA==}
-    engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
+  ts-jest@29.2.3:
+    resolution: {integrity: sha512-yCcfVdiBFngVz9/keHin9EnsrQtQtEu3nRykNy9RVp+FiPFFbPJ3Sg6Qg4+TkmH0vMP5qsTKgXSsk80HRwvdgQ==}
+    engines: {node: ^14.15.0 || ^16.10.0 || ^18.0.0 || >=20.0.0}
     hasBin: true
     peerDependencies:
       '@babel/core': '>=7.0.0-beta.0 <8'
+      '@jest/transform': ^29.0.0
       '@jest/types': ^29.0.0
       babel-jest: ^29.0.0
       esbuild: '*'
@@ -13367,6 +13469,8 @@ packages:
       typescript: '>=4.3 <6'
     peerDependenciesMeta:
       '@babel/core':
+        optional: true
+      '@jest/transform':
         optional: true
       '@jest/types':
         optional: true
@@ -13504,8 +13608,8 @@ packages:
   types-ramda@0.29.10:
     resolution: {integrity: sha512-5PJiW/eiTPyXXBYGZOYGezMl6qj7keBiZheRwfjJZY26QPHsNrjfJnz0mru6oeqqoTHOni893Jfd6zyUXfQRWg==}
 
-  typescript@5.4.5:
-    resolution: {integrity: sha512-vcI4UpRgg81oIRUFwR0WSIHKt11nJ7SAVlYNIu+QpqeyXP+gpQJy/Z4+F0aGxSE4MqwjyXvW/TzgkLAx2AGHwQ==}
+  typescript@5.5.4:
+    resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -13530,6 +13634,9 @@ packages:
 
   undici-types@5.26.5:
     resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
+
+  undici-types@6.13.0:
+    resolution: {integrity: sha512-xtFJHudx8S2DSoujjMd1WeWvn7KKWFRESZTMeL1RptAYERu29D6jphMjjY+vn96jvN3kVPDNxU/E13VTaXj6jg==}
 
   unified@9.2.2:
     resolution: {integrity: sha512-Sg7j110mtefBD+qunSLO1lqOEKdrwBFBrR6Qd8f4uwkhWNlbkaqwHse6e7QvD3AP/MNoJdEDLaf8OxYyoWgorQ==}
@@ -13925,10 +14032,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@babel/generator@7.18.2':
+  '@babel/generator@7.23.0':
     dependencies:
       '@babel/types': 7.24.7
       '@jridgewell/gen-mapping': 0.3.5
+      '@jridgewell/trace-mapping': 0.3.25
       jsesc: 2.5.2
 
   '@babel/generator@7.24.7':
@@ -14054,9 +14162,9 @@ snapshots:
       js-tokens: 4.0.0
       picocolors: 1.0.1
 
-  '@babel/parser@7.18.4(@babel/types@7.19.0)':
+  '@babel/parser@7.23.0(@babel/types@7.23.0)':
     dependencies:
-      '@babel/types': 7.19.0
+      '@babel/types': 7.23.0
 
   '@babel/parser@7.24.7(@babel/types@7.24.7)':
     dependencies:
@@ -14198,7 +14306,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@babel/types@7.19.0':
+  '@babel/types@7.23.0':
     dependencies:
       '@babel/helper-string-parser': 7.24.7
       '@babel/helper-validator-identifier': 7.24.7
@@ -14430,14 +14538,14 @@ snapshots:
       '@commitlint/types': 17.8.1
       '@types/node': 20.5.1
       chalk: 4.1.2
-      cosmiconfig: 8.3.6(typescript@5.4.5)
-      cosmiconfig-typescript-loader: 4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.4.5))(ts-node@10.9.2(@types/node@20.5.1)(typescript@5.4.5))(typescript@5.4.5)
+      cosmiconfig: 8.3.6(typescript@5.5.4)
+      cosmiconfig-typescript-loader: 4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.5.4))(ts-node@10.9.2(@types/node@20.5.1)(typescript@5.5.4))(typescript@5.5.4)
       lodash.isplainobject: 4.0.6
       lodash.merge: 4.6.2
       lodash.uniq: 4.5.0
       resolve-from: 5.0.0
-      ts-node: 10.9.2(@types/node@20.5.1)(typescript@5.4.5)
-      typescript: 5.4.5
+      ts-node: 10.9.2(@types/node@20.5.1)(typescript@5.5.4)
+      typescript: 5.5.4
     transitivePeerDependencies:
       - '@swc/core'
       - '@swc/wasm'
@@ -14811,7 +14919,7 @@ snapshots:
       jest-util: 29.7.0
       slash: 3.0.0
 
-  '@jest/core@29.7.0(@babel/types@7.24.7)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))':
+  '@jest/core@29.7.0(@babel/types@7.24.7)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))':
     dependencies:
       '@jest/console': 29.7.0
       '@jest/reporters': 29.7.0(@babel/types@7.24.7)
@@ -14825,7 +14933,7 @@ snapshots:
       exit: 0.1.2
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-changed-files: 29.7.0
-      jest-config: 29.7.0(@babel/types@7.24.7)(@types/node@20.14.9)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))
+      jest-config: 29.7.0(@babel/types@7.24.7)(@types/node@20.14.9)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))
       jest-haste-map: 29.7.0
       jest-message-util: 29.7.0
       jest-regex-util: 29.6.3
@@ -15042,24 +15150,45 @@ snapshots:
     dependencies:
       '@pnpm/error': 6.0.1
 
+  '@pnpm/catalogs.protocol-parser@0.1.0': {}
+
+  '@pnpm/catalogs.resolver@0.1.0':
+    dependencies:
+      '@pnpm/catalogs.protocol-parser': 0.1.0
+      '@pnpm/error': 6.0.1
+
   '@pnpm/catalogs.types@0.1.0': {}
 
-  '@pnpm/cli-meta@6.0.3':
+  '@pnpm/cli-meta@6.1.0':
     dependencies:
-      '@pnpm/types': 11.0.0
+      '@pnpm/types': 12.0.0
       load-json-file: 6.2.0
 
-  '@pnpm/cli-utils@3.1.3(@pnpm/logger@5.0.0)':
+  '@pnpm/cli-utils@4.0.1(@pnpm/logger@5.0.0)':
     dependencies:
-      '@pnpm/cli-meta': 6.0.3
-      '@pnpm/config': 21.6.0(@pnpm/logger@5.0.0)
-      '@pnpm/default-reporter': 13.1.6(@pnpm/logger@5.0.0)
+      '@pnpm/cli-meta': 6.1.0
+      '@pnpm/config': 21.8.0(@pnpm/logger@5.0.0)
+      '@pnpm/default-reporter': 13.1.12(@pnpm/logger@5.0.0)
       '@pnpm/error': 6.0.1
       '@pnpm/logger': 5.0.0
-      '@pnpm/manifest-utils': 6.0.4(@pnpm/logger@5.0.0)
-      '@pnpm/package-is-installable': 9.0.4(@pnpm/logger@5.0.0)
-      '@pnpm/read-project-manifest': 6.0.4
-      '@pnpm/types': 11.0.0
+      '@pnpm/manifest-utils': 6.0.6(@pnpm/logger@5.0.0)
+      '@pnpm/package-is-installable': 9.0.6(@pnpm/logger@5.0.0)
+      '@pnpm/read-project-manifest': 6.0.6
+      '@pnpm/types': 12.0.0
+      chalk: 4.1.2
+      load-json-file: 6.2.0
+
+  '@pnpm/cli-utils@4.0.1(@pnpm/logger@5.2.0)':
+    dependencies:
+      '@pnpm/cli-meta': 6.1.0
+      '@pnpm/config': 21.8.0(@pnpm/logger@5.2.0)
+      '@pnpm/default-reporter': 13.1.12(@pnpm/logger@5.2.0)
+      '@pnpm/error': 6.0.1
+      '@pnpm/logger': 5.2.0
+      '@pnpm/manifest-utils': 6.0.6(@pnpm/logger@5.2.0)
+      '@pnpm/package-is-installable': 9.0.6(@pnpm/logger@5.2.0)
+      '@pnpm/read-project-manifest': 6.0.6
+      '@pnpm/types': 12.0.0
       chalk: 4.1.2
       load-json-file: 6.2.0
 
@@ -15071,7 +15200,7 @@ snapshots:
 
   '@pnpm/config.env-replace@3.0.0': {}
 
-  '@pnpm/config@21.6.0(@pnpm/logger@5.0.0)':
+  '@pnpm/config@21.8.0(@pnpm/logger@5.0.0)':
     dependencies:
       '@pnpm/catalogs.config': 0.1.0
       '@pnpm/catalogs.types': 0.1.0
@@ -15080,10 +15209,40 @@ snapshots:
       '@pnpm/error': 6.0.1
       '@pnpm/git-utils': 2.0.0
       '@pnpm/matcher': 6.0.0
-      '@pnpm/npm-conf': 2.2.2
-      '@pnpm/pnpmfile': 6.0.6(@pnpm/logger@5.0.0)
-      '@pnpm/read-project-manifest': 6.0.4
-      '@pnpm/types': 11.0.0
+      '@pnpm/npm-conf': 2.3.0
+      '@pnpm/pnpmfile': 6.0.9(@pnpm/logger@5.0.0)
+      '@pnpm/read-project-manifest': 6.0.6
+      '@pnpm/types': 12.0.0
+      '@pnpm/workspace.read-manifest': 2.2.0
+      better-path-resolve: 1.0.0
+      camelcase: 6.3.0
+      camelcase-keys: 6.2.2
+      can-write-to-dir: 1.1.1
+      is-subdir: 1.2.0
+      is-windows: 1.0.2
+      normalize-registry-url: 2.0.0
+      path-absolute: 1.0.1
+      path-name: 1.0.0
+      ramda: '@pnpm/ramda@0.28.1'
+      read-ini-file: 4.0.0
+      realpath-missing: 1.1.0
+      which: '@pnpm/which@3.0.1'
+    transitivePeerDependencies:
+      - '@pnpm/logger'
+
+  '@pnpm/config@21.8.0(@pnpm/logger@5.2.0)':
+    dependencies:
+      '@pnpm/catalogs.config': 0.1.0
+      '@pnpm/catalogs.types': 0.1.0
+      '@pnpm/config.env-replace': 3.0.0
+      '@pnpm/constants': 8.0.0
+      '@pnpm/error': 6.0.1
+      '@pnpm/git-utils': 2.0.0
+      '@pnpm/matcher': 6.0.0
+      '@pnpm/npm-conf': 2.3.0
+      '@pnpm/pnpmfile': 6.0.9(@pnpm/logger@5.2.0)
+      '@pnpm/read-project-manifest': 6.0.6
+      '@pnpm/types': 12.0.0
       '@pnpm/workspace.read-manifest': 2.2.0
       better-path-resolve: 1.0.0
       camelcase: 6.3.0
@@ -15103,10 +15262,15 @@ snapshots:
 
   '@pnpm/constants@8.0.0': {}
 
-  '@pnpm/core-loggers@10.0.3(@pnpm/logger@5.0.0)':
+  '@pnpm/core-loggers@10.0.5(@pnpm/logger@5.0.0)':
     dependencies:
       '@pnpm/logger': 5.0.0
-      '@pnpm/types': 11.0.0
+      '@pnpm/types': 12.0.0
+
+  '@pnpm/core-loggers@10.0.5(@pnpm/logger@5.2.0)':
+    dependencies:
+      '@pnpm/logger': 5.2.0
+      '@pnpm/types': 12.0.0
 
   '@pnpm/crypto.base32-hash@3.0.0':
     dependencies:
@@ -15120,16 +15284,41 @@ snapshots:
 
   '@pnpm/dedupe.types@2.0.0': {}
 
-  '@pnpm/default-reporter@13.1.6(@pnpm/logger@5.0.0)':
+  '@pnpm/default-reporter@13.1.12(@pnpm/logger@5.0.0)':
     dependencies:
-      '@pnpm/config': 21.6.0(@pnpm/logger@5.0.0)
-      '@pnpm/core-loggers': 10.0.3(@pnpm/logger@5.0.0)
+      '@pnpm/cli-meta': 6.1.0
+      '@pnpm/config': 21.8.0(@pnpm/logger@5.0.0)
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
       '@pnpm/dedupe.issues-renderer': 2.0.0
       '@pnpm/dedupe.types': 2.0.0
       '@pnpm/error': 6.0.1
       '@pnpm/logger': 5.0.0
-      '@pnpm/render-peer-issues': 5.0.4
-      '@pnpm/types': 11.0.0
+      '@pnpm/render-peer-issues': 5.0.6
+      '@pnpm/types': 12.0.0
+      ansi-diff: 1.1.1
+      boxen: 5.1.2
+      chalk: 4.1.2
+      cli-truncate: 2.1.0
+      normalize-path: 3.0.0
+      pretty-bytes: 5.6.0
+      pretty-ms: 7.0.1
+      ramda: '@pnpm/ramda@0.28.1'
+      rxjs: 7.8.1
+      semver: 7.6.2
+      stacktracey: 2.1.8
+      string-length: 4.0.2
+
+  '@pnpm/default-reporter@13.1.12(@pnpm/logger@5.2.0)':
+    dependencies:
+      '@pnpm/cli-meta': 6.1.0
+      '@pnpm/config': 21.8.0(@pnpm/logger@5.2.0)
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.2.0)
+      '@pnpm/dedupe.issues-renderer': 2.0.0
+      '@pnpm/dedupe.types': 2.0.0
+      '@pnpm/error': 6.0.1
+      '@pnpm/logger': 5.2.0
+      '@pnpm/render-peer-issues': 5.0.6
+      '@pnpm/types': 12.0.0
       ansi-diff: 1.1.1
       boxen: 5.1.2
       chalk: 4.1.2
@@ -15153,10 +15342,10 @@ snapshots:
       command-exists: 1.2.9
       cross-spawn: 7.0.3
 
-  '@pnpm/fetcher-base@16.0.3':
+  '@pnpm/fetcher-base@16.0.5':
     dependencies:
-      '@pnpm/resolver-base': 13.0.0
-      '@pnpm/types': 11.0.0
+      '@pnpm/resolver-base': 13.0.2
+      '@pnpm/types': 12.0.0
       '@types/ssri': 7.1.5
 
   '@pnpm/find-workspace-dir@7.0.1':
@@ -15164,10 +15353,10 @@ snapshots:
       '@pnpm/error': 6.0.1
       find-up: 5.0.0
 
-  '@pnpm/fs.find-packages@4.0.0':
+  '@pnpm/fs.find-packages@4.0.2':
     dependencies:
-      '@pnpm/read-project-manifest': 6.0.4
-      '@pnpm/types': 11.0.0
+      '@pnpm/read-project-manifest': 6.0.6
+      '@pnpm/types': 12.0.0
       '@pnpm/util.lex-comparator': 3.0.0
       fast-glob: 3.3.2
       p-filter: 2.1.0
@@ -15184,18 +15373,19 @@ snapshots:
     dependencies:
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
 
-  '@pnpm/hooks.types@2.0.4':
+  '@pnpm/hooks.types@2.0.7':
     dependencies:
-      '@pnpm/lockfile-types': 7.1.2
-      '@pnpm/types': 11.0.0
+      '@pnpm/lockfile.types': 1.0.1
+      '@pnpm/types': 12.0.0
 
   '@pnpm/hosted-git-info@1.0.0':
     dependencies:
       lru-cache: 6.0.0
 
-  '@pnpm/lockfile-types@7.1.2':
+  '@pnpm/lockfile.types@1.0.1':
     dependencies:
-      '@pnpm/types': 11.0.0
+      '@pnpm/patching.types': 1.0.0
+      '@pnpm/types': 12.0.0
 
   '@pnpm/log.group@3.0.0':
     dependencies:
@@ -15203,14 +15393,27 @@ snapshots:
 
   '@pnpm/logger@5.0.0':
     dependencies:
-      bole: 5.0.13
+      bole: 5.0.14
       ndjson: 2.0.0
 
-  '@pnpm/manifest-utils@6.0.4(@pnpm/logger@5.0.0)':
+  '@pnpm/logger@5.2.0':
     dependencies:
-      '@pnpm/core-loggers': 10.0.3(@pnpm/logger@5.0.0)
+      bole: 5.0.14
+      ndjson: 2.0.0
+
+  '@pnpm/manifest-utils@6.0.6(@pnpm/logger@5.0.0)':
+    dependencies:
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
       '@pnpm/error': 6.0.1
-      '@pnpm/types': 11.0.0
+      '@pnpm/types': 12.0.0
+    transitivePeerDependencies:
+      - '@pnpm/logger'
+
+  '@pnpm/manifest-utils@6.0.6(@pnpm/logger@5.2.0)':
+    dependencies:
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.2.0)
+      '@pnpm/error': 6.0.1
+      '@pnpm/types': 12.0.0
     transitivePeerDependencies:
       - '@pnpm/logger'
 
@@ -15223,7 +15426,7 @@ snapshots:
       '@pnpm/find-workspace-dir': 7.0.1
       '@pnpm/logger': 5.0.0
       '@pnpm/types': 11.0.0
-      '@pnpm/workspace.find-packages': 4.0.0(@pnpm/logger@5.0.0)
+      '@pnpm/workspace.find-packages': 4.0.6(@pnpm/logger@5.0.0)
       '@pnpm/workspace.read-manifest': 2.2.0
       load-json-file: 7.0.1
       meow: 11.0.0
@@ -15269,13 +15472,13 @@ snapshots:
     dependencies:
       abbrev: 1.1.1
 
-  '@pnpm/npm-conf@2.2.2':
+  '@pnpm/npm-conf@2.3.0':
     dependencies:
       '@pnpm/config.env-replace': 1.1.0
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-conf@2.3.0':
+  '@pnpm/npm-conf@2.3.1':
     dependencies:
       '@pnpm/config.env-replace': 1.1.0
       '@pnpm/network.ca-file': 1.0.2
@@ -15317,19 +15520,34 @@ snapshots:
       '@pnpm/os.env.path-extender-posix': 2.0.0
       '@pnpm/os.env.path-extender-windows': 2.0.0
 
-  '@pnpm/package-is-installable@9.0.4(@pnpm/logger@5.0.0)':
+  '@pnpm/package-is-installable@9.0.6(@pnpm/logger@5.0.0)':
     dependencies:
-      '@pnpm/core-loggers': 10.0.3(@pnpm/logger@5.0.0)
+      '@pnpm/cli-meta': 6.1.0
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
       '@pnpm/error': 6.0.1
       '@pnpm/logger': 5.0.0
-      '@pnpm/types': 11.0.0
+      '@pnpm/types': 12.0.0
       detect-libc: 2.0.3
       execa: safe-execa@0.1.2
       mem: 8.1.1
       semver: 7.6.2
 
-  '@pnpm/parse-overrides@5.0.1':
+  '@pnpm/package-is-installable@9.0.6(@pnpm/logger@5.2.0)':
     dependencies:
+      '@pnpm/cli-meta': 6.1.0
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.2.0)
+      '@pnpm/error': 6.0.1
+      '@pnpm/logger': 5.2.0
+      '@pnpm/types': 12.0.0
+      detect-libc: 2.0.3
+      execa: safe-execa@0.1.2
+      mem: 8.1.1
+      semver: 7.6.2
+
+  '@pnpm/parse-overrides@5.1.0':
+    dependencies:
+      '@pnpm/catalogs.resolver': 0.1.0
+      '@pnpm/catalogs.types': 0.1.0
       '@pnpm/error': 6.0.1
       '@pnpm/parse-wanted-dependency': 6.0.0
 
@@ -15354,29 +15572,44 @@ snapshots:
       tmp: 0.0.33
       yaml: 2.4.5
 
-  '@pnpm/pnpmfile@6.0.6(@pnpm/logger@5.0.0)':
+  '@pnpm/patching.types@1.0.0': {}
+
+  '@pnpm/pnpmfile@6.0.9(@pnpm/logger@5.0.0)':
     dependencies:
-      '@pnpm/core-loggers': 10.0.3(@pnpm/logger@5.0.0)
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
       '@pnpm/crypto.base32-hash': 3.0.0
       '@pnpm/error': 6.0.1
-      '@pnpm/hooks.types': 2.0.4
-      '@pnpm/lockfile-types': 7.1.2
+      '@pnpm/hooks.types': 2.0.7
+      '@pnpm/lockfile.types': 1.0.1
       '@pnpm/logger': 5.0.0
-      '@pnpm/store-controller-types': 18.1.2
-      '@pnpm/types': 11.0.0
+      '@pnpm/store-controller-types': 18.1.4
+      '@pnpm/types': 12.0.0
+      chalk: 4.1.2
+      path-absolute: 1.0.1
+
+  '@pnpm/pnpmfile@6.0.9(@pnpm/logger@5.2.0)':
+    dependencies:
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.2.0)
+      '@pnpm/crypto.base32-hash': 3.0.0
+      '@pnpm/error': 6.0.1
+      '@pnpm/hooks.types': 2.0.7
+      '@pnpm/lockfile.types': 1.0.1
+      '@pnpm/logger': 5.2.0
+      '@pnpm/store-controller-types': 18.1.4
+      '@pnpm/types': 12.0.0
       chalk: 4.1.2
       path-absolute: 1.0.1
 
   '@pnpm/ramda@0.28.1': {}
 
-  '@pnpm/read-project-manifest@6.0.4':
+  '@pnpm/read-project-manifest@6.0.6':
     dependencies:
       '@gwhitney/detect-indent': 7.0.1
       '@pnpm/error': 6.0.1
       '@pnpm/graceful-fs': 4.0.0
       '@pnpm/text.comments-parser': 3.0.0
-      '@pnpm/types': 11.0.0
-      '@pnpm/write-project-manifest': 6.0.3
+      '@pnpm/types': 12.0.0
+      '@pnpm/write-project-manifest': 6.0.5
       fast-deep-equal: 3.1.3
       is-windows: 1.0.2
       json5: 2.2.3
@@ -15401,20 +15634,20 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/render-peer-issues@5.0.4':
+  '@pnpm/render-peer-issues@5.0.6':
     dependencies:
       '@pnpm/error': 6.0.1
       '@pnpm/matcher': 6.0.0
-      '@pnpm/parse-overrides': 5.0.1
-      '@pnpm/types': 11.0.0
+      '@pnpm/parse-overrides': 5.1.0
+      '@pnpm/types': 12.0.0
       archy: 1.0.0
       chalk: 4.1.2
       cli-columns: 4.0.0
       semver: 7.6.2
 
-  '@pnpm/resolver-base@13.0.0':
+  '@pnpm/resolver-base@13.0.2':
     dependencies:
-      '@pnpm/types': 11.0.0
+      '@pnpm/types': 12.0.0
 
   '@pnpm/self-installer@2.2.1': {}
 
@@ -15424,11 +15657,11 @@ snapshots:
     dependencies:
       grapheme-splitter: 1.0.4
 
-  '@pnpm/store-controller-types@18.1.2':
+  '@pnpm/store-controller-types@18.1.4':
     dependencies:
-      '@pnpm/fetcher-base': 16.0.3
-      '@pnpm/resolver-base': 13.0.0
-      '@pnpm/types': 11.0.0
+      '@pnpm/fetcher-base': 16.0.5
+      '@pnpm/resolver-base': 13.0.2
+      '@pnpm/types': 12.0.0
 
   '@pnpm/tabtab@0.5.4':
     dependencies:
@@ -15445,18 +15678,28 @@ snapshots:
 
   '@pnpm/types@11.0.0': {}
 
+  '@pnpm/types@12.0.0': {}
+
   '@pnpm/util.lex-comparator@3.0.0': {}
 
   '@pnpm/which@3.0.1':
     dependencies:
       isexe: 2.0.0
 
-  '@pnpm/workspace.find-packages@4.0.0(@pnpm/logger@5.0.0)':
+  '@pnpm/workspace.find-packages@4.0.6(@pnpm/logger@5.0.0)':
     dependencies:
-      '@pnpm/cli-utils': 3.1.3(@pnpm/logger@5.0.0)
-      '@pnpm/fs.find-packages': 4.0.0
+      '@pnpm/cli-utils': 4.0.1(@pnpm/logger@5.0.0)
+      '@pnpm/fs.find-packages': 4.0.2
       '@pnpm/logger': 5.0.0
-      '@pnpm/types': 11.0.0
+      '@pnpm/types': 12.0.0
+      '@pnpm/util.lex-comparator': 3.0.0
+
+  '@pnpm/workspace.find-packages@4.0.6(@pnpm/logger@5.2.0)':
+    dependencies:
+      '@pnpm/cli-utils': 4.0.1(@pnpm/logger@5.2.0)
+      '@pnpm/fs.find-packages': 4.0.2
+      '@pnpm/logger': 5.2.0
+      '@pnpm/types': 12.0.0
       '@pnpm/util.lex-comparator': 3.0.0
 
   '@pnpm/workspace.read-manifest@2.2.0':
@@ -15465,10 +15708,10 @@ snapshots:
       '@pnpm/error': 6.0.1
       read-yaml-file: 2.1.0
 
-  '@pnpm/write-project-manifest@6.0.3':
+  '@pnpm/write-project-manifest@6.0.5':
     dependencies:
       '@pnpm/text.comments-parser': 3.0.0
-      '@pnpm/types': 11.0.0
+      '@pnpm/types': 12.0.0
       json5: 2.2.3
       write-file-atomic: 5.0.1
       write-yaml-file: 5.0.0
@@ -15492,9 +15735,9 @@ snapshots:
       '@reflink/reflink-win32-arm64-msvc': 0.1.16
       '@reflink/reflink-win32-x64-msvc': 0.1.16
 
-  '@rushstack/worker-pool@0.4.9(@types/node@20.14.9)':
+  '@rushstack/worker-pool@0.4.9(@types/node@22.2.0)':
     optionalDependencies:
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
 
   '@sinclair/typebox@0.27.8': {}
 
@@ -15680,6 +15923,11 @@ snapshots:
 
   '@types/node@20.5.1': {}
 
+  '@types/node@22.2.0':
+    dependencies:
+      undici-types: 6.13.0
+    optional: true
+
   '@types/normalize-package-data@2.4.4': {}
 
   '@types/normalize-path@3.0.2': {}
@@ -15762,13 +16010,13 @@ snapshots:
 
   '@types/yarnpkg__lockfile@1.1.9': {}
 
-  '@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)':
+  '@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0)(typescript@5.5.4)':
     dependencies:
       '@eslint-community/regexpp': 4.11.0
-      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
+      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.5.4)
       '@typescript-eslint/scope-manager': 6.18.1
-      '@typescript-eslint/type-utils': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
-      '@typescript-eslint/utils': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
+      '@typescript-eslint/type-utils': 6.18.1(eslint@8.57.0)(typescript@5.5.4)
+      '@typescript-eslint/utils': 6.18.1(eslint@8.57.0)(typescript@5.5.4)
       '@typescript-eslint/visitor-keys': 6.18.1
       debug: 4.3.5
       eslint: 8.57.0
@@ -15776,22 +16024,22 @@ snapshots:
       ignore: 5.3.1
       natural-compare: 1.4.0
       semver: 7.6.2
-      ts-api-utils: 1.3.0(typescript@5.4.5)
+      ts-api-utils: 1.3.0(typescript@5.5.4)
     optionalDependencies:
-      typescript: 5.4.5
+      typescript: 5.5.4
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5)':
+  '@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4)':
     dependencies:
       '@typescript-eslint/scope-manager': 6.18.1
       '@typescript-eslint/types': 6.18.1
-      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.4.5)
+      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.5.4)
       '@typescript-eslint/visitor-keys': 6.18.1
       debug: 4.3.5
       eslint: 8.57.0
     optionalDependencies:
-      typescript: 5.4.5
+      typescript: 5.5.4
     transitivePeerDependencies:
       - supports-color
 
@@ -15800,21 +16048,21 @@ snapshots:
       '@typescript-eslint/types': 6.18.1
       '@typescript-eslint/visitor-keys': 6.18.1
 
-  '@typescript-eslint/type-utils@6.18.1(eslint@8.57.0)(typescript@5.4.5)':
+  '@typescript-eslint/type-utils@6.18.1(eslint@8.57.0)(typescript@5.5.4)':
     dependencies:
-      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.4.5)
-      '@typescript-eslint/utils': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
+      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.5.4)
+      '@typescript-eslint/utils': 6.18.1(eslint@8.57.0)(typescript@5.5.4)
       debug: 4.3.5
       eslint: 8.57.0
-      ts-api-utils: 1.3.0(typescript@5.4.5)
+      ts-api-utils: 1.3.0(typescript@5.5.4)
     optionalDependencies:
-      typescript: 5.4.5
+      typescript: 5.5.4
     transitivePeerDependencies:
       - supports-color
 
   '@typescript-eslint/types@6.18.1': {}
 
-  '@typescript-eslint/typescript-estree@6.18.1(typescript@5.4.5)':
+  '@typescript-eslint/typescript-estree@6.18.1(typescript@5.5.4)':
     dependencies:
       '@typescript-eslint/types': 6.18.1
       '@typescript-eslint/visitor-keys': 6.18.1
@@ -15823,20 +16071,20 @@ snapshots:
       is-glob: 4.0.3
       minimatch: 9.0.3
       semver: 7.6.2
-      ts-api-utils: 1.3.0(typescript@5.4.5)
+      ts-api-utils: 1.3.0(typescript@5.5.4)
     optionalDependencies:
-      typescript: 5.4.5
+      typescript: 5.5.4
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/utils@6.18.1(eslint@8.57.0)(typescript@5.4.5)':
+  '@typescript-eslint/utils@6.18.1(eslint@8.57.0)(typescript@5.5.4)':
     dependencies:
       '@eslint-community/eslint-utils': 4.4.0(eslint@8.57.0)
       '@types/json-schema': 7.0.15
       '@types/semver': 7.5.8
       '@typescript-eslint/scope-manager': 6.18.1
       '@typescript-eslint/types': 6.18.1
-      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.4.5)
+      '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.5.4)
       eslint: 8.57.0
       semver: 7.6.2
     transitivePeerDependencies:
@@ -15922,6 +16170,41 @@ snapshots:
       lodash: 4.17.21
       minimatch: 3.1.2
       semver: 7.6.2
+
+  '@yao-pkg/pkg-fetch@3.5.9(encoding@0.1.13)':
+    dependencies:
+      chalk: 4.1.2
+      fs-extra: 9.1.0
+      https-proxy-agent: 5.0.1
+      node-fetch: 2.7.0(encoding@0.1.13)
+      progress: 2.0.3
+      semver: 7.6.2
+      tar-fs: 2.1.1
+      yargs: 16.2.0
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+
+  '@yao-pkg/pkg@5.12.0(patch_hash=pp6fkuhwkrqq7cjcj7uqpf37e4)(encoding@0.1.13)':
+    dependencies:
+      '@babel/generator': 7.23.0
+      '@babel/parser': 7.23.0(@babel/types@7.23.0)
+      '@babel/types': 7.23.0
+      '@yao-pkg/pkg-fetch': 3.5.9(encoding@0.1.13)
+      chalk: 4.1.2
+      fs-extra: 9.1.0
+      globby: 11.1.0
+      into-stream: 6.0.0
+      is-core-module: 2.9.0
+      minimatch: 9.0.4
+      minimist: 1.2.8
+      multistream: 4.1.0
+      prebuild-install: 7.1.1
+      resolve: 1.22.8
+      stream-meter: 1.0.4
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
 
   '@yarnpkg/core@4.0.3(typanion@3.14.0)':
     dependencies:
@@ -16445,7 +16728,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  bole@5.0.13:
+  bole@5.0.14:
     dependencies:
       fast-safe-stringify: 2.1.1
       individual: 3.0.0
@@ -16854,12 +17137,12 @@ snapshots:
       object-assign: 4.1.1
       vary: 1.1.2
 
-  cosmiconfig-typescript-loader@4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.4.5))(ts-node@10.9.2(@types/node@20.5.1)(typescript@5.4.5))(typescript@5.4.5):
+  cosmiconfig-typescript-loader@4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.5.4))(ts-node@10.9.2(@types/node@20.5.1)(typescript@5.5.4))(typescript@5.5.4):
     dependencies:
       '@types/node': 20.5.1
-      cosmiconfig: 8.3.6(typescript@5.4.5)
-      ts-node: 10.9.2(@types/node@20.5.1)(typescript@5.4.5)
-      typescript: 5.4.5
+      cosmiconfig: 8.3.6(typescript@5.5.4)
+      ts-node: 10.9.2(@types/node@20.5.1)(typescript@5.5.4)
+      typescript: 5.5.4
 
   cosmiconfig@8.0.0:
     dependencies:
@@ -16868,22 +17151,22 @@ snapshots:
       parse-json: 5.2.0
       path-type: 4.0.0
 
-  cosmiconfig@8.3.6(typescript@5.4.5):
+  cosmiconfig@8.3.6(typescript@5.5.4):
     dependencies:
       import-fresh: 3.3.0
       js-yaml: '@zkochan/js-yaml@0.0.7'
       parse-json: 5.2.0
       path-type: 4.0.0
     optionalDependencies:
-      typescript: 5.4.5
+      typescript: 5.5.4
 
-  create-jest@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5)):
+  create-jest@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4)):
     dependencies:
       '@jest/types': 29.6.3
       chalk: 4.1.2
       exit: 0.1.2
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
-      jest-config: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))
+      jest-config: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))
       jest-util: 29.7.0
       prompts: 2.4.2
     transitivePeerDependencies:
@@ -17216,6 +17499,10 @@ snapshots:
 
   ee-first@1.1.1: {}
 
+  ejs@3.1.10:
+    dependencies:
+      jake: 10.9.2
+
   electron-to-chromium@1.4.816: {}
 
   emittery@0.13.1: {}
@@ -17370,23 +17657,23 @@ snapshots:
       eslint: 8.57.0
       semver: 7.6.2
 
-  eslint-config-standard-with-typescript@39.1.1(@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5))(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.2.0(eslint@8.57.0))(eslint@8.57.0)(typescript@5.4.5):
+  eslint-config-standard-with-typescript@39.1.1(@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0)(typescript@5.5.4))(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.2.0(eslint@8.57.0))(eslint@8.57.0)(typescript@5.5.4):
     dependencies:
-      '@typescript-eslint/eslint-plugin': 6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)(typescript@5.4.5)
-      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
+      '@typescript-eslint/eslint-plugin': 6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0)(typescript@5.5.4)
+      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.5.4)
       eslint: 8.57.0
-      eslint-config-standard: 17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.2.0(eslint@8.57.0))(eslint@8.57.0)
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)
+      eslint-config-standard: 17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.2.0(eslint@8.57.0))(eslint@8.57.0)
+      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0)
       eslint-plugin-n: 16.6.2(eslint@8.57.0)
       eslint-plugin-promise: 6.2.0(eslint@8.57.0)
-      typescript: 5.4.5
+      typescript: 5.5.4
     transitivePeerDependencies:
       - supports-color
 
-  eslint-config-standard@17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.2.0(eslint@8.57.0))(eslint@8.57.0):
+  eslint-config-standard@17.1.0(eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0))(eslint-plugin-n@16.6.2(eslint@8.57.0))(eslint-plugin-promise@6.2.0(eslint@8.57.0))(eslint@8.57.0):
     dependencies:
       eslint: 8.57.0
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0)
+      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0)
       eslint-plugin-n: 16.6.2(eslint@8.57.0)
       eslint-plugin-promise: 6.2.0(eslint@8.57.0)
 
@@ -17398,11 +17685,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.8.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint@8.57.0):
+  eslint-module-utils@2.8.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint-import-resolver-node@0.3.9)(eslint@8.57.0):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
-      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
+      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.5.4)
       eslint: 8.57.0
       eslint-import-resolver-node: 0.3.9
     transitivePeerDependencies:
@@ -17421,7 +17708,7 @@ snapshots:
       eslint-utils: 2.1.0
       regexpp: 3.2.0
 
-  eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint@8.57.0):
+  eslint-plugin-import@2.29.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint@8.57.0):
     dependencies:
       array-includes: 3.1.8
       array.prototype.findlastindex: 1.2.5
@@ -17431,7 +17718,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 8.57.0
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.8.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-node@0.3.9)(eslint@8.57.0)
+      eslint-module-utils: 2.8.1(@typescript-eslint/parser@6.18.1(eslint@8.57.0)(typescript@5.5.4))(eslint-import-resolver-node@0.3.9)(eslint@8.57.0)
       hasown: 2.0.2
       is-core-module: 2.14.0
       is-glob: 4.0.3
@@ -17442,7 +17729,7 @@ snapshots:
       semver: 7.6.2
       tsconfig-paths: 3.15.0
     optionalDependencies:
-      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.4.5)
+      '@typescript-eslint/parser': 6.18.1(eslint@8.57.0)(typescript@5.5.4)
     transitivePeerDependencies:
       - eslint-import-resolver-typescript
       - eslint-import-resolver-webpack
@@ -17684,6 +17971,10 @@ snapshots:
   file-entry-cache@7.0.2:
     dependencies:
       flat-cache: 3.2.0
+
+  filelist@1.0.4:
+    dependencies:
+      minimatch: 5.1.6
 
   filename-reserved-regex@2.0.0: {}
 
@@ -18570,6 +18861,13 @@ snapshots:
     optionalDependencies:
       '@pkgjs/parseargs': 0.11.0
 
+  jake@10.9.2:
+    dependencies:
+      async: 3.2.4
+      chalk: 4.1.2
+      filelist: 1.0.4
+      minimatch: 3.1.2
+
   jest-changed-files@29.7.0:
     dependencies:
       execa: 5.1.1
@@ -18603,16 +18901,16 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
-  jest-cli@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5)):
+  jest-cli@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4)):
     dependencies:
-      '@jest/core': 29.7.0(@babel/types@7.24.7)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))
+      '@jest/core': 29.7.0(@babel/types@7.24.7)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
       chalk: 4.1.2
-      create-jest: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))
+      create-jest: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))
       exit: 0.1.2
       import-local: 3.1.0
-      jest-config: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))
+      jest-config: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))
       jest-util: 29.7.0
       jest-validate: 29.7.0
       yargs: 17.7.2
@@ -18623,7 +18921,7 @@ snapshots:
       - supports-color
       - ts-node
 
-  jest-config@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5)):
+  jest-config@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4)):
     dependencies:
       '@babel/core': 7.24.7
       '@jest/test-sequencer': 29.7.0
@@ -18649,13 +18947,13 @@ snapshots:
       strip-json-comments: 3.1.1
     optionalDependencies:
       '@types/node': 18.19.34
-      ts-node: 10.9.2(@types/node@18.19.34)(typescript@5.4.5)
+      ts-node: 10.9.2(@types/node@18.19.34)(typescript@5.5.4)
     transitivePeerDependencies:
       - '@babel/types'
       - babel-plugin-macros
       - supports-color
 
-  jest-config@29.7.0(@babel/types@7.24.7)(@types/node@20.14.9)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5)):
+  jest-config@29.7.0(@babel/types@7.24.7)(@types/node@20.14.9)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4)):
     dependencies:
       '@babel/core': 7.24.7
       '@jest/test-sequencer': 29.7.0
@@ -18681,7 +18979,7 @@ snapshots:
       strip-json-comments: 3.1.1
     optionalDependencies:
       '@types/node': 20.14.9
-      ts-node: 10.9.2(@types/node@18.19.34)(typescript@5.4.5)
+      ts-node: 10.9.2(@types/node@18.19.34)(typescript@5.5.4)
     transitivePeerDependencies:
       - '@babel/types'
       - babel-plugin-macros
@@ -18904,12 +19202,12 @@ snapshots:
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
-  jest@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5)):
+  jest@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4)):
     dependencies:
-      '@jest/core': 29.7.0(@babel/types@7.24.7)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))
+      '@jest/core': 29.7.0(@babel/types@7.24.7)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))
       '@jest/types': 29.6.3
       import-local: 3.1.0
-      jest-cli: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))
+      jest-cli: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))
     transitivePeerDependencies:
       - '@babel/types'
       - '@types/node'
@@ -19208,7 +19506,7 @@ snapshots:
   mdast-util-from-markdown@0.8.5:
     dependencies:
       '@types/mdast': 3.0.15
-      mdast-util-to-string: 2.0.0
+      mdast-util-to-string: 2.0.0(patch_hash=zxx4zzbv6v2vjobk6zrexxytxe)
       micromark: 2.11.4
       parse-entities: 2.0.0
       unist-util-stringify-position: 2.0.3
@@ -19219,12 +19517,12 @@ snapshots:
     dependencies:
       '@types/unist': 2.0.10
       longest-streak: 2.0.4
-      mdast-util-to-string: 2.0.0
+      mdast-util-to-string: 2.0.0(patch_hash=zxx4zzbv6v2vjobk6zrexxytxe)
       parse-entities: 2.0.0
       repeat-string: 1.6.1
       zwitch: 1.0.5
 
-  mdast-util-to-string@2.0.0: {}
+  mdast-util-to-string@2.0.0(patch_hash=zxx4zzbv6v2vjobk6zrexxytxe): {}
 
   media-typer@0.3.0: {}
 
@@ -19349,6 +19647,10 @@ snapshots:
       brace-expansion: 2.0.1
 
   minimatch@9.0.3:
+    dependencies:
+      brace-expansion: 2.0.1
+
+  minimatch@9.0.4:
     dependencies:
       brace-expansion: 2.0.1
 
@@ -19523,6 +19825,22 @@ snapshots:
       which: 4.0.0
     transitivePeerDependencies:
       - supports-color
+
+  node-gyp@10.2.0:
+    dependencies:
+      env-paths: 2.2.1
+      exponential-backoff: 3.1.1
+      glob: 10.4.2
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
+      make-fetch-happen: 13.0.1
+      nopt: 7.2.1
+      proc-log: 4.2.0
+      semver: 7.6.2
+      tar: 6.2.1
+      which: 4.0.0
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
 
   node-int64@0.4.0: {}
 
@@ -19888,40 +20206,6 @@ snapshots:
   pkg-dir@4.2.0:
     dependencies:
       find-up: 4.1.0
-
-  pkg-fetch@3.4.2(encoding@0.1.13):
-    dependencies:
-      chalk: 4.1.2
-      fs-extra: 9.1.0
-      https-proxy-agent: 5.0.1
-      node-fetch: 2.7.0(encoding@0.1.13)
-      progress: 2.0.3
-      semver: 7.6.2
-      tar-fs: 2.1.1
-      yargs: 16.2.0
-    transitivePeerDependencies:
-      - encoding
-      - supports-color
-
-  pkg@5.8.1(patch_hash=pp6fkuhwkrqq7cjcj7uqpf37e4)(encoding@0.1.13):
-    dependencies:
-      '@babel/generator': 7.18.2
-      '@babel/parser': 7.18.4(@babel/types@7.19.0)
-      '@babel/types': 7.19.0
-      chalk: 4.1.2
-      fs-extra: 9.1.0
-      globby: 11.1.0
-      into-stream: 6.0.0
-      is-core-module: 2.9.0
-      minimist: 1.2.8
-      multistream: 4.1.0
-      pkg-fetch: 3.4.2(encoding@0.1.13)
-      prebuild-install: 7.1.1
-      resolve: 1.22.8
-      stream-meter: 1.0.4
-    transitivePeerDependencies:
-      - encoding
-      - supports-color
 
   pkginfo@0.4.1: {}
 
@@ -20983,28 +21267,30 @@ snapshots:
     dependencies:
       utf8-byte-length: 1.0.5
 
-  ts-api-utils@1.3.0(typescript@5.4.5):
+  ts-api-utils@1.3.0(typescript@5.5.4):
     dependencies:
-      typescript: 5.4.5
+      typescript: 5.5.4
 
-  ts-jest@29.1.1(@babel/core@7.24.7)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.7)(@babel/types@7.24.7))(jest@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5)))(typescript@5.4.5):
+  ts-jest@29.2.3(@babel/core@7.24.7)(@jest/transform@29.7.0(@babel/types@7.24.7))(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.24.7)(@babel/types@7.24.7))(jest@29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4)))(typescript@5.5.4):
     dependencies:
       bs-logger: 0.2.6
+      ejs: 3.1.10
       fast-json-stable-stringify: 2.1.0
-      jest: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5))
+      jest: 29.7.0(@babel/types@7.24.7)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))
       jest-util: 29.7.0
       json5: 2.2.3
       lodash.memoize: 4.1.2
       make-error: 1.3.6
       semver: 7.6.2
-      typescript: 5.4.5
+      typescript: 5.5.4
       yargs-parser: 21.1.1
     optionalDependencies:
       '@babel/core': 7.24.7
+      '@jest/transform': 29.7.0(@babel/types@7.24.7)
       '@jest/types': 29.6.3
       babel-jest: 29.7.0(@babel/core@7.24.7)(@babel/types@7.24.7)
 
-  ts-node@10.9.2(@types/node@18.19.34)(typescript@5.4.5):
+  ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.11
@@ -21018,11 +21304,11 @@ snapshots:
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 5.4.5
+      typescript: 5.5.4
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
 
-  ts-node@10.9.2(@types/node@20.5.1)(typescript@5.4.5):
+  ts-node@10.9.2(@types/node@20.5.1)(typescript@5.5.4):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.11
@@ -21036,7 +21322,7 @@ snapshots:
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 5.4.5
+      typescript: 5.5.4
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
 
@@ -21150,7 +21436,7 @@ snapshots:
     dependencies:
       ts-toolbelt: 9.6.0
 
-  typescript@5.4.5: {}
+  typescript@5.5.4: {}
 
   uglify-js@3.18.0:
     optional: true
@@ -21169,6 +21455,9 @@ snapshots:
   unc-path-regex@0.1.2: {}
 
   undici-types@5.26.5: {}
+
+  undici-types@6.13.0:
+    optional: true
 
   unified@9.2.2:
     dependencies:
@@ -21663,4 +21952,5 @@ time:
   '@pnpm/which@3.0.1': '2023-05-14T22:08:27.551Z'
   '@types/byline@4.2.36': '2023-11-07T00:13:37.410Z'
   '@types/table@6.0.0': '2020-09-17T17:56:44.787Z'
+  '@yao-pkg/pkg@5.12.0': '2024-06-10T07:35:02.685Z'
   '@zkochan/js-yaml@0.0.7': '2024-03-08T10:21:15.389Z'

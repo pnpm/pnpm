@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "25.2.3",
+  "version": "25.2.4",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-requester#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0",
+    "@pnpm/logger": "^5.1.0",
     "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
@@ -60,6 +60,7 @@
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",

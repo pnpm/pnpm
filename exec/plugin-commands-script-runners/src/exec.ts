@@ -5,11 +5,12 @@ import { type Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { sortPackages } from '@pnpm/sort-packages'
 import { type Project, type ProjectsGraph, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
-import PATH from 'path-name'
+import { prependDirsToPath } from '@pnpm/env.path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { existsInDir } from './existsInDir'
@@ -125,18 +126,34 @@ export function getExecutionDuration (start: [number, number]): number {
   return (end[0] * 1e9 + end[1]) / 1e6
 }
 
+export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
+  bail?: boolean
+  unsafePerm?: boolean
+  reverse?: boolean
+  sort?: boolean
+  workspaceConcurrency?: number
+  shellMode?: boolean
+  resumeFrom?: string
+  reportSummary?: boolean
+  implicitlyFellbackFromRun?: boolean
+} & Pick<Config,
+| 'bin'
+| 'dir'
+| 'extraBinPaths'
+| 'extraEnv'
+| 'lockfileDir'
+| 'modulesDir'
+| 'nodeOptions'
+| 'pnpmHomeDir'
+| 'rawConfig'
+| 'recursive'
+| 'reporterHidePrefix'
+| 'userAgent'
+| 'workspaceDir'
+>
+
 export async function handler (
-  opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
-    bail?: boolean
-    unsafePerm?: boolean
-    reverse?: boolean
-    sort?: boolean
-    workspaceConcurrency?: number
-    shellMode?: boolean
-    resumeFrom?: string
-    reportSummary?: boolean
-    implicitlyFellbackFromRun?: boolean
-  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'reporterHidePrefix' | 'workspaceDir' | 'nodeOptions'>,
+  opts: ExecOpts,
   params: string[]
 ): Promise<{ exitCode: number }> {
   // For backward compatibility
@@ -183,15 +200,23 @@ export async function handler (
   const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
 
   let exitCode = 0
-  const prependPaths = [
-    './node_modules/.bin',
-    ...opts.extraBinPaths,
-  ]
+  const mapPrefixToPrependPaths: Record<ProjectRootDir, string[]> = {}
+  await Promise.all(chunks.flat().map(async prefix => {
+    const executionEnv = await prepareExecutionEnv(opts, {
+      extraBinPaths: opts.extraBinPaths,
+      executionEnv: opts.selectedProjectsGraph[prefix]?.package.manifest.pnpm?.executionEnv,
+    })
+    mapPrefixToPrependPaths[prefix] = [
+      './node_modules/.bin',
+      ...executionEnv.extraBinPaths,
+    ]
+  }))
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(chunk.map(async (prefix) =>
       limitRun(async () => {
+        const prependPaths = mapPrefixToPrependPaths[prefix]
         result[prefix].status = 'running'
         const startTime = process.hrtime()
         try {
@@ -355,11 +380,10 @@ function isErrorCommandNotFound (command: string, error: CommandError, prependPa
 
   // Windows
   if (process.platform === 'win32') {
-    const prepend = prependPaths.join(path.delimiter)
-    const whichPath = process.env[PATH] ? `${prepend}${path.delimiter}${process.env[PATH] as string}` : prepend
+    const { value: path } = prependDirsToPath(prependPaths)
     return !which.sync(command, {
       nothrow: true,
-      path: whichPath,
+      path,
     })
   }
 

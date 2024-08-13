@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "9.1.10",
+  "version": "9.1.11",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,10 +12,11 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "devDependencies": {
     "@pnpm/hoist": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "directories": {

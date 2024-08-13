@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "11.0.1",
+  "version": "11.0.6",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,6 +32,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/plugin-commands-script-runners#readme",
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
@@ -50,6 +51,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/crypto.base32-hash": "workspace:*",
+    "@pnpm/env.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/log.group": "catalog:",
@@ -65,7 +67,6 @@
     "didyoumean2": "catalog:",
     "execa": "catalog:",
     "p-limit": "catalog:",
-    "path-name": "catalog:",
     "ramda": "catalog:",
     "realpath-missing": "catalog:",
     "render-help": "catalog:",
@@ -74,7 +75,7 @@
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

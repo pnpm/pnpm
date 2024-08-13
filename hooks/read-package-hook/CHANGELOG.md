@@ -1,5 +1,12 @@
 # @pnpm/hooks.read-package-hook
 
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+
 ## 5.0.0
 
 ### Major Changes

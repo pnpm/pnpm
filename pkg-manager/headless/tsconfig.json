@@ -67,6 +67,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {

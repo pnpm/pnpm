@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/create-cafs-store",
   "description": "Create a CAFS store controller",
-  "version": "7.0.6",
+  "version": "7.0.7",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/exec.pkg-requires-build": "workspace:*",
@@ -27,6 +27,7 @@
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:"
   },

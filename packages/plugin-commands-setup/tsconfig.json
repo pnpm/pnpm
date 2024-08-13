@@ -21,6 +21,9 @@
     },
     {
       "path": "../error"
+    },
+    {
+      "path": "../logger"
     }
   ]
 }

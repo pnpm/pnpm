@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
+import { prependDirsToPath } from '@pnpm/env.path'
 import path from 'path'
-import PATH from 'path-name'
 
 export interface Env extends NodeJS.ProcessEnv {
   npm_config_user_agent: string
@@ -22,13 +22,11 @@ export function makeEnv (
       throw new PnpmError('BAD_PATH_DIR', `Cannot add ${prependPath} to PATH because it contains the path delimiter character (${path.delimiter})`)
     }
   }
+  const pathEnv = prependDirsToPath(opts.prependPaths)
   return {
     ...process.env,
     ...opts.extraEnv,
     npm_config_user_agent: opts.userAgent ?? 'pnpm',
-    [PATH]: [
-      ...opts.prependPaths,
-      process.env[PATH],
-    ].join(path.delimiter),
+    [pathEnv.name]: pathEnv.value,
   }
 }

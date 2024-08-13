@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-deploy",
-  "version": "5.1.15",
+  "version": "5.1.20",
   "description": "Commands for deploy",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -36,6 +36,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
@@ -56,6 +57,6 @@
     "render-help": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   }
 }

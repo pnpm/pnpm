@@ -22,7 +22,7 @@ export interface Options {
 
 export async function findPackages (root: string, opts?: Options): Promise<Project[]> {
   opts = opts ?? {}
-  const globOpts = { ...opts, cwd: root, includeRoot: undefined }
+  const globOpts = { ...opts, cwd: root }
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
   const patterns = normalizePatterns(opts.patterns ?? ['.', '**'])
   const paths: string[] = await fastGlob(patterns, globOpts)

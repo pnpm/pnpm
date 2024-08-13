@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/remove-bins",
-  "version": "6.0.5",
+  "version": "6.0.6",
   "description": "Remove bins from .bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "keywords": [
     "pnpm9"
@@ -37,6 +37,7 @@
     "is-windows": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:"

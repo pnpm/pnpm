@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "15.1.9",
+  "version": "15.1.10",
   "description": "Exports util functions to clean up node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "keywords": [
     "pnpm9"
@@ -41,6 +41,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/modules-cleaner": "workspace:*",
     "@types/ramda": "catalog:"
   },

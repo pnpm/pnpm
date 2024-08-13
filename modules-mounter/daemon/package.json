@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/mount-modules",
-  "version": "0.6.11",
+  "version": "0.6.13",
   "description": "Mounts a node_modules directory with FUSE",
   "main": "lib/index.js",
   "bin": "bin/mount-modules.js",
@@ -34,9 +34,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/modules-mounter/daemon#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/mount-modules": "workspace:*",
     "@types/normalize-path": "catalog:",
     "rimraf": "catalog:"
@@ -46,7 +47,7 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/logger": "catalog:",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",

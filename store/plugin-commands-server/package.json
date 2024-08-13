@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-server",
-  "version": "7.0.17",
+  "version": "7.0.20",
   "description": "Commands for controlling the store server",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,6 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-server#readme",
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-server": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:",
@@ -54,7 +55,7 @@
     "tree-kill": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-config",
-  "version": "3.0.14",
+  "version": "3.0.17",
   "description": "Commands for reading and writing settings to/from config files",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -42,7 +42,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/logger": "catalog:",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ini": "catalog:"

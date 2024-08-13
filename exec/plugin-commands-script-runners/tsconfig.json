@@ -28,6 +28,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../env/path"
+    },
+    {
       "path": "../../env/plugin-commands-env"
     },
     {
@@ -38,6 +41,9 @@
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"

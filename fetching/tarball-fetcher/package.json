@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "19.0.10",
+  "version": "19.0.11",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fetching/tarball-fetcher#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0",
+    "@pnpm/logger": "^5.1.0",
     "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
@@ -53,6 +53,7 @@
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetch": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*",

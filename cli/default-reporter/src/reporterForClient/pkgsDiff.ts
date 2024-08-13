@@ -1,5 +1,5 @@
 import type * as logs from '@pnpm/core-loggers'
-import { type PackageManifest } from '@pnpm/types'
+import { type BaseManifest } from '@pnpm/types'
 import * as Rx from 'rxjs'
 import { filter, map, mapTo, reduce, scan, startWith, take } from 'rxjs/operators'
 import mergeRight from 'ramda/src/mergeRight'
@@ -25,12 +25,13 @@ export const propertyByDependencyType = {
   optional: 'optionalDependencies',
   peer: 'peerDependencies',
   prod: 'dependencies',
-}
+} as const
 
 export interface PkgsDiff {
   dev: Map<PackageDiff>
   nodeModulesOnly: Map<PackageDiff>
   optional: Map<PackageDiff>
+  peer: Map<PackageDiff>
   prod: Map<PackageDiff>
 }
 
@@ -97,19 +98,14 @@ export function getPkgsDiff (
       optional: {},
       peer: {},
       prod: {},
-    } as {
-      dev: Map<PackageDiff>
-      nodeModulesOnly: Map<PackageDiff>
-      optional: Map<PackageDiff>
-      prod: Map<PackageDiff>
-    }),
+    } as PkgsDiff),
     startWith({
       dev: {},
       nodeModulesOnly: {},
       optional: {},
       peer: {},
       prod: {},
-    })
+    } as PkgsDiff)
   )
 
   const packageManifest$ = Rx.merge(
@@ -119,7 +115,7 @@ export function getPkgsDiff (
     .pipe(
       take(2),
       reduce(mergeRight, {} as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-    )
+    ) as Rx.Observable<logs.PackageManifestLog>
 
   return Rx.combineLatest(
     pkgsDiff$,
@@ -135,8 +131,8 @@ export function getPkgsDiff (
 
           for (const depType of ['peer', 'prod', 'optional', 'dev'] as const) {
             const prop = propertyByDependencyType[depType]
-            const initialDeps = Object.keys(initialPackageManifest[prop] || {})
-            const updatedDeps = Object.keys(updatedPackageManifest[prop] || {})
+            const initialDeps = Object.keys(initialPackageManifest[prop] ?? {})
+            const updatedDeps = Object.keys(updatedPackageManifest[prop] ?? {})
             const removedDeps = difference(initialDeps, updatedDeps)
 
             for (const removedDep of removedDeps) {
@@ -144,7 +140,7 @@ export function getPkgsDiff (
                 pkgsDiff[depType][`-${removedDep}`] = {
                   added: false,
                   name: removedDep,
-                  version: initialPackageManifest[prop][removedDep],
+                  version: initialPackageManifest[prop]?.[removedDep],
                 }
               }
             }
@@ -156,7 +152,7 @@ export function getPkgsDiff (
                 pkgsDiff[depType][`+${addedDep}`] = {
                   added: true,
                   name: addedDep,
-                  version: updatedPackageManifest[prop][addedDep],
+                  version: updatedPackageManifest[prop]?.[addedDep],
                 }
               }
             }
@@ -167,7 +163,7 @@ export function getPkgsDiff (
     )
 }
 
-function removeOptionalFromProdDeps (pkg: PackageManifest): PackageManifest {
+function removeOptionalFromProdDeps<Pkg extends BaseManifest> (pkg: Pkg): Pkg {
   if ((pkg.dependencies == null) || (pkg.optionalDependencies == null)) return pkg
   for (const depName of Object.keys(pkg.dependencies)) {
     if (pkg.optionalDependencies[depName]) {

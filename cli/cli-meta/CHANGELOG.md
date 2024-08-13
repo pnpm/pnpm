@@ -1,5 +1,17 @@
 # @pnpm/cli-meta
 
+## 6.1.0
+
+### Minor Changes
+
+- 64e2e4f: Added isExecutedByCorepack.
+- e7f6330: Add detectIfCurrentPkgIsExecutable.
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+
 ## 6.0.4
 
 ### Patch Changes

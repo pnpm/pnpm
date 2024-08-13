@@ -1,6 +1,6 @@
 import { type Config } from '@pnpm/config'
 import type * as logs from '@pnpm/core-loggers'
-import { type LogLevel } from '@pnpm/logger'
+import { type LogLevel, type StreamParser } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
 import createDiffer from 'ansi-diff'
@@ -17,7 +17,7 @@ export { formatWarn }
 export function initDefaultReporter (
   opts: {
     useStderr?: boolean
-    streamParser: object
+    streamParser: StreamParser<logs.Log>
     reportingOptions?: {
       appendOnly?: boolean
       logLevel?: LogLevel
@@ -48,7 +48,8 @@ export function initDefaultReporter (
       subscription.unsubscribe()
     }
   }
-  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (process.stdout.columns && process.stdout.columns - 2) ?? 80
+  const proc = opts.context.process ?? process
+  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (proc.stdout.columns && proc.stdout.columns - 2) ?? 80
   const output$ = toOutput$({
     ...opts,
     reportingOptions: {
@@ -73,7 +74,7 @@ export function initDefaultReporter (
     }
   }
   const diff = createDiffer({
-    height: process.stdout.rows,
+    height: proc.stdout.rows,
     outputMaxWidth,
   })
   const subscription = output$
@@ -85,8 +86,8 @@ export function initDefaultReporter (
       next: logUpdate,
     })
   const write = opts.useStderr
-    ? process.stderr.write.bind(process.stderr)
-    : process.stdout.write.bind(process.stdout)
+    ? proc.stderr.write.bind(proc.stderr)
+    : proc.stdout.write.bind(proc.stdout)
   function logUpdate (view: string) {
     // A new line should always be appended in case a prompt needs to appear.
     // Without a new line the prompt will be joined with the previous output.
@@ -101,7 +102,7 @@ export function initDefaultReporter (
 
 export function toOutput$ (
   opts: {
-    streamParser: object
+    streamParser: StreamParser<logs.Log>
     reportingOptions?: {
       appendOnly?: boolean
       logLevel?: LogLevel
@@ -148,7 +149,7 @@ export function toOutput$ (
   const requestRetryPushStream = new Rx.Subject<logs.RequestRetryLog>()
   const updateCheckPushStream = new Rx.Subject<logs.UpdateCheckLog>()
   setTimeout(() => {
-    opts.streamParser['on']('data', (log: logs.Log) => {
+    opts.streamParser.on('data', (log: logs.Log) => {
       switch (log.name) {
       case 'pnpm:context':
         contextPushStream.next(log)

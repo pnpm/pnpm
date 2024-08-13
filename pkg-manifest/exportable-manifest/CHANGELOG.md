@@ -1,5 +1,13 @@
 # @pnpm/exportable-manifest
 
+## 7.0.2
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/read-project-manifest@6.0.6
+
 ## 7.0.1
 
 ### Patch Changes

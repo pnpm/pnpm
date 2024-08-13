@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/fs.indexed-pkg-importer",
   "description": "Replicates indexed directories using hard links, copies, or cloning",
-  "version": "6.0.6",
+  "version": "6.0.7",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/fs-extra": "catalog:"
   },

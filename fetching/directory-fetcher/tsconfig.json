@@ -19,6 +19,9 @@
       "path": "../../fs/packlist"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {

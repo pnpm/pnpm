@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lifecycle",
-  "version": "17.1.1",
+  "version": "17.1.2",
   "description": "Package lifecycle hook runner",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/lifecycle#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
@@ -49,8 +49,9 @@
   },
   "devDependencies": {
     "@pnpm/lifecycle": "workspace:*",
-    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/rimraf": "catalog:",

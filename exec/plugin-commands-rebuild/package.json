@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-rebuild",
-  "version": "12.0.3",
+  "version": "12.0.6",
   "description": "Commands for rebuilding dependencies",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,6 +32,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
@@ -81,7 +82,7 @@
     "semver": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

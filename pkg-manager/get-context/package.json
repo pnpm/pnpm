@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/get-context",
-  "version": "12.0.2",
+  "version": "12.0.3",
   "description": "Gets context information about a project",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,10 +31,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context#readme",
   "devDependencies": {
     "@pnpm/get-context": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-fetcher",
-  "version": "13.0.10",
+  "version": "13.0.11",
   "description": "A fetcher for git-hosted packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fetching/git-fetcher#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0",
+    "@pnpm/logger": "^5.1.0",
     "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
@@ -43,6 +43,7 @@
   "devDependencies": {
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "tempy": "catalog:"

@@ -14,6 +14,7 @@ import pick from 'ramda/src/pick'
 import equals from 'ramda/src/equals'
 import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
+import makeEmptyDir from 'make-empty-dir'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import { writePackage } from './writePackage'
@@ -54,8 +55,9 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
   const patchesDir = path.join(lockfileDir, patchesDirName)
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
+  const editDir = path.resolve(opts.dir, userDir)
   const stateValue = readEditDirState({
-    editDir: userDir,
+    editDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
   })
   if (!stateValue) {
@@ -80,11 +82,14 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const srcDir = tempy.directory()
   await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion), srcDir, opts)
   deleteEditDirState({
-    editDir: userDir,
+    editDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
   })
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
+  if (patchedPkgDir !== userDir) {
+    fs.rmSync(patchedPkgDir, { recursive: true })
+  }
 
   if (!patchContent.length) {
     return `No changes were found to the following directory: ${userDir}`
@@ -186,7 +191,8 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
   if (await areAllFilesInPkg(files, src)) {
     return src
   }
-  const dest = tempy.directory()
+  const dest = `${src}_tmp`
+  await makeEmptyDir(dest)
   await Promise.all(
     files.map(async (file) => {
       const srcFile = path.join(src, file)

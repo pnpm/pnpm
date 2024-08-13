@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "21.0.2",
+  "version": "21.0.3",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/npm-resolver#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
@@ -59,6 +59,7 @@
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "catalog:",

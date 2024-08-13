@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "9.2.5",
+  "version": "9.2.8",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,6 +32,7 @@
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",
     "@pnpm/plugin-commands-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -67,7 +68,7 @@
     "render-help": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

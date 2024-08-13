@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "10.0.7",
+  "version": "10.0.8",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -51,6 +51,7 @@
   },
   "devDependencies": {
     "@pnpm/link-bins": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/node": "catalog:",
@@ -62,7 +63,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "exports": {
     ".": "./lib/index.js"

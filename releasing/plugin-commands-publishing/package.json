@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-publishing",
-  "version": "10.0.1",
+  "version": "10.0.4",
   "description": "The pack and publish commands of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,6 +33,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing#readme",
   "devDependencies": {
     "@pnpm/catalogs.config": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
@@ -84,7 +85,7 @@
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

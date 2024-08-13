@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "13.1.9",
+  "version": "13.1.12",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,7 +30,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",
@@ -56,6 +56,7 @@
   },
   "devDependencies": {
     "@pnpm/default-reporter": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "15.1.1",
+  "version": "15.2.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0",
+    "@pnpm/logger": "^5.1.0",
     "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
@@ -83,6 +83,7 @@
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",

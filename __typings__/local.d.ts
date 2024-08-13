@@ -1,4 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+declare module 'bole' {
+  const anything: any
+  export = anything
+}
+
+declare module 'ndjson' {
+  const anything: any
+  export = anything
+}
+
 declare module 'hyperdrive-schemas' {
   const anything: any
   export = anything

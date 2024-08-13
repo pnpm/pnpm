@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "13.0.8",
+  "version": "14.0.0",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/build-modules#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/calc-dep-state": "workspace:*",
@@ -52,6 +52,7 @@
   },
   "devDependencies": {
     "@pnpm/build-modules": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

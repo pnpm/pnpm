@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "20.3.3",
+  "version": "20.3.4",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0",
+    "@pnpm/logger": "^5.1.0",
     "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:",

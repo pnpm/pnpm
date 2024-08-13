@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "15.1.1",
+  "version": "15.1.2",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/outdated#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
@@ -53,6 +53,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/outdated": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@types/ramda": "catalog:",

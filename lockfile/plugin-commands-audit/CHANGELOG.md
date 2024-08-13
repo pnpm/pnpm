@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-audit
 
+## 10.2.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+
+## 10.2.7
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+  - @pnpm/config@21.8.0
+
+## 10.2.6
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+- Updated dependencies [98c8bd6]
+- Updated dependencies [d20eed3]
+  - @pnpm/types@12.0.0
+  - @pnpm/cli-utils@3.1.7
+  - @pnpm/config@21.7.0
+  - @pnpm/audit@8.1.9
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/read-project-manifest@6.0.6
+
 ## 10.2.5
 
 ### Patch Changes

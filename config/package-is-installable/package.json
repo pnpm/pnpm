@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "9.0.5",
+  "version": "9.0.6",
   "description": "Checks if a package is installable on the current system",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -16,7 +16,7 @@
     "node": ">=18.12"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/config/package-is-installable",
   "homepage": "https://github.com/pnpm/pnpm/blob/main/config/package-is-installable#readme",
@@ -39,6 +39,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@types/semver": "catalog:"
   },

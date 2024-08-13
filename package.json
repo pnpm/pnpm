@@ -15,7 +15,7 @@
     "test-pkgs-main": "pnpm remove-temp-dir && pnpm run --no-sort --workspace-concurrency=1 -r _test",
     "test-branch": "pnpm pretest && pnpm lint --quiet && git remote set-branches --add origin main && git fetch && pnpm run test-pkgs-branch",
     "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/main] run --no-sort _test",
-    "compile-only": "pnpm --workspace-concurrency=1 --filter=pnpm --filter=@pnpm/make-dedicated-lockfile --filter=@pnpm/mount-modules run compile",
+    "compile-only": "ts-node __utils__/scripts/src/typecheck-only.ts && pnpm -F pnpm compile",
     "compile": "pnpm compile-only && pnpm run update-manifests",
     "watch": "pnpm --filter=@pnpm/fetch run compile && pnpm --filter=pnpm run compile --watch",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
@@ -56,9 +56,9 @@
     "publish-packed": "^4.1.2",
     "rimraf": "catalog:",
     "shx": "^0.3.4",
-    "ts-jest": "29.1.1",
+    "ts-jest": "29.2.3",
     "ts-node": "^10.9.2",
-    "typescript": "5.4.5",
+    "typescript": "5.5.4",
     "verdaccio": "5.20.1"
   },
   "engines": {
@@ -107,8 +107,9 @@
     },
     "onlyBuiltDependencies": [],
     "patchedDependencies": {
-      "pkg@5.8.1": "__patches__/pkg.patch",
-      "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch"
+      "@yao-pkg/pkg": "__patches__/pkg.patch",
+      "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch",
+      "mdast-util-to-string@2.0.0": "__patches__/mdast-util-to-string@2.0.0.patch"
     },
     "updateConfig": {
       "ignoreDependencies": [

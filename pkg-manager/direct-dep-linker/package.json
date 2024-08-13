@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/pkg-manager.direct-dep-linker",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,9 +12,10 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
     "@types/ramda": "catalog:"
   },
