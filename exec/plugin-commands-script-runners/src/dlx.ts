@@ -211,7 +211,10 @@ function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | 
     throw err
   }
   const isValid = stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= new Date().getTime()
-  return isValid ? target : undefined
+  if (isValid) {
+    return path.resolve(path.dirname(cacheLink), target)
+  }
+  return undefined
 }
 
 function getPrepareDir (cachePath: string): string {
