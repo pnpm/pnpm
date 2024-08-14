@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 10.0.5
+
+### Patch Changes
+
+- Updated dependencies [251ab21]
+- Updated dependencies [ecbe2ea]
+  - @pnpm/config@21.8.1
+  - @pnpm/exportable-manifest@7.0.3
+  - @pnpm/cli-utils@4.0.2
+  - @pnpm/plugin-commands-env@5.1.5
+
 ## 10.0.4
 
 ### Patch Changes

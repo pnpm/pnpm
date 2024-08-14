@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 21.8.1
+
+### Patch Changes
+
+- 251ab21: Fixed passing `public-hoist-pattern` and `hoist-pattern` via env variables [#8339](https://github.com/pnpm/pnpm/issues/8339).
+
 ## 21.8.0
 
 ### Minor Changes

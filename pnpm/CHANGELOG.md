@@ -1,5 +1,18 @@
 # pnpm
 
+## 9.7.1
+
+### Patch Changes
+
+- Fixed passing `public-hoist-pattern` and `hoist-pattern` via env variables [#8339](https://github.com/pnpm/pnpm/issues/8339).
+- `pnpm setup` no longer creates Batch/Powershell scripts on Linux and macOS [#8418](https://github.com/pnpm/pnpm/pull/8418).
+- When dlx uses cache, use the real directory path not the symlink to the cache [#8421](https://github.com/pnpm/pnpm/pull/8421).
+- `pnpm exec` now supports executionEnv [#8356](https://github.com/pnpm/pnpm/issues/8356).
+- Remove warnings for non-root `pnpm` field, add warnings for non-root `pnpm` subfields that aren't `executionEnv` [#8143](https://github.com/pnpm/pnpm/issues/8413).
+- Replace semver in "peerDependency" with workspace protocol [#8355](https://github.com/pnpm/pnpm/issues/8355).
+- Fix a bug in `patch-commit` in which relative path is rejected [#8405](https://github.com/pnpm/pnpm/pull/8405).
+- Update Node.js in `@pnpm/exe` to v20.
+
 ## 9.7.0
 
 ### Minor Changes
@@ -11,6 +24,7 @@
     "packageManager": "pnpm@9.3.0"
   }
   ```
+
 - Added the ability to apply patch to all versions:
   If the key of `pnpm.patchedDependencies` is a package name without a version (e.g. `pkg`), pnpm will attempt to apply the patch to all versions of
   the package. Failures will be skipped.

@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-script-runners
 
+## 12.0.0
+
+### Major Changes
+
+- 0ffb3ad: `pnpm exec` now supports executionEnv [#8356](https://github.com/pnpm/pnpm/issues/8356).
+
+### Patch Changes
+
+- d58b104: When dlx uses cache, use the real directory path not the symlink to the cache [#8421](https://github.com/pnpm/pnpm/pull/8421).
+- Updated dependencies [251ab21]
+  - @pnpm/config@21.8.1
+  - @pnpm/cli-utils@4.0.2
+  - @pnpm/plugin-commands-env@5.1.5
+  - @pnpm/plugin-commands-installation@17.0.7
+
 ## 11.0.6
 
 ### Patch Changes

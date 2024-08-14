@@ -1,5 +1,12 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.6.15
+
+### Patch Changes
+
+- Updated dependencies [ecbe2ea]
+  - @pnpm/exportable-manifest@7.0.3
+
 ## 0.6.14
 
 ### Patch Changes
