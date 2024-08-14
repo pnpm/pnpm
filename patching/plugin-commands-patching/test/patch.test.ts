@@ -155,7 +155,7 @@ describe('patch and commit', () => {
     expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
 
     {
-      console.debug('FIRST EDIT')
+      // First edit
       fs.appendFileSync(path.join(patchDir, 'index.js'), '// first edit\n', 'utf8')
       fs.unlinkSync(path.join(patchDir, 'license'))
 
@@ -188,7 +188,7 @@ describe('patch and commit', () => {
     }
 
     {
-      console.debug('SECOND EDIT')
+      // Second edit
       fs.appendFileSync(path.join(patchDir, 'index.js'), '// second edit\n', 'utf8')
 
       await patchCommit.handler({
@@ -220,7 +220,7 @@ describe('patch and commit', () => {
     }
 
     {
-      console.debug('THIRD EDIT')
+      // Third edit
       fs.appendFileSync(path.join(patchDir, 'index.js'), '// third edit\n', 'utf8')
 
       await patchCommit.handler({
