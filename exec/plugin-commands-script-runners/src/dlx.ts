@@ -66,6 +66,10 @@ export type DlxCommandOptions = {
   shellMode?: boolean
 } & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion'> & add.AddCommandOptions
 
+function debug (message: string, info?: unknown): void {
+  console.debug(message, JSON.stringify(info ?? null, undefined, 2))
+}
+
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
@@ -77,7 +81,11 @@ export async function handler (
     registries: opts.registries,
   })
   if (prepareDir) {
-    console.debug('PREPARE DIR', prepareDir)
+    debug('PREPARE DIR', {
+      prepareDir,
+      command,
+      args,
+    })
     fs.mkdirSync(prepareDir, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
@@ -92,10 +100,23 @@ export async function handler (
       saveOptional: false,
       savePeer: false,
     }, pkgs)
+    debug('SYMLINK DIR', {
+      prepareDir,
+      cacheLink,
+      command,
+      args,
+    })
     await symlinkDir(prepareDir, cacheLink, { overwrite: true })
-    console.debug('END PREPARE DIR')
+    debug('END PREPARE DIR', {
+      prepareDir,
+      command,
+      args,
+    })
   } else {
-    console.debug('NOT PREPARE DIR')
+    debug('NOT PREPARE DIR', {
+      command,
+      args,
+    })
   }
   const modulesDir = path.join(cacheLink, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
@@ -109,12 +130,27 @@ export async function handler (
   let binName: string
   if (opts.package) {
     binName = command
-    console.debug('BIN NAME IS COMMAND', command)
+    debug('BIN NAME IS COMMAND', {
+      command,
+      args,
+    })
   } else {
-    console.debug('BIN NAME NEEDS TO BE CALCULATED')
-    console.debug('1. GET PKG NAME', { cacheLink })
+    debug('BIN NAME NEEDS TO BE CALCULATED', {
+      command,
+      args,
+    })
+    debug('1. GET PKG NAME', {
+      cacheLink,
+      command,
+      args,
+    })
     const pkgName = await getPkgName(cacheLink)
-    console.debug('2. GET BIN NAME', { pkgName })
+    debug('2. GET BIN NAME', {
+      cacheLink,
+      pkgName,
+      command,
+      args,
+    })
     binName = await getBinName(modulesDir, pkgName)
   }
   try {
