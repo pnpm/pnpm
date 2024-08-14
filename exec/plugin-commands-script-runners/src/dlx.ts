@@ -199,7 +199,7 @@ function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | 
   try {
     stats = fs.lstatSync(cacheLink)
     if (stats.isSymbolicLink()) {
-      target = fs.readlinkSync(cacheLink)
+      target = fs.realpathSync(cacheLink)
       if (!target) return undefined
     } else {
       return undefined
@@ -211,10 +211,7 @@ function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | 
     throw err
   }
   const isValid = stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= new Date().getTime()
-  if (isValid) {
-    return path.resolve(path.dirname(cacheLink), target)
-  }
-  return undefined
+  return isValid ? target : undefined
 }
 
 function getPrepareDir (cachePath: string): string {
