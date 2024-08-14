@@ -40,15 +40,6 @@ export function writeEditDirState (opts: WriteEditDirStateOptions): void {
   })
 }
 
-export interface DeleteEditDirStateOptions extends ReadEditDirStateOptions {}
-
-export function deleteEditDirState (opts: DeleteEditDirStateOptions): void {
-  modifyStateFile(opts.modulesDir, state => {
-    const key = createEditDirKey(opts)
-    delete state[key]
-  })
-}
-
 function modifyStateFile (modulesDir: string, modifyState: (state: State) => void): void {
   const filePath = getStateFilePath(modulesDir)
   let state = readStateFile(modulesDir)
