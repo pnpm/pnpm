@@ -36,7 +36,6 @@ jobs:
     - name: Install pnpm
       uses: pnpm/action-setup@v4.0.0
       with:
-        version: next-9
         standalone: true
     - name: Setup Node
       uses: actions/setup-node@v4
