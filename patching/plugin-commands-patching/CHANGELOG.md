@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-patching
 
+## 6.4.4
+
+### Patch Changes
+
+- ed2bc5d: Fix a bug in `patch-commit` in which relative path is rejected [#8405](https://github.com/pnpm/pnpm/pull/8405).
+- Updated dependencies [251ab21]
+  - @pnpm/config@21.8.1
+  - @pnpm/cli-utils@4.0.2
+  - @pnpm/plugin-commands-installation@17.0.7
+  - @pnpm/store-connection-manager@8.3.7
+
 ## 6.4.3
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 7.0.3
+
+### Patch Changes
+
+- ecbe2ea: Replace semver in "peerDependency" with workspace protocol [#8355](https://github.com/pnpm/pnpm/issues/8355).
+
 ## 7.0.2
 
 ### Patch Changes

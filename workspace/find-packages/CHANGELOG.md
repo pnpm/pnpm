@@ -1,5 +1,12 @@
 # @pnpm/find-workspace-packages
 
+## 4.0.7
+
+### Patch Changes
+
+- 82f7ed2: Remove warnings for non-root `pnpm` field, add warnings for non-root `pnpm` subfields that aren't `executionEnv` [#8143](https://github.com/pnpm/pnpm/issues/8413).
+  - @pnpm/cli-utils@4.0.2
+
 ## 4.0.6
 
 ### Patch Changes

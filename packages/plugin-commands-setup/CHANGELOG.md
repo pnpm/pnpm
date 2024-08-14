@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-setup
 
+## 5.1.7
+
+### Patch Changes
+
+- 7691658: `pnpm setup` no longer creates Batch/Powershell scripts on Linux and macOS [#8418](https://github.com/pnpm/pnpm/pull/8418).
+  - @pnpm/cli-utils@4.0.2
+
 ## 5.1.6
 
 ### Patch Changes
