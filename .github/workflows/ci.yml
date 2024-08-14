@@ -38,10 +38,7 @@ jobs:
       with:
         standalone: true
     - name: Setup Node
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node }}
-        cache: 'pnpm'
+      run: pnpm env use -g ${{ matrix.node }}
     - name: Install npm@8
       run: pnpm add --global npm@8
     - name: pnpm install
