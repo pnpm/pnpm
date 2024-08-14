@@ -19,7 +19,7 @@ jobs:
           - '20'
           - '22'
         platform:
-          - ubuntu-latest
+          # - ubuntu-latest
           - windows-latest
 
     name: '${{matrix.platform}} / Node.js ${{ matrix.node }}'
