@@ -72,20 +72,23 @@ function createPnpxScripts (targetDir: string): void {
 
   fs.mkdirSync(targetDir, { recursive: true })
 
+  // windows can also use shell script via mingw or cygwin so no filter
   const shellScript = [
     '#!/bin/sh',
     'exec pnpm dlx "$@"',
   ].join('\n')
   fs.writeFileSync(path.join(targetDir, 'pnpx'), shellScript, { mode: 0o755 })
 
-  const batchScript = [
-    '@echo off',
-    'pnpm dlx %*',
-  ].join('\n')
-  fs.writeFileSync(path.join(targetDir, 'pnpx.cmd'), batchScript)
+  if (process.platform === 'win32') {
+    const batchScript = [
+      '@echo off',
+      'pnpm dlx %*',
+    ].join('\n')
+    fs.writeFileSync(path.join(targetDir, 'pnpx.cmd'), batchScript)
 
-  const powershellScript = 'pnpm dlx $args'
-  fs.writeFileSync(path.join(targetDir, 'pnpx.ps1'), powershellScript)
+    const powershellScript = 'pnpm dlx $args'
+    fs.writeFileSync(path.join(targetDir, 'pnpx.ps1'), powershellScript)
+  }
 }
 
 export async function handler (
