@@ -4812,6 +4812,9 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
+      '@pnpm/client':
+        specifier: workspace:*
+        version: link:../client
       '@pnpm/colorize-semver-diff':
         specifier: 'catalog:'
         version: 1.0.1
@@ -4866,6 +4869,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
+      '@pnpm/pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: link:../../env/plugin-commands-env

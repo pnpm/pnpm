@@ -58,6 +58,7 @@
     "write-yaml-file": "catalog:"
   },
   "dependencies": {
+    "@pnpm/client": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/colorize-semver-diff": "catalog:",
     "@pnpm/command": "workspace:*",
@@ -77,6 +78,7 @@
     "@pnpm/outdated": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/pnpmfile": "workspace:*",
