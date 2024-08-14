@@ -77,6 +77,7 @@ export async function handler (
     registries: opts.registries,
   })
   if (prepareDir) {
+    console.debug('PREPARE DIR', prepareDir)
     fs.mkdirSync(prepareDir, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
@@ -92,6 +93,9 @@ export async function handler (
       savePeer: false,
     }, pkgs)
     await symlinkDir(prepareDir, cacheLink, { overwrite: true })
+    console.debug('END PREPARE DIR')
+  } else {
+    console.debug('NOT PREPARE DIR')
   }
   const modulesDir = path.join(cacheLink, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
@@ -99,9 +103,20 @@ export async function handler (
     userAgent: opts.userAgent,
     prependPaths: [binsDir, ...opts.extraBinPaths],
   })
-  const binName = opts.package
-    ? command
-    : await getBinName(modulesDir, await getPkgName(cacheLink))
+  // const binName = opts.package
+  //   ? command
+  //   : await getBinName(modulesDir, await getPkgName(cacheLink))
+  let binName: string
+  if (opts.package) {
+    binName = command
+    console.debug('BIN NAME IS COMMAND', command)
+  } else {
+    console.debug('BIN NAME NEEDS TO BE CALCULATED')
+    console.debug('1. GET PKG NAME', { cacheLink })
+    const pkgName = await getPkgName(cacheLink)
+    console.debug('2. GET BIN NAME', { pkgName })
+    binName = await getBinName(modulesDir, pkgName)
+  }
   try {
     await execa(binName, args, {
       cwd: process.cwd(),
