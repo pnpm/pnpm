@@ -204,7 +204,6 @@ function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | 
     } else {
       return undefined
     }
-    console.log(stats)
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return undefined
