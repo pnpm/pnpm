@@ -71,12 +71,12 @@ export async function handler (
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
-  const { cacheLink, ready, cachedDir } = findCache(pkgs, {
+  const { cacheLink, cacheExists, cachedDir } = findCache(pkgs, {
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
     registries: opts.registries,
   })
-  if (!ready) {
+  if (!cacheExists) {
     fs.mkdirSync(cachedDir, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
@@ -161,14 +161,14 @@ function findCache (pkgs: string[], opts: {
   cacheDir: string
   dlxCacheMaxAge: number
   registries: Record<string, string>
-}): { cacheLink: string, ready: boolean, cachedDir: string } {
+}): { cacheLink: string, cacheExists: boolean, cachedDir: string } {
   const dlxCommandCacheDir = createDlxCommandCacheDir(pkgs, opts)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
   const cachedDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
   return {
     cacheLink,
     cachedDir: cachedDir ?? getPrepareDir(dlxCommandCacheDir),
-    ready: cachedDir != null,
+    cacheExists: cachedDir != null,
   }
 }
 
