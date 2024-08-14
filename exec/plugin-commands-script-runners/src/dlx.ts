@@ -66,6 +66,7 @@ export type DlxCommandOptions = {
   shellMode?: boolean
 } & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion'> & add.AddCommandOptions
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function debug (message: string, info?: unknown): void {
   console.debug(message, JSON.stringify(info ?? null, undefined, 2))
 }
