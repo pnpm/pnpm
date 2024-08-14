@@ -75,84 +75,37 @@ export async function handler (
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
-  const { cacheLink, prepareDir } = findCache(pkgs, {
+  const { cacheLink, ready, cachedDir } = findCache(pkgs, {
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
     registries: opts.registries,
   })
-  if (prepareDir) {
-    debug('PREPARE DIR', {
-      prepareDir,
-      command,
-      args,
-    })
-    fs.mkdirSync(prepareDir, { recursive: true })
+  if (!ready) {
+    fs.mkdirSync(cachedDir, { recursive: true })
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
       ...omit(['workspaceDir', 'rootProjectManifest'], opts),
-      bin: path.join(prepareDir, 'node_modules/.bin'),
-      dir: prepareDir,
-      lockfileDir: prepareDir,
-      rootProjectManifestDir: prepareDir, // This property won't be used as rootProjectManifest will be undefined
+      bin: path.join(cachedDir, 'node_modules/.bin'),
+      dir: cachedDir,
+      lockfileDir: cachedDir,
+      rootProjectManifestDir: cachedDir, // This property won't be used as rootProjectManifest will be undefined
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
       saveOptional: false,
       savePeer: false,
     }, pkgs)
-    debug('SYMLINK DIR', {
-      prepareDir,
-      cacheLink,
-      command,
-      args,
-    })
-    await symlinkDir(prepareDir, cacheLink, { overwrite: true })
-    debug('END PREPARE DIR', {
-      prepareDir,
-      command,
-      args,
-    })
-  } else {
-    debug('NOT PREPARE DIR', {
-      command,
-      args,
-    })
+    await symlinkDir(cachedDir, cacheLink, { overwrite: true })
   }
-  const modulesDir = path.join(cacheLink, 'node_modules')
+  const modulesDir = path.join(cachedDir, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   const env = makeEnv({
     userAgent: opts.userAgent,
     prependPaths: [binsDir, ...opts.extraBinPaths],
   })
-  // const binName = opts.package
-  //   ? command
-  //   : await getBinName(modulesDir, await getPkgName(cacheLink))
-  let binName: string
-  if (opts.package) {
-    binName = command
-    debug('BIN NAME IS COMMAND', {
-      command,
-      args,
-    })
-  } else {
-    debug('BIN NAME NEEDS TO BE CALCULATED', {
-      command,
-      args,
-    })
-    debug('1. GET PKG NAME', {
-      cacheLink,
-      command,
-      args,
-    })
-    const pkgName = await getPkgName(cacheLink)
-    debug('2. GET BIN NAME', {
-      cacheLink,
-      pkgName,
-      command,
-      args,
-    })
-    binName = await getBinName(modulesDir, pkgName)
-  }
+  const binName = opts.package
+    ? command
+    : await getBinName(modulesDir, await getPkgName(cachedDir))
   try {
     await execa(binName, args, {
       cwd: process.cwd(),
@@ -212,12 +165,15 @@ function findCache (pkgs: string[], opts: {
   cacheDir: string
   dlxCacheMaxAge: number
   registries: Record<string, string>
-}): { cacheLink: string, prepareDir: string | null } {
+}): { cacheLink: string, ready: boolean, cachedDir: string } {
   const dlxCommandCacheDir = createDlxCommandCacheDir(pkgs, opts)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
-  const valid = isCacheValid(cacheLink, opts.dlxCacheMaxAge)
-  const prepareDir = valid ? null : getPrepareDir(dlxCommandCacheDir)
-  return { cacheLink, prepareDir }
+  const cachedDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
+  return {
+    cacheLink,
+    cachedDir: cachedDir ?? getPrepareDir(dlxCommandCacheDir),
+    ready: cachedDir != null,
+  }
 }
 
 function createDlxCommandCacheDir (
@@ -241,17 +197,25 @@ export function createCacheKey (pkgs: string[], registries: Record<string, strin
   return createBase32Hash(hashStr)
 }
 
-function isCacheValid (cacheLink: string, dlxCacheMaxAge: number): boolean {
+function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | undefined {
   let stats: Stats
+  let target: string
   try {
     stats = fs.lstatSync(cacheLink)
+    if (stats.isSymbolicLink()) {
+      target = fs.readlinkSync(cacheLink)
+      if (!target) return undefined
+    } else {
+      return undefined
+    }
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return false
+      return undefined
     }
     throw err
   }
-  return stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= new Date().getTime()
+  const isValid = stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= new Date().getTime()
+  return isValid ? target : undefined
 }
 
 function getPrepareDir (cachePath: string): string {
