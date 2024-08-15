@@ -20,7 +20,7 @@ import tempy from 'tempy'
 import { writePackage } from './writePackage'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
-import { readEditDirState, deleteEditDirState } from './stateFile'
+import { readEditDirState } from './stateFile'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -58,7 +58,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const editDir = path.resolve(opts.dir, userDir)
   const stateValue = readEditDirState({
     editDir,
-    modulesDir: opts.modulesDir ?? 'node_modules',
+    modulesDir: path.join(opts.dir, opts.modulesDir ?? 'node_modules'),
   })
   if (!stateValue) {
     throw new PnpmError('INVALID_PATCH_DIR', `${userDir} is not a valid patch directory`, {
@@ -81,10 +81,6 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   }
   const srcDir = tempy.directory()
   await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion), srcDir, opts)
-  deleteEditDirState({
-    editDir,
-    modulesDir: opts.modulesDir ?? 'node_modules',
-  })
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
   if (patchedPkgDir !== userDir) {

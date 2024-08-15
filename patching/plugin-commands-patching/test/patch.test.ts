@@ -142,6 +142,116 @@ describe('patch and commit', () => {
     expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
   })
 
+  test('patch-commit multiple times', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    // store patch files in a directory inside modules dir when not given editDir option
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1.0.0'))
+    expect(path.basename(patchDir)).toBe('is-positive@1.0.0')
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    // sanity check to ensure that the license file contains the expected string
+    expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
+
+    {
+      // First edit
+      fs.appendFileSync(path.join(patchDir, 'index.js'), '// first edit\n', 'utf8')
+      fs.unlinkSync(path.join(patchDir, 'license'))
+
+      await patchCommit.handler({
+        ...DEFAULT_OPTS,
+        cacheDir,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        frozenLockfile: false,
+        fixLockfile: true,
+        storeDir,
+      }, [patchDir])
+
+      const { manifest } = await readProjectManifest(process.cwd())
+      expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+        'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+      })
+      const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+      expect(patchContent).toContain('diff --git')
+      expect(patchContent).toContain('// first edit')
+      expect(patchContent).not.toContain('// second edit')
+      expect(patchContent).not.toContain('// third edit')
+      const indexFileContent = fs.readFileSync('node_modules/is-positive/index.js', 'utf8')
+      expect(indexFileContent).toContain('// first edit')
+      expect(indexFileContent).not.toContain('// second edit')
+      expect(indexFileContent).not.toContain('// third edit')
+
+      expect(patchContent).not.toContain('The MIT License (MIT)')
+      expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
+    }
+
+    {
+      // Second edit
+      fs.appendFileSync(path.join(patchDir, 'index.js'), '// second edit\n', 'utf8')
+
+      await patchCommit.handler({
+        ...DEFAULT_OPTS,
+        cacheDir,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        frozenLockfile: false,
+        fixLockfile: true,
+        storeDir,
+      }, [patchDir])
+
+      const { manifest } = await readProjectManifest(process.cwd())
+      expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+        'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+      })
+      const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+      expect(patchContent).toContain('diff --git')
+      expect(patchContent).toContain('// first edit')
+      expect(patchContent).toContain('// second edit')
+      expect(patchContent).not.toContain('// third edit')
+      const indexFileContent = fs.readFileSync('node_modules/is-positive/index.js', 'utf8')
+      expect(indexFileContent).toContain('// first edit')
+      expect(indexFileContent).toContain('// second edit')
+      expect(indexFileContent).not.toContain('// third edit')
+
+      expect(patchContent).not.toContain('The MIT License (MIT)')
+      expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
+    }
+
+    {
+      // Third edit
+      fs.appendFileSync(path.join(patchDir, 'index.js'), '// third edit\n', 'utf8')
+
+      await patchCommit.handler({
+        ...DEFAULT_OPTS,
+        cacheDir,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        frozenLockfile: false,
+        fixLockfile: true,
+        storeDir,
+      }, [patchDir])
+
+      const { manifest } = await readProjectManifest(process.cwd())
+      expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+        'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+      })
+      const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+      expect(patchContent).toContain('diff --git')
+      expect(patchContent).toContain('// first edit')
+      expect(patchContent).toContain('// second edit')
+      expect(patchContent).toContain('// third edit')
+      const indexFileContent = fs.readFileSync('node_modules/is-positive/index.js', 'utf8')
+      expect(indexFileContent).toContain('// first edit')
+      expect(indexFileContent).toContain('// second edit')
+      expect(indexFileContent).toContain('// third edit')
+
+      expect(patchContent).not.toContain('The MIT License (MIT)')
+      expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
+    }
+  })
+
   test('patch-commit with relative path', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
