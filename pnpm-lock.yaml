@@ -4854,6 +4854,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: link:../link-bins
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types

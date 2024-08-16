@@ -124,6 +124,9 @@
       "path": "../get-context"
     },
     {
+      "path": "../link-bins"
+    },
+    {
       "path": "../modules-yaml"
     }
   ]

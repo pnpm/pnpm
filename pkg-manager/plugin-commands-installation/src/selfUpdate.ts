@@ -7,6 +7,8 @@ import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { getToolDirPath } from '@pnpm/tools.path'
+import { globalInfo } from '@pnpm/logger'
+import { linkBins } from '@pnpm/link-bins'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions } from './install'
@@ -50,7 +52,10 @@ export async function handler (
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', 'Cannot find latest version of pnpm')
   }
-  if (resolution.manifest.version === packageManager.version) return
+  if (resolution.manifest.version === packageManager.version) {
+    globalInfo('Already the latest version is installed')
+    return
+  }
 
   const currentPkgName = getCurrentPackageName()
   const dir = getToolDirPath({
@@ -60,7 +65,15 @@ export async function handler (
       version: resolution.manifest.version,
     },
   })
-  if (fs.existsSync(dir)) return
+  if (fs.existsSync(dir)) {
+    globalInfo(`Latest version is already present on the system. Linking from ${opts.dir}`)
+    await linkBins(path.join(opts.dir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
+      {
+        warn: () => {}
+      }
+    )
+    return
+  }
   const version = resolution.manifest.version
 
   fs.mkdirSync(dir, { recursive: true })
