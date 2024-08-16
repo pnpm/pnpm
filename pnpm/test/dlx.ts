@@ -261,6 +261,10 @@ test('dlx uses the node version specified by --use-node-version', async () => {
     stdio: [null, 'pipe', 'inherit'],
   })
 
+  if (execResult.error) {
+    throw execResult.error
+  }
+
   if (execResult.status !== 0) {
     console.error(execResult.stderr.toString())
     throw new Error(`Process exits with code ${execResult.status}`)

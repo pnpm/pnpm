@@ -88,6 +88,7 @@ export interface ChildProcess {
   status: number
   stdout: { toString: () => string }
   stderr: { toString: () => string }
+  error: NodeJS.ErrnoException | undefined
 }
 
 export function execPnpmSync (
