@@ -69,7 +69,7 @@ export async function handler (
     globalInfo(`Latest version is already present on the system. Linking from ${opts.dir}`)
     await linkBins(path.join(opts.dir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
       {
-        warn: () => {}
+        warn: () => {},
       }
     )
     return
@@ -88,4 +88,3 @@ export async function handler (
     [`${currentPkgName}@${version}`]
   )
 }
-

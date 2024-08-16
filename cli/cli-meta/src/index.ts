@@ -44,11 +44,11 @@ export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boo
   return env.COREPACK_ROOT != null
 }
 
-export function getCurrentPackageName () {
+export function getCurrentPackageName (): string {
   return detectIfCurrentPkgIsExecutable() ? getExePackageName() : 'pnpm'
 }
 
-function getExePackageName () {
+function getExePackageName (): string {
   const platform = process.platform === 'win32'
     ? 'win'
     : process.platform === 'darwin'

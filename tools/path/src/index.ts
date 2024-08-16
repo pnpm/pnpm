@@ -8,6 +8,6 @@ export function getToolDirPath (
       version: string
     }
   }
-) {
+): string {
   return path.join(opts.pnpmHomeDir, '.tools', opts.tool.name.replaceAll('/', '+'), opts.tool.version)
 }
