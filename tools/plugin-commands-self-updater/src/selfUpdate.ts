@@ -11,8 +11,7 @@ import { globalInfo } from '@pnpm/logger'
 import { linkBins } from '@pnpm/link-bins'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { type InstallCommandOptions } from './install'
-import * as add from './add'
+import { add, type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)

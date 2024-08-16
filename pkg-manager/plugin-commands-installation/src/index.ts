@@ -9,6 +9,6 @@ import * as remove from './remove'
 import * as unlink from './unlink'
 import * as update from './update'
 import * as importCommand from './import'
-import * as selfUpdate from './selfUpdate'
+import { type InstallCommandOptions } from './install'
 
-export { add, ci, dedupe, fetch, install, link, prune, remove, unlink, update, importCommand, selfUpdate }
+export { add, ci, dedupe, fetch, install, link, prune, remove, unlink, update, importCommand, type InstallCommandOptions }

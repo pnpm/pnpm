@@ -4809,15 +4809,9 @@ importers:
 
   pkg-manager/plugin-commands-installation:
     dependencies:
-      '@pnpm/cli-meta':
-        specifier: workspace:*
-        version: link:../../cli/cli-meta
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
-      '@pnpm/client':
-        specifier: workspace:*
-        version: link:../client
       '@pnpm/colorize-semver-diff':
         specifier: 'catalog:'
         version: 1.0.1
@@ -4854,9 +4848,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/link-bins':
-        specifier: workspace:*
-        version: link:../link-bins
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -4875,9 +4866,6 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: link:../../env/plugin-commands-env
@@ -4902,9 +4890,6 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../../store/store-connection-manager
-      '@pnpm/tools.path':
-        specifier: workspace:*
-        version: link:../../tools/path
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5610,6 +5595,9 @@ importers:
       '@pnpm/tools.path':
         specifier: workspace:*
         version: link:../tools/path
+      '@pnpm/tools.plugin-commands-self-updater':
+        specifier: workspace:*
+        version: link:../tools/plugin-commands-self-updater
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
@@ -7309,6 +7297,52 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  tools/plugin-commands-self-updater:
+    dependencies:
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../../cli/cli-meta
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/client':
+        specifier: workspace:*
+        version: link:../../pkg-manager/client
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/link-bins
+      '@pnpm/logger':
+        specifier: ^5.1.0
+        version: 5.2.0
+      '@pnpm/pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../../pkg-manager/plugin-commands-installation
+      '@pnpm/tools.path':
+        specifier: workspace:*
+        version: link:../path
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      render-help:
+        specifier: 'catalog:'
+        version: 1.0.3
+    devDependencies:
+      '@pnpm/tools.plugin-commands-self-updater':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+
   worker:
     dependencies:
       '@pnpm/cafs-types':
@@ -8538,10 +8572,6 @@ packages:
   '@pnpm/log.group@3.0.0':
     resolution: {integrity: sha512-PRy5Ck1Jz0P6W7+cV4E1OQDnIQRKLkhrg+rvfPkGtk2TfJmuIZAvq25E8NUn5DMtODWZ1xG0Yro2jgMXUiz3tg==}
     engines: {node: '>=18.12'}
-
-  '@pnpm/logger@5.0.0':
-    resolution: {integrity: sha512-YfcB2QrX+Wx1o6LD1G2Y2fhDhOix/bAY/oAnMpHoNLsKkWIRbt1oKLkIFvxBMzLwAEPqnYWguJrYC+J6i4ywbw==}
-    engines: {node: '>=12.17'}
 
   '@pnpm/logger@5.2.0':
     resolution: {integrity: sha512-dCdSs2wPCweMkRLdISAKBOKSWeq/9iS9aanWgjoUkFs06KN2o5XGFg53oCXg/KbZhF9AXS3vMHPwTebzCeAEsA==}
@@ -15188,20 +15218,6 @@ snapshots:
       '@pnpm/types': 12.0.0
       load-json-file: 6.2.0
 
-  '@pnpm/cli-utils@4.0.1(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/cli-meta': 6.1.0
-      '@pnpm/config': 21.8.0(@pnpm/logger@5.0.0)
-      '@pnpm/default-reporter': 13.1.12(@pnpm/logger@5.0.0)
-      '@pnpm/error': 6.0.1
-      '@pnpm/logger': 5.0.0
-      '@pnpm/manifest-utils': 6.0.6(@pnpm/logger@5.0.0)
-      '@pnpm/package-is-installable': 9.0.6(@pnpm/logger@5.0.0)
-      '@pnpm/read-project-manifest': 6.0.6
-      '@pnpm/types': 12.0.0
-      chalk: 4.1.2
-      load-json-file: 6.2.0
-
   '@pnpm/cli-utils@4.0.1(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/cli-meta': 6.1.0
@@ -15223,36 +15239,6 @@ snapshots:
   '@pnpm/config.env-replace@1.1.0': {}
 
   '@pnpm/config.env-replace@3.0.0': {}
-
-  '@pnpm/config@21.8.0(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/catalogs.config': 0.1.0
-      '@pnpm/catalogs.types': 0.1.0
-      '@pnpm/config.env-replace': 3.0.0
-      '@pnpm/constants': 8.0.0
-      '@pnpm/error': 6.0.1
-      '@pnpm/git-utils': 2.0.0
-      '@pnpm/matcher': 6.0.0
-      '@pnpm/npm-conf': 2.3.0
-      '@pnpm/pnpmfile': 6.0.9(@pnpm/logger@5.0.0)
-      '@pnpm/read-project-manifest': 6.0.6
-      '@pnpm/types': 12.0.0
-      '@pnpm/workspace.read-manifest': 2.2.0
-      better-path-resolve: 1.0.0
-      camelcase: 6.3.0
-      camelcase-keys: 6.2.2
-      can-write-to-dir: 1.1.1
-      is-subdir: 1.2.0
-      is-windows: 1.0.2
-      normalize-registry-url: 2.0.0
-      path-absolute: 1.0.1
-      path-name: 1.0.0
-      ramda: '@pnpm/ramda@0.28.1'
-      read-ini-file: 4.0.0
-      realpath-missing: 1.1.0
-      which: '@pnpm/which@3.0.1'
-    transitivePeerDependencies:
-      - '@pnpm/logger'
 
   '@pnpm/config@21.8.0(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15286,11 +15272,6 @@ snapshots:
 
   '@pnpm/constants@8.0.0': {}
 
-  '@pnpm/core-loggers@10.0.5(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/logger': 5.0.0
-      '@pnpm/types': 12.0.0
-
   '@pnpm/core-loggers@10.0.5(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/logger': 5.2.0
@@ -15307,30 +15288,6 @@ snapshots:
       chalk: 4.1.2
 
   '@pnpm/dedupe.types@2.0.0': {}
-
-  '@pnpm/default-reporter@13.1.12(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/cli-meta': 6.1.0
-      '@pnpm/config': 21.8.0(@pnpm/logger@5.0.0)
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
-      '@pnpm/dedupe.issues-renderer': 2.0.0
-      '@pnpm/dedupe.types': 2.0.0
-      '@pnpm/error': 6.0.1
-      '@pnpm/logger': 5.0.0
-      '@pnpm/render-peer-issues': 5.0.6
-      '@pnpm/types': 12.0.0
-      ansi-diff: 1.1.1
-      boxen: 5.1.2
-      chalk: 4.1.2
-      cli-truncate: 2.1.0
-      normalize-path: 3.0.0
-      pretty-bytes: 5.6.0
-      pretty-ms: 7.0.1
-      ramda: '@pnpm/ramda@0.28.1'
-      rxjs: 7.8.1
-      semver: 7.6.2
-      stacktracey: 2.1.8
-      string-length: 4.0.2
 
   '@pnpm/default-reporter@13.1.12(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15415,23 +15372,10 @@ snapshots:
     dependencies:
       ci-info: 3.9.0
 
-  '@pnpm/logger@5.0.0':
-    dependencies:
-      bole: 5.0.14
-      ndjson: 2.0.0
-
   '@pnpm/logger@5.2.0':
     dependencies:
       bole: 5.0.14
       ndjson: 2.0.0
-
-  '@pnpm/manifest-utils@6.0.6(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
-      '@pnpm/error': 6.0.1
-      '@pnpm/types': 12.0.0
-    transitivePeerDependencies:
-      - '@pnpm/logger'
 
   '@pnpm/manifest-utils@6.0.6(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15448,9 +15392,9 @@ snapshots:
   '@pnpm/meta-updater@2.0.3':
     dependencies:
       '@pnpm/find-workspace-dir': 7.0.1
-      '@pnpm/logger': 5.0.0
+      '@pnpm/logger': 5.2.0
       '@pnpm/types': 11.0.0
-      '@pnpm/workspace.find-packages': 4.0.6(@pnpm/logger@5.0.0)
+      '@pnpm/workspace.find-packages': 4.0.6(@pnpm/logger@5.2.0)
       '@pnpm/workspace.read-manifest': 2.2.0
       load-json-file: 7.0.1
       meow: 11.0.0
@@ -15544,18 +15488,6 @@ snapshots:
       '@pnpm/os.env.path-extender-posix': 2.0.0
       '@pnpm/os.env.path-extender-windows': 2.0.0
 
-  '@pnpm/package-is-installable@9.0.6(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/cli-meta': 6.1.0
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
-      '@pnpm/error': 6.0.1
-      '@pnpm/logger': 5.0.0
-      '@pnpm/types': 12.0.0
-      detect-libc: 2.0.3
-      execa: safe-execa@0.1.2
-      mem: 8.1.1
-      semver: 7.6.2
-
   '@pnpm/package-is-installable@9.0.6(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/cli-meta': 6.1.0
@@ -15597,19 +15529,6 @@ snapshots:
       yaml: 2.4.5
 
   '@pnpm/patching.types@1.0.0': {}
-
-  '@pnpm/pnpmfile@6.0.9(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
-      '@pnpm/crypto.base32-hash': 3.0.0
-      '@pnpm/error': 6.0.1
-      '@pnpm/hooks.types': 2.0.7
-      '@pnpm/lockfile.types': 1.0.1
-      '@pnpm/logger': 5.0.0
-      '@pnpm/store-controller-types': 18.1.4
-      '@pnpm/types': 12.0.0
-      chalk: 4.1.2
-      path-absolute: 1.0.1
 
   '@pnpm/pnpmfile@6.0.9(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15709,14 +15628,6 @@ snapshots:
   '@pnpm/which@3.0.1':
     dependencies:
       isexe: 2.0.0
-
-  '@pnpm/workspace.find-packages@4.0.6(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/cli-utils': 4.0.1(@pnpm/logger@5.0.0)
-      '@pnpm/fs.find-packages': 4.0.2
-      '@pnpm/logger': 5.0.0
-      '@pnpm/types': 12.0.0
-      '@pnpm/util.lex-comparator': 3.0.0
 
   '@pnpm/workspace.find-packages@4.0.6(@pnpm/logger@5.2.0)':
     dependencies:

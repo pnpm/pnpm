@@ -22,9 +22,6 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../cli/cli-meta"
-    },
-    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -38,9 +35,6 @@
     },
     {
       "path": "../../config/matcher"
-    },
-    {
-      "path": "../../config/pick-registry-for-package"
     },
     {
       "path": "../../dedupe/check"
@@ -94,9 +88,6 @@
       "path": "../../store/store-connection-manager"
     },
     {
-      "path": "../../tools/path"
-    },
-    {
       "path": "../../workspace/filter-packages-from-dir"
     },
     {
@@ -115,16 +106,10 @@
       "path": "../../workspace/sort-packages"
     },
     {
-      "path": "../client"
-    },
-    {
       "path": "../core"
     },
     {
       "path": "../get-context"
-    },
-    {
-      "path": "../link-bins"
     },
     {
       "path": "../modules-yaml"
