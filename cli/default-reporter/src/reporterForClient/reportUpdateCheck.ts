@@ -46,14 +46,14 @@ interface UpdateMessageOptions {
 }
 
 function renderUpdateMessage (opts: UpdateMessageOptions): string {
-  if (opts.currentPkgIsExecutable && opts.env.PNPM_HOME) {
-    return 'Run a script from: https://pnpm.io/installation'
-  }
   const updateCommand = renderUpdateCommand(opts)
   return `Run "${chalk.magenta(updateCommand)}" to update.`
 }
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
+  if (opts.env.PNPM_HOME) {
+    return 'pnpm self-update'
+  }
   if (isExecutedByCorepack(opts.env)) {
     return `corepack install -g pnpm@${opts.latestVersion}`
   }

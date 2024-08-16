@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
-import { getCurrentPackageName, packageManager } from '@pnpm/cli-meta'
+import { getCurrentPackageName, packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { types as allTypes } from '@pnpm/config'
@@ -39,6 +39,9 @@ export type SelfUpdateCommandOptions = InstallCommandOptions
 export async function handler (
   opts: SelfUpdateCommandOptions
 ): Promise<void> {
+  if (isExecutedByCorepack()) {
+    throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
+  }
   const { resolve } = createResolver({ ...opts, authConfig: opts.rawConfig })
   const pkgName = 'pnpm'
   const resolution = await resolve({ alias: pkgName, pref: 'latest' }, {
