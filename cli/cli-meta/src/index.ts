@@ -43,3 +43,18 @@ export function detectIfCurrentPkgIsExecutable (proc: NodeJS.Process = process):
 export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boolean {
   return env.COREPACK_ROOT != null
 }
+
+export function getCurrentPackageName () {
+  return detectIfCurrentPkgIsExecutable() ? getExePackageName() : 'pnpm'
+}
+
+function getExePackageName () {
+  const platform = process.platform === 'win32'
+    ? 'win'
+    : process.platform === 'darwin'
+      ? 'macos'
+      : process.platform
+  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
+
+  return `@pnpm/${platform}-${arch}`
+}

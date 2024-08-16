@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
 import { prepare } from '@pnpm/prepare'
+import { getToolDirPath } from '@pnpm/tools.path'
 import isWindows from 'is-windows'
 import {
   execPnpm,

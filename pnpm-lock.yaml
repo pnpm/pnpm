@@ -4809,6 +4809,9 @@ importers:
 
   pkg-manager/plugin-commands-installation:
     dependencies:
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../../cli/cli-meta
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
@@ -4896,6 +4899,9 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../../store/store-connection-manager
+      '@pnpm/tools.path':
+        specifier: workspace:*
+        version: link:../../tools/path
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5598,6 +5604,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../__utils__/test-ipc-server
+      '@pnpm/tools.path':
+        specifier: workspace:*
+        version: link:../tools/path
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
@@ -7288,6 +7297,12 @@ importers:
         version: 1.2.0
     devDependencies:
       '@pnpm/text.comments-parser':
+        specifier: workspace:*
+        version: 'link:'
+
+  tools/path:
+    devDependencies:
+      '@pnpm/tools.path':
         specifier: workspace:*
         version: 'link:'
 

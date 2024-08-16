@@ -59,6 +59,7 @@
   },
   "dependencies": {
     "@pnpm/client": "workspace:*",
+    "@pnpm/cli-meta": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/colorize-semver-diff": "catalog:",
     "@pnpm/command": "workspace:*",
@@ -87,6 +88,7 @@
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/sort-packages": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
+    "@pnpm/tools.path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.pkgs-graph": "workspace:*",

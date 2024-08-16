@@ -2,8 +2,9 @@ import fs from 'fs'
 import path from 'path'
 import { type Config } from '@pnpm/config'
 import { globalWarn } from '@pnpm/logger'
-import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli-meta'
+import { getCurrentPackageName, packageManager } from '@pnpm/cli-meta'
 import { prependDirsToPath } from '@pnpm/env.path'
+import { getToolDirPath } from '@pnpm/tools.path'
 import spawn from 'cross-spawn'
 import semver from 'semver'
 import { pnpmCmds } from './cmd'
@@ -15,8 +16,14 @@ export async function switchCliVersion (config: Config): Promise<void> {
     globalWarn(`Cannot switch to pnpm@${pm.version}: "${pm.version}" is not a valid version`)
     return
   }
-  const pkgName = detectIfCurrentPkgIsExecutable() ? getExePackageName() : 'pnpm'
-  const dir = path.join(config.pnpmHomeDir, '.tools', pkgName.replaceAll('/', '+'), pm.version)
+  const pkgName = getCurrentPackageName()
+  const dir = getToolDirPath({
+    pnpmHomeDir: config.pnpmHomeDir,
+    tool: {
+      name: pkgName,
+      version: pm.version,
+    },
+  })
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
     fs.writeFileSync(path.join(dir, 'package.json'), '{}')
@@ -39,15 +46,4 @@ export async function switchCliVersion (config: Config): Promise<void> {
     },
   })
   process.exit(status ?? 0)
-}
-
-function getExePackageName () {
-  const platform = process.platform === 'win32'
-    ? 'win'
-    : process.platform === 'darwin'
-      ? 'macos'
-      : process.platform
-  const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
-
-  return `@pnpm/${platform}-${arch}`
 }

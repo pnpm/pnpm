@@ -1,4 +1,5 @@
 import { docsUrl } from '@pnpm/cli-utils'
+import { getCurrentPackageName } from '@pnpm/cli-meta'
 import {
   createResolver,
 } from '@pnpm/client'
@@ -7,6 +8,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { getToolDirPath } from '@pnpm/tools.path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions } from './install'
@@ -42,13 +44,23 @@ export async function handler (
   const { resolve } = createResolver({ ...opts, authConfig: opts.rawConfig })
   const pkgName = 'pnpm'
   const resolution = await resolve({ alias: pkgName, pref: 'latest' }, {
-    lockfileDir: opts.lockfileDir,
+    lockfileDir: opts.lockfileDir ?? opts.dir,
     preferredVersions: {},
     projectDir: opts.dir,
     registry: pickRegistryForPackage(opts.registries, pkgName, 'latest'),
   })
+  if (!resolution?.manifest) {
+    throw new PnpmError('CANNOT_RESOLVE_PNPM', 'Cannot find latest version of pnpm')
+  }
+
+  const dir = getToolDirPath({
+    pnpmHomeDir: opts.pnpmHomeDir,
+    tool: {
+      name: getCurrentPackageName(),
+      version: resolution.manifest.version,
+    },
+  })
   const version = resolution.manifest.version
 
-  return resolution?.manifest ?? null
 }
 
