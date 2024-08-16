@@ -1,18 +1,16 @@
+import fs from 'fs'
+import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { getCurrentPackageName } from '@pnpm/cli-meta'
-import {
-  createResolver,
-} from '@pnpm/client'
+import { createResolver } from '@pnpm/client'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { getToolDirPath } from '@pnpm/tools.path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions } from './install'
-import { installDeps } from './installDeps'
+import * as add from './add'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -53,14 +51,27 @@ export async function handler (
     throw new PnpmError('CANNOT_RESOLVE_PNPM', 'Cannot find latest version of pnpm')
   }
 
+  const currentPkgName = getCurrentPackageName()
   const dir = getToolDirPath({
     pnpmHomeDir: opts.pnpmHomeDir,
     tool: {
-      name: getCurrentPackageName(),
+      name: currentPkgName,
       version: resolution.manifest.version,
     },
   })
+  if (fs.existsSync(dir)) return
   const version = resolution.manifest.version
 
+  fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(dir, 'package.json'), '{}')
+  await add.handler(
+    {
+      ...opts,
+      dir,
+      lockfileDir: dir,
+      bin: opts.pnpmHomeDir,
+    },
+    [`${currentPkgName}@${version}`]
+  )
 }
 
