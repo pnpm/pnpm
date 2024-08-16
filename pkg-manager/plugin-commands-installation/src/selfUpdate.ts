@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
-import { getCurrentPackageName } from '@pnpm/cli-meta'
+import { getCurrentPackageName, packageManager } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { types as allTypes } from '@pnpm/config'
@@ -50,6 +50,7 @@ export async function handler (
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', 'Cannot find latest version of pnpm')
   }
+  if (resolution.manifest.version === packageManager.version) return
 
   const currentPkgName = getCurrentPackageName()
   const dir = getToolDirPath({
