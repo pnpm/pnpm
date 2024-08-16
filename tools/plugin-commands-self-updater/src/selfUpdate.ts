@@ -27,7 +27,7 @@ export const commandNames = ['self-update']
 
 export function help (): string {
   return renderHelp({
-    description: '',
+    description: 'Updates pnpm to the latest version',
     descriptionLists: [],
     url: docsUrl('self-update'),
     usages: [],
@@ -37,8 +37,7 @@ export function help (): string {
 export type SelfUpdateCommandOptions = InstallCommandOptions
 
 export async function handler (
-  opts: SelfUpdateCommandOptions,
-  params: string[]
+  opts: SelfUpdateCommandOptions
 ): Promise<void> {
   const { resolve } = createResolver({ ...opts, authConfig: opts.rawConfig })
   const pkgName = 'pnpm'
@@ -73,8 +72,6 @@ export async function handler (
     )
     return
   }
-  const version = resolution.manifest.version
-
   fs.mkdirSync(dir, { recursive: true })
   fs.writeFileSync(path.join(dir, 'package.json'), '{}')
   await add.handler(
@@ -84,6 +81,6 @@ export async function handler (
       lockfileDir: dir,
       bin: opts.pnpmHomeDir,
     },
-    [`${currentPkgName}@${version}`]
+    [`${currentPkgName}@${resolution.manifest.version}`]
   )
 }
