@@ -11,6 +11,7 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { isSubdirectory } from './isSubdirectory.js'
+import { deleteEditDirState } from './stateFile.js'
 import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -93,7 +94,15 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
         await fs.rmdir(dir)
       }
     } catch {}
+  const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+  const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
+  const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
+  await Promise.all(patchesToRemove.map(async (patch) => {
+    const editDir = path.join(pnpmPatches, patch)
+    deleteEditDirState({ editDir, modulesDir })
+    await fs.rm(editDir, { recursive: true, force: true })
   }))
+
   await updatePatchedDependencies(patchedDependencies, {
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
