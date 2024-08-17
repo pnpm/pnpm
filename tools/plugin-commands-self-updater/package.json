@@ -42,9 +42,12 @@
     "render-help": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/env.path": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/tools.plugin-commands-self-updater": "workspace:*",
+    "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
+    "cross-spawn": "catalog:",
     "nock": "catalog:"
   },
   "peerDependencies": {

@@ -25,6 +25,9 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../env/path"
+    },
+    {
       "path": "../../packages/error"
     },
     {
