@@ -61,7 +61,9 @@ function modifyStateFile (modulesDir: string, modifyState: (state: State) => voi
   if (len) {
     fs.writeFileSync(filePath, JSON.stringify(state, undefined, 2))
   } else {
-    fs.unlinkSync(filePath)
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath)
+    }
   }
 }
 
