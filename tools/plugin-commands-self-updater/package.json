@@ -9,10 +9,11 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "test": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "test": "pnpm run compile && pnpm run _test",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "_test": "jest"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/tools/plugin-commands-self-updater",
   "keywords": [
@@ -28,9 +29,9 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/tools/plugin-commands-self-updater#readme",
   "dependencies": {
-    "@pnpm/client": "workspace:*",
     "@pnpm/cli-meta": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
@@ -41,8 +42,10 @@
     "render-help": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/prepare": "workspace:*",
     "@pnpm/tools.plugin-commands-self-updater": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@types/ramda": "catalog:",
+    "nock": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.1.0"
