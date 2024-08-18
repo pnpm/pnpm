@@ -6,8 +6,6 @@ import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
 import nock from 'nock'
 
-const registry = 'https://registry.npmjs.org/'
-
 jest.mock('@pnpm/cli-meta', () => {
   const actualModule = jest.requireActual('@pnpm/cli-meta')
 
@@ -40,7 +38,7 @@ function prepare () {
     bail: true,
     pnpmHomeDir: dir,
     registries: {
-      default: registry,
+      default: 'https://registry.npmjs.org/',
     },
     rawLocalConfig: {},
     sort: false,
@@ -57,7 +55,8 @@ function prepare () {
 }
 
 test('self-update', async () => {
-  nock(registry)
+  const opts = prepare()
+  nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, {
       name: 'pnpm',
@@ -70,18 +69,17 @@ test('self-update', async () => {
           version: '9.1.0',
           dist: {
             shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
-            tarball: 'https://registry.npmjs.org/pnpm/-/pnpm-9.1.0.tgz',
+            tarball: `${opts.registries.default}pnpm/-/pnpm-9.1.0.tgz`,
             fileCount: 880,
             integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
           },
         },
       },
     })
-  nock(registry)
+  nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, path.join(__dirname, 'pnpm-9.1.0.tgz'))
 
-  const opts = prepare()
   await selfUpdate.handler(opts)
 
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(opts.pnpmHomeDir, '.tools/pnpm/9.1.0/node_modules/pnpm/package.json'), 'utf8'))
@@ -99,7 +97,8 @@ test('self-update', async () => {
 })
 
 test('self-update does nothing when pnpm is up to date', async () => {
-  nock(registry)
+  const opts = prepare()
+  nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, {
       name: 'pnpm',
@@ -112,7 +111,7 @@ test('self-update does nothing when pnpm is up to date', async () => {
           version: '9.0.0',
           dist: {
             shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
-            tarball: 'https://registry.npmjs.org/pnpm/-/pnpm-9.1.0.tgz',
+            tarball: `${opts.registries.default}pnpm/-/pnpm-9.1.0.tgz`,
             fileCount: 880,
             integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
           },
@@ -120,7 +119,6 @@ test('self-update does nothing when pnpm is up to date', async () => {
       },
     })
 
-  const opts = prepare()
   const output = await selfUpdate.handler(opts)
 
   expect(output).toBe('Already the latest version is installed')
