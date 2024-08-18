@@ -98,14 +98,17 @@ export function execPnpmSync (
     timeout?: number
   }
 ): ChildProcess {
-  return crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
+  const execResult = crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
     env: {
       ...createEnv(),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
     stdio: opts?.stdio,
     timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
-  }) as ChildProcess
+  })
+  if (execResult.error) throw execResult.error
+  if (execResult.signal) throw new Error(`Process terminated with signal ${execResult.signal}`)
+  return execResult as ChildProcess
 }
 
 export function execPnpxSync (
@@ -115,13 +118,16 @@ export function execPnpxSync (
     timeout?: number
   }
 ): ChildProcess {
-  return crossSpawn.sync(process.execPath, [pnpxBinLocation, ...args], {
+  const execResult = crossSpawn.sync(process.execPath, [pnpxBinLocation, ...args], {
     env: {
       ...createEnv(),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
     timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
-  }) as ChildProcess
+  })
+  if (execResult.error) throw execResult.error
+  if (execResult.signal) throw new Error(`Process terminated with signal ${execResult.signal}`)
+  return execResult as ChildProcess
 }
 
 function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
