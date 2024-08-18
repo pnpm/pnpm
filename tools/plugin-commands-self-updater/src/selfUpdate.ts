@@ -7,7 +7,6 @@ import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { getToolDirPath } from '@pnpm/tools.path'
-import { globalInfo } from '@pnpm/logger'
 import { linkBins } from '@pnpm/link-bins'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
@@ -38,7 +37,7 @@ export type SelfUpdateCommandOptions = InstallCommandOptions
 
 export async function handler (
   opts: SelfUpdateCommandOptions
-): Promise<void> {
+): Promise<undefined | string> {
   if (isExecutedByCorepack()) {
     throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
   }
@@ -54,8 +53,7 @@ export async function handler (
     throw new PnpmError('CANNOT_RESOLVE_PNPM', 'Cannot find latest version of pnpm')
   }
   if (resolution.manifest.version === packageManager.version) {
-    globalInfo('Already the latest version is installed')
-    return
+    return 'Already the latest version is installed'
   }
 
   const currentPkgName = getCurrentPackageName()
@@ -67,13 +65,12 @@ export async function handler (
     },
   })
   if (fs.existsSync(dir)) {
-    globalInfo(`Latest version is already present on the system. Linking from ${opts.dir}`)
     await linkBins(path.join(opts.dir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
       {
         warn: () => {},
       }
     )
-    return
+    return `Latest version is already present on the system. Linked from ${opts.dir}`
   }
   fs.mkdirSync(dir, { recursive: true })
   fs.writeFileSync(path.join(dir, 'package.json'), '{}')
@@ -86,4 +83,5 @@ export async function handler (
     },
     [`${currentPkgName}@${resolution.manifest.version}`]
   )
+  return undefined
 }

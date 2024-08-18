@@ -29,8 +29,34 @@ beforeEach(() => {
   nock.enableNetConnect()
 })
 
-test('self-update', async () => {
+function prepare () {
   const dir = tempDir(false)
+  return {
+    argv: {
+      original: [],
+    },
+    cliOptions: {},
+    linkWorkspacePackages: true,
+    bail: true,
+    pnpmHomeDir: dir,
+    registries: {
+      default: registry,
+    },
+    rawLocalConfig: {},
+    sort: false,
+    rootProjectManifestDir: process.cwd(),
+    bin: process.cwd(),
+    workspaceConcurrency: 1,
+    extraEnv: {},
+    pnpmfile: '',
+    rawConfig: {},
+    cacheDir: path.join(dir, '.cache'),
+    virtualStoreDirMaxLength: 120,
+    dir: process.cwd(),
+  }
+}
+
+test('self-update', async () => {
   nock(registry)
     .get('/pnpm')
     .reply(200, {
@@ -55,34 +81,13 @@ test('self-update', async () => {
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, path.join(__dirname, 'pnpm-9.1.0.tgz'))
 
-  await selfUpdate.handler({
-    argv: {
-      original: [],
-    },
-    cliOptions: {},
-    linkWorkspacePackages: true,
-    bail: true,
-    pnpmHomeDir: dir,
-    registries: {
-      default: registry,
-    },
-    rawLocalConfig: {},
-    sort: false,
-    rootProjectManifestDir: process.cwd(),
-    bin: process.cwd(),
-    workspaceConcurrency: 1,
-    extraEnv: {},
-    pnpmfile: '',
-    rawConfig: {},
-    cacheDir: path.join(dir, '.cache'),
-    virtualStoreDirMaxLength: 120,
-    dir: process.cwd(),
-  })
+  const opts = prepare()
+  await selfUpdate.handler(opts)
 
-  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(dir, '.tools/pnpm/9.1.0/node_modules/pnpm/package.json'), 'utf8'))
+  const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(opts.pnpmHomeDir, '.tools/pnpm/9.1.0/node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
 
-  const pnpmEnv = prependDirsToPath([dir])
+  const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
   const { status, stdout } = spawn.sync('pnpm', ['-v'], {
     env: {
       ...process.env,
@@ -91,4 +96,32 @@ test('self-update', async () => {
   })
   expect(status).toBe(0)
   expect(stdout.toString().trim()).toBe('9.1.0')
+})
+
+test('self-update does nothing when pnpm is up to date', async () => {
+  nock(registry)
+    .get('/pnpm')
+    .reply(200, {
+      name: 'pnpm',
+      'dist-tags': {
+        latest: '9.0.0',
+      },
+      versions: {
+        '9.0.0': {
+          name: 'pnpm',
+          version: '9.0.0',
+          dist: {
+            shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
+            tarball: 'https://registry.npmjs.org/pnpm/-/pnpm-9.1.0.tgz',
+            fileCount: 880,
+            integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
+          },
+        },
+      },
+    })
+
+  const opts = prepare()
+  const output = await selfUpdate.handler(opts)
+
+  expect(output).toBe('Already the latest version is installed')
 })
