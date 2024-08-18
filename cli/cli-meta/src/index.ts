@@ -49,12 +49,15 @@ export function getCurrentPackageName (): string {
 }
 
 function getExePackageName (): string {
-  const platform = process.platform === 'win32'
-    ? 'win'
-    : process.platform === 'darwin'
-      ? 'macos'
-      : process.platform
+  const platform = normalizePlatformName()
   const arch = platform === 'win' && process.arch === 'ia32' ? 'x86' : process.arch
-
   return `@pnpm/${platform}-${arch}`
+}
+
+function normalizePlatformName (): string {
+  switch (process.platform) {
+  case 'win32': return 'win'
+  case 'darwin': return 'macos'
+  default: return process.platform
+  }
 }

@@ -53,7 +53,7 @@ export async function handler (
     throw new PnpmError('CANNOT_RESOLVE_PNPM', 'Cannot find latest version of pnpm')
   }
   if (resolution.manifest.version === packageManager.version) {
-    return 'Already the latest version is installed'
+    return `The currently active ${packageManager.name} v${packageManager.version} is already "latest" and doesn't need an update`
   }
 
   const currentPkgName = getCurrentPackageName()

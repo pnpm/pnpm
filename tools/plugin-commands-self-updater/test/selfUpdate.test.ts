@@ -12,7 +12,7 @@ jest.mock('@pnpm/cli-meta', () => {
   return {
     ...actualModule,
     packageManager: {
-      name: actualModule.packageManager.name,
+      name: 'pnpm',
       version: '9.0.0',
     },
   }
@@ -121,5 +121,5 @@ test('self-update does nothing when pnpm is up to date', async () => {
 
   const output = await selfUpdate.handler(opts)
 
-  expect(output).toBe('Already the latest version is installed')
+  expect(output).toBe('The currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
 })
