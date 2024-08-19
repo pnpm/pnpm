@@ -34,7 +34,7 @@ exports[`print update notification that suggests to use the standalone scripts f
    │                                                                  │
    │                Update available! 10.0.0 → 11.0.0.                │
    │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.0.0   │
-   │         Run a script from: https://pnpm.io/installation          │
+   │                Run "pnpm self-update" to update.                 │
    │                                                                  │
    │         Follow @pnpmjs for updates: https://x.com/pnpmjs         │
    │                                                                  │

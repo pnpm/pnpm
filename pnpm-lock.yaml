@@ -5592,6 +5592,12 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../__utils__/test-ipc-server
+      '@pnpm/tools.path':
+        specifier: workspace:*
+        version: link:../tools/path
+      '@pnpm/tools.plugin-commands-self-updater':
+        specifier: workspace:*
+        version: link:../tools/plugin-commands-self-updater
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
@@ -7285,6 +7291,73 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  tools/path:
+    devDependencies:
+      '@pnpm/tools.path':
+        specifier: workspace:*
+        version: 'link:'
+
+  tools/plugin-commands-self-updater:
+    dependencies:
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../../cli/cli-meta
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/client':
+        specifier: workspace:*
+        version: link:../../pkg-manager/client
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/link-bins
+      '@pnpm/logger':
+        specifier: ^5.1.0
+        version: 5.2.0
+      '@pnpm/pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../../pkg-manager/plugin-commands-installation
+      '@pnpm/tools.path':
+        specifier: workspace:*
+        version: link:../path
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      render-help:
+        specifier: 'catalog:'
+        version: 1.0.3
+    devDependencies:
+      '@pnpm/env.path':
+        specifier: workspace:*
+        version: link:../../env/path
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/tools.plugin-commands-self-updater':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/cross-spawn':
+        specifier: 'catalog:'
+        version: 6.0.6
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      cross-spawn:
+        specifier: 'catalog:'
+        version: 7.0.3
+      nock:
+        specifier: 'catalog:'
+        version: 13.3.4
+
   worker:
     dependencies:
       '@pnpm/cafs-types':
@@ -8514,10 +8587,6 @@ packages:
   '@pnpm/log.group@3.0.0':
     resolution: {integrity: sha512-PRy5Ck1Jz0P6W7+cV4E1OQDnIQRKLkhrg+rvfPkGtk2TfJmuIZAvq25E8NUn5DMtODWZ1xG0Yro2jgMXUiz3tg==}
     engines: {node: '>=18.12'}
-
-  '@pnpm/logger@5.0.0':
-    resolution: {integrity: sha512-YfcB2QrX+Wx1o6LD1G2Y2fhDhOix/bAY/oAnMpHoNLsKkWIRbt1oKLkIFvxBMzLwAEPqnYWguJrYC+J6i4ywbw==}
-    engines: {node: '>=12.17'}
 
   '@pnpm/logger@5.2.0':
     resolution: {integrity: sha512-dCdSs2wPCweMkRLdISAKBOKSWeq/9iS9aanWgjoUkFs06KN2o5XGFg53oCXg/KbZhF9AXS3vMHPwTebzCeAEsA==}
@@ -14913,7 +14982,7 @@ snapshots:
   '@jest/console@29.7.0':
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       chalk: 4.1.2
       jest-message-util: 29.7.0
       jest-util: 29.7.0
@@ -14926,14 +14995,14 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.24.7)
       '@jest/types': 29.6.3
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       ci-info: 3.9.0
       exit: 0.1.2
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-changed-files: 29.7.0
-      jest-config: 29.7.0(@babel/types@7.24.7)(@types/node@20.14.9)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))
+      jest-config: 29.7.0(@babel/types@7.24.7)(@types/node@22.2.0)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4))
       jest-haste-map: 29.7.0
       jest-message-util: 29.7.0
       jest-regex-util: 29.6.3
@@ -14959,7 +15028,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       jest-mock: 29.7.0
 
   '@jest/expect-utils@29.7.0':
@@ -14977,7 +15046,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@sinonjs/fake-timers': 10.3.0
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       jest-message-util: 29.7.0
       jest-mock: 29.7.0
       jest-util: 29.7.0
@@ -14999,7 +15068,7 @@ snapshots:
       '@jest/transform': 29.7.0(@babel/types@7.24.7)
       '@jest/types': 29.6.3
       '@jridgewell/trace-mapping': 0.3.25
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       chalk: 4.1.2
       collect-v8-coverage: 1.0.2
       exit: 0.1.2
@@ -15071,7 +15140,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       '@types/yargs': 17.0.32
       chalk: 4.1.2
 
@@ -15164,20 +15233,6 @@ snapshots:
       '@pnpm/types': 12.0.0
       load-json-file: 6.2.0
 
-  '@pnpm/cli-utils@4.0.1(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/cli-meta': 6.1.0
-      '@pnpm/config': 21.8.0(@pnpm/logger@5.0.0)
-      '@pnpm/default-reporter': 13.1.12(@pnpm/logger@5.0.0)
-      '@pnpm/error': 6.0.1
-      '@pnpm/logger': 5.0.0
-      '@pnpm/manifest-utils': 6.0.6(@pnpm/logger@5.0.0)
-      '@pnpm/package-is-installable': 9.0.6(@pnpm/logger@5.0.0)
-      '@pnpm/read-project-manifest': 6.0.6
-      '@pnpm/types': 12.0.0
-      chalk: 4.1.2
-      load-json-file: 6.2.0
-
   '@pnpm/cli-utils@4.0.1(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/cli-meta': 6.1.0
@@ -15199,36 +15254,6 @@ snapshots:
   '@pnpm/config.env-replace@1.1.0': {}
 
   '@pnpm/config.env-replace@3.0.0': {}
-
-  '@pnpm/config@21.8.0(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/catalogs.config': 0.1.0
-      '@pnpm/catalogs.types': 0.1.0
-      '@pnpm/config.env-replace': 3.0.0
-      '@pnpm/constants': 8.0.0
-      '@pnpm/error': 6.0.1
-      '@pnpm/git-utils': 2.0.0
-      '@pnpm/matcher': 6.0.0
-      '@pnpm/npm-conf': 2.3.0
-      '@pnpm/pnpmfile': 6.0.9(@pnpm/logger@5.0.0)
-      '@pnpm/read-project-manifest': 6.0.6
-      '@pnpm/types': 12.0.0
-      '@pnpm/workspace.read-manifest': 2.2.0
-      better-path-resolve: 1.0.0
-      camelcase: 6.3.0
-      camelcase-keys: 6.2.2
-      can-write-to-dir: 1.1.1
-      is-subdir: 1.2.0
-      is-windows: 1.0.2
-      normalize-registry-url: 2.0.0
-      path-absolute: 1.0.1
-      path-name: 1.0.0
-      ramda: '@pnpm/ramda@0.28.1'
-      read-ini-file: 4.0.0
-      realpath-missing: 1.1.0
-      which: '@pnpm/which@3.0.1'
-    transitivePeerDependencies:
-      - '@pnpm/logger'
 
   '@pnpm/config@21.8.0(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15262,11 +15287,6 @@ snapshots:
 
   '@pnpm/constants@8.0.0': {}
 
-  '@pnpm/core-loggers@10.0.5(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/logger': 5.0.0
-      '@pnpm/types': 12.0.0
-
   '@pnpm/core-loggers@10.0.5(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/logger': 5.2.0
@@ -15283,30 +15303,6 @@ snapshots:
       chalk: 4.1.2
 
   '@pnpm/dedupe.types@2.0.0': {}
-
-  '@pnpm/default-reporter@13.1.12(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/cli-meta': 6.1.0
-      '@pnpm/config': 21.8.0(@pnpm/logger@5.0.0)
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
-      '@pnpm/dedupe.issues-renderer': 2.0.0
-      '@pnpm/dedupe.types': 2.0.0
-      '@pnpm/error': 6.0.1
-      '@pnpm/logger': 5.0.0
-      '@pnpm/render-peer-issues': 5.0.6
-      '@pnpm/types': 12.0.0
-      ansi-diff: 1.1.1
-      boxen: 5.1.2
-      chalk: 4.1.2
-      cli-truncate: 2.1.0
-      normalize-path: 3.0.0
-      pretty-bytes: 5.6.0
-      pretty-ms: 7.0.1
-      ramda: '@pnpm/ramda@0.28.1'
-      rxjs: 7.8.1
-      semver: 7.6.2
-      stacktracey: 2.1.8
-      string-length: 4.0.2
 
   '@pnpm/default-reporter@13.1.12(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15391,23 +15387,10 @@ snapshots:
     dependencies:
       ci-info: 3.9.0
 
-  '@pnpm/logger@5.0.0':
-    dependencies:
-      bole: 5.0.14
-      ndjson: 2.0.0
-
   '@pnpm/logger@5.2.0':
     dependencies:
       bole: 5.0.14
       ndjson: 2.0.0
-
-  '@pnpm/manifest-utils@6.0.6(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
-      '@pnpm/error': 6.0.1
-      '@pnpm/types': 12.0.0
-    transitivePeerDependencies:
-      - '@pnpm/logger'
 
   '@pnpm/manifest-utils@6.0.6(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15424,9 +15407,9 @@ snapshots:
   '@pnpm/meta-updater@2.0.3':
     dependencies:
       '@pnpm/find-workspace-dir': 7.0.1
-      '@pnpm/logger': 5.0.0
+      '@pnpm/logger': 5.2.0
       '@pnpm/types': 11.0.0
-      '@pnpm/workspace.find-packages': 4.0.6(@pnpm/logger@5.0.0)
+      '@pnpm/workspace.find-packages': 4.0.6(@pnpm/logger@5.2.0)
       '@pnpm/workspace.read-manifest': 2.2.0
       load-json-file: 7.0.1
       meow: 11.0.0
@@ -15520,18 +15503,6 @@ snapshots:
       '@pnpm/os.env.path-extender-posix': 2.0.0
       '@pnpm/os.env.path-extender-windows': 2.0.0
 
-  '@pnpm/package-is-installable@9.0.6(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/cli-meta': 6.1.0
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
-      '@pnpm/error': 6.0.1
-      '@pnpm/logger': 5.0.0
-      '@pnpm/types': 12.0.0
-      detect-libc: 2.0.3
-      execa: safe-execa@0.1.2
-      mem: 8.1.1
-      semver: 7.6.2
-
   '@pnpm/package-is-installable@9.0.6(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/cli-meta': 6.1.0
@@ -15573,19 +15544,6 @@ snapshots:
       yaml: 2.4.5
 
   '@pnpm/patching.types@1.0.0': {}
-
-  '@pnpm/pnpmfile@6.0.9(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.0.0)
-      '@pnpm/crypto.base32-hash': 3.0.0
-      '@pnpm/error': 6.0.1
-      '@pnpm/hooks.types': 2.0.7
-      '@pnpm/lockfile.types': 1.0.1
-      '@pnpm/logger': 5.0.0
-      '@pnpm/store-controller-types': 18.1.4
-      '@pnpm/types': 12.0.0
-      chalk: 4.1.2
-      path-absolute: 1.0.1
 
   '@pnpm/pnpmfile@6.0.9(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15685,14 +15643,6 @@ snapshots:
   '@pnpm/which@3.0.1':
     dependencies:
       isexe: 2.0.0
-
-  '@pnpm/workspace.find-packages@4.0.6(@pnpm/logger@5.0.0)':
-    dependencies:
-      '@pnpm/cli-utils': 4.0.1(@pnpm/logger@5.0.0)
-      '@pnpm/fs.find-packages': 4.0.2
-      '@pnpm/logger': 5.0.0
-      '@pnpm/types': 12.0.0
-      '@pnpm/util.lex-comparator': 3.0.0
 
   '@pnpm/workspace.find-packages@4.0.6(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15820,12 +15770,12 @@ snapshots:
     dependencies:
       '@types/http-cache-semantics': 4.0.4
       '@types/keyv': 3.1.4
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       '@types/responselike': 1.0.3
 
   '@types/cross-spawn@6.0.6':
     dependencies:
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
 
   '@types/emscripten@1.39.13': {}
 
@@ -15836,7 +15786,7 @@ snapshots:
   '@types/glob@8.1.0':
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
 
   '@types/graceful-fs@4.1.9':
     dependencies:
@@ -15848,7 +15798,7 @@ snapshots:
 
   '@types/http-proxy@1.17.14':
     dependencies:
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
 
   '@types/ini@1.3.31': {}
 
@@ -15883,7 +15833,7 @@ snapshots:
 
   '@types/keyv@3.1.4':
     dependencies:
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
 
   '@types/lodash.clonedeep@4.5.9':
     dependencies:
@@ -15926,7 +15876,6 @@ snapshots:
   '@types/node@22.2.0':
     dependencies:
       undici-types: 6.13.0
-    optional: true
 
   '@types/normalize-package-data@2.4.4': {}
 
@@ -15944,7 +15893,7 @@ snapshots:
 
   '@types/responselike@1.0.3':
     dependencies:
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
 
   '@types/retry@0.12.5': {}
 
@@ -18880,7 +18829,7 @@ snapshots:
       '@jest/expect': 29.7.0
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       chalk: 4.1.2
       co: 4.6.0
       dedent: 1.5.3
@@ -18953,7 +18902,7 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
-  jest-config@29.7.0(@babel/types@7.24.7)(@types/node@20.14.9)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4)):
+  jest-config@29.7.0(@babel/types@7.24.7)(@types/node@22.2.0)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4)):
     dependencies:
       '@babel/core': 7.24.7
       '@jest/test-sequencer': 29.7.0
@@ -18978,7 +18927,7 @@ snapshots:
       slash: 3.0.0
       strip-json-comments: 3.1.1
     optionalDependencies:
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       ts-node: 10.9.2(@types/node@18.19.34)(typescript@5.5.4)
     transitivePeerDependencies:
       - '@babel/types'
@@ -19009,7 +18958,7 @@ snapshots:
       '@jest/environment': 29.7.0
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       jest-mock: 29.7.0
       jest-util: 29.7.0
 
@@ -19019,7 +18968,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@types/graceful-fs': 4.1.9
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
@@ -19058,7 +19007,7 @@ snapshots:
   jest-mock@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       jest-util: 29.7.0
 
   jest-pnp-resolver@1.2.3(jest-resolve@29.7.0):
@@ -19093,7 +19042,7 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.24.7)
       '@jest/types': 29.6.3
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       chalk: 4.1.2
       emittery: 0.13.1
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
@@ -19122,7 +19071,7 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.24.7)
       '@jest/types': 29.6.3
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       chalk: 4.1.2
       cjs-module-lexer: 1.3.1
       collect-v8-coverage: 1.0.2
@@ -19169,7 +19118,7 @@ snapshots:
   jest-util@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
@@ -19188,7 +19137,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
@@ -19197,7 +19146,7 @@ snapshots:
 
   jest-worker@29.7.0:
     dependencies:
-      '@types/node': 20.14.9
+      '@types/node': 22.2.0
       jest-util: 29.7.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
@@ -21456,8 +21405,7 @@ snapshots:
 
   undici-types@5.26.5: {}
 
-  undici-types@6.13.0:
-    optional: true
+  undici-types@6.13.0: {}
 
   unified@9.2.2:
     dependencies:

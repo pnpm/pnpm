@@ -1,0 +1,60 @@
+{
+  "name": "@pnpm/tools.plugin-commands-self-updater",
+  "version": "0.0.0",
+  "description": "A command for updating pnpm itself",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "test": "pnpm run compile && pnpm run _test",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "_test": "jest"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/tools/plugin-commands-self-updater",
+  "keywords": [
+    "pnpm9",
+    "pnpm"
+  ],
+  "engines": {
+    "node": ">=18.12"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/tools/plugin-commands-self-updater#readme",
+  "dependencies": {
+    "@pnpm/cli-meta": "workspace:*",
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/client": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/link-bins": "workspace:*",
+    "@pnpm/pick-registry-for-package": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/tools.path": "workspace:*",
+    "ramda": "catalog:",
+    "render-help": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/env.path": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/tools.plugin-commands-self-updater": "workspace:*",
+    "@types/cross-spawn": "catalog:",
+    "@types/ramda": "catalog:",
+    "cross-spawn": "catalog:",
+    "nock": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "^5.1.0"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

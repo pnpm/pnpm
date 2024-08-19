@@ -1,0 +1,39 @@
+{
+  "name": "@pnpm/tools.path",
+  "version": "0.0.0",
+  "description": "Path to tools",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "test": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/tools/path",
+  "keywords": [
+    "pnpm9",
+    "pnpm"
+  ],
+  "engines": {
+    "node": ">=18.12"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/tools/path#readme",
+  "dependencies": {
+  },
+  "devDependencies": {
+    "@pnpm/tools.path": "workspace:*"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

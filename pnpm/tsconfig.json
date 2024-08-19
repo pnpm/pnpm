@@ -154,6 +154,12 @@
       "path": "../store/plugin-commands-store-inspecting"
     },
     {
+      "path": "../tools/path"
+    },
+    {
+      "path": "../tools/plugin-commands-self-updater"
+    },
+    {
       "path": "../worker"
     },
     {

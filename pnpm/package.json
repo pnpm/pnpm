@@ -73,6 +73,8 @@
     "@pnpm/tabtab": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/tools.path": "workspace:*",
+    "@pnpm/tools.plugin-commands-self-updater": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",

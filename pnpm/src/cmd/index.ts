@@ -7,6 +7,7 @@ import { doctor } from '@pnpm/plugin-commands-doctor'
 import { env } from '@pnpm/plugin-commands-env'
 import { deploy } from '@pnpm/plugin-commands-deploy'
 import { add, ci, dedupe, fetch, install, link, prune, remove, unlink, update, importCommand } from '@pnpm/plugin-commands-installation'
+import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { outdated } from '@pnpm/plugin-commands-outdated'
@@ -120,6 +121,7 @@ const commands: CommandDefinition[] = [
   fetch,
   generateCompletion,
   importCommand,
+  selfUpdate,
   init,
   install,
   installTest,

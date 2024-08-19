@@ -1,0 +1,46 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../cli/cli-meta"
+    },
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../env/path"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../pkg-manager/client"
+    },
+    {
+      "path": "../../pkg-manager/link-bins"
+    },
+    {
+      "path": "../../pkg-manager/plugin-commands-installation"
+    },
+    {
+      "path": "../path"
+    }
+  ]
+}
