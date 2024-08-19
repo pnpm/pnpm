@@ -36,7 +36,13 @@ export const packageManager = {
   version: pkgJson.version,
 }
 
-export function detectIfCurrentPkgIsExecutable (proc: NodeJS.Process = process): boolean {
+export interface Process {
+  arch: NodeJS.Architecture
+  platform: NodeJS.Platform
+  pkg?: unknown
+}
+
+export function detectIfCurrentPkgIsExecutable (proc: Process = process): boolean {
   return 'pkg' in proc && proc.pkg != null
 }
 
@@ -44,15 +50,15 @@ export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boo
   return env.COREPACK_ROOT != null
 }
 
-export function getCurrentPackageName (proc: NodeJS.Process = process): string {
+export function getCurrentPackageName (proc: Process = process): string {
   return detectIfCurrentPkgIsExecutable(proc) ? getExePackageName(proc) : 'pnpm'
 }
 
-function getExePackageName (proc: NodeJS.Process): string {
+function getExePackageName (proc: Process): string {
   return `@pnpm/${normalizePlatformName(proc)}-${normalizeArchName(proc)}`
 }
 
-function normalizePlatformName (proc: NodeJS.Process): string {
+function normalizePlatformName (proc: Process): string {
   switch (proc.platform) {
   case 'win32': return 'win'
   case 'darwin': return 'macos'
@@ -60,7 +66,7 @@ function normalizePlatformName (proc: NodeJS.Process): string {
   }
 }
 
-function normalizeArchName (proc: NodeJS.Process): string {
+function normalizeArchName (proc: Process): string {
   if (proc.platform === 'win32' && proc.arch === 'ia32') {
     return 'x86'
   }
