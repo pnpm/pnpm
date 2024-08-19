@@ -6,11 +6,12 @@ import { createResolver } from '@pnpm/client'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
+import { add, type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
 import { getToolDirPath } from '@pnpm/tools.path'
 import { linkBins } from '@pnpm/link-bins'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { add, type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -65,12 +66,12 @@ export async function handler (
     },
   })
   if (fs.existsSync(dir)) {
-    await linkBins(path.join(opts.dir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
+    await linkBins(path.join(dir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
       {
-        warn: () => {},
+        warn: globalWarn,
       }
     )
-    return `Latest version is already present on the system. Linked from ${opts.dir}`
+    return `The latest version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${dir}.`
   }
   fs.mkdirSync(dir, { recursive: true })
   fs.writeFileSync(path.join(dir, 'package.json'), '{}')
