@@ -44,25 +44,25 @@ export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boo
   return env.COREPACK_ROOT != null
 }
 
-export function getCurrentPackageName (): string {
-  return detectIfCurrentPkgIsExecutable() ? getExePackageName() : 'pnpm'
+export function getCurrentPackageName (proc: NodeJS.Process = process): string {
+  return detectIfCurrentPkgIsExecutable(proc) ? getExePackageName(proc) : 'pnpm'
 }
 
-function getExePackageName (): string {
-  return `@pnpm/${normalizePlatformName()}-${normalizeArchName()}`
+function getExePackageName (proc: NodeJS.Process): string {
+  return `@pnpm/${normalizePlatformName(proc)}-${normalizeArchName(proc)}`
 }
 
-function normalizePlatformName (): string {
-  switch (process.platform) {
+function normalizePlatformName (proc: NodeJS.Process): string {
+  switch (proc.platform) {
   case 'win32': return 'win'
   case 'darwin': return 'macos'
-  default: return process.platform
+  default: return proc.platform
   }
 }
 
-function normalizeArchName (): string {
-  if (process.platform === 'win32' && process.arch === 'ia32') {
+function normalizeArchName (proc: NodeJS.Process): string {
+  if (proc.platform === 'win32' && proc.arch === 'ia32') {
     return 'x86'
   }
-  return process.arch
+  return proc.arch
 }
