@@ -4,7 +4,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { getCurrentPackageName, packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { add, type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
@@ -34,7 +34,7 @@ export function help (): string {
   })
 }
 
-export type SelfUpdateCommandOptions = InstallCommandOptions
+export type SelfUpdateCommandOptions = InstallCommandOptions & Pick<Config, 'wantedPackageManager' | 'managePackageManagerVersions'>
 
 export async function handler (
   opts: SelfUpdateCommandOptions
@@ -55,6 +55,11 @@ export async function handler (
   }
   if (resolution.manifest.version === packageManager.version) {
     return `The currently active ${packageManager.name} v${packageManager.version} is already "latest" and doesn't need an update`
+  }
+
+  if (opts.wantedPackageManager && opts.managePackageManagerVersions) {
+    writeProjectManifest() // Update the version in package.json
+    return
   }
 
   const currentPkgName = getCurrentPackageName()
