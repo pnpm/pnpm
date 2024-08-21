@@ -411,12 +411,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
     const newParentPkgs = toPkgByName(parentPkgNodes)
     for (const [newParentPkgName, newParentPkg] of Object.entries(newParentPkgs)) {
-      if (parentPkgs[newParentPkgName]) {
-        if (parentPkgs[newParentPkgName].version !== newParentPkg.version) {
-          newParentPkg.occurrence = parentPkgs[newParentPkgName].occurrence + 1
-        }
-        parentPkgs[newParentPkgName] = newParentPkg
-      } else {
+      if (!parentPkgs[newParentPkgName]) {
         parentPkgs[newParentPkgName] = newParentPkg
       }
     }
