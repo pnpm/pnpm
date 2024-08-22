@@ -37,6 +37,7 @@
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/tools.path": "workspace:*",
     "ramda": "catalog:",
     "render-help": "catalog:"

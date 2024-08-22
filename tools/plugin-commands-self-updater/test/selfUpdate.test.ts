@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { prependDirsToPath } from '@pnpm/env.path'
-import { tempDir } from '@pnpm/prepare'
+import { tempDir, prepare as prepareWithPkg } from '@pnpm/prepare'
 import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
 import nock from 'nock'
@@ -29,6 +29,10 @@ beforeEach(() => {
 
 function prepare () {
   const dir = tempDir(false)
+  return prepareOptions(dir)
+}
+
+function prepareOptions (dir: string) {
   return {
     argv: {
       original: [],
@@ -51,6 +55,7 @@ function prepare () {
     cacheDir: path.join(dir, '.cache'),
     virtualStoreDirMaxLength: 120,
     dir: process.cwd(),
+    managePackageManagerVersions: false,
   }
 }
 
@@ -165,4 +170,48 @@ console.log('9.2.0')`, 'utf8')
   })
   expect(status).toBe(0)
   expect(stdout.toString().trim()).toBe('9.2.0')
+})
+
+test('self-update updates the packageManager field in package.json', async () => {
+  prepareWithPkg({
+    packageManager: 'pnpm@9.0.0',
+  })
+  const opts = {
+    ...prepareOptions(process.cwd()),
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+  }
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, {
+      name: 'pnpm',
+      'dist-tags': {
+        latest: '9.1.0',
+      },
+      versions: {
+        '9.1.0': {
+          name: 'pnpm',
+          version: '9.1.0',
+          dist: {
+            shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
+            tarball: `${opts.registries.default}pnpm/-/pnpm-9.1.0.tgz`,
+            fileCount: 880,
+            integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
+          },
+        },
+      },
+    })
+  nock(opts.registries.default)
+    .get('/pnpm/-/pnpm-9.1.0.tgz')
+    .replyWithFile(200, path.join(__dirname, 'pnpm-9.1.0.tgz'))
+
+  const output = await selfUpdate.handler(opts)
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.1.0')
+
+  const pkgJson = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@9.1.0')
 })

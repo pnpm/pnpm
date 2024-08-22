@@ -4,10 +4,11 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { getCurrentPackageName, packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { Config, types as allTypes } from '@pnpm/config'
+import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { add, type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getToolDirPath } from '@pnpm/tools.path'
 import { linkBins } from '@pnpm/link-bins'
 import pick from 'ramda/src/pick'
@@ -58,8 +59,10 @@ export async function handler (
   }
 
   if (opts.wantedPackageManager && opts.managePackageManagerVersions) {
-    writeProjectManifest() // Update the version in package.json
-    return
+    const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
+    manifest.packageManager = `pnpm@${resolution.manifest.version}`
+    await writeProjectManifest(manifest)
+    return `The current project has been updated to use pnpm v${resolution.manifest.version}`
   }
 
   const currentPkgName = getCurrentPackageName()
