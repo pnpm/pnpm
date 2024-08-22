@@ -58,7 +58,7 @@ export async function handler (
     return `The currently active ${packageManager.name} v${packageManager.version} is already "latest" and doesn't need an update`
   }
 
-  if (opts.wantedPackageManager && opts.managePackageManagerVersions) {
+  if (opts.wantedPackageManager?.name === packageManager.name && opts.managePackageManagerVersions) {
     const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
     manifest.packageManager = `pnpm@${resolution.manifest.version}`
     await writeProjectManifest(manifest)
