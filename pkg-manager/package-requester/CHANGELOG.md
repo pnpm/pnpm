@@ -1,5 +1,12 @@
 # @pnpm/package-requester
 
+## 25.2.5
+
+### Patch Changes
+
+- Updated dependencies [33ba536]
+  - @pnpm/package-is-installable@9.0.7
+
 ## 25.2.4
 
 ### Patch Changes

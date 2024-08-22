@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-patching
 
+## 6.4.5
+
+### Patch Changes
+
+- da3fa97: Remember the state of edit dir, allow running `pnpm patch-commit` the second time without having to re-run `pnpm patch`.
+- Updated dependencies [eb8bf2a]
+  - @pnpm/plugin-commands-installation@17.1.0
+  - @pnpm/cli-utils@4.0.3
+  - @pnpm/store-connection-manager@8.3.8
+
 ## 6.4.4
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/package-is-installable
 
+## 9.0.7
+
+### Patch Changes
+
+- 33ba536: Ignore non-string value in the os, cpu, libc fields, which checking optional dependencies [#8431](https://github.com/pnpm/pnpm/pull/8431).
+- Updated dependencies [eb8bf2a]
+  - @pnpm/cli-meta@6.2.0
+
 ## 9.0.6
 
 ### Patch Changes

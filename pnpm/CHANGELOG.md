@@ -1,5 +1,23 @@
 # pnpm
 
+## 9.8.0
+
+### Minor Changes
+
+- Added a new command for upgrading pnpm itself when it isn't managed by Corepack: `pnpm self-update`. This command will work, when pnpm was installed via the standalone script from the [pnpm installation page](https://pnpm.io/installation#using-a-standalone-script) [#8424](https://github.com/pnpm/pnpm/pull/8424).
+
+  When executed in a project that has a `packageManager` field in its `package.json` file, pnpm will update its version in the `packageManager` field.
+
+### Patch Changes
+
+- CLI tools installed in the root of the workspace should be added to the PATH, when running scripts and `use-node-version` is set.
+- `pnpm setup` should never switch to another version of pnpm.
+
+  This fixes installation with the standalone script from a directory that has a `package.json` with the `packageManager` field. pnpm was installing the version of pnpm specified in the `packageManager` field due to this issue.
+
+- Ignore non-string value in the os, cpu, libc fields, which checking optional dependencies [#8431](https://github.com/pnpm/pnpm/pull/8431).
+- Remember the state of edit dir, allow running `pnpm patch-commit` the second time without having to re-run `pnpm patch`.
+
 ## 9.7.1
 
 ### Patch Changes
