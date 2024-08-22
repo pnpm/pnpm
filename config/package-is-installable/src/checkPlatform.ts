@@ -62,10 +62,7 @@ function checkList (value: string | string[], list: string | string[]): boolean 
     list = [list]
   }
 
-  list = list.filter(Boolean)
-  if (list.length === 0) {
-    return true
-  }
+  list = list.filter((value) => typeof value === 'string')
 
   if (list.length === 1 && list[0] === 'any') {
     return true
@@ -74,7 +71,6 @@ function checkList (value: string | string[], list: string | string[]): boolean 
   for (const value of values) {
     for (let i = 0; i < list.length; ++i) {
       tmp = list[i]
-
       if (tmp[0] === '!') {
         tmp = tmp.slice(1)
         if (tmp === value) {
