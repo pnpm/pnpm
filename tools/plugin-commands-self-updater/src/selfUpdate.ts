@@ -4,10 +4,11 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { getCurrentPackageName, packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { types as allTypes } from '@pnpm/config'
+import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { add, type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getToolDirPath } from '@pnpm/tools.path'
 import { linkBins } from '@pnpm/link-bins'
 import pick from 'ramda/src/pick'
@@ -34,7 +35,7 @@ export function help (): string {
   })
 }
 
-export type SelfUpdateCommandOptions = InstallCommandOptions
+export type SelfUpdateCommandOptions = InstallCommandOptions & Pick<Config, 'wantedPackageManager' | 'managePackageManagerVersions'>
 
 export async function handler (
   opts: SelfUpdateCommandOptions
@@ -55,6 +56,13 @@ export async function handler (
   }
   if (resolution.manifest.version === packageManager.version) {
     return `The currently active ${packageManager.name} v${packageManager.version} is already "latest" and doesn't need an update`
+  }
+
+  if (opts.wantedPackageManager?.name === packageManager.name && opts.managePackageManagerVersions) {
+    const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
+    manifest.packageManager = `pnpm@${resolution.manifest.version}`
+    await writeProjectManifest(manifest)
+    return `The current project has been updated to use pnpm v${resolution.manifest.version}`
   }
 
   const currentPkgName = getCurrentPackageName()

@@ -7326,6 +7326,9 @@ importers:
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/tools.path':
         specifier: workspace:*
         version: link:../path
