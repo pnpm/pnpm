@@ -59,28 +59,30 @@ function prepareOptions (dir: string) {
   }
 }
 
+function createMetadata (latest: string, registry: string) {
+  return {
+    name: 'pnpm',
+    'dist-tags': { latest },
+    versions: {
+      [latest]: {
+        name: 'pnpm',
+        version: latest,
+        dist: {
+          shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
+          tarball: `${registry}pnpm/-/pnpm-${latest}.tgz`,
+          fileCount: 880,
+          integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
+        },
+      },
+    },
+  }
+}
+
 test('self-update', async () => {
   const opts = prepare()
   nock(opts.registries.default)
     .get('/pnpm')
-    .reply(200, {
-      name: 'pnpm',
-      'dist-tags': {
-        latest: '9.1.0',
-      },
-      versions: {
-        '9.1.0': {
-          name: 'pnpm',
-          version: '9.1.0',
-          dist: {
-            shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
-            tarball: `${opts.registries.default}pnpm/-/pnpm-9.1.0.tgz`,
-            fileCount: 880,
-            integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
-          },
-        },
-      },
-    })
+    .reply(200, createMetadata('9.1.0', opts.registries.default))
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, path.join(__dirname, 'pnpm-9.1.0.tgz'))
@@ -105,24 +107,7 @@ test('self-update does nothing when pnpm is up to date', async () => {
   const opts = prepare()
   nock(opts.registries.default)
     .get('/pnpm')
-    .reply(200, {
-      name: 'pnpm',
-      'dist-tags': {
-        latest: '9.0.0',
-      },
-      versions: {
-        '9.0.0': {
-          name: 'pnpm',
-          version: '9.0.0',
-          dist: {
-            shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
-            tarball: `${opts.registries.default}pnpm/-/pnpm-9.1.0.tgz`,
-            fileCount: 880,
-            integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
-          },
-        },
-      },
-    })
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
 
   const output = await selfUpdate.handler(opts)
 
@@ -133,24 +118,7 @@ test('self-update links pnpm that is already present on the disk', async () => {
   const opts = prepare()
   nock(opts.registries.default)
     .get('/pnpm')
-    .reply(200, {
-      name: 'pnpm',
-      'dist-tags': {
-        latest: '9.2.0',
-      },
-      versions: {
-        '9.2.0': {
-          name: 'pnpm',
-          version: '9.2.0',
-          dist: {
-            shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
-            tarball: `${opts.registries.default}pnpm/-/pnpm-9.2.0.tgz`,
-            fileCount: 880,
-            integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
-          },
-        },
-      },
-    })
+    .reply(200, createMetadata('9.2.0', opts.registries.default))
 
   const latestPnpmDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/9.2.0/node_modules/pnpm')
   fs.mkdirSync(latestPnpmDir, { recursive: true })
@@ -186,24 +154,7 @@ test('self-update updates the packageManager field in package.json', async () =>
   }
   nock(opts.registries.default)
     .get('/pnpm')
-    .reply(200, {
-      name: 'pnpm',
-      'dist-tags': {
-        latest: '9.1.0',
-      },
-      versions: {
-        '9.1.0': {
-          name: 'pnpm',
-          version: '9.1.0',
-          dist: {
-            shasum: '217063ce3fcbf44f3051666f38b810f1ddefee4a',
-            tarball: `${opts.registries.default}pnpm/-/pnpm-9.1.0.tgz`,
-            fileCount: 880,
-            integrity: 'sha512-Z/WHmRapKT5c8FnCOFPVcb6vT3U8cH9AyyK+1fsVeMaq07bEEHzLO6CzW+AD62IaFkcayDbIe+tT+dVLtGEnJA==',
-          },
-        },
-      },
-    })
+    .reply(200, createMetadata('9.1.0', opts.registries.default))
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
     .replyWithFile(200, path.join(__dirname, 'pnpm-9.1.0.tgz'))
