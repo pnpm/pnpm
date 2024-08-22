@@ -43,6 +43,33 @@ test('libc wrong', () => {
   expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
+test('cpu null', () => {
+  const target = {
+    cpu: [null] as unknown as string[], // Casting since this is technically invalid by the pnpm spec.
+    os: 'any',
+    libc: 'any',
+  }
+  expect(checkPlatform(packageId, target)).toBeFalsy()
+})
+
+test('os null', () => {
+  const target = {
+    cpu: 'any',
+    os: [null] as unknown as string[], // Casting since this is technically invalid by the pnpm spec.
+    libc: 'any',
+  }
+  expect(checkPlatform(packageId, target)).toBeFalsy()
+})
+
+test('libc null', () => {
+  const target = {
+    cpu: 'any',
+    os: 'any',
+    libc: [null] as unknown as string[], // Casting since this is technically invalid by the pnpm spec.
+  }
+  expect(checkPlatform(packageId, target)).toBeFalsy()
+})
+
 test('nothing wrong', () => {
   const target = {
     cpu: 'any',
