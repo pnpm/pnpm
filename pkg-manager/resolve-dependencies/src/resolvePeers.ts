@@ -609,13 +609,17 @@ function parentPkgsMatch<T> (
   currentParentPkg: ParentRef,
   newParentPkg: ParentRef
 ) {
-  return !(
+  if (
     currentParentPkg.version !== newParentPkg.version ||
-    currentParentPkg.alias !== newParentPkg.alias ||
-    currentParentPkg.nodeId && dependenciesTree.has(currentParentPkg.nodeId!) &&
-    newParentPkg.nodeId && dependenciesTree.has(newParentPkg.nodeId!) &&
-    dependenciesTree.get(currentParentPkg.nodeId!)!.resolvedPackage!.name !== dependenciesTree.get(newParentPkg.nodeId!)!.resolvedPackage!.name
-  )
+    currentParentPkg.alias !== newParentPkg.alias
+  ) {
+    return false
+  }
+  const currentParentResolvedPkg = currentParentPkg.nodeId && dependenciesTree.get(currentParentPkg.nodeId)?.resolvedPackage
+  if (currentParentResolvedPkg == null) return true
+  const newParentResolvedPkg = newParentPkg.nodeId && dependenciesTree.get(newParentPkg.nodeId)?.resolvedPackage
+  if (newParentResolvedPkg == null) return true
+  return currentParentResolvedPkg.name === newParentResolvedPkg.name
 }
 
 function findHit<T extends PartialResolvedPackage> (ctx: {
