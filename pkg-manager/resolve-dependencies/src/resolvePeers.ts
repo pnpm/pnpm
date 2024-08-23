@@ -414,8 +414,8 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       if (parentPkgs[newParentPkgName]) {
         if (parentPkgs[newParentPkgName].version !== newParentPkg.version) {
           newParentPkg.occurrence = parentPkgs[newParentPkgName].occurrence + 1
+          parentPkgs[newParentPkgName] = newParentPkg
         }
-        parentPkgs[newParentPkgName] = newParentPkg
       } else {
         parentPkgs[newParentPkgName] = newParentPkg
       }
