@@ -1829,6 +1829,7 @@ test('optional peer dependency is resolved if it is installed anywhere in the de
   expect(lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeDefined()
 })
 
+// We need to hoist peer dependencies. Otherwise the peers resolution stage would consume too much memory.
 test('peer dependency is hoisted', async () => {
   const project = prepareEmpty()
 
