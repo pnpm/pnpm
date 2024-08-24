@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 17.1.1
+
+### Patch Changes
+
+- Updated dependencies [2393a49]
+  - @pnpm/core@15.3.0
+
 ## 17.1.0
 
 ### Minor Changes
