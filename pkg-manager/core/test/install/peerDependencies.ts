@@ -1829,7 +1829,8 @@ test('optional peer dependency is resolved if it is installed anywhere in the de
   expect(lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeDefined()
 })
 
-test('peer dependency cache is invalidated correctly when the peer of a peer mismatch', async () => {
+// We need to hoist peer dependencies. Otherwise the peers resolution stage would consume too much memory.
+test('peer dependency is hoisted', async () => {
   const project = prepareEmpty()
 
   await addDependenciesToPackage(
@@ -1837,6 +1838,55 @@ test('peer dependency cache is invalidated correctly when the peer of a peer mis
     ['@pnpm.e2e/repeat-peers.a@1.0.0', '@pnpm.e2e/repeat-peers.x@1.0.0'],
     testDefaults({ autoInstallPeers: true })
   )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@1.0.0))']).toBeTruthy()
+  expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@2.0.0))']).toBeFalsy()
+})
+
+test('peer dependency cache is invalidated correctly when the peer of a peer mismatch', async () => {
+  const project = prepareEmpty()
+
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/repeat-peers.a': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/repeat-peers.x': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(importers, testDefaults({
+    allProjects,
+    autoInstallPeers: true,
+  }))
 
   const lockfile = project.readLockfile()
   expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@1.0.0))']).toBeTruthy()
