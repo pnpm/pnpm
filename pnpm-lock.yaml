@@ -592,8 +592,8 @@ catalogs:
       specifier: 1.2.0
       version: 1.2.0
     symlink-dir:
-      specifier: ^6.0.1
-      version: 6.0.1
+      specifier: ^6.0.2
+      version: 6.0.2
     tar:
       specifier: ^6.2.1
       version: 6.2.1
@@ -1398,7 +1398,7 @@ importers:
         version: 2.0.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 6.0.2
 
   config/matcher:
     dependencies:
@@ -1792,7 +1792,7 @@ importers:
         version: 7.6.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 6.0.2
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -2193,7 +2193,7 @@ importers:
         version: 1.0.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 6.0.2
       which:
         specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'
@@ -2628,7 +2628,7 @@ importers:
         version: link:../../packages/types
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 6.0.2
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -4193,7 +4193,7 @@ importers:
         version: 16.1.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 6.0.2
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -4502,7 +4502,7 @@ importers:
         version: 2.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 6.0.2
     devDependencies:
       '@pnpm/hoist':
         specifier: workspace:*
@@ -4566,7 +4566,7 @@ importers:
         version: 7.6.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 6.0.2
     devDependencies:
       '@pnpm/link-bins':
         specifier: workspace:*
@@ -5019,7 +5019,7 @@ importers:
         version: 16.1.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 6.0.2
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -5711,7 +5711,7 @@ importers:
         version: 6.0.1
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 6.0.2
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -6763,7 +6763,7 @@ importers:
         version: 7.1.5
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 6.0.2
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -13392,8 +13392,8 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  symlink-dir@6.0.1:
-    resolution: {integrity: sha512-R9HTWD5jyZSBEASmWNTWQRQ8qXO11eMjPzHiN5nVoIIvIoxXwVvZws2Z/0AO5oo+i/gsRjPUk9e3etKiWu8i/w==}
+  symlink-dir@6.0.2:
+    resolution: {integrity: sha512-ESUPT3MAPkF25nXuMutJiQN7/lUjup7DSpB1XUPSbdio/6cYCENFMRfKOm5hL4X6U/joBW/Hu0e5IzhkrgNXHQ==}
     engines: {node: '>=18.12'}
     hasBin: true
 
@@ -21081,7 +21081,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  symlink-dir@6.0.1:
+  symlink-dir@6.0.2:
     dependencies:
       better-path-resolve: 1.0.0
       rename-overwrite: 6.0.0
