@@ -69,6 +69,7 @@ test('deploy', async () => {
   project.hasNot('is-negative')
   expect(fs.existsSync('deploy/index.js')).toBeTruthy()
   expect(fs.existsSync('deploy/test.js')).toBeFalsy()
+  expect(fs.existsSync('deploy/node_modules/.modules.yaml')).toBeTruthy()
   expect(fs.existsSync('deploy/node_modules/.pnpm/project-2@file+project-2/node_modules/project-2/index.js')).toBeTruthy()
   expect(fs.existsSync('deploy/node_modules/.pnpm/project-2@file+project-2/node_modules/project-2/test.js')).toBeFalsy()
   expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/project-3/index.js')).toBeTruthy()
