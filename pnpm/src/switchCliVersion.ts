@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { type Config } from '@pnpm/config'
+import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { getCurrentPackageName, packageManager } from '@pnpm/cli-meta'
 import { prependDirsToPath } from '@pnpm/env.path'
@@ -37,7 +38,12 @@ export async function switchCliVersion (config: Config): Promise<void> {
       [`${pkgName}@${pm.version}`]
     )
   }
-  const pnpmEnv = prependDirsToPath([path.join(dir, 'bin')])
+  const wantedPnpmBinDir = path.join(dir, 'bin')
+  const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
+  if (!pnpmEnv.updated) {
+    // We throw this error to prevent an infinite recursive call of the same pnpm version.
+    throw new PnpmError('VERSION_SWITCH_FAIL', `Failed to switch pnpm to v${pm.version}. Looks like pnpm CLI is missing at "${wantedPnpmBinDir}" or is incorrect`)
+  }
   const { status } = spawn.sync('pnpm', process.argv.slice(2), {
     stdio: 'inherit',
     env: {
