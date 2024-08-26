@@ -88,6 +88,10 @@ export async function handler (
   await fs.promises.mkdir(deployDir, { recursive: true })
   const includeOnlyPackageFiles = !opts.deployAllFiles
   await copyProject(deployedDir, deployDir, { includeOnlyPackageFiles })
+  const deployedProject = opts.allProjects?.find(({ rootDir }) => rootDir === deployedDir)
+  if (deployedProject) {
+    deployedProject.modulesDir = path.relative(deployedDir, path.join(deployDir, 'node_modules'))
+  }
   await install.handler({
     ...opts,
     confirmModulesPurge: false,
@@ -109,7 +113,7 @@ export async function handler (
     preferFrozenLockfile: false,
     saveLockfile: false,
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
-    modulesDir: path.relative(deployedDir, path.join(deployDir, 'node_modules')),
+    modulesDir: path.relative(opts.workspaceDir, path.join(deployDir, 'node_modules')),
     rawLocalConfig: {
       ...opts.rawLocalConfig,
       // This is a workaround to prevent frozen install in CI envs.

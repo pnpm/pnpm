@@ -504,12 +504,16 @@ function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: Pro
   const chunks = sort !== false
     ? sortPackages(allProjectsGraph)
     : [(Object.keys(allProjectsGraph) as ProjectRootDir[]).sort()]
-  return chunks.map((prefixes, buildIndex) => prefixes.map((rootDir) => ({
-    buildIndex,
-    manifest: manifestsByPath[rootDir].manifest,
-    rootDir,
-    rootDirRealPath: allProjectsGraph[rootDir].package.rootDirRealPath,
-  }))).flat()
+  return chunks.map((prefixes, buildIndex) => prefixes.map((rootDir) => {
+    const { rootDirRealPath, modulesDir } = allProjectsGraph[rootDir].package
+    return {
+      buildIndex,
+      manifest: manifestsByPath[rootDir].manifest,
+      rootDir,
+      rootDirRealPath,
+      modulesDir,
+    }
+  })).flat()
 }
 
 interface ManifestsByPath { [dir: string]: Omit<Project, 'rootDir' | 'rootDirRealPath'> }
