@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.find-packages",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "description": "Find all packages inside a directory",
   "main": "lib/index.js",
   "files": [

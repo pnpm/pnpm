@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.filter-packages-from-dir",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Filters packages in a directory",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

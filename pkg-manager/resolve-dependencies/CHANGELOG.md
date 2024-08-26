@@ -1,5 +1,25 @@
 # @pnpm/resolve-dependencies
 
+## 36.0.1
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/pick-registry-for-package@6.0.6
+  - @pnpm/lockfile.preferred-versions@1.0.11
+  - @pnpm/lockfile.pruner@0.0.3
+  - @pnpm/lockfile.types@1.0.2
+  - @pnpm/lockfile.utils@1.0.2
+  - @pnpm/core-loggers@10.0.6
+  - @pnpm/dependency-path@5.1.5
+  - @pnpm/manifest-utils@6.0.7
+  - @pnpm/read-package-json@9.0.7
+  - @pnpm/npm-resolver@21.0.4
+  - @pnpm/resolver-base@13.0.3
+  - @pnpm/store-controller-types@18.1.5
+  - @pnpm/pick-fetcher@3.0.0
+
 ## 36.0.0
 
 ### Major Changes

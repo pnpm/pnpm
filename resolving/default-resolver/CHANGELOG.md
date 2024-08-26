@@ -1,5 +1,15 @@
 # @pnpm/default-resolver
 
+## 20.0.6
+
+### Patch Changes
+
+- @pnpm/local-resolver@12.0.7
+- @pnpm/npm-resolver@21.0.4
+- @pnpm/resolver-base@13.0.3
+- @pnpm/git-resolver@9.0.7
+- @pnpm/tarball-resolver@9.0.6
+
 ## 20.0.5
 
 ### Patch Changes

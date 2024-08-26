@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 21.8.2
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/pnpmfile@6.0.10
+  - @pnpm/read-project-manifest@6.0.7
+
 ## 21.8.1
 
 ### Patch Changes

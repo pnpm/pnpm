@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-deploy
 
+## 5.1.24
+
+### Patch Changes
+
+- 7ee59a1: `pnpm deploy` should write the `node_modules/.modules.yaml` to the `node_modules` directory within the deploy directory [#7731](https://github.com/pnpm/pnpm/issues/7731).
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/plugin-commands-installation@17.2.0
+  - @pnpm/cli-utils@4.0.4
+  - @pnpm/directory-fetcher@8.0.7
+  - @pnpm/fs.indexed-pkg-importer@6.0.8
+
 ## 5.1.23
 
 ### Patch Changes

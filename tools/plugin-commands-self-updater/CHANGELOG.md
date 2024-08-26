@@ -1,5 +1,19 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1.0.2
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/plugin-commands-installation@17.2.0
+  - @pnpm/cli-meta@6.2.1
+  - @pnpm/cli-utils@4.0.4
+  - @pnpm/config@21.8.2
+  - @pnpm/pick-registry-for-package@6.0.6
+  - @pnpm/client@11.1.8
+  - @pnpm/link-bins@10.0.9
+  - @pnpm/read-project-manifest@6.0.7
+
 ## 1.0.1
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/pkg-manager.direct-dep-linker",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "3.0.6",
+  "version": "3.0.7",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

@@ -1,5 +1,21 @@
 # @pnpm/outdated
 
+## 15.1.3
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/pick-registry-for-package@6.0.6
+  - @pnpm/hooks.read-package-hook@5.0.2
+  - @pnpm/lockfile.fs@1.0.2
+  - @pnpm/lockfile.utils@1.0.2
+  - @pnpm/dependency-path@5.1.5
+  - @pnpm/client@11.1.8
+  - @pnpm/modules-yaml@13.1.6
+  - @pnpm/manifest-utils@6.0.7
+  - @pnpm/npm-resolver@21.0.4
+
 ## 15.1.2
 
 ### Patch Changes

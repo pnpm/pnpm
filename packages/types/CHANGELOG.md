@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 12.1.0
+
+### Minor Changes
+
+- 7ee59a1: Added optional modulesDir field to projects.
+
 ## 12.0.0
 
 ### Major Changes

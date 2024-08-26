@@ -1,5 +1,35 @@
 # @pnpm/plugin-commands-installation
 
+## 17.2.0
+
+### Minor Changes
+
+- 7ee59a1: Added optional modulesDir field to projects.
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/cli-utils@4.0.4
+  - @pnpm/config@21.8.2
+  - @pnpm/dedupe.check@2.0.9
+  - @pnpm/plugin-commands-env@5.1.7
+  - @pnpm/plugin-commands-rebuild@12.0.9
+  - @pnpm/pnpmfile@6.0.10
+  - @pnpm/lockfile.types@1.0.2
+  - @pnpm/core@15.3.1
+  - @pnpm/get-context@12.0.4
+  - @pnpm/manifest-utils@6.0.7
+  - @pnpm/read-project-manifest@6.0.7
+  - @pnpm/resolver-base@13.0.3
+  - @pnpm/outdated@15.1.3
+  - @pnpm/package-store@20.3.6
+  - @pnpm/filter-workspace-packages@10.0.9
+  - @pnpm/workspace.find-packages@4.0.9
+  - @pnpm/workspace.pkgs-graph@4.0.4
+  - @pnpm/sort-packages@6.0.7
+  - @pnpm/store-connection-manager@8.3.9
+
 ## 17.1.1
 
 ### Patch Changes
