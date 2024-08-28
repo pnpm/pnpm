@@ -410,12 +410,13 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
     }
     const newParentPkgs = toPkgByName(parentPkgNodes)
+    const _parentPkgsMatch = parentPkgsMatch.bind(null, ctx.dependenciesTree)
     for (const [newParentPkgName, newParentPkg] of Object.entries(newParentPkgs)) {
       if (parentPkgs[newParentPkgName]) {
-        if (parentPkgs[newParentPkgName].version !== newParentPkg.version) {
+        if (!_parentPkgsMatch(parentPkgs[newParentPkgName], newParentPkg)) {
           newParentPkg.occurrence = parentPkgs[newParentPkgName].occurrence + 1
+          parentPkgs[newParentPkgName] = newParentPkg
         }
-        parentPkgs[newParentPkgName] = newParentPkg
       } else {
         parentPkgs[newParentPkgName] = newParentPkg
       }
@@ -601,6 +602,24 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
     }
   }
+}
+
+function parentPkgsMatch<T> (
+  dependenciesTree: DependenciesTree<T>,
+  currentParentPkg: ParentRef,
+  newParentPkg: ParentRef
+) {
+  if (
+    currentParentPkg.version !== newParentPkg.version ||
+    currentParentPkg.alias !== newParentPkg.alias
+  ) {
+    return false
+  }
+  const currentParentResolvedPkg = currentParentPkg.nodeId && dependenciesTree.get(currentParentPkg.nodeId)?.resolvedPackage
+  if (currentParentResolvedPkg == null) return true
+  const newParentResolvedPkg = newParentPkg.nodeId && dependenciesTree.get(newParentPkg.nodeId)?.resolvedPackage
+  if (newParentResolvedPkg == null) return true
+  return currentParentResolvedPkg.name === newParentResolvedPkg.name
 }
 
 function findHit<T extends PartialResolvedPackage> (ctx: {

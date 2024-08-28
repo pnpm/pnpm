@@ -1,5 +1,110 @@
 # @pnpm/core
 
+## 15.3.1
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/normalize-registries@6.0.6
+  - @pnpm/build-modules@14.0.1
+  - @pnpm/lifecycle@17.1.3
+  - @pnpm/symlink-dependency@8.0.7
+  - @pnpm/hooks.read-package-hook@5.0.2
+  - @pnpm/hooks.types@2.0.8
+  - @pnpm/lockfile.filtering@1.0.3
+  - @pnpm/lockfile.fs@1.0.2
+  - @pnpm/lockfile-to-pnp@4.1.11
+  - @pnpm/lockfile.preferred-versions@1.0.11
+  - @pnpm/lockfile.pruner@0.0.3
+  - @pnpm/lockfile.utils@1.0.2
+  - @pnpm/lockfile.verification@1.0.3
+  - @pnpm/lockfile.walker@1.0.2
+  - @pnpm/calc-dep-state@7.0.7
+  - @pnpm/core-loggers@10.0.6
+  - @pnpm/dependency-path@5.1.5
+  - @pnpm/get-context@12.0.4
+  - @pnpm/headless@23.2.2
+  - @pnpm/hoist@9.1.12
+  - @pnpm/link-bins@10.0.9
+  - @pnpm/modules-cleaner@15.1.12
+  - @pnpm/modules-yaml@13.1.6
+  - @pnpm/package-requester@25.2.6
+  - @pnpm/remove-bins@6.0.7
+  - @pnpm/resolve-dependencies@36.0.1
+  - @pnpm/manifest-utils@6.0.7
+  - @pnpm/read-project-manifest@6.0.7
+  - @pnpm/resolver-base@13.0.3
+  - @pnpm/store-controller-types@18.1.5
+  - @pnpm/worker@1.0.9
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.7
+
+## 15.3.0
+
+### Minor Changes
+
+- 2393a49: **Minor breaking change.** This change might result in resolving your peer dependencies slightly differently but we don't expect it to introduce issues.
+
+  We had to optimize how we resolve peer dependencies in order to fix some [infinite loops and out-of-memory errors during peer dependencies resolution](https://github.com/pnpm/pnpm/issues/8370).
+
+  When a peer dependency is a prod dependency somewhere in the dependency graph (with the same version), pnpm will resolve the peers of that peer dependency in the same way across the subgraph.
+
+  For example, we have `react-dom` in the peer deps of the `form` and `button` packages. `card` has `react-dom` and `react` as regular dependencies and `card` is a dependency of `form`.
+
+  These are the direct dependencies of our example project:
+
+  ```
+  form
+  react@16
+  react-dom@16
+  ```
+
+  These are the dependencies of card:
+
+  ```
+  button
+  react@17
+  react-dom@16
+  ```
+
+  When resolving peers, pnpm will not re-resolve `react-dom` for `card`, even though `card` shadows `react@16` from the root with `react@17`. So, all 3 packages (`form`, `card`, and `button`) will use `react-dom@16`, which in turn uses `react@16`. `form` will use `react@16`, while `card` and `button` will use `react@17`.
+
+  Before this optimization `react-dom@16` was duplicated for the `card`, so that `card` and `button` would use a `react-dom@16` instance that uses `react@17`.
+
+  Before the change:
+
+  ```
+  form
+  -> react-dom@16(react@16)
+  -> react@16
+  card
+  -> react-dom@16(react@17)
+  -> react@17
+  button
+  -> react-dom@16(react@17)
+  -> react@17
+  ```
+
+  After the change
+
+  ```
+  form
+  -> react-dom@16(react@16)
+  -> react@16
+  card
+  -> react-dom@16(react@16)
+  -> react@17
+  button
+  -> react-dom@16(react@16)
+  -> react@17
+  ```
+
+### Patch Changes
+
+- Updated dependencies [2393a49]
+  - @pnpm/resolve-dependencies@36.0.0
+
 ## 15.2.4
 
 ### Patch Changes

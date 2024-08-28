@@ -3,6 +3,7 @@ import { type ProjectManifest } from './package'
 export interface Project {
   rootDir: ProjectRootDir
   rootDirRealPath: ProjectRootDirRealPath
+  modulesDir?: string
   manifest: ProjectManifest
   writeProjectManifest: (manifest: ProjectManifest, force?: boolean | undefined) => Promise<void>
 }

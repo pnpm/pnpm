@@ -1,5 +1,16 @@
 # @pnpm/directory-fetcher
 
+## 8.0.7
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/exec.pkg-requires-build@1.0.6
+  - @pnpm/fetcher-base@16.0.6
+  - @pnpm/read-project-manifest@6.0.7
+  - @pnpm/resolver-base@13.0.3
+
 ## 8.0.6
 
 ### Patch Changes
