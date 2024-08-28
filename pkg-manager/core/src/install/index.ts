@@ -1,4 +1,3 @@
-import assert from 'assert'
 import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
@@ -353,7 +352,7 @@ export async function mutateModules (
         ...rootSnapshot.optionalDependencies,
       }
       for (const { selector, refTarget } of refOverridesList) {
-        assert(refTarget, `refTarget of selector ${selector} should be defined`)
+        if (!refTarget) continue
         const targetDep: string | undefined = allDeps[refTarget]
         if (targetDep) {
           overridesMap[selector] = targetDep
