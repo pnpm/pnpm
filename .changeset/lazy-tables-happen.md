@@ -2,7 +2,7 @@
 "@pnpm/parse-overrides": major
 "@pnpm/config": minor
 "@pnpm/outdated": patch
-"@pnpm/core": patch
+"@pnpm/core": minor
 "pnpm": patch
 ---
 
