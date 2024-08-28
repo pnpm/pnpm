@@ -981,7 +981,6 @@ type InstallFunction = (
     neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
-    overridesRefMap?: Record<string, string | undefined> // TODO: remove this if it turns out to not be necessary
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
     pruneVirtualStore: boolean
