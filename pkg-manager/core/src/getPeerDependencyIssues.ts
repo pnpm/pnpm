@@ -52,7 +52,7 @@ export async function getPeerDependencyIssues (
     ctx.wantedLockfile.packages,
     Object.values(ctx.projects).map(({ manifest }) => manifest)
   )
-  const overrides = parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {})
+  const overrides = parseOverrides(opts.overrides ?? {})
   const {
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,

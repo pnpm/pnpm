@@ -13,6 +13,7 @@ export interface OptionsFromRootManifest {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowNonAppliedPatches?: boolean
   overrides?: Record<string, string>
+  overridesRefMap?: Record<string, string | undefined>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   onlyBuiltDependenciesFile?: string
@@ -27,13 +28,15 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   // We read Yarn's resolutions field for compatibility
   // but we really replace the version specs to any other version spec, not only to exact versions,
   // so we cannot call it resolutions
-  const overrides = mapValues(
+  const replaceReferenceResult = mapValues(
     createVersionReferencesReplacer(manifest),
     {
       ...manifest.resolutions,
       ...manifest.pnpm?.overrides,
     }
   )
+  const overrides = mapValues(x => x.spec, replaceReferenceResult)
+  const overridesRefMap = mapValues(x => x.refTarget, replaceReferenceResult)
   const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies
   const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
   const onlyBuiltDependenciesFile = manifest.pnpm?.onlyBuiltDependenciesFile
@@ -61,6 +64,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
     allowedDeprecatedVersions,
     allowNonAppliedPatches,
     overrides,
+    overridesRefMap,
     neverBuiltDependencies,
     packageExtensions,
     ignoredOptionalDependencies,
@@ -77,7 +81,12 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   return settings
 }
 
-function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: string) => string {
+interface ReplaceReferenceResult {
+  spec: string
+  refTarget?: string
+}
+
+function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: string) => ReplaceReferenceResult {
   const allDeps = {
     ...manifest.devDependencies,
     ...manifest.dependencies,
@@ -86,11 +95,16 @@ function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: str
   return replaceVersionReferences.bind(null, allDeps)
 }
 
-function replaceVersionReferences (dep: Record<string, string>, spec: string): string {
-  if (!(spec[0] === '$')) return spec
+function replaceVersionReferences (manifestDeps: Record<string, string>, spec: string): ReplaceReferenceResult {
+  if (!spec.startsWith('$')) return { spec }
   const dependencyName = spec.slice(1)
-  const newSpec = dep[dependencyName]
-  if (newSpec) return newSpec
+  const newSpec = manifestDeps[dependencyName]
+  if (newSpec) {
+    return {
+      spec: newSpec,
+      refTarget: dependencyName,
+    }
+  }
   throw new PnpmError(
     'CANNOT_RESOLVE_OVERRIDE_VERSION',
     `Cannot resolve version ${spec} in overrides. The direct dependencies don't have dependency "${dependencyName}".`

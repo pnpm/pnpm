@@ -70,7 +70,9 @@ export async function outdated (
     if (overrides) {
       const readPackageHook = createReadPackageHook({
         lockfileDir: opts.lockfileDir,
-        overrides: parseOverrides(overrides, opts.catalogs ?? {}),
+        overrides: parseOverrides(overrides, {
+          catalogs: opts.catalogs,
+        }),
       })
       const manifest = await readPackageHook?.(opts.manifest, opts.lockfileDir)
       if (manifest) return manifest

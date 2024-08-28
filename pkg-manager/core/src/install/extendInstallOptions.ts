@@ -100,6 +100,7 @@ export interface StrictInstallOptions {
   tag: string
   updateToLatest?: boolean
   overrides: Record<string, string>
+  overridesRefMap: Record<string, string | undefined>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
   // We can automatically calculate these
   // unless installation runs on a workspace
@@ -275,7 +276,9 @@ export function extendOptions (
     ...defaultOpts,
     ...opts,
     storeDir: defaultOpts.storeDir,
-    parsedOverrides: parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {}),
+    parsedOverrides: parseOverrides(opts.overrides ?? {}, {
+      overridesRefMap: opts.overridesRefMap,
+    }),
   }
   extendedOpts.readPackageHook = createReadPackageHook({
     ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,

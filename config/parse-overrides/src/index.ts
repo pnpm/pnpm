@@ -10,6 +10,7 @@ export interface VersionOverride {
   parentPkg?: PackageSelector
   targetPkg: PackageSelector
   newPref: string
+  refTarget?: string
 }
 
 export interface PackageSelector {
@@ -17,11 +18,16 @@ export interface PackageSelector {
   pref?: string
 }
 
+export interface ParseOverridesOptions {
+  overridesRefMap?: Record<string, string | undefined>
+  catalogs?: Catalogs
+}
+
 export function parseOverrides (
   overrides: Record<string, string>,
-  catalogs?: Catalogs
+  opts?: ParseOverridesOptions
 ): VersionOverride[] {
-  const _resolveFromCatalog = resolveFromCatalog.bind(null, catalogs ?? {})
+  const _resolveFromCatalog = resolveFromCatalog.bind(null, opts?.catalogs ?? {})
   return Object.entries(overrides)
     .map(([selector, newPref]) => {
       const result = parsePkgAndParentSelector(selector)
@@ -38,6 +44,7 @@ export function parseOverrides (
       return {
         selector,
         newPref: resolvedCatalog ?? newPref,
+        refTarget: opts?.overridesRefMap?.[selector],
         ...result,
       }
     })

@@ -1,3 +1,4 @@
+import assert from 'assert'
 import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
@@ -76,6 +77,7 @@ import mapValues from 'ramda/src/map'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
+import partition from 'ramda/src/partition'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
 import sortKeys from 'sort-keys'
@@ -342,7 +344,23 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
-    const overridesMap = Object.fromEntries((opts.parsedOverrides ?? []).map(({ selector, newPref }) => [selector, newPref]))
+    const [refOverridesList, nonRefOverridesList] = partition(item => !!item.refTarget, opts.parsedOverrides ?? [])
+    const overridesMap = Object.fromEntries(nonRefOverridesList.map(({ selector, newPref }) => [selector, newPref]))
+    if (refOverridesList.length > 0) {
+      const rootSnapshot = ctx.wantedLockfile.importers['.' as ProjectId] // only root manifest is considered
+      const allDeps: Record<string, string> = {
+        ...rootSnapshot.devDependencies,
+        ...rootSnapshot.dependencies,
+        ...rootSnapshot.optionalDependencies,
+      }
+      for (const { selector, refTarget } of refOverridesList) {
+        assert(refTarget, `refTarget of selector ${selector} should be defined`)
+        const targetDep: string | undefined = allDeps[refTarget]
+        if (targetDep) {
+          overridesMap[selector] = targetDep
+        }
+      }
+    }
     if (!opts.ignorePackageManifest) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
@@ -964,6 +982,7 @@ type InstallFunction = (
     neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
+    overridesRefMap?: Record<string, string | undefined> // TODO: remove this if it turns out to not be necessary
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
     pruneVirtualStore: boolean
