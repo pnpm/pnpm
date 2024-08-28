@@ -278,6 +278,7 @@ export function extendOptions (
     storeDir: defaultOpts.storeDir,
     parsedOverrides: parseOverrides(opts.overrides ?? {}, {
       overridesRefMap: opts.overridesRefMap,
+      catalogs: opts.catalogs,
     }),
   }
   extendedOpts.readPackageHook = createReadPackageHook({
