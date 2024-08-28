@@ -343,20 +343,17 @@ export async function mutateModules (
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
     const overridesMap = Object.fromEntries(opts.parsedOverrides.map(({ selector, newPref }) => [selector, newPref]))
-    const refOverridesList = opts.parsedOverrides.filter(item => !!item.refTarget)
-    if (refOverridesList.length > 0) {
-      const rootSnapshot = ctx.currentLockfile.importers['.' as ProjectId] // only root manifest is considered
-      const allDeps: Record<string, string> = {
-        ...rootSnapshot.devDependencies,
-        ...rootSnapshot.dependencies,
-        ...rootSnapshot.optionalDependencies,
-      }
-      for (const { selector, refTarget } of refOverridesList) {
-        if (!refTarget) continue
-        const targetDep: string | undefined = allDeps[refTarget]
-        if (targetDep) {
-          overridesMap[selector] = targetDep
-        }
+    const rootSnapshot = ctx.currentLockfile.importers['.' as ProjectId] // only root manifest is considered
+    const allDeps: Record<string, string> = {
+      ...rootSnapshot.devDependencies,
+      ...rootSnapshot.dependencies,
+      ...rootSnapshot.optionalDependencies,
+    }
+    for (const { selector, refTarget } of opts.parsedOverrides) {
+      if (!refTarget) continue
+      const targetDep: string | undefined = allDeps[refTarget]
+      if (targetDep) {
+        overridesMap[selector] = targetDep
       }
     }
     if (!opts.ignorePackageManifest) {
