@@ -399,12 +399,11 @@ describe('peer dependency issues', () => {
       peersSuffixMaxLength: 1000,
     })).peerDependencyIssuesByProjects
   })
-  // it('should find peer dependency conflicts', () => {
-  // expect(peerDependencyIssuesByProjects['project3'].conflicts).toStrictEqual(['peer'])
-  // })
+  it('should find peer dependency conflicts', () => {
+    expect(peerDependencyIssuesByProjects['project3'].conflicts).toStrictEqual(['peer'])
+  })
   it('should find peer dependency conflicts when the peer is an optional peer of one of the dependencies', () => {
-    // expect(peerDependencyIssuesByProjects['project5'].conflicts).toStrictEqual(['peer'])
-    expect(peerDependencyIssuesByProjects['project5'].conflicts).toStrictEqual([])
+    expect(peerDependencyIssuesByProjects['project5'].conflicts).toStrictEqual(['peer'])
   })
   it('should ignore conflicts between missing optional peer dependencies', () => {
     expect(peerDependencyIssuesByProjects['project6'].conflicts).toStrictEqual([])
@@ -417,7 +416,7 @@ describe('peer dependency issues', () => {
   })
   it('should return the intersection of two compatible ranges', () => {
     expect(peerDependencyIssuesByProjects['project4'].intersections)
-      .toStrictEqual({ peer: '^2.2.0' })
+      .toStrictEqual({ peer: '>=2.2.0 <3.0.0-0' })
   })
 })
 
