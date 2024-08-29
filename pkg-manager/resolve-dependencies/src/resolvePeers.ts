@@ -105,6 +105,8 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
 
   const finishingList: FinishingResolutionPromise[] = []
+  const peersCache = new Map<PkgIdWithPatchHash, PeersCacheItem[]>()
+  const purePkgs = new Set<PkgIdWithPatchHash>()
   for (const { directNodeIdsByAlias, topParents, rootDir, id } of opts.projects) {
     const peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'> = { bad: {}, missing: {} }
     const pkgsByName = Object.fromEntries(Object.entries({
@@ -129,9 +131,9 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       pathsByNodeId,
       pathsByNodeIdPromises,
       depPathsByPkgId,
-      peersCache: new Map(),
+      peersCache,
       peerDependencyIssues,
-      purePkgs: new Set(),
+      purePkgs,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
@@ -325,16 +327,23 @@ function createPkgsByName<T extends PartialResolvedPackage> (
   return parentRefs
 }
 
+interface MissingPeerInfo {
+  range: string
+  optional: boolean
+}
+
+type MissingPeers = Map<string, MissingPeerInfo>
+
 interface PeersCacheItem {
   depPath: pDefer.DeferredPromise<DepPath>
   resolvedPeers: Map<string, NodeId>
-  missingPeers: Set<string>
+  missingPeers: MissingPeers
 }
 
 type PeersCache = Map<PkgIdWithPatchHash, PeersCacheItem[]>
 
 interface PeersResolution {
-  missingPeers: Set<string>
+  missingPeers: MissingPeers
   resolvedPeers: Map<string, NodeId>
 }
 
@@ -377,7 +386,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 ): Promise<PeersResolution & { finishing?: FinishingResolutionPromise, calculateDepPath?: CalculateDepPath }> {
   const node = ctx.dependenciesTree.get(nodeId)!
-  if (node.depth === -1) return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Set<string>() }
+  if (node.depth === -1) return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Map<string, MissingPeerInfo>() }
   const resolvedPackage = node.resolvedPackage as T
   if (
     ctx.purePkgs.has(resolvedPackage.pkgIdWithPatchHash) &&
@@ -386,7 +395,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   ) {
     ctx.pathsByNodeId.set(nodeId, resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
-    return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Set<string>() }
+    return { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Map<string, MissingPeerInfo>() }
   }
   if (typeof node.children === 'function') {
     node.children = node.children()
@@ -424,6 +433,17 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
   const hit = findHit(ctx, parentPkgs, resolvedPackage.pkgIdWithPatchHash)
   if (hit != null) {
+    for (const [peerName, { range: wantedRange, optional }] of hit.missingPeers.entries()) {
+      if (ctx.peerDependencyIssues.missing[peerName] == null) {
+        ctx.peerDependencyIssues.missing[peerName] = []
+      }
+      const { parents } = getLocationFromParentNodeIds(ctx)
+      ctx.peerDependencyIssues.missing[peerName].push({
+        optional,
+        parents,
+        wantedRange,
+      })
+    }
     return {
       missingPeers: hit.missingPeers,
       finishing: (async () => {
@@ -447,7 +467,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   })
 
   const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies).length === 0
-    ? { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Set<string>() }
+    ? { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Map<string, MissingPeerInfo>() }
     : _resolvePeers({
       currentDepth: node.depth,
       dependenciesTree: ctx.dependenciesTree,
@@ -466,12 +486,12 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
   allResolvedPeers.delete(node.resolvedPackage.name)
 
-  const allMissingPeers = new Set<string>()
-  for (const peer of missingPeersOfChildren) {
-    allMissingPeers.add(peer)
+  const allMissingPeers = new Map<string, MissingPeerInfo>()
+  for (const [peer, range] of missingPeersOfChildren.entries()) {
+    allMissingPeers.set(peer, range)
   }
-  for (const peer of missingPeers) {
-    allMissingPeers.add(peer)
+  for (const [peer, range] of missingPeers.entries()) {
+    allMissingPeers.set(peer, range)
   }
 
   let cache: PeersCacheItem
@@ -578,7 +598,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           transitivePeerDependencies.add(unknownPeer)
         }
       }
-      for (const unknownPeer of missingPeersOfChildren) {
+      for (const unknownPeer of missingPeersOfChildren.keys()) {
         if (!peerDependencies[unknownPeer]) {
           transitivePeerDependencies.add(unknownPeer)
         }
@@ -656,7 +676,7 @@ function findHit<T extends PartialResolvedPackage> (ctx: {
         return false
       }
     }
-    for (const missingPeer of cache.missingPeers) {
+    for (const missingPeer of cache.missingPeers.keys()) {
       if (parentPkgs[missingPeer]) return false
     }
     return true
@@ -759,7 +779,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   }
 ): Promise<PeersResolution & { finishing: Promise<void> }> {
   const allResolvedPeers = new Map<string, NodeId>()
-  const allMissingPeers = new Set<string>()
+  const allMissingPeers = new Map<string, MissingPeerInfo>()
 
   // Partition children based on whether they're repeated in parentPkgs.
   // This impacts the efficiency of graph traversal and prevents potential out-of-memory errors.
@@ -812,8 +832,8 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
       edges.push(peerNodeId)
     }
     graph.push([childNodeId, edges])
-    for (const missingPeer of missingPeers) {
-      allMissingPeers.add(missingPeer)
+    for (const [missingPeer, range] of missingPeers.entries()) {
+      allMissingPeers.set(missingPeer, range)
     }
   }
   if (calculateDepPaths.length) {
@@ -846,7 +866,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
   }
 ): PeersResolution {
   const resolvedPeers = new Map<string, NodeId>()
-  const missingPeers = new Set<string>()
+  const missingPeers = new Map<string, MissingPeerInfo>()
   for (const [peerName, { version, optional }] of Object.entries(ctx.resolvedPackage.peerDependencies)) {
     const peerVersionRange = version.replace(/^workspace:/, '')
 
@@ -854,7 +874,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
     const optionalPeer = optional === true
 
     if (!resolved) {
-      missingPeers.add(peerName)
+      missingPeers.set(peerName, { range: version, optional: optionalPeer })
       const location = getLocationFromParentNodeIds(ctx)
       if (!ctx.peerDependencyIssues.missing[peerName]) {
         ctx.peerDependencyIssues.missing[peerName] = []
