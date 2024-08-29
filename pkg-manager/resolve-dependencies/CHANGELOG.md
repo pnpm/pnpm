@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 36.0.2
+
+### Patch Changes
+
+- 96aa4bc: Reduce memory usage during peer dependencies resolution [#8478](https://github.com/pnpm/pnpm/pull/8478).
+
 ## 36.0.1
 
 ### Patch Changes

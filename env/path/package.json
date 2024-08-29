@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/env.path",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Functions for changing PATH env variable",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",

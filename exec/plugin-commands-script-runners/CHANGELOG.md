@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-script-runners
 
+## 12.0.4
+
+### Patch Changes
+
+- Updated dependencies [757e6be]
+  - @pnpm/env.path@1.1.0
+  - @pnpm/plugin-commands-installation@17.2.1
+
 ## 12.0.3
 
 ### Patch Changes
