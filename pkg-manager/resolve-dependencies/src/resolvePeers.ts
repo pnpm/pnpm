@@ -438,9 +438,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         ctx.peerDependencyIssues.missing[peerName] = []
       }
       ctx.peerDependencyIssues.missing[peerName].push({
-        parents: [], // location.parents,
-        optional, // optionalPeer,
-        wantedRange: range, // peerVersionRange,
+        parents: getLocationFromParentNodeIds(ctx).parents,
+        optional,
+        wantedRange: range,
       })
     }
     return {
