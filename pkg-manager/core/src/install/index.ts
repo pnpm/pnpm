@@ -342,18 +342,21 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
-    const overridesMap = Object.fromEntries(opts.parsedOverrides.map(({ selector, newPref }) => [selector, newPref]))
-    const rootSnapshot = ctx.currentLockfile.importers['.' as ProjectId] // only root manifest is considered
-    const allDeps: Record<string, string> = {
-      ...rootSnapshot.devDependencies,
-      ...rootSnapshot.dependencies,
-      ...rootSnapshot.optionalDependencies,
-    }
-    for (const { selector, refTarget } of opts.parsedOverrides) {
-      if (!refTarget) continue
-      const targetDep: string | undefined = allDeps[refTarget]
-      if (targetDep) {
-        overridesMap[selector] = targetDep
+    let overridesMap: Record<string, string> | undefined
+    if (opts.parsedOverrides.length > 0) {
+      overridesMap = Object.fromEntries(opts.parsedOverrides.map(({ selector, newPref }) => [selector, newPref]))
+      const rootSnapshot = ctx.currentLockfile.importers['.' as ProjectId] // only root manifest is considered
+      const allDeps: Record<string, string> = {
+        ...rootSnapshot.devDependencies,
+        ...rootSnapshot.dependencies,
+        ...rootSnapshot.optionalDependencies,
+      }
+      for (const { selector, refTarget } of opts.parsedOverrides) {
+        if (!refTarget) continue
+        const targetDep: string | undefined = allDeps[refTarget]
+        if (targetDep) {
+          overridesMap[selector] = targetDep
+        }
       }
     }
     if (!opts.ignorePackageManifest) {
