@@ -316,7 +316,7 @@ test('when publish some package throws an error, exit code should be non-zero', 
 test('recursive publish runs script with Node.js version specified by pnpm.executionEnv.nodeVersion', async () => {
   preparePackages([
     {
-      name: 'test-publish-node-version-undefined',
+      name: 'test-publish-node-version-unset',
       version: '1.0.0',
       scripts: {
         prepublishOnly: 'node -v > node-version.txt',
@@ -360,7 +360,7 @@ test('recursive publish runs script with Node.js version specified by pnpm.execu
   }, [])
 
   expect(
-    ['undefined', '18', '20']
+    ['unset', '18', '20']
       .map(suffix => `test-publish-node-version-${suffix}`)
       .map(name => path.resolve(name, 'node-version.txt'))
       .map(nodeVersionFile => fs.readFileSync(nodeVersionFile, 'utf-8').trim())

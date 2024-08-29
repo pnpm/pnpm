@@ -236,7 +236,7 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
 test('recursive run when some packages define different node versions', async () => {
   preparePackages([
     {
-      name: 'node-version-undefined',
+      name: 'node-version-unset',
       scripts: {
         'print-node-version': 'node -v',
       },
@@ -279,7 +279,7 @@ test('recursive run when some packages define different node versions', async ()
   ).toStrictEqual([
     'node-version-18 print-node-version: v18.0.0',
     'node-version-20 print-node-version: v20.0.0',
-    `node-version-undefined print-node-version: ${process.version}`,
+    `node-version-unset print-node-version: ${process.version}`,
   ])
 
   expect(
@@ -287,6 +287,6 @@ test('recursive run when some packages define different node versions', async ()
   ).toStrictEqual([
     'node-version-18 print-node-version: v18.0.0',
     'node-version-20 print-node-version: v20.0.0',
-    'node-version-undefined print-node-version: v19.0.0',
+    'node-version-unset print-node-version: v19.0.0',
   ])
 })

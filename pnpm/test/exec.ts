@@ -19,7 +19,7 @@ test('exec with executionEnv', async () => {
 test('recursive exec when some packages define different executionEnv', async () => {
   preparePackages([
     {
-      name: 'node-version-undefined',
+      name: 'node-version-unset',
       version: '0.0.0',
     },
     {
@@ -62,12 +62,12 @@ test('recursive exec when some packages define different executionEnv', async ()
   expect(execNodePrintVersion([])).toStrictEqual([
     '>>> node-version-18: v18.0.0',
     '>>> node-version-20: v20.0.0',
-    `>>> node-version-undefined: ${process.version}`,
+    `>>> node-version-unset: ${process.version}`,
   ])
 
   expect(execNodePrintVersion(['--use-node-version=19.0.0'])).toStrictEqual([
     '>>> node-version-18: v18.0.0',
     '>>> node-version-20: v20.0.0',
-    '>>> node-version-undefined: v19.0.0',
+    '>>> node-version-unset: v19.0.0',
   ])
 })
