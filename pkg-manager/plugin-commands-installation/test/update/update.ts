@@ -383,3 +383,61 @@ test('should not update tag version when --latest not set', async () => {
   expect(manifest.dependencies?.['@pnpm.e2e/peer-c']).toBe('canary')
   expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
 })
+
+test.skip('should update override that references overridden dependency', async () => {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+    },
+    pnpm: {
+      overrides: {
+        '@pnpm.e2e/pkg-with-1-dep': '$@pnpm.e2e/pkg-with-1-dep',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '$@pnpm.e2e/dep-of-pkg-with-1-dep',
+      },
+    },
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/parent-of-pkg-with-1-dep', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  expect(project.readLockfile().overrides).toStrictEqual({
+    '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+  })
+  expect(loadJsonFile.sync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
+    '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+  })
+
+  expect(project.readLockfile().overrides).toStrictEqual({
+    '@pnpm.e2e/pkg-with-1-dep': '100.0.0', // TODO: fix this
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0', // TODO: fix this
+  })
+  expect(loadJsonFile.sync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
+    '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^101.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+  })
+})
