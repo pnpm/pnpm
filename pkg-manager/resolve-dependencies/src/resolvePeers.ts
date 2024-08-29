@@ -105,6 +105,8 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
 
   const finishingList: FinishingResolutionPromise[] = []
+  const peersCache = new Map<PkgIdWithPatchHash, PeersCacheItem[]>()
+  const purePkgs = new Set<PkgIdWithPatchHash>()
   for (const { directNodeIdsByAlias, topParents, rootDir, id } of opts.projects) {
     const peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'> = { bad: {}, missing: {} }
     const pkgsByName = Object.fromEntries(Object.entries({
@@ -129,9 +131,9 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       pathsByNodeId,
       pathsByNodeIdPromises,
       depPathsByPkgId,
-      peersCache: new Map(),
+      peersCache,
       peerDependencyIssues,
-      purePkgs: new Set(),
+      purePkgs,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
