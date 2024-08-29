@@ -360,7 +360,7 @@ test('recursive publish runs script with Node.js version specified by pnpm.execu
   }, [])
 
   expect(
-    ['undefined', '18', '20']
+    ['unset', '18', '20']
       .map(suffix => `test-publish-node-version-${suffix}`)
       .map(name => path.resolve(name, 'node-version.txt'))
       .map(nodeVersionFile => fs.readFileSync(nodeVersionFile, 'utf-8').trim())
