@@ -342,7 +342,7 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
-    let overridesMap: Record<string, string> | undefined
+    let overridesMap: Record<string, string> = {}
     if (opts.parsedOverrides.length > 0) {
       overridesMap = Object.fromEntries(opts.parsedOverrides.map(({ selector, newPref }) => [selector, newPref]))
       const rootSnapshot = ctx.currentLockfile.importers['.' as ProjectId] // only root manifest is considered
