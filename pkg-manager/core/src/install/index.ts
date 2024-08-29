@@ -81,6 +81,7 @@ import props from 'ramda/src/props'
 import sortKeys from 'sort-keys'
 import { parseWantedDependencies } from '../parseWantedDependencies'
 import { removeDeps } from '../uninstall/removeDeps'
+import { createOverridesMap } from './createOverridesMap'
 import {
   extendOptions,
   type InstallOptions,
@@ -342,23 +343,7 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
-    let overridesMap: Record<string, string> = {}
-    if (opts.parsedOverrides.length > 0) {
-      overridesMap = Object.fromEntries(opts.parsedOverrides.map(({ selector, newPref }) => [selector, newPref]))
-      const rootSnapshot = ctx.currentLockfile.importers['.' as ProjectId] ?? {} // only root manifest is considered
-      const allDeps: Record<string, string> = {
-        ...rootSnapshot.devDependencies,
-        ...rootSnapshot.dependencies,
-        ...rootSnapshot.optionalDependencies,
-      }
-      for (const { selector, refTarget } of opts.parsedOverrides) {
-        if (!refTarget) continue
-        const targetDep: string | undefined = allDeps[refTarget]
-        if (targetDep) {
-          overridesMap[selector] = targetDep
-        }
-      }
-    }
+    const overridesMap = createOverridesMap(opts.parsedOverrides, ctx.currentLockfile.importers['.' as ProjectId])
     if (!opts.ignorePackageManifest) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
