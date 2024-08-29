@@ -345,7 +345,7 @@ export async function mutateModules (
     let overridesMap: Record<string, string> = {}
     if (opts.parsedOverrides.length > 0) {
       overridesMap = Object.fromEntries(opts.parsedOverrides.map(({ selector, newPref }) => [selector, newPref]))
-      const rootSnapshot = ctx.currentLockfile.importers['.' as ProjectId] // only root manifest is considered
+      const rootSnapshot = ctx.currentLockfile.importers['.' as ProjectId] ?? {} // only root manifest is considered
       const allDeps: Record<string, string> = {
         ...rootSnapshot.devDependencies,
         ...rootSnapshot.dependencies,
