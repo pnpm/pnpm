@@ -433,14 +433,15 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
   const hit = findHit(ctx, parentPkgs, resolvedPackage.pkgIdWithPatchHash)
   if (hit != null) {
-    for (const [peerName, { range, optional }] of hit.missingPeers.entries()) {
-      if (!ctx.peerDependencyIssues.missing[peerName]) {
+    for (const [peerName, { range: wantedRange, optional }] of hit.missingPeers.entries()) {
+      if (ctx.peerDependencyIssues.missing[peerName] == null) {
         ctx.peerDependencyIssues.missing[peerName] = []
       }
+      const { parents } = getLocationFromParentNodeIds(ctx)
       ctx.peerDependencyIssues.missing[peerName].push({
-        parents: getLocationFromParentNodeIds(ctx).parents,
         optional,
-        wantedRange: range,
+        parents,
+        wantedRange,
       })
     }
     return {
@@ -486,11 +487,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   allResolvedPeers.delete(node.resolvedPackage.name)
 
   const allMissingPeers = new Map<string, MissingPeerInfo>()
-  for (const [peer, peerRange] of missingPeersOfChildren.entries()) {
-    allMissingPeers.set(peer, peerRange)
+  for (const [peer, range] of missingPeersOfChildren.entries()) {
+    allMissingPeers.set(peer, range)
   }
-  for (const [peer, peerRange] of missingPeers.entries()) {
-    allMissingPeers.set(peer, peerRange)
+  for (const [peer, range] of missingPeers.entries()) {
+    allMissingPeers.set(peer, range)
   }
 
   let cache: PeersCacheItem
@@ -831,8 +832,8 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
       edges.push(peerNodeId)
     }
     graph.push([childNodeId, edges])
-    for (const [missingPeer, peerRange] of missingPeers.entries()) {
-      allMissingPeers.set(missingPeer, peerRange)
+    for (const [missingPeer, range] of missingPeers.entries()) {
+      allMissingPeers.set(missingPeer, range)
     }
   }
   if (calculateDepPaths.length) {
