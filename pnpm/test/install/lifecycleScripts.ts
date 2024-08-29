@@ -176,7 +176,7 @@ test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace 
       },
     },
     {
-      name: 'node-version-undefined',
+      name: 'node-version-unset',
       version: '1.0.0',
       scripts: {
         install: 'node -v > node-version.txt',
@@ -214,7 +214,7 @@ test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace 
 
   execPnpmSync(['install'])
   expect(
-    ['node-version-undefined', 'node-version-18', 'node-version-20'].map(name => {
+    ['node-version-unset', 'node-version-18', 'node-version-20'].map(name => {
       const filePath = path.join(projects[name].dir(), 'node-version.txt')
       return fs.readFileSync(filePath, 'utf-8').trim()
     })
@@ -222,7 +222,7 @@ test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace 
 
   execPnpmSync(['--config.use-node-version=19.0.0', 'install'])
   expect(
-    ['node-version-undefined', 'node-version-18', 'node-version-20'].map(name => {
+    ['node-version-unset', 'node-version-18', 'node-version-20'].map(name => {
       const filePath = path.join(projects[name].dir(), 'node-version.txt')
       return fs.readFileSync(filePath, 'utf-8').trim()
     })

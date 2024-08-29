@@ -316,7 +316,7 @@ test('when publish some package throws an error, exit code should be non-zero', 
 test('recursive publish runs script with Node.js version specified by pnpm.executionEnv.nodeVersion', async () => {
   preparePackages([
     {
-      name: 'test-publish-node-version-undefined',
+      name: 'test-publish-node-version-unset',
       version: '1.0.0',
       scripts: {
         prepublishOnly: 'node -v > node-version.txt',
