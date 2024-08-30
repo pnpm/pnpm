@@ -276,10 +276,7 @@ export function extendOptions (
     ...defaultOpts,
     ...opts,
     storeDir: defaultOpts.storeDir,
-    parsedOverrides: parseOverrides(opts.overrides ?? {}, {
-      overridesRefMap: opts.overridesRefMap,
-      catalogs: opts.catalogs,
-    }),
+    parsedOverrides: parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {}),
   }
   extendedOpts.readPackageHook = createReadPackageHook({
     ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,
