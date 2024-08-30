@@ -406,13 +406,15 @@ test('should update override that references overridden dependency', async () =>
     },
   })
 
-  await addDistTag({ package: 'react', version: '18.3.0', distTag: 'latest' })
-  await addDistTag({ package: 'react-dom', version: '18.3.0', distTag: 'latest' })
-  await addDistTag({ package: '@types/react', version: '18.3.0', distTag: 'latest' })
-  await addDistTag({ package: '@types/react-dom', version: '18.3.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/parent-of-pkg-with-1-dep', version: '1.0.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await Promise.all([
+    addDistTag({ package: 'react', version: '18.3.0', distTag: 'latest' }),
+    addDistTag({ package: 'react-dom', version: '18.3.0', distTag: 'latest' }),
+    addDistTag({ package: '@types/react', version: '18.3.0', distTag: 'latest' }),
+    addDistTag({ package: '@types/react-dom', version: '18.3.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/parent-of-pkg-with-1-dep', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' }),
+  ])
   await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -441,8 +443,10 @@ test('should update override that references overridden dependency', async () =>
     frozenLockfile: true,
   })
 
-  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' }),
+  ])
   await update.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
