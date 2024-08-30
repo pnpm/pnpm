@@ -429,7 +429,7 @@ test('should update override that references overridden dependency', async () =>
     '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
     '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
-    'react': '^17.0.0',
+    react: '^17.0.0',
     'react-dom': '^17.0.0',
   })
   expect(loadJsonFile.sync<ProjectManifest>('package.json').devDependencies).toStrictEqual({
@@ -462,7 +462,7 @@ test('should update override that references overridden dependency', async () =>
     '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
     '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '^101.0.0',
-    'react': '^18.3.0',
+    react: '^18.3.0',
     'react-dom': '^18.3.0',
   })
   expect(loadJsonFile.sync<ProjectManifest>('package.json').devDependencies).toStrictEqual({
