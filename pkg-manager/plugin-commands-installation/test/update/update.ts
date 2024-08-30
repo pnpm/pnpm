@@ -384,7 +384,7 @@ test('should not update tag version when --latest not set', async () => {
   expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
 })
 
-test.skip('should update override that references overridden dependency', async () => {
+test('should update override that references overridden dependency', async () => {
   const project = prepare({
     dependencies: {
       '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
@@ -432,8 +432,8 @@ test.skip('should update override that references overridden dependency', async 
   })
 
   expect(project.readLockfile().overrides).toStrictEqual({
-    '@pnpm.e2e/pkg-with-1-dep': '100.0.0', // TODO: fix this
-    '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0', // TODO: fix this
+    '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^101.0.0',
   })
   expect(loadJsonFile.sync<ProjectManifest>('package.json').dependencies).toStrictEqual({
     '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
