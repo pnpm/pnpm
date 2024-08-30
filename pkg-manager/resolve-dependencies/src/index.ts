@@ -46,6 +46,7 @@ import {
 } from './resolvePeers'
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
+import { updateLockfileOverrides } from './updateLockfileOverrides'
 import { updateProjectManifest } from './updateProjectManifest'
 import { getCatalogSnapshots } from './getCatalogSnapshots'
 
@@ -309,19 +310,7 @@ export async function resolveDependencies (
 
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
 
-  const rootSnapshot: ProjectSnapshot | undefined = opts.wantedLockfile.importers['.' as ProjectId]
-  if (rootSnapshot && opts.overridesRefMap) {
-    for (const [dep, refTarget] of Object.entries(opts.overridesRefMap)) {
-      if (!refTarget) continue
-      const spec: string | undefined = rootSnapshot.specifiers[refTarget]
-      if (spec) {
-        if (!newLockfile.overrides) {
-          newLockfile.overrides = {}
-        }
-        newLockfile.overrides[dep] = spec
-      }
-    }
-  }
+  newLockfile.overrides = updateLockfileOverrides(newLockfile.overrides, opts.wantedLockfile.importers['.' as ProjectId], opts.overridesRefMap)
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
