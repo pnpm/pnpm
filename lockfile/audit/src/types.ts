@@ -57,7 +57,6 @@ export interface AuditAdvisory {
   access: string
   severity: AuditLevelString
   cwe: string
-  github_advisory_id: string
   metadata: {
     module_type: string
     exploitability: number
