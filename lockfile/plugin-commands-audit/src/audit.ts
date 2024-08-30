@@ -13,6 +13,7 @@ import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
 import renderHelp from 'render-help'
 import { fix } from './fix'
+import { ignore } from './ignore'
 
 // eslint-disable
 const AUDIT_LEVEL_NUMBER = {
@@ -57,6 +58,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'audit-level': ['low', 'moderate', 'high', 'critical'],
     fix: Boolean,
     'ignore-registry-errors': Boolean,
+    'ignore-vulnerabilities': String,
   }
 }
 
@@ -105,6 +107,10 @@ export function help (): string {
             description: 'Use exit code 0 if the registry responds with an error. Useful when audit checks are used in CI. A build should fail because the registry has issues.',
             name: '--ignore-registry-errors',
           },
+          {
+            description: 'Ignore a vulnerability by CVE. If no args are passed, ignore all CVEs with no resolution. Provide a comma separated list to ignore specific vulnerabilities',
+            name: '--ignore-vulnerabilities <vulnerabilities>',
+          },
         ],
       },
     ],
@@ -121,6 +127,7 @@ export async function handler (
     json?: boolean
     lockfileDir?: string
     registries: Registries
+    ignoreVulnerabilities?: string
   } & Pick<Config, 'ca'
   | 'cert'
   | 'httpProxy'
@@ -207,6 +214,21 @@ Run "pnpm install" to apply the fixes.
 
 The added overrides:
 ${JSON.stringify(newOverrides, null, 2)}`,
+    }
+  }
+  if (opts.ignoreVulnerabilities !== undefined) {
+    const newIgnores = await ignore(opts.dir, opts.ignoreVulnerabilities, auditReport)
+    if (newIgnores.length === 0) {
+      return {
+        exitCode: 0,
+        output: 'No new ignores were added',
+      }
+    }
+    return {
+      exitCode: 0,
+      output: `${newIgnores.length} new ignores were added to package.json.
+The added ignores:
+${JSON.stringify(newIgnores, null, 2)}`,
     }
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities
