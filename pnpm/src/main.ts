@@ -74,8 +74,10 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
       let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
       if (unknownOptionsArray.length === 1) {
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${unknownOptionsArray[0]}'`)}`
       } else {
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptionsArray.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
       }
       console.log(deprecationMsg)

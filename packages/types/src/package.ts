@@ -145,6 +145,7 @@ export interface ProjectManifest extends BaseManifest {
     }
     auditConfig?: {
       ignoreCves?: string[]
+      ignoreGhsas?: string[]
     }
     requiredScripts?: string[]
     supportedArchitectures?: SupportedArchitectures

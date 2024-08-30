@@ -212,6 +212,11 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   const vulnerabilities = auditReport.metadata.vulnerabilities
   const totalVulnerabilityCount = Object.values(vulnerabilities)
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
+  const ignoreGhsas = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreGhsas
+  if (ignoreGhsas) {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    auditReport.advisories = pickBy(({ github_advisory_id }) => !ignoreGhsas.includes(github_advisory_id), auditReport.advisories)
+  }
   const ignoreCves = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreCves
   if (ignoreCves) {
     auditReport.advisories = pickBy(({ cves }) => cves.length === 0 || difference(cves, ignoreCves).length > 0, auditReport.advisories)

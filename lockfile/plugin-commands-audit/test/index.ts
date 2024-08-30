@@ -273,6 +273,38 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toMatchSnapshot()
   })
 
+  test('audit: CVEs in ignoreGhsas do not show up', async () => {
+    const tmp = f.prepare('has-vulnerabilities')
+
+    nock(registries.default)
+      .post('/-/npm/v1/security/audits')
+      .reply(200, responses.ALL_VULN_RESP)
+
+    const { exitCode, output } = await audit.handler({
+      auditLevel: 'moderate',
+      dir: tmp,
+      userConfig: {},
+      rawConfig,
+      registries,
+      rootProjectManifest: {
+        pnpm: {
+          auditConfig: {
+            ignoreGhsas: [
+              'GHSA-42xw-2xvc-qx8m',
+              'GHSA-4w2v-q235-vp99',
+              'GHSA-cph5-m8f7-6c5x',
+              'GHSA-vh95-rmgr-6w4m',
+            ],
+          },
+        },
+      },
+      virtualStoreDirMaxLength: 120,
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toMatchSnapshot()
+  })
+
   test('audit: CVEs in ignoreCves do not show up when JSON output is used', async () => {
     const tmp = f.prepare('has-vulnerabilities')
 
