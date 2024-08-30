@@ -117,6 +117,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowNonAppliedPatches?: boolean
+    overridesRefMap?: Record<string, string | undefined>
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -307,6 +308,20 @@ export async function resolveDependencies (
   }
 
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
+
+  const rootSnapshot: ProjectSnapshot | undefined = opts.wantedLockfile.importers['.' as ProjectId]
+  if (rootSnapshot && opts.overridesRefMap) {
+    for (const [dep, refTarget] of Object.entries(opts.overridesRefMap)) {
+      if (!refTarget) continue
+      const spec: string | undefined = rootSnapshot.specifiers[refTarget]
+      if (spec) {
+        if (!newLockfile.overrides) {
+          newLockfile.overrides = {}
+        }
+        newLockfile.overrides[dep] = spec
+      }
+    }
+  }
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {

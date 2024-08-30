@@ -81,7 +81,6 @@ import props from 'ramda/src/props'
 import sortKeys from 'sort-keys'
 import { parseWantedDependencies } from '../parseWantedDependencies'
 import { removeDeps } from '../uninstall/removeDeps'
-import { createOverridesMap } from './createOverridesMap'
 import {
   extendOptions,
   type InstallOptions,
@@ -343,7 +342,7 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
-    const overridesMap = createOverridesMap(opts.parsedOverrides, ctx.currentLockfile.importers['.' as ProjectId])
+    const overridesMap = Object.fromEntries(opts.parsedOverrides.map(({ selector, newPref }) => [selector, newPref]))
     if (!opts.ignorePackageManifest) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
@@ -1094,6 +1093,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,
+      overridesRefMap: opts.overridesRefMap,
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
       preferWorkspacePackages: opts.preferWorkspacePackages,
       preferredVersions,
