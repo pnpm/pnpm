@@ -3,7 +3,7 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { type Lockfile } from '@pnpm/lockfile.types'
 import { add, install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
 import chalk from 'chalk'
 import * as enquirer from 'enquirer'
@@ -64,6 +64,11 @@ test('interactively update', async () => {
     hint: '',
     value: '',
   }
+
+  await Promise.all([
+    addDistTag({ package: 'is-negative', version: '2.1.0', distTag: 'latest' }),
+    addDistTag({ package: 'micromatch', version: '4.0.0', distTag: 'latest' }),
+  ])
 
   await add.handler(
     {
@@ -164,7 +169,7 @@ test('interactively update', async () => {
           name: 'is-positive',
         },
         {
-          message: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.8}                 `,
+          message: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.0}                 `,
           value: 'micromatch',
           name: 'micromatch',
         },
