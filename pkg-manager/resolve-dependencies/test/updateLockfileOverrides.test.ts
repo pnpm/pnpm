@@ -21,8 +21,8 @@ test('returns undefined when there is no existing overrides', () => {
   expect(updateLockfileOverrides(undefined, rootSnapshot(), {})).toBeUndefined()
 })
 
-test('returns undefined when there is no root importer', () => {
-  expect(updateLockfileOverrides(existingOverrides(), undefined, {})).toBeUndefined()
+test('returns the input overrides when there is no root importer', () => {
+  expect(updateLockfileOverrides(existingOverrides(), undefined, {})).toStrictEqual(existingOverrides())
 })
 
 test('updates all overrides when there are all references', () => {

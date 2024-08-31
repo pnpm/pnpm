@@ -9,7 +9,7 @@ export function updateLockfileOverrides (
   rootSnapshot: ProjectSnapshot | undefined,
   overridesRefMap: Record<string, string | undefined> | undefined
 ): Record<string, string> | undefined {
-  if (!existingOverrides || !rootSnapshot || !overridesRefMap) return undefined
+  if (!existingOverrides || !rootSnapshot || !overridesRefMap) return existingOverrides
 
   const overrides = { ...existingOverrides }
   for (const [dep, refTarget] of Object.entries(overridesRefMap)) {
