@@ -74,7 +74,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
       let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
       if (unknownOptionsArray.length === 1) {
-        const deprecatedOption = unknownOptionsArray[0] as string;
+        const deprecatedOption = unknownOptionsArray[0] as string
         deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${deprecatedOption}'`)}`
       } else {
         deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptionsArray.map((unknownOption: string) => `'${unknownOption}'`).join(', ')}`)}`
