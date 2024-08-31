@@ -33,7 +33,7 @@ test('returns the input overrides when no overrides use references', () => {
   expect(updateLockfileOverrides(existingOverrides(), rootSnapshot(), {})).toStrictEqual(existingOverrides())
 })
 
-test('updates all overrides when there are all references', () => {
+test('updates all overrides when they all use references', () => {
   expect(updateLockfileOverrides(
     existingOverrides(),
     rootSnapshot(),
