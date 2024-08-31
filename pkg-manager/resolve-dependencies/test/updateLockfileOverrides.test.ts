@@ -25,6 +25,14 @@ test('returns the input overrides when there is no root importer', () => {
   expect(updateLockfileOverrides(existingOverrides(), undefined, {})).toStrictEqual(existingOverrides())
 })
 
+test('returns the input overrides when overrides references map is not given', () => {
+  expect(updateLockfileOverrides(existingOverrides(), rootSnapshot(), undefined)).toStrictEqual(existingOverrides())
+})
+
+test('returns the input overrides when no overrides use references', () => {
+  expect(updateLockfileOverrides(existingOverrides(), rootSnapshot(), {})).toStrictEqual(existingOverrides())
+})
+
 test('updates all overrides when there are all references', () => {
   expect(updateLockfileOverrides(
     existingOverrides(),
