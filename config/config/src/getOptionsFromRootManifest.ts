@@ -7,7 +7,6 @@ import {
   type PeerDependencyRules,
   type ProjectManifest,
 } from '@pnpm/types'
-import mapValues from 'ramda/src/map'
 
 export interface OptionsFromRootManifest {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
@@ -25,20 +24,18 @@ export interface OptionsFromRootManifest {
 }
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
+  const replaceVersionReferences = createVersionReferencesReplacer(manifest)
   // We read Yarn's resolutions field for compatibility
   // but we really replace the version specs to any other version spec, not only to exact versions,
   // so we cannot call it resolutions
-  const replaceReferenceResult = mapValues(
-    createVersionReferencesReplacer(manifest),
-    {
-      ...manifest.resolutions,
-      ...manifest.pnpm?.overrides,
-    }
-  )
-  const overrides = mapValues(x => x.spec, replaceReferenceResult)
-  const overridesRefMapEntries = Object.entries(replaceReferenceResult)
-    .map(([key, { refTarget }]) => [key, refTarget])
-    .filter(([_key, refTarget]) => !!refTarget)
+  const replaceReferenceResults = Object.entries({
+    ...manifest.resolutions,
+    ...manifest.pnpm?.overrides,
+  }).map(([key, spec]) => ({ key, ...replaceVersionReferences(spec) }))
+  const overrides = Object.fromEntries(replaceReferenceResults.map(({ key, spec }) => [key, spec]))
+  const overridesRefMapEntries = replaceReferenceResults
+    .filter(item => !!item.refTarget)
+    .map((item): [string, string | undefined] => [item.key, item.refTarget])
   const overridesRefMap = overridesRefMapEntries.length > 0 ? Object.fromEntries(overridesRefMapEntries) : undefined
   const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies
   const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
