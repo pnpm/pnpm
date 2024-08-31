@@ -36,7 +36,10 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
     }
   )
   const overrides = mapValues(x => x.spec, replaceReferenceResult)
-  const overridesRefMap = mapValues(x => x.refTarget, replaceReferenceResult)
+  const overridesRefMapEntries = Object.entries(replaceReferenceResult)
+    .map(([key, { refTarget }]) => [key, refTarget])
+    .filter(([_key, refTarget]) => !!refTarget)
+  const overridesRefMap = overridesRefMapEntries.length > 0 ? Object.fromEntries(overridesRefMapEntries) : undefined
   const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies
   const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
   const onlyBuiltDependenciesFile = manifest.pnpm?.onlyBuiltDependenciesFile

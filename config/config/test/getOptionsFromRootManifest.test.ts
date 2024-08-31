@@ -7,7 +7,7 @@ test('getOptionsFromRootManifest() should read "resolutions" field for compatibi
     },
   })
   expect(options.overrides).toStrictEqual({ foo: '1.0.0' })
-  expect(options.overridesRefMap).toStrictEqual({ foo: undefined })
+  expect(options.overridesRefMap).toBeUndefined()
 })
 
 test('getOptionsFromRootManifest() should read "overrides" field', () => {
@@ -19,7 +19,7 @@ test('getOptionsFromRootManifest() should read "overrides" field', () => {
     },
   })
   expect(options.overrides).toStrictEqual({ foo: '1.0.0' })
-  expect(options.overridesRefMap).toStrictEqual({ foo: undefined })
+  expect(options.overridesRefMap).toBeUndefined()
 })
 
 test('getOptionsFromRootManifest() Support $ in overrides by dependencies', () => {
