@@ -11,9 +11,9 @@ import writeJsonFile from 'write-json-file'
 const NEXT_TAG = 'next-9'
 const CLI_PKG_NAME = 'pnpm'
 
-export default async (workspaceDir: string) => {
-  const pnpmManifest = loadJsonFile.sync<any>(path.join(workspaceDir, 'pnpm/package.json'))
-  const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
+export default async (workspaceDir: string) => { // eslint-disable-line
+  const pnpmManifest = loadJsonFile.sync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
+  const pnpmVersion = pnpmManifest!.version!
   const pnpmMajorKeyword = `pnpm${pnpmVersion.split('.')[0]}`
   const utilsDir = path.join(workspaceDir, '__utils__')
   const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
@@ -21,9 +21,9 @@ export default async (workspaceDir: string) => {
     throw new Error('no lockfile found')
   }
   return createUpdateOptions({
-    'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }) => {
+    'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }: { dir: string }) => {
       if (!manifest) {
-        return manifest;
+        return manifest
       }
       if (manifest.name === 'monorepo-root') {
         manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`
@@ -32,12 +32,12 @@ export default async (workspaceDir: string) => {
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
         manifest.devDependencies = {
           ...manifest.devDependencies,
-          [manifest.name]: `workspace:*`,
+          [manifest.name]: 'workspace:*',
         }
       } else if (manifest.name === CLI_PKG_NAME && manifest.devDependencies) {
         delete manifest.devDependencies[manifest.name]
       }
-      if (manifest.private || isSubdir(utilsDir, dir)) return manifest
+      if (manifest.private === true || isSubdir(utilsDir, dir)) return manifest
       manifest.keywords = [
         pnpmMajorKeyword,
         ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
@@ -73,7 +73,7 @@ export default async (workspaceDir: string) => {
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
           for (const depName of ['@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/win-arm64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
-            manifest.optionalDependencies![depName] = `workspace:*`
+            manifest.optionalDependencies![depName] = 'workspace:*'
           }
         }
         return manifest
@@ -84,9 +84,9 @@ export default async (workspaceDir: string) => {
       lockfile,
       workspaceDir,
     }),
-    'cspell.json': (cspell: any) => {
-      if (cspell?.words) {
-        cspell.words = cspell.words.sort()
+    'cspell.json': (cspell: any) => { // eslint-disable-line
+      if (cspell && typeof cspell === 'object' && 'words' in cspell && Array.isArray(cspell.words)) {
+        cspell.words = cspell.words.sort((w1: string, w2: string) => w1.localeCompare(w2))
       }
       return cspell
     },
@@ -147,13 +147,13 @@ async function updateTSConfig (
       compilerOptions: {
         noEmit: false,
         outDir: '../test.lib',
-        rootDir: '.'
+        rootDir: '.',
       },
       include: [
         '**/*.ts',
         normalizePath(path.relative(testDir, path.join(context.workspaceDir, '__typings__/**/*.d.ts'))),
       ],
-      references: (tsConfig as any)?.compilerOptions?.composite === false
+      references: (tsConfig as any)?.compilerOptions?.composite === false // eslint-disable-line
         // If composite is explicitly set to false, we can't add the main
         // tsconfig.json as a project reference. Only composite enabled projects
         // can be referenced by definition. Instead, we have to add all the
@@ -168,7 +168,7 @@ async function updateTSConfig (
         // methods to be defensive against future changes to testDir, dir, or
         // relPath.
         ? linkValues.map(relPath => ({
-          path: normalizePath(path.relative(testDir, path.join(dir, relPath)))
+          path: normalizePath(path.relative(testDir, path.join(dir, relPath))),
         }))
 
         // If the main project is composite (the more common case), we can
@@ -178,7 +178,7 @@ async function updateTSConfig (
         // The project reference allows editor features like Go to Definition
         // jump to files in src for imports using the current package's name
         // (ex: @pnpm/config).
-        : [{ path: ".." }]
+        : [{ path: '..' }],
     }, { indent: 2 })
   }
 
@@ -191,13 +191,13 @@ async function updateTSConfig (
         'test/**/*.ts',
         normalizePath(path.relative(dir, path.join(context.workspaceDir, '__typings__/**/*.d.ts'))),
       ],
-    }, { indent: 2 })
+    }, { indent: 2 }),
   ])
   return {
     ...tsConfig,
     extends: '@pnpm/tsconfig',
     compilerOptions: {
-      ...(tsConfig as any)['compilerOptions'],
+      ...(tsConfig as any)['compilerOptions'], // eslint-disable-line
       rootDir: 'src',
     },
     references: linkValues.map(path => ({ path })),

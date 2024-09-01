@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
     "compile": "tsc --build"
   },
   "dependencies": {
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/meta-updater": "catalog:",
     "@pnpm/types": "workspace:*",
     "@types/normalize-path": "catalog:",
     "is-subdir": "catalog:",
