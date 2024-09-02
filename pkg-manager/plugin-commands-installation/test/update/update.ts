@@ -453,11 +453,13 @@ test('should update override that references overridden dependency', async () =>
     latest: true,
   })
 
-  expect(project.readLockfile().overrides).toStrictEqual({
+  const lockfile = project.readLockfile()
+  expect(lockfile.overrides).toStrictEqual({
     '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '^101.0.0',
     '@types/react': '^18.3.0',
   })
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeFalsy()
   expect(loadJsonFile.sync<ProjectManifest>('package.json').dependencies).toStrictEqual({
     '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
     '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
