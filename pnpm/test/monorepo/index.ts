@@ -400,7 +400,7 @@ test('test-pattern is respected by the test script', async () => {
 
   await execPnpm(['install'])
 
-  await execPnpm(['recursive', 'test', '--filter', '...[origin/main]'])
+  await execPnpm(['recursive', '--filter', '...[origin/main]', 'test'])
 
   // Expecting only project-2 and project-4 to run since they were changed above.
   expect(server.getLines().sort()).toEqual(['project-2', 'project-4'])
