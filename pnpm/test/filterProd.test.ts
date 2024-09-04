@@ -52,7 +52,7 @@ test.each([
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['install'])
 
-  await execPnpm(['recursive', 'test', filter, '...project-3'])
+  await execPnpm(['recursive', filter, '...project-3', 'test'])
 
   expect(server.getLines().sort()).toEqual(expected)
 })
