@@ -112,6 +112,7 @@ export async function handler (
     frozenLockfile: false,
     preferFrozenLockfile: false,
     saveLockfile: false,
+    lockfileDir: deployDir,
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
     modulesDir: path.relative(opts.workspaceDir, path.join(deployDir, 'node_modules')),
     rawLocalConfig: {
