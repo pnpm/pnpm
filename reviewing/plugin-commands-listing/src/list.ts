@@ -24,6 +24,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
+  'exclude-peers': Boolean,
   'only-projects': Boolean,
   recursive: Boolean,
 })
@@ -100,6 +101,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: "Don't display packages from `optionalDependencies`",
             name: '--no-optional',
           },
+          {
+            description: 'Exclude peer dependencies',
+            name: '--exclude-peers',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -125,6 +130,7 @@ export type ListCommandOptions = Pick<Config,
 > & Partial<Pick<Config, 'cliOptions'>> & {
   alwaysPrintRootPackage?: boolean
   depth?: number
+  excludePeers?: boolean
   lockfileDir?: string
   long?: boolean
   parseable?: boolean
@@ -160,6 +166,7 @@ export async function render (
   opts: {
     alwaysPrintRootPackage?: boolean
     depth?: number
+    excludePeers?: boolean
     include: IncludedDependencies
     lockfileDir: string
     long?: boolean
@@ -173,6 +180,7 @@ export async function render (
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth ?? 0,
+    excludePeerDependencies: opts.excludePeers,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     long: opts.long,

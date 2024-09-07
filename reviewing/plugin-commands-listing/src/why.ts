@@ -23,6 +23,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
+  'exclude-peers': Boolean,
   recursive: Boolean,
 })
 
@@ -83,6 +84,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             name: '--depth <number>',
             description: 'Max display depth of the dependency graph',
+          },
+          {
+            description: 'Exclude peer dependencies',
+            name: '--exclude-peers',
           },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,

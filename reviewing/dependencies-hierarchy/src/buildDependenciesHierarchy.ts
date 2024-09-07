@@ -34,6 +34,7 @@ export async function buildDependenciesHierarchy (
   projectPaths: string[] | undefined,
   maybeOpts: {
     depth: number
+    excludePeerDependencies?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     registries?: Registries
     onlyProjects?: boolean
@@ -70,6 +71,7 @@ export async function buildDependenciesHierarchy (
 
   const opts = {
     depth: maybeOpts.depth || 0,
+    excludePeerDependencies: maybeOpts.excludePeerDependencies,
     include: maybeOpts.include ?? {
       dependencies: true,
       devDependencies: true,
@@ -103,6 +105,7 @@ async function dependenciesHierarchyForPackage (
   wantedLockfile: Lockfile | null,
   opts: {
     depth: number
+    excludePeerDependencies?: boolean
     include: { [dependenciesField in DependenciesField]: boolean }
     registries: Registries
     onlyProjects?: boolean
@@ -127,6 +130,7 @@ async function dependenciesHierarchyForPackage (
   const depTypes = detectDepTypes(currentLockfile)
   const getChildrenTree = getTree.bind(null, {
     currentPackages: currentLockfile.packages ?? {},
+    excludePeerDependencies: opts.excludePeerDependencies,
     importers: currentLockfile.importers,
     includeOptionalDependencies: opts.include.optionalDependencies,
     depTypes,
@@ -134,7 +138,6 @@ async function dependenciesHierarchyForPackage (
     onlyProjects: opts.onlyProjects,
     rewriteLinkVersionDir: projectPath,
     maxDepth: opts.depth,
-    modulesDir,
     registries: opts.registries,
     search: opts.search,
     skipped: opts.skipped,
