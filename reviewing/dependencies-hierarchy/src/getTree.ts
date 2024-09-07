@@ -1,5 +1,5 @@
 import path from 'path'
-import { type PackageSnapshots, type ProjectSnapshot, type PackageSnapshot } from '@pnpm/lockfile.fs'
+import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type Registries } from '@pnpm/types'
 import { type SearchFunction } from './types'
@@ -84,17 +84,17 @@ function getTreeHelper (
       ...snapshot.dependencies,
       ...snapshot.optionalDependencies,
     }
-  if (opts.excludePeerDependencies && deps) {
-    const peers = Object.keys((snapshot as PackageSnapshot).peerDependencies ?? {})
-    for (const [pkgName, meta] of Object.entries((snapshot as PackageSnapshot).peerDependenciesMeta ?? {})) {
-      if (meta.optional) {
-        peers.push(pkgName)
-      }
-    }
-    for (const peer of peers) {
-      delete deps[peer]
-    }
-  }
+  // if (opts.excludePeerDependencies && deps) {
+    // const peers = Object.keys((snapshot as PackageSnapshot).peerDependencies ?? {})
+    // for (const [pkgName, meta] of Object.entries((snapshot as PackageSnapshot).peerDependenciesMeta ?? {})) {
+  // if (meta.optional) {
+  // peers.push(pkgName)
+  // }
+    // }
+    // for (const peer of peers) {
+  // delete deps[peer]
+    // }
+  // }
 
   if (deps == null) {
     return { dependencies: [], height: 0 }
@@ -221,7 +221,9 @@ function getTreeHelper (
       if (matchedSearched) {
         newEntry.searched = true
       }
-      resultDependencies.push(newEntry)
+      if (!newEntry.isPeer || !opts.excludePeerDependencies || newEntry.dependencies?.length) {
+        resultDependencies.push(newEntry)
+      }
     }
   })
 
