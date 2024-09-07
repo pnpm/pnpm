@@ -58,7 +58,7 @@ export async function linkHoistedModules (
             prefix: parentDir,
           })
         }
-        return linkAllPkgsInOrder(storeController, graph, prevGraph, depsHierarchy, parentDir, {
+        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, parentDir, {
           ...opts,
           warn,
         })
@@ -84,7 +84,6 @@ async function tryRemoveDir (dir: string): Promise<void> {
 async function linkAllPkgsInOrder (
   storeController: StoreController,
   graph: DependenciesGraph,
-  prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
   parentDir: string,
   opts: {
@@ -142,7 +141,7 @@ async function linkAllPkgsInOrder (
           depNode.isBuilt = isBuilt
         })
       }
-      return linkAllPkgsInOrder(storeController, graph, prevGraph, deps, dir, opts)
+      return linkAllPkgsInOrder(storeController, graph, deps, dir, opts)
     })
   )
   const modulesDir = path.join(parentDir, 'node_modules')
