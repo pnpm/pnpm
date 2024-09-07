@@ -84,17 +84,6 @@ function getTreeHelper (
       ...snapshot.dependencies,
       ...snapshot.optionalDependencies,
     }
-  // if (opts.excludePeerDependencies && deps) {
-    // const peers = Object.keys((snapshot as PackageSnapshot).peerDependencies ?? {})
-    // for (const [pkgName, meta] of Object.entries((snapshot as PackageSnapshot).peerDependenciesMeta ?? {})) {
-  // if (meta.optional) {
-  // peers.push(pkgName)
-  // }
-    // }
-    // for (const peer of peers) {
-  // delete deps[peer]
-    // }
-  // }
 
   if (deps == null) {
     return { dependencies: [], height: 0 }
