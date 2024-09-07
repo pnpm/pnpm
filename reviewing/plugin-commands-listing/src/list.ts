@@ -7,6 +7,11 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { listRecursive } from './recursive'
 
+export const EXCLUDE_PEERS_HELP = {
+  description: 'Exclude peer dependencies',
+  name: '--exclude-peers',
+}
+
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'depth',
@@ -101,10 +106,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: "Don't display packages from `optionalDependencies`",
             name: '--no-optional',
           },
-          {
-            description: 'Exclude peer dependencies',
-            name: '--exclude-peers',
-          },
+          EXCLUDE_PEERS_HELP,
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],

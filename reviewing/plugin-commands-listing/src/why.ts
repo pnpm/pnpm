@@ -4,7 +4,7 @@ import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { handler as list, type ListCommandOptions } from './list'
+import { handler as list, type ListCommandOptions, EXCLUDE_PEERS_HELP } from './list'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -85,10 +85,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--depth <number>',
             description: 'Max display depth of the dependency graph',
           },
-          {
-            description: 'Exclude peer dependencies',
-            name: '--exclude-peers',
-          },
+          EXCLUDE_PEERS_HELP,
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
