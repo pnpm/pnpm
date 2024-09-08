@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { getFilePathInCafs } from '@pnpm/store.cafs'
+import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   type PackageManifestLog,
@@ -678,7 +678,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   await headlessInstall(opts)
 
   const cafsDir = path.join(opts.storeDir, 'files')
-  const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
+  const cacheIntegrityPath = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'))
   const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`

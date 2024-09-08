@@ -6,7 +6,7 @@ import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store-path'
-import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import sortKeys from 'sort-keys'
@@ -83,10 +83,9 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     }
   )
 
-  const filesIndexFile = getFilePathInCafs(
+  const filesIndexFile = getIndexFilePathInCafs(
     cafsDir,
-    (pkgSnapshot.resolution as TarballResolution).integrity!.toString(),
-    'index'
+    (pkgSnapshot.resolution as TarballResolution).integrity!.toString()
   )
   try {
     const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { getFilePathInCafs } from '@pnpm/store.cafs'
+import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
 export interface StoreAssertions {
@@ -25,7 +25,7 @@ export function assertStore (
     getPkgIndexFilePath (pkgName: string, version?: string): string {
       const cafsDir = path.join(storePath, 'files')
       const integrity = version ? getIntegrity(pkgName, version) : pkgName
-      return getFilePathInCafs(cafsDir, integrity, 'index')
+      return getIndexFilePathInCafs(cafsDir, integrity)
     },
     cafsHas (pkgName: string, version?: string): void {
       const pathToCheck = store.getPkgIndexFilePath(pkgName, version)

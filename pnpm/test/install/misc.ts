@@ -6,7 +6,7 @@ import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getIntegrity } from '@pnpm/registry-mock'
-import { getFilePathInCafs } from '@pnpm/store.cafs'
+import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -519,7 +519,7 @@ test('installation fails when the stored package name and version do not match t
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
   const cafsDir = path.join(storeDir, 'v3/files')
-  const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), 'index')
+  const cacheIntegrityPath = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'))
   const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   cacheIntegrity.name = 'foo'
   writeJsonFile.sync(cacheIntegrityPath, {

@@ -550,4 +550,68 @@ describe('getTree', () => {
       ])
     })
   })
+  test('exclude peers', () => {
+    const version = '1.0.0'
+    const currentPackages = {
+      'foo@1.0.0': {
+        dependencies: {
+          peer1: '1.0.0',
+          peer2: '1.0.0',
+          qar: '1.0.0',
+        },
+        peerDependencies: {
+          peer1: '^1.0.0',
+          peer2: '^1.0.0',
+        },
+        resolution: { integrity: '000' },
+      },
+      'bar@1.0.0': {
+        resolution: { integrity: '000' },
+      },
+      'qar@1.0.0': {
+        resolution: { integrity: '000' },
+      },
+      'peer1@1.0.0': {
+        dependencies: {
+          bar: '1.0.0',
+        },
+        resolution: { integrity: '000' },
+      },
+      'peer2@1.0.0': {
+        dependencies: {},
+        resolution: { integrity: '000' },
+      },
+    }
+    const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'foo') }
+
+    const getTreeArgs = {
+      depTypes: {},
+      excludePeerDependencies: true,
+      maxDepth: 3,
+      rewriteLinkVersionDir: '',
+      virtualStoreDir: '.pnpm',
+      importers: {},
+      includeOptionalDependencies: false,
+      lockfileDir: '',
+      skipped: new Set<string>(),
+      registries: {
+        default: 'mock-registry-for-testing.example',
+      },
+      currentPackages,
+      wantedPackages: currentPackages,
+    }
+    const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        alias: 'peer1',
+        dependencies: [
+          expect.objectContaining({
+            alias: 'bar',
+          }),
+        ],
+      }),
+      expect.objectContaining({ alias: 'qar', dependencies: undefined }),
+    ])
+  })
 })

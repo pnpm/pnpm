@@ -59,6 +59,7 @@ export async function searchForPackages (
   projectPaths: string[],
   opts: {
     depth: number
+    excludePeerDependencies?: boolean
     lockfileDir: string
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
@@ -72,6 +73,7 @@ export async function searchForPackages (
   return Promise.all(
     Object.entries(await buildDependenciesHierarchy(projectPaths, {
       depth: opts.depth,
+      excludePeerDependencies: opts.excludePeerDependencies,
       include: opts.include,
       lockfileDir: opts.lockfileDir,
       onlyProjects: opts.onlyProjects,
@@ -130,6 +132,7 @@ export async function list (
   maybeOpts: {
     alwaysPrintRootPackage?: boolean
     depth?: number
+    excludePeerDependencies?: boolean
     lockfileDir: string
     long?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
@@ -152,6 +155,7 @@ export async function list (
         }, {} as Record<string, DependenciesHierarchy>)
         : await buildDependenciesHierarchy(projectPaths, {
           depth: opts.depth,
+          excludePeerDependencies: maybeOpts?.excludePeerDependencies,
           include: maybeOpts?.include,
           lockfileDir: maybeOpts?.lockfileDir,
           onlyProjects: maybeOpts?.onlyProjects,

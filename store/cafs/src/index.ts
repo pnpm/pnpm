@@ -10,7 +10,7 @@ import {
 } from './checkPkgFilesIntegrity'
 import { readManifestFromStore } from './readManifestFromStore'
 import {
-  getFilePathInCafs,
+  getIndexFilePathInCafs,
   contentPathFromHex,
   type FileType,
   getFilePathByModeInCafs,
@@ -25,7 +25,7 @@ export {
   readManifestFromStore,
   type FileType,
   getFilePathByModeInCafs,
-  getFilePathInCafs,
+  getIndexFilePathInCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
   type SideEffects,
@@ -44,7 +44,7 @@ export interface CreateCafsOpts {
 export interface CafsFunctions {
   addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean }) => AddToStoreResult
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean) => AddToStoreResult
-  getFilePathInCafs: (integrity: string | ssri.IntegrityLike, fileType: FileType) => string
+  getIndexFilePathInCafs: (integrity: string | ssri.IntegrityLike, fileType: FileType) => string
   getFilePathByModeInCafs: (integrity: string | ssri.IntegrityLike, mode: number) => string
 }
 
@@ -54,7 +54,7 @@ export function createCafs (cafsDir: string, { ignoreFile, cafsLocker }: CreateC
   return {
     addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
     addFilesFromTarball: addFilesFromTarball.bind(null, addBuffer, ignoreFile ?? null),
-    getFilePathInCafs: getFilePathInCafs.bind(null, cafsDir),
+    getIndexFilePathInCafs: getIndexFilePathInCafs.bind(null, cafsDir),
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, cafsDir),
   }
 }
