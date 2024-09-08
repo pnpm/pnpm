@@ -34,7 +34,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ frozenLockfile: true }))).rejects.toThrowError(/Package name mismatch found while reading/)
+  }, testDefaults({ frozenLockfile: true }))).rejects.toThrowError(/Got unexpected checksum for/)
 
   await mutateModulesInSingleProject({
     manifest,
