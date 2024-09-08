@@ -7,7 +7,7 @@ import pLimit from 'p-limit'
 import { type PackageManifest, type Registries } from '@pnpm/types'
 import {
   getFilePathByModeInCafs,
-  getFilePathInCafs,
+  getIndexFilePathInCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
 } from '@pnpm/store.cafs'
@@ -258,7 +258,7 @@ export async function readPackageIndexFile (
   let pkgIndexFilePath
   if (isPackageWithIntegrity) {
     // Retrieve all the index file of all files included in the package
-    pkgIndexFilePath = getFilePathInCafs(
+    pkgIndexFilePath = getIndexFilePathInCafs(
       opts.cafsDir,
       packageResolution.integrity as string
     )

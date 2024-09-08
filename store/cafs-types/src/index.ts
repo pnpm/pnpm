@@ -66,7 +66,7 @@ export interface Cafs {
   cafsDir: string
   addFilesFromDir: (dir: string) => AddToStoreResult
   addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
-  getFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
+  getIndexFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
   getFilePathByModeInCafs: (integrity: string | IntegrityLike, mode: number) => string
   importPackage: ImportPackageFunction
   tempDir: () => Promise<string>
