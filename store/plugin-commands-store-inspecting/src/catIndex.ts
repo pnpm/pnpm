@@ -85,8 +85,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
 
   const filesIndexFile = getFilePathInCafs(
     cafsDir,
-    (pkgSnapshot.resolution as TarballResolution).integrity!.toString(),
-    'index'
+    (pkgSnapshot.resolution as TarballResolution).integrity!.toString()
   )
   try {
     const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)

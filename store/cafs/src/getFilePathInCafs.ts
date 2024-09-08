@@ -16,10 +16,9 @@ export function getFilePathByModeInCafs (
 
 export function getFilePathInCafs (
   cafsDir: string,
-  integrity: string | IntegrityLike,
-  fileType: FileType
+  integrity: string | IntegrityLike
 ): string {
-  return path.join(cafsDir, contentPathFromIntegrity(integrity, fileType))
+  return path.join(cafsDir, contentPathFromIntegrity(integrity, 'index'))
 }
 
 function contentPathFromIntegrity (

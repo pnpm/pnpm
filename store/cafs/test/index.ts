@@ -5,7 +5,7 @@ import tempy from 'tempy'
 import {
   createCafs,
   checkPkgFilesIntegrity,
-  getFilePathInCafs,
+  getFilePathByModeInCafs,
 } from '../src'
 
 describe('cafs', () => {
@@ -31,7 +31,7 @@ describe('cafs', () => {
     let addFilesResult = addFiles()
 
     // Modifying the file in the store
-    const filePath = getFilePathInCafs(storeDir, addFilesResult.filesIndex['foo.txt'].integrity, 'nonexec')
+    const filePath = getFilePathByModeInCafs(storeDir, addFilesResult.filesIndex['foo.txt'].integrity, 420)
     fs.appendFileSync(filePath, 'bar')
 
     addFilesResult = addFiles()

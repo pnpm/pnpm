@@ -2,7 +2,6 @@ import { createReadStream, promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import {
-  type FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getFilePathInCafs as _getFilePathInCafs,
   type PackageFilesIndex,
@@ -309,7 +308,7 @@ interface FetchLock {
 
 function getFilesIndexFilePath (
   ctx: {
-    getFilePathInCafs: (integrity: string, fileType: FileType) => string
+    getFilePathInCafs: (integrity: string) => string
     storeDir: string
     virtualStoreDirMaxLength: number
   },
@@ -318,7 +317,7 @@ function getFilesIndexFilePath (
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
   const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
-    ? ctx.getFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, 'index')
+    ? ctx.getFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!)
     : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
   return { filesIndexFile, target }
 }
@@ -335,7 +334,7 @@ function fetchToStore (
       opts: FetchOptions
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
-    getFilePathInCafs: (integrity: string, fileType: FileType) => string
+    getFilePathInCafs: (integrity: string) => string
     getFilePathByModeInCafs: (integrity: string, mode: number) => string
     requestsQueue: {
       add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>

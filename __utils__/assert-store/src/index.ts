@@ -25,7 +25,7 @@ export function assertStore (
     getPkgIndexFilePath (pkgName: string, version?: string): string {
       const cafsDir = path.join(storePath, 'files')
       const integrity = version ? getIntegrity(pkgName, version) : pkgName
-      return getFilePathInCafs(cafsDir, integrity, 'index')
+      return getFilePathInCafs(cafsDir, integrity)
     },
     cafsHas (pkgName: string, version?: string): void {
       const pathToCheck = store.getPkgIndexFilePath(pkgName, version)
