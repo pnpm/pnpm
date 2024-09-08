@@ -180,9 +180,10 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
     if (!pkgSnapshotCache.has(depPath)) {
       const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
       if (pkgSnapshot == null) return undefined
-      const indexPath = getIndexFilePathInCafs(cafsDir, (pkgSnapshot.resolution as TarballResolution).integrity!)
+      const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const indexPath = getIndexFilePathInCafs(cafsDir, (pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
       pkgSnapshotCache.set(depPath, {
-        ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
+        ...nameVer,
         pkgSnapshot,
         index: loadJsonFile.sync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
       })

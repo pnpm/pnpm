@@ -308,7 +308,7 @@ interface FetchLock {
 
 function getFilesIndexFilePath (
   ctx: {
-    getIndexFilePathInCafs: (integrity: string) => string
+    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     storeDir: string
     virtualStoreDirMaxLength: number
   },
@@ -317,7 +317,7 @@ function getFilesIndexFilePath (
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
   const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
-    ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!)
+    ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id)
     : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
   return { filesIndexFile, target }
 }
@@ -334,7 +334,7 @@ function fetchToStore (
       opts: FetchOptions
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
-    getIndexFilePathInCafs: (integrity: string) => string
+    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     getFilePathByModeInCafs: (integrity: string, mode: number) => string
     requestsQueue: {
       add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>

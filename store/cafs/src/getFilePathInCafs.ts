@@ -16,9 +16,11 @@ export function getFilePathByModeInCafs (
 
 export function getIndexFilePathInCafs (
   cafsDir: string,
-  integrity: string | IntegrityLike
+  integrity: string | IntegrityLike,
+  pkgId: string
 ): string {
-  return path.join(cafsDir, contentPathFromIntegrity(integrity, 'index'))
+  const hex = ssri.parse(integrity, { single: true }).hexDigest().substring(0, 12)
+  return path.join(cafsDir, `${path.join(hex.slice(0, 2), hex.slice(2))}-${pkgId}.json`)
 }
 
 function contentPathFromIntegrity (
