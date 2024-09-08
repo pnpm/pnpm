@@ -13,6 +13,7 @@ interface GetTreeOpts {
   maxDepth: number
   rewriteLinkVersionDir: string
   includeOptionalDependencies: boolean
+  excludePeerDependencies?: boolean
   lockfileDir: string
   onlyProjects?: boolean
   search?: SearchFunction
@@ -209,7 +210,9 @@ function getTreeHelper (
       if (matchedSearched) {
         newEntry.searched = true
       }
-      resultDependencies.push(newEntry)
+      if (!newEntry.isPeer || !opts.excludePeerDependencies || newEntry.dependencies?.length) {
+        resultDependencies.push(newEntry)
+      }
     }
   })
 
