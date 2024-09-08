@@ -1,5 +1,5 @@
 import path from 'path'
-import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
   nameVerFromPkgSnapshot,
@@ -51,7 +51,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
   const cafsDir = path.join(storeDir, 'files')
   const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
     const pkgIndexFilePath = integrity
-      ? getFilePathInCafs(cafsDir, integrity, 'index')
+      ? getIndexFilePathInCafs(cafsDir, integrity)
       : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.json')
     const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), files)) === false
