@@ -1,3 +1,4 @@
+import { cache } from '@pnpm/cache.commands'
 import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
@@ -107,6 +108,7 @@ const commands: CommandDefinition[] = [
   add,
   audit,
   bin,
+  cache,
   ci,
   config,
   dedupe,
