@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolver-base",
-  "version": "13.0.3",
+  "version": "13.0.4",
   "description": "Types for pnpm-compatible resolvers",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

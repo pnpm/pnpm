@@ -1,5 +1,16 @@
 # @pnpm/create-cafs-store
 
+## 7.0.9
+
+### Patch Changes
+
+- Updated dependencies [db420ab]
+  - @pnpm/store.cafs@4.0.0
+  - @pnpm/exec.pkg-requires-build@1.0.7
+  - @pnpm/fetcher-base@16.0.7
+  - @pnpm/store-controller-types@18.1.6
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+
 ## 7.0.8
 
 ### Patch Changes

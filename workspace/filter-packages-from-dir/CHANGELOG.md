@@ -1,5 +1,12 @@
 # @pnpm/workspace.filter-packages-from-dir
 
+## 1.0.11
+
+### Patch Changes
+
+- @pnpm/filter-workspace-packages@10.0.10
+- @pnpm/workspace.find-packages@4.0.10
+
 ## 1.0.10
 
 ### Patch Changes

@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-script-runners
 
+## 12.0.5
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/cli-utils@4.0.5
+  - @pnpm/config@21.8.3
+  - @pnpm/plugin-commands-env@5.1.8
+  - @pnpm/lifecycle@17.1.4
+  - @pnpm/core-loggers@10.0.7
+  - @pnpm/package-bins@9.0.7
+  - @pnpm/plugin-commands-installation@17.2.2
+  - @pnpm/read-package-json@9.0.8
+  - @pnpm/read-project-manifest@6.0.8
+  - @pnpm/sort-packages@6.0.8
+  - @pnpm/crypto.base32-hash@3.0.0
+
 ## 12.0.4
 
 ### Patch Changes

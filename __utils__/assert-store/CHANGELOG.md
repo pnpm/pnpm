@@ -1,5 +1,12 @@
 # @pnpm/assert-store
 
+## 1.0.90
+
+### Patch Changes
+
+- Updated dependencies [db420ab]
+  - @pnpm/store.cafs@4.0.0
+
 ## 1.0.89
 
 ### Patch Changes

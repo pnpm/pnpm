@@ -1,5 +1,17 @@
 # @pnpm/worker
 
+## 1.0.10
+
+### Patch Changes
+
+- Updated dependencies [db420ab]
+  - @pnpm/store.cafs@4.0.0
+  - @pnpm/exec.pkg-requires-build@1.0.7
+  - @pnpm/symlink-dependency@8.0.8
+  - @pnpm/cafs-types@5.0.0
+  - @pnpm/create-cafs-store@7.0.9
+  - @pnpm/fs.hard-link-dir@4.0.0
+
 ## 1.0.9
 
 ### Patch Changes

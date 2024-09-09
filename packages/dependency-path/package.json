@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/dependency-path",
-  "version": "5.1.5",
+  "version": "5.1.6",
   "description": "Utilities for working with symlinked node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

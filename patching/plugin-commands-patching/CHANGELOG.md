@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-patching
 
+## 6.4.9
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/cli-utils@4.0.5
+  - @pnpm/config@21.8.3
+  - @pnpm/pick-registry-for-package@6.0.7
+  - @pnpm/lockfile.fs@1.0.3
+  - @pnpm/lockfile.utils@1.0.3
+  - @pnpm/modules-yaml@13.1.7
+  - @pnpm/plugin-commands-installation@17.2.2
+  - @pnpm/read-package-json@9.0.8
+  - @pnpm/read-project-manifest@6.0.8
+  - @pnpm/patching.apply-patch@3.1.0
+  - @pnpm/store-connection-manager@8.3.10
+  - @pnpm/pick-fetcher@3.0.0
+
 ## 6.4.8
 
 ### Patch Changes

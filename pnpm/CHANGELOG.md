@@ -1,5 +1,34 @@
 # pnpm
 
+## 9.10.0
+
+### Minor Changes
+
+- Support for a new CLI flag, `--exclude-peers`, added to the `list` and `why` commands. When `--exclude-peers` is used, peer dependencies are not printed in the results, but dependencies of peer dependencies are still scanned [#8506](https://github.com/pnpm/pnpm/pull/8506).
+- Added a new setting to `package.json` at `pnpm.auditConfig.ignoreGhsas` for ignoring vulnerabilities by their GHSA code [#6838](https://github.com/pnpm/pnpm/issues/6838).
+
+  For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "auditConfig": {
+        "ignoreGhsas": [
+          "GHSA-42xw-2xvc-qx8m",
+          "GHSA-4w2v-q235-vp99",
+          "GHSA-cph5-m8f7-6c5x",
+          "GHSA-vh95-rmgr-6w4m"
+        ]
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Throw an exception if pnpm switches to the same version of itself.
+- Reduce memory usage during peer dependencies resolution.
+
 ## 9.9.0
 
 ### Minor Changes

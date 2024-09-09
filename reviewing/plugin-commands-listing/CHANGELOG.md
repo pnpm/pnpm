@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-listing
 
+## 10.1.0
+
+### Minor Changes
+
+- 3af07cb: Support for a new CLI flag, `--exclude-peers`, added to the `list` and `why` commands. When `--exclude-peers` is used, peer dependencies are not printed in the results, but dependencies of peer dependencies are still scanned [#8506](https://github.com/pnpm/pnpm/pull/8506).
+
+### Patch Changes
+
+- Updated dependencies [3af07cb]
+- Updated dependencies [d500d9f]
+  - @pnpm/list@10.2.0
+  - @pnpm/types@12.2.0
+  - @pnpm/cli-utils@4.0.5
+  - @pnpm/config@21.8.3
+
 ## 10.0.9
 
 ### Patch Changes
