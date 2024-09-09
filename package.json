@@ -1,7 +1,7 @@
 {
   "name": "monorepo-root",
   "private": true,
-  "packageManager": "pnpm@9.9.0",
+  "packageManager": "pnpm@9.10.0",
   "scripts": {
     "bump": "changeset version && pnpm update-manifests",
     "changeset": "changeset",
@@ -158,6 +158,9 @@
         "CVE-2024-24828",
         "CVE-2024-29041",
         "CVE-2024-4067"
+      ],
+      "ignoreGhsas": [
+        "GHSA-9wv6-86v2-598j"
       ]
     }
   }
