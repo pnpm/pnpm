@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-env
 
+## 5.1.8
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/cli-utils@4.0.5
+  - @pnpm/config@21.8.3
+  - @pnpm/fetch@8.0.7
+  - @pnpm/remove-bins@6.0.8
+  - @pnpm/node.fetcher@4.0.13
+  - @pnpm/node.resolver@3.0.13
+
 ## 5.1.7
 
 ### Patch Changes

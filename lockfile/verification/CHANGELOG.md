@@ -1,5 +1,18 @@
 # @pnpm/lockfile.verification
 
+## 1.0.4
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lockfile.types@1.0.3
+  - @pnpm/lockfile.utils@1.0.3
+  - @pnpm/dependency-path@5.1.6
+  - @pnpm/get-context@12.0.5
+  - @pnpm/read-package-json@9.0.8
+  - @pnpm/resolver-base@13.0.4
+
 ## 1.0.3
 
 ### Patch Changes

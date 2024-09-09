@@ -1,5 +1,16 @@
 # @pnpm/store.cafs
 
+## 4.0.0
+
+### Major Changes
+
+- db420ab: `getFilePathInCafs` renamed to `getIndexFilePathInCafs`.
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.7
+- @pnpm/store-controller-types@18.1.6
+
 ## 3.0.8
 
 ### Patch Changes

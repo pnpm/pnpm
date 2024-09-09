@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-outdated
 
+## 12.0.10
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/cli-utils@4.0.5
+  - @pnpm/config@21.8.3
+  - @pnpm/lockfile.fs@1.0.3
+  - @pnpm/modules-yaml@13.1.7
+  - @pnpm/outdated@15.1.4
+  - @pnpm/default-resolver@20.0.7
+
 ## 12.0.9
 
 ### Patch Changes

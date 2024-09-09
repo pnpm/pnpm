@@ -1,5 +1,12 @@
 # @pnpm/cli-meta
 
+## 6.2.2
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+
 ## 6.2.1
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/mount-modules
 
+## 0.6.16
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+- Updated dependencies [db420ab]
+  - @pnpm/types@12.2.0
+  - @pnpm/store.cafs@4.0.0
+  - @pnpm/config@21.8.3
+  - @pnpm/lockfile.fs@1.0.3
+  - @pnpm/lockfile.utils@1.0.3
+  - @pnpm/dependency-path@5.1.6
+
 ## 0.6.15
 
 ### Patch Changes

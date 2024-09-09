@@ -1,5 +1,18 @@
 # @pnpm/client
 
+## 11.1.9
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/directory-fetcher@8.0.8
+  - @pnpm/git-fetcher@13.0.13
+  - @pnpm/tarball-fetcher@19.0.13
+  - @pnpm/fetch@8.0.7
+  - @pnpm/resolver-base@13.0.4
+  - @pnpm/default-resolver@20.0.7
+
 ## 11.1.8
 
 ### Patch Changes
