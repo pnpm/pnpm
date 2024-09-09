@@ -1,11 +1,12 @@
 import path from 'path'
+import getRegistryName from 'encode-registry'
 import fastGlob from 'fast-glob'
 
-export async function cacheListCmd (opts: { cacheDir: string }, filter: string[]): Promise<string> {
-  const patterns = filter.length ? filter.map((filter) => `**/${filter}.json`) : ['**']
-  console.log(patterns)
+export async function cacheListCmd (opts: { cacheDir: string, registry?: string }, filter: string[]): Promise<string> {
+  const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
+  const patterns = filter.length ? filter.map((filter) => `${prefix}/${filter}.json`) : [`${prefix}/**`]
   const metaFiles = await fastGlob(patterns, {
-    cwd: path.join(opts.cacheDir, 'metadata-v1.1'),
+    cwd: path.join(opts.cacheDir, 'metadata'),
   })
   return metaFiles.join('\n')
 }

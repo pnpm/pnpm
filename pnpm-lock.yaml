@@ -1046,6 +1046,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      encode-registry:
+        specifier: 'catalog:'
+        version: 3.0.1
       fast-glob:
         specifier: 'catalog:'
         version: 3.3.2

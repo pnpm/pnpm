@@ -25,12 +25,15 @@ export function help (): string {
   })
 }
 
-export type CacheCommandOptions = Pick<Config, 'cacheDir'>
+export type CacheCommandOptions = Pick<Config, 'cacheDir' | 'cliOptions'>
 
 export async function handler (opts: CacheCommandOptions, params: string[]): Promise<string | undefined> {
   switch (params[0]) {
   case 'list':
-    return cacheListCmd(opts, params.slice(1))
+    return cacheListCmd({
+      ...opts,
+      registry: opts.cliOptions['registry'],
+    }, params.slice(1))
   default:
     return help()
   }
