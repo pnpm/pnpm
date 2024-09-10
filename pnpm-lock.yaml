@@ -1065,9 +1065,21 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      '@zkochan/rimraf':
+        specifier: 'catalog:'
+        version: 3.0.2
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.1.2
 
   catalogs/config:
     dependencies:
