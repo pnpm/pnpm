@@ -8,5 +8,5 @@ export async function cacheListCmd (opts: { cacheDir: string, registry?: string 
   const metaFiles = await fastGlob(patterns, {
     cwd: path.join(opts.cacheDir, 'metadata'),
   })
-  return metaFiles.join('\n')
+  return metaFiles.sort().join('\n')
 }
