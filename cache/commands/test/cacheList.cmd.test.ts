@@ -30,6 +30,7 @@ describe('cache', () => {
       pnpmBin,
       'add',
       'is-negative@2.1.0',
+      'is-positive@1.0.0',
       `--store-dir=${storeDir}`,
       `--cache-dir=${cacheDir}`,
       '--config.resolution-mode=highest',
@@ -42,6 +43,26 @@ describe('cache', () => {
     }, ['list'])
 
     expect(result).toEqual(`localhost+${REGISTRY_MOCK_PORT}/is-negative.json
-registry.npmjs.org/is-negative.json`)
+registry.npmjs.org/is-negative.json
+registry.npmjs.org/is-positive.json`)
+  })
+  test('list all metadata from the cache related to the specified registry', async () => {
+    const result = await cache.handler({
+      cacheDir,
+      cliOptions: {
+        registry: 'https://registry.npmjs.org/',
+      },
+    }, ['list'])
+
+    expect(result).toEqual(`registry.npmjs.org/is-negative.json
+registry.npmjs.org/is-positive.json`)
+  })
+  test('list all metadata from the cache that matches a pattern', async () => {
+    const result = await cache.handler({
+      cacheDir,
+      cliOptions: {},
+    }, ['list', '*-positive'])
+
+    expect(result).toEqual('registry.npmjs.org/is-positive.json')
   })
 })
