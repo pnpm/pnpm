@@ -113,7 +113,9 @@ export async function handler (
     preferFrozenLockfile: false,
     saveLockfile: false,
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
-    modulesDir: path.relative(opts.workspaceDir, path.join(deployDir, 'node_modules')),
+    // For some reason, the `rootDir` during filtered install is set to the member package (`deployedDir`) instead of the workspace root.
+    // Therefore, the `modulesDir` should be relative to `deployedDir` instead of `workspaceDir`.
+    modulesDir: path.relative(deployedDir, path.join(deployDir, 'node_modules')),
     rawLocalConfig: {
       ...opts.rawLocalConfig,
       // This is a workaround to prevent frozen install in CI envs.
