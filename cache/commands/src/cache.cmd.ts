@@ -3,6 +3,7 @@ import { type Config, types as allTypes } from '@pnpm/config'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { cacheListCmd } from './cacheList.cmd'
+import { cacheDeleteCmd } from './cacheDelete.cmd'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -31,6 +32,11 @@ export async function handler (opts: CacheCommandOptions, params: string[]): Pro
   switch (params[0]) {
   case 'list':
     return cacheListCmd({
+      ...opts,
+      registry: opts.cliOptions['registry'],
+    }, params.slice(1))
+  case 'delete':
+    return cacheDeleteCmd({
       ...opts,
       registry: opts.cliOptions['registry'],
     }, params.slice(1))
