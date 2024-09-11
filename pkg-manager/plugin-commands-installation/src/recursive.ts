@@ -342,6 +342,7 @@ export async function recursive (
             ...installOpts,
             ...localConfig,
             ...getOptionsFromRootManifest(rootDir, manifest),
+            ...opts.allProjectsGraph[rootDir]?.package,
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
             hooks,
