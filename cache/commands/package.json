@@ -41,6 +41,7 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/constants": "workspace:*",
     "encode-registry": "catalog:",
     "fast-glob": "catalog:",
     "ramda": "catalog:",

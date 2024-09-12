@@ -34,6 +34,7 @@
     "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
+    "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",

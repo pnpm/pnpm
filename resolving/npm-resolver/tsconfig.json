@@ -22,6 +22,9 @@
       "path": "../../network/fetching-types"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {

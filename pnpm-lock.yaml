@@ -1046,6 +1046,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       encode-registry:
         specifier: 'catalog:'
         version: 3.0.1
@@ -6176,6 +6179,9 @@ importers:
 
   resolving/npm-resolver:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
