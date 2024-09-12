@@ -1,12 +1,10 @@
 import fs from 'fs'
-import path from 'path'
 import getRegistryName from 'encode-registry'
 import fastGlob from 'fast-glob'
 
 export async function cacheListCmd (opts: { cacheDir: string, registry?: string, registries?: boolean }, filter: string[]): Promise<string> {
   if (opts.registries) {
-    const baseDir = path.join(opts.cacheDir, 'metadata')
-    return fs.readdirSync(baseDir).sort().join('\n')
+    return fs.readdirSync(opts.cacheDir).sort().join('\n')
   }
   const metaFiles = await findMetadataFiles(opts, filter)
   return metaFiles.sort().join('\n')
@@ -16,7 +14,7 @@ export async function findMetadataFiles (opts: { cacheDir: string, registry?: st
   const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
   const patterns = filter.length ? filter.map((filter) => `${prefix}/${filter}.json`) : [`${prefix}/**`]
   const metaFiles = await fastGlob(patterns, {
-    cwd: path.join(opts.cacheDir, 'metadata'),
+    cwd: opts.cacheDir,
   })
   return metaFiles
 }

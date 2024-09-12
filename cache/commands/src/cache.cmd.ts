@@ -1,3 +1,4 @@
+import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
 import pick from 'ramda/src/pick'
@@ -33,15 +34,18 @@ export type CacheCommandOptions = {
 } & Pick<Config, 'cacheDir' | 'cliOptions'>
 
 export async function handler (opts: CacheCommandOptions, params: string[]): Promise<string | undefined> {
+  const cacheDir = path.join(opts.cacheDir, 'metadata')
   switch (params[0]) {
   case 'list':
     return cacheListCmd({
       ...opts,
+      cacheDir,
       registry: opts.cliOptions['registry'],
     }, params.slice(1))
   case 'delete':
     return cacheDeleteCmd({
       ...opts,
+      cacheDir,
       registry: opts.cliOptions['registry'],
     }, params.slice(1))
   default:
