@@ -55,7 +55,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   cafsChildrenDirs.forEach(({ name: dirName }) => {
     const dirIndexFiles = fs
       .readdirSync(`${cafsDir}/${dirName}`)
-      .filter((fileName) => fileName.includes('-index.json'))
+      .filter((fileName) => fileName.includes('.json'))
       ?.map((fileName) => `${cafsDir}/${dirName}/${fileName}`)
 
     indexFiles.push(...dirIndexFiles)
