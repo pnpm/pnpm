@@ -2,10 +2,11 @@ import fs from 'fs'
 import getRegistryName from 'encode-registry'
 import fastGlob from 'fast-glob'
 
+export async function cacheListRegistriesCmd (opts: { cacheDir: string, registry?: string, registries?: boolean }): Promise<string> {
+  return fs.readdirSync(opts.cacheDir).sort().join('\n')
+}
+
 export async function cacheListCmd (opts: { cacheDir: string, registry?: string, registries?: boolean }, filter: string[]): Promise<string> {
-  if (opts.registries) {
-    return fs.readdirSync(opts.cacheDir).sort().join('\n')
-  }
   const metaFiles = await findMetadataFiles(opts, filter)
   return metaFiles.sort().join('\n')
 }

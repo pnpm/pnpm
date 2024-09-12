@@ -69,8 +69,7 @@ registry.npmjs.org/is-positive.json`)
     const result = await cache.handler({
       cacheDir,
       cliOptions: {},
-      registries: true,
-    }, ['list'])
+    }, ['list-registries'])
 
     expect(result).toEqual(`localhost+${REGISTRY_MOCK_PORT}
 registry.npmjs.org`)
