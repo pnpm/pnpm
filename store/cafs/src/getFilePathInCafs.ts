@@ -20,7 +20,7 @@ export function getIndexFilePathInCafs (
   pkgId: string
 ): string {
   const hex = ssri.parse(integrity, { single: true }).hexDigest().substring(0, 12)
-  return path.join(cafsDir, `${path.join(hex.slice(0, 2), hex.slice(2))}-${pkgId.replaceAll('/', '+')}.json`)
+  return path.join(cafsDir, `${path.join(hex.slice(0, 2), hex.slice(2))}-${pkgId.replace(/[\\/:*?"<>|]/g, '+')}.json`)
 }
 
 function contentPathFromIntegrity (
