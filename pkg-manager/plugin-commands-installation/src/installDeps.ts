@@ -28,6 +28,7 @@ import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
 import { recursive, createMatcher, matchDependencies, makeIgnorePatterns, type UpdateDepsMatcher } from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
+import { setAttribute } from '@napi-rs/xattr'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -116,6 +117,7 @@ export type InstallDepsOptions = Pick<Config,
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
   prepareExecutionEnv: PrepareExecutionEnv
+  macosNoBackup?: boolean
 } & Partial<Pick<Config, 'pnpmHomeDir'>>
 
 export async function installDeps (
@@ -297,6 +299,17 @@ when running add/update with the --workspace option')
     if (opts.save !== false) {
       await writeProjectManifest(updatedImporter.manifest)
     }
+    debugger
+
+    // Exclude node_modules from Time Machine backup
+    if (opts.macosNoBackup === true && process.platform === 'darwin') { // is MacOS
+      await setAttribute(
+        path.join(opts.dir, 'node_modules'),
+        'com.apple.metadata:com_apple_backup_excludeItem',
+        Buffer.from('1')
+      )
+    }
+
     return
   }
 

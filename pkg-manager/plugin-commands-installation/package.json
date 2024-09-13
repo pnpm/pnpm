@@ -58,6 +58,7 @@
     "write-yaml-file": "catalog:"
   },
   "dependencies": {
+    "@napi-rs/xattr": "catalog:",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/colorize-semver-diff": "catalog:",
     "@pnpm/command": "workspace:*",

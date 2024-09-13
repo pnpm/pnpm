@@ -105,6 +105,7 @@ export const types = Object.assign({
   'virtual-store-dir': String,
   'virtual-store-dir-max-length': Number,
   'peers-suffix-max-length': Number,
+  'macos-no-backup': Boolean,
   'workspace-concurrency': Number,
   'workspace-packages': [String, Array],
   'workspace-root': Boolean,

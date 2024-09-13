@@ -68,7 +68,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'use-running-store-server',
     'use-store-server',
     'verify-store-integrity',
-    'virtual-store-dir',
+    'virtual-store-dir'
   ], allTypes)
 }
 
