@@ -10,10 +10,11 @@ const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 describe('cache delete', () => {
   let cacheDir: string
+  let storeDir: string
   beforeEach(async () => {
     prepare()
     cacheDir = path.resolve('cache')
-    const storeDir = path.resolve('store')
+    storeDir = path.resolve('store')
 
     await execa('node', [
       pnpmBin,
@@ -40,10 +41,12 @@ describe('cache delete', () => {
     await cache.handler({
       cacheDir,
       cliOptions: {},
+      pnpmHomeDir: storeDir,
     }, ['delete', '*-positive'])
     const result = await cache.handler({
       cacheDir,
       cliOptions: {},
+      pnpmHomeDir: storeDir,
     }, ['list'])
 
     expect(result).toEqual(`localhost+${REGISTRY_MOCK_PORT}/is-negative.json

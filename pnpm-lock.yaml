@@ -1049,6 +1049,15 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../../store/store-path
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       encode-registry:
         specifier: 'catalog:'
         version: 3.0.1

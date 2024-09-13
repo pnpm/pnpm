@@ -23,6 +23,15 @@
     },
     {
       "path": "../../packages/logger"
+    },
+    {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/store-path"
     }
   ]
 }

@@ -10,10 +10,11 @@ const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 describe('cache', () => {
   let cacheDir: string
+  let storeDir: string
   beforeAll(async () => {
     prepare()
     cacheDir = path.resolve('cache')
-    const storeDir = path.resolve('store')
+    storeDir = path.resolve('store')
 
     await execa('node', [
       pnpmBin,
@@ -40,6 +41,7 @@ describe('cache', () => {
     const result = await cache.handler({
       cacheDir,
       cliOptions: {},
+      pnpmHomeDir: storeDir,
     }, ['list'])
 
     expect(result).toEqual(`localhost+${REGISTRY_MOCK_PORT}/is-negative.json
@@ -52,6 +54,7 @@ registry.npmjs.org/is-positive.json`)
       cliOptions: {
         registry: 'https://registry.npmjs.org/',
       },
+      pnpmHomeDir: storeDir,
     }, ['list'])
 
     expect(result).toEqual(`registry.npmjs.org/is-negative.json
@@ -61,6 +64,7 @@ registry.npmjs.org/is-positive.json`)
     const result = await cache.handler({
       cacheDir,
       cliOptions: {},
+      pnpmHomeDir: storeDir,
     }, ['list', '*-positive'])
 
     expect(result).toEqual('registry.npmjs.org/is-positive.json')
@@ -69,6 +73,7 @@ registry.npmjs.org/is-positive.json`)
     const result = await cache.handler({
       cacheDir,
       cliOptions: {},
+      pnpmHomeDir: storeDir,
     }, ['list-registries'])
 
     expect(result).toEqual(`localhost+${REGISTRY_MOCK_PORT}
