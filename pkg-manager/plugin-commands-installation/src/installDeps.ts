@@ -299,7 +299,6 @@ when running add/update with the --workspace option')
     if (opts.save !== false) {
       await writeProjectManifest(updatedImporter.manifest)
     }
-    debugger
 
     // Exclude node_modules from Time Machine backup
     if (opts.macosNoBackup === true && process.platform === 'darwin') { // is MacOS
