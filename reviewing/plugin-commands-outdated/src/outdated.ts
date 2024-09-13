@@ -40,6 +40,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     ], allTypes),
     compatible: Boolean,
     format: ['table', 'list', 'json'],
+    sortField: 'name',
   }
 }
 
@@ -125,6 +126,7 @@ export type OutdatedCommandOptions = {
   long?: boolean
   recursive?: boolean
   format?: 'table' | 'list' | 'json'
+  sortField?: 'name'
 } & Pick<Config,
 | 'allProjects'
 | 'ca'
@@ -216,7 +218,7 @@ export async function handler (
   }
 }
 
-function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }): string {
+function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortField?: 'name' }): string {
   if (outdatedPackages.length === 0) return ''
   const columnNames = [
     'Package',
@@ -241,7 +243,7 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
 
   const data = [
     columnNames,
-    ...sortOutdatedPackages(outdatedPackages)
+    ...sortOutdatedPackages(outdatedPackages, { sortField: opts.sortField })
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
   ]
   let detailsColumnMaxWidth = 40
@@ -265,9 +267,9 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
   })
 }
 
-function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }): string {
+function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortField?: 'name'}): string {
   if (outdatedPackages.length === 0) return ''
-  return sortOutdatedPackages(outdatedPackages)
+  return sortOutdatedPackages(outdatedPackages, { sortField: opts.sortField })
     .map((outdatedPkg) => {
       let info = `${chalk.bold(renderPackageName(outdatedPkg))}
 ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
@@ -294,8 +296,8 @@ export interface OutdatedPackageJSONOutput {
   latestManifest?: PackageManifest
 }
 
-function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }): string {
-  const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages)
+function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortField?: 'name' }): string {
+  const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages, { sortField: opts.sortField })
     .reduce((acc, outdatedPkg) => {
       acc[outdatedPkg.packageName] = {
         current: outdatedPkg.current,
@@ -312,9 +314,16 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
   return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 
-function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[]) {
+function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[], opts?: { sortField?: 'name'}) {
+  const sortKey = opts?.sortField
+  let comparators = []
+  if (sortKey === 'name') {
+    comparators = [DEFAULT_COMPARATORS[1]]
+  } else {
+    comparators = DEFAULT_COMPARATORS
+  }
   return sortWith(
-    DEFAULT_COMPARATORS,
+    comparators,
     outdatedPackages.map(toOutdatedWithVersionDiff)
   )
 }
