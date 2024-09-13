@@ -112,7 +112,6 @@ export async function handler (
     frozenLockfile: false,
     preferFrozenLockfile: false,
     saveLockfile: false,
-    lockfileDir: deployDir, // workaround a bug in which node-linker=hoisted still writes lockfile for some reason
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
     modulesDir: path.relative(opts.workspaceDir, path.join(deployDir, 'node_modules')),
     rawLocalConfig: {
