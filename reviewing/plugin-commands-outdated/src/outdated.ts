@@ -267,7 +267,7 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
   })
 }
 
-function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortField?: 'name'}): string {
+function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortField?: 'name' }): string {
   if (outdatedPackages.length === 0) return ''
   return sortOutdatedPackages(outdatedPackages, { sortField: opts.sortField })
     .map((outdatedPkg) => {
@@ -314,7 +314,7 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
   return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 
-function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[], opts?: { sortField?: 'name'}) {
+function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[], opts?: { sortField?: 'name' }) {
   const sortKey = opts?.sortField
   let comparators = []
   if (sortKey === 'name') {
