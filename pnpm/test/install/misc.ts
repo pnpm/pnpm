@@ -519,7 +519,7 @@ test('installation fails when the stored package name and version do not match t
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
   const cafsDir = path.join(storeDir, 'v3/files')
-  const cacheIntegrityPath = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'))
+  const cacheIntegrityPath = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
   const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   cacheIntegrity.name = 'foo'
   writeJsonFile.sync(cacheIntegrityPath, {

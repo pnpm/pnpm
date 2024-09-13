@@ -257,10 +257,12 @@ export async function readPackageIndexFile (
 
   let pkgIndexFilePath
   if (isPackageWithIntegrity) {
+    const parsedId = parse(id)
     // Retrieve all the index file of all files included in the package
     pkgIndexFilePath = getIndexFilePathInCafs(
       opts.cafsDir,
-      packageResolution.integrity as string
+      packageResolution.integrity as string,
+      `${parsedId.name}@${parsedId.version}`
     )
   } else if (!packageResolution.type && packageResolution.tarball) {
     const packageDirInStore = depPathToFilename(parse(id).nonSemverVersion ?? id, opts.virtualStoreDirMaxLength)
@@ -286,7 +288,7 @@ export async function readPackageIndexFile (
     if (err.code === 'ENOENT') {
       throw new PnpmError(
         'MISSING_PACKAGE_INDEX_FILE',
-        `Failed to find package index file for ${id}, please consider running 'pnpm install'`
+        `Failed to find package index file for ${id} (at ${pkgIndexFilePath}), please consider running 'pnpm install'`
       )
     }
 

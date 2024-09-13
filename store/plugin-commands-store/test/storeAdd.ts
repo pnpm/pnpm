@@ -28,7 +28,7 @@ test('pnpm store add express@4.16.3', async () => {
   }, ['add', 'express@4.16.3'])
 
   const { cafsHas } = assertStore(path.join(storeDir, STORE_VERSION))
-  cafsHas('sha512-CDaOBMB9knI6vx9SpIxEMOJ6VBbC2U/tYNILs0qv1YOZc15K9U2EcF06v10F0JX6IYcWnKYZJwIDJspEHLvUaQ==')
+  cafsHas('express', '4.16.3')
 })
 
 test('pnpm store add scoped package that uses not the standard registry', async () => {
