@@ -4,7 +4,7 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { preparePackages } from '@pnpm/prepare'
 import stripAnsi from 'strip-ansi'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, DEFAULT_OUTDATED_OPTS } from './utils'
 
 test('pnpm recursive outdated', async () => {
   preparePackages([
@@ -50,7 +50,7 @@ test('pnpm recursive outdated', async () => {
 
   {
     const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
+      ...DEFAULT_OUTDATED_OPTS,
       allProjects,
       dir: process.cwd(),
       recursive: true,
@@ -75,7 +75,7 @@ test('pnpm recursive outdated', async () => {
 
   {
     const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
+      ...DEFAULT_OUTDATED_OPTS,
       allProjects,
       dir: process.cwd(),
       production: false,
@@ -95,7 +95,7 @@ test('pnpm recursive outdated', async () => {
 
   {
     const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
+      ...DEFAULT_OUTDATED_OPTS,
       allProjects,
       dir: process.cwd(),
       long: true,
@@ -121,7 +121,7 @@ test('pnpm recursive outdated', async () => {
 
   {
     const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
+      ...DEFAULT_OUTDATED_OPTS,
       allProjects,
       dir: process.cwd(),
       format: 'list',
@@ -151,7 +151,7 @@ Dependent: project-2
 
   {
     const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
+      ...DEFAULT_OUTDATED_OPTS,
       allProjects,
       dir: process.cwd(),
       recursive: true,
@@ -192,7 +192,7 @@ Dependent: project-2
 
   {
     const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
+      ...DEFAULT_OUTDATED_OPTS,
       allProjects,
       dir: process.cwd(),
       format: 'list',
@@ -227,7 +227,7 @@ https://github.com/kevva/is-positive#readme
 
   {
     const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
+      ...DEFAULT_OUTDATED_OPTS,
       allProjects,
       dir: process.cwd(),
       recursive: true,
@@ -265,7 +265,7 @@ test('pnpm recursive outdated: format json when there are no outdated dependenci
 
   const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   const { output, exitCode } = await outdated.handler({
-    ...DEFAULT_OPTS,
+    ...DEFAULT_OUTDATED_OPTS,
     allProjects,
     dir: process.cwd(),
     format: 'json',
@@ -320,7 +320,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async () => {
 
   {
     const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
+      ...DEFAULT_OUTDATED_OPTS,
       allProjects,
       dir: process.cwd(),
       recursive: true,
@@ -343,7 +343,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async () => {
 
   {
     const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
+      ...DEFAULT_OUTDATED_OPTS,
       allProjects,
       dir: process.cwd(),
       production: false,
@@ -363,7 +363,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async () => {
 
   {
     const { output, exitCode } = await outdated.handler({
-      ...DEFAULT_OPTS,
+      ...DEFAULT_OUTDATED_OPTS,
       allProjects,
       dir: process.cwd(),
       recursive: true,
