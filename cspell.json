@@ -131,6 +131,7 @@
     "mycompany",
     "myorg",
     "mypackage",
+    "napi",
     "ndjson",
     "nerfed",
     "nodetouch",
@@ -266,11 +267,10 @@
     "webcontainer",
     "winst",
     "wrappy",
+    "xattr",
     "xmarw",
     "zkochan",
     "zoli",
-    "zoltan",
-    "napi",
-    "xattr"
+    "zoltan"
   ]
 }
