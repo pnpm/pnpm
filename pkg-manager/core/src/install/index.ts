@@ -1403,7 +1403,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       )
     }
   } else {
-    if (opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
+    if (opts.useLockfile && opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
       await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
     }
 
