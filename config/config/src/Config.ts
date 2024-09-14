@@ -207,7 +207,7 @@ export interface Config {
   strictStorePkgContentCheck: boolean
   managePackageManagerVersions: boolean
 
-  macosBackupVirtualStoreDir?: boolean
+  macosBackupStoreDir?: boolean
   macosBackupModulesDir?: boolean
 }
 

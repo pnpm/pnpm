@@ -117,7 +117,7 @@ export type InstallDepsOptions = Pick<Config,
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
   prepareExecutionEnv: PrepareExecutionEnv
-} & Partial<Pick<Config, 'pnpmHomeDir' | 'modulesDir' | 'storeDir' | 'virtualStoreDir' | 'macosBackupModulesDir' | 'macosBackupVirtualStoreDir'>>
+} & Partial<Pick<Config, 'pnpmHomeDir' | 'modulesDir' | 'storeDir' | 'virtualStoreDir' | 'macosBackupModulesDir' | 'macosBackupStoreDir'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
@@ -368,7 +368,7 @@ when running add/update with the --workspace option')
         }
       }
     }
-    if (opts.macosBackupVirtualStoreDir === false &&
+    if (opts.macosBackupStoreDir === false &&
       await getAttribute(opts.storeDir!, 'com.apple.metadata:com_apple_backup_excludeItem') === null) {
       await setAttribute(
         opts.storeDir!,
