@@ -4828,9 +4828,6 @@ importers:
 
   pkg-manager/plugin-commands-installation:
     dependencies:
-      '@napi-rs/xattr':
-        specifier: 'catalog:'
-        version: 1.0.1
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
@@ -4975,6 +4972,10 @@ importers:
       which:
         specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'
+    optionalDependencies:
+      '@napi-rs/xattr':
+        specifier: 'catalog:'
+        version: 1.0.1
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -15315,6 +15316,7 @@ snapshots:
       '@napi-rs/xattr-linux-arm64-musl': 1.0.1
       '@napi-rs/xattr-linux-x64-gnu': 1.0.1
       '@napi-rs/xattr-linux-x64-musl': 1.0.1
+    optional: true
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

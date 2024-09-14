@@ -28,7 +28,7 @@ import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
 import { recursive, createMatcher, matchDependencies, makeIgnorePatterns, type UpdateDepsMatcher } from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import { setAttribute } from '@napi-rs/xattr'
+import { setAttribute, getAttribute } from '@napi-rs/xattr'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -117,8 +117,7 @@ export type InstallDepsOptions = Pick<Config,
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
   prepareExecutionEnv: PrepareExecutionEnv
-  macosNoBackup?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir'>>
+} & Partial<Pick<Config, 'pnpmHomeDir' | 'modulesDir' | 'storeDir' | 'virtualStoreDir' | 'macosBackupModulesDir' | 'macosBackupVirtualStoreDir'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
@@ -300,15 +299,6 @@ when running add/update with the --workspace option')
       await writeProjectManifest(updatedImporter.manifest)
     }
 
-    // Exclude node_modules from Time Machine backup
-    if (opts.macosNoBackup === true && process.platform === 'darwin') { // is MacOS
-      await setAttribute(
-        path.join(opts.dir, 'node_modules'),
-        'com.apple.metadata:com_apple_backup_excludeItem',
-        Buffer.from('1')
-      )
-    }
-
     return
   }
 
@@ -352,6 +342,40 @@ when running add/update with the --workspace option')
         skipIfHasSideEffectsCache: true,
       }
     )
+  }
+
+  // Exclude node_modules from MacOS Time Machine backup
+  if (process.platform === 'darwin') { // is MacOS
+    if (opts.macosBackupModulesDir === false) {
+      const modulesDir = opts.modulesDir ?? 'node_modules'
+      const modulesDirPath = path.join(opts.dir, modulesDir)
+      if (await getAttribute(modulesDirPath, 'com.apple.metadata:com_apple_backup_excludeItem') === null) {
+        await setAttribute(
+          modulesDirPath,
+          'com.apple.metadata:com_apple_backup_excludeItem',
+          Buffer.from('1')
+        )
+      }
+      const virtualStoreDir = opts.virtualStoreDir ?? '.pnpm'
+      if (!virtualStoreDir.startsWith(modulesDir)) {
+        const virtualStoreDirPath = path.join(opts.workspaceDir ?? opts.dir, virtualStoreDir)
+        if (await getAttribute(virtualStoreDirPath, 'com.apple.metadata:com_apple_backup_excludeItem') === null) {
+          await setAttribute(
+            virtualStoreDirPath,
+            'com.apple.metadata:com_apple_backup_excludeItem',
+            Buffer.from('1')
+          )
+        }
+      }
+    }
+    if (opts.macosBackupVirtualStoreDir === false &&
+      await getAttribute(opts.storeDir!, 'com.apple.metadata:com_apple_backup_excludeItem') === null) {
+      await setAttribute(
+        opts.storeDir!,
+        'com.apple.metadata:com_apple_backup_excludeItem',
+        Buffer.from('1')
+      )
+    }
   }
 }
 

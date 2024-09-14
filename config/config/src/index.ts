@@ -187,8 +187,8 @@ export async function getConfig (opts: {
     'registry-supports-time-field': false,
     'virtual-store-dir-max-length': 120,
     'peers-suffix-max-length': 1000,
-    // @ts-expect-error
-    'macos-no-backup': false,
+    'macos-backup-virtual-store-dir': true,
+    'macos-backup-modules-dir': true,
   }
 
   const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)
