@@ -58,7 +58,6 @@
     "write-yaml-file": "catalog:"
   },
   "dependencies": {
-    "@napi-rs/xattr": "catalog:",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/colorize-semver-diff": "catalog:",
     "@pnpm/command": "workspace:*",
@@ -110,6 +109,9 @@
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.1.0"
+  },
+  "optionalDependencies": {
+    "@napi-rs/xattr": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
