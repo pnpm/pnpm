@@ -72,6 +72,8 @@ export async function readProjectsContext<T> (
     rootModulesDir,
     skipped: new Set((modules?.skipped ?? []) as DepPath[]),
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength,
+    // @ts-expect-error
+    macosExtendedAttributesSet: modules?.macosExtendedAttributesSet ?? false,
   }
 }
 

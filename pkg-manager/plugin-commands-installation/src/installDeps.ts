@@ -345,6 +345,7 @@ when running add/update with the --workspace option')
   }
 
   // Exclude node_modules from MacOS Time Machine backup
+  /*
   if (process.platform === 'darwin') { // is MacOS
     if (opts.macosBackupModulesDir === false) {
       const modulesDir = opts.modulesDir ?? 'node_modules'
@@ -377,6 +378,7 @@ when running add/update with the --workspace option')
       )
     }
   }
+  */
 }
 
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
