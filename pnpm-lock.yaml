@@ -1554,6 +1554,12 @@ importers:
         specifier: 'catalog:'
         version: 1.3.31
 
+  crypto/hash:
+    devDependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: 'link:'
+
   crypto/object-hasher:
     dependencies:
       object-hash:
@@ -3468,9 +3474,9 @@ importers:
 
   packages/dependency-path:
     dependencies:
-      '@pnpm/crypto.base32-hash':
+      '@pnpm/crypto.hash':
         specifier: workspace:*
-        version: link:../crypto.base32-hash
+        version: link:../../crypto/hash
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types

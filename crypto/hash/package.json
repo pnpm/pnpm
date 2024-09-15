@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/dependency-path",
-  "version": "5.1.6",
-  "description": "Utilities for working with symlinked node_modules",
+  "name": "@pnpm/crypto.hash",
+  "version": "0.0.0",
+  "description": "Generate hashes",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
@@ -15,12 +15,11 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/dependency-path",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/crypto/hash",
   "keywords": [
     "pnpm9",
-    "node_modules",
-    "pnpm",
-    "path"
+    "hash",
+    "crypto"
   ],
   "engines": {
     "node": ">=18.12"
@@ -29,15 +28,9 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/dependency-path#readme",
-  "dependencies": {
-    "@pnpm/crypto.hash": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "semver": "catalog:"
-  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/hash#readme",
   "devDependencies": {
-    "@pnpm/dependency-path": "workspace:*",
-    "@types/semver": "catalog:"
+    "@pnpm/crypto.hash": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
