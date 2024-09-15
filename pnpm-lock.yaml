@@ -2667,9 +2667,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/crypto.base32-hash':
+      '@pnpm/crypto.hash':
         specifier: workspace:*
-        version: link:../../packages/crypto.base32-hash
+        version: link:../../crypto/hash
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -5494,6 +5494,9 @@ importers:
       '@pnpm/crypto.base32-hash':
         specifier: workspace:*
         version: link:../packages/crypto.base32-hash
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../crypto/hash
       '@pnpm/default-reporter':
         specifier: workspace:*
         version: link:../cli/default-reporter
