@@ -1333,6 +1333,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       const projectToInstall = projects[index]
       if (opts.global && projectToInstall.mutation.includes('install')) {
         projectToInstall.wantedDependencies.forEach(pkg => {
+          // This warning is never printed currently during "pnpm link --global"
+          // due to the following issue: https://github.com/pnpm/pnpm/issues/4761
           if (pkg.alias && !linkedPackages?.includes(pkg.alias)) {
             logger.warn({ message: `${pkg.alias} has no binaries`, prefix: opts.lockfileDir })
           }
