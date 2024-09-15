@@ -55,6 +55,9 @@
       "path": "../config/plugin-commands-config"
     },
     {
+      "path": "../crypto/hash"
+    },
+    {
       "path": "../env/path"
     },
     {
