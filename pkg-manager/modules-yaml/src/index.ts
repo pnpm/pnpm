@@ -4,7 +4,7 @@ import readYamlFile from 'read-yaml-file'
 import mapValues from 'ramda/src/map'
 import isWindows from 'is-windows'
 import writeYamlFile from 'write-yaml-file'
-import { exec } from 'child_process';
+import { exec } from 'child_process'
 
 // The dot prefix is needed because otherwise `npm shrinkwrap`
 // thinks that it is an extraneous package.
@@ -118,20 +118,22 @@ export async function writeModulesManifest (
   }
 
   // @ts-expect-error: `storeDir` is not used in the modules file
-  if (saveModules.macosExtendedAttributesSet=== false) {
+  if (saveModules.macosExtendedAttributesSet === false) {
+    // cSpell:disable
     exec(`tmutil addexclusion ${modulesDir}`, (error, stdout, stderr) => {
       if (error) {
-        console.error(`Error executing tmutil addexclusion: ${error.message}`);
-        return;
+        console.error(`Error executing tmutil addexclusion: ${error.message}`)
+        return
       }
       if (stderr) {
-        console.error(`tmutil addexclusion stderr: ${stderr}`);
-        return;
+        console.error(`tmutil addexclusion stderr: ${stderr}`)
+        return
       }
-      console.log(`tmutil addexclusion stdout: ${stdout}`);
+      console.log(`tmutil addexclusion stdout: ${stdout}`)
       // @ts-expect-error
-      saveModules.macosExtendedAttributesSet = true;
-    });
+      saveModules.macosExtendedAttributesSet = true
+    })
+    // cSpell:enable
   }
   // We should store the absolute virtual store directory path on Windows
   // because junctions are used on Windows. Junctions will break even if

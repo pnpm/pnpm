@@ -28,7 +28,7 @@ import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
 import { recursive, createMatcher, matchDependencies, makeIgnorePatterns, type UpdateDepsMatcher } from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import { setAttribute, getAttribute } from '@napi-rs/xattr'
+// import { setAttribute, getAttribute } from '@napi-rs/xattr'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
