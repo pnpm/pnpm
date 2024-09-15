@@ -33,7 +33,6 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
-    "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/default-reporter": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/env.path": "workspace:*",
