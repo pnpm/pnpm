@@ -86,7 +86,7 @@ function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames:
   const allDirs = new Set<string>()
   for (const f in filenames) {
     const dir = path.dirname(f)
-    if (dir === '.') return
+    if (dir === '.') continue
     allDirs.add(dir)
   }
   Array.from(allDirs)
