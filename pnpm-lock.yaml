@@ -2153,9 +2153,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/crypto.base32-hash':
+      '@pnpm/crypto.hash':
         specifier: workspace:*
-        version: link:../../packages/crypto.base32-hash
+        version: link:../../crypto/hash
       '@pnpm/env.path':
         specifier: workspace:*
         version: link:../../env/path

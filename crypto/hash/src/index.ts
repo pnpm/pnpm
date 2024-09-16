@@ -2,9 +2,13 @@ import crypto from 'crypto'
 import fs from 'fs'
 
 export function createShortHash (input: string): string {
+  return createHexHash(input).substring(0, 32)
+}
+
+export function createHexHash (input: string): string {
   const hash = crypto.createHash('sha256')
   hash.update(input)
-  return hash.digest('hex').substring(0, 32)
+  return hash.digest('hex')
 }
 
 export function createHash (input: string): string {
