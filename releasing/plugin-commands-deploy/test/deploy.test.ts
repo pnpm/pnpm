@@ -42,10 +42,10 @@ test('deploy', async () => {
     },
   ])
 
-  ; ['project-1', 'project-2', 'project-3'].forEach(name => {
+  for (const name of ['project-1', 'project-2', 'project-3']) {
     fs.writeFileSync(`${name}/test.js`, '', 'utf8')
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
-  })
+  }
 
   const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 
@@ -112,10 +112,10 @@ test('deploy in workspace with shared-workspace-lockfile=false', async () => {
     },
   ])
 
-  ; ['project-1', 'project-2', 'project-3'].forEach(name => {
+  for (const name of ['project-1', 'project-2', 'project-3']) {
     fs.writeFileSync(`${name}/test.js`, '', 'utf8')
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
-  })
+  }
 
   const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
 

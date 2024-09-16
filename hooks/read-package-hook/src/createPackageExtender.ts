@@ -13,14 +13,14 @@ export function createPackageExtender (
   packageExtensions: Record<string, PackageExtension>
 ): ReadPackageHook {
   const extensionsByPkgName: ExtensionsByPkgName = new Map()
-  Object.entries(packageExtensions)
-    .forEach(([selector, packageExtension]) => {
-      const { alias, pref } = parseWantedDependency(selector)
-      if (!extensionsByPkgName.has(alias!)) {
-        extensionsByPkgName.set(alias!, [])
-      }
-      extensionsByPkgName.get(alias!)!.push({ packageExtension, range: pref })
-    })
+  for (const selector in packageExtensions) {
+    const packageExtension = packageExtensions[selector]
+    const { alias, pref } = parseWantedDependency(selector)
+    if (!extensionsByPkgName.has(alias!)) {
+      extensionsByPkgName.set(alias!, [])
+    }
+    extensionsByPkgName.get(alias!)!.push({ packageExtension, range: pref })
+  }
   return extendPkgHook.bind(null, extensionsByPkgName) as ReadPackageHook
 }
 

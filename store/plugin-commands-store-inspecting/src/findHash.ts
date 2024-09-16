@@ -52,16 +52,16 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   const cafsChildrenDirs = fs.readdirSync(cafsDir, { withFileTypes: true }).filter(file => file.isDirectory())
   const indexFiles: string[] = []; const result: FindHashResult[] = []
 
-  cafsChildrenDirs.forEach(({ name: dirName }) => {
+  for (const { name: dirName } of cafsChildrenDirs) {
     const dirIndexFiles = fs
       .readdirSync(`${cafsDir}/${dirName}`)
       .filter((fileName) => fileName.includes('-index.json'))
       ?.map((fileName) => `${cafsDir}/${dirName}/${fileName}`)
 
     indexFiles.push(...dirIndexFiles)
-  })
+  }
 
-  indexFiles.forEach(filesIndexFile => {
+  for (const filesIndexFile of indexFiles) {
     const pkgFilesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
 
     for (const [, file] of Object.entries(pkgFilesIndex.files)) {
@@ -69,7 +69,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
         result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(cafsDir, '') })
 
         // a package is only found once.
-        return
+        continue
       }
     }
 
@@ -80,12 +80,12 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
             result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(cafsDir, '') })
 
             // a package is only found once.
-            return
+            continue
           }
         }
       }
     }
-  })
+  }
 
   if (!result.length) {
     throw new PnpmError(
