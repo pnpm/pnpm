@@ -86,16 +86,6 @@ export async function buildDependenciesHierarchy (
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
   }
-  // ; (
-  // //   await Promise.all(projectPaths.map(async (projectPath) => {
-  //     return [
-  //       projectPath,
-  //       await dependenciesHierarchyForPackage(projectPath, currentLockfile, wantedLockfile, opts),
-  //     ] as [string, DependenciesHierarchy]
-  //   }))
-  // ).forEach(([projectPath, dependenciesHierarchy]) => {
-  //   result[projectPath] = dependenciesHierarchy
-  // })
   const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
     return [
       projectPath,
@@ -105,9 +95,6 @@ export async function buildDependenciesHierarchy (
   for (const [projectPath, dependenciesHierarchy] of pairs) {
     result[projectPath] = dependenciesHierarchy
   }
-  // await Promise.all(projectPaths.map(async (projectPath) => {
-  //   result[projectPath] = await dependenciesHierarchyForPackage(projectPath, currentLockfile, wantedLockfile, opts)
-  // }))
   return result
 }
 
