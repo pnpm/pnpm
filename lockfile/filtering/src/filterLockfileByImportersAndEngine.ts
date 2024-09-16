@@ -215,11 +215,14 @@ function toImporterDepPaths (
     }))
     .map(Object.entries)
 
-  const { depPaths, importerIds: nextImporterIds } = parseDepRefs(unnest(importerDeps), lockfile)
+  let { depPaths, importerIds: nextImporterIds } = parseDepRefs(unnest(importerDeps), lockfile)
 
   if (!nextImporterIds.length) {
     return depPaths
   }
+  
+  nextImporterIds = nextImporterIds.filter(x => !opts.importerIdSet.has(x))
+
   nextImporterIds.forEach((importerId) => {
     opts.importerIdSet.add(importerId)
   })
