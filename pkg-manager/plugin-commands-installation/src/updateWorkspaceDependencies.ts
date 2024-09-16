@@ -13,13 +13,9 @@ export function updateToWorkspacePackagesFromManifest (
     ...(include.dependencies ? manifest.dependencies : {}),
     ...(include.optionalDependencies ? manifest.optionalDependencies : {}),
   } as Record<string, string>
-  const updateSpecs = Object.keys(allDeps).reduce((acc: string[], depName) => {
-    if (workspacePackages.has(depName)) {
-      acc.push(`${depName}@workspace:*`)
-    }
-    return acc
-  }, [])
-  return updateSpecs
+  return Object.keys(allDeps)
+    .filter(depName => workspacePackages.has(depName))
+    .map(depName => `${depName}@workspace:*`)
 }
 
 export function createWorkspaceSpecs (specs: string[], workspacePackages: WorkspacePackages): string[] {

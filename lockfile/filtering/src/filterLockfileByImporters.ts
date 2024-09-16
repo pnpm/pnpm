@@ -35,10 +35,10 @@ export function filterLockfileByImporters (
     )
   }
 
-  const importers = importerIds.reduce((acc, importerId) => {
-    acc[importerId] = filterImporter(lockfile.importers[importerId], opts.include)
-    return acc
-  }, { ...lockfile.importers })
+  const importers = { ...lockfile.importers }
+  for (const importerId of importerIds) {
+    importers[importerId] = filterImporter(lockfile.importers[importerId], opts.include)
+  }
 
   return {
     ...lockfile,
