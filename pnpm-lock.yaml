@@ -1038,11 +1038,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  cache/commands:
+  cache/api:
     dependencies:
-      '@pnpm/cli-utils':
-        specifier: workspace:*
-        version: link:../../cli/cli-utils
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
@@ -1052,9 +1049,6 @@ importers:
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
-      '@pnpm/store-path':
-        specifier: workspace:*
-        version: link:../../store/store-path
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1064,6 +1058,46 @@ importers:
       fast-glob:
         specifier: 'catalog:'
         version: 3.3.2
+    devDependencies:
+      '@pnpm/cache.api':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 3.40.0(encoding@0.1.13)(typanion@3.14.0)
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      '@zkochan/rimraf':
+        specifier: 'catalog:'
+        version: 3.0.2
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.1.2
+
+  cache/commands:
+    dependencies:
+      '@pnpm/cache.api':
+        specifier: workspace:*
+        version: link:../api
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../../store/store-path
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'

@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/cache.commands",
+  "name": "@pnpm/cache.api",
   "version": "0.0.0",
-  "description": "Commands for controlling the cache",
+  "description": "API for controlling the cache",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
@@ -12,13 +12,13 @@
     "node": ">=18.12"
   },
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\"",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7770 jest",
-    "test": "pnpm run compile && pnpm run _test",
+    "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/cache/commands",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/cache/api",
   "keywords": [
     "pnpm9",
     "pnpm",
@@ -28,24 +28,23 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/cache/commands#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/cache/api#readme",
   "devDependencies": {
-    "@pnpm/cache.commands": "workspace:*",
+    "@pnpm/cache.api": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
-    "@zkochan/rimraf": "catalog:",
     "@types/ramda": "catalog:",
+    "@zkochan/rimraf": "catalog:",
     "execa": "catalog:"
   },
   "dependencies": {
-    "@pnpm/cache.api": "workspace:*",
-    "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/store-path": "workspace:*",
-    "ramda": "catalog:",
-    "render-help": "catalog:"
+    "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "encode-registry": "catalog:",
+    "fast-glob": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.1.0"

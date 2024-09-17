@@ -13,9 +13,6 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../cli/cli-utils"
-    },
-    {
       "path": "../../config/config"
     },
     {
@@ -25,10 +22,10 @@
       "path": "../../packages/logger"
     },
     {
-      "path": "../../store/store-path"
+      "path": "../../resolving/npm-resolver"
     },
     {
-      "path": "../api"
+      "path": "../../store/cafs"
     }
   ]
 }

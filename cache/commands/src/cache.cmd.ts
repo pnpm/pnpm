@@ -5,9 +5,12 @@ import { FULL_FILTERED_META_DIR, META_DIR } from '@pnpm/constants'
 import { getStorePath } from '@pnpm/store-path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { cacheListCmd, cacheListRegistriesCmd } from './cacheList.cmd'
-import { cacheDeleteCmd } from './cacheDelete.cmd'
-import { cacheViewCmd } from './cacheView.cmd'
+import {
+  cacheList,
+  cacheView,
+  cacheDelete,
+  cacheListRegistries,
+} from '@pnpm/cache.api'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -38,18 +41,18 @@ export async function handler (opts: CacheCommandOptions, params: string[]): Pro
   const cacheDir = path.join(opts.cacheDir, cacheType)
   switch (params[0]) {
   case 'list-registries':
-    return cacheListRegistriesCmd({
+    return cacheListRegistries({
       ...opts,
       cacheDir,
     })
   case 'list':
-    return cacheListCmd({
+    return cacheList({
       ...opts,
       cacheDir,
       registry: opts.cliOptions['registry'],
     }, params.slice(1))
   case 'delete':
-    return cacheDeleteCmd({
+    return cacheDelete({
       ...opts,
       cacheDir,
       registry: opts.cliOptions['registry'],
@@ -60,7 +63,7 @@ export async function handler (opts: CacheCommandOptions, params: string[]): Pro
       storePath: opts.storeDir,
       pnpmHomeDir: opts.pnpmHomeDir,
     })
-    return cacheViewCmd({
+    return cacheView({
       ...opts,
       cacheDir,
       storeDir,

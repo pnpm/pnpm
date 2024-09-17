@@ -12,7 +12,7 @@ interface CachedVersions {
   distTags: Record<string, string>
 }
 
-export async function cacheViewCmd (opts: { cacheDir: string, storeDir: string, registry?: string }, packageName: string): Promise<string> {
+export async function cacheView (opts: { cacheDir: string, storeDir: string, registry?: string }, packageName: string): Promise<string> {
   const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
   const metaFilePaths = (await fastGlob(`${prefix}/${packageName}.json`, {
     cwd: opts.cacheDir,
