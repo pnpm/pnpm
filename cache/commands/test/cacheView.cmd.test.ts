@@ -67,4 +67,27 @@ describe('cache view', () => {
       }),
     }))
   })
+  test('lists metadata for requested package from specified registry', async () => {
+    const result = await cache.handler({
+      cacheDir,
+      cliOptions: {
+        registry: 'https://registry.npmjs.org/',
+      },
+      pnpmHomeDir: process.cwd(),
+      storeDir,
+    }, ['view', 'is-negative'])
+
+    expect(JSON.parse(result!)).toEqual(expect.objectContaining({
+      'registry.npmjs.org': expect.objectContaining({
+        cachedVersions: ['2.1.0'],
+        nonCachedVersions: [
+          '1.0.0',
+          '1.0.1',
+          '2.0.0',
+          '2.0.1',
+          '2.0.2',
+        ],
+      }),
+    }))
+  })
 })

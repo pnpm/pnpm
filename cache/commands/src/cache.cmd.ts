@@ -64,6 +64,7 @@ export async function handler (opts: CacheCommandOptions, params: string[]): Pro
       ...opts,
       cacheDir,
       storeDir,
+      registry: opts.cliOptions['registry'],
     }, params[1])
   }
   default:
