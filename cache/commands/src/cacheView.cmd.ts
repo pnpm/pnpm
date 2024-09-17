@@ -30,7 +30,11 @@ export async function cacheViewCmd (opts: { cacheDir: string, storeDir: string }
         nonCachedVersions.push(version)
       }
     }
-    metaFilesByPath[filePath] = {
+    let registryName = filePath
+    while (path.dirname(registryName) !== '.') {
+      registryName = path.dirname(registryName)
+    }
+    metaFilesByPath[registryName.replaceAll('+', ':')] = {
       cachedVersions,
       nonCachedVersions,
       cachedAt: metaObject.cachedAt ? new Date(metaObject.cachedAt).toString() : undefined,

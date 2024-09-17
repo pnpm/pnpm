@@ -45,7 +45,7 @@ describe('cache view', () => {
     }, ['view', 'is-negative'])
 
     expect(JSON.parse(result!)).toEqual(expect.objectContaining({
-      [`localhost+${REGISTRY_MOCK_PORT}/is-negative.json`]: expect.objectContaining({
+      [`localhost:${REGISTRY_MOCK_PORT}`]: expect.objectContaining({
         cachedVersions: ['2.1.0'],
         nonCachedVersions: [
           '1.0.0',
@@ -55,7 +55,7 @@ describe('cache view', () => {
           '2.0.2',
         ],
       }),
-      'registry.npmjs.org/is-negative.json': expect.objectContaining({
+      'registry.npmjs.org': expect.objectContaining({
         cachedVersions: ['2.1.0'],
         nonCachedVersions: [
           '1.0.0',
