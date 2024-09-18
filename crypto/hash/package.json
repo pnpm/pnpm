@@ -30,7 +30,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/hash#readme",
   "devDependencies": {
-    "@pnpm/crypto.hash": "workspace:*"
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/prepare": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

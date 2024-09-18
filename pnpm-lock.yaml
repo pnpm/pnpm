@@ -528,9 +528,6 @@ catalogs:
     resolve-link-target:
       specifier: ^2.0.0
       version: 2.0.0
-    rfc4648:
-      specifier: ^1.5.3
-      version: 1.5.3
     rimraf:
       specifier: ^3.0.2
       version: 3.0.2
@@ -1559,6 +1556,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
 
   crypto/object-hasher:
     dependencies:
@@ -3459,19 +3459,6 @@ importers:
         specifier: workspace:*
         version: link:../logger
 
-  packages/crypto.base32-hash:
-    dependencies:
-      rfc4648:
-        specifier: 'catalog:'
-        version: 1.5.3
-    devDependencies:
-      '@pnpm/crypto.base32-hash':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
-
   packages/dependency-path:
     dependencies:
       '@pnpm/crypto.hash':
@@ -3957,9 +3944,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/crypto.base32-hash':
+      '@pnpm/crypto.hash':
         specifier: workspace:*
-        version: link:../../packages/crypto.base32-hash
+        version: link:../../crypto/hash
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -5491,9 +5478,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../packages/core-loggers
-      '@pnpm/crypto.base32-hash':
-        specifier: workspace:*
-        version: link:../packages/crypto.base32-hash
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../crypto/hash

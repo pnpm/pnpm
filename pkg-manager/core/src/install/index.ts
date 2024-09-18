@@ -14,7 +14,7 @@ import {
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
+import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
 import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
@@ -750,7 +750,7 @@ interface PatchHash {
 async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string): Promise<Record<string, PatchHash>> {
   return pMapValues(async (patchFilePath) => {
     return {
-      hash: await createBase32HashFromFile(patchFilePath),
+      hash: await createHexHashFromFile(patchFilePath),
       path: path.relative(lockfileDir, patchFilePath).replaceAll('\\', '/'),
     }
   }, patches)

@@ -18,6 +18,14 @@ export function createHash (input: string): string {
 }
 
 export async function createHashFromFile (file: string): Promise<string> {
+  return createHash(await readNormalizedFile(file))
+}
+
+export async function createHexHashFromFile (file: string): Promise<string> {
+  return createHexHash(await readNormalizedFile(file))
+}
+
+async function readNormalizedFile (file: string): Promise<string> {
   const content = await fs.promises.readFile(file, 'utf8')
-  return createHash(content.split('\r\n').join('\n'))
+  return content.split('\r\n').join('\n')
 }
