@@ -3,7 +3,7 @@ import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
-import { createHashFromFile } from '@pnpm/crypto.hash'
+import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as rimraf } from '@zkochan/rimraf'
@@ -33,7 +33,7 @@ test('patch package', async () => {
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
-  const patchFileHash = await createHashFromFile(patchPath)
+  const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
@@ -200,7 +200,7 @@ test('patch package when scripts are ignored', async () => {
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
-  const patchFileHash = await createHashFromFile(patchPath)
+  const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
@@ -287,7 +287,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
-  const patchFileHash = await createHashFromFile(patchPath)
+  const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
@@ -377,7 +377,7 @@ test('patch package when the patched package has no dependencies and appears mul
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
-  const patchFileHash = await createHashFromFile(patchPath)
+  const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
     'is-not-positive@1.0.0',
