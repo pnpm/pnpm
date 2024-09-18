@@ -73,8 +73,7 @@
     "path-exists": "catalog:",
     "ramda": "catalog:",
     "run-groups": "catalog:",
-    "semver": "catalog:",
-    "sort-keys": "catalog:"
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
