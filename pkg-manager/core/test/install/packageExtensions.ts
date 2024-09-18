@@ -1,11 +1,15 @@
 import { PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, mutateModulesInSingleProject, install } from '@pnpm/core'
-import { hashObject } from '@pnpm/crypto.object-hasher'
+import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
 import { type ProjectRootDir, type PackageExtension, type ProjectManifest } from '@pnpm/types'
 import {
   testDefaults,
 } from '../utils'
+
+function hashObject (obj: Record<string, unknown>): string {
+  return `sha256-${_hashObject(obj)}`
+}
 
 test('manifests are extended with fields specified by packageExtensions', async () => {
   const project = prepareEmpty()

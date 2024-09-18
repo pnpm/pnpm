@@ -327,7 +327,7 @@ export async function mutateModules (
         }
       )
     }
-    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : hashObject(opts.packageExtensions!)
+    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : `sha256-${hashObject(opts.packageExtensions!)}`
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
