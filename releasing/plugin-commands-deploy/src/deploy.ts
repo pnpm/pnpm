@@ -111,6 +111,9 @@ export async function handler (
     },
     frozenLockfile: false,
     preferFrozenLockfile: false,
+    // Deploy doesn't work currently with hoisted node_modules.
+    // TODO: make it work as we need to prefer packages from the lockfile during deployment.
+    useLockfile: opts.nodeLinker !== 'hoisted',
     saveLockfile: false,
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
     modulesDir: path.relative(opts.workspaceDir, path.join(deployDir, 'node_modules')),
