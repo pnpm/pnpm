@@ -6123,6 +6123,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
