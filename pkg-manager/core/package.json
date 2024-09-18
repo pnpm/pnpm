@@ -24,6 +24,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/error": "workspace:*",
@@ -72,15 +73,13 @@
     "path-exists": "catalog:",
     "ramda": "catalog:",
     "run-groups": "catalog:",
-    "semver": "catalog:",
-    "sort-keys": "catalog:"
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/core": "workspace:*",
-    "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",

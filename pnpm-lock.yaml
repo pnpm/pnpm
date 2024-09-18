@@ -3947,6 +3947,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -4097,9 +4100,6 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.6.2
-      sort-keys:
-        specifier: 'catalog:'
-        version: 4.2.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -4113,9 +4113,6 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/crypto.object-hasher':
-        specifier: workspace:*
-        version: link:../../crypto/object-hasher
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
@@ -6126,6 +6123,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error

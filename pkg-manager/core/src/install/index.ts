@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
@@ -15,6 +14,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
+import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
 import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
@@ -78,7 +78,6 @@ import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
-import sortKeys from 'sort-keys'
 import { parseWantedDependencies } from '../parseWantedDependencies'
 import { removeDeps } from '../uninstall/removeDeps'
 import {
@@ -328,7 +327,7 @@ export async function mutateModules (
         }
       )
     }
-    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
+    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : `sha256-${hashObject(opts.packageExtensions!)}`
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
@@ -816,11 +815,6 @@ function getOutdatedLockfileSetting (
     return 'pnpmfileChecksum'
   }
   return null
-}
-
-export function createObjectChecksum (obj: Record<string, unknown>): string {
-  const s = JSON.stringify(sortKeys(obj, { deep: true }))
-  return crypto.createHash('md5').update(s).digest('hex')
 }
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
