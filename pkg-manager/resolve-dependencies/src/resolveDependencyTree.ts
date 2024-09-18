@@ -231,7 +231,7 @@ export async function resolveDependencyTree<T> (
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
-  ctx.pendingNodes.forEach((pendingNode) => {
+  for (const pendingNode of ctx.pendingNodes) {
     ctx.dependenciesTree.set(pendingNode.nodeId, {
       children: () => buildTree(ctx, pendingNode.resolvedPackage.id,
         pendingNode.parentIds,
@@ -240,7 +240,7 @@ export async function resolveDependencyTree<T> (
       installable: pendingNode.installable,
       resolvedPackage: pendingNode.resolvedPackage,
     })
-  })
+  }
 
   const resolvedImporters: ResolvedImporters = {}
 

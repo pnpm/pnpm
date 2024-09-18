@@ -76,7 +76,7 @@ export async function prune (
     const depsToRemove = new Set(
       (removePackages ?? []).filter((removePackage) => allCurrentPackages.has(removePackage))
     )
-    currentPkgs.forEach(([depName, depVersion]) => {
+    for (const [depName, depVersion] of currentPkgs) {
       if (
         !wantedPkgs[depName] ||
         wantedPkgs[depName] !== depVersion ||
@@ -84,7 +84,7 @@ export async function prune (
       ) {
         depsToRemove.add(depName)
       }
-    })
+    }
     if (pruneDirectDependencies) {
       const publiclyHoistedDeps = getPubliclyHoistedDependencies(opts.hoistedDependencies)
       if (allCurrentPackages.size > 0) {

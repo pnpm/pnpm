@@ -86,16 +86,15 @@ export async function buildDependenciesHierarchy (
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
   }
-  ; (
-    await Promise.all(projectPaths.map(async (projectPath) => {
-      return [
-        projectPath,
-        await dependenciesHierarchyForPackage(projectPath, currentLockfile, wantedLockfile, opts),
-      ] as [string, DependenciesHierarchy]
-    }))
-  ).forEach(([projectPath, dependenciesHierarchy]) => {
+  const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
+    return [
+      projectPath,
+      await dependenciesHierarchyForPackage(projectPath, currentLockfile, wantedLockfile, opts),
+    ] as [string, DependenciesHierarchy]
+  }))
+  for (const [projectPath, dependenciesHierarchy] of pairs) {
     result[projectPath] = dependenciesHierarchy
-  })
+  }
   return result
 }
 
@@ -150,7 +149,8 @@ async function dependenciesHierarchyForPackage (
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
     result[dependenciesField] = []
-    Object.entries(topDeps).forEach(([alias, ref]) => {
+    for (const alias in topDeps) {
+      const ref = topDeps[alias]
       const packageInfo = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
@@ -173,9 +173,9 @@ async function dependenciesHierarchyForPackage (
         importers: currentLockfile.importers,
       })
       if (opts.onlyProjects && nodeId?.type !== 'importer') {
-        return
+        continue
       } else if (nodeId == null) {
-        if ((opts.search != null) && !matchedSearched) return
+        if ((opts.search != null) && !matchedSearched) continue
         newEntry = packageInfo
       } else {
         const dependencies = getChildrenTree(nodeId)
@@ -194,7 +194,7 @@ async function dependenciesHierarchyForPackage (
         }
         result[dependenciesField]!.push(newEntry)
       }
-    })
+    }
   }
 
   await Promise.all(

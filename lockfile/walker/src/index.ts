@@ -64,7 +64,7 @@ export function lockfileWalker (
   const entryNodes = [] as DepPath[]
   const directDeps = [] as Array<{ alias: string, depPath: DepPath }>
 
-  importerIds.forEach((importerId) => {
+  for (const importerId of importerIds) {
     const projectSnapshot = lockfile.importers[importerId]
     Object.entries({
       ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
@@ -77,7 +77,7 @@ export function lockfileWalker (
         entryNodes.push(depPath)
         directDeps.push({ alias: pkgName, depPath })
       })
-  })
+  }
   return {
     directDeps,
     step: step({

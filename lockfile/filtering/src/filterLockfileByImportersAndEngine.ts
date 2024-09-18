@@ -220,9 +220,9 @@ function toImporterDepPaths (
   if (!nextImporterIds.length) {
     return depPaths
   }
-  nextImporterIds.forEach((importerId) => {
+  for (const importerId of nextImporterIds) {
     opts.importerIdSet.add(importerId)
-  })
+  }
   return [
     ...depPaths,
     ...toImporterDepPaths(lockfile, nextImporterIds, opts),

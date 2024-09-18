@@ -21,17 +21,16 @@ export function extendProjectsWithTargetDirs<T> (
     : (depPath: DepPath, pkgName: string) => [path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.virtualStoreDirMaxLength), 'node_modules', pkgName)]
   const projectsById: Record<ProjectId, T & { id: ProjectId, targetDirs: string[], stages?: string[] }> =
     Object.fromEntries(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
-  Object.entries(lockfile.packages ?? {})
-    .forEach(([depPath, pkg]) => {
-      if ((pkg.resolution as TarballResolution)?.type !== 'directory') return
-      const pkgId = packageIdFromSnapshot(depPath as DepPath, pkg)
-      const { name: pkgName } = nameVerFromPkgSnapshot(depPath, pkg)
-      const importerId = pkgId.replace(/^file:/, '') as ProjectId
-      if (projectsById[importerId] == null) return
-      const localLocations = getLocalLocations(depPath as DepPath, pkgName)
-      if (!localLocations) return
-      projectsById[importerId].targetDirs.push(...localLocations)
-      projectsById[importerId].stages = ['preinstall', 'install', 'postinstall', 'prepare', 'prepublishOnly']
-    })
+  for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
+    if ((pkg.resolution as TarballResolution)?.type !== 'directory') continue
+    const pkgId = packageIdFromSnapshot(depPath as DepPath, pkg)
+    const { name: pkgName } = nameVerFromPkgSnapshot(depPath, pkg)
+    const importerId = pkgId.replace(/^file:/, '') as ProjectId
+    if (projectsById[importerId] == null) continue
+    const localLocations = getLocalLocations(depPath as DepPath, pkgName)
+    if (!localLocations) continue
+    projectsById[importerId].targetDirs.push(...localLocations)
+    projectsById[importerId].stages = ['preinstall', 'install', 'postinstall', 'prepare', 'prepublishOnly']
+  }
   return Object.values(projectsById) as Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }>
 }

@@ -1417,14 +1417,14 @@ async function resolveDependency (
   }
 
   if (pkg.peerDependencies != null) {
-    Object.keys(pkg.peerDependencies).forEach((name) => {
+    for (const name in pkg.peerDependencies) {
       ctx.allPeerDepNames.add(name)
-    })
+    }
   }
   if (pkg.peerDependenciesMeta != null) {
-    Object.keys(pkg.peerDependenciesMeta).forEach((name) => {
+    for (const name in pkg.peerDependenciesMeta) {
       ctx.allPeerDepNames.add(name)
-    })
+    }
   }
   // In case of leaf dependencies (dependencies that have no prod deps or peer deps),
   // we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless.

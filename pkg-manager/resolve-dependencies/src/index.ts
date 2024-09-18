@@ -167,7 +167,7 @@ export async function resolveDependencies (
         project.modulesDir
       )
       : []
-    resolvedImporter.linkedDependencies.forEach((linkedDependency) => {
+    for (const linkedDependency of resolvedImporter.linkedDependencies) {
       // The location of the external link may vary on different machines, so it is better not to include it in the lockfile.
       // As a workaround, we symlink to the root of node_modules, which is a symlink to the actual location of the external link.
       const target = !opts.excludeLinksFromLockfile || isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)
@@ -179,7 +179,7 @@ export async function resolveDependencies (
         version: linkedDependency.version,
         linkedDir,
       })
-    })
+    }
 
     return {
       binsDir: project.binsDir,
@@ -370,9 +370,9 @@ function addDirectDependenciesToLockfile (
     newProjectSnapshot.publishDirectory = newManifest.publishConfig.directory
   }
 
-  linkedPackages.forEach((linkedPkg) => {
+  for (const linkedPkg of linkedPackages) {
     newProjectSnapshot.specifiers[linkedPkg.alias] = getSpecFromPackageManifest(newManifest, linkedPkg.alias)
-  })
+  }
 
   const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
     acc[directDependency.alias] = directDependency
