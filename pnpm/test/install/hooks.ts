@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
@@ -646,7 +647,7 @@ test('preResolution hook', async () => {
   expect(ctx.existsNonEmptyWantedLockfile).toBe(false)
 
   expect(ctx.registries).toEqual({
-    default: 'http://localhost:7776/',
+    default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     '@foo': 'https://foo.com/',
   })
 })

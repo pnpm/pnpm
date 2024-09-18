@@ -24,6 +24,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/byline": "catalog:",
+    "@pnpm/cache.commands": "workspace:*",
     "@pnpm/cli-meta": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/client": "workspace:*",
@@ -164,7 +165,7 @@
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7776 jest",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7777 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && publish-packed --prune --npm-client=pnpm --dest=dist",
     "postpublish": "publish-packed",

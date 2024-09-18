@@ -1,4 +1,5 @@
 import path from 'path'
+import { FULL_META_DIR, FULL_FILTERED_META_DIR, META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   type FetchFromRegistry,
@@ -54,13 +55,6 @@ export {
   type RegistryPackageSpec,
   RegistryResponseError,
 }
-
-// This file contains meta information
-// about all the packages published by the same name, not just the manifest
-// of one package/version
-const META_DIR = 'metadata'
-const FULL_META_DIR = 'metadata-full'
-const FULL_FILTERED_META_DIR = 'metadata-v1.1'
 
 export interface ResolverFactoryOptions {
   cacheDir: string
