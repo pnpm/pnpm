@@ -219,6 +219,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/headless':
   case '@pnpm/outdated':
   case '@pnpm/package-requester':
+  case '@pnpm/cache.commands':
   case '@pnpm/plugin-commands-import':
   case '@pnpm/plugin-commands-installation':
   case '@pnpm/plugin-commands-listing':

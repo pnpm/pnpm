@@ -25,6 +25,9 @@
       "path": "../__utils__/test-ipc-server"
     },
     {
+      "path": "../cache/commands"
+    },
+    {
       "path": "../cli/cli-meta"
     },
     {

@@ -115,10 +115,11 @@ export async function writeRecursiveSummary (opts: { dir: string, summary: Recur
 }
 
 export function createEmptyRecursiveSummary (chunks: string[][]): RecursiveSummary {
-  return chunks.flat().reduce<RecursiveSummary>((acc, prefix) => {
+  const acc: RecursiveSummary = {}
+  for (const prefix of chunks.flat()) {
     acc[prefix] = { status: 'queued' }
-    return acc
-  }, {})
+  }
+  return acc
 }
 
 export function getExecutionDuration (start: [number, number]): number {

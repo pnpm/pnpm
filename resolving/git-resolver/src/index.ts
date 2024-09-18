@@ -83,11 +83,11 @@ async function getRepoRefs (repo: string, ref: string | null): Promise<Record<st
   }
   // graceful-git by default retries 10 times, reduce to single retry
   const result = await git(['ls-remote', ...gitArgs], { retries: 1 })
-  const refs: Record<string, string> = result.stdout.split('\n').reduce((obj: Record<string, string>, line: string) => {
+  const refs: Record<string, string> = {}
+  for (const line of result.stdout.split('\n')) {
     const [commit, refName] = line.split('\t')
-    obj[refName] = commit
-    return obj
-  }, {})
+    refs[refName] = commit
+  }
   return refs
 }
 

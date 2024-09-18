@@ -1273,13 +1273,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     await Promise.all(projects.map(async (project, index) => {
       let linkedPackages!: string[]
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
-        const nodeExecPathByAlias = Object.entries(project.manifest.dependenciesMeta ?? {})
-          .reduce((prev, [alias, { node }]) => {
-            if (node) {
-              prev[alias] = node
-            }
-            return prev
-          }, {} as Record<string, string>)
+        const nodeExecPathByAlias: Record<string, string> = {}
+        for (const alias in project.manifest.dependenciesMeta) {
+          const { node } = project.manifest.dependenciesMeta[alias]
+          if (node) {
+            nodeExecPathByAlias[alias] = node
+          }
+        }
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -1326,11 +1326,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
       const projectToInstall = projects[index]
       if (opts.global && projectToInstall.mutation.includes('install')) {
-        projectToInstall.wantedDependencies.forEach(pkg => {
-          if (!linkedPackages?.includes(pkg.alias)) {
-            logger.warn({ message: `${pkg.alias ?? pkg.pref} has no binaries`, prefix: opts.lockfileDir })
+        for (const pkg of projectToInstall.wantedDependencies) {
+          // This warning is never printed currently during "pnpm link --global"
+          // due to the following issue: https://github.com/pnpm/pnpm/issues/4761
+          if (pkg.alias && !linkedPackages?.includes(pkg.alias)) {
+            logger.warn({ message: `${pkg.alias} has no binaries`, prefix: opts.lockfileDir })
           }
-        })
+        }
       }
     }))
 

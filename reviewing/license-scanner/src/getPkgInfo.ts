@@ -122,13 +122,9 @@ function coerceToString (field: unknown): string | null {
 function parseLicenseManifestField (field: unknown): string {
   if (Array.isArray(field)) {
     const licenses = field
-    const licenseTypes = licenses.reduce((listOfLicenseTypes, license) => {
-      const type = coerceToString(license.type) ?? coerceToString(license.name)
-      if (type) {
-        listOfLicenseTypes.push(type)
-      }
-      return listOfLicenseTypes
-    }, [])
+    const licenseTypes = licenses
+      .map(license => coerceToString(license.type) ?? coerceToString(license.name))
+      .filter((licenseType): licenseType is string => !!licenseType)
 
     if (licenseTypes.length > 1) {
       const combinedLicenseTypes = licenseTypes.join(' OR ') as string

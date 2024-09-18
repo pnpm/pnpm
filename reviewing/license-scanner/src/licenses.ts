@@ -109,13 +109,13 @@ export async function findDependencyLicenses (opts: {
     const licenseNode = licenseNodeTree.dependencies[dependencyName]
     const dependenciesOfNode = getDependenciesFromLicenseNode(licenseNode)
 
-    dependenciesOfNode.forEach((dependencyNode) => {
+    for (const dependencyNode of dependenciesOfNode) {
       const mapKey = `${dependencyNode.name}@${dependencyNode.version}`
       const existingVersion = licensePackages.get(mapKey)?.version
       if (existingVersion === undefined) {
         licensePackages.set(mapKey, dependencyNode)
       }
-    })
+    }
   }
 
   // Get all non-duplicate dependencies of the project

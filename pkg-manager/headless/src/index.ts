@@ -501,12 +501,12 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
-      Object
-        .values(directDependenciesByImporterId[id] ?? {})
-        .filter((loc) => graph[loc])
-        .forEach((loc) => {
-          directNodes.add(loc)
-        })
+      const directDependencies = directDependenciesByImporterId[id]
+      for (const alias in directDependencies) {
+        const loc = directDependencies[alias]
+        if (!graph[loc]) continue
+        directNodes.add(loc)
+      }
     }
     const extraBinPaths = [...opts.extraBinPaths ?? []]
     if (opts.hoistPattern != null) {
@@ -681,14 +681,14 @@ async function symlinkDirectDependencies (
     symlink,
   }: SymlinkDirectDependenciesOpts
 ): Promise<number> {
-  projects.forEach(({ rootDir, manifest }) => {
+  for (const { rootDir, manifest } of projects) {
     // Even though headless installation will never update the package.json
     // this needs to be logged because otherwise install summary won't be printed
     packageManifestLogger.debug({
       prefix: rootDir,
       updated: manifest,
     })
-  })
+  }
   if (symlink === false) return 0
   const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
   for (const { id, manifest } of projects) {

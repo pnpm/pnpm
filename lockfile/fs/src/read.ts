@@ -141,13 +141,13 @@ export function createLockfileObject (
     peersSuffixMaxLength: number
   }
 ): Lockfile {
-  const importers = importerIds.reduce((acc, importerId) => {
-    acc[importerId] = {
+  const importers: Lockfile['importers'] = {}
+  for (const importerId of importerIds) {
+    importers[importerId] = {
       dependencies: {},
       specifiers: {},
     }
-    return acc
-  }, {} as Lockfile['importers'])
+  }
   return {
     importers,
     lockfileVersion: opts.lockfileVersion || LOCKFILE_VERSION,

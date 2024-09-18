@@ -16,17 +16,16 @@ export async function removeDeps (
   if (opts.saveType) {
     if (packageManifest[opts.saveType] == null) return packageManifest
 
-    removedPackages.forEach((dependency) => {
+    for (const dependency of removedPackages) {
       delete packageManifest[opts.saveType as DependenciesField]![dependency]
-    })
+    }
   } else {
-    DEPENDENCIES_FIELDS
-      .filter((depField) => packageManifest[depField])
-      .forEach((depField) => {
-        removedPackages.forEach((dependency) => {
-          delete packageManifest[depField]![dependency]
-        })
-      })
+    for (const depField of DEPENDENCIES_FIELDS) {
+      if (!packageManifest[depField]) continue
+      for (const dependency of removedPackages) {
+        delete packageManifest[depField]![dependency]
+      }
+    }
   }
   if (packageManifest.peerDependencies != null) {
     for (const removedDependency of removedPackages) {

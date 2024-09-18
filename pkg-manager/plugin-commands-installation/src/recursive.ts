@@ -520,10 +520,11 @@ function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: Pro
 interface ManifestsByPath { [dir: string]: Omit<Project, 'rootDir' | 'rootDirRealPath'> }
 
 function getManifestsByPath (projects: Project[]): Record<ProjectRootDir, Omit<Project, 'rootDir' | 'rootDirRealPath'>> {
-  return projects.reduce((manifestsByPath, { rootDir, manifest, writeProjectManifest }) => {
+  const manifestsByPath: Record<string, Omit<Project, 'rootDir' | 'rootDirRealPath'>> = {}
+  for (const { rootDir, manifest, writeProjectManifest } of projects) {
     manifestsByPath[rootDir] = { manifest, writeProjectManifest }
-    return manifestsByPath
-  }, {} as Record<string, Omit<Project, 'rootDir' | 'rootDirRealPath'>>)
+  }
+  return manifestsByPath
 }
 
 function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'ignoredPackages'>): Array<{ rootDir: ProjectRootDir, rootDirRealPath: ProjectRootDirRealPath }> {

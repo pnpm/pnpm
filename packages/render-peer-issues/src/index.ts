@@ -44,14 +44,13 @@ export function renderPeerIssues (
         if (allowedVersionsMatchAll[peerName]?.some((range) => semver.satisfies(issue.foundVersion, range))) continue
         const currentParentPkg = issue.parents.at(-1)
         if (currentParentPkg && allowedVersionsByParentPkgName[peerName]?.[currentParentPkg.name]) {
-          const allowedVersionsByParent = allowedVersionsByParentPkgName[peerName][currentParentPkg.name]
-            .reduce((acc, { targetPkg, parentPkg, ranges }) => {
-              if (!parentPkg.pref || currentParentPkg.version &&
-                (isSubRange(parentPkg.pref, currentParentPkg.version) || semver.satisfies(currentParentPkg.version, parentPkg.pref))) {
-                acc[targetPkg.name] = ranges
-              }
-              return acc
-            }, {} as Record<string, string[]>)
+          const allowedVersionsByParent: Record<string, string[]> = {}
+          for (const { targetPkg, parentPkg, ranges } of allowedVersionsByParentPkgName[peerName][currentParentPkg.name]) {
+            if (!parentPkg.pref || currentParentPkg.version &&
+              (isSubRange(parentPkg.pref, currentParentPkg.version) || semver.satisfies(currentParentPkg.version, parentPkg.pref))) {
+              allowedVersionsByParent[targetPkg.name] = ranges
+            }
+          }
           if (allowedVersionsByParent[peerName]?.some((range) => semver.satisfies(issue.foundVersion, range))) continue
         }
         createTree(projects[projectId], issue.parents, formatUnmetPeerMessage({

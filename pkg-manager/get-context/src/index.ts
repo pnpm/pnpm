@@ -155,12 +155,12 @@ export async function getContext (
 
   await fs.mkdir(opts.storeDir, { recursive: true })
 
-  opts.allProjects.forEach((project) => {
+  for (const project of opts.allProjects) {
     packageManifestLogger.debug({
       initial: project.manifest,
       prefix: project.rootDir,
     })
-  })
+  }
   if (opts.readPackageHook != null) {
     await Promise.all(importersContext.projects.map(async (project) => {
       project.originalManifest = project.manifest

@@ -154,13 +154,13 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const depGraphWithResolvedChildren = resolveChildren(depGraph)
 
   function resolveChildren<T extends PartialResolvedPackage> (depGraph: GenericDependenciesGraph<T>): GenericDependenciesGraphWithResolvedChildren<T> {
-    Object.values(depGraph).forEach((node) => {
+    for (const node of Object.values(depGraph)) {
       node.children = {}
       for (const [alias, childNodeId] of Object.entries<NodeId>(node.childrenNodeIds)) {
         node.children[alias] = pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)
       }
       delete node.childrenNodeIds
-    })
+    }
     return depGraph as unknown as GenericDependenciesGraphWithResolvedChildren<T>
   }
 
@@ -209,13 +209,13 @@ function deduplicateAll<T extends PartialResolvedPackage> (
   if (remainingDuplicates.length === duplicates.length) {
     return depPathsMap
   }
-  Object.values(depGraph).forEach((node) => {
+  for (const node of Object.values(depGraph)) {
     for (const [alias, childDepPath] of Object.entries<DepPath>(node.children)) {
       if (depPathsMap[childDepPath]) {
         node.children[alias] = depPathsMap[childDepPath]
       }
     }
-  })
+  }
   if (Object.keys(depPathsMap).length > 0) {
     return {
       ...depPathsMap,

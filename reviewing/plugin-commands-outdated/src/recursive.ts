@@ -68,13 +68,13 @@ export async function outdatedRecursive (
   })
   for (let i = 0; i < outdatedPackagesByProject.length; i++) {
     const { rootDir, manifest } = pkgs[i]
-    outdatedPackagesByProject[i].forEach((outdatedPkg) => {
+    for (const outdatedPkg of outdatedPackagesByProject[i]) {
       const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.current, outdatedPkg.belongsTo])
       if (!outdatedMap[key]) {
         outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
       }
       outdatedMap[key].dependentPkgs.push({ location: rootDir, manifest })
-    })
+    }
   }
 
   let output!: string

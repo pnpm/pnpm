@@ -156,6 +156,15 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         </a>
       </td>
     </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://route4me.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <img src="https://pnpm.io/img/users/route4me.svg" width="220" />
+          </picture>
+        </a>
+      </td>
+    </tr>
   </tbody>
 </table>
 

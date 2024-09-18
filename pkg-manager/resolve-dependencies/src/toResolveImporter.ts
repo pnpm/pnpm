@@ -140,25 +140,26 @@ function getPreferredVersionsFromPackage (
 type VersionSpecsByRealNames = Record<string, Record<string, 'version' | 'range' | 'tag'>>
 
 function getVersionSpecsByRealNames (deps: Dependencies): VersionSpecsByRealNames {
-  return Object.entries(deps)
-    .reduce((acc, [depName, currentPref]) => {
-      if (currentPref.startsWith('npm:')) {
-        const pref = currentPref.slice(4)
-        const index = pref.lastIndexOf('@')
-        const spec = pref.slice(index + 1)
-        const selector = getVerSelType(spec)
-        if (selector != null) {
-          const pkgName = pref.substring(0, index)
-          acc[pkgName] = acc[pkgName] || {}
-          acc[pkgName][selector.normalized] = selector.type
-        }
-      } else if (!currentPref.includes(':')) { // we really care only about semver specs
-        const selector = getVerSelType(currentPref)
-        if (selector != null) {
-          acc[depName] = acc[depName] || {}
-          acc[depName][selector.normalized] = selector.type
-        }
+  const acc: VersionSpecsByRealNames = {}
+  for (const depName in deps) {
+    const currentPref = deps[depName]
+    if (currentPref.startsWith('npm:')) {
+      const pref = currentPref.slice(4)
+      const index = pref.lastIndexOf('@')
+      const spec = pref.slice(index + 1)
+      const selector = getVerSelType(spec)
+      if (selector != null) {
+        const pkgName = pref.substring(0, index)
+        acc[pkgName] = acc[pkgName] || {}
+        acc[pkgName][selector.normalized] = selector.type
       }
-      return acc
-    }, {} as VersionSpecsByRealNames)
+    } else if (!currentPref.includes(':')) { // we really care only about semver specs
+      const selector = getVerSelType(currentPref)
+      if (selector != null) {
+        acc[depName] = acc[depName] || {}
+        acc[depName][selector.normalized] = selector.type
+      }
+    }
+  }
+  return acc
 }
