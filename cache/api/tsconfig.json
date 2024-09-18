@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../__utils__/prepare"
-    },
-    {
       "path": "../../config/config"
     },
     {
