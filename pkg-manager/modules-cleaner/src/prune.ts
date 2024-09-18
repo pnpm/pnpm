@@ -239,11 +239,12 @@ function getPkgsDepPaths (
   packages: PackageSnapshots,
   skipped: Set<string>
 ): Record<DepPath, string> {
-  return Object.entries(packages).reduce((acc, [depPath, pkg]) => {
+  const acc: Record<DepPath, string> = {}
+  for (const [depPath, pkg] of Object.entries(packages)) {
     if (skipped.has(depPath)) return acc
     acc[depPath as DepPath] = packageIdFromSnapshot(depPath as DepPath, pkg)
-    return acc
-  }, {} as Record<DepPath, string>)
+  }
+  return acc
 }
 
 function getPkgsDepPathsOwnedOnlyByImporters (

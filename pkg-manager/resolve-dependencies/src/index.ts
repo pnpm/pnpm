@@ -374,10 +374,10 @@ function addDirectDependenciesToLockfile (
     newProjectSnapshot.specifiers[linkedPkg.alias] = getSpecFromPackageManifest(newManifest, linkedPkg.alias)
   }
 
-  const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
-    acc[directDependency.alias] = directDependency
-    return acc
-  }, {} as Record<string, ResolvedDirectDependency>)
+  const directDependenciesByAlias: Record<string, ResolvedDirectDependency> = {}
+  for (const directDependency of directDependencies) {
+    directDependenciesByAlias[directDependency.alias] = directDependency
+  }
 
   const allDeps = Array.from(new Set(Object.keys(getAllDependenciesFromManifest(newManifest))))
 

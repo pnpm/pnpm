@@ -235,18 +235,21 @@ interface ParsedDepRefs {
 }
 
 function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfile): ParsedDepRefs {
-  return refsByPkgNames
-    .reduce((acc, [pkgName, ref]) => {
-      if (ref.startsWith('link:')) {
-        const importerId = ref.substring(5) as ProjectId
-        if (lockfile.importers[importerId]) {
-          acc.importerIds.push(importerId)
-        }
-        return acc
+  const acc: ParsedDepRefs = {
+    depPaths: [],
+    importerIds: [],
+  }
+  for (const [pkgName, ref] of refsByPkgNames) {
+    if (ref.startsWith('link:')) {
+      const importerId = ref.substring(5) as ProjectId
+      if (lockfile.importers[importerId]) {
+        acc.importerIds.push(importerId)
       }
-      const depPath = dp.refToRelative(ref, pkgName)
-      if (depPath == null) return acc
-      acc.depPaths.push(depPath)
-      return acc
-    }, { depPaths: [], importerIds: [] } as ParsedDepRefs)
+      continue
+    }
+    const depPath = dp.refToRelative(ref, pkgName)
+    if (depPath == null) continue
+    acc.depPaths.push(depPath)
+  }
+  return acc
 }

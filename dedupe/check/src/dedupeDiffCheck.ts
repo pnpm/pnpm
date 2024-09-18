@@ -58,10 +58,10 @@ function diffSnapshots<TSnapshot> (
       continue
     }
 
-    const updates = fields.reduce((acc: ResolutionChangesByAlias, dependencyField) => ({
-      ...acc,
-      ...getResolutionUpdates(prevSnapshot[dependencyField] ?? {}, nextSnapshot[dependencyField] ?? {}),
-    }), {})
+    const updates: ResolutionChangesByAlias = {}
+    for (const dependencyField of fields) {
+      Object.assign(updates, getResolutionUpdates(prevSnapshot[dependencyField] ?? {}, nextSnapshot[dependencyField] ?? {}))
+    }
 
     if (Object.keys(updates).length > 0) {
       updated[id] = updates

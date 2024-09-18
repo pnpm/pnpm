@@ -94,7 +94,9 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     )
   }
 
-  return result.reduce((acc, { name, version, filesIndexFile }) => {
-    acc += `${PACKAGE_INFO_CLR(name)}@${PACKAGE_INFO_CLR(version)}  ${INDEX_PATH_CLR(filesIndexFile)}\n`; return acc
-  }, '')
+  let acc = ''
+  for (const { name, version, filesIndexFile } of result) {
+    acc += `${PACKAGE_INFO_CLR(name)}@${PACKAGE_INFO_CLR(version)}  ${INDEX_PATH_CLR(filesIndexFile)}\n`
+  }
+  return acc
 }

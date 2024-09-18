@@ -45,10 +45,9 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
   // returns only the keys that are true
   const header: string[] = Object.keys(pickBy(and, headerRow))
 
-  return Object.entries(groupPkgsByType).reduce((finalChoices: ChoiceGroup, [depGroup, choiceRows]) => {
-    if (choiceRows.length === 0) {
-      return finalChoices
-    }
+  const finalChoices: ChoiceGroup = []
+  for (const [depGroup, choiceRows] of Object.entries(groupPkgsByType)) {
+    if (choiceRows.length === 0) continue
 
     const rawChoices = choiceRows.map(choice => buildPkgChoice(choice, workspacesEnabled))
     // add in a header row for each group
@@ -79,9 +78,8 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
     // we rename it here to "[dependencies]" or "[devDependencies]",
     // which will be filtered out in the format function of the prompt.
     finalChoices.push({ name: `[${depGroup}]`, choices, message: depGroup })
-
-    return finalChoices
-  }, [])
+  }
+  return finalChoices
 }
 
 function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): { raw: string[], name: string, disabled?: boolean } {
