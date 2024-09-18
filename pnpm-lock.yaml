@@ -3947,6 +3947,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -4113,9 +4116,6 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/crypto.object-hasher':
-        specifier: workspace:*
-        version: link:../../crypto/object-hasher
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils

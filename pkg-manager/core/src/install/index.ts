@@ -15,6 +15,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
+import { hashObject } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
 import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
@@ -328,7 +329,7 @@ export async function mutateModules (
         }
       )
     }
-    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
+    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : hashObject(opts.packageExtensions!)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
@@ -816,11 +817,6 @@ function getOutdatedLockfileSetting (
     return 'pnpmfileChecksum'
   }
   return null
-}
-
-export function createObjectChecksum (obj: Record<string, unknown>): string {
-  const s = JSON.stringify(sortKeys(obj, { deep: true }))
-  return crypto.createHash('md5').update(s).digest('hex')
 }
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
