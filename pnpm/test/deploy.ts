@@ -57,19 +57,19 @@ test('deploy with node-linker=hoisted', async () => {
 
   await execPnpm([...config, 'install'])
 
-  await execPnpm([...config, '--filter=project-1', '--prod', 'deploy', 'deploy'])
+  await execPnpm([...config, '--filter=project-1', '--prod', 'deploy', 'dist'])
 
-  const project = assertProject(path.resolve('deploy'))
+  const project = assertProject(path.resolve('dist'))
   project.has('project-2') // project-1 depends on project-2
   project.has('project-3') // project-1 depends on project-2 which depends on project-3
   project.has('is-positive') // project-1 depends on is-positive
   project.hasNot('is-negative')
-  expect(fs.existsSync('deploy/index.js')).toBeTruthy()
-  expect(fs.existsSync('deploy/test.js')).toBeFalsy()
-  expect(fs.existsSync('deploy/node_modules/.modules.yaml')).toBeTruthy()
-  expect(fs.existsSync('deploy/node_modules/project-2/index.js')).toBeTruthy()
-  expect(fs.existsSync('deploy/node_modules/project-2/test.js')).toBeFalsy()
-  expect(fs.existsSync('deploy/node_modules/project-3/index.js')).toBeTruthy()
-  expect(fs.existsSync('deploy/node_modules/project-3/test.js')).toBeFalsy()
+  expect(fs.existsSync('dist/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/test.js')).toBeFalsy()
+  expect(fs.existsSync('dist/node_modules/.modules.yaml')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-2/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-2/test.js')).toBeFalsy()
+  expect(fs.existsSync('dist/node_modules/project-3/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-3/test.js')).toBeFalsy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })

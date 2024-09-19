@@ -56,7 +56,7 @@ export function help (): string {
 }
 
 export async function handler (
-  opts: install.InstallCommandOptions,
+  opts: Omit<install.InstallCommandOptions, 'useLockfile'>,
   params: string[]
 ): Promise<void> {
   if (!opts.workspaceDir) {

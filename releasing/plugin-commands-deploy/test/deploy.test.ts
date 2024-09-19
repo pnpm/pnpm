@@ -146,8 +146,7 @@ test('deploy in workspace with shared-workspace-lockfile=false', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
-// This test currently fails with inexplicable error
-test.skip('deploy with node-linker=hoisted', async () => {
+test('deploy with node-linker=hoisted', async () => {
   preparePackages([
     {
       location: '.',
@@ -203,24 +202,24 @@ test.skip('deploy with node-linker=hoisted', async () => {
     production: true,
     recursive: true,
     selectedProjectsGraph,
-    // @ts-expect-error
     nodeLinker: 'hoisted',
     sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
-  }, ['deploy'])
+  }, ['dist'])
 
-  const project = assertProject(path.resolve('deploy'))
+  const project = assertProject(path.resolve('dist'))
   project.has('project-2')
   project.has('is-positive')
-  project.hasNot('project-3')
+  project.has('project-3')
   project.hasNot('is-negative')
-  expect(fs.existsSync('deploy/index.js')).toBeTruthy()
-  expect(fs.existsSync('deploy/test.js')).toBeFalsy()
-  expect(fs.existsSync('deploy/node_modules/.modules.yaml')).toBeTruthy()
-  expect(fs.existsSync('deploy/node_modules/project-2/node_modules/project-2/index.js')).toBeTruthy()
-  expect(fs.existsSync('deploy/node_modules/project-2/node_modules/project-2/test.js')).toBeFalsy()
-  expect(fs.existsSync('deploy/node_modules/project-3/node_modules/project-3/index.js')).toBeTruthy()
-  expect(fs.existsSync('deploy/node_modules/project-3/node_modules/project-3/test.js')).toBeFalsy()
+  expect(fs.existsSync('dist/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/test.js')).toBeFalsy()
+  expect(fs.existsSync('dist/node_modules/.modules.yaml')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-2/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-2/test.js')).toBeFalsy()
+  expect(fs.existsSync('dist/node_modules/project-3/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-3/test.js')).toBeFalsy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 

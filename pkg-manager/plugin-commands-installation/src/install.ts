@@ -273,7 +273,6 @@ export type InstallCommandOptions = Pick<Config,
 | 'modulesDir'
 | 'nodeLinker'
 | 'pnpmfile'
-| 'useLockfile'
 | 'preferFrozenLockfile'
 | 'production'
 | 'registries'
@@ -318,7 +317,7 @@ export type InstallCommandOptions = Pick<Config,
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
   confirmModulesPurge?: boolean
-} & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages'>>
+} & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile'>>
 
 export async function handler (opts: InstallCommandOptions): Promise<void> {
   const include = {
