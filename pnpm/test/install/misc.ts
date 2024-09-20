@@ -286,6 +286,7 @@ test('install should fail if the project requires a different package manager', 
     packageManager: 'yarn@4.0.0',
   })
 
+  fs.writeFileSync('.npmrc', 'manage-package-manager-versions=false')
   const { status, stdout } = execPnpmSync(['install'])
 
   expect(status).toBe(1)
