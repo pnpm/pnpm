@@ -84,7 +84,7 @@ async function _lockfileToHoistedDepGraph (
     autoInstallPeers: opts.autoInstallPeers,
   })
   const graph: DependenciesGraph = {}
-  const modulesDir = opts.modulesDir ?? path.join(opts.lockfileDir, 'node_modules')
+  const modulesDir = path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules')
   const fetchDepsOpts = {
     ...opts,
     lockfile,
