@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-patching
 
+## 6.4.10
+
+### Patch Changes
+
+- Updated dependencies [ad1fd64]
+- Updated dependencies [eeb76cd]
+  - @pnpm/plugin-commands-installation@17.2.3
+
 ## 6.4.9
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # pnpm
 
+## 9.11.0
+
+### Minor Changes
+
+- Experimental: added `pnpm cache` commands for inspecting the metadata cache [#8512](https://github.com/pnpm/pnpm/pull/8512).
+
+### Patch Changes
+
+- Fix a regression in which `pnpm deploy` with `node-linker=hoisted` produces an empty `node_modules` directory [#6682](https://github.com/pnpm/pnpm/issues/6682).
+- Don't print a warning when linking packages globally [#4761](https://github.com/pnpm/pnpm/issues/4761).
+- `pnpm deploy` should work in workspace with `shared-workspace-lockfile=false` [#8475](https://github.com/pnpm/pnpm/issues/8475).
+
 ## 9.10.0
 
 ### Minor Changes

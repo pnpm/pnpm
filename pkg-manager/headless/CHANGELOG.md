@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 23.2.4
+
+### Patch Changes
+
+- ad1fd64: Fix a regression in which `pnpm deploy` with `node-linker=hoisted` produces an empty `node_modules` directory [#6682](https://github.com/pnpm/pnpm/issues/6682).
+
 ## 23.2.3
 
 ### Patch Changes

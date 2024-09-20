@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 15.3.4
+
+### Patch Changes
+
+- e50baa8: Don't print a warning when linking packages globally [#4761](https://github.com/pnpm/pnpm/issues/4761).
+- ad1fd64: Do not save lockfile when `saveLockfile` is `false`.
+- Updated dependencies [ad1fd64]
+  - @pnpm/headless@23.2.4
+
 ## 15.3.3
 
 ### Patch Changes

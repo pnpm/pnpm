@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-deploy
 
+## 5.1.27
+
+### Patch Changes
+
+- ad1fd64: Fix a regression in which `pnpm deploy` with `node-linker=hoisted` produces an empty `node_modules` directory [#6682](https://github.com/pnpm/pnpm/issues/6682).
+- eeb76cd: `pnpm deploy` should work in workspace with `shared-workspace-lockfile=false` [#8475](https://github.com/pnpm/pnpm/issues/8475).
+- Updated dependencies [ad1fd64]
+- Updated dependencies [eeb76cd]
+  - @pnpm/plugin-commands-installation@17.2.3
+
 ## 5.1.26
 
 ### Patch Changes
