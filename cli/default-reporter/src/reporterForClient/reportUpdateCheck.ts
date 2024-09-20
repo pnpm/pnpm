@@ -51,11 +51,11 @@ function renderUpdateMessage (opts: UpdateMessageOptions): string {
 }
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
-  if (opts.env.PNPM_HOME) {
-    return 'pnpm self-update'
-  }
   if (isExecutedByCorepack(opts.env)) {
     return `corepack install -g pnpm@${opts.latestVersion}`
+  }
+  if (opts.env.PNPM_HOME) {
+    return 'pnpm self-update'
   }
   const pkgName = opts.currentPkgIsExecutable ? '@pnpm/exe' : 'pnpm'
   return `pnpm add -g ${pkgName}`
