@@ -122,7 +122,7 @@ async function linkAllPkgsInOrder (
         // It is not clear why it helps as importing is also limited inside fs.indexed-pkg-importer.
         // The out of memory error was reproduced on the teambit/bit repository with the "rootComponents" feature turned on
         await limitLinking(async () => {
-          const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
+          const { importMethod, isBuilt } = await storeController.importPackage(path.join(parentDir, depNode.dir), {
             filesResponse,
             force: true,
             disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
