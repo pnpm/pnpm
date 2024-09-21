@@ -281,6 +281,43 @@ test('prune removes alien files from the store if the --force flag is used', asy
   expect(fs.existsSync(alienDir)).toBeFalsy()
 })
 
+test('prune does not fail if the store directly does not exist', async () => {
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+  const reporter = jest.fn()
+
+  await expect(
+    store.handler({
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: REGISTRY,
+      },
+      registries: { default: REGISTRY },
+      reporter,
+      storeDir,
+      userConfig: {},
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: 120,
+    }, ['prune'])
+  ).resolves.toBeUndefined()
+
+  expect(reporter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      level: 'info',
+      message: 'Removed 0 files',
+    })
+  )
+
+  expect(reporter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      level: 'info',
+      message: 'Removed 0 packages',
+    })
+  )
+})
+
 function createSampleDlxCacheLinkTarget (dirPath: string): void {
   fs.mkdirSync(path.join(dirPath, 'node_modules', '.pnpm'), { recursive: true })
   fs.mkdirSync(path.join(dirPath, 'node_modules', '.bin'), { recursive: true })
