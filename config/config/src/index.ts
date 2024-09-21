@@ -185,7 +185,7 @@ export async function getConfig (opts: {
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
     'registry-supports-time-field': false,
-    'virtual-store-dir-max-length': 120,
+    'virtual-store-dir-max-length': isWindows() ? 60 : 120,
     'peers-suffix-max-length': 1000,
   }
 
