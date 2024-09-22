@@ -83,7 +83,7 @@ async function deletePkgsPresentInRoot (
 ): Promise<boolean> {
   const pkgsLinkedToCurrentProject = await readLinkedDepsWithRealLocations(modulesDir)
   const pkgsToDelete = pkgsLinkedToCurrentProject
-    .filter(({ linkedFrom }) => pkgsLinkedToRoot.some(pathsEqual.bind(null, linkedFrom)))
+    .filter(({ linkedFrom, linkedTo }) => linkedFrom !== linkedTo && pkgsLinkedToRoot.some(pathsEqual.bind(null, linkedFrom)))
   await Promise.all(pkgsToDelete.map(({ linkedTo }) => fs.promises.unlink(linkedTo)))
   return pkgsToDelete.length === pkgsLinkedToCurrentProject.length
 }

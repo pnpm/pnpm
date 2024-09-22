@@ -146,6 +146,83 @@ test('deploy in workspace with shared-workspace-lockfile=false', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
+test('deploy with node-linker=hoisted', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-2': 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'project-3': 'workspace:*',
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-odd': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '2.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-odd': '1.0.0',
+      },
+    },
+  ])
+
+  ; ['project-1', 'project-2', 'project-3'].forEach(name => {
+    fs.writeFileSync(`${name}/test.js`, '', 'utf8')
+    fs.writeFileSync(`${name}/index.js`, '', 'utf8')
+  })
+
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    nodeLinker: 'hoisted',
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['dist'])
+
+  const project = assertProject(path.resolve('dist'))
+  project.has('project-2')
+  project.has('is-positive')
+  project.has('project-3')
+  project.hasNot('is-negative')
+  expect(fs.existsSync('dist/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/test.js')).toBeFalsy()
+  expect(fs.existsSync('dist/node_modules/.modules.yaml')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-2/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-2/test.js')).toBeFalsy()
+  expect(fs.existsSync('dist/node_modules/project-3/index.js')).toBeTruthy()
+  expect(fs.existsSync('dist/node_modules/project-3/test.js')).toBeFalsy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
+})
+
 test('deploy fails when the destination directory exists and is not empty', async () => {
   preparePackages([
     {

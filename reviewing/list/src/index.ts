@@ -87,6 +87,7 @@ export async function searchForPackages (
         return {
           name: entryPkg.name,
           version: entryPkg.version,
+          private: entryPkg.private,
 
           path: projectPath,
           ...buildDependenciesHierarchy,
