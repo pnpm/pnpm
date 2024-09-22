@@ -165,7 +165,7 @@ export function parse (dependencyPath: string): DependencyPath {
 }
 
 export function depPathToFilename (depPath: string, maxLengthWithoutHash: number): string {
-  let filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|]/g, '+')
+  let filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|#]/g, '+')
   if (filename.includes('(')) {
     filename = filename
       .replace(/\)$/, '')
