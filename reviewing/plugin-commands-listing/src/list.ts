@@ -133,6 +133,7 @@ export type ListCommandOptions = Pick<Config,
   alwaysPrintRootPackage?: boolean
   depth?: number
   excludePeers?: boolean
+  json?: boolean
   lockfileDir?: string
   long?: boolean
   parseable?: boolean
