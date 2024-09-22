@@ -24,7 +24,7 @@ test('pnpm store add express@4.16.3', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: 0,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['add', 'express@4.16.3'])
 
   const { cafsHas } = assertStore(path.join(storeDir, STORE_VERSION))
@@ -51,7 +51,7 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: 0,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['add', '@foo/no-deps@1.0.0'])
 
   const { cafsHas } = assertStore(path.join(storeDir, STORE_VERSION))
@@ -81,7 +81,7 @@ test('should fail if some packages can not be added', async () => {
       storeDir,
       userConfig: {},
       dlxCacheMaxAge: 0,
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['add', '@pnpm/this-does-not-exist'])
   } catch (e: any) { // eslint-disable-line
     thrown = true

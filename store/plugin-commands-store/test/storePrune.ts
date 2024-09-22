@@ -50,7 +50,7 @@ test('remove unreferenced packages', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -75,7 +75,7 @@ test('remove unreferenced packages', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   expect(reporter).not.toHaveBeenCalledWith(
@@ -112,7 +112,7 @@ test.skip('remove packages that are used by project that no longer exist', async
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -152,7 +152,7 @@ test('keep dependencies used by others', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   project.storeHasNot('camelcase-keys', '3.0.0')
@@ -178,7 +178,7 @@ test('keep dependency used by package', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   project.storeHas('is-positive', '3.1.0')
@@ -202,7 +202,7 @@ test('prune will skip scanning non-directory in storeDir', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 })
 
@@ -230,7 +230,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -269,7 +269,7 @@ test('prune removes alien files from the store if the --force flag is used', asy
     userConfig: {},
     force: true,
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -335,7 +335,7 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: 7,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   expect(

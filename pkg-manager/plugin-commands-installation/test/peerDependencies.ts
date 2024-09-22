@@ -35,7 +35,7 @@ const DEFAULT_OPTIONS = {
   storeDir: path.join(TMP, 'store'),
   userConfig: {},
   workspaceConcurrency: 1,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 test('root dependency that has a peer is correctly updated after its version changes', async () => {

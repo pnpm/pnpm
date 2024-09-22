@@ -69,6 +69,6 @@ async function defaults (opts: LinkOptions): Promise<StrictLinkOptions> {
     storeController: opts.storeController,
     storeDir: opts.storeDir,
     useLockfile: true,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   } as StrictLinkOptions
 }

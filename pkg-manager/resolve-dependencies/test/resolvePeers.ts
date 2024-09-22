@@ -109,7 +109,7 @@ test('resolve peer dependencies of cyclic dependencies', async () => {
     ]),
     virtualStoreDir: '',
     lockfileDir: '',
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     peersSuffixMaxLength: 1000,
   })
   expect(Object.keys(dependenciesGraph)).toStrictEqual([
@@ -212,7 +212,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
       }],
     ]),
     virtualStoreDir: '',
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     lockfileDir: '',
     peersSuffixMaxLength: 1000,
   })
@@ -394,7 +394,7 @@ describe('peer dependency issues', () => {
         }],
       ]),
       virtualStoreDir: '',
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
       lockfileDir: '',
       peersSuffixMaxLength: 1000,
     })).peerDependencyIssuesByProjects
@@ -480,7 +480,7 @@ describe('unmet peer dependency issues', () => {
         }],
       ]),
       virtualStoreDir: '',
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
       lockfileDir: '',
       peersSuffixMaxLength: 1000,
     })).peerDependencyIssuesByProjects
@@ -553,7 +553,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
         }],
       ]),
       virtualStoreDir: '',
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
       lockfileDir: '',
       peersSuffixMaxLength: 1000,
     })).peerDependencyIssuesByProjects
@@ -655,7 +655,7 @@ test('resolve peer dependencies with npm aliases', async () => {
       }],
     ]),
     virtualStoreDir: '',
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     lockfileDir: '',
     peersSuffixMaxLength: 1000,
   })
