@@ -80,7 +80,7 @@ export function renderPeerIssues (
           `Peer dependencies that should be installed:\n  ${cliColumns(Object.entries(intersections).map(([name, version]) => formatNameAndRange(name, version)), cliColumnsOptions)}`
         )
       }
-      const title = chalk.white(projectKey)
+      const title = chalk.reset(projectKey)
       let summariesConcatenated = summaries.join('\n')
       if (summariesConcatenated) {
         summariesConcatenated += '\n'
