@@ -418,7 +418,7 @@ test('pnpm outdated: support --sortField option', async () => {
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: hasOutdatedDepsFixture,
-    sort: 'name',
+    sortBy: 'name',
   })
 
   expect(exitCode).toBe(1)

@@ -56,5 +56,5 @@ export const DEFAULT_OPTS = {
 
 export const DEFAULT_OUTDATED_OPTS = {
   ...DEFAULT_OPTS,
-  sort: 'name' as const,
+  sortBy: 'name' as const,
 }
