@@ -1,6 +1,7 @@
 import path from 'path'
 import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { type LifecycleMessage, lifecycleLogger } from '@pnpm/core-loggers'
+import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
@@ -63,6 +64,10 @@ export function help (): string {
         title: 'Options',
 
         list: [
+          {
+            description: 'Do not hide project name prefix from output of recursively running command.',
+            name: '--no-reporter-hide-prefix',
+          },
           PARALLEL_OPTION_HELP,
           {
             description: 'Run the shell command in every package found in subdirectories \
@@ -80,8 +85,10 @@ The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
           },
           RESUME_FROM_OPTION_HELP,
           REPORT_SUMMARY_OPTION_HELP,
+          ...UNIVERSAL_OPTIONS,
         ],
       },
+      FILTERING,
     ],
     url: docsUrl('exec'),
     usages: ['pnpm [-r] [-c] exec <command> [args...]'],
