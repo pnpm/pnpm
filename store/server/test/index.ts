@@ -30,7 +30,7 @@ async function createStoreController (storeDir?: string) {
     cacheDir,
     storeDir,
     verifyStoreIntegrity: true,
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    virtualStoreDirMaxLength: 120,
     clearResolutionCache,
   })
 }

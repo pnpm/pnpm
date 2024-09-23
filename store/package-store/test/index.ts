@@ -21,7 +21,7 @@ describe('store.importPackage()', () => {
       storeDir,
       cacheDir,
       verifyStoreIntegrity: true,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      virtualStoreDirMaxLength: 120,
       clearResolutionCache,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
@@ -61,7 +61,7 @@ describe('store.importPackage()', () => {
       storeDir,
       cacheDir,
       verifyStoreIntegrity: true,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      virtualStoreDirMaxLength: 120,
       clearResolutionCache,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'

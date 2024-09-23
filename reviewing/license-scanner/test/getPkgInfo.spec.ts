@@ -26,7 +26,7 @@ describe('licences', () => {
           virtualStoreDir: 'virtual-store-dir',
           modulesDir: 'modules-dir',
           dir: 'workspace-dir',
-          virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+          virtualStoreDirMaxLength: 120,
         }
       )
     ).rejects.toThrow(`Failed to find package index file for bogus-package@1.0.0 (at ${path.join('store-dir', 'files', 'b2', '16-bogus-package@1.0.0.json')}), please consider running 'pnpm install'`)

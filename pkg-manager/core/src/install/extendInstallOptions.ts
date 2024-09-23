@@ -247,7 +247,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     ignoreWorkspaceCycles: false,
     disallowWorkspaceCycles: false,
     excludeLinksFromLockfile: false,
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
   } as StrictInstallOptions
 }

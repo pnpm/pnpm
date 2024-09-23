@@ -21,7 +21,7 @@ const DEFAULT_OPTIONS: GetContextOptions = {
     optionalDependencies: true,
   },
   storeDir: path.join(__dirname, 'store'),
-  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  virtualStoreDirMaxLength: 120,
   peersSuffixMaxLength: 1000,
 }
 

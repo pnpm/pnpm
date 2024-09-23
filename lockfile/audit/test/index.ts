@@ -165,7 +165,7 @@ describe('audit', () => {
         retry: {
           retries: 0,
         },
-        virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+        virtualStoreDirMaxLength: 120,
       })
     } catch (_err: any) { // eslint-disable-line
       err = _err

@@ -71,7 +71,7 @@ describe('licences', () => {
       registries: {} as Registries,
       wantedLockfile: lockfile,
       storeDir: '/opt/.pnpm',
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(licensePackages).toEqual([
@@ -158,7 +158,7 @@ describe('licences', () => {
       wantedLockfile: lockfile,
       storeDir: '/opt/.pnpm',
       includedImporterIds: ['packages/a'] as ProjectId[],
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(licensePackages).toEqual([
@@ -234,7 +234,7 @@ describe('licences', () => {
       registries: {} as Registries,
       wantedLockfile: lockfile,
       storeDir: '/opt/.pnpm',
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      virtualStoreDirMaxLength: 120,
     })
 
     expect(licensePackages).toEqual([

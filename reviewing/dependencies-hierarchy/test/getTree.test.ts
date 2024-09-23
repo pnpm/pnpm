@@ -198,7 +198,7 @@ describe('getTree', () => {
         maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
-        virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+        virtualStoreDirMaxLength: 120,
       }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
@@ -257,7 +257,7 @@ describe('getTree', () => {
         maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
-        virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+        virtualStoreDirMaxLength: 120,
       }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
@@ -309,7 +309,7 @@ describe('getTree', () => {
       registries: {
         default: 'mock-registry-for-testing.example',
       },
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      virtualStoreDirMaxLength: 120,
     }
 
     // The fully visited cache can be used in this situation.

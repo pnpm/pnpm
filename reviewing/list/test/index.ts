@@ -35,7 +35,7 @@ const fixtureWithAliasedDep = f.find('with-aliased-dep')
 test('list all deps of a package that has an external lockfile', async () => {
   expect(await list([fixtureWithExternalLockfile], {
     lockfileDir: path.join(fixtureWithExternalLockfile, '..'),
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    virtualStoreDirMaxLength: 120,
   })).toBe(`${LEGEND}
 
 ${boldHighlighted(`pkg@1.0.0 ${fixtureWithExternalLockfile}`)}
@@ -50,7 +50,7 @@ test('print legend only once', async () => {
     path.join(workspaceWith2Pkgs, 'packages/foo'),
   ], {
     lockfileDir: workspaceWith2Pkgs,
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    virtualStoreDirMaxLength: 120,
   })).toBe(`${LEGEND}
 
 ${boldHighlighted(`bar@0.0.0 ${path.join(workspaceWith2Pkgs, 'packages/bar')}`)}
@@ -70,7 +70,7 @@ test('list in workspace with private package', async () => {
     path.join(workspaceWithPrivatePkgs, 'packages/public'),
   ], {
     lockfileDir: workspaceWithPrivatePkgs,
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    virtualStoreDirMaxLength: 120,
   })).toBe(`${LEGEND}
 
 ${boldHighlighted(`private@1.0.0 ${path.join(workspaceWithPrivatePkgs, 'packages/private')} (PRIVATE)`)}
@@ -134,7 +134,7 @@ test('list dev only', async () => {
     await list([fixture], {
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
       lockfileDir: fixture,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      virtualStoreDirMaxLength: 120,
     })
   ).toBe(`${LEGEND}
 
@@ -150,7 +150,7 @@ test('list prod only', async () => {
     await list([fixture], {
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
       lockfileDir: fixture,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      virtualStoreDirMaxLength: 120,
     })
   ).toBe(`${LEGEND}
 
@@ -167,7 +167,7 @@ test('list prod only with depth 2', async () => {
       depth: 2,
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
       lockfileDir: fixture,
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      virtualStoreDirMaxLength: 120,
     })
   ).toBe(`${LEGEND}
 
@@ -265,7 +265,7 @@ test('parseable list in workspace with private package', async () => {
   ], {
     reportAs: 'parseable',
     lockfileDir: workspaceWithPrivatePkgs,
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    virtualStoreDirMaxLength: 120,
   })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}
 ${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}
 ${path.join(workspaceWithPrivatePkgs, 'packages/public')}`)
@@ -279,7 +279,7 @@ test('long parseable list in workspace with private package', async () => {
     reportAs: 'parseable',
     long: true,
     lockfileDir: workspaceWithPrivatePkgs,
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    virtualStoreDirMaxLength: 120,
   })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}:private@1.0.0:PRIVATE
 ${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}:is-positive@1.0.0
 ${path.join(workspaceWithPrivatePkgs, 'packages/public')}:public@1.0.0`)
@@ -292,7 +292,7 @@ test('JSON list in workspace with private package', async () => {
   ], {
     reportAs: 'json',
     lockfileDir: workspaceWithPrivatePkgs,
-    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    virtualStoreDirMaxLength: 120,
   })).toBe(
     JSON.stringify([
       {
@@ -480,7 +480,7 @@ test('parseable list with depth 1 and dev only', async () => {
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
       lockfileDir: fixture,
       reportAs: 'parseable',
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      virtualStoreDirMaxLength: 120,
     })
   ).toBe(`${fixture}
 ${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}`
@@ -498,7 +498,7 @@ test('parseable list with depth 1 without unnecessary empty newlines', async () 
       lockfileDir: workspaceWithDifferentDeps,
       depth: 1,
       reportAs: 'parseable',
-      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+      virtualStoreDirMaxLength: 120,
     }
   )).toBe(`${path.join(workspaceWithDifferentDeps, 'packages/bar')}
 ${path.join(workspaceWithDifferentDeps, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}`
