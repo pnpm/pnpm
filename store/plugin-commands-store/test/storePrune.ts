@@ -7,7 +7,6 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
-import ssri from 'ssri'
 
 const STORE_VERSION = 'v3'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -98,7 +97,7 @@ test.skip('remove packages that are used by project that no longer exist', async
 
   rimraf('node_modules')
 
-  cafsHas(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
+  cafsHas('is-negative', '2.1.0')
 
   const reporter = jest.fn()
   await store.handler({
@@ -123,7 +122,7 @@ test.skip('remove packages that are used by project that no longer exist', async
     })
   )
 
-  cafsHasNot(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
+  cafsHasNot('is-negative', '2.1.0')
 })
 
 test('keep dependencies used by others', async () => {

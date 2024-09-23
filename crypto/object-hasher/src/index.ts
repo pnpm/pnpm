@@ -3,19 +3,20 @@
 // avoiding "Invalid string length" errors.
 import hash from 'object-hash'
 
-const defaultOptions: hash.BaseOptions = {
+const defaultOptions: hash.NormalOption = {
   respectType: false,
-  algorithm: 'sha1',
+  algorithm: 'sha256',
+  encoding: 'base64',
 }
 
-const withoutSortingOptions: hash.BaseOptions = {
+const withoutSortingOptions: hash.NormalOption = {
   ...defaultOptions,
   unorderedArrays: false,
   unorderedObjects: false,
   unorderedSets: false,
 }
 
-const withSortingOptions: hash.BaseOptions = {
+const withSortingOptions: hash.NormalOption = {
   ...defaultOptions,
   unorderedArrays: true,
   unorderedObjects: true,
@@ -24,8 +25,8 @@ const withSortingOptions: hash.BaseOptions = {
 
 function hashUnknown (object: unknown, options: hash.BaseOptions): string {
   if (object === undefined) {
-    // '0'.repeat(40) to match the length of other returned sha1 hashes.
-    return '0000000000000000000000000000000000000000'
+    // '0'.repeat(44) to match the length of other returned sha1 hashes.
+    return '00000000000000000000000000000000000000000000'
   }
   return hash(object, options)
 }

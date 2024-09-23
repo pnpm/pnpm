@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { createBase32Hash } from '@pnpm/crypto.base32-hash'
+import { createHash } from '@pnpm/crypto.hash'
 import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -253,7 +253,7 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
   await execPnpm(['install'])
 
   const lockfile1 = project.readLockfile()
-  expect(lockfile1.pnpmfileChecksum).toBe(createBase32Hash(pnpmfile1))
+  expect(lockfile1.pnpmfileChecksum).toBe(createHash(pnpmfile1))
   expect(lockfile1.packages).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
   expect(lockfile1.packages).not.toHaveProperty(['is-positive@1.0.0']) // this should be removed due to being optional dependency
 
@@ -274,7 +274,7 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
   await execPnpm(['install'])
 
   const lockfile2 = project.readLockfile()
-  expect(lockfile2.pnpmfileChecksum).toBe(createBase32Hash(pnpmfile2))
+  expect(lockfile2.pnpmfileChecksum).toBe(createHash(pnpmfile2))
   expect(lockfile2.snapshots).toMatchObject({
     '@pnpm.e2e/foo@100.0.0': expect.any(Object),
     '@pnpm.e2e/bar@100.0.0': expect.any(Object),
