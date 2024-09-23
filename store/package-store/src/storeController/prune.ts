@@ -24,9 +24,18 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
   globalInfo('Removed all cached metadata files')
   const pkgIndexFiles = [] as string[]
   const removedHashes = new Set<string>()
-  const dirs = (await fs.readdir(cafsDir, { withFileTypes: true }).catch(() => []))
-    .filter(entry => entry.isDirectory())
-    .map(dir => dir.name)
+  const dirs = await fs.readdir(cafsDir, { withFileTypes: true })
+    .then((entries) => {
+      return entries
+        .filter(entry => entry.isDirectory())
+        .map(dir => dir.name)
+    })
+    .catch((error) => {
+      if (error.code === 'ENOENT') {
+        return []
+      }
+      return Promise.reject(error)
+    })
   let fileCounter = 0
   await Promise.all(dirs.map(async (dir) => {
     const subdir = path.join(cafsDir, dir)
