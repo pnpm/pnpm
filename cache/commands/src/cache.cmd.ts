@@ -27,8 +27,31 @@ export const commandNames = ['cache']
 
 export function help (): string {
   return renderHelp({
-    description: '',
-    descriptionLists: [],
+    description: 'Inspect and manage the metadata cache',
+    descriptionLists: [
+      {
+        title: 'Commands',
+
+        list: [
+          {
+            description: 'Lists the available packages metadata cache. Supports filtering by glob',
+            name: 'list',
+          },
+          {
+            description: 'Lists all registries that have their metadata cache locally',
+            name: 'list-registries',
+          },
+          {
+            description: "Views information from the specified package's cache",
+            name: 'view',
+          },
+          {
+            description: 'Deletes metadata cache for the specified package(s). Supports patterns',
+            name: 'delete',
+          },
+        ],
+      },
+    ],
     url: docsUrl('cache'),
     usages: ['pnpm cache <command>'],
   })
