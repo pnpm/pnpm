@@ -45,12 +45,14 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 > & {
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
+  fetchFullMetadata?: boolean | null
 } & Partial<Pick<Config, 'userConfig' | 'deployAllFiles' | 'sslConfigs' | 'strictStorePkgContentCheck'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
 ): Promise<{ ctrl: StoreController, dir: string }> {
-  const fullMetadata = opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
+  const filterMetadata = opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
+  const fullMetadata = opts.fetchFullMetadata ?? filterMetadata
   const { resolve, fetchers, clearResolutionCache } = createClient({
     customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
@@ -60,7 +62,7 @@ export async function createNewStoreController (
     cacheDir: opts.cacheDir,
     cert: opts.cert,
     fullMetadata,
-    filterMetadata: fullMetadata,
+    filterMetadata,
     httpProxy: opts.httpProxy,
     httpsProxy: opts.httpsProxy,
     ignoreScripts: opts.ignoreScripts,
