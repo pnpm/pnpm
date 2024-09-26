@@ -68,18 +68,19 @@ function overrideDepsOfPkg (
   versionOverrides: VersionOverrideWithParent[],
   genericVersionOverrides: VersionOverride[]
 ): void {
-  if (manifest.dependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.dependencies, dir)
-  if (manifest.optionalDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.optionalDependencies, dir)
-  if (manifest.devDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.devDependencies, dir)
-  if (manifest.peerDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.peerDependencies, dir)
+  const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
+  for (const deps of [dependencies, optionalDependencies, devDependencies, peerDependencies]) {
+    overrideDeps(versionOverrides, genericVersionOverrides, deps, dir)
+  }
 }
 
 function overrideDeps (
   versionOverrides: VersionOverrideWithParent[],
   genericVersionOverrides: VersionOverride[],
-  deps: Dependencies,
+  deps: Dependencies | undefined,
   dir: string | undefined
 ): void {
+  if (!deps) return
   for (const [name, pref] of Object.entries(deps)) {
     const versionOverride =
     pickMostSpecificVersionOverride(
