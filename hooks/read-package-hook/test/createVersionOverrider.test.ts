@@ -1,5 +1,5 @@
 import path from 'path'
-import { createVersionsOverrider } from '../lib/createVersionsOverrider'
+import { createVersionsOverrider } from '../src/createVersionsOverrider'
 
 test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider([
@@ -612,6 +612,80 @@ test('createVersionsOverrider() overrides peerDependencies of another dependency
     version: '18.2.0',
     peerDependencies: {
       react: '18.1.0',
+    },
+  })
+})
+
+test('createVersionOverrider() removes dependencies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newPref: '-',
+    },
+    {
+      parentPkg: {
+        name: 'bar',
+      },
+      targetPkg: {
+        name: 'baz',
+      },
+      newPref: '-',
+    },
+    {
+      targetPkg: {
+        name: 'qux',
+        pref: '2',
+      },
+      newPref: '-',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      dependencies: {
+        foo: '0.1.2',
+        bar: '1.2.3',
+        baz: '1.0.0',
+        qux: '2.1.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      bar: '1.2.3',
+      baz: '1.0.0',
+    },
+  })
+  expect(
+    overrider({
+      name: 'bar',
+      dependencies: {
+        foo: '0.1.2',
+        bar: '1.2.3',
+        baz: '1.0.0',
+        qux: '2.1.0',
+      },
+    })
+  ).toStrictEqual({
+    name: expect.anything(),
+    dependencies: {
+      bar: '1.2.3',
+    },
+  })
+  expect(
+    overrider({
+      dependencies: {
+        foo: '0.1.2',
+        bar: '1.2.3',
+        baz: '1.0.0',
+        qux: '3.2.1',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      bar: '1.2.3',
+      baz: '1.0.0',
+      qux: '3.2.1',
     },
   })
 })
