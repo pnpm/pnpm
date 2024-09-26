@@ -2,7 +2,7 @@ import path from 'path'
 import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
-import { type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
+import { type PackageSelector, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
 import { isIntersectingRange } from './isIntersectingRange'
 
@@ -58,7 +58,9 @@ interface VersionOverride extends VersionOverrideBase {
   localTarget?: LocalTarget
 }
 
-type VersionOverrideWithParent = VersionOverride & Required<Pick<VersionOverride, 'parentPkg'>>
+interface VersionOverrideWithParent extends VersionOverride {
+  parentPkg: PackageSelector
+}
 
 function overrideDepsOfPkg (
   { manifest, dir }: { manifest: PackageManifest, dir: string | undefined },
