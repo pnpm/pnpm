@@ -28,6 +28,7 @@ import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
 import { recursive, createMatcher, matchDependencies, makeIgnorePatterns, type UpdateDepsMatcher } from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
+// import { setAttribute, getAttribute } from '@napi-rs/xattr'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -116,7 +117,7 @@ export type InstallDepsOptions = Pick<Config,
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
   prepareExecutionEnv: PrepareExecutionEnv
-} & Partial<Pick<Config, 'pnpmHomeDir'>>
+} & Partial<Pick<Config, 'pnpmHomeDir' | 'modulesDir' | 'storeDir' | 'virtualStoreDir' | 'macosBackupModulesDir' | 'macosBackupStoreDir'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
@@ -297,6 +298,7 @@ when running add/update with the --workspace option')
     if (opts.save !== false) {
       await writeProjectManifest(updatedImporter.manifest)
     }
+
     return
   }
 
@@ -341,6 +343,42 @@ when running add/update with the --workspace option')
       }
     )
   }
+
+  // Exclude node_modules from MacOS Time Machine backup
+  /*
+  if (process.platform === 'darwin') { // is MacOS
+    if (opts.macosBackupModulesDir === false) {
+      const modulesDir = opts.modulesDir ?? 'node_modules'
+      const modulesDirPath = path.join(opts.dir, modulesDir)
+      if (await getAttribute(modulesDirPath, 'com.apple.metadata:com_apple_backup_excludeItem') === null) {
+        await setAttribute(
+          modulesDirPath,
+          'com.apple.metadata:com_apple_backup_excludeItem',
+          Buffer.from('1')
+        )
+      }
+      const virtualStoreDir = opts.virtualStoreDir ?? '.pnpm'
+      if (!virtualStoreDir.startsWith(modulesDir)) {
+        const virtualStoreDirPath = path.join(opts.workspaceDir ?? opts.dir, virtualStoreDir)
+        if (await getAttribute(virtualStoreDirPath, 'com.apple.metadata:com_apple_backup_excludeItem') === null) {
+          await setAttribute(
+            virtualStoreDirPath,
+            'com.apple.metadata:com_apple_backup_excludeItem',
+            Buffer.from('1')
+          )
+        }
+      }
+    }
+    if (opts.macosBackupStoreDir === false &&
+      await getAttribute(opts.storeDir!, 'com.apple.metadata:com_apple_backup_excludeItem') === null) {
+      await setAttribute(
+        opts.storeDir!,
+        'com.apple.metadata:com_apple_backup_excludeItem',
+        Buffer.from('1')
+      )
+    }
+  }
+  */
 }
 
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {

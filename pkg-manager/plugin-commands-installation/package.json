@@ -110,6 +110,9 @@
   "peerDependencies": {
     "@pnpm/logger": "^5.1.0"
   },
+  "optionalDependencies": {
+    "@napi-rs/xattr": "catalog:"
+  },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"

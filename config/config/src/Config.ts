@@ -206,6 +206,9 @@ export interface Config {
   peersSuffixMaxLength?: number
   strictStorePkgContentCheck: boolean
   managePackageManagerVersions: boolean
+
+  macosBackupStoreDir?: boolean
+  macosBackupModulesDir?: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

@@ -194,6 +194,8 @@ export async function getContext (
     storeDir: opts.storeDir,
     virtualStoreDir,
     virtualStoreDirMaxLength: importersContext.virtualStoreDirMaxLength ?? opts.virtualStoreDirMaxLength,
+    // @ts-expect-error
+    macosExtendedAttributesSet: importersContext?.macosExtendedAttributesSet,
     workspacePackages: opts.workspacePackages ?? arrayOfWorkspacePackagesToMap(opts.allProjects),
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
