@@ -13,13 +13,10 @@ export function createVersionsOverrider (
   rootDir: string
 ): ReadPackageHook {
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
-    overrides
-      .map((override) => {
-        return {
-          ...override,
-          localTarget: createLocalTarget(override, rootDir),
-        }
-      })
+    overrides.map((override) => ({
+      ...override,
+      localTarget: createLocalTarget(override, rootDir),
+    }))
   ) as [VersionOverrideWithParent[], VersionOverride[]]
   return ((manifest: PackageManifest, dir?: string) => {
     const versionOverridesWithParent = versionOverrides.filter(({ parentPkg }) => {
