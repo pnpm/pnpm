@@ -6,6 +6,8 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { DEFAULT_OPTS } from './utils'
 
+const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
+
 test('install fails if no package.json is found', async () => {
   prepareEmpty()
 
@@ -54,7 +56,7 @@ test('install with no store integrity validation', async () => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/7362
-describe('filters optional dependencies based on libc', () => {
+describeOnLinuxOnly('filters optional dependencies based on libc', () => {
   test.each([
     ['glibc', '@pnpm.e2e+only-linux-x64-glibc@1.0.0', '@pnpm.e2e+only-linux-x64-musl@1.0.0'],
     ['musl', '@pnpm.e2e+only-linux-x64-musl@1.0.0', '@pnpm.e2e+only-linux-x64-glibc@1.0.0'],
