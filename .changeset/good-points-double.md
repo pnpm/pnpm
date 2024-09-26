@@ -1,4 +1,5 @@
 ---
+"@pnpm/npm-resolver": minor
 "@pnpm/store-connection-manager": minor
 "@pnpm/plugin-commands-rebuild": minor
 "@pnpm/plugin-commands-installation": patch
