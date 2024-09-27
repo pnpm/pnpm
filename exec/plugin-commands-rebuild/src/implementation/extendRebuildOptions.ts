@@ -50,7 +50,7 @@ export type StrictRebuildOptions = {
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
   strictStorePkgContentCheck: boolean
-  fetchFullMetadata?: boolean | null
+  fetchFullMetadata?: boolean
 } & Pick<Config, 'sslConfigs'>
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
