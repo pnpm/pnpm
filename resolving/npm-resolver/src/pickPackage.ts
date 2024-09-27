@@ -236,6 +236,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
   const versions: PackageMeta['versions'] = {}
   for (const [version, info] of Object.entries(pkg.versions)) {
     // The list taken from https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object
+    // with the addition of 'libc'
     versions[version] = pick([
       'name',
       'version',
@@ -250,6 +251,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
       'peerDependenciesMeta',
       'cpu',
       'os',
+      'libc',
       'deprecated',
       'bundleDependencies',
       'bundledDependencies',
