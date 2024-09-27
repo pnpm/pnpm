@@ -41,11 +41,11 @@ body:
       label: Describe the drawbacks of your solution
       description: This section is important not only to identify future issues, but also for us to see whether you thought through your request. Ask yourself, what are the problems we could have maintaining what you propose? How often will it break?
     validations:
-      required: true
+      required: false
   - type: textarea
     id: alternatives
     attributes:
       label: Describe alternatives you've considered
       description: A clear and concise description of any alternative solutions or features you've considered, and why you think they wouldn't be good enough.
     validations:
-      required: true
+      required: false

@@ -20,6 +20,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
     rimraf(path.join(cacheDir, 'metadata')),
     rimraf(path.join(cacheDir, 'metadata-full')),
     rimraf(path.join(cacheDir, 'metadata-v1.1')),
+    rimraf(path.join(cacheDir, 'metadata-v1.2')),
   ])
   await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')

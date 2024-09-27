@@ -85,7 +85,7 @@ test('remove unreferenced packages', async () => {
       message: 'Removed 1 package',
     })
   )
-  expect(fs.readdirSync(cacheDir).length).toEqual(0)
+  expect(fs.readdirSync(cacheDir)).toStrictEqual([])
 })
 
 test.skip('remove packages that are used by project that no longer exist', async () => {
