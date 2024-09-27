@@ -69,17 +69,18 @@ function overrideDepsOfPkg (
 ): void {
   const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
   for (const deps of [dependencies, optionalDependencies, devDependencies, peerDependencies]) {
-    overrideDeps(versionOverrides, genericVersionOverrides, deps, dir)
+    if (deps) {
+      overrideDeps(versionOverrides, genericVersionOverrides, deps, dir)
+    }
   }
 }
 
 function overrideDeps (
   versionOverrides: VersionOverrideWithParent[],
   genericVersionOverrides: VersionOverride[],
-  deps: Dependencies | undefined,
+  deps: Dependencies,
   dir: string | undefined
 ): void {
-  if (!deps) return
   for (const [name, pref] of Object.entries(deps)) {
     const versionOverride =
     pickMostSpecificVersionOverride(
