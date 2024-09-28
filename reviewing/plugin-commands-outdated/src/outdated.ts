@@ -23,7 +23,7 @@ import renderHelp from 'render-help'
 import stripAnsi from 'strip-ansi'
 import {
   DEFAULT_COMPARATORS,
-  NAME_COMPARATORS,
+  NAME_COMPARATOR,
   type OutdatedWithVersionDiff,
 } from './utils'
 import { outdatedRecursive } from './recursive'
@@ -321,12 +321,7 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
 
 function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[], opts?: { sortBy?: 'name' }) {
   const sortBy = opts?.sortBy
-  let comparators = []
-  if (sortBy === 'name') {
-    comparators.push(NAME_COMPARATORS)
-  } else {
-    comparators = DEFAULT_COMPARATORS
-  }
+  const comparators = (sortBy === 'name') ? [NAME_COMPARATOR] : DEFAULT_COMPARATORS
   return sortWith(
     comparators,
     outdatedPackages.map(toOutdatedWithVersionDiff)
