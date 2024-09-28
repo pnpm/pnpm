@@ -285,7 +285,7 @@ test('overrides remove dependencies', async () => {
   const lockfile = project.readLockfile()
   expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
   expect(lockfile.snapshots['@pnpm.e2e/pkg-with-good-optional@1.0.0']).not.toHaveProperty(['optionalDependencies', 'is-positive'])
-  expect(lockfile.snapshots).not.toHaveProperty(['optionalDependencies', 'is-positive'])
+  expect(lockfile.snapshots).not.toHaveProperty(['is-positive@1.0.0'])
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
   expect(lockfile.packages).not.toHaveProperty(['is-positive@1.0.0'])
   expect(
