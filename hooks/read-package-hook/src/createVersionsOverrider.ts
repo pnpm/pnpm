@@ -97,6 +97,11 @@ function overrideDeps (
     )
     if (!versionOverride) continue
 
+    if (versionOverride.newPref === '-') {
+      delete deps[versionOverride.targetPkg.name]
+      continue
+    }
+
     if (versionOverride.localTarget) {
       deps[versionOverride.targetPkg.name] = `${versionOverride.localTarget.protocol}${resolveLocalOverride(versionOverride.localTarget, dir)}`
       continue
