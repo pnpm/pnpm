@@ -93,7 +93,7 @@ describe('cache view', () => {
 
   test('lists all metadata for requested package should specify a package name', async () => {
     expect(
-      cache.handler({
+      await cache.handler({
         cacheDir,
         cliOptions: {},
         pnpmHomeDir: process.cwd(),
