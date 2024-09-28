@@ -1243,3 +1243,10 @@ test('a package should be able to be a dependency of itself', async () => {
     expect(pkg.version).toBe('1.0.0')
   }
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/8570
+test('xxxx', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@medusajs/medusa-js@6.1.7'], testDefaults())
+})
