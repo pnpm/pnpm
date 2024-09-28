@@ -90,4 +90,15 @@ describe('cache view', () => {
       }),
     }))
   })
+
+  test('lists all metadata for requested package should specify a package name', async () => {
+    expect(
+      cache.handler({
+        cacheDir,
+        cliOptions: {},
+        pnpmHomeDir: process.cwd(),
+        storeDir,
+      }, ['view'])
+    ).rejects.toThrow('`pnpm cache view` requires the package name')
+  })
 })
