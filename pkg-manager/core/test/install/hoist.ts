@@ -268,7 +268,7 @@ test('should remove aliased hoisted dependencies', async () => {
   try {
     await resolveLinkTarget('./node_modules/dep')
     throw new Error('should have failed')
-  } catch (e) {}
+  } catch {}
 
   const modules = project.readModulesManifest()
   expect(modules).toBeTruthy()

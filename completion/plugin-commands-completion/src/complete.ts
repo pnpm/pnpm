@@ -66,7 +66,7 @@ export async function complete (
     } else if (ctx.completionByCommandName[input.cmd]) {
       try {
         completions = await ctx.completionByCommandName[input.cmd](input.options, input.params)
-      } catch (err) {
+      } catch {
         // Ignore
       }
     }

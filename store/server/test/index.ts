@@ -202,7 +202,7 @@ test('disable server upload', async () => {
       sideEffectsCacheKey: fakeEngine,
       filesIndexFile,
     })
-  } catch (e) {
+  } catch {
     thrown = true
   }
   expect(thrown).toBeTruthy()

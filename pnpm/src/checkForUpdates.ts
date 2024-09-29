@@ -18,7 +18,7 @@ export async function checkForUpdates (config: Config): Promise<void> {
   let state: State | undefined
   try {
     state = await loadJsonFile(stateFile)
-  } catch (err) {}
+  } catch {}
 
   if (
     state?.lastUpdateCheck &&
