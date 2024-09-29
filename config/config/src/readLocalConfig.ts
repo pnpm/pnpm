@@ -4,7 +4,7 @@ import camelcaseKeys from 'camelcase-keys'
 import { envReplace } from '@pnpm/config.env-replace'
 import { readIniFile } from 'read-ini-file'
 
-export type LocalConfig = Record<string, string> & { hoist?: boolean }
+export type LocalConfig = Record<string, string[] | string> & { hoist?: boolean }
 
 export async function readLocalConfig (prefix: string): Promise<LocalConfig> {
   try {
@@ -18,12 +18,14 @@ export async function readLocalConfig (prefix: string): Promise<LocalConfig> {
       config.hoistPattern = ''
     }
     for (const [key, val] of Object.entries(config)) {
-      if (typeof val === 'string') {
-        try {
+      try {
+        if (typeof val === 'string') {
           config[envReplace(key, process.env)] = envReplace(val, process.env)
-        } catch (err) {
-          // ignore
+        } else if (Array.isArray(val)) {
+          config[envReplace(key, process.env)] = val.map((str) => envReplace(str, process.env))
         }
+      } catch (err) {
+        // ignore
       }
     }
     return config
