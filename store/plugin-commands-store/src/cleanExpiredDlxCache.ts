@@ -30,7 +30,7 @@ export async function cleanExpiredDlxCache ({
     }
     if (shouldClean) {
       // delete the symlink, the symlink's target, and orphans (if any)
-      await fs.rm(dlxCachePath, { recursive: true })
+      await fs.rm(dlxCachePath, { recursive: true, force: true })
     }
   }))
 
@@ -45,7 +45,7 @@ export async function cleanOrphans (dlxCacheDir: string): Promise<void> {
     const dlxCacheLink = path.join(dlxCachePath, 'pkg')
     const dlxCacheLinkStats = await getStats(dlxCacheLink)
     if (dlxCacheLinkStats === 'ENOENT') {
-      return fs.rm(dlxCachePath, { recursive: true })
+      return fs.rm(dlxCachePath, { recursive: true, force: true })
     }
     const dlxCacheLinkTarget = await getRealPath(dlxCacheLink)
     const children = await fs.readdir(dlxCachePath)
@@ -53,7 +53,7 @@ export async function cleanOrphans (dlxCacheDir: string): Promise<void> {
       if (name === 'pkg') return
       const fullPath = path.join(dlxCachePath, name)
       if (fullPath === dlxCacheLinkTarget) return
-      await fs.rm(fullPath, { recursive: true })
+      await fs.rm(fullPath, { recursive: true, force: true })
     }))
   }))
 }
