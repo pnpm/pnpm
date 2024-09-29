@@ -78,7 +78,7 @@ test('cleanExpiredCache removes items that outlive dlxCacheMaxAge', async () => 
   )
   expect(rmSpy).toHaveBeenCalledWith(
     expect.stringContaining(path.join(cacheDir, 'dlx', createCacheKey('baz'))),
-    { recursive: true }
+    { recursive: true, force: true }
   )
 
   readdirSyncSpy.mockRestore()
@@ -117,7 +117,7 @@ test('cleanExpiredCache removes all directories without checking stat if dlxCach
   expect(readdirSyncSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx'), expect.anything())
   expect(lstatSpy).not.toHaveBeenCalled()
   for (const key of ['foo', 'bar', 'baz']) {
-    expect(rmSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx', createCacheKey(key)), { recursive: true })
+    expect(rmSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx', createCacheKey(key)), { recursive: true, force: true })
   }
 
   readdirSyncSpy.mockRestore()
