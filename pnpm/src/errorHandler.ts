@@ -51,11 +51,11 @@ async function killProcesses (status: number): Promise<void> {
     for (const pid of descendentProcesses) {
       try {
         process.kill(pid)
-      } catch (err) {
+      } catch {
         // ignore error here
       }
     }
-  } catch (err) {
+  } catch {
     // ignore error here
   }
   process.exit(status)

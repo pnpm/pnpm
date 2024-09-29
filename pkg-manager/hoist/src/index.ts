@@ -294,7 +294,7 @@ async function symlinkHoistedDependency (
   let existingSymlink!: string
   try {
     existingSymlink = await resolveLinkTarget(dest)
-  } catch (err) {
+  } catch {
     hoistLogger.debug({
       skipped: dest,
       reason: 'a directory is present at the target location',

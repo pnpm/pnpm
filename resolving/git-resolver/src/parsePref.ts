@@ -102,7 +102,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
           if (response.ok) {
             fetchSpec = httpsUrl
           }
-        } catch (e) {
+        } catch {
           // ignore
         }
       }
@@ -130,7 +130,7 @@ async function isRepoPublic (httpsUrl: string): Promise<boolean> {
   try {
     const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
     return response.ok
-  } catch (_err) {
+  } catch {
     return false
   }
 }
@@ -139,7 +139,7 @@ async function accessRepository (repository: string): Promise<boolean> {
   try {
     await git(['ls-remote', '--exit-code', repository, 'HEAD'], { retries: 0 })
     return true
-  } catch (err: any) { // eslint-disable-line
+  } catch { // eslint-disable-line
     return false
   }
 }

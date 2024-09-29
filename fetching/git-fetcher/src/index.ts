@@ -75,7 +75,7 @@ function shouldUseShallow (repoUrl: string, allowedHosts: Set<string>): boolean 
     if (allowedHosts.has(host)) {
       return true
     }
-  } catch (e) {
+  } catch {
     // URL might be malformed
   }
   return false

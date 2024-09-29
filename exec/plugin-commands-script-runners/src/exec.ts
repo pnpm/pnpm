@@ -348,7 +348,7 @@ async function createExecCommandNotFoundHint (
     let nearestScript: string | null | undefined
     try {
       nearestScript = getNearestScript(programName, (await readProjectManifestOnly(opts.dir)).scripts)
-    } catch (_err) {}
+    } catch {}
     if (nearestScript) {
       return `Did you mean "pnpm ${nearestScript}"?`
     }

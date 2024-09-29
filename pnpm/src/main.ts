@@ -182,7 +182,7 @@ export async function main (inputArgv: string[]): Promise<void> {
  Target location: ${config.bin}
 `)
       }
-    } catch (err) {
+    } catch {
       // if pnpm not found, then ignore
     }
   }
