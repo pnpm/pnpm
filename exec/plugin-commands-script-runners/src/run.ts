@@ -156,12 +156,24 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'bin' | 'dir' | 'engineStrict' | 'extraBinPaths' | 'pnpmHomeDir' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv' | 'nodeOptions'>
+  & Pick<Config,
+  | 'bin'
+  | 'dir'
+  | 'enablePrePostScripts'
+  | 'engineStrict'
+  | 'extraBinPaths'
+  | 'extraEnv'
+  | 'nodeOptions'
+  | 'pnpmHomeDir'
+  | 'reporter'
+  | 'scriptShell'
+  | 'scriptsPrependNodePath'
+  | 'shellEmulator'
+  | 'userAgent'
+  >
   & (
-    & { recursive?: false }
-    & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
-    | { recursive: true }
-    & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
+    | { recursive?: false } & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
+    | { recursive: true } & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
   )
   & {
     argv?: {
