@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, mutateModulesInSingleProject, install } from '@pnpm/core'
 import { type ProjectRootDir, type PackageExtension, type ProjectManifest } from '@pnpm/types'
-import { createObjectChecksum } from '../../lib/install/index'
+import { createObjectChecksum } from '@pnpm/crypto.object-checksum'
 import {
   testDefaults,
 } from '../utils'

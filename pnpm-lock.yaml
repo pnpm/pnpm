@@ -3540,6 +3540,19 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
 
+  packages/crypto.object-checksum:
+    dependencies:
+      sort-keys:
+        specifier: 'catalog:'
+        version: 4.2.0
+    devDependencies:
+      '@pnpm/crypto.object-checksum':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+
   packages/dependency-path:
     dependencies:
       '@pnpm/crypto.base32-hash':
@@ -4028,6 +4041,9 @@ importers:
       '@pnpm/crypto.base32-hash':
         specifier: workspace:*
         version: link:../../packages/crypto.base32-hash
+      '@pnpm/crypto.object-checksum':
+        specifier: workspace:*
+        version: link:../../packages/crypto.object-checksum
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -4178,9 +4194,6 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.6.2
-      sort-keys:
-        specifier: 'catalog:'
-        version: 4.2.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*

@@ -103,6 +103,9 @@
       "path": "../../packages/crypto.base32-hash"
     },
     {
+      "path": "../../packages/crypto.object-checksum"
+    },
+    {
       "path": "../../packages/dependency-path"
     },
     {
