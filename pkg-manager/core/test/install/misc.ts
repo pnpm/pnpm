@@ -1248,5 +1248,6 @@ test('a package should be able to be a dependency of itself', async () => {
 test('xxxx', async () => {
   prepareEmpty()
 
+  // cspell:disable-next-line
   await addDependenciesToPackage({}, ['@medusajs/medusa-js@6.1.7'], testDefaults())
 })

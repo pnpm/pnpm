@@ -420,10 +420,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
     const newParentPkgs = toPkgByName(parentPkgNodes)
     const _parentPkgsMatch = parentPkgsMatch.bind(null, ctx.dependenciesTree)
-    const allPeersHaveOneOccurrence = Object.values(newParentPkgs).every((parentPkg) => parentPkg.occurrence === 0)
     for (const [newParentPkgName, newParentPkg] of Object.entries(newParentPkgs)) {
       if (parentPkgs[newParentPkgName]) {
-        if (allPeersHaveOneOccurrence || !_parentPkgsMatch(parentPkgs[newParentPkgName], newParentPkg)) {
+        if (!_parentPkgsMatch(parentPkgs[newParentPkgName], newParentPkg)) {
           newParentPkg.occurrence = parentPkgs[newParentPkgName].occurrence + 1
           parentPkgs[newParentPkgName] = newParentPkg
         }
@@ -568,7 +567,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         .map(async (peerNodeId) => {
           if (cyclicPeerNodeIds.has(peerNodeId)) {
             const { name, version } = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
-            return `${name}@${version}`
+            const id = `${name}@${version}`
+            ctx.pathsByNodeIdPromises.get(peerNodeId)?.resolve(id as DepPath)
+            return id
           }
           return ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
         })
