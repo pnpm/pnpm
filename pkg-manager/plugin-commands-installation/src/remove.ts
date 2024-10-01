@@ -119,7 +119,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 // This way we avoid the confusion about whether "pnpm r" means remove, run, or recursive.
 export const commandNames = ['remove', 'uninstall', 'rm', 'un', 'uni']
 
-export const completion: CompletionFunc = async (cliOpts, params) => {
+export const completion: CompletionFunc = async (cliOpts) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
