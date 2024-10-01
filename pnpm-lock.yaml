@@ -1080,6 +1080,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
