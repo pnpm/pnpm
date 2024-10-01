@@ -85,6 +85,9 @@ export async function handler (opts: CacheCommandOptions, params: string[]): Pro
     if (!params[1]) {
       throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm cache view` requires the package name')
     }
+    if (params.length > 2) {
+      throw new PnpmError('TOO_MANY_PARAMS', '`pnpm cache view` only accepts one package name')
+    }
     const storeDir = await getStorePath({
       pkgRoot: process.cwd(),
       storePath: opts.storeDir,
