@@ -123,7 +123,7 @@ async function handleMessage (
   }
 }
 
-function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, readManifest }: TarballExtractMessage) {
+function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile }: TarballExtractMessage) {
   if (integrity) {
     const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
     // Compensate for the possibility of non-uniform Base64 padding
@@ -161,7 +161,7 @@ interface AddFilesFromDirResult {
   }
 }
 
-function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, pkg, readManifest, files }: AddDirToStoreMessage): AddFilesFromDirResult {
+function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, files }: AddDirToStoreMessage): AddFilesFromDirResult {
   if (!cafsCache.has(cafsDir)) {
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
