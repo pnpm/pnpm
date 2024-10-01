@@ -1245,7 +1245,7 @@ test('a package should be able to be a dependency of itself', async () => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/8570
-test('xxxx', async () => {
+test('install should not hang on circular peer dependencies', async () => {
   prepareEmpty()
 
   // cspell:disable-next-line
