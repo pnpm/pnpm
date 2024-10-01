@@ -24,7 +24,7 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
     name: 'spnpmImports',
     setup: (build) => {
       // E.g. @pnpm/config -> /<some_dir>/pnpm/packages/config/src/index.ts
-      build.onResolve({ filter: /@pnpm\// }, ({ path, resolveDir }) => {
+      build.onResolve({ filter: /@pnpm\// }, ({ path }) => {
         // Bail if the package isn't present locally
         if (!localPackages.includes(path)) {
           return
@@ -36,7 +36,7 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
         }
       })
 
-      build.onResolve({filter: /js-yaml/}, ({ path, resolveDir, ...rest }) => {
+      build.onResolve({filter: /js-yaml/}, ({ path, resolveDir }) => {
         if (path === 'js-yaml' && resolveDir.includes('lockfile/fs')) {
           // Force esbuild to use the resolved js-yaml from within lockfile-file,
           // since it seems to pick the wrong one otherwise.
