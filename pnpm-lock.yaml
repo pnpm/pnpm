@@ -3527,6 +3527,25 @@ importers:
         specifier: workspace:*
         version: link:../logger
 
+  packages/core-utils:
+    dependencies:
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      sort-keys:
+        specifier: 'catalog:'
+        version: 4.2.0
+    devDependencies:
+      '@pnpm/core-utils':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+
   packages/crypto.base32-hash:
     dependencies:
       rfc4648:
@@ -3539,25 +3558,6 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
-
-  packages/crypto.object-checksum:
-    dependencies:
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-      sort-keys:
-        specifier: 'catalog:'
-        version: 4.2.0
-    devDependencies:
-      '@pnpm/crypto.object-checksum':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
 
   packages/dependency-path:
     dependencies:
@@ -4044,12 +4044,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/core-utils':
+        specifier: workspace:*
+        version: link:../../packages/core-utils
       '@pnpm/crypto.base32-hash':
         specifier: workspace:*
         version: link:../../packages/crypto.base32-hash
-      '@pnpm/crypto.object-checksum':
-        specifier: workspace:*
-        version: link:../../packages/crypto.object-checksum
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path

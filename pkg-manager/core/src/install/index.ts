@@ -13,8 +13,8 @@ import {
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
+import { createObjectChecksum } from '@pnpm/core-utils'
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
-import { createObjectChecksum } from '@pnpm/crypto.object-checksum'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
 import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'

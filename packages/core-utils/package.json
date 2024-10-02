@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/crypto.object-checksum",
+  "name": "@pnpm/core-utils",
   "version": "1.0.0",
-  "description": "Create checksum of a JSON object",
+  "description": "Collection of small utilities used by @pnpm/core that can be shared with other modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
@@ -15,7 +15,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/crypto.object-checksum",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/core-utils",
   "keywords": [
     "pnpm9",
     "hash",
@@ -29,13 +29,13 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/crypto.object-checksum#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/core-utils#readme",
   "dependencies": {
     "ramda": "catalog:",
     "sort-keys": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/crypto.object-checksum": "workspace:*",
+    "@pnpm/core-utils": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:"
   },

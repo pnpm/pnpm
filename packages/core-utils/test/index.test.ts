@@ -1,4 +1,4 @@
-import { createObjectChecksum } from '../src/index'
+import { createObjectChecksum } from '../src/createObjectChecksum'
 
 function assets () {
   const sorted = {
