@@ -567,7 +567,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         .map(async (peerNodeId) => {
           if (cyclicPeerNodeIds.has(peerNodeId)) {
             const { name, version } = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
-            return `${name}@${version}`
+            const id = `${name}@${version}`
+            ctx.pathsByNodeIdPromises.get(peerNodeId)?.resolve(id as DepPath)
+            return id
           }
           return ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
         })
