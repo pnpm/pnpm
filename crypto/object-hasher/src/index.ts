@@ -1,3 +1,6 @@
+import { type PackageExtension } from '@pnpm/types'
+import isEmpty from 'ramda/src/isEmpty'
+
 // We use object-hash even though node-object-hash is faster.
 // Unlike node-object-hash, object-hash is streaming the hash updates,
 // avoiding "Invalid string length" errors.
@@ -33,3 +36,10 @@ function hashUnknown (object: unknown, options: hash.BaseOptions): string {
 
 export const hashObjectWithoutSorting = (object: unknown): string => hashUnknown(object, withoutSortingOptions)
 export const hashObject = (object: unknown): string => hashUnknown(object, withSortingOptions)
+
+export type PackageExtensionsChecksum = `sha256-${string}` | undefined
+export function createPackageExtensionsChecksum (packageExtensions: Record<string, PackageExtension> | undefined): PackageExtensionsChecksum {
+  if (!packageExtensions || isEmpty(packageExtensions)) return undefined
+  const packageExtensionsChecksum = hash(packageExtensions, withSortingOptions)
+  return `sha256-${packageExtensionsChecksum}`
+}

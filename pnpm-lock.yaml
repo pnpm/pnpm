@@ -1636,9 +1636,15 @@ importers:
 
   crypto/object-hasher:
     dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       object-hash:
         specifier: 'catalog:'
         version: 3.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
@@ -1646,6 +1652,9 @@ importers:
       '@types/object-hash':
         specifier: 'catalog:'
         version: 3.0.6
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
 
   dedupe/check:
     dependencies:
