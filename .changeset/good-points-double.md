@@ -5,4 +5,4 @@
 "pnpm": patch
 ---
 
-Fix a bug in which pnpm downloads packages whose `libc` differ from `pnpm.supportedArchitectures.libc` [#7362](https://github.com/pnpm/pnpm/issues/7362).
+Packages with `libc` that differ from `pnpm.supportedArchitectures.libc` are not downloaded [#7362](https://github.com/pnpm/pnpm/issues/7362).
