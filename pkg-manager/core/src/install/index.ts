@@ -743,12 +743,7 @@ Note that in CI environments, this setting is enabled by default.`,
   }
 }
 
-interface PatchHash {
-  hash: string
-  path: string
-}
-
-async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string): Promise<Record<string, PatchHash>> {
+async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string): Promise<Record<string, PatchFile>> {
   return pMapValues(async (patchFilePath) => {
     return {
       hash: await createBase32HashFromFile(patchFilePath),
