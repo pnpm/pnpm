@@ -90,4 +90,26 @@ describe('cache view', () => {
       }),
     }))
   })
+
+  test('lists all metadata for requested package should specify a package name', async () => {
+    await expect(
+      cache.handler({
+        cacheDir,
+        cliOptions: {},
+        pnpmHomeDir: process.cwd(),
+        storeDir,
+      }, ['view'])
+    ).rejects.toThrow('`pnpm cache view` requires the package name')
+  })
+
+  test('lists all metadata for requested package should not accept more than one package name', async () => {
+    await expect(
+      cache.handler({
+        cacheDir,
+        cliOptions: {},
+        pnpmHomeDir: process.cwd(),
+        storeDir,
+      }, ['view', 'is-negative', 'is-positive'])
+    ).rejects.toThrow('`pnpm cache view` only accepts one package name')
+  })
 })
