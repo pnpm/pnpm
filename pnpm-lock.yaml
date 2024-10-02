@@ -3529,6 +3529,9 @@ importers:
 
   packages/core-utils:
     dependencies:
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
