@@ -1,5 +1,17 @@
 # @pnpm/config
 
+## 21.8.4
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+  - @pnpm/error@6.0.2
+  - @pnpm/workspace.read-manifest@2.2.1
+  - @pnpm/catalogs.config@0.1.1
+  - @pnpm/pnpmfile@6.0.12
+  - @pnpm/read-project-manifest@6.0.9
+
 ## 21.8.3
 
 ### Patch Changes

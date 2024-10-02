@@ -1,5 +1,11 @@
 # @pnpm/read-project-manifest
 
+## 6.0.9
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+
 ## 6.0.8
 
 ### Patch Changes

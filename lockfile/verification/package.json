@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.verification",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Checks a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

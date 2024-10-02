@@ -1,5 +1,11 @@
 # @pnpm/directory-fetcher
 
+## 8.0.9
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@6.0.9
+
 ## 8.0.8
 
 ### Patch Changes

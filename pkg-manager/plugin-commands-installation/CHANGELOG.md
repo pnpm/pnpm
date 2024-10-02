@@ -1,5 +1,33 @@
 # @pnpm/plugin-commands-installation
 
+## 17.2.4
+
+### Patch Changes
+
+- 83681da: Packages with `libc` that differ from `pnpm.supportedArchitectures.libc` are not downloaded [#7362](https://github.com/pnpm/pnpm/issues/7362).
+- Updated dependencies [83681da]
+- Updated dependencies [83681da]
+- Updated dependencies [25d37f5]
+  - @pnpm/store-connection-manager@8.4.0
+  - @pnpm/plugin-commands-rebuild@12.1.0
+  - @pnpm/constants@9.0.0
+  - @pnpm/package-store@20.4.0
+  - @pnpm/config@21.8.4
+  - @pnpm/error@6.0.2
+  - @pnpm/core@15.3.5
+  - @pnpm/get-context@12.0.6
+  - @pnpm/outdated@15.1.5
+  - @pnpm/workspace.pkgs-graph@4.0.6
+  - @pnpm/cli-utils@4.0.6
+  - @pnpm/plugin-commands-env@5.1.9
+  - @pnpm/dedupe.check@2.0.11
+  - @pnpm/pnpmfile@6.0.12
+  - @pnpm/manifest-utils@6.0.9
+  - @pnpm/read-project-manifest@6.0.9
+  - @pnpm/filter-workspace-packages@10.0.11
+  - @pnpm/find-workspace-dir@7.0.2
+  - @pnpm/workspace.find-packages@4.0.11
+
 ## 17.2.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/constants",
-  "version": "8.0.0",
+  "version": "9.0.0",
   "description": "pnpm constants",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

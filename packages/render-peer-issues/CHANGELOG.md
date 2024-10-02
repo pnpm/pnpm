@@ -1,5 +1,13 @@
 # @pnpm/render-peer-issues
 
+## 5.0.9
+
+### Patch Changes
+
+- 9ff7724: Fix white text on light background for project name [#8526](https://github.com/pnpm/pnpm/pull/8526).
+  - @pnpm/error@6.0.2
+  - @pnpm/parse-overrides@5.1.1
+
 ## 5.0.8
 
 ### Patch Changes

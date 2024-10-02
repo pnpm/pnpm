@@ -1,5 +1,13 @@
 # @pnpm/workspace.read-manifest
 
+## 2.2.1
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+  - @pnpm/error@6.0.2
+
 ## 2.2.0
 
 ### Minor Changes
