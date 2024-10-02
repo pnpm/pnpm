@@ -52,9 +52,17 @@ function assets () {
   return { sorted, unsorted1, unsorted2, unsorted3 } as const
 }
 
-test('createObjectChecksum', () => {
+test('createObjectChecksum on non-empty objects', () => {
   const { sorted, unsorted1, unsorted2, unsorted3 } = assets()
   expect(createObjectChecksum(unsorted1)).toBe(createObjectChecksum(sorted))
   expect(createObjectChecksum(unsorted2)).toBe(createObjectChecksum(sorted))
   expect(createObjectChecksum(unsorted3)).toBe(createObjectChecksum(sorted))
+})
+
+test('createObjectChecksum on an empty object', () => {
+  expect(createObjectChecksum({})).toBe(undefined)
+})
+
+test('createObjectChecksum on undefined', () => {
+  expect(createObjectChecksum(undefined)).toBe(undefined)
 })
