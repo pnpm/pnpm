@@ -18,6 +18,7 @@ const argv = process.argv.slice(2)
   case 'edit':
   case 'home':
   case 'info':
+  case 'issues':
   case 'login':
   case 'logout':
   case 'owner':
