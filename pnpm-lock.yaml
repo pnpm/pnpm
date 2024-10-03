@@ -1636,9 +1636,6 @@ importers:
 
   crypto/object-hasher:
     dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       object-hash:
         specifier: 'catalog:'
         version: 3.0.0

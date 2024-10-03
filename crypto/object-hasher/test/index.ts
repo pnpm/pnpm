@@ -1,4 +1,4 @@
-import { hashObject, hashObjectWithoutSorting, createPackageExtensionsChecksum } from '@pnpm/crypto.object-hasher'
+import { hashObject, hashObjectWithoutSorting, hashObjectNullablePrefix } from '@pnpm/crypto.object-hasher'
 
 describe('hashObject', () => {
   const hash = hashObject
@@ -24,59 +24,15 @@ describe('hashObjectWithoutSorting', () => {
   })
 })
 
-describe('createPackageExtensionsChecksum', () => {
-  const hash = createPackageExtensionsChecksum
+describe('hashObjectNullablePrefix', () => {
+  const hash = hashObjectNullablePrefix
   it('creates a hash', () => {
-    expect(hash({
-      foo: {
-        dependencies: {
-          abc: '0.1.2',
-          def: '3.4.5',
-        },
-      },
-      bar: {
-        dependencies: {
-          abc: '0.1.2',
-        },
-        peerDependencies: {
-          def: '3.4.5',
-        },
-      },
-    })).toStrictEqual('sha256-rQFUgJKDgN5oCbSKGAfYurLFKkdX/NaD9VjnBPBz4CI=')
+    expect(hash({ b: 1, a: 2 })).toStrictEqual('sha256-48AVoXIXcTKcnHt8qVKp5vNw4gyOB5VfztHwtYBRcAQ=')
     expect(hash({})).toStrictEqual(undefined)
     expect(hash(undefined)).toStrictEqual(undefined)
   })
   it('sorts', () => {
-    expect(hash({
-      foo: {
-        dependencies: {
-          abc: '0.1.2',
-          def: '3.4.5',
-        },
-      },
-      bar: {
-        dependencies: {
-          abc: '0.1.2',
-        },
-        peerDependencies: {
-          def: '3.4.5',
-        },
-      },
-    })).toStrictEqual(hash({
-      bar: {
-        peerDependencies: {
-          def: '3.4.5',
-        },
-        dependencies: {
-          abc: '0.1.2',
-        },
-      },
-      foo: {
-        dependencies: {
-          def: '3.4.5',
-          abc: '0.1.2',
-        },
-      },
-    }))
+    expect(hash({ b: 1, a: 2 })).toStrictEqual(hash({ a: 2, b: 1 }))
+    expect(hash({ b: new Set([1, 2, 3]), a: [1, 2, 3] })).toStrictEqual(hash({ a: [2, 3, 1], b: new Set([3, 2, 1]) }))
   })
 })

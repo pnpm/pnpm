@@ -30,7 +30,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/object-hasher#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:*",
     "object-hash": "catalog:",
     "ramda": "catalog:"
   },

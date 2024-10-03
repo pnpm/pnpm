@@ -14,7 +14,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
-import { createPackageExtensionsChecksum } from '@pnpm/crypto.object-hasher'
+import { hashObjectNullablePrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
 import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
@@ -327,7 +327,7 @@ export async function mutateModules (
         }
       )
     }
-    const packageExtensionsChecksum = createPackageExtensionsChecksum(opts.packageExtensions)
+    const packageExtensionsChecksum = hashObjectNullablePrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
