@@ -16,7 +16,7 @@ import {
 } from '@pnpm/core-loggers'
 import {
   getOutdatedLockfileSetting,
-} from '@pnpm/core-utils'
+} from '@pnpm/lockfile.settings-checker'
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'

@@ -79,6 +79,9 @@
       "path": "../../lockfile/pruner"
     },
     {
+      "path": "../../lockfile/settings-checker"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {
@@ -98,9 +101,6 @@
     },
     {
       "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/core-utils"
     },
     {
       "path": "../../packages/crypto.base32-hash"
