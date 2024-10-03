@@ -37,7 +37,7 @@ export const hashObjectWithoutSorting = (object: unknown): string => hashUnknown
 export const hashObject = (object: unknown): string => hashUnknown(object, withSortingOptions)
 
 export type PrefixedHash = `sha256-${string}`
-export function hashObjectNullablePrefix (object: Record<string, unknown> | undefined): PrefixedHash | undefined {
+export function hashObjectNullableWithPrefix (object: Record<string, unknown> | undefined): PrefixedHash | undefined {
   if (!object || isEmpty(object)) return undefined
   const packageExtensionsChecksum = hash(object, withSortingOptions)
   return `sha256-${packageExtensionsChecksum}`

@@ -1,4 +1,4 @@
-import { hashObject, hashObjectWithoutSorting, hashObjectNullablePrefix } from '@pnpm/crypto.object-hasher'
+import { hashObject, hashObjectWithoutSorting, hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 
 describe('hashObject', () => {
   const hash = hashObject
@@ -24,8 +24,8 @@ describe('hashObjectWithoutSorting', () => {
   })
 })
 
-describe('hashObjectNullablePrefix', () => {
-  const hash = hashObjectNullablePrefix
+describe('hashObjectNullableWithPrefix', () => {
+  const hash = hashObjectNullableWithPrefix
   it('creates a hash', () => {
     expect(hash({ b: 1, a: 2 })).toStrictEqual('sha256-48AVoXIXcTKcnHt8qVKp5vNw4gyOB5VfztHwtYBRcAQ=')
     expect(hash({})).toStrictEqual(undefined)
