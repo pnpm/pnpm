@@ -1,3 +1,5 @@
+import isEmpty from 'ramda/src/isEmpty'
+
 // We use object-hash even though node-object-hash is faster.
 // Unlike node-object-hash, object-hash is streaming the hash updates,
 // avoiding "Invalid string length" errors.
@@ -33,3 +35,10 @@ function hashUnknown (object: unknown, options: hash.BaseOptions): string {
 
 export const hashObjectWithoutSorting = (object: unknown): string => hashUnknown(object, withoutSortingOptions)
 export const hashObject = (object: unknown): string => hashUnknown(object, withSortingOptions)
+
+export type PrefixedHash = `sha256-${string}`
+export function hashObjectNullableWithPrefix (object: Record<string, unknown> | undefined): PrefixedHash | undefined {
+  if (!object || isEmpty(object)) return undefined
+  const packageExtensionsChecksum = hash(object, withSortingOptions)
+  return `sha256-${packageExtensionsChecksum}`
+}
