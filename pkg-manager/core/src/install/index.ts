@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
@@ -14,7 +15,6 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import {
-  createObjectChecksum,
   getOutdatedLockfileSetting,
 } from '@pnpm/core-utils'
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
@@ -80,6 +80,7 @@ import clone from 'ramda/src/clone'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
+import sortKeys from 'sort-keys'
 import { parseWantedDependencies } from '../parseWantedDependencies'
 import { removeDeps } from '../uninstall/removeDeps'
 import {
@@ -329,7 +330,7 @@ export async function mutateModules (
         }
       )
     }
-    const packageExtensionsChecksum = createObjectChecksum(opts.packageExtensions)
+    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
@@ -750,6 +751,10 @@ async function calcPatchHashes (patches: Record<string, string>, lockfileDir: st
       path: path.relative(lockfileDir, patchFilePath).replaceAll('\\', '/'),
     }
   }, patches)
+}
+export function createObjectChecksum (obj: Record<string, unknown>): string {
+  const s = JSON.stringify(sortKeys(obj, { deep: true }))
+  return crypto.createHash('md5').update(s).digest('hex')
 }
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
