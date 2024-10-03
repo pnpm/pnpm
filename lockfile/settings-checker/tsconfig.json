@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../config/parse-overrides"
+    },
+    {
       "path": "../../packages/crypto.base32-hash"
     },
     {

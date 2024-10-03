@@ -33,6 +33,7 @@
   "dependencies": {
     "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/parse-overrides": "workspace:*",
     "p-map-values": "catalog:",
     "ramda": "catalog:",
     "sort-keys": "catalog:"

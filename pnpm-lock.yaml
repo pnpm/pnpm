@@ -3248,6 +3248,9 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
+      '@pnpm/parse-overrides':
+        specifier: workspace:*
+        version: link:../../config/parse-overrides
       p-map-values:
         specifier: 'catalog:'
         version: 1.0.0
