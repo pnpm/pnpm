@@ -15,9 +15,9 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import {
+  calcPatchHashes,
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
-import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
 import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
@@ -74,7 +74,6 @@ import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
-import pMapValues from 'p-map-values'
 import mapValues from 'ramda/src/map'
 import clone from 'ramda/src/clone'
 import isEmpty from 'ramda/src/isEmpty'
@@ -744,14 +743,6 @@ Note that in CI environments, this setting is enabled by default.`,
   }
 }
 
-async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string): Promise<Record<string, PatchFile>> {
-  return pMapValues(async (patchFilePath) => {
-    return {
-      hash: await createBase32HashFromFile(patchFilePath),
-      path: path.relative(lockfileDir, patchFilePath).replaceAll('\\', '/'),
-    }
-  }, patches)
-}
 export function createObjectChecksum (obj: Record<string, unknown>): string {
   const s = JSON.stringify(sortKeys(obj, { deep: true }))
   return crypto.createHash('md5').update(s).digest('hex')

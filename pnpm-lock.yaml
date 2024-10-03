@@ -3242,9 +3242,15 @@ importers:
 
   lockfile/settings-checker:
     dependencies:
+      '@pnpm/crypto.base32-hash':
+        specifier: workspace:*
+        version: link:../../packages/crypto.base32-hash
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
+      p-map-values:
+        specifier: 'catalog:'
+        version: 1.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -4191,9 +4197,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
-      p-map-values:
-        specifier: 'catalog:'
-        version: 1.0.0
       path-exists:
         specifier: 'catalog:'
         version: 4.0.0

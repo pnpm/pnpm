@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../packages/crypto.base32-hash"
+    },
+    {
       "path": "../types"
     }
   ]

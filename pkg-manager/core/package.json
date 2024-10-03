@@ -69,7 +69,6 @@
     "normalize-path": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
-    "p-map-values": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",
     "run-groups": "catalog:",
