@@ -1,6 +1,6 @@
 # @pnpm/lockfile.settings-checker
 
-> Utilities to check if lockfile settings is out-of-date.
+> Utilities to check if lockfile settings are out-of-date.
 
 ## Installation
 

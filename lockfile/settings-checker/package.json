@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/lockfile.settings-checker",
   "version": "1.0.0",
-  "description": "Utilities to check if lockfile settings is out-of-date",
+  "description": "Utilities to check if lockfile settings are out-of-date",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
