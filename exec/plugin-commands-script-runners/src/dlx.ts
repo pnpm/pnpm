@@ -97,7 +97,7 @@ export async function handler (
       // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
       // The link created by the other process is just as up-to-date as the link the current process was attempting
       // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
-      // the other link stays. The current process should yield.
+      // the other link stay. The current process should yield.
       if (util.types.isNativeError(error) && 'code' in error && error.code === 'EBUSY') {
         await new Promise(resolve => setTimeout(resolve, 0))
       } else {
