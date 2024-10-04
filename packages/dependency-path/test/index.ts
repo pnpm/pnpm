@@ -91,6 +91,7 @@ test('depPathToFilename()', () => {
   expect(depPathToFilename('\\//:*?"<>|', 120)).toBe('++++++++++')
   expect(depPathToFilename('/foo@1.0.0(react@16.0.0)(react-dom@16.0.0)', 120)).toBe('foo@1.0.0_react@16.0.0_react-dom@16.0.0')
   expect(depPathToFilename('/foo@1.0.0(react@16.0.0(react-dom@1.0.0))(react-dom@16.0.0)', 120)).toBe('foo@1.0.0_react@16.0.0_react-dom@1.0.0__react-dom@16.0.0')
+  expect(depPathToFilename('github.com/something/foo/0000?v=1#sub/dir', 120)).toBe('github.com+something+foo+0000+v=1+sub+dir')
 
   const filename = depPathToFilename('file:test/foo-1.0.0.tgz_foo@2.0.0', 120)
   expect(filename).toBe('file+test+foo-1.0.0.tgz_foo@2.0.0')
