@@ -1,0 +1,25 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../config/parse-overrides"
+    },
+    {
+      "path": "../../packages/crypto.base32-hash"
+    },
+    {
+      "path": "../types"
+    }
+  ]
+}

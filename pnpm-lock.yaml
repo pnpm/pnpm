@@ -3240,6 +3240,37 @@ importers:
         specifier: 'catalog:'
         version: 1.1.0
 
+  lockfile/settings-checker:
+    dependencies:
+      '@pnpm/crypto.base32-hash':
+        specifier: workspace:*
+        version: link:../../packages/crypto.base32-hash
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/parse-overrides':
+        specifier: workspace:*
+        version: link:../../config/parse-overrides
+      p-map-values:
+        specifier: 'catalog:'
+        version: 1.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+      sort-keys:
+        specifier: 'catalog:'
+        version: 4.2.0
+    devDependencies:
+      '@pnpm/lockfile.settings-checker':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+
   lockfile/types:
     dependencies:
       '@pnpm/patching.types':
@@ -4076,6 +4107,9 @@ importers:
       '@pnpm/lockfile.pruner':
         specifier: workspace:*
         version: link:../../lockfile/pruner
+      '@pnpm/lockfile.settings-checker':
+        specifier: workspace:*
+        version: link:../../lockfile/settings-checker
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
@@ -4166,9 +4200,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
-      p-map-values:
-        specifier: 'catalog:'
-        version: 1.0.0
       path-exists:
         specifier: 'catalog:'
         version: 4.0.0
