@@ -91,7 +91,17 @@ export async function handler (
       saveOptional: false,
       savePeer: false,
     }, pkgs)
-    await symlinkDir(cachedDir, cacheLink, { overwrite: true })
+    try {
+      await symlinkDir(cachedDir, cacheLink, { overwrite: true })
+    } catch (error) {
+      // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
+      // The current process should yield.
+      if (util.types.isNativeError(error) && 'code' in error && error.code === 'EBUSY') {
+        await new Promise(resolve => setTimeout(resolve, 0))
+      } else {
+        throw error
+      }
+    }
   }
   const modulesDir = path.join(cachedDir, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
