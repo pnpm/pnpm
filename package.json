@@ -164,7 +164,8 @@
         "CVE-2024-4067"
       ],
       "ignoreGhsas": [
-        "GHSA-9wv6-86v2-598j"
+        "GHSA-9wv6-86v2-598j",
+        "GHSA-pxg6-pf52-xh8x"
       ]
     }
   }
