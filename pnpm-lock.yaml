@@ -13846,6 +13846,7 @@ packages:
 
   uid-number@0.0.6:
     resolution: {integrity: sha512-c461FXIljswCuscZn67xq9PpszkPT6RjheWFQTgCyabJrTUozElanb0YEqv2UGgk247YpcJkFBuSGNvBlpXM9w==}
+    deprecated: This package is no longer supported.
 
   umask@1.1.0:
     resolution: {integrity: sha512-lE/rxOhmiScJu9L6RTNVgB/zZbF+vGC0/p6D3xnkAePI2o0sMyFG966iR5Ki50OI/0mNi2yaRnxfLsPmEZF/JA==}
