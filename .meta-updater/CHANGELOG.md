@@ -1,5 +1,11 @@
 # @pnpm-private/updater
 
+## 2.0.15
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1.0.4
+
 ## 2.0.14
 
 ### Patch Changes

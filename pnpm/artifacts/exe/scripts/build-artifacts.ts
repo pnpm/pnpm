@@ -11,7 +11,7 @@ function build (target: string) {
   }
   try {
     fs.unlinkSync(artifactFile)
-  } catch (err) {}
+  } catch {}
   execa.sync('pkg', ['../../dist/pnpm.cjs', `--config=../../package-${target}.json`], {
     cwd: path.join(__dirname, '..'),
     stdio: 'inherit',

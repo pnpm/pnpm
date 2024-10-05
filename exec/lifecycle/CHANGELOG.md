@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 17.1.5
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/link-bins@10.0.11
+- @pnpm/read-package-json@9.0.9
+- @pnpm/directory-fetcher@8.0.9
+
 ## 17.1.4
 
 ### Patch Changes

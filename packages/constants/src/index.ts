@@ -13,4 +13,4 @@ export const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 // of one package/version
 export const META_DIR = 'metadata'
 export const FULL_META_DIR = 'metadata-full'
-export const FULL_FILTERED_META_DIR = 'metadata-v1.1'
+export const FULL_FILTERED_META_DIR = 'metadata-v1.2'

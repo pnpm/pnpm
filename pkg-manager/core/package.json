@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "15.3.4",
+  "version": "15.3.5",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -40,6 +40,7 @@
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.preferred-versions": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",
+    "@pnpm/lockfile.settings-checker": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
@@ -69,7 +70,6 @@
     "normalize-path": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
-    "p-map-values": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",
     "run-groups": "catalog:",

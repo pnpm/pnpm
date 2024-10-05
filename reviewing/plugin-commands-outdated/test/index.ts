@@ -408,3 +408,29 @@ test('pnpm outdated: catalog protocol', async () => {
 └─────────────┴─────────┴────────┘
 `)
 })
+
+test('pnpm outdated: support --sortField option', async () => {
+  tempDir()
+
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: hasOutdatedDepsFixture,
+    sortBy: 'name',
+  })
+
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
+┌──────────────────────┬──────────────────────┬────────────┐
+│ Package              │ Current              │ Latest     │
+├──────────────────────┼──────────────────────┼────────────┤
+│ @pnpm.e2e/deprecated │ 1.0.0                │ Deprecated │
+├──────────────────────┼──────────────────────┼────────────┤
+│ is-negative          │ 1.0.0 (wanted 2.1.0) │ 2.1.0      │
+├──────────────────────┼──────────────────────┼────────────┤
+│ is-positive (dev)    │ 1.0.0 (wanted 3.1.0) │ 3.1.0      │
+└──────────────────────┴──────────────────────┴────────────┘
+`)
+})

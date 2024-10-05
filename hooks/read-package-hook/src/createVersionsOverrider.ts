@@ -2,7 +2,7 @@ import path from 'path'
 import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
-import { type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
+import { type PackageSelector, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
 import { isIntersectingRange } from './isIntersectingRange'
 
@@ -13,13 +13,10 @@ export function createVersionsOverrider (
   rootDir: string
 ): ReadPackageHook {
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
-    overrides
-      .map((override) => {
-        return {
-          ...override,
-          localTarget: createLocalTarget(override, rootDir),
-        }
-      })
+    overrides.map((override) => ({
+      ...override,
+      localTarget: createLocalTarget(override, rootDir),
+    }))
   ) as [VersionOverrideWithParent[], VersionOverride[]]
   return ((manifest: PackageManifest, dir?: string) => {
     const versionOverridesWithParent = versionOverrides.filter(({ parentPkg }) => {
@@ -61,17 +58,21 @@ interface VersionOverride extends VersionOverrideBase {
   localTarget?: LocalTarget
 }
 
-type VersionOverrideWithParent = VersionOverride & Required<Pick<VersionOverride, 'parentPkg'>>
+interface VersionOverrideWithParent extends VersionOverride {
+  parentPkg: PackageSelector
+}
 
 function overrideDepsOfPkg (
   { manifest, dir }: { manifest: PackageManifest, dir: string | undefined },
   versionOverrides: VersionOverrideWithParent[],
   genericVersionOverrides: VersionOverride[]
 ): void {
-  if (manifest.dependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.dependencies, dir)
-  if (manifest.optionalDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.optionalDependencies, dir)
-  if (manifest.devDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.devDependencies, dir)
-  if (manifest.peerDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.peerDependencies, dir)
+  const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
+  for (const deps of [dependencies, optionalDependencies, devDependencies, peerDependencies]) {
+    if (deps) {
+      overrideDeps(versionOverrides, genericVersionOverrides, deps, dir)
+    }
+  }
 }
 
 function overrideDeps (
@@ -95,6 +96,11 @@ function overrideDeps (
       )
     )
     if (!versionOverride) continue
+
+    if (versionOverride.newPref === '-') {
+      delete deps[versionOverride.targetPkg.name]
+      continue
+    }
 
     if (versionOverride.localTarget) {
       deps[versionOverride.targetPkg.name] = `${versionOverride.localTarget.protocol}${resolveLocalOverride(versionOverride.localTarget, dir)}`

@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-listing
 
+## 10.1.1
+
+### Patch Changes
+
+- 44b8935: Fixed an issue where `pnpm list --json pkg` showed `"private": false` for a private package [#8519](https://github.com/pnpm/pnpm/issues/8519).
+- Updated dependencies [44b8935]
+  - @pnpm/list@10.2.1
+  - @pnpm/config@21.8.4
+  - @pnpm/error@6.0.2
+  - @pnpm/cli-utils@4.0.6
+
 ## 10.1.0
 
 ### Minor Changes

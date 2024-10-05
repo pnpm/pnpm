@@ -1,5 +1,22 @@
 # @pnpm/store-connection-manager
 
+## 8.4.0
+
+### Minor Changes
+
+- 83681da: Packages with `libc` that differ from `pnpm.supportedArchitectures.libc` are not downloaded [#7362](https://github.com/pnpm/pnpm/issues/7362).
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+- Updated dependencies [25d37f5]
+  - @pnpm/package-store@20.4.0
+  - @pnpm/config@21.8.4
+  - @pnpm/error@6.0.2
+  - @pnpm/server@18.2.6
+  - @pnpm/store-path@9.0.2
+  - @pnpm/client@11.1.10
+
 ## 8.3.10
 
 ### Patch Changes

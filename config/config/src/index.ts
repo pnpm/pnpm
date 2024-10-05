@@ -105,7 +105,7 @@ export async function getConfig (opts: {
     if (node.toUpperCase() !== process.execPath.toUpperCase()) {
       process.execPath = node
     }
-  } catch (err) { } // eslint-disable-line:no-empty
+  } catch { } // eslint-disable-line:no-empty
 
   if (cliOptions.dir) {
     cliOptions.dir = await realpathMissing(cliOptions.dir)

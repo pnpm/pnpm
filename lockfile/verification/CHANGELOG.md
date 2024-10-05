@@ -1,5 +1,12 @@
 # @pnpm/lockfile.verification
 
+## 1.0.5
+
+### Patch Changes
+
+- @pnpm/get-context@12.0.6
+- @pnpm/read-package-json@9.0.9
+
 ## 1.0.4
 
 ### Patch Changes

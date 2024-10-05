@@ -1,5 +1,12 @@
 # @pnpm/error
 
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+
 ## 6.0.1
 
 ### Patch Changes

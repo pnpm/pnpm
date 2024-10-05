@@ -21,9 +21,7 @@ export async function readLocalConfig (prefix: string): Promise<LocalConfig> {
       if (typeof val === 'string') {
         try {
           config[envReplace(key, process.env)] = envReplace(val, process.env)
-        } catch (err) {
-          // ignore
-        }
+        } catch {}
       }
     }
     return config

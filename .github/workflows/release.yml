@@ -20,13 +20,13 @@ jobs:
       - name: Install ldid
         run: |
           sudo apt-get update
-          sudo apt-get install git build-essential libplist-dev libssl-dev openssl qemu-user-binfmt
+          sudo apt-get install git build-essential libplist-dev libssl-dev openssl qemu-user-binfmt pkg-config
           cd /tmp
           git clone https://gitlab.com/opensource-saurik/ldid.git
           cd ldid
           git submodule update --init
           gcc -I. -c -o lookup2.o lookup2.c
-          g++ -std=c++11 -o ldid lookup2.o ldid.cpp -I. -lcrypto -lplist -lxml2
+          g++ -std=c++11 -o ldid lookup2.o ldid.cpp -I. -lcrypto $(pkg-config --cflags --libs libplist-2.0) -lxml2
           sudo mv ldid /usr/local/bin
       - name: Install pnpm
         uses: pnpm/action-setup@v4.0.0

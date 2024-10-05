@@ -2,9 +2,11 @@ import fs from 'fs'
 import delay from 'delay'
 import path from 'path'
 import { add, install } from '@pnpm/plugin-commands-installation'
-import { prepareEmpty } from '@pnpm/prepare'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { DEFAULT_OPTS } from './utils'
+
+const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 
 test('install fails if no package.json is found', async () => {
   prepareEmpty()
@@ -51,4 +53,38 @@ test('install with no store integrity validation', async () => {
   })
 
   expect(fs.readFileSync('node_modules/is-positive/readme.md', 'utf8')).toBe('modified')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/7362
+describeOnLinuxOnly('filters optional dependencies based on libc', () => {
+  test.each([
+    ['glibc', '@pnpm.e2e+only-linux-x64-glibc@1.0.0', '@pnpm.e2e+only-linux-x64-musl@1.0.0'],
+    ['musl', '@pnpm.e2e+only-linux-x64-musl@1.0.0', '@pnpm.e2e+only-linux-x64-glibc@1.0.0'],
+  ])('%p → installs %p, does not install %p', async (libc, found, notFound) => {
+    const rootProjectManifest = {
+      dependencies: {
+        '@pnpm.e2e/support-different-architectures': '1.0.0',
+      },
+      pnpm: {
+        supportedArchitectures: {
+          os: ['linux'],
+          cpu: ['x64'],
+          libc: [libc],
+        },
+      },
+    }
+
+    prepare(rootProjectManifest)
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      rootProjectManifest,
+      dir: process.cwd(),
+    })
+
+    const pkgDirs = fs.readdirSync(path.resolve('node_modules', '.pnpm'))
+    expect(pkgDirs).toContain('@pnpm.e2e+support-different-architectures@1.0.0')
+    expect(pkgDirs).toContain(found)
+    expect(pkgDirs).not.toContain(notFound)
+  })
 })

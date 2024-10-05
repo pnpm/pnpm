@@ -1,5 +1,14 @@
 # @pnpm/package-requester
 
+## 25.2.8
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/package-is-installable@9.0.10
+- @pnpm/read-package-json@9.0.9
+- @pnpm/worker@1.0.11
+
 ## 25.2.7
 
 ### Patch Changes

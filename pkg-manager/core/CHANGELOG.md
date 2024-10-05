@@ -1,5 +1,39 @@
 # @pnpm/core
 
+## 15.3.5
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+- Updated dependencies [b7fb704]
+- Updated dependencies [d7b9ae5]
+  - @pnpm/constants@9.0.0
+  - @pnpm/hooks.read-package-hook@5.1.0
+  - @pnpm/resolve-dependencies@36.0.4
+  - @pnpm/lockfile.filtering@1.0.5
+  - @pnpm/lockfile.fs@1.0.4
+  - @pnpm/lockfile.pruner@0.0.5
+  - @pnpm/lockfile.verification@1.0.5
+  - @pnpm/calc-dep-state@7.0.9
+  - @pnpm/error@6.0.2
+  - @pnpm/get-context@12.0.6
+  - @pnpm/headless@23.2.5
+  - @pnpm/hoist@9.1.14
+  - @pnpm/modules-cleaner@15.1.14
+  - @pnpm/lockfile-to-pnp@4.1.13
+  - @pnpm/build-modules@14.0.3
+  - @pnpm/parse-overrides@5.1.1
+  - @pnpm/lifecycle@17.1.5
+  - @pnpm/link-bins@10.0.11
+  - @pnpm/package-requester@25.2.8
+  - @pnpm/manifest-utils@6.0.9
+  - @pnpm/read-project-manifest@6.0.9
+  - @pnpm/worker@1.0.11
+  - @pnpm/symlink-dependency@8.0.8
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/lockfile.preferred-versions@1.0.13
+  - @pnpm/remove-bins@6.0.9
+
 ## 15.3.4
 
 ### Patch Changes

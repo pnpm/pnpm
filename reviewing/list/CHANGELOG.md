@@ -1,5 +1,14 @@
 # @pnpm/list
 
+## 10.2.1
+
+### Patch Changes
+
+- 44b8935: Fixed an issue where `pnpm list --json pkg` showed `"private": false` for a private package [#8519](https://github.com/pnpm/pnpm/issues/8519).
+  - @pnpm/reviewing.dependencies-hierarchy@3.2.1
+  - @pnpm/read-package-json@9.0.9
+  - @pnpm/read-project-manifest@6.0.9
+
 ## 10.2.0
 
 ### Minor Changes

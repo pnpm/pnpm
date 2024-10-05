@@ -1,5 +1,11 @@
 # @pnpm/real-hoist
 
+## 3.0.13
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+
 ## 3.0.12
 
 ### Patch Changes

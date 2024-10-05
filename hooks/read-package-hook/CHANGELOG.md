@@ -1,5 +1,26 @@
 # @pnpm/hooks.read-package-hook
 
+## 5.1.0
+
+### Minor Changes
+
+- b7fb704: Added the ability for `overrides` to remove dependencies by specifying `"-"` as the field value [#8572](https://github.com/pnpm/pnpm/issues/8572). For example, to remove `lodash` from the dependencies, use this configuration in `package.json`:
+
+  ```json
+  {
+    "pnpm": {
+      "overrides": {
+        "lodash": "-"
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/parse-overrides@5.1.1
+
 ## 5.0.3
 
 ### Patch Changes

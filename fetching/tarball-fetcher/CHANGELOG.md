@@ -1,5 +1,13 @@
 # @pnpm/tarball-fetcher
 
+## 19.0.14
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/prepare-package@6.0.14
+- @pnpm/worker@1.0.11
+
 ## 19.0.13
 
 ### Patch Changes

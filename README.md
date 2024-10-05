@@ -180,6 +180,17 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
     </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://vlt.sh/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/vlt.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/vlt_light.svg" />
+            <img src="https://pnpm.io/img/users/vlt.svg" width="140" />
+          </picture>
+        </a>
+      </td>
+    </tr>
   </tbody>
 </table>
 
