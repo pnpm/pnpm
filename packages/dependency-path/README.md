@@ -1,4 +1,4 @@
-# dependency-path
+# @pnpm/dependency-path
 
 > Utilities for working with symlinked node_modules
 
@@ -12,7 +12,7 @@ Like `path` but for packages in a symlinked `node_modules`. Symlinked `node_modu
 ## Installation
 
 ```sh
-pnpm add dependency-path
+pnpm add @pnpm/dependency-path
 ```
 
 ## Usage
@@ -20,7 +20,7 @@ pnpm add dependency-path
 <!--/* cspell:disable */-->
 <!--@example('./example.js')-->
 ```js
-const dependencyPath = require('dependency-path')
+const dependencyPath = require('@pnpm/dependency-path')
 
 const registry = 'https://registry.npmjs.org/'
 
