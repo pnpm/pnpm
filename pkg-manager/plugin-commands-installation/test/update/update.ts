@@ -38,7 +38,7 @@ test('update with "*" pattern', async () => {
   expect(lockfile.packages['@pnpm.e2e/foo@1.0.0']).toBeTruthy()
 })
 
-test.only('update to latest should not touch the automatically installed peer dependencies', async () => {
+test('update to latest should not touch the automatically installed peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
 
@@ -65,11 +65,10 @@ test.only('update to latest should not touch the automatically installed peer de
 
   const lockfile = project.readLockfile()
 
-  console.log(lockfile)
   expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.0']).toBeTruthy()
   expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.1']).toBeFalsy()
-  // expect(lockfile.packages['@pnpm.e2e/peer-c@2.0.0']).toBeTruthy()
-  // expect(lockfile.packages['@pnpm.e2e/foo@1.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/peer-c@1.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/peer-c@1.0.1']).toBeFalsy()
 })
 
 test('update with negation pattern', async () => {
