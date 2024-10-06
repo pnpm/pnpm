@@ -912,3 +912,25 @@ test('publish: use bearer token helper for authentication', async () => {
     gitChecks: false,
   }, [])
 })
+
+test('publish from a tarball', async () => {
+  prepare({
+    name: 'test-publish-tarball.json',
+    version: '0.0.0',
+  })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  fs.rmSync('package.json')
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', 'test-publish-tarball.json-0.0.0.tgz', ...CREDENTIALS] },
+    dir: process.cwd(),
+  }, ['test-publish-tarball.json-0.0.0.tgz'])
+})
