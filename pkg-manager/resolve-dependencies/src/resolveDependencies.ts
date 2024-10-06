@@ -349,6 +349,7 @@ export async function resolveRootDependencies (
           ...options,
           parentPkgAliases,
           publishedBy,
+          updateToLatest: false,
         })
         importerResolutionResult.pkgAddresses.push(...resolveDependenciesResult.pkgAddresses)
         Object.assign(importerResolutionResult,
@@ -369,6 +370,7 @@ export async function resolveRootDependencies (
             ...options,
             parentPkgAliases,
             publishedBy,
+            updateToLatest: false,
           })
           pkgAddressesByImportersWithoutPeers[index].pkgAddresses.push(...resolveDependenciesResult.pkgAddresses)
           Object.assign(pkgAddressesByImportersWithoutPeers[index],
