@@ -7324,7 +7324,7 @@ packages:
     deprecated: This functionality has been moved to @npmcli/fs
 
   '@pnpm/builder.policy@1.1.0':
-    resolution: {integrity: sha512-thOk5jONIxmx2jQGUPglfBNkUe8cHE7SwkHUcSX4K77E+3Ro5Ucf98pIki7mjrza6ZBqdP+tXHXWCh5bJibQrg==}
+    resolution: {integrity: sha512-G+u6np4QywMBd3k2GXK1fQRk0ADQVV67o51TXkm9JUhKIdID3K/k5mOV/R1f+eZHfnHO26wFZSfR38lYBiSH+A==}
     engines: {node: '>=12.22.0'}
 
   '@pnpm/byline@1.0.0':
@@ -7346,7 +7346,7 @@ packages:
     engines: {node: '>=10'}
 
   '@pnpm/config.env-replace@1.1.0':
-    resolution: {integrity: sha512-t7tZvE34z3Us83W/OoWCHNLL1BGHz+v2XMAiq1CUisNfMziumCkC7eWQPed98cvvW7sX9tsnaUHb6u9UgDdRuA==}
+    resolution: {integrity: sha512-htyl8TWnKL7K/ESFa1oW2UB5lVDxuF5DpM7tBi6Hu2LNL3mWkIzNLG6N4zoCUP1lCKNxWy/3iu8mS8MvToGd6w==}
     engines: {node: '>=12.22.0'}
 
   '@pnpm/config@18.4.0':
@@ -7438,7 +7438,7 @@ packages:
     engines: {node: '>=16.14'}
 
   '@pnpm/log.group@1.0.1':
-    resolution: {integrity: sha512-i0GqToMSh+1EvVHcdpPbmdYiVtETo+kBzmk8nQ4QICI5kM+OKDRMjo9gLFJuY0I3+CbtY0XnIya2tH+DTsDRfg==}
+    resolution: {integrity: sha512-MncPYEfmuDeLMVJfcBSJRqWvTRuONWsF3xiCRrzNhvWZa+yffiDXXqthUxomEZkNngpecsmUmCdiLDhap1kwDA==}
     engines: {node: '>=12.22.0'}
 
   '@pnpm/logger@5.1.0':
@@ -7459,15 +7459,15 @@ packages:
     hasBin: true
 
   '@pnpm/network.agent@0.1.0':
-    resolution: {integrity: sha512-tmS86uPZossESBuk+MMG9niJtVoVGvKuxRYtP7c8cKbi6D54N7ZTclAqYUV+EdBREZ0hVlHdiGipOYH10v1nLw==}
+    resolution: {integrity: sha512-RurhhwXMdrKnr4swyx0E6g3tfsfP27kB7czoGTmEvSCgmrrZ5pGToZ0MahiwGRkpSRoTlUmVE97nwqjxCOfboA==}
     engines: {node: '>=12.22.0'}
 
   '@pnpm/network.ca-file@1.0.2':
-    resolution: {integrity: sha1-kiz5rYFpF+6SDQXN7YadJbYmDaA=}
+    resolution: {integrity: sha512-YcPQ8a0jwYU9bTdJDpXjMi7Brhkr1mXsXrUJvjqM2mQDgkRiz8jFaQGOdaLxgjtUfQgZhKy/O3cG/YwmgKaxLA==}
     engines: {node: '>=12.22.0'}
 
   '@pnpm/network.proxy-agent@0.1.0':
-    resolution: {integrity: sha512-FVVZf8tXXZMFp6ZA9kK8cnbjIEwMTR+RQfiUBpIeKrsEK11WHXNemYqN4UQvGAtNqckwA04/FxbRdD2L/8kvNA==}
+    resolution: {integrity: sha512-nl7xLKiYlkTEpaM0U4JaZ1ce6JSYIzuorH+JVn33jry/k3ombpK1xbOzFFwfFhWptXFN9IMcZACjQxmvBbElgg==}
     engines: {node: '>=12.22.0'}
 
   '@pnpm/node-fetch@1.0.0':
@@ -7496,15 +7496,15 @@ packages:
     engines: {node: '>=14.6'}
 
   '@pnpm/os.env.path-extender-posix@0.2.10':
-    resolution: {integrity: sha512-Ok2EB4yp/x9BUOeP6ZMqgO1MuJ8gvwK6GowN0nY4EqQHjOj/nG0Ggg0bHZ6eTuVfr0NxNkcaR4Ux9i0UGVgYWQ==}
+    resolution: {integrity: sha512-d/iKc42MXRunpgzGVhUl9bKfriydfAP+AmA/HmYZq13xI/ljx2NYlFnZdDeXHa8yzjzSyu1v5hMfUjgYlA3U4g==}
     engines: {node: '>=12.22.0'}
 
   '@pnpm/os.env.path-extender-windows@0.2.5':
-    resolution: {integrity: sha512-lOXwdYtBO+3ndLjKTVCQ9odTOq1LRDBqzaZ9cNlgrtfRp8QUxeUywCDJtTpUsMxGTZJRHO77+uLcjXPdzTNQPg==}
+    resolution: {integrity: sha512-LHrJuqruILEA4bgzGNIaTqU7w/WTnrspGHJ9YVo+1iBa97pP7jKQhwhjpztsGuOWGB8X/l1ifEVVBPiVkPv62w==}
     engines: {node: '>=12.22.0'}
 
   '@pnpm/os.env.path-extender@0.2.12':
-    resolution: {integrity: sha512-/9ZfazOlLfpmcoa/I24UwAPkA0WPGtnovguXOy+SnkAi67Tvp2FxZNYBcnP9XQuXk44iyDOTq3aMsn3qJTLZSg==}
+    resolution: {integrity: sha512-n3i33LKSo8r3HKjNqmM5oj3C+4PSA0vwPEuvsFYDWrzJl72PFqM4qDvAYhtIksWjoZsXSWBMb3vo9jVKJbJfhg==}
     engines: {node: '>=12.22.0'}
 
   '@pnpm/package-is-installable@8.0.2':
@@ -7577,7 +7577,7 @@ packages:
     engines: {node: '>=16.14'}
 
   '@pnpm/util.lex-comparator@1.0.0':
-    resolution: {integrity: sha1-C31RMSZdb1uqS+gSx4IeULjTngk=}
+    resolution: {integrity: sha512-3aBQPHntVgk5AweBWZn+1I/fqZ9krK/w01197aYVkAJQGftb+BVWgEepxY5GChjSW12j52XX+CmfynYZ/p0DFQ==}
     engines: {node: '>=12.22.0'}
 
   '@pnpm/which@3.0.1':
