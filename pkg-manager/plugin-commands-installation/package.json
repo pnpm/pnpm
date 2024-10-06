@@ -104,7 +104,7 @@
     "version-selector-type": "^3.0.0"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "5.0 || 5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

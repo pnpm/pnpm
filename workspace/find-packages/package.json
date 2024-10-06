@@ -40,7 +40,7 @@
     "@pnpm/workspace.find-packages": "workspace:*"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "5.0 || 5.1"
   },
   "exports": {
     ".": "./lib/index.js"

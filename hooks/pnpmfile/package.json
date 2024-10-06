@@ -43,7 +43,7 @@
     "path-absolute": "^1.0.1"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "5.0 || 5.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

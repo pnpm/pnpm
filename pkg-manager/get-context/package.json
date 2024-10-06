@@ -34,7 +34,7 @@
     "@types/ramda": "0.28.20"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "5.0 || 5.1"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",
