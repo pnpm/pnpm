@@ -10,7 +10,7 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import exists from 'path-exists'
 import crossSpawn from 'cross-spawn'
 import writeYamlFile from 'write-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, checkPkgExists } from './utils'
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 
@@ -790,4 +790,30 @@ test('publish: use bearer token helper for authentication', async () => {
     dir: process.cwd(),
     gitChecks: false,
   }, [])
+})
+
+test('publish from a tarball', async () => {
+  const pkg = {
+    name: 'test-publish-tarball',
+    version: '0.0.0',
+  }
+  prepare(pkg)
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  await fs.rm('package.json')
+
+  const tarballName = `${pkg.name}-${pkg.version}.tgz`
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', tarballName, ...CREDENTIALS] },
+    dir: process.cwd(),
+  }, [tarballName])
+
+  await checkPkgExists(pkg.name, pkg.version)
 })
