@@ -67,6 +67,7 @@
   },
   "pnpm": {
     "overrides": {
+      "body-parser@<1.20.3": "^1.20.3",
       "@yarnpkg/fslib": "3.0.0-rc.45",
       "@yarnpkg/libzip": "3.0.0-rc.45",
       "clipanion": "3.2.0-rc.6",
