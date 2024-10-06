@@ -10,7 +10,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import crossSpawn from 'cross-spawn'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, checkPkgExists } from './utils'
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 
@@ -914,10 +914,11 @@ test('publish: use bearer token helper for authentication', async () => {
 })
 
 test('publish from a tarball', async () => {
-  prepare({
-    name: 'test-publish-tarball.json',
+  const pkg = {
+    name: 'test-publish-tarball',
     version: '0.0.0',
-  })
+  }
+  prepare(pkg)
 
   await pack.handler({
     ...DEFAULT_OPTS,
@@ -928,9 +929,12 @@ test('publish from a tarball', async () => {
 
   fs.rmSync('package.json')
 
+  const tarballName = `${pkg.name}-${pkg.version}.tgz`
   await publish.handler({
     ...DEFAULT_OPTS,
-    argv: { original: ['publish', 'test-publish-tarball.json-0.0.0.tgz', ...CREDENTIALS] },
+    argv: { original: ['publish', tarballName, ...CREDENTIALS] },
     dir: process.cwd(),
-  }, ['test-publish-tarball.json-0.0.0.tgz'])
+  }, [tarballName])
+
+  await checkPkgExists(pkg.name, pkg.version)
 })
