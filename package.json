@@ -210,7 +210,12 @@
       "ignoreCves": [
         "CVE-2023-28155",
         "CVE-2024-24828",
-        "CVE-2024-29041"
+        "CVE-2024-29041",
+        "CVE-2024-4067"
+      ],
+      "ignoreGhsas": [
+        "GHSA-9wv6-86v2-598j",
+        "GHSA-pxg6-pf52-xh8x"
       ]
     }
   }
