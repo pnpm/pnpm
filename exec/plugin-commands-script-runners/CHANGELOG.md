@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-script-runners
 
+## 12.0.8
+
+### Patch Changes
+
+- fb77d4e: Prevent `EBUSY` errors caused by calling `symlinkDir` in parallel `dlx` processes.
+  - @pnpm/plugin-commands-installation@17.2.5
+
 ## 12.0.7
 
 ### Patch Changes
