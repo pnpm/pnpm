@@ -86,7 +86,7 @@ function createPnpxScripts (targetDir: string): void {
     ].join('\n')
     fs.writeFileSync(path.join(targetDir, 'pnpx.cmd'), batchScript)
 
-    const powershellScript = 'pnpm dlx $args'
+    const powershellScript = 'pnpm dlx @args'
     fs.writeFileSync(path.join(targetDir, 'pnpx.ps1'), powershellScript)
   }
 }

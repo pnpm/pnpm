@@ -1,5 +1,14 @@
 # @pnpm/audit
 
+## 8.2.1
+
+### Patch Changes
+
+- Updated dependencies [44b8935]
+  - @pnpm/list@10.2.1
+  - @pnpm/error@6.0.2
+  - @pnpm/read-project-manifest@6.0.9
+
 ## 8.2.0
 
 ### Minor Changes

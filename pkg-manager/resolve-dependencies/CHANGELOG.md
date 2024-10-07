@@ -1,5 +1,20 @@
 # @pnpm/resolve-dependencies
 
+## 36.0.4
+
+### Patch Changes
+
+- d7b9ae5: Fix peer dependency resolution dead lock [#8570](https://github.com/pnpm/pnpm/issues/8570). This change might change some of the keys in the `snapshots` field inside `pnpm-lock.yaml` but it should happen very rarely.
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+  - @pnpm/npm-resolver@21.1.0
+  - @pnpm/lockfile.pruner@0.0.5
+  - @pnpm/error@6.0.2
+  - @pnpm/catalogs.resolver@0.1.1
+  - @pnpm/manifest-utils@6.0.9
+  - @pnpm/read-package-json@9.0.9
+  - @pnpm/lockfile.preferred-versions@1.0.13
+
 ## 36.0.3
 
 ### Patch Changes

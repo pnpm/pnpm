@@ -1,5 +1,11 @@
 # @pnpm/constants
 
+## 9.0.0
+
+### Major Changes
+
+- 83681da: Keep `libc` field in `clearMeta`.
+
 ## 8.0.0
 
 ### Major Changes

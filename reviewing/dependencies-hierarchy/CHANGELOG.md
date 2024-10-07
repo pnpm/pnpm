@@ -1,5 +1,12 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 3.2.1
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1.0.4
+- @pnpm/read-package-json@9.0.9
+
 ## 3.2.0
 
 ### Minor Changes

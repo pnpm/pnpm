@@ -1,5 +1,18 @@
 # @pnpm/package-store
 
+## 20.4.0
+
+### Minor Changes
+
+- 83681da: Keep `libc` field in `clearMeta`.
+
+### Patch Changes
+
+- 25d37f5: `pnpm store prune` should not fail if the store directory doesn't exist.
+  - @pnpm/package-requester@25.2.8
+  - @pnpm/worker@1.0.11
+  - @pnpm/create-cafs-store@7.0.9
+
 ## 20.3.7
 
 ### Patch Changes

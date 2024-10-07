@@ -1,5 +1,17 @@
 # @pnpm/npm-resolver
 
+## 21.1.0
+
+### Minor Changes
+
+- 83681da: Keep `libc` field in `clearMeta`.
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+  - @pnpm/error@6.0.2
+
 ## 21.0.5
 
 ### Patch Changes

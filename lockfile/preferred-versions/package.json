@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.preferred-versions",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Get preferred version from lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -14,7 +14,11 @@ import {
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
+import {
+  calcPatchHashes,
+  createOverridesMapFromParsed,
+  getOutdatedLockfileSetting,
+} from '@pnpm/lockfile.settings-checker'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
 import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
@@ -71,10 +75,8 @@ import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
-import pMapValues from 'p-map-values'
 import mapValues from 'ramda/src/map'
 import clone from 'ramda/src/clone'
-import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
@@ -342,7 +344,7 @@ export async function mutateModules (
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
-    const overridesMap = Object.fromEntries((opts.parsedOverrides ?? []).map(({ selector, newPref }) => [selector, newPref]))
+    const overridesMap = createOverridesMapFromParsed(opts.parsedOverrides)
     if (!opts.ignorePackageManifest) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
@@ -740,82 +742,6 @@ Note that in CI environments, this setting is enabled by default.`,
       depsRequiringBuild: result.depsRequiringBuild,
     }
   }
-}
-
-interface PatchHash {
-  hash: string
-  path: string
-}
-
-async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string): Promise<Record<string, PatchHash>> {
-  return pMapValues(async (patchFilePath) => {
-    return {
-      hash: await createBase32HashFromFile(patchFilePath),
-      path: path.relative(lockfileDir, patchFilePath).replaceAll('\\', '/'),
-    }
-  }, patches)
-}
-
-type ChangedField =
-  | 'patchedDependencies'
-  | 'overrides'
-  | 'packageExtensionsChecksum'
-  | 'ignoredOptionalDependencies'
-  | 'settings.autoInstallPeers'
-  | 'settings.excludeLinksFromLockfile'
-  | 'settings.peersSuffixMaxLength'
-  | 'pnpmfileChecksum'
-
-function getOutdatedLockfileSetting (
-  lockfile: Lockfile,
-  {
-    overrides,
-    packageExtensionsChecksum,
-    ignoredOptionalDependencies,
-    patchedDependencies,
-    autoInstallPeers,
-    excludeLinksFromLockfile,
-    peersSuffixMaxLength,
-    pnpmfileChecksum,
-  }: {
-    overrides?: Record<string, string>
-    packageExtensionsChecksum?: string
-    patchedDependencies?: Record<string, PatchFile>
-    ignoredOptionalDependencies?: string[]
-    autoInstallPeers?: boolean
-    excludeLinksFromLockfile?: boolean
-    peersSuffixMaxLength?: number
-    pnpmfileChecksum?: string
-  }
-): ChangedField | null {
-  if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
-    return 'overrides'
-  }
-  if (lockfile.packageExtensionsChecksum !== packageExtensionsChecksum) {
-    return 'packageExtensionsChecksum'
-  }
-  if (!equals(lockfile.ignoredOptionalDependencies?.sort() ?? [], ignoredOptionalDependencies?.sort() ?? [])) {
-    return 'ignoredOptionalDependencies'
-  }
-  if (!equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})) {
-    return 'patchedDependencies'
-  }
-  if ((lockfile.settings?.autoInstallPeers != null && lockfile.settings.autoInstallPeers !== autoInstallPeers)) {
-    return 'settings.autoInstallPeers'
-  }
-  if (lockfile.settings?.excludeLinksFromLockfile != null && lockfile.settings.excludeLinksFromLockfile !== excludeLinksFromLockfile) {
-    return 'settings.excludeLinksFromLockfile'
-  }
-  if (
-    lockfile.settings?.peersSuffixMaxLength != null && lockfile.settings.peersSuffixMaxLength !== peersSuffixMaxLength ||
-    lockfile.settings?.peersSuffixMaxLength == null && peersSuffixMaxLength !== 1000
-  ) {
-    return 'settings.peersSuffixMaxLength'
-  }
-  if (lockfile.pnpmfileChecksum !== pnpmfileChecksum) {
-    return 'pnpmfileChecksum'
-  }
-  return null
 }
 
 export function createObjectChecksum (obj: Record<string, unknown>): string {

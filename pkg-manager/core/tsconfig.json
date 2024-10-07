@@ -79,6 +79,9 @@
       "path": "../../lockfile/pruner"
     },
     {
+      "path": "../../lockfile/settings-checker"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {

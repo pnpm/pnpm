@@ -1,5 +1,11 @@
 # @pnpm/patching.apply-patch
 
+## 3.1.1
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+
 ## 3.1.0
 
 ### Minor Changes

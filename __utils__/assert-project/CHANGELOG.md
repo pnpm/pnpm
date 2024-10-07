@@ -1,5 +1,12 @@
 # @pnpm/assert-project
 
+## 2.3.60
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+
 ## 2.3.59
 
 ### Patch Changes

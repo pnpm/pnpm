@@ -1,5 +1,15 @@
 # @pnpm/license-scanner
 
+## 3.1.15
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1.0.4
+- @pnpm/error@6.0.2
+- @pnpm/package-is-installable@9.0.10
+- @pnpm/read-package-json@9.0.9
+- @pnpm/directory-fetcher@8.0.9
+
 ## 3.1.14
 
 ### Patch Changes

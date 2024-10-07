@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-rebuild
 
+## 12.1.0
+
+### Minor Changes
+
+- 83681da: Packages with `libc` that differ from `pnpm.supportedArchitectures.libc` are not downloaded [#7362](https://github.com/pnpm/pnpm/issues/7362).
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+- Updated dependencies [83681da]
+  - @pnpm/store-connection-manager@8.4.0
+  - @pnpm/constants@9.0.0
+  - @pnpm/config@21.8.4
+  - @pnpm/calc-dep-state@7.0.9
+  - @pnpm/error@6.0.2
+  - @pnpm/get-context@12.0.6
+  - @pnpm/cli-utils@4.0.6
+  - @pnpm/lifecycle@17.1.5
+  - @pnpm/link-bins@10.0.11
+  - @pnpm/worker@1.0.11
+  - @pnpm/workspace.find-packages@4.0.11
+
 ## 12.0.10
 
 ### Patch Changes

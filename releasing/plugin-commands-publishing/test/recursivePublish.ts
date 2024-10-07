@@ -9,7 +9,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import execa from 'execa'
 import crossSpawn from 'cross-spawn'
 import loadJsonFile from 'load-json-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, checkPkgExists } from './utils'
 
 const CREDENTIALS = `\
 registry=http://localhost:${REGISTRY_MOCK_PORT}/
@@ -97,16 +97,8 @@ test('recursive publish', async () => {
     recursive: true,
   }, [])
 
-  {
-    const { stdout } = await execa('npm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    const output = JSON.parse(stdout.toString())
-    expect(Array.isArray(output) ? output[0] : output).toStrictEqual(pkg1.version)
-  }
-  {
-    const { stdout } = await execa('npm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    const output = JSON.parse(stdout.toString())
-    expect(Array.isArray(output) ? output[0] : output).toStrictEqual(pkg2.version)
-  }
+  await checkPkgExists(pkg1.name, pkg1.version)
+  await checkPkgExists(pkg2.name, pkg2.version)
 
   projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
 
