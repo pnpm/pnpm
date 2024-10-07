@@ -1,4 +1,5 @@
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import execa from 'execa'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -46,4 +47,10 @@ export const DEFAULT_OPTS = {
   useStoreServer: false,
   workspaceConcurrency: 4,
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+}
+
+export async function checkPkgExists (packageName: string, expectedVersion: string): Promise<void> {
+  const { stdout } = await execa('npm', ['view', packageName, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
+  const output = JSON.parse(stdout.toString())
+  expect(Array.isArray(output) ? output[0] : output).toStrictEqual(expectedVersion)
 }
