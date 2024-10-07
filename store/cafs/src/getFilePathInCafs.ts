@@ -16,9 +16,17 @@ export function getFilePathByModeInCafs (
 
 export function getIndexFilePathInCafs (
   cafsDir: string,
-  integrity: string | IntegrityLike
+  integrity: string | IntegrityLike,
+  pkgId: string
 ): string {
-  return path.join(cafsDir, contentPathFromIntegrity(integrity, 'index'))
+  const hex = ssri.parse(integrity, { single: true }).hexDigest().substring(0, 64)
+  // Some registries allow identical content to be published under different package names or versions.
+  // To accommodate this, index files are stored using both the content hash and package identifier.
+  // This approach ensures that we can:
+  // 1. Validate that the integrity in the lockfile corresponds to the correct package,
+  //    which might not be the case after a poorly resolved Git conflict.
+  // 2. Allow the same content to be referenced by different packages or different versions of the same package.
+  return path.join(cafsDir, `${path.join(hex.slice(0, 2), hex.slice(2))}-${pkgId.replace(/[\\/:*?"<>|]/g, '+')}.json`)
 }
 
 function contentPathFromIntegrity (

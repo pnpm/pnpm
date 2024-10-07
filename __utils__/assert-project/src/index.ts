@@ -20,9 +20,9 @@ export interface Project {
   hasNot: (pkgName: string, modulesDir?: string) => void
   getStorePath: () => string
   resolve: (pkgName: string, version?: string, relativePath?: string) => string
-  getPkgIndexFilePath: (pkgName: string, version?: string) => string
-  cafsHas: (pkgName: string, version?: string) => void
-  cafsHasNot: (pkgName: string, version?: string) => void
+  getPkgIndexFilePath: (pkgName: string, version: string) => string
+  cafsHas: (pkgName: string, version: string) => void
+  cafsHasNot: (pkgName: string, version: string) => void
   storeHas: (pkgName: string, version?: string) => string
   storeHasNot: (pkgName: string, version?: string) => void
   isExecutable: (pathToExe: string) => void
@@ -48,9 +48,9 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
 
   interface StoreInstance {
     storePath: string
-    getPkgIndexFilePath: (pkgName: string, version?: string) => string
-    cafsHas: (pkgName: string, version?: string) => void
-    cafsHasNot: (pkgName: string, version?: string) => void
+    getPkgIndexFilePath: (pkgName: string, version: string) => string
+    cafsHas: (pkgName: string, version: string) => void
+    cafsHasNot: (pkgName: string, version: string) => void
     storeHas: (pkgName: string, version?: string) => void
     storeHasNot: (pkgName: string, version?: string) => void
     resolve: (pkgName: string, version?: string, relativePath?: string) => string
@@ -107,15 +107,15 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
       const store = getStoreInstance()
       return store.resolve(pkgName, version, relativePath)
     },
-    getPkgIndexFilePath (pkgName: string, version?: string): string {
+    getPkgIndexFilePath (pkgName: string, version: string): string {
       const store = getStoreInstance()
       return store.getPkgIndexFilePath(pkgName, version)
     },
-    cafsHas (pkgName: string, version?: string) {
+    cafsHas (pkgName: string, version: string) {
       const store = getStoreInstance()
       store.cafsHas(pkgName, version)
     },
-    cafsHasNot (pkgName: string, version?: string) {
+    cafsHasNot (pkgName: string, version: string) {
       const store = getStoreInstance()
       store.cafsHasNot(pkgName, version)
     },

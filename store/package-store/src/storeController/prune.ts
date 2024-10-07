@@ -32,7 +32,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
     const subdir = path.join(cafsDir, dir)
     await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
       const filePath = path.join(subdir, fileName)
-      if (fileName.endsWith('-index.json')) {
+      if (fileName.endsWith('.json')) {
         pkgIndexFiles.push(filePath)
         return
       }

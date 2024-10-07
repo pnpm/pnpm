@@ -8,7 +8,7 @@ import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
 import writeJsonFile from 'write-json-file'
 
-const NEXT_TAG = 'next-9'
+const NEXT_TAG = 'next-10'
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => { // eslint-disable-line

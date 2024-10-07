@@ -4,7 +4,7 @@ import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
-import { createBase32Hash } from '@pnpm/crypto.base32-hash'
+import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -200,7 +200,7 @@ export function createCacheKey (pkgs: string[], registries: Record<string, strin
   const sortedPkgs = [...pkgs].sort((a, b) => a.localeCompare(b))
   const sortedRegistries = Object.entries(registries).sort(([k1], [k2]) => k1.localeCompare(k2))
   const hashStr = JSON.stringify([sortedPkgs, sortedRegistries])
-  return createBase32Hash(hashStr)
+  return createHexHash(hashStr)
 }
 
 function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | undefined {

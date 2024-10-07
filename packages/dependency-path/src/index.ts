@@ -1,4 +1,4 @@
-import { createBase32Hash } from '@pnpm/crypto.base32-hash'
+import { createShortHash } from '@pnpm/crypto.hash'
 import { type DepPath, type PkgResolutionId, type Registries, type PkgId, type PkgIdWithPatchHash } from '@pnpm/types'
 import semver from 'semver'
 
@@ -165,14 +165,14 @@ export function parse (dependencyPath: string): DependencyPath {
 }
 
 export function depPathToFilename (depPath: string, maxLengthWithoutHash: number): string {
-  let filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|]/g, '+')
+  let filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|#]/g, '+')
   if (filename.includes('(')) {
     filename = filename
       .replace(/\)$/, '')
       .replace(/(\)\()|\(|\)/g, '_')
   }
   if (filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
-    return `${filename.substring(0, maxLengthWithoutHash - 27)}_${createBase32Hash(filename)}`
+    return `${filename.substring(0, maxLengthWithoutHash - 33)}_${createShortHash(filename)}`
   }
   return filename
 }
@@ -204,7 +204,7 @@ export function createPeersDirSuffix (peerIds: PeerId[], maxLength: number = 100
     }
   ).sort().join(')(')
   if (dirName.length > maxLength) {
-    dirName = createBase32Hash(dirName)
+    dirName = createShortHash(dirName)
   }
   return `(${dirName})`
 }

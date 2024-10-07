@@ -7,7 +7,6 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
-import ssri from 'ssri'
 
 const STORE_VERSION = 'v3'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -51,7 +50,7 @@ test('remove unreferenced packages', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -76,7 +75,7 @@ test('remove unreferenced packages', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   expect(reporter).not.toHaveBeenCalledWith(
@@ -98,7 +97,7 @@ test.skip('remove packages that are used by project that no longer exist', async
 
   rimraf('node_modules')
 
-  cafsHas(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
+  cafsHas('is-negative', '2.1.0')
 
   const reporter = jest.fn()
   await store.handler({
@@ -113,7 +112,7 @@ test.skip('remove packages that are used by project that no longer exist', async
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -123,7 +122,7 @@ test.skip('remove packages that are used by project that no longer exist', async
     })
   )
 
-  cafsHasNot(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
+  cafsHasNot('is-negative', '2.1.0')
 })
 
 test('keep dependencies used by others', async () => {
@@ -153,7 +152,7 @@ test('keep dependencies used by others', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   project.storeHasNot('camelcase-keys', '3.0.0')
@@ -179,7 +178,7 @@ test('keep dependency used by package', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   project.storeHas('is-positive', '3.1.0')
@@ -203,7 +202,7 @@ test('prune will skip scanning non-directory in storeDir', async () => {
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 })
 
@@ -231,7 +230,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   expect(reporter).toHaveBeenCalledWith(
@@ -270,7 +269,7 @@ test('prune removes alien files from the store if the --force flag is used', asy
     userConfig: {},
     force: true,
     dlxCacheMaxAge: Infinity,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -397,7 +396,7 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: 7,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['prune'])
 
   expect(
