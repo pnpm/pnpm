@@ -187,7 +187,7 @@ export async function handler (
   params: string[]
 ): Promise<string | { exitCode: number } | undefined> {
   let dir: string
-  const [scriptName, ...passedThruArgs] = params
+  let [scriptName, ...passedThruArgs] = params
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
       return runRecursive(params, opts) as Promise<undefined>
@@ -202,6 +202,9 @@ export async function handler (
       ? (await tryReadProjectManifest(opts.workspaceDir, opts)).manifest
       : undefined
     return printProjectCommands(manifest, rootManifest ?? undefined)
+  }
+  if (opts.fallbackCommandUsed && (scriptName === 't' || scriptName === 'tst')) {
+    scriptName = 'test'
   }
 
   const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
