@@ -160,6 +160,7 @@ export async function getConfig (opts: {
     'public-hoist-pattern': [
       '*eslint*',
       '*prettier*',
+      '*tsconfig*',
     ],
     'recursive-install': true,
     registry: npmDefaults.registry,
