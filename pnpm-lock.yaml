@@ -181,11 +181,11 @@ catalogs:
       specifier: npm:@types/table@6.0.0
       version: 6.0.0
     '@yarnpkg/core':
-      specifier: 4.0.3
-      version: 4.0.3
+      specifier: 4.0.5
+      version: 4.0.5
     '@yarnpkg/extensions':
-      specifier: 2.0.1
-      version: 2.0.1
+      specifier: 2.0.3
+      version: 2.0.3
     '@yarnpkg/lockfile':
       specifier: ^1.1.0
       version: 1.1.0
@@ -2804,7 +2804,7 @@ importers:
         version: link:../../packages/types
       '@yarnpkg/extensions':
         specifier: 'catalog:'
-        version: 2.0.1(@yarnpkg/core@4.0.3(typanion@3.14.0))
+        version: 2.0.3(@yarnpkg/core@4.0.5(typanion@3.14.0))
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -2829,7 +2829,7 @@ importers:
         version: 7.5.3
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.3(typanion@3.14.0)
+        version: 4.0.5(typanion@3.14.0)
 
   hooks/types:
     dependencies:
@@ -4280,7 +4280,7 @@ importers:
         version: 10.0.20
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.3(typanion@3.14.0)
+        version: 4.0.5(typanion@3.14.0)
       ci-info:
         specifier: 'catalog:'
         version: 3.9.0
@@ -5021,7 +5021,7 @@ importers:
         version: link:../../workspace/pkgs-graph
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.3(typanion@3.14.0)
+        version: 4.0.5(typanion@3.14.0)
       '@yarnpkg/lockfile':
         specifier: 'catalog:'
         version: 1.1.0
@@ -5313,7 +5313,7 @@ importers:
         version: link:../../workspace/spec-parser
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.3(typanion@3.14.0)
+        version: 4.0.5(typanion@3.14.0)
       filenamify:
         specifier: 'catalog:'
         version: 4.3.0
@@ -9319,19 +9319,19 @@ packages:
     resolution: {integrity: sha512-KZVpiDKRi2gtrVtKwhz/ZUKBOicVNggxaYQzPBjULuOLJ/UypTmAz5a2g+utLMn+WogbLE3vLfmC+TWp8v3+aQ==}
     hasBin: true
 
-  '@yarnpkg/core@4.0.3':
-    resolution: {integrity: sha512-O+WGCjB9aIBxdRMBxXdsIy08MW4RbxfCS2AfywWb8DPS9H0LICahUJgNAaE0fwCsW7/gNzQbLYlh9DQQwzONrA==}
+  '@yarnpkg/core@4.0.5':
+    resolution: {integrity: sha512-6ib9l8P30GxHvxZo3170hr5PCy2qQnI4N4lXwNJxJnV0i46UlgLA4hlGp/kFVttteATGeckfduIDyWZgjn9sPw==}
     engines: {node: '>=18.12.0'}
 
   '@yarnpkg/core@4.1.2':
     resolution: {integrity: sha512-2jcHRIJwjOOdl7mFysdz5FLxl4JWWJJEwesaKMRYmVwcqXolItX/gXdL3AjTD0umlBySccK9TulRD2/YL2Y0YQ==}
     engines: {node: '>=18.12.0'}
 
-  '@yarnpkg/extensions@2.0.1':
-    resolution: {integrity: sha512-keiaqrAA+bISwaerRFkV3H2/TXB4j0cYnKsW0YVOn+daEFVrKYdW+mOdqsyljCyS24ZBY131/+bW0I6n01yH8g==}
+  '@yarnpkg/extensions@2.0.3':
+    resolution: {integrity: sha512-aBzcipnRR6jJy4ta8KHBvq7EG/1tGa9RCJ3n7RG38l+cCuEf41O5mcMKssoL0FzaBqnEn6q5qWZ4xa24c0d1RQ==}
     engines: {node: '>=18.12.0'}
     peerDependencies:
-      '@yarnpkg/core': ^4.0.3
+      '@yarnpkg/core': ^4.0.5
 
   '@yarnpkg/fslib@3.1.0':
     resolution: {integrity: sha512-wsj7/sUVSdXOIX/qwaON/Ky5GsP5gs9ry9DKwgLbWT7k3qw4/EcHAtfTtPhBYu33UibzBFI+fgB4wBRVH2XVaw==}
@@ -16291,7 +16291,7 @@ snapshots:
       - encoding
       - supports-color
 
-  '@yarnpkg/core@4.0.3(typanion@3.14.0)':
+  '@yarnpkg/core@4.0.5(typanion@3.14.0)':
     dependencies:
       '@arcanis/slice-ansi': 1.1.1
       '@types/semver': 7.5.8
@@ -16353,9 +16353,9 @@ snapshots:
     transitivePeerDependencies:
       - typanion
 
-  '@yarnpkg/extensions@2.0.1(@yarnpkg/core@4.0.3(typanion@3.14.0))':
+  '@yarnpkg/extensions@2.0.3(@yarnpkg/core@4.0.5(typanion@3.14.0))':
     dependencies:
-      '@yarnpkg/core': 4.0.3(typanion@3.14.0)
+      '@yarnpkg/core': 4.0.5(typanion@3.14.0)
 
   '@yarnpkg/fslib@3.1.0':
     dependencies:
