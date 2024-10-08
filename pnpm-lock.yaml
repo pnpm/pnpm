@@ -5016,6 +5016,9 @@ importers:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../../workspace/find-packages
+      '@pnpm/workspace.packages-list-cache':
+        specifier: workspace:*
+        version: link:../../workspace/packages-list-cache
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
@@ -7648,6 +7651,25 @@ importers:
         version: 5.0.0
     devDependencies:
       '@pnpm/find-workspace-dir':
+        specifier: workspace:*
+        version: 'link:'
+
+  workspace/packages-list-cache:
+    dependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+    devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/workspace.packages-list-cache':
         specifier: workspace:*
         version: 'link:'
 
