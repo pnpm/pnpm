@@ -21,5 +21,7 @@ export async function loadPackagesList (opts: LoadPackagesListOptions): Promise<
     throw error
   }
   const value: unknown = JSON.parse(cacheFileContent)
-  return isPackagesList(value) ? value : undefined
+  if (!isPackagesList(value)) return undefined
+  if (value.workspaceDir !== opts.workspaceDir) return undefined // sometimes, collision happens
+  return value
 }
