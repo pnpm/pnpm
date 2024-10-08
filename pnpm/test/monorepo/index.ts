@@ -335,7 +335,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
 
   expect(server1.getLines()).toStrictEqual(['project-2', 'project-3', 'project-1'])
 
-  await execPnpm(['recursive', 'test'])
+  await execPnpm(['-r', 'test'])
 
   expect(server2.getLines()).toStrictEqual(['project-2', 'project-3', 'project-1'])
 })
@@ -400,7 +400,7 @@ test('test-pattern is respected by the test script', async () => {
 
   await execPnpm(['install'])
 
-  await execPnpm(['recursive', '--filter', '...[origin/main]', 'test'])
+  await execPnpm(['--filter', '...[origin/main]', 'test'])
 
   // Expecting only project-2 and project-4 to run since they were changed above.
   expect(server.getLines().sort()).toEqual(['project-2', 'project-4'])
