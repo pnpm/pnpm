@@ -1,7 +1,6 @@
 import fs from 'fs'
 import util from 'util'
 import { getCacheFilePath } from './cacheFile'
-import { isPackagesList } from './isPackagesList'
 import { type PackagesList } from './types'
 
 export interface LoadPackagesListOptions {
@@ -20,8 +19,7 @@ export async function loadPackagesList (opts: LoadPackagesListOptions): Promise<
     }
     throw error
   }
-  const value: unknown = JSON.parse(cacheFileContent)
-  if (!isPackagesList(value)) return undefined
+  const value: PackagesList = JSON.parse(cacheFileContent)
   if (value.workspaceDir !== opts.workspaceDir) return undefined // sometimes, collision happens
   return value
 }

@@ -33,17 +33,33 @@ test('loadPackagesList() when cache file exists but wrong schema', async () => {
 
 test('loadPackagesList() when cache file exists and is correct', async () => {
   prepareEmpty()
+
+  const timeTables = {
+    a: 1_728_400_000_000,
+    b: 1_728_500_000_000,
+    c: 1_728_450_000_000,
+    d: 1_728_600_000_000,
+  }
+
   const cacheDir = path.resolve('cache')
   const workspaceDir = process.cwd()
   const cacheFile = getCacheFilePath({ cacheDir, workspaceDir })
   fs.mkdirSync(path.dirname(cacheFile), { recursive: true })
   const packagesList: PackagesList = {
-    projectRootDirs: [
-      '/home/user/repos/my-project/packages/a' as ProjectRootDir,
-      '/home/user/repos/my-project/packages/b' as ProjectRootDir,
-      '/home/user/repos/my-project/packages/c' as ProjectRootDir,
-      '/home/user/repos/my-project/packages/d' as ProjectRootDir,
-    ],
+    modificationTimestamps: {
+      [path.resolve('packages/a') as ProjectRootDir]: {
+        'package.json': timeTables.a,
+      },
+      [path.resolve('packages/b') as ProjectRootDir]: {
+        'package.json': timeTables.b,
+      },
+      [path.resolve('packages/c') as ProjectRootDir]: {
+        'package.json': timeTables.c,
+      },
+      [path.resolve('packages/d') as ProjectRootDir]: {
+        'package.json': timeTables.d,
+      },
+    },
     workspaceDir,
   }
   fs.writeFileSync(cacheFile, JSON.stringify(packagesList))
@@ -57,12 +73,7 @@ test('loadPackagesList() when there was a hash collision', async () => {
   const cacheFile = getCacheFilePath({ cacheDir, workspaceDir })
   fs.mkdirSync(path.dirname(cacheFile), { recursive: true })
   const packagesList: PackagesList = {
-    projectRootDirs: [
-      '/home/user/repos/my-project/packages/a' as ProjectRootDir,
-      '/home/user/repos/my-project/packages/b' as ProjectRootDir,
-      '/home/user/repos/my-project/packages/c' as ProjectRootDir,
-      '/home/user/repos/my-project/packages/d' as ProjectRootDir,
-    ],
+    modificationTimestamps: {},
     workspaceDir: '/some/workspace/whose/path/happens/to/share/the/same/hash',
   }
   fs.writeFileSync(cacheFile, JSON.stringify(packagesList))

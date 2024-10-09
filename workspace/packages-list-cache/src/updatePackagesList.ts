@@ -11,7 +11,7 @@ export interface UpdatePackagesListOptions {
 }
 
 export async function updatePackagesList (opts: UpdatePackagesListOptions): Promise<void> {
-  const packagesList = createPackagesList(opts)
+  const packagesList = await createPackagesList(opts)
   const packagesListJSON = JSON.stringify(packagesList, undefined, 2) + '\n'
   const cacheFile = getCacheFilePath(opts)
   await fs.promises.mkdir(path.dirname(cacheFile), { recursive: true })
