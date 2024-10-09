@@ -1,11 +1,13 @@
 import fs from 'fs'
 import path from 'path'
+import { Catalogs } from '@pnpm/catalogs.types'
 import { getCacheFilePath } from './cacheFile'
 import { createPackagesList } from './createPackagesList'
 import { type ProjectsList } from './types'
 
 export interface UpdatePackagesListOptions {
   allProjects: ProjectsList
+  catalogs?: Catalogs
   cacheDir: string
   workspaceDir: string
 }

@@ -1,3 +1,4 @@
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { type MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { type Project, type ProjectRootDir } from '@pnpm/types'
 
@@ -11,6 +12,7 @@ export interface ProjectInfo {
 }
 
 export interface PackagesList {
+  catalogs?: Catalogs
   projects: Record<ProjectRootDir, ProjectInfo>
   workspaceDir: string
 }

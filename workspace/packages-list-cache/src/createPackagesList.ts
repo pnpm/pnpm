@@ -1,12 +1,14 @@
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { type ProjectRootDir } from '@pnpm/types'
 import { type ManifestBaseName, type PackagesList, type ProjectInfo, type ProjectsList } from './types'
 
 export interface CreatePackagesListOptions {
   allProjects: ProjectsList
+  catalogs?: Catalogs
   workspaceDir: string
 }
 
@@ -31,6 +33,7 @@ export async function createPackagesList (opts: CreatePackagesListOptions): Prom
     throw new Error(`Cannot find a manifest file in ${project.rootDir}`) // this is a programmer error, not a user error
   }))
   return {
+    catalogs: opts.catalogs,
     projects: Object.fromEntries(entries),
     workspaceDir: opts.workspaceDir,
   }

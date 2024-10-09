@@ -46,6 +46,11 @@ test('loadPackagesList() when cache file exists and is correct', async () => {
   const cacheFile = getCacheFilePath({ cacheDir, workspaceDir })
   fs.mkdirSync(path.dirname(cacheFile), { recursive: true })
   const packagesList: PackagesList = {
+    catalogs: {
+      default: {
+        foo: '0.1.2',
+      },
+    },
     projects: {
       [path.resolve('packages/a') as ProjectRootDir]: {
         manifestBaseName: 'package.json',

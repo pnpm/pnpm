@@ -48,6 +48,11 @@ test('createPackagesList() on non-empty list', async () => {
         { rootDir: path.resolve('packages/c') as ProjectRootDir },
         { rootDir: path.resolve('packages/d') as ProjectRootDir },
       ],
+      catalogs: {
+        default: {
+          foo: '0.1.2',
+        },
+      },
       workspaceDir,
     })
   ).toStrictEqual({
@@ -67,6 +72,11 @@ test('createPackagesList() on non-empty list', async () => {
       [path.resolve('packages/d')]: {
         manifestBaseName: 'package.json',
         manifestModificationTimestamp: timeTables.d,
+      },
+    },
+    catalogs: {
+      default: {
+        foo: '0.1.2',
       },
     },
     workspaceDir,

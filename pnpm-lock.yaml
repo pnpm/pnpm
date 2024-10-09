@@ -7656,6 +7656,9 @@ importers:
 
   workspace/packages-list-cache:
     dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants

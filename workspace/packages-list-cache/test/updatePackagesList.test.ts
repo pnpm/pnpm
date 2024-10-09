@@ -40,6 +40,11 @@ test('updatePackagesList()', async () => {
   await updatePackagesList({
     cacheDir,
     workspaceDir,
+    catalogs: {
+      default: {
+        foo: '0.1.2',
+      },
+    },
     allProjects: [
       { rootDir: path.resolve('packages/c') as ProjectRootDir },
       { rootDir: path.resolve('packages/a') as ProjectRootDir },
@@ -48,6 +53,11 @@ test('updatePackagesList()', async () => {
     ],
   })
   expect(await loadPackagesList({ cacheDir, workspaceDir })).toStrictEqual({
+    catalogs: {
+      default: {
+        foo: '0.1.2',
+      },
+    },
     projects: {
       [path.resolve('packages/a')]: {
         manifestBaseName: 'package.json',
