@@ -7,8 +7,8 @@ import { type ProjectsList } from './types'
 
 export interface UpdatePackagesListOptions {
   allProjects: ProjectsList
-  catalogs?: Catalogs
   cacheDir: string
+  catalogs?: Catalogs
   workspaceDir: string
 }
 
