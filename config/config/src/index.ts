@@ -157,10 +157,7 @@ export async function getConfig (opts: {
     'package-manager-strict': process.env.COREPACK_ENABLE_STRICT !== '0',
     'package-manager-strict-version': false,
     'prefer-workspace-packages': false,
-    'public-hoist-pattern': [
-      '*eslint*',
-      '*prettier*',
-    ],
+    'public-hoist-pattern': [],
     'recursive-install': true,
     registry: npmDefaults.registry,
     'resolution-mode': 'highest',
