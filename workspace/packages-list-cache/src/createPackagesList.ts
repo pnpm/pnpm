@@ -15,7 +15,7 @@ export interface CreatePackagesListOptions {
 export async function createPackagesList (opts: CreatePackagesListOptions): Promise<PackagesList> {
   const entries = await Promise.all(opts.allProjects.map(async project => {
     for (const manifestBaseName of MANIFEST_BASE_NAMES) {
-      const projectManifestPath = path.join(project.rootDir, 'package.json')
+      const projectManifestPath = path.join(project.rootDir, manifestBaseName)
       let stats: fs.Stats
       try {
         stats = await fs.promises.stat(projectManifestPath)
