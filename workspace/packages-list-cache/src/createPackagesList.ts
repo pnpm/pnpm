@@ -4,7 +4,7 @@ import util from 'util'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { type ProjectRootDir } from '@pnpm/types'
-import { type ManifestBaseName, type PackagesList, type ProjectInfo, type ProjectsList } from './types'
+import { type PackagesList, type ProjectInfo, type ProjectsList } from './types'
 
 export interface CreatePackagesListOptions {
   allProjects: ProjectsList
