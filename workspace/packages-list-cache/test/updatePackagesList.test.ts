@@ -33,7 +33,7 @@ test('updatePackagesList()', async () => {
     allProjects: [],
   })
   expect(await loadPackagesList({ cacheDir, workspaceDir })).toStrictEqual({
-    modificationTimestamps: {},
+    projects: {},
     workspaceDir,
   })
 
@@ -48,20 +48,28 @@ test('updatePackagesList()', async () => {
     ],
   })
   expect(await loadPackagesList({ cacheDir, workspaceDir })).toStrictEqual({
-    modificationTimestamps: {
+    projects: {
       [path.resolve('packages/a')]: {
-        'package.json': timeTables.a,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.a,
       },
       [path.resolve('packages/b')]: {
-        'package.json': timeTables.b,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.b,
       },
       [path.resolve('packages/c')]: {
-        'package.json': timeTables.c,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.c,
       },
       [path.resolve('packages/d')]: {
-        'package.json': timeTables.d,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.d,
       },
     },
     workspaceDir,
   })
+
+  // TODO: change the modification times and test
+
+  // TODO: add a test with package.json5 and package.yaml
 })

@@ -15,7 +15,7 @@ test('createPackagesList() on empty list', async () => {
       workspaceDir,
     })
   ).toStrictEqual({
-    modificationTimestamps: {},
+    projects: {},
     workspaceDir,
   })
 })
@@ -51,20 +51,26 @@ test('createPackagesList() on non-empty list', async () => {
       workspaceDir,
     })
   ).toStrictEqual({
-    modificationTimestamps: {
+    projects: {
       [path.resolve('packages/a')]: {
-        'package.json': timeTables.a,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.a,
       },
       [path.resolve('packages/b')]: {
-        'package.json': timeTables.b,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.b,
       },
       [path.resolve('packages/c')]: {
-        'package.json': timeTables.c,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.c,
       },
       [path.resolve('packages/d')]: {
-        'package.json': timeTables.d,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.d,
       },
     },
     workspaceDir,
   })
 })
+
+test.todo('createPackagesList() with package.json, package.json5, package.yaml')

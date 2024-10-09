@@ -7656,6 +7656,9 @@ importers:
 
   workspace/packages-list-cache:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash

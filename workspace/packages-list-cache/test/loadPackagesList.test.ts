@@ -46,18 +46,22 @@ test('loadPackagesList() when cache file exists and is correct', async () => {
   const cacheFile = getCacheFilePath({ cacheDir, workspaceDir })
   fs.mkdirSync(path.dirname(cacheFile), { recursive: true })
   const packagesList: PackagesList = {
-    modificationTimestamps: {
+    projects: {
       [path.resolve('packages/a') as ProjectRootDir]: {
-        'package.json': timeTables.a,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.a,
       },
       [path.resolve('packages/b') as ProjectRootDir]: {
-        'package.json': timeTables.b,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.b,
       },
       [path.resolve('packages/c') as ProjectRootDir]: {
-        'package.json': timeTables.c,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.c,
       },
       [path.resolve('packages/d') as ProjectRootDir]: {
-        'package.json': timeTables.d,
+        manifestBaseName: 'package.json',
+        manifestModificationTimestamp: timeTables.d,
       },
     },
     workspaceDir,
@@ -66,6 +70,8 @@ test('loadPackagesList() when cache file exists and is correct', async () => {
   expect(await loadPackagesList({ cacheDir, workspaceDir })).toStrictEqual(packagesList)
 })
 
+test.todo('loadPackagesList() with package.json, package.json5, package.yaml')
+
 test('loadPackagesList() when there was a hash collision', async () => {
   prepareEmpty()
   const cacheDir = path.resolve('cache')
@@ -73,7 +79,7 @@ test('loadPackagesList() when there was a hash collision', async () => {
   const cacheFile = getCacheFilePath({ cacheDir, workspaceDir })
   fs.mkdirSync(path.dirname(cacheFile), { recursive: true })
   const packagesList: PackagesList = {
-    modificationTimestamps: {},
+    projects: {},
     workspaceDir: '/some/workspace/whose/path/happens/to/share/the/same/hash',
   }
   fs.writeFileSync(cacheFile, JSON.stringify(packagesList))

@@ -1,12 +1,16 @@
+import { type MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { type Project, type ProjectRootDir } from '@pnpm/types'
 
 export type ProjectsList = Array<Pick<Project, 'rootDir'>>
 
-export interface TimestampMap {
-  'package.json': number
+export type ManifestBaseName = typeof MANIFEST_BASE_NAMES[number]
+
+export interface ProjectInfo {
+  manifestBaseName: ManifestBaseName
+  manifestModificationTimestamp: number
 }
 
 export interface PackagesList {
+  projects: Record<ProjectRootDir, ProjectInfo>
   workspaceDir: string
-  modificationTimestamps: Record<ProjectRootDir, TimestampMap>
 }
