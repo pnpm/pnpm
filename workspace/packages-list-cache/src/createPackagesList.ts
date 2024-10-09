@@ -14,14 +14,14 @@ export interface CreatePackagesListOptions {
 
 export async function createPackagesList (opts: CreatePackagesListOptions): Promise<PackagesList> {
   const entries = await Promise.all(opts.allProjects.map(async project => {
-    for (const manifestBaseName of MANIFEST_BASE_NAMES) {
+    const readAttempts = await Promise.all(MANIFEST_BASE_NAMES.map(async manifestBaseName => {
       const projectManifestPath = path.join(project.rootDir, manifestBaseName)
       let stats: fs.Stats
       try {
         stats = await fs.promises.stat(projectManifestPath)
       } catch (error) {
         if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
-          continue
+          return undefined
         }
         throw error
       }
@@ -29,8 +29,12 @@ export async function createPackagesList (opts: CreatePackagesListOptions): Prom
         manifestBaseName,
         manifestModificationTimestamp: stats.mtime.valueOf(),
       }] as [ProjectRootDir, ProjectInfo]
+    }))
+    const entry = readAttempts.find(result => result !== undefined)
+    if (!entry) {
+      throw new Error(`Cannot find a manifest file in ${project.rootDir}`) // this is a programmer error, not a user error
     }
-    throw new Error(`Cannot find a manifest file in ${project.rootDir}`) // this is a programmer error, not a user error
+    return entry
   }))
   return {
     catalogs: opts.catalogs,
