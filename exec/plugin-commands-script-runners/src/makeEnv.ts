@@ -23,9 +23,11 @@ export function makeEnv (
     }
   }
   const pathEnv = prependDirsToPath(opts.prependPaths)
+  const filteredEnv = { ...process.env, ...opts.extraEnv }
+  delete filteredEnv.contributes
+  delete filteredEnv.activationEvents
   return {
-    ...process.env,
-    ...opts.extraEnv,
+    ...filteredEnv,
     npm_config_user_agent: opts.userAgent ?? 'pnpm',
     [pathEnv.name]: pathEnv.value,
   }
