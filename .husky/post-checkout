@@ -8,6 +8,4 @@ EOF
     exit 2;
 fi
 
-pnpm run lint --quiet
-
-git lfs pre-push "$@"
+git lfs post-checkout "$@"

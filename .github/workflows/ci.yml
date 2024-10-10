@@ -33,6 +33,8 @@ jobs:
         git config --global user.email "x@y.z"
     - name: Checkout Commit
       uses: actions/checkout@v4
+      with:
+        lfs: true
     - name: Install pnpm
       uses: pnpm/action-setup@v4.0.0
       with:
