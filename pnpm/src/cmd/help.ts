@@ -70,6 +70,32 @@ function getHelpText (): string {
             description: 'Removes extraneous packages',
             name: 'prune',
           },
+          {
+            description: 'Fetch packages from a lockfile into virtual store, package manifest is ignored',
+            name: 'fetch',
+          },
+          {
+            description: 'Perform an install removing older dependencies in the lockfile if a newer version can be used',
+            name: 'dedupe',
+          },
+        ],
+      },
+      {
+        title: 'Patch your dependencies',
+
+        list: [
+          {
+            description: 'Prepare a package for patching',
+            name: 'patch',
+          },
+          {
+            description: 'Generate a patch out of a directory',
+            name: 'patch-commit',
+          },
+          {
+            description: 'Remove existing patch files',
+            name: 'patch-remove',
+          },
         ],
       },
       {
@@ -92,6 +118,10 @@ function getHelpText (): string {
           {
             description: 'Check licenses in consumed packages',
             name: 'licenses',
+          },
+          {
+            description: 'Shows all packages that depend on the specified package',
+            name: 'why',
           },
         ],
       },
@@ -116,6 +146,14 @@ function getHelpText (): string {
             description: 'Runs an arbitrary command specified in the package\'s "start" property of its "scripts" object',
             name: 'start',
           },
+          {
+            description: 'Fetches a package from the registry without installing it as a dependency, hot loads it, and runs whatever default command binary it exposes',
+            name: 'dlx',
+          },
+          {
+            description: 'Create a project from a "create-*" or "@foo/create-*" starter kit',
+            name: 'create',
+          },
         ],
       },
       {
@@ -135,6 +173,47 @@ function getHelpText (): string {
             name: 'root',
           },
           {
+            description: 'Updates pnpm to the latest version.',
+            name: 'self-update',
+          },
+          {
+            description: 'Prints the directory into which the executables of dependencies are linked',
+            name: 'bin',
+          },
+          {
+            description: 'Create a package.json file',
+            name: 'init',
+          },
+          {
+            description: 'Deploy a package from a workspace',
+            name: 'deploy',
+          },
+          {
+            description: 'Checks for known common issues with pnpm configuration',
+            name: 'doctor',
+          },
+          {
+            description: 'Manage the pnpm configuration files',
+            name: 'config',
+            shortAlias: 'c',
+          },
+        ],
+      },
+      {
+        title: 'Manage your environments',
+
+        list: [
+          {
+            description: 'Manage Node.js versions',
+            name: 'env ',
+          },
+        ],
+      },
+      {
+        title: 'Inspect your store',
+
+        list: [
+          {
             description: 'Prints the index file of a specific package from the store',
             name: 'cat-index',
           },
@@ -143,7 +222,7 @@ function getHelpText (): string {
             name: 'cat-file',
           },
           {
-            description: 'Experimental! Lists the packages that include the file with the specified hash.',
+            description: 'Experimental! Lists the packages that include the file with the specified hash',
             name: 'find-hash',
           },
         ],
@@ -167,6 +246,28 @@ function getHelpText (): string {
           {
             description: 'Checks for modified packages in the store',
             name: 'store status',
+          },
+        ],
+      },
+      {
+        title: 'Manage your cache',
+
+        list: [
+          {
+            description: 'Experimental! Lists the available packages metadata cache. Supports filtering by glob',
+            name: 'cache list',
+          },
+          {
+            description: 'Experimental! Lists all registries that have their metadata cache locally',
+            name: 'cache list-registries',
+          },
+          {
+            description: 'Experimental! Views information from the specified package\'s cache',
+            name: 'cache view',
+          },
+          {
+            description: 'Experimental! Deletes metadata cache for the specified package(s). Supports patterns',
+            name: 'cache delete',
           },
         ],
       },
