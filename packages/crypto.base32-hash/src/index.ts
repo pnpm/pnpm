@@ -12,7 +12,7 @@ const hash =
   ) => crypto.createHash(algorithm).update(data).digest(outputEncoding))
 
 export function createBase32Hash (str: string): string {
-  return base32.stringify(hash('md5', str)).replace(/(=+)$/, '').toLowerCase()
+  return base32.stringify(hash('md5', str, 'buffer')).replace(/(=+)$/, '').toLowerCase()
 }
 
 export async function createBase32HashFromFile (file: string): Promise<string> {
