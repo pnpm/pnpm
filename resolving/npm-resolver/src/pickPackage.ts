@@ -268,9 +268,18 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
   }
 }
 
+const hash =
+  // @ts-expect-error -- crypto.hash is supported in Node 21.7.0+, 20.12.0+
+  crypto.hash ??
+  ((
+    algorithm: string,
+    data: crypto.BinaryLike,
+    outputEncoding: crypto.BinaryToTextEncoding,
+  ) => crypto.createHash(algorithm).update(data).digest(outputEncoding))
+
 function encodePkgName (pkgName: string): string {
   if (pkgName !== pkgName.toLowerCase()) {
-    return `${pkgName}_${crypto.createHash('md5').update(pkgName).digest('hex')}`
+    return `${pkgName}_${hash('md5', pkgName, 'hex')}`
   }
   return pkgName
 }

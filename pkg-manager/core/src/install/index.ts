@@ -744,9 +744,18 @@ Note that in CI environments, this setting is enabled by default.`,
   }
 }
 
+const hash =
+  // @ts-expect-error -- crypto.hash is supported in Node 21.7.0+, 20.12.0+
+  crypto.hash ??
+  ((
+    algorithm: string,
+    data: crypto.BinaryLike,
+    outputEncoding: crypto.BinaryToTextEncoding,
+  ) => crypto.createHash(algorithm).update(data).digest(outputEncoding))
+
 export function createObjectChecksum (obj: Record<string, unknown>): string {
   const s = JSON.stringify(sortKeys(obj, { deep: true }))
-  return crypto.createHash('md5').update(s).digest('hex')
+  return hash('md5', s, 'hex')
 }
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
