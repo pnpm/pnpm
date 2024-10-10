@@ -15,6 +15,7 @@ test('createPackagesList() on empty list', async () => {
       workspaceDir,
     })
   ).toStrictEqual({
+    catalogs: undefined,
     projects: {},
     workspaceDir,
   })
