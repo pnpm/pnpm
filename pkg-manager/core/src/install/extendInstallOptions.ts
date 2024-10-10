@@ -100,6 +100,7 @@ export interface StrictInstallOptions {
   tag: string
   updateToLatest?: boolean
   overrides: Record<string, string>
+  overridesRefMap: Record<string, string | undefined>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
   // We can automatically calculate these
   // unless installation runs on a workspace
