@@ -108,6 +108,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--no-optional',
           },
           {
+            description: 'Prints the outdated dependencies in the given format. Default is "table". Supported options: "table, list, json"',
+            name: '--format <format>',
+          },
+          {
             description: 'Specify the sorting method. Currently only `name` is supported.',
             name: '--sort-by',
           },
