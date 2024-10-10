@@ -750,7 +750,7 @@ const hash =
   ((
     algorithm: string,
     data: crypto.BinaryLike,
-    outputEncoding: crypto.BinaryToTextEncoding,
+    outputEncoding: crypto.BinaryToTextEncoding
   ) => crypto.createHash(algorithm).update(data).digest(outputEncoding))
 
 export function createObjectChecksum (obj: Record<string, unknown>): string {

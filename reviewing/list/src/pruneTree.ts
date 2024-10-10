@@ -8,7 +8,7 @@ const hash =
   ((
     algorithm: string,
     data: crypto.BinaryLike,
-    outputEncoding: crypto.BinaryToTextEncoding,
+    outputEncoding: crypto.BinaryToTextEncoding
   ) => crypto.createHash(algorithm).update(data).digest(outputEncoding))
 
 export function pruneDependenciesTrees (trees: PackageDependencyHierarchy[] | null, limit: number): PackageDependencyHierarchy[] {

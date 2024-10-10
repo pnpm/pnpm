@@ -41,7 +41,7 @@ const hash =
   ((
     algorithm: string,
     data: crypto.BinaryLike,
-    outputEncoding: crypto.BinaryToTextEncoding,
+    outputEncoding: crypto.BinaryToTextEncoding
   ) => crypto.createHash(algorithm).update(data).digest(outputEncoding))
 
 const cafsCache = new Map<string, CafsFunctions>()
