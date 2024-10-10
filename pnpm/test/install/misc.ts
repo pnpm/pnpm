@@ -286,6 +286,7 @@ test('install should fail if the project requires a different package manager', 
     packageManager: 'yarn@4.0.0',
   })
 
+  fs.writeFileSync('.npmrc', 'manage-package-manager-versions=false')
   const { status, stdout } = execPnpmSync(['install'])
 
   expect(status).toBe(1)
@@ -519,7 +520,7 @@ test('installation fails when the stored package name and version do not match t
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
   const cafsDir = path.join(storeDir, 'v3/files')
-  const cacheIntegrityPath = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'))
+  const cacheIntegrityPath = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
   const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   cacheIntegrity.name = 'foo'
   writeJsonFile.sync(cacheIntegrityPath, {

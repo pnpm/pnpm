@@ -36,7 +36,7 @@ const DEFAULT_OPTIONS = {
   sort: true,
   userConfig: {},
   workspaceConcurrency: 1,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 test('prune removes external link that is not in package.json', async () => {

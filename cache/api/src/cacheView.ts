@@ -25,7 +25,7 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
     const nonCachedVersions: string[] = []
     for (const [version, manifest] of Object.entries(metaObject.versions)) {
       if (!manifest.dist.integrity) continue
-      const indexFilePath = getIndexFilePathInCafs(cafsDir, manifest.dist.integrity)
+      const indexFilePath = getIndexFilePathInCafs(cafsDir, manifest.dist.integrity, `${manifest.name}@${manifest.version}`)
       if (fs.existsSync(indexFilePath)) {
         cachedVersions.push(version)
       } else {

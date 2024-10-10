@@ -37,7 +37,7 @@ const DEFAULT_OPTIONS = {
   storeDir: path.join(tmp, 'store'),
   userConfig: {},
   workspaceConcurrency: 1,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 test('installing with "workspace:" should work even if link-workspace-packages is off', async () => {

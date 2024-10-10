@@ -34,13 +34,13 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ frozenLockfile: true }))).rejects.toThrowError(/Package name mismatch found while reading/)
+  }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))).rejects.toThrowError(/Got unexpected checksum for/)
 
   await mutateModulesInSingleProject({
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults())
+  }, testDefaults({}, { retry: { retries: 0 } }))
 
   expect(project.readLockfile()).toStrictEqual(correctLockfile)
 
@@ -53,7 +53,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ preferFrozenLockfile: false }))
+  }, testDefaults({ preferFrozenLockfile: false }, { retry: { retries: 0 } }))
 
   expect(project.readLockfile()).toStrictEqual(correctLockfile)
 })

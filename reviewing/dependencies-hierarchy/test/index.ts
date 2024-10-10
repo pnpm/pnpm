@@ -5,6 +5,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { buildDependenciesHierarchy, type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { depPathToFilename } from '@pnpm/dependency-path'
 
+const virtualStoreDirMaxLength = process.platform === 'win32' ? 60 : 120
 const f = fixtures(__dirname)
 const generalFixture = f.find('general')
 const withPeerFixture = f.find('with-peer')
@@ -19,7 +20,7 @@ const workspaceWithNestedWorkspaceDeps = f.find('workspace-with-nested-workspace
 const customModulesDirFixture = f.find('custom-modules-dir')
 
 test('one package depth 0', async () => {
-  const tree = await buildDependenciesHierarchy([generalFixture], { depth: 0, lockfileDir: generalFixture, virtualStoreDirMaxLength: 120 })
+  const tree = await buildDependenciesHierarchy([generalFixture], { depth: 0, lockfileDir: generalFixture, virtualStoreDirMaxLength })
   const modulesDir = path.join(generalFixture, 'node_modules')
 
   expect(tree).toStrictEqual({
@@ -80,7 +81,7 @@ test('one package depth 0', async () => {
 })
 
 test('one package depth 1', async () => {
-  const tree = await buildDependenciesHierarchy([generalFixture], { depth: 1, lockfileDir: generalFixture, virtualStoreDirMaxLength: 120 })
+  const tree = await buildDependenciesHierarchy([generalFixture], { depth: 1, lockfileDir: generalFixture, virtualStoreDirMaxLength })
   const modulesDir = path.join(generalFixture, 'node_modules')
 
   expect(tree).toStrictEqual({
@@ -179,7 +180,7 @@ test('only prod depth 0', async () => {
         optionalDependencies: false,
       },
       lockfileDir: generalFixture,
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength,
     }
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
@@ -225,7 +226,7 @@ test('only dev depth 0', async () => {
         optionalDependencies: false,
       },
       lockfileDir: generalFixture,
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength,
     }
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
@@ -254,7 +255,7 @@ test('hierarchy for no packages', async () => {
     depth: 100,
     lockfileDir: generalFixture,
     search: () => false,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength,
   })
 
   expect(tree).toStrictEqual({
@@ -273,7 +274,7 @@ test('filter 1 package with depth 0', async () => {
       depth: 0,
       lockfileDir: generalFixture,
       search: ({ name }) => name === 'rimraf',
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength,
     }
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
@@ -304,7 +305,7 @@ test('circular dependency', async () => {
   const tree = await buildDependenciesHierarchy([circularFixture], {
     depth: 1000,
     lockfileDir: circularFixture,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength,
   })
   const modulesDir = path.join(circularFixture, 'node_modules')
 
@@ -340,7 +341,7 @@ test('local package depth 0', async () => {
   const tree = await buildDependenciesHierarchy([withFileDepFixture], {
     depth: 1,
     lockfileDir: withFileDepFixture,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength,
   })
   const modulesDir = path.join(withFileDepFixture, 'node_modules')
 
@@ -378,7 +379,7 @@ test('on a package that has only links', async () => {
   const tree = await buildDependenciesHierarchy([withLinksOnlyFixture], {
     depth: 1000,
     lockfileDir: withLinksOnlyFixture,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength,
   })
 
   expect(tree).toStrictEqual({
@@ -407,7 +408,7 @@ test('on a package with nested workspace links', async () => {
     {
       depth: 1000,
       lockfileDir: workspaceWithNestedWorkspaceDeps,
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength,
     }
   )
 
@@ -449,7 +450,7 @@ test('unsaved dependencies are listed', async () => {
   expect(await buildDependenciesHierarchy([withUnsavedDepsFixture], {
     depth: 0,
     lockfileDir: withUnsavedDepsFixture,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength,
   }))
     .toStrictEqual({
       [withUnsavedDepsFixture]: {
@@ -492,7 +493,7 @@ test('unsaved dependencies are listed and filtered', async () => {
         depth: 0,
         lockfileDir: withUnsavedDepsFixture,
         search: ({ name }) => name === 'symlink-dir',
-        virtualStoreDirMaxLength: 120,
+        virtualStoreDirMaxLength,
       }
     )
   ).toStrictEqual({
@@ -522,7 +523,7 @@ test(`do not fail on importers that are not in current ${WANTED_LOCKFILE}`, asyn
   expect(await buildDependenciesHierarchy([fixtureMonorepo], {
     depth: 0,
     lockfileDir: fixtureMonorepo,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength,
   })).toStrictEqual({ [fixtureMonorepo]: {} })
 })
 
@@ -532,7 +533,7 @@ test('dependency with an alias', async () => {
     await buildDependenciesHierarchy([withAliasedDepFixture], {
       depth: 0,
       lockfileDir: withAliasedDepFixture,
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength,
     })
   ).toStrictEqual({
     [withAliasedDepFixture]: {
@@ -559,7 +560,7 @@ test('peer dependencies', async () => {
   const hierarchy = await buildDependenciesHierarchy([withPeerFixture], {
     depth: 1,
     lockfileDir: withPeerFixture,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength,
   })
   expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].name).toEqual('ajv')
   expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].isPeer).toEqual(true)
@@ -573,7 +574,7 @@ test('dependency without a package.json', async () => {
   const tree = await buildDependenciesHierarchy([withNonPackageDepFixture], {
     depth: 0,
     lockfileDir: withNonPackageDepFixture,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength,
   })
   const resolved = `https://codeload.github.com/${org}/${pkg}/tar.gz/${commit}`
   expect(tree).toStrictEqual({
@@ -586,7 +587,7 @@ test('dependency without a package.json', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'camelcase',
-          path: path.join(withNonPackageDepFixture, 'node_modules/.pnpm', `camelcase@${depPathToFilename(resolved, 120)}`, 'node_modules/camelcase'),
+          path: path.join(withNonPackageDepFixture, 'node_modules/.pnpm', depPathToFilename(`camelcase@${resolved}`, virtualStoreDirMaxLength), 'node_modules/camelcase'),
           resolved,
           version: '0.0.0',
         },
@@ -613,7 +614,7 @@ test('on custom modules-dir workspaces', async () => {
       depth: 1000,
       lockfileDir: customModulesDirFixture,
       modulesDir: 'fake_modules',
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength,
     }
   )
   expect(tree).toEqual({

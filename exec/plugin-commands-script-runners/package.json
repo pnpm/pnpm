@@ -50,7 +50,7 @@
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/crypto.base32-hash": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/env.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
