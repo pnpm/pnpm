@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 23.2.6
+
+### Patch Changes
+
+- Updated dependencies [17b5088]
+  - @pnpm/lockfile.filtering@1.0.6
+  - @pnpm/modules-cleaner@15.1.15
+
 ## 23.2.5
 
 ### Patch Changes

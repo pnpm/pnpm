@@ -1,5 +1,11 @@
 # @pnpm/filter-lockfile
 
+## 1.0.6
+
+### Patch Changes
+
+- 17b5088: Fix maximum call stack size exceeded error related to circular workspace dependencies [#8599](https://github.com/pnpm/pnpm/pull/8599).
+
 ## 1.0.5
 
 ### Patch Changes

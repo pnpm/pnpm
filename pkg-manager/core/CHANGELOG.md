@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 15.3.6
+
+### Patch Changes
+
+- Updated dependencies [4f4e073]
+- Updated dependencies [17b5088]
+- Updated dependencies [51f3ba1]
+  - @pnpm/resolve-dependencies@36.0.5
+  - @pnpm/lockfile.filtering@1.0.6
+  - @pnpm/lockfile.settings-checker@1.0.0
+  - @pnpm/headless@23.2.6
+  - @pnpm/modules-cleaner@15.1.15
+
 ## 15.3.5
 
 ### Patch Changes

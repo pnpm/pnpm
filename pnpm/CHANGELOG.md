@@ -1,5 +1,15 @@
 # pnpm
 
+## 9.12.1
+
+### Patch Changes
+
+- `pnpm update --latest` should not update the automatically installed peer dependencies [#6657](https://github.com/pnpm/pnpm/issues/6657).
+- `pnpm publish` should be able to publish from a local tarball [#7950](https://github.com/pnpm/pnpm/issues/7950).
+- The pnpx command should work correctly on Windows, when pnpm is installed via the standalone installation script [#8608](https://github.com/pnpm/pnpm/pull/8608).
+- Prevent `EBUSY` errors caused by creating symlinks in parallel `dlx` processes [#8604](https://github.com/pnpm/pnpm/pull/8604).
+- Fix maximum call stack size exceeded error related to circular workspace dependencies [#8599](https://github.com/pnpm/pnpm/pull/8599).
+
 ## 9.12.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1.0.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.2.5
+
 ## 1.0.6
 
 ### Patch Changes
