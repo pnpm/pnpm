@@ -1,6 +1,6 @@
 import fs from 'fs'
 import util from 'util'
-import type { PackageFileInfo } from '@pnpm/cafs-types'
+import { type PackageFileInfo, type SideEffects } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
@@ -19,8 +19,6 @@ export interface VerifyResult {
   passed: boolean
   manifest?: DependencyManifest
 }
-
-export type SideEffects = Record<string, Record<string, PackageFileInfo>>
 
 export interface PackageFilesIndex {
   // name and version are nullable for backward compatibility
@@ -51,8 +49,8 @@ export function checkPkgFilesIntegrity (
     // We verify all side effects cache. We could optimize it to verify only the side effects cache
     // that satisfies the current os/arch/platform.
     // However, it likely won't make a big difference.
-    for (const [sideEffectName, files] of Object.entries(pkgIndex.sideEffects)) {
-      const { passed } = _checkFilesIntegrity(files)
+    for (const [sideEffectName, diff] of Object.entries(pkgIndex.sideEffects)) {
+      const { passed } = _checkFilesIntegrity(diff.modified)
       if (!passed) {
         delete pkgIndex.sideEffects![sideEffectName]
       }

@@ -2,7 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
-import { type Cafs } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFileInfoMap, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
@@ -12,7 +12,6 @@ import {
   createCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
-  type SideEffects,
   type FilesIndex,
   optimisticRenameOverwrite,
   readManifestFromStore,
@@ -180,7 +179,7 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, f
       filesIndex = { name: manifest?.name, version: manifest?.version, files: filesIntegrity }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
-    filesIndex.sideEffects[sideEffectsCacheKey] = filesIntegrity
+    filesIndex.sideEffects[sideEffectsCacheKey] = calculateDiff(filesIndex.files, filesIntegrity)
     if (filesIndex.requiresBuild == null) {
       requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
     } else {
@@ -191,6 +190,22 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, f
     requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
   }
   return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
+}
+
+function calculateDiff (baseFiles: PackageFileInfoMap, sideEffectsFiles: PackageFileInfoMap): SideEffectsDiff {
+  const deleted: string[] = []
+  const modified: PackageFileInfoMap = {}
+  const added: PackageFileInfoMap = {}
+  for (const file of Array.from(new Set([...Object.keys(baseFiles), ...Object.keys(sideEffectsFiles)]))) {
+    if (!sideEffectsFiles[file]) {
+      deleted.push(file)
+    } else if (!baseFiles[file]) {
+      added[file] = sideEffectsFiles[file]
+    } else if (baseFiles[file].integrity !== sideEffectsFiles[file].integrity || baseFiles[file].mode !== sideEffectsFiles[file].mode) {
+      modified[file] = sideEffectsFiles[file]
+    }
+  }
+  return { deleted, modified, added }
 }
 
 interface ProcessFilesIndexResult {
