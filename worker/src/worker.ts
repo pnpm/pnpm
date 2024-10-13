@@ -176,7 +176,15 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, f
     try {
       filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
     } catch {
-      filesIndex = { name: manifest?.name, version: manifest?.version, files: {} }
+      // If there is no existing index file, then we cannot store the side effects.
+      return {
+        status: 'success',
+        value: {
+          filesIndex: filesMap,
+          manifest,
+          requiresBuild: pkgRequiresBuild(manifest, filesIntegrity),
+        },
+      }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
     filesIndex.sideEffects[sideEffectsCacheKey] = calculateDiff(filesIndex.files, filesIntegrity)
