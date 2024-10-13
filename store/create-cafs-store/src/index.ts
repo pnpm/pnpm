@@ -102,13 +102,13 @@ function getFlatMap (
   return { filesMap, isBuilt }
 }
 
-function applySideEffectsDiff (baseFiles: PackageFiles, diff: SideEffectsDiff): PackageFiles {
+function applySideEffectsDiff (baseFiles: PackageFiles, { modified, added, deleted }: SideEffectsDiff): PackageFiles {
   const result: PackageFiles = {
-    ...diff.modified,
-    ...diff.added,
+    ...modified,
+    ...added,
   }
   for (const [fileName, file] of Object.entries(baseFiles)) {
-    if (!diff.deleted.includes(fileName) && !result[fileName]) {
+    if (!deleted.includes(fileName) && !result[fileName]) {
       result[fileName] = file
     }
   }

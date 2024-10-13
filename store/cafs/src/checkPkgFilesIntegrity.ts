@@ -49,8 +49,8 @@ export function checkPkgFilesIntegrity (
     // We verify all side effects cache. We could optimize it to verify only the side effects cache
     // that satisfies the current os/arch/platform.
     // However, it likely won't make a big difference.
-    for (const [sideEffectName, diff] of Object.entries(pkgIndex.sideEffects)) {
-      const { passed } = _checkFilesIntegrity({ ...diff.modified, ...diff.added })
+    for (const [sideEffectName, { added, modified }] of Object.entries(pkgIndex.sideEffects)) {
+      const { passed } = _checkFilesIntegrity({ ...modified, ...added })
       if (!passed) {
         delete pkgIndex.sideEffects![sideEffectName]
       }
