@@ -1,4 +1,4 @@
-import { type AddToStoreResult, type FileWriteResult, type PackageFileInfo, type FilesIndex } from '@pnpm/cafs-types'
+import { type AddToStoreResult, type FileWriteResult, type PackageFiles, type PackageFileInfo, type FilesIndex } from '@pnpm/cafs-types'
 import ssri from 'ssri'
 import { addFilesFromDir } from './addFilesFromDir'
 import { addFilesFromTarball } from './addFilesFromTarball'
@@ -26,6 +26,7 @@ export {
   getFilePathByModeInCafs,
   getIndexFilePathInCafs,
   type PackageFileInfo,
+  type PackageFiles,
   type PackageFilesIndex,
   optimisticRenameOverwrite,
   type FilesIndex,

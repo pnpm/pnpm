@@ -8,6 +8,7 @@ import { type PackageManifest, type Registries } from '@pnpm/types'
 import {
   getFilePathByModeInCafs,
   getIndexFilePathInCafs,
+  type PackageFiles,
   type PackageFileInfo,
   type PackageFilesIndex,
 } from '@pnpm/store.cafs'
@@ -155,7 +156,7 @@ async function parseLicense (
     manifest: PackageManifest
     files:
     | { local: true, files: Record<string, string> }
-    | { local: false, files: Record<string, PackageFileInfo> }
+    | { local: false, files: PackageFiles }
   },
   opts: { cafsDir: string }
 ): Promise<LicenseInfo> {
@@ -213,7 +214,7 @@ async function readLicenseFileFromCafs (cafsDir: string, { integrity, mode }: Pa
 }
 
 export type ReadPackageIndexFileResult =
-  | { local: false, files: Record<string, PackageFileInfo> }
+  | { local: false, files: PackageFiles }
   | { local: true, files: Record<string, string> }
 
 export interface ReadPackageIndexFileOptions {

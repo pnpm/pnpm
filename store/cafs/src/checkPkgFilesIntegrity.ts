@@ -1,6 +1,6 @@
 import fs from 'fs'
 import util from 'util'
-import { type PackageFileInfo, type SideEffects } from '@pnpm/cafs-types'
+import { type PackageFiles, type PackageFileInfo, type SideEffects } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
@@ -29,7 +29,7 @@ export interface PackageFilesIndex {
   version?: string
   requiresBuild?: boolean
 
-  files: Record<string, PackageFileInfo>
+  files: PackageFiles
   sideEffects?: SideEffects
 }
 
@@ -64,7 +64,7 @@ export function checkPkgFilesIntegrity (
 function checkFilesIntegrity (
   verifiedFilesCache: Set<string>,
   cafsDir: string,
-  files: Record<string, PackageFileInfo>,
+  files: PackageFiles,
   readManifest?: boolean
 ): VerifyResult {
   let allVerified = true

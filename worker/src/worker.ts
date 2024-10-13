@@ -10,7 +10,6 @@ import {
   type CafsFunctions,
   checkPkgFilesIntegrity,
   createCafs,
-  type PackageFileInfo,
   type PackageFilesIndex,
   type FilesIndex,
   optimisticRenameOverwrite,
@@ -225,12 +224,12 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
 }
 
 interface ProcessFilesIndexResult {
-  filesIntegrity: Record<string, PackageFileInfo>
+  filesIntegrity: PackageFiles
   filesMap: Record<string, string>
 }
 
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
-  const filesIntegrity: Record<string, PackageFileInfo> = {}
+  const filesIntegrity: PackageFiles = {}
   const filesMap: Record<string, string> = {}
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of Object.entries(filesIndex)) {
     filesIntegrity[k] = {
@@ -294,7 +293,7 @@ function writeFilesIndexFile (
   filesIndexFile: string,
   { manifest, files, sideEffects }: {
     manifest: Partial<DependencyManifest>
-    files: Record<string, PackageFileInfo>
+    files: PackageFiles
     sideEffects?: SideEffects
   }
 ): boolean {
