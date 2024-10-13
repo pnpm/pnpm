@@ -208,7 +208,8 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
       deleted.push(file)
     } else if (
       !baseFiles[file] ||
-      (baseFiles[file].integrity !== sideEffectsFiles[file].integrity || baseFiles[file].mode !== sideEffectsFiles[file].mode)
+      baseFiles[file].integrity !== sideEffectsFiles[file].integrity ||
+      baseFiles[file].mode !== sideEffectsFiles[file].mode
     ) {
       added[file] = sideEffectsFiles[file]
     }
