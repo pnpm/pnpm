@@ -2,7 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
-import { type Cafs, type PackageFileInfoMap, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
@@ -192,10 +192,10 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, f
   return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
 }
 
-function calculateDiff (baseFiles: PackageFileInfoMap, sideEffectsFiles: PackageFileInfoMap): SideEffectsDiff {
+function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles): SideEffectsDiff {
   const deleted: string[] = []
-  const modified: PackageFileInfoMap = {}
-  const added: PackageFileInfoMap = {}
+  const modified: PackageFiles = {}
+  const added: PackageFiles = {}
   for (const file of Array.from(new Set([...Object.keys(baseFiles), ...Object.keys(sideEffectsFiles)]))) {
     if (!sideEffectsFiles[file]) {
       deleted.push(file)
