@@ -177,7 +177,7 @@ test('a postinstall script does not modify the original sources added to the sto
   const cafsDir = path.join(opts.storeDir, 'files')
   const filesIndexFile = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0'), '@pnpm/postinstall-modifies-source@1.0.0')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
-  const patchedFileIntegrity = filesIndex.sideEffects?.[`${ENGINE_NAME}-${hashObject({})}`].modified['empty-file.txt']?.integrity
+  const patchedFileIntegrity = filesIndex.sideEffects?.[`${ENGINE_NAME}-${hashObject({})}`].added['empty-file.txt']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['empty-file.txt'].integrity
   expect(originalFileIntegrity).toBeTruthy()

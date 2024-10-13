@@ -102,17 +102,14 @@ function getFlatMap (
   return { filesMap, isBuilt }
 }
 
-function applySideEffectsDiff (baseFiles: PackageFiles, { modified, added, deleted }: SideEffectsDiff): PackageFiles {
-  const result: PackageFiles = {
-    ...modified,
-    ...added,
-  }
-  for (const [fileName, file] of Object.entries(baseFiles)) {
-    if (!deleted.includes(fileName) && !result[fileName]) {
-      result[fileName] = file
+function applySideEffectsDiff (baseFiles: PackageFiles, { added, deleted }: SideEffectsDiff): PackageFiles {
+  const filesWithSideEffects: PackageFiles = { ...added }
+  for (const fileName in baseFiles) {
+    if (!deleted.includes(fileName) && !filesWithSideEffects[fileName]) {
+      filesWithSideEffects[fileName] = baseFiles[fileName]
     }
   }
-  return result
+  return filesWithSideEffects
 }
 
 export function createCafsStore (

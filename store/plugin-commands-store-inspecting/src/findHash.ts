@@ -74,8 +74,8 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     }
 
     if (pkgFilesIndex?.sideEffects) {
-      for (const { modified, added } of Object.values(pkgFilesIndex.sideEffects)) {
-        for (const file of Object.values({ ...modified, ...added })) {
+      for (const { added } of Object.values(pkgFilesIndex.sideEffects)) {
+        for (const file of Object.values(added)) {
           if (file?.integrity === hash) {
             result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(cafsDir, '') })
 

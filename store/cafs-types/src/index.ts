@@ -14,7 +14,6 @@ export type SideEffects = Record<string, SideEffectsDiff>
 
 export interface SideEffectsDiff {
   deleted: string[]
-  modified: PackageFiles
   added: PackageFiles
 }
 
