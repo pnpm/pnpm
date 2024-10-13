@@ -105,7 +105,7 @@ function getFlatMap (
 function applySideEffectsDiff (baseFiles: PackageFiles, { added, deleted }: SideEffectsDiff): PackageFiles {
   const filesWithSideEffects: PackageFiles = { ...added }
   for (const fileName in baseFiles) {
-    if (!deleted.includes(fileName) && !filesWithSideEffects[fileName]) {
+    if (!deleted?.includes(fileName) && !filesWithSideEffects[fileName]) {
       filesWithSideEffects[fileName] = baseFiles[fileName]
     }
   }

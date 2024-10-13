@@ -214,7 +214,14 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
       added[file] = sideEffectsFiles[file]
     }
   }
-  return { deleted, added }
+  const result: SideEffectsDiff = {}
+  if (deleted.length > 0) {
+    result.deleted = deleted
+  }
+  if (Object.keys(added).length > 0) {
+    result.added = added
+  }
+  return result
 }
 
 interface ProcessFilesIndexResult {

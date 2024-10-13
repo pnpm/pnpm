@@ -13,8 +13,8 @@ export interface PackageFileInfo {
 export type SideEffects = Record<string, SideEffectsDiff>
 
 export interface SideEffectsDiff {
-  deleted: string[]
-  added: PackageFiles
+  deleted?: string[]
+  added?: PackageFiles
 }
 
 export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
