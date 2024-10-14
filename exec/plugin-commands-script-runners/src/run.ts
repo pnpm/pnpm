@@ -23,6 +23,13 @@ import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifie
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
+import {
+  type CheckLockfilesUpToDateOptions,
+  type ShouldRunCheckOptions,
+  DISABLE_DEPS_CHECK_ENV,
+  checkLockfilesUpToDate,
+  shouldRunCheck,
+} from './checkLockfilesUpToDate'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
@@ -181,6 +188,8 @@ export type RunOpts =
     }
     fallbackCommandUsed?: boolean
   }
+  & CheckLockfilesUpToDateOptions
+  & ShouldRunCheckOptions
 
 export async function handler (
   opts: RunOpts,
@@ -202,6 +211,10 @@ export async function handler (
       ? (await tryReadProjectManifest(opts.workspaceDir, opts)).manifest
       : undefined
     return printProjectCommands(manifest, rootManifest ?? undefined)
+  }
+
+  if (shouldRunCheck(opts, process.env)) {
+    await checkLockfilesUpToDate(opts)
   }
 
   const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
@@ -247,6 +260,7 @@ so you may run "pnpm -w run ${scriptName}"`,
   const extraEnv = {
     ...opts.extraEnv,
     ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
+    ...opts.checkDepsBeforeRunScripts ? DISABLE_DEPS_CHECK_ENV : undefined,
   }
 
   const lifecycleOpts: RunLifecycleHookOptions = {

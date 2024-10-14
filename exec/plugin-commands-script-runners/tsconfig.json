@@ -28,13 +28,28 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/parse-overrides"
+    },
+    {
       "path": "../../crypto/hash"
+    },
+    {
+      "path": "../../crypto/object-hasher"
     },
     {
       "path": "../../env/path"
     },
     {
       "path": "../../env/plugin-commands-env"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/settings-checker"
+    },
+    {
+      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/core-loggers"
@@ -55,6 +70,9 @@
       "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
+      "path": "../../pkg-manifest/manifest-utils"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
@@ -68,6 +86,9 @@
     },
     {
       "path": "../../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../../workspace/packages-list-cache"
     },
     {
       "path": "../../workspace/sort-packages"
