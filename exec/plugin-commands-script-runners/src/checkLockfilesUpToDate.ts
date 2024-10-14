@@ -108,7 +108,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         currentLockfileStats: await currentLockfileStatsPromise,
         wantedLockfile: await wantedLockfilePromise,
         wantedLockfileDir: workspaceDir,
-        wantedLockfileStats: await wantedLockfileStatsPromise
+        wantedLockfileStats: await wantedLockfileStatsPromise,
       })
     } else {
       readWantedLockfileAndDir = async wantedLockfileDir => {
@@ -199,9 +199,9 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
 
 interface HandleSingleProjectOptions {
   config: CheckLockfilesUpToDateOptions
-  currentLockfile: Lockfile | null,
+  currentLockfile: Lockfile | null
   currentLockfileStats: fs.Stats | undefined
-  projectManifest: ProjectManifest,
+  projectManifest: ProjectManifest
   rootDir: string
   rootManifestOptions: OptionsFromRootManifest | undefined
   wantedLockfile: Lockfile | null
@@ -231,7 +231,7 @@ async function handleSingleProject (opts: HandleSingleProjectOptions): Promise<v
   if (!currentLockfileStats || !currentLockfile) {
     const allDependencies = getAllDependenciesFromManifest(projectManifest)
     if (isEmpty(allDependencies)) {
-      throw new PnpmError(`RUN_CHECK_DEPS_NO_DEPS`, `The manifest in ${wantedLockfileDir} declare dependencies but none was installed.`, {
+      throw new PnpmError('RUN_CHECK_DEPS_NO_DEPS', `The manifest in ${wantedLockfileDir} declare dependencies but none was installed.`, {
         hint: 'Run `pnpm install` to install dependencies.',
       })
     }
