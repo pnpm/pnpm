@@ -48,6 +48,7 @@ export function addFilesFromDir (
     if (opts.readManifest && relativePath === 'package.json') {
       manifest = parseJsonBufferSync(buffer) as DependencyManifest
     }
+    // Remove the file type information (regular file, directory, etc.) and leave just the permission bits (rwx for owner, group, and others)
     const mode = stat.mode & 0o777
     filesIndex[relativePath] = {
       mode,

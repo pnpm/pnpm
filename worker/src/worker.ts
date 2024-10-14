@@ -202,7 +202,7 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, f
 function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles): SideEffectsDiff {
   const deleted: string[] = []
   const added: PackageFiles = {}
-  for (const file of Array.from(new Set([...Object.keys(baseFiles), ...Object.keys(sideEffectsFiles)]))) {
+  for (const file of new Set([...Object.keys(baseFiles), ...Object.keys(sideEffectsFiles)])) {
     if (!sideEffectsFiles[file]) {
       deleted.push(file)
     } else if (
@@ -213,14 +213,14 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
       added[file] = sideEffectsFiles[file]
     }
   }
-  const result: SideEffectsDiff = {}
+  const diff: SideEffectsDiff = {}
   if (deleted.length > 0) {
-    result.deleted = deleted
+    diff.deleted = deleted
   }
   if (Object.keys(added).length > 0) {
-    result.added = added
+    diff.added = added
   }
-  return result
+  return diff
 }
 
 interface ProcessFilesIndexResult {
