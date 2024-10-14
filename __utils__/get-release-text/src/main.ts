@@ -238,6 +238,11 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
           </picture>
         </a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <img src="https://pnpm.io/img/users/vitejs.svg" width="65">
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
