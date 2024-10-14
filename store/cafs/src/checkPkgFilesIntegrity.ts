@@ -1,6 +1,6 @@
 import fs from 'fs'
 import util from 'util'
-import type { PackageFileInfo } from '@pnpm/cafs-types'
+import { type PackageFiles, type PackageFileInfo, type SideEffects } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
@@ -20,8 +20,6 @@ export interface VerifyResult {
   manifest?: DependencyManifest
 }
 
-export type SideEffects = Record<string, Record<string, PackageFileInfo>>
-
 export interface PackageFilesIndex {
   // name and version are nullable for backward compatibility
   // the initial specs of pnpm store v3 did not require these fields.
@@ -31,7 +29,7 @@ export interface PackageFilesIndex {
   version?: string
   requiresBuild?: boolean
 
-  files: Record<string, PackageFileInfo>
+  files: PackageFiles
   sideEffects?: SideEffects
 }
 
@@ -51,10 +49,12 @@ export function checkPkgFilesIntegrity (
     // We verify all side effects cache. We could optimize it to verify only the side effects cache
     // that satisfies the current os/arch/platform.
     // However, it likely won't make a big difference.
-    for (const [sideEffectName, files] of Object.entries(pkgIndex.sideEffects)) {
-      const { passed } = _checkFilesIntegrity(files)
-      if (!passed) {
-        delete pkgIndex.sideEffects![sideEffectName]
+    for (const [sideEffectName, { added }] of Object.entries(pkgIndex.sideEffects)) {
+      if (added) {
+        const { passed } = _checkFilesIntegrity(added)
+        if (!passed) {
+          delete pkgIndex.sideEffects![sideEffectName]
+        }
       }
     }
   }
@@ -64,7 +64,7 @@ export function checkPkgFilesIntegrity (
 function checkFilesIntegrity (
   verifiedFilesCache: Set<string>,
   cafsDir: string,
-  files: Record<string, PackageFileInfo>,
+  files: PackageFiles,
   readManifest?: boolean
 ): VerifyResult {
   let allVerified = true
