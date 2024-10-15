@@ -89,6 +89,35 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       })
     }
 
+    const allManifestStats = await Promise.all(allProjects.map(async project => {
+      const attempts = await Promise.all(MANIFEST_BASE_NAMES.map(async manifestBaseName => {
+        const manifestPath = path.join(project.rootDir, manifestBaseName)
+        let manifestStats: fs.Stats
+        try {
+          manifestStats = await fs.promises.stat(manifestPath)
+        } catch (error) {
+          if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
+            return undefined
+          }
+          throw error
+        }
+        return manifestStats
+      }))
+      const manifestStats = attempts.find(x => !!x)
+      if (!manifestStats) {
+        // this error should not happen
+        throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${project.rootDir}`)
+      }
+      return { project, manifestStats }
+    }))
+
+    const modifiedProjects = allManifestStats.filter(
+      ({ manifestStats }) =>
+        manifestStats.mtime.valueOf() > packagesList.lastValidatedTimestamp
+    )
+
+    if (modifiedProjects.length === 0) return
+
     // TODO: optimize
     //       if sharedWorkspaceLockfile is true, the should only be only one comparison between "wanted lockfile" and "current lockfile"
 
@@ -128,35 +157,6 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         }
       }
     }
-
-    const allManifestStats = await Promise.all(allProjects.map(async project => {
-      const attempts = await Promise.all(MANIFEST_BASE_NAMES.map(async manifestBaseName => {
-        const manifestPath = path.join(project.rootDir, manifestBaseName)
-        let manifestStats: fs.Stats
-        try {
-          manifestStats = await fs.promises.stat(manifestPath)
-        } catch (error) {
-          if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
-            return undefined
-          }
-          throw error
-        }
-        return manifestStats
-      }))
-      const manifestStats = attempts.find(x => !!x)
-      if (!manifestStats) {
-        // this error should not happen
-        throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${project.rootDir}`)
-      }
-      return { project, manifestStats }
-    }))
-
-    const modifiedProjects = allManifestStats.filter(
-      ({ manifestStats }) =>
-        manifestStats.mtime.valueOf() > packagesList.lastValidatedTimestamp
-    )
-
-    if (modifiedProjects.length === 0) return
 
     await Promise.all(modifiedProjects.map(async ({ project }) => {
       const {
