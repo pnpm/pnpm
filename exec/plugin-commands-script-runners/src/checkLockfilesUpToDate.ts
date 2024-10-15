@@ -4,7 +4,7 @@ import util from 'util'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import { type Config, type OptionsFromRootManifest, getOptionsFromRootManifest } from '@pnpm/config'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { type Lockfile, readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
@@ -17,7 +17,7 @@ import { globalWarn } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import { type ProjectManifest } from '@pnpm/types'
-import { loadPackagesList } from '@pnpm/workspace.packages-list-cache'
+import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 
 // The scripts that `pnpm run` executes are likely to also execute other `pnpm run`.
 // We don't want this check (which can be quite expensive) to repeat.
@@ -82,13 +82,15 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       })
     }
 
-    const oldProjectRootDirs = Object.keys(packagesList.projects).sort()
     const currentProjectRootDirs = allProjects.map(project => project.rootDir).sort()
-    if (!equals(oldProjectRootDirs, currentProjectRootDirs)) {
+    if (!equals(packagesList.projectRootDirs, currentProjectRootDirs)) {
       throw new PnpmError('RUN_CHECK_DEPS_WORKSPACE_STRUCTURE_CHANGED', 'The workspace structure has changed since last install', {
         hint: 'Run `pnpm install` to update the workspace structure and dependencies tree',
       })
     }
+
+    // TODO: optimize
+    //       if sharedWorkspaceLockfile is true, the should only be only one comparison between "wanted lockfile" and "current lockfile"
 
     let readWantedLockfileAndDir: (projectDir: string) => Promise<{
       currentLockfile: Lockfile | null
@@ -128,20 +130,35 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     }
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
-      const { manifestBaseName } = packagesList.projects[project.rootDir]
-      const manifestPath = path.join(project.rootDir, manifestBaseName)
-      const manifestStats = await fs.promises.stat(manifestPath)
+      const attempts = await Promise.all(MANIFEST_BASE_NAMES.map(async manifestBaseName => {
+        const manifestPath = path.join(project.rootDir, manifestBaseName)
+        let manifestStats: fs.Stats
+        try {
+          manifestStats = await fs.promises.stat(manifestPath)
+        } catch (error) {
+          if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
+            return undefined
+          }
+          throw error
+        }
+        return manifestStats
+      }))
+      const manifestStats = attempts.find(x => !!x)
+      if (!manifestStats) {
+        // this error should not happen
+        throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${project.rootDir}`)
+      }
       return { project, manifestStats }
     }))
 
     const modifiedProjects = allManifestStats.filter(
-      ({ project, manifestStats }) =>
-        packagesList.projects[project.rootDir].manifestModificationTimestamp !== manifestStats.mtime.valueOf()
+      ({ manifestStats }) =>
+        manifestStats.mtime.valueOf() > packagesList.lastValidatedTimestamp
     )
 
     if (modifiedProjects.length === 0) return
 
-    let lockfileDirs = await Promise.all(modifiedProjects.map(async ({ project }) => {
+    await Promise.all(modifiedProjects.map(async ({ project }) => {
       const {
         currentLockfile,
         currentLockfileStats,
@@ -161,16 +178,15 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         wantedLockfileDir,
         wantedLockfileStats,
       })
-
-      return wantedLockfileDir
     }))
 
-    if (sharedWorkspaceLockfile) {
-      lockfileDirs = [workspaceDir]
-    }
-
-    // change modification time of lockfiles to prevent pointless repeat
-    await Promise.all(lockfileDirs.map(setLockfilesMtimeToNow))
+    // update lastValidatedTimestamp to prevent pointless repeat
+    await updatePackagesList({
+      allProjects,
+      cacheDir,
+      lastValidatedTimestamp: Date.now(),
+      workspaceDir,
+    })
   } else if (rootProjectManifest && rootProjectManifestDir) {
     const virtualStoreDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
     const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
@@ -189,13 +205,15 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       wantedLockfileDir: rootProjectManifestDir,
       wantedLockfileStats,
     })
-
-    // change modification time of lockfiles to prevent pointless repeat
-    await setLockfilesMtimeToNow(rootProjectManifestDir)
   } else {
     globalWarn('Impossible variant detected! Skipping check.')
   }
 }
+
+// TODO: optimize
+//       The comparison between "wanted lockfile" and "current lockfile" of each project only makes sense when
+//       both `sharedWorkspaceLockfile` is `false` and `workspace` is non-null.
+//       Therefore, the comparison should be done outside `handleSingleProject`.
 
 interface HandleSingleProjectOptions {
   config: CheckLockfilesUpToDateOptions
@@ -287,14 +305,4 @@ async function readStatsIfExists (filePath: string): Promise<fs.Stats | undefine
     throw error
   }
   return stats
-}
-
-async function setLockfilesMtimeToNow (wantedLockfileDir: string): Promise<void> {
-  const now = new Date()
-  const wantedLockfilePath = path.join(wantedLockfileDir, WANTED_LOCKFILE)
-  const currentLockfilePath = path.join(wantedLockfileDir, 'node_modules', '.pnpm', 'lock.yaml')
-  await Promise.all([
-    fs.promises.utimes(wantedLockfilePath, now, now),
-    fs.promises.utimes(currentLockfilePath, now, now),
-  ])
 }

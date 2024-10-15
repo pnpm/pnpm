@@ -9,11 +9,12 @@ export interface UpdatePackagesListOptions {
   allProjects: ProjectsList
   cacheDir: string
   catalogs?: Catalogs
+  lastValidatedTimestamp: number
   workspaceDir: string
 }
 
 export async function updatePackagesList (opts: UpdatePackagesListOptions): Promise<void> {
-  const packagesList = await createPackagesList(opts)
+  const packagesList = createPackagesList(opts)
   const packagesListJSON = JSON.stringify(packagesList, undefined, 2) + '\n'
   const cacheFile = getCacheFilePath(opts)
   await fs.promises.mkdir(path.dirname(cacheFile), { recursive: true })

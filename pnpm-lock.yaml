@@ -7680,9 +7680,6 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash

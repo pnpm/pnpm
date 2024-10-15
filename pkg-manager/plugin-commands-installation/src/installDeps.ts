@@ -162,6 +162,7 @@ when running add/update with the --workspace option')
     await updatePackagesList({
       allProjects: opts.allProjects,
       cacheDir: opts.cacheDir,
+      lastValidatedTimestamp: Date.now(),
       workspaceDir: opts.workspaceDir,
     })
   }
