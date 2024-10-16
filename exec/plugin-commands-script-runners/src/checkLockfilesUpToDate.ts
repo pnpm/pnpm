@@ -20,7 +20,7 @@ import { parseOverrides } from '@pnpm/parse-overrides'
 import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 
 // The scripts that `pnpm run` executes are likely to also execute other `pnpm run`.
-// We don't want this check (which can be quite expensive) to repeat.
+// We don't want this potentially expensive check to repeat.
 // The solution is to use an env key to disable the check.
 export const SKIP_ENV_KEY = 'pnpm_run_skip_deps_check'
 export const DISABLE_DEPS_CHECK_ENV = {
