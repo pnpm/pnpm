@@ -151,7 +151,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     await Promise.all(modifiedProjects.map(async ({ project }) => {
       const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
 
-      await handleSingleProject({
+      await assertWantedLockfileUpToDate({
         config: opts,
         rootDir: workspaceDir,
         rootManifestOptions,
@@ -195,7 +195,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     }
 
     if (manifestStats.mtime.valueOf() > wantedLockfileStats.mtime.valueOf()) {
-      await handleSingleProject({
+      await assertWantedLockfileUpToDate({
         config: opts,
         rootDir: rootProjectManifestDir,
         rootManifestOptions,
@@ -208,7 +208,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
   }
 }
 
-interface HandleSingleProjectOptions {
+interface AssertWantedLockfileUpToDateOptions {
   config: CheckLockfilesUpToDateOptions
   rootDir: string
   rootManifestOptions: OptionsFromRootManifest | undefined
@@ -216,7 +216,7 @@ interface HandleSingleProjectOptions {
   wantedLockfileDir: string
 }
 
-async function handleSingleProject (opts: HandleSingleProjectOptions): Promise<void> {
+async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateOptions): Promise<void> {
   const {
     config,
     rootDir,
