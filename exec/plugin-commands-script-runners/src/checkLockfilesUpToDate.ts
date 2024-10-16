@@ -126,23 +126,19 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       const wantedLockfileStats = await readStatsIfExists(path.join(workspaceDir, WANTED_LOCKFILE))
       if (!wantedLockfileStats) return throwLockfileNotFound(workspaceDir)
 
-      const virtualStoreDir = path.join(workspaceDir, 'node_modules', '.pnpm')
-      const currentLockfilePromise = readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
       const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
       if (wantedLockfileStats.mtime.valueOf() > packagesList.lastValidatedTimestamp) {
-        const currentLockfile = await currentLockfilePromise
+        const virtualStoreDir = path.join(workspaceDir, 'node_modules', '.pnpm')
+        const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
         const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
         assertLockfilesEqual(currentLockfile, wantedLockfile)
       }
       readWantedLockfileAndDir = async () => ({
-        currentLockfile: await currentLockfilePromise,
         wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir),
         wantedLockfileDir: workspaceDir,
       })
     } else {
       readWantedLockfileAndDir = async wantedLockfileDir => {
-        const virtualStoreDir = path.join(wantedLockfileDir, 'node_modules', '.pnpm')
-        const currentLockfilePromise = readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
         const wantedLockfilePromise = readWantedLockfile(wantedLockfileDir, { ignoreIncompatible: false })
         const [
           wantedLockfileStats,
@@ -152,7 +148,8 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
         if (wantedLockfileStats.mtime.valueOf() > packagesList.lastValidatedTimestamp) {
-          const currentLockfile = await currentLockfilePromise
+          const virtualStoreDir = path.join(wantedLockfileDir, 'node_modules', '.pnpm')
+          const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
           assertLockfilesEqual(currentLockfile, wantedLockfile)
         }
