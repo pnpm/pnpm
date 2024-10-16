@@ -90,25 +90,12 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     }
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
-      const attempts = await Promise.all(MANIFEST_BASE_NAMES.map(async manifestBaseName => {
-        const manifestPath = path.join(project.rootDir, manifestBaseName)
-        let manifestStats: fs.Stats
-        try {
-          manifestStats = await fs.promises.stat(manifestPath)
-        } catch (error) {
-          if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
-            return undefined
-          }
-          throw error
-        }
-        return manifestStats
-      }))
-      const manifestStats = attempts.find(x => !!x)
-      if (!manifestStats) {
+      const statManifestResult = await statManifestFile(project.rootDir)
+      if (!statManifestResult) {
         // this error should not happen
         throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${project.rootDir}`)
       }
-      return { project, manifestStats }
+      return { project, manifestStats: statManifestResult.stats }
     }))
 
     const modifiedProjects = allManifestStats.filter(
@@ -253,6 +240,28 @@ async function handleSingleProject (opts: HandleSingleProjectOptions): Promise<v
       hint: 'Run `pnpm install` to update the lockfile',
     })
   }
+}
+
+interface StatManifestFileResult {
+  baseName: typeof MANIFEST_BASE_NAMES[number]
+  stats: fs.Stats
+}
+
+async function statManifestFile (projectRootDir: string): Promise<StatManifestFileResult | undefined> {
+  const attempts = await Promise.all(MANIFEST_BASE_NAMES.map(async baseName => {
+    const manifestPath = path.join(projectRootDir, baseName)
+    let stats: fs.Stats
+    try {
+      stats = await fs.promises.stat(manifestPath)
+    } catch (error) {
+      if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
+        return undefined
+      }
+      throw error
+    }
+    return { baseName, stats } as StatManifestFileResult
+  }))
+  return attempts.find(x => !!x)
 }
 
 async function readStatsIfExists (filePath: string): Promise<fs.Stats | undefined> {
