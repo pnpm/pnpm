@@ -151,14 +151,14 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         ])
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
-
-        const currentLockfile = await currentLockfilePromise
-        const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
-        assertLockfilesEqual(currentLockfile, wantedLockfile)
+        if (wantedLockfileStats.mtime.valueOf() > packagesList.lastValidatedTimestamp) {
+          const currentLockfile = await currentLockfilePromise
+          const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
+          assertLockfilesEqual(currentLockfile, wantedLockfile)
+        }
 
         return {
-          currentLockfile,
-          wantedLockfile,
+          wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir),
           wantedLockfileDir,
         }
       }
