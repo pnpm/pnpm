@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/test-fixtures",
   "description": "Test fixtures",
-  "version": "0.1.33",
+  "version": "0.1.34",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",

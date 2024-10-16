@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-script-runners
 
+## 12.0.9
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.2.6
+- @pnpm/plugin-commands-env@5.1.10
+- @pnpm/cli-utils@4.0.6
+- @pnpm/config@21.8.4
+- @pnpm/lifecycle@17.1.5
+- @pnpm/crypto.base32-hash@3.0.0
+
 ## 12.0.8
 
 ### Patch Changes

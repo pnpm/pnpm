@@ -1,5 +1,21 @@
 # @pnpm/core
 
+## 15.3.7
+
+### Patch Changes
+
+- a943fc9: When the lockfile is not up to date make it clear what `package.json` is out of sync.
+  - @pnpm/headless@23.2.7
+  - @pnpm/package-requester@25.2.9
+  - @pnpm/worker@1.0.12
+  - @pnpm/build-modules@14.0.4
+  - @pnpm/lifecycle@17.1.5
+  - @pnpm/symlink-dependency@8.0.8
+  - @pnpm/lockfile.settings-checker@1.0.0
+  - @pnpm/lockfile.verification@1.0.5
+  - @pnpm/crypto.base32-hash@3.0.0
+  - @pnpm/link-bins@10.0.11
+
 ## 15.3.6
 
 ### Patch Changes
