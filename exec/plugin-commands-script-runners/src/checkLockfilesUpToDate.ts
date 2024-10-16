@@ -118,7 +118,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         const virtualStoreDir = path.join(workspaceDir, 'node_modules', '.pnpm')
         const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
         const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
-        assertLockfilesEqual(currentLockfile, wantedLockfile)
+        assertLockfilesEqual(currentLockfile, wantedLockfile, workspaceDir)
       }
       readWantedLockfileAndDir = async () => ({
         wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir),
@@ -138,7 +138,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
           const virtualStoreDir = path.join(wantedLockfileDir, 'node_modules', '.pnpm')
           const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
-          assertLockfilesEqual(currentLockfile, wantedLockfile)
+          assertLockfilesEqual(currentLockfile, wantedLockfile, wantedLockfileDir)
         }
 
         return {
@@ -186,7 +186,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     if (currentLockfileStats && wantedLockfileStats.mtime.valueOf() > currentLockfileStats.mtime.valueOf()) {
       const currentLockfile = await currentLockfilePromise
       const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir)
-      assertLockfilesEqual(currentLockfile, wantedLockfile)
+      assertLockfilesEqual(currentLockfile, wantedLockfile, rootProjectManifestDir)
     }
 
     if (!manifestStats) {
@@ -281,7 +281,7 @@ async function readStatsIfExists (filePath: string): Promise<fs.Stats | undefine
   return stats
 }
 
-function assertLockfilesEqual (currentLockfile: Lockfile | null, wantedLockfile: Lockfile): void {
+function assertLockfilesEqual (currentLockfile: Lockfile | null, wantedLockfile: Lockfile, wantedLockfileDir: string): void {
   if (!currentLockfile) {
     // make sure that no importer of wantedLockfile has any dependency
     for (const [name, snapshot] of Object.entries(wantedLockfile.importers)) {
@@ -292,8 +292,7 @@ function assertLockfilesEqual (currentLockfile: Lockfile | null, wantedLockfile:
       }
     }
   } else if (!equals(currentLockfile, wantedLockfile)) {
-    // TODO: add wantedLockfileDir
-    throw new PnpmError('RUN_CHECK_DEPS_OUTDATED_DEPS', 'The installed dependencies in the modules directory is not up-to-date with the lockfile.', {
+    throw new PnpmError('RUN_CHECK_DEPS_OUTDATED_DEPS', `The installed dependencies in the modules directory is not up-to-date with the lockfile in ${wantedLockfileDir}.`, {
       hint: 'Run `pnpm install` to update dependencies.',
     })
   }
