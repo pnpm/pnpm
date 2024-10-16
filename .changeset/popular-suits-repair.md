@@ -2,5 +2,4 @@
 "@pnpm/plugin-commands-deploy": patch
 "pnpm": patch
 ---
-
-Update `pnpm --help` descriptions
+Support `-a` option in `pnpm --help` to list all commands.
