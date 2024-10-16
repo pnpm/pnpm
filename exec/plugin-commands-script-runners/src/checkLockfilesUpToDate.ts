@@ -185,24 +185,29 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     })
   } else if (rootProjectManifest && rootProjectManifestDir) {
     const virtualStoreDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
-    const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
-    // const currentLockfileStats = await readStatsIfExists(path.join(virtualStoreDir, 'lock.yaml'))
-    const wantedLockfile = await readWantedLockfile(rootProjectManifestDir, { ignoreIncompatible: false })
-    const wantedLockfileStats = await readStatsIfExists(path.join(rootProjectManifestDir, WANTED_LOCKFILE))
-
-    // TODO: optimize this
+    const currentLockfilePromise = readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+    const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, { ignoreIncompatible: false })
+    const [
+      currentLockfileStats,
+      wantedLockfileStats,
+    ] = await Promise.all([
+      readStatsIfExists(path.join(virtualStoreDir, 'lock.yaml')),
+      readStatsIfExists(path.join(rootProjectManifestDir, WANTED_LOCKFILE)),
+    ])
 
     if (!wantedLockfileStats) return throwLockfileNotFound(rootProjectManifestDir)
 
-    if (!wantedLockfile) return throwLockfileNotFound(rootProjectManifestDir)
-
-    assertLockfilesEqual(currentLockfile, wantedLockfile)
+    if (currentLockfileStats && wantedLockfileStats.mtime.valueOf() > currentLockfileStats.mtime.valueOf()) {
+      const currentLockfile = await currentLockfilePromise
+      const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir)
+      assertLockfilesEqual(currentLockfile, wantedLockfile)
+    }
 
     await handleSingleProject({
       config: opts,
       rootDir: rootProjectManifestDir,
       rootManifestOptions,
-      wantedLockfile,
+      wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir),
       wantedLockfileDir: rootProjectManifestDir,
     })
   } else {
