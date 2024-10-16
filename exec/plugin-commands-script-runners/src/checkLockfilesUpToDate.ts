@@ -110,7 +110,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       wantedLockfileDir: string
     }>
     if (sharedWorkspaceLockfile) {
-      const wantedLockfileStats = await readStatsIfExists(path.join(workspaceDir, WANTED_LOCKFILE))
+      const wantedLockfileStats = await statIfExists(path.join(workspaceDir, WANTED_LOCKFILE))
       if (!wantedLockfileStats) return throwLockfileNotFound(workspaceDir)
 
       const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
@@ -130,7 +130,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         const [
           wantedLockfileStats,
         ] = await Promise.all([
-          readStatsIfExists(path.join(wantedLockfileDir, WANTED_LOCKFILE)),
+          statIfExists(path.join(wantedLockfileDir, WANTED_LOCKFILE)),
         ])
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
@@ -176,8 +176,8 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       wantedLockfileStats,
       manifestStats,
     ] = await Promise.all([
-      readStatsIfExists(path.join(virtualStoreDir, 'lock.yaml')),
-      readStatsIfExists(path.join(rootProjectManifestDir, WANTED_LOCKFILE)),
+      statIfExists(path.join(virtualStoreDir, 'lock.yaml')),
+      statIfExists(path.join(rootProjectManifestDir, WANTED_LOCKFILE)),
       statManifestFile(rootProjectManifestDir),
     ])
 
@@ -268,7 +268,7 @@ async function statManifestFile (projectRootDir: string): Promise<fs.Stats | und
   return attempts.find(x => !!x)
 }
 
-async function readStatsIfExists (filePath: string): Promise<fs.Stats | undefined> {
+async function statIfExists (filePath: string): Promise<fs.Stats | undefined> {
   let stats: fs.Stats
   try {
     stats = await fs.promises.stat(filePath)
