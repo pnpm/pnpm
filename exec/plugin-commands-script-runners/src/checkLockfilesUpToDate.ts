@@ -90,12 +90,12 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     }
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
-      const statManifestResult = await statManifestFile(project.rootDir)
-      if (!statManifestResult) {
+      const manifestStats = await statManifestFile(project.rootDir)
+      if (!manifestStats) {
         // this error should not happen
         throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${project.rootDir}`)
       }
-      return { project, manifestStats: statManifestResult.stats }
+      return { project, manifestStats }
     }))
 
     const modifiedProjects = allManifestStats.filter(
@@ -174,9 +174,11 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     const [
       currentLockfileStats,
       wantedLockfileStats,
+      manifestStats,
     ] = await Promise.all([
       readStatsIfExists(path.join(virtualStoreDir, 'lock.yaml')),
       readStatsIfExists(path.join(rootProjectManifestDir, WANTED_LOCKFILE)),
+      statManifestFile(rootProjectManifestDir),
     ])
 
     if (!wantedLockfileStats) return throwLockfileNotFound(rootProjectManifestDir)
@@ -187,13 +189,20 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       assertLockfilesEqual(currentLockfile, wantedLockfile)
     }
 
-    await handleSingleProject({
-      config: opts,
-      rootDir: rootProjectManifestDir,
-      rootManifestOptions,
-      wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir),
-      wantedLockfileDir: rootProjectManifestDir,
-    })
+    if (!manifestStats) {
+      // this error should not happen
+      throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${rootProjectManifestDir}`)
+    }
+
+    if (manifestStats.mtime.valueOf() > wantedLockfileStats.mtime.valueOf()) {
+      await handleSingleProject({
+        config: opts,
+        rootDir: rootProjectManifestDir,
+        rootManifestOptions,
+        wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir),
+        wantedLockfileDir: rootProjectManifestDir,
+      })
+    }
   } else {
     globalWarn('Impossible variant detected! Skipping check.')
   }
@@ -242,12 +251,7 @@ async function handleSingleProject (opts: HandleSingleProjectOptions): Promise<v
   }
 }
 
-interface StatManifestFileResult {
-  baseName: typeof MANIFEST_BASE_NAMES[number]
-  stats: fs.Stats
-}
-
-async function statManifestFile (projectRootDir: string): Promise<StatManifestFileResult | undefined> {
+async function statManifestFile (projectRootDir: string): Promise<fs.Stats | undefined> {
   const attempts = await Promise.all(MANIFEST_BASE_NAMES.map(async baseName => {
     const manifestPath = path.join(projectRootDir, baseName)
     let stats: fs.Stats
@@ -259,7 +263,7 @@ async function statManifestFile (projectRootDir: string): Promise<StatManifestFi
       }
       throw error
     }
-    return { baseName, stats } as StatManifestFileResult
+    return stats
   }))
   return attempts.find(x => !!x)
 }
