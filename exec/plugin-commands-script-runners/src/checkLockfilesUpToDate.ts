@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import equals from 'ramda/src/equals'
-import isEmpty from 'ramda/src/isEmpty'
+// import isEmpty from 'ramda/src/isEmpty'
 import { type Config, type OptionsFromRootManifest, getOptionsFromRootManifest } from '@pnpm/config'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
@@ -14,9 +14,9 @@ import {
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
 import { globalWarn } from '@pnpm/logger'
-import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
+// TODO: check if list of dependencies are equal
+// import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { parseOverrides } from '@pnpm/parse-overrides'
-import { type ProjectManifest } from '@pnpm/types'
 import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 
 // The scripts that `pnpm run` executes are likely to also execute other `pnpm run`.
@@ -118,65 +118,61 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
 
     if (modifiedProjects.length === 0) return
 
-    // TODO: optimize
-    //       if sharedWorkspaceLockfile is true, the should only be only one comparison between "wanted lockfile" and "current lockfile"
-
     let readWantedLockfileAndDir: (projectDir: string) => Promise<{
-      currentLockfile: Lockfile | null
-      currentLockfileStats: fs.Stats | undefined
-      wantedLockfile: Lockfile | null
+      wantedLockfile: Lockfile
       wantedLockfileDir: string
-      wantedLockfileStats: fs.Stats | undefined
     }>
     if (sharedWorkspaceLockfile) {
+      const wantedLockfileStats = await readStatsIfExists(path.join(workspaceDir, WANTED_LOCKFILE))
+      if (!wantedLockfileStats) return throwLockfileNotFound(workspaceDir)
+
       const virtualStoreDir = path.join(workspaceDir, 'node_modules', '.pnpm')
       const currentLockfilePromise = readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
-      const currentLockfileStatsPromise = readStatsIfExists(path.join(virtualStoreDir, 'lock.yaml'))
       const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
-      const wantedLockfileStatsPromise = readStatsIfExists(path.join(workspaceDir, WANTED_LOCKFILE))
+      if (wantedLockfileStats.mtime.valueOf() > packagesList.lastValidatedTimestamp) {
+        const currentLockfile = await currentLockfilePromise
+        const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
+        assertLockfilesEqual(currentLockfile, wantedLockfile)
+      }
       readWantedLockfileAndDir = async () => ({
         currentLockfile: await currentLockfilePromise,
-        currentLockfileStats: await currentLockfileStatsPromise,
-        wantedLockfile: await wantedLockfilePromise,
+        wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir),
         wantedLockfileDir: workspaceDir,
-        wantedLockfileStats: await wantedLockfileStatsPromise,
       })
     } else {
       readWantedLockfileAndDir = async wantedLockfileDir => {
         const virtualStoreDir = path.join(wantedLockfileDir, 'node_modules', '.pnpm')
         const currentLockfilePromise = readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
-        const currentLockfileStatsPromise = readStatsIfExists(path.join(virtualStoreDir, 'lock.yaml'))
         const wantedLockfilePromise = readWantedLockfile(wantedLockfileDir, { ignoreIncompatible: false })
-        const wantedLockfileStatsPromise = readStatsIfExists(path.join(wantedLockfileDir, WANTED_LOCKFILE))
+        const [
+          wantedLockfileStats,
+        ] = await Promise.all([
+          readStatsIfExists(path.join(wantedLockfileDir, WANTED_LOCKFILE)),
+        ])
+
+        if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
+
+        const currentLockfile = await currentLockfilePromise
+        const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
+        assertLockfilesEqual(currentLockfile, wantedLockfile)
+
         return {
-          currentLockfile: await currentLockfilePromise,
-          currentLockfileStats: await currentLockfileStatsPromise,
-          wantedLockfile: await wantedLockfilePromise,
+          currentLockfile,
+          wantedLockfile,
           wantedLockfileDir,
-          wantedLockfileStats: await wantedLockfileStatsPromise,
         }
       }
     }
 
     await Promise.all(modifiedProjects.map(async ({ project }) => {
-      const {
-        currentLockfile,
-        currentLockfileStats,
-        wantedLockfile,
-        wantedLockfileDir,
-        wantedLockfileStats,
-      } = await readWantedLockfileAndDir(project.rootDir)
+      const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
 
       await handleSingleProject({
         config: opts,
-        currentLockfile,
-        currentLockfileStats,
-        projectManifest: project.manifest,
         rootDir: workspaceDir,
         rootManifestOptions,
         wantedLockfile,
         wantedLockfileDir,
-        wantedLockfileStats,
       })
     }))
 
@@ -190,83 +186,46 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
   } else if (rootProjectManifest && rootProjectManifestDir) {
     const virtualStoreDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
     const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
-    const currentLockfileStats = await readStatsIfExists(path.join(virtualStoreDir, 'lock.yaml'))
+    // const currentLockfileStats = await readStatsIfExists(path.join(virtualStoreDir, 'lock.yaml'))
     const wantedLockfile = await readWantedLockfile(rootProjectManifestDir, { ignoreIncompatible: false })
     const wantedLockfileStats = await readStatsIfExists(path.join(rootProjectManifestDir, WANTED_LOCKFILE))
 
+    // TODO: optimize this
+
+    if (!wantedLockfileStats) return throwLockfileNotFound(rootProjectManifestDir)
+
+    if (!wantedLockfile) return throwLockfileNotFound(rootProjectManifestDir)
+
+    assertLockfilesEqual(currentLockfile, wantedLockfile)
+
     await handleSingleProject({
       config: opts,
-      currentLockfile,
-      currentLockfileStats,
-      projectManifest: rootProjectManifest,
       rootDir: rootProjectManifestDir,
       rootManifestOptions,
       wantedLockfile,
       wantedLockfileDir: rootProjectManifestDir,
-      wantedLockfileStats,
     })
   } else {
     globalWarn('Impossible variant detected! Skipping check.')
   }
 }
 
-// TODO: optimize
-//       The comparison between "wanted lockfile" and "current lockfile" of each project only makes sense when
-//       both `sharedWorkspaceLockfile` is `false` and `workspace` is non-null.
-//       Therefore, the comparison should be done outside `handleSingleProject`.
-
 interface HandleSingleProjectOptions {
   config: CheckLockfilesUpToDateOptions
-  currentLockfile: Lockfile | null
-  currentLockfileStats: fs.Stats | undefined
-  projectManifest: ProjectManifest
   rootDir: string
   rootManifestOptions: OptionsFromRootManifest | undefined
-  wantedLockfile: Lockfile | null
+  wantedLockfile: Lockfile
   wantedLockfileDir: string
-  wantedLockfileStats: fs.Stats | undefined
 }
 
 async function handleSingleProject (opts: HandleSingleProjectOptions): Promise<void> {
   const {
     config,
-    currentLockfile,
-    currentLockfileStats,
-    projectManifest,
     rootDir,
     rootManifestOptions,
     wantedLockfile,
     wantedLockfileDir,
-    wantedLockfileStats,
   } = opts
-
-  if (!wantedLockfile || !wantedLockfileStats) {
-    throw new PnpmError('RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND', `Cannot find a lockfile in ${wantedLockfileDir}`, {
-      hint: 'Run `pnpm install` to create the lockfile',
-    })
-  }
-
-  if (!currentLockfileStats || !currentLockfile) {
-    const allDependencies = getAllDependenciesFromManifest(projectManifest)
-    if (isEmpty(allDependencies)) {
-      throw new PnpmError('RUN_CHECK_DEPS_NO_DEPS', `The manifest in ${wantedLockfileDir} declare dependencies but none was installed.`, {
-        hint: 'Run `pnpm install` to install dependencies.',
-      })
-    }
-  }
-
-  if (
-    currentLockfile &&
-    wantedLockfile &&
-    currentLockfileStats &&
-    wantedLockfileStats &&
-    currentLockfileStats.mtime.valueOf() < wantedLockfileStats.mtime.valueOf() &&
-    !equals(currentLockfile, wantedLockfile)
-  ) {
-    throw new PnpmError('RUN_CHECK_DEPS_OUTDATED_DEPS', `The dependencies in ${wantedLockfileDir} is not up-to-date to the lockfile.`, {
-      hint: 'Run `pnpm install` to update dependencies.',
-    })
-  }
 
   const [
     patchedDependencies,
@@ -305,4 +264,28 @@ async function readStatsIfExists (filePath: string): Promise<fs.Stats | undefine
     throw error
   }
   return stats
+}
+
+function assertLockfilesEqual (currentLockfile: Lockfile | null, wantedLockfile: Lockfile): void {
+  if (!currentLockfile) {
+    // make sure that no importer of wantedLockfile has any dependency
+    for (const [name, snapshot] of Object.entries(wantedLockfile.importers)) {
+      if (!equals(snapshot.specifiers, {})) {
+        throw new PnpmError('RUN_CHECK_DEPS_NO_DEPS', `Project ${name} requires dependencies but none was installed.`, {
+          hint: 'Run `pnpm install` to install dependencies',
+        })
+      }
+    }
+  } else if (!equals(currentLockfile, wantedLockfile)) {
+    // TODO: add wantedLockfileDir
+    throw new PnpmError('RUN_CHECK_DEPS_OUTDATED_DEPS', 'The installed dependencies in the modules directory is not up-to-date with the lockfile.', {
+      hint: 'Run `pnpm install` to update dependencies.',
+    })
+  }
+}
+
+function throwLockfileNotFound (wantedLockfileDir: string): never {
+  throw new PnpmError('RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND', `Cannot find a lockfile in ${wantedLockfileDir}`, {
+    hint: 'Run `pnpm install` to create the lockfile',
+  })
 }
