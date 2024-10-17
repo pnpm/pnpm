@@ -179,6 +179,8 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       workspaceDir,
     })
   } else if (rootProjectManifest && rootProjectManifestDir) {
+    // TODO: handle case of non-recursive run on a workspace package (manifest dir is not root dir).
+
     const virtualStoreDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
     const currentLockfilePromise = readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
     const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, { ignoreIncompatible: false })
