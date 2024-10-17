@@ -26,7 +26,11 @@ import { globalWarn } from '@pnpm/logger'
 // import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import { type Project, type ProjectId, type ProjectManifest } from '@pnpm/types'
+// TODO
+// import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
+// TODO
+// import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 // The scripts that `pnpm run` executes are likely to also execute other `pnpm run`.
 // We don't want this potentially expensive check to repeat.
