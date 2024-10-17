@@ -1,41 +1,33 @@
 import path from 'path'
 import {
   docsUrl,
-  getConfig,
   readProjectManifest,
-  readProjectManifestOnly,
   tryReadProjectManifest,
+  type ReadProjectManifestOpts,
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { type Config, types as allTypes } from '@pnpm/config'
+import { DEPENDENCIES_FIELDS, ProjectManifest } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
-import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
   install,
-  type InstallOptions,
-  link,
-  type LinkFunctionOptions,
   type WorkspacePackages,
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
 import { type Project } from '@pnpm/types'
-import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import pick from 'ramda/src/pick'
 import partition from 'ramda/src/partition'
 import renderHelp from 'render-help'
-import * as installCommand from './install'
 import { getSaveType } from './getSaveType'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
-const installLimit = pLimit(4)
 
 type LinkOpts = CreateStoreControllerOptions & Pick<Config,
 | 'bin'
@@ -156,16 +148,7 @@ export async function handler (
 
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(linkOpts.dir, opts)
     const newManifest = manifest ?? {}
-    newManifest.pnpm = newManifest.pnpm ?? {}
-    newManifest.pnpm.overrides = newManifest.pnpm.overrides ?? {}
-    const { manifest: linkedManifest } = await tryReadProjectManifest(linkCwdDir, opts)
-    const linkedPkgName = linkedManifest?.name ?? path.basename(linkCwdDir)
-    const linkedPkgSpec = `link:${linkCwdDir}`
-    newManifest.pnpm.overrides[linkedPkgName] = linkedPkgSpec
-    if (DEPENDENCIES_FIELDS.every((depField) => newManifest[depField]?.[linkedPkgName] == null)) {
-      newManifest.dependencies = newManifest.dependencies ?? {}
-      newManifest.dependencies[linkedPkgName] = linkedPkgSpec
-    }
+    await addLinkToManifest(opts, newManifest, linkCwdDir, linkOpts.dir)
     await writeProjectManifest(newManifest)
     await install(newManifest, linkOpts)
     return
@@ -199,18 +182,32 @@ export async function handler (
 
   const { manifest, writeProjectManifest } = await readProjectManifest(linkCwdDir, opts)
 
-  const overrides: Record<string, string> = {}
+  const newManifest = manifest ?? {}
   await Promise.all(
     pkgPaths.map(async (dir) => {
-      const manifest = await readProjectManifestOnly(dir, opts)
-      overrides[manifest!.name!] = `link:${path.relative(linkCwdDir, dir)}`
+      await addLinkToManifest(opts, newManifest, linkCwdDir, dir)
       await checkPeerDeps(dir, opts)
     })
   )
 
-  const newManifest = manifest ?? {}
-  newManifest.pnpm = newManifest.pnpm ?? {}
-  newManifest.pnpm.overrides = newManifest.pnpm.overrides ?? {}
-  Object.assign(newManifest.pnpm.overrides, overrides)
   await writeProjectManifest(newManifest)
+  await install(newManifest, linkOpts)
+}
+
+async function addLinkToManifest (opts: ReadProjectManifestOpts, manifest: ProjectManifest, linkedDepDir: string, dependentDir: string) {
+  if (!manifest.pnpm) {
+    manifest.pnpm = {
+      overrides: {},
+    }
+  } else if (!manifest.pnpm.overrides) {
+    manifest.pnpm.overrides = {}
+  }
+  const { manifest: linkedManifest } = await tryReadProjectManifest(linkedDepDir, opts)
+  const linkedPkgName = linkedManifest?.name ?? path.basename(linkedDepDir)
+  const linkedPkgSpec = `link:${path.relative(dependentDir, linkedDepDir)}`
+  manifest.pnpm.overrides![linkedPkgName] = linkedPkgSpec
+  if (DEPENDENCIES_FIELDS.every((depField) => manifest[depField]?.[linkedPkgName] == null)) {
+    manifest.dependencies = manifest.dependencies ?? {}
+    manifest.dependencies[linkedPkgName] = linkedPkgSpec
+  }
 }
