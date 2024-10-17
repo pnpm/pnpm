@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 10.0.10
+
+### Patch Changes
+
+- 9cfee8f: `pnpm publish` should be able to publish from a local tarball [#7950](https://github.com/pnpm/pnpm/issues/7950).
+
 ## 10.0.9
 
 ### Patch Changes

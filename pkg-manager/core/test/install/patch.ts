@@ -46,7 +46,7 @@ test('patch package', async () => {
   const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
-  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey]['index.js']?.integrity
+  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['index.js'].integrity
   expect(originalFileIntegrity).toBeTruthy()
@@ -213,7 +213,7 @@ test('patch package when scripts are ignored', async () => {
   const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
-  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey]['index.js']?.integrity
+  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['index.js'].integrity
   expect(originalFileIntegrity).toBeTruthy()
@@ -300,7 +300,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
-  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey]['index.js']?.integrity
+  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['index.js'].integrity
   expect(originalFileIntegrity).toBeTruthy()

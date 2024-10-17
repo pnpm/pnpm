@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 36.0.5
+
+### Patch Changes
+
+- 4f4e073: `pnpm update --latest` should not update the automatically installed peer dependencies [#6657](https://github.com/pnpm/pnpm/issues/6657).
+
 ## 36.0.4
 
 ### Patch Changes

@@ -682,10 +682,10 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
-  delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-postinstall.js'])
+  delete cacheIntegrity!.sideEffects[sideEffectsKey].added['generated-by-postinstall.js']
 
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-preinstall.js'])
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-preinstall.js'])
   writeJsonFile.sync(cacheIntegrityPath, cacheIntegrity)
 
   prefix = f.prepare('side-effects')

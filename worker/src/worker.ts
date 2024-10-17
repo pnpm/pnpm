@@ -2,7 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
-import { type Cafs } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
@@ -10,9 +10,7 @@ import {
   type CafsFunctions,
   checkPkgFilesIntegrity,
   createCafs,
-  type PackageFileInfo,
   type PackageFilesIndex,
-  type SideEffects,
   type FilesIndex,
   optimisticRenameOverwrite,
   readManifestFromStore,
@@ -177,10 +175,18 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, f
     try {
       filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
     } catch {
-      filesIndex = { name: manifest?.name, version: manifest?.version, files: filesIntegrity }
+      // If there is no existing index file, then we cannot store the side effects.
+      return {
+        status: 'success',
+        value: {
+          filesIndex: filesMap,
+          manifest,
+          requiresBuild: pkgRequiresBuild(manifest, filesIntegrity),
+        },
+      }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
-    filesIndex.sideEffects[sideEffectsCacheKey] = filesIntegrity
+    filesIndex.sideEffects[sideEffectsCacheKey] = calculateDiff(filesIndex.files, filesIntegrity)
     if (filesIndex.requiresBuild == null) {
       requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
     } else {
@@ -193,13 +199,37 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, f
   return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
 }
 
+function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles): SideEffectsDiff {
+  const deleted: string[] = []
+  const added: PackageFiles = {}
+  for (const file of new Set([...Object.keys(baseFiles), ...Object.keys(sideEffectsFiles)])) {
+    if (!sideEffectsFiles[file]) {
+      deleted.push(file)
+    } else if (
+      !baseFiles[file] ||
+      baseFiles[file].integrity !== sideEffectsFiles[file].integrity ||
+      baseFiles[file].mode !== sideEffectsFiles[file].mode
+    ) {
+      added[file] = sideEffectsFiles[file]
+    }
+  }
+  const diff: SideEffectsDiff = {}
+  if (deleted.length > 0) {
+    diff.deleted = deleted
+  }
+  if (Object.keys(added).length > 0) {
+    diff.added = added
+  }
+  return diff
+}
+
 interface ProcessFilesIndexResult {
-  filesIntegrity: Record<string, PackageFileInfo>
+  filesIntegrity: PackageFiles
   filesMap: Record<string, string>
 }
 
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
-  const filesIntegrity: Record<string, PackageFileInfo> = {}
+  const filesIntegrity: PackageFiles = {}
   const filesMap: Record<string, string> = {}
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of Object.entries(filesIndex)) {
     filesIntegrity[k] = {
@@ -263,7 +293,7 @@ function writeFilesIndexFile (
   filesIndexFile: string,
   { manifest, files, sideEffects }: {
     manifest: Partial<DependencyManifest>
-    files: Record<string, PackageFileInfo>
+    files: PackageFiles
     sideEffects?: SideEffects
   }
 ): boolean {

@@ -21,7 +21,6 @@ import {
   exec,
   restart,
   run,
-  test,
 } from '@pnpm/plugin-commands-script-runners'
 import { server } from '@pnpm/plugin-commands-server'
 import { setup } from '@pnpm/plugin-commands-setup'
@@ -150,7 +149,6 @@ const commands: CommandDefinition[] = [
   catFile,
   catIndex,
   findHash,
-  test,
   unlink,
   update,
   why,

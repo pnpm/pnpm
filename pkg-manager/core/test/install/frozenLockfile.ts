@@ -28,7 +28,7 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
         'is-positive': '^3.1.0',
       },
     }, testDefaults({ frozenLockfile: true }))
-  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with package.json`)
+  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ${path.join('<ROOT>', 'package.json')}`)
 })
 
 test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async () => {
@@ -46,7 +46,7 @@ test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json 
         'is-positive': '^3.1.0',
       },
     }, testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
-  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with package.json`)
+  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ${path.join('<ROOT>', 'package.json')}`)
 })
 
 test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy one of the package.json files`, async () => {
@@ -97,7 +97,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
 
   await expect(
     mutateModules(projects, testDefaults({ frozenLockfile: true, allProjects: [project1, project2] }))
-  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with p1${path.sep}package.json`)
+  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ${path.join('<ROOT>', 'p1/package.json')}`)
 })
 
 test(`frozen-lockfile: should successfully install when ${WANTED_LOCKFILE} is available`, async () => {
