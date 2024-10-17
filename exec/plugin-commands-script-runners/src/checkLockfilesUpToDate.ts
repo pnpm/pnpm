@@ -3,6 +3,7 @@ import path from 'path'
 import util from 'util'
 import equals from 'ramda/src/equals'
 // import isEmpty from 'ramda/src/isEmpty'
+import once from 'ramda/src/once'
 import { type Config, type OptionsFromRootManifest, getOptionsFromRootManifest } from '@pnpm/config'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
@@ -18,12 +19,23 @@ import {
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
-import { linkedPackagesAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+import {
+  linkedPackagesAreUpToDate,
+  getWorkspacePackagesByDirectory,
+  satisfiesPackageManifest,
+} from '@pnpm/lockfile.verification'
 import { globalWarn } from '@pnpm/logger'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 // TODO: remove @pnpm/manifest-utils
 // import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { parseOverrides } from '@pnpm/parse-overrides'
-import { type Project, type ProjectId, type ProjectManifest } from '@pnpm/types'
+import { type WorkspacePackages } from '@pnpm/resolver-base'
+import {
+  type DependencyManifest,
+  type Project,
+  type ProjectId,
+  type ProjectManifest,
+} from '@pnpm/types'
 // TODO
 // import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
@@ -176,6 +188,9 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       ? project => getLockfileImporterId(workspaceDir, project.rootDir)
       : () => '.' as ProjectId
 
+    const getWorkspacePackages = once(arrayOfWorkspacePackagesToMap.bind(null, allProjects))
+    const getManifestsByDir = once(() => getWorkspacePackagesByDirectory(getWorkspacePackages()))
+
     await Promise.all(modifiedProjects.map(async ({ project }) => {
       const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
 
@@ -184,6 +199,8 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         config: opts,
         excludeLinksFromLockfile,
         linkWorkspacePackages,
+        getManifestsByDir,
+        getWorkspacePackages,
         projectDir: project.rootDir,
         projectId: getProjectId(project),
         projectManifest: project.manifest,
@@ -236,6 +253,8 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         config: opts,
         excludeLinksFromLockfile,
         linkWorkspacePackages,
+        getManifestsByDir: () => ({}),
+        getWorkspacePackages: () => undefined,
         projectDir: rootProjectManifestDir,
         projectId: '.' as ProjectId,
         projectManifest: rootProjectManifest,
@@ -255,6 +274,8 @@ interface AssertWantedLockfileUpToDateOptions {
   config: CheckLockfilesUpToDateOptions
   excludeLinksFromLockfile?: boolean
   linkWorkspacePackages: boolean | 'deep'
+  getManifestsByDir: () => Record<string, DependencyManifest>
+  getWorkspacePackages: () => WorkspacePackages | undefined
   projectDir: string
   projectId: ProjectId
   projectManifest: ProjectManifest
@@ -270,6 +291,8 @@ async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateO
     config,
     excludeLinksFromLockfile,
     linkWorkspacePackages,
+    getManifestsByDir,
+    getWorkspacePackages,
     projectDir,
     projectId,
     projectManifest,
@@ -320,8 +343,8 @@ async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateO
   if (!await linkedPackagesAreUpToDate({
     linkWorkspacePackages: !!linkWorkspacePackages,
     lockfileDir: wantedLockfileDir,
-    manifestsByDir: {}, // TODO
-    workspacePackages: new Map(), // TODO
+    manifestsByDir: getManifestsByDir(),
+    workspacePackages: getWorkspacePackages(),
     lockfilePackages: wantedLockfile.packages,
   }, {
     dir: projectDir,

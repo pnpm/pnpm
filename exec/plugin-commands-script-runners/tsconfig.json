@@ -67,6 +67,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../pkg-manager/get-context"
+    },
+    {
       "path": "../../pkg-manager/package-bins"
     },
     {
@@ -80,6 +83,9 @@
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../resolving/resolver-base"
     },
     {
       "path": "../../store/store-path"

@@ -2251,6 +2251,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/get-context':
+        specifier: workspace:*
+        version: link:../../pkg-manager/get-context
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
@@ -2287,6 +2290,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/sort-packages':
         specifier: workspace:*
         version: link:../../workspace/sort-packages
