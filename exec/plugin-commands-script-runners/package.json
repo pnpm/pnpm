@@ -58,6 +58,7 @@
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.settings-checker": "workspace:*",
+    "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/log.group": "catalog:",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/package-bins": "workspace:*",

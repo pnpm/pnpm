@@ -49,6 +49,9 @@
       "path": "../../lockfile/settings-checker"
     },
     {
+      "path": "../../lockfile/verification"
+    },
+    {
       "path": "../../packages/constants"
     },
     {

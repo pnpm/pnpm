@@ -2260,6 +2260,9 @@ importers:
       '@pnpm/lockfile.settings-checker':
         specifier: workspace:*
         version: link:../../lockfile/settings-checker
+      '@pnpm/lockfile.verification':
+        specifier: workspace:*
+        version: link:../../lockfile/verification
       '@pnpm/log.group':
         specifier: 'catalog:'
         version: 3.0.0

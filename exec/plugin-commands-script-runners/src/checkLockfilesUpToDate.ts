@@ -13,10 +13,14 @@ import {
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
+import { satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+// TODO
+// import { linkedPackagesAreUpToDate } from '@pnpm/lockfile.verification'
 import { globalWarn } from '@pnpm/logger'
-// TODO: check if list of dependencies are equal
+// TODO: remove @pnpm/manifest-utils
 // import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { parseOverrides } from '@pnpm/parse-overrides'
+import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 
 // The scripts that `pnpm run` executes are likely to also execute other `pnpm run`.
@@ -53,8 +57,10 @@ export type CheckLockfilesUpToDateOptions = Partial<Pick<Config,
 export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOptions): Promise<void> {
   const {
     allProjects,
+    autoInstallPeers,
     cacheDir,
     catalogs,
+    excludeLinksFromLockfile,
     rootProjectManifest,
     rootProjectManifestDir,
     sharedWorkspaceLockfile,
@@ -64,6 +70,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
 
   if (!cacheDir || !virtualStoreDir) return
 
+  // TODO: this can be moved to assertWantedLockfileUpToDate
   const rootManifestOptions = rootProjectManifest && rootProjectManifestDir
     ? getOptionsFromRootManifest(rootProjectManifestDir, rootProjectManifest)
     : undefined
@@ -152,7 +159,11 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
 
       await assertWantedLockfileUpToDate({
+        autoInstallPeers,
         config: opts,
+        excludeLinksFromLockfile,
+        projectId: undefined as unknown as ProjectId, // TODO: fix this
+        projectManifest: project.manifest,
         rootDir: workspaceDir,
         rootManifestOptions,
         wantedLockfile,
@@ -196,7 +207,11 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
 
     if (manifestStats.mtime.valueOf() > wantedLockfileStats.mtime.valueOf()) {
       await assertWantedLockfileUpToDate({
+        autoInstallPeers,
         config: opts,
+        excludeLinksFromLockfile,
+        projectId: '.' as ProjectId,
+        projectManifest: rootProjectManifest,
         rootDir: rootProjectManifestDir,
         rootManifestOptions,
         wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir),
@@ -209,7 +224,11 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
 }
 
 interface AssertWantedLockfileUpToDateOptions {
+  autoInstallPeers?: boolean
   config: CheckLockfilesUpToDateOptions
+  excludeLinksFromLockfile?: boolean
+  projectId: ProjectId
+  projectManifest: ProjectManifest
   rootDir: string
   rootManifestOptions: OptionsFromRootManifest | undefined
   wantedLockfile: Lockfile
@@ -218,7 +237,11 @@ interface AssertWantedLockfileUpToDateOptions {
 
 async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateOptions): Promise<void> {
   const {
+    autoInstallPeers,
+    excludeLinksFromLockfile,
     config,
+    projectId,
+    projectManifest,
     rootDir,
     rootManifestOptions,
     wantedLockfile,
@@ -245,7 +268,21 @@ async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateO
   })
 
   if (outdatedLockfileSettingName) {
-    throw new PnpmError('RUN_CHECK_DEPS_OUTDATED_LOCKFILE', `The lockfile in ${wantedLockfileDir} contains outdated information`, {
+    throw new PnpmError('RUN_CHECK_DEPS_OUTDATED_LOCKFILE', `Setting ${outdatedLockfileSettingName} of lockfile in ${wantedLockfileDir} is outdated`, {
+      hint: 'Run `pnpm install` to update the lockfile',
+    })
+  }
+
+  const { satisfies } = satisfiesPackageManifest(
+    {
+      autoInstallPeers,
+      excludeLinksFromLockfile,
+    },
+    wantedLockfile.importers[projectId],
+    projectManifest
+  )
+  if (!satisfies) {
+    throw new PnpmError('RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST', `The lockfile in ${wantedLockfileDir} does not satisfy project of id ${projectId}`, {
       hint: 'Run `pnpm install` to update the lockfile',
     })
   }
