@@ -267,8 +267,8 @@ interface AssertWantedLockfileUpToDateOptions {
 async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateOptions): Promise<void> {
   const {
     autoInstallPeers,
-    excludeLinksFromLockfile,
     config,
+    excludeLinksFromLockfile,
     linkWorkspacePackages,
     projectDir,
     projectId,
