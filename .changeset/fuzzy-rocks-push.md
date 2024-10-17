@@ -2,4 +2,4 @@
 "@pnpm/lockfile.verification": minor
 ---
 
-Export `linkedPackagesAreUpToDate`
+Export `linkedPackagesAreUpToDate` and `getWorkspacePackagesByDirectory`

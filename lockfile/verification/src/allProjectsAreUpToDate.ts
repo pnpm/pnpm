@@ -6,15 +6,12 @@ import {
 } from '@pnpm/lockfile.types'
 import { refIsLocalTarball } from '@pnpm/lockfile.utils'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
-import {
-  DEPENDENCIES_FIELDS,
-  type DependencyManifest,
-  type ProjectId,
-} from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import pEvery from 'p-every'
 import any from 'ramda/src/any'
 import isEmpty from 'ramda/src/isEmpty'
 import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate'
+import { getWorkspacePackagesByDirectory } from './getWorkspacePackagesByDirectory'
 import { linkedPackagesAreUpToDate } from './linkedPackagesAreUpToDate'
 import { satisfiesPackageManifest } from './satisfiesPackageManifest'
 
@@ -63,18 +60,6 @@ export async function allProjectsAreUpToDate (
         snapshot: importer,
       })
   })
-}
-
-function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages): Record<string, DependencyManifest> {
-  const workspacePackagesByDirectory: Record<string, DependencyManifest> = {}
-  if (workspacePackages) {
-    for (const pkgVersions of workspacePackages.values()) {
-      for (const { rootDir, manifest } of pkgVersions.values()) {
-        workspacePackagesByDirectory[rootDir] = manifest
-      }
-    }
-  }
-  return workspacePackagesByDirectory
 }
 
 function hasLocalTarballDepsInRoot (importer: ProjectSnapshot): boolean {
