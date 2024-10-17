@@ -189,7 +189,7 @@ export type RunOpts =
     fallbackCommandUsed?: boolean
   }
   & (
-    | { checkDepsBeforeRunScripts?: false } & Partial<CheckLockfilesUpToDateOptions>
+    | { checkDepsBeforeRunScripts?: false }
     | { checkDepsBeforeRunScripts: true } & CheckLockfilesUpToDateOptions
   )
 
