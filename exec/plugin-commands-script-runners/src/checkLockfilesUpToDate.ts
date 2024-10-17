@@ -40,9 +40,23 @@ export interface Env extends NodeJS.ProcessEnv {
   [SKIP_ENV_KEY]?: string
 }
 
-export type ShouldRunCheckOptions = Pick<Config, 'checkDepsBeforeRunScripts'>
+export interface ShouldRunCheckOptions {
+  checkDepsBeforeRunScripts: boolean | undefined
+  scriptName: string
+  env: Env
+}
 
-export const shouldRunCheck = (opts: ShouldRunCheckOptions, env: Env): boolean => !!opts.checkDepsBeforeRunScripts && !env[SKIP_ENV_KEY]
+const SCRIPTS_TO_SKIP = [
+  'preinstall',
+  'install',
+  'postinstall',
+  'preuninstall',
+  'uninstall',
+  'postuninstall',
+]
+
+export const shouldRunCheck = (opts: ShouldRunCheckOptions): boolean =>
+  !!opts.checkDepsBeforeRunScripts && !opts.env[SKIP_ENV_KEY] && !SCRIPTS_TO_SKIP.includes(opts.scriptName)
 
 export type CheckLockfilesUpToDateOptions = Partial<Pick<Config,
 | 'allProjects'

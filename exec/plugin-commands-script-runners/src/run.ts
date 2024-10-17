@@ -213,7 +213,11 @@ export async function handler (
     return printProjectCommands(manifest, rootManifest ?? undefined)
   }
 
-  if (shouldRunCheck(opts, process.env)) {
+  if (shouldRunCheck({
+    checkDepsBeforeRunScripts: opts.checkDepsBeforeRunScripts,
+    env: process.env,
+    scriptName,
+  })) {
     await checkLockfilesUpToDate(opts)
   }
 
