@@ -304,15 +304,14 @@ async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateO
     })
   }
 
-  const { satisfies } = satisfiesPackageManifest(
+  if (!satisfiesPackageManifest(
     {
       autoInstallPeers,
       excludeLinksFromLockfile,
     },
     wantedLockfile.importers[projectId],
     projectManifest
-  )
-  if (!satisfies) {
+  ).satisfies) {
     throw new PnpmError('RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST', `The lockfile in ${wantedLockfileDir} does not satisfy project of id ${projectId}`, {
       hint: 'Run `pnpm install` to update the lockfile',
     })
