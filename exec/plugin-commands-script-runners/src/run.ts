@@ -25,7 +25,6 @@ import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 import {
   type CheckLockfilesUpToDateOptions,
-  type ShouldRunCheckOptions,
   DISABLE_DEPS_CHECK_ENV,
   checkLockfilesUpToDate,
   shouldRunCheck,
@@ -165,6 +164,7 @@ export type RunOpts =
   & { recursive?: boolean }
   & Pick<Config,
   | 'bin'
+  | 'checkDepsBeforeRunScripts'
   | 'dir'
   | 'enablePrePostScripts'
   | 'engineStrict'
@@ -189,7 +189,6 @@ export type RunOpts =
     fallbackCommandUsed?: boolean
   }
   & CheckLockfilesUpToDateOptions
-  & ShouldRunCheckOptions
 
 export async function handler (
   opts: RunOpts,
