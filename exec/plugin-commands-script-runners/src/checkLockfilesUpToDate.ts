@@ -18,9 +18,7 @@ import {
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
-import { satisfiesPackageManifest } from '@pnpm/lockfile.verification'
-// TODO
-// import { linkedPackagesAreUpToDate } from '@pnpm/lockfile.verification'
+import { linkedPackagesAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { globalWarn } from '@pnpm/logger'
 // TODO: remove @pnpm/manifest-utils
 // import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
@@ -61,6 +59,7 @@ export type CheckLockfilesUpToDateOptions = Pick<Config,
 | 'cacheDir'
 | 'catalogs'
 | 'excludeLinksFromLockfile'
+| 'linkWorkspacePackages'
 | 'hooks'
 | 'peersSuffixMaxLength'
 | 'rootProjectManifest'
@@ -77,6 +76,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     cacheDir,
     catalogs,
     excludeLinksFromLockfile,
+    linkWorkspacePackages,
     rootProjectManifest,
     rootProjectManifestDir,
     sharedWorkspaceLockfile,
@@ -183,6 +183,8 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         autoInstallPeers,
         config: opts,
         excludeLinksFromLockfile,
+        linkWorkspacePackages,
+        projectDir: project.rootDir,
         projectId: getProjectId(project),
         projectManifest: project.manifest,
         rootDir: workspaceDir,
@@ -233,6 +235,8 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         autoInstallPeers,
         config: opts,
         excludeLinksFromLockfile,
+        linkWorkspacePackages,
+        projectDir: rootProjectManifestDir,
         projectId: '.' as ProjectId,
         projectManifest: rootProjectManifest,
         rootDir: rootProjectManifestDir,
@@ -250,6 +254,8 @@ interface AssertWantedLockfileUpToDateOptions {
   autoInstallPeers?: boolean
   config: CheckLockfilesUpToDateOptions
   excludeLinksFromLockfile?: boolean
+  linkWorkspacePackages: boolean | 'deep'
+  projectDir: string
   projectId: ProjectId
   projectManifest: ProjectManifest
   rootDir: string
@@ -263,6 +269,8 @@ async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateO
     autoInstallPeers,
     excludeLinksFromLockfile,
     config,
+    linkWorkspacePackages,
+    projectDir,
     projectId,
     projectManifest,
     rootDir,
@@ -307,6 +315,22 @@ async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateO
   if (!satisfies) {
     throw new PnpmError('RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST', `The lockfile in ${wantedLockfileDir} does not satisfy project of id ${projectId}`, {
       hint: 'Run `pnpm install` to update the lockfile',
+    })
+  }
+
+  if (!await linkedPackagesAreUpToDate({
+    linkWorkspacePackages: !!linkWorkspacePackages,
+    lockfileDir: wantedLockfileDir,
+    manifestsByDir: {}, // TODO
+    workspacePackages: new Map(), // TODO
+    lockfilePackages: wantedLockfile.packages,
+  }, {
+    dir: projectDir,
+    manifest: projectManifest,
+    snapshot: wantedLockfile.importers[projectId],
+  })) {
+    throw new PnpmError('RUN_CHECK_DEPS_LINKED_PKGS_OUTDATED', `The linked packages by ${projectDir} is outdated`, {
+      hint: 'Run `pnpm install` to update the packages',
     })
   }
 }
