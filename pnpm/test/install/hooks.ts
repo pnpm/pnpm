@@ -304,7 +304,7 @@ test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
 
   const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep'])
 
-  expect(proc.stdout.toString()).toContain('Error during pnpmfile execution')
+  expect(proc.stderr.toString()).toContain('Error during pnpmfile execution')
   expect(proc.status).toBe(1)
 })
 

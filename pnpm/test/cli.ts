@@ -79,10 +79,10 @@ test('pnpm fails when no command is specified', async () => {
 test('command fails when an unsupported flag is used', async () => {
   prepare()
 
-  const { status, stdout } = execPnpmSync(['update', '--save-dev'])
+  const { status, stderr } = execPnpmSync(['update', '--save-dev'])
 
   expect(status).toBe(1)
-  expect(stdout.toString()).toMatch(/Unknown option: 'save-dev'/)
+  expect(stderr.toString()).toMatch(/Unknown option: 'save-dev'/)
 })
 
 test('command does not fail when a deprecated option is used', async () => {
