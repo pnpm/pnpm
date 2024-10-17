@@ -188,7 +188,10 @@ export type RunOpts =
     }
     fallbackCommandUsed?: boolean
   }
-  & CheckLockfilesUpToDateOptions
+  & (
+    | { checkDepsBeforeRunScripts?: false } & Partial<CheckLockfilesUpToDateOptions>
+    | { checkDepsBeforeRunScripts: true } & CheckLockfilesUpToDateOptions
+  )
 
 export async function handler (
   opts: RunOpts,
@@ -215,11 +218,9 @@ export async function handler (
     scriptName = 'test'
   }
 
-  if (shouldRunCheck({
-    checkDepsBeforeRunScripts: opts.checkDepsBeforeRunScripts,
-    env: process.env,
-    scriptName,
-  })) {
+  // checkDepsBeforeRunScripts is outside of shouldRunCheck because TypeScript's tagged union
+  // only works when the tag is directly placed in the condition.
+  if (opts.checkDepsBeforeRunScripts && shouldRunCheck(process.env, scriptName)) {
     await checkLockfilesUpToDate(opts)
   }
 

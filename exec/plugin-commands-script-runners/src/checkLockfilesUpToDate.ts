@@ -40,12 +40,6 @@ export interface Env extends NodeJS.ProcessEnv {
   [SKIP_ENV_KEY]?: string
 }
 
-export interface ShouldRunCheckOptions {
-  checkDepsBeforeRunScripts: boolean | undefined
-  scriptName: string
-  env: Env
-}
-
 const SCRIPTS_TO_SKIP = [
   'preinstall',
   'install',
@@ -55,10 +49,9 @@ const SCRIPTS_TO_SKIP = [
   'postuninstall',
 ]
 
-export const shouldRunCheck = (opts: ShouldRunCheckOptions): boolean =>
-  !!opts.checkDepsBeforeRunScripts && !opts.env[SKIP_ENV_KEY] && !SCRIPTS_TO_SKIP.includes(opts.scriptName)
+export const shouldRunCheck = (env: Env, scriptName: string): boolean => !env[SKIP_ENV_KEY] && !SCRIPTS_TO_SKIP.includes(scriptName)
 
-export type CheckLockfilesUpToDateOptions = Partial<Pick<Config,
+export type CheckLockfilesUpToDateOptions = Pick<Config,
 | 'allProjects'
 | 'autoInstallPeers'
 | 'cacheDir'
@@ -71,7 +64,7 @@ export type CheckLockfilesUpToDateOptions = Partial<Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'virtualStoreDir'
 | 'workspaceDir'
->>
+>
 
 export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOptions): Promise<void> {
   const {
@@ -87,7 +80,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     workspaceDir,
   } = opts
 
-  if (!cacheDir || !virtualStoreDir) return
+  if (!virtualStoreDir) return
 
   // TODO: this can be moved to assertWantedLockfileUpToDate
   const rootManifestOptions = rootProjectManifest && rootProjectManifestDir
