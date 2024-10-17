@@ -1,6 +1,8 @@
 import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 
+export type PackageFiles = Record<string, PackageFileInfo>
+
 export interface PackageFileInfo {
   checkedAt?: number // Nullable for backward compatibility
   integrity: string
@@ -8,19 +10,26 @@ export interface PackageFileInfo {
   size: number
 }
 
+export type SideEffects = Record<string, SideEffectsDiff>
+
+export interface SideEffectsDiff {
+  deleted?: string[]
+  added?: PackageFiles
+}
+
 export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
 
 export type PackageFilesResponse = {
   resolvedFrom: ResolvedFrom
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-  sideEffects?: Record<string, Record<string, PackageFileInfo>>
+  sideEffects?: SideEffects
   requiresBuild: boolean
 } & ({
   unprocessed?: false
   filesIndex: Record<string, string>
 } | {
   unprocessed: true
-  filesIndex: Record<string, PackageFileInfo>
+  filesIndex: PackageFiles
 })
 
 export interface ImportPackageOpts {

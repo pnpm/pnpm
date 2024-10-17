@@ -1,6 +1,6 @@
 import type { PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
 import { hookLogger } from '@pnpm/core-loggers'
-import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
+import { createHashFromFile } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
@@ -40,7 +40,7 @@ export function requireHooks (
   let hooks: Hooks | undefined = pnpmFile?.hooks
 
   if (!globalHooks && !hooks) return { afterAllResolved: [], filterLog: [], readPackage: [] }
-  const calculatePnpmfileChecksum = hooks ? () => createBase32HashFromFile(pnpmfilePath) : undefined
+  const calculatePnpmfileChecksum = hooks ? () => createHashFromFile(pnpmfilePath) : undefined
   globalHooks = globalHooks ?? {}
   hooks = hooks ?? {}
   const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'filterLog'>> = {

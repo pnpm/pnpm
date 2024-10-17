@@ -1,4 +1,4 @@
-import { createBase32Hash } from '@pnpm/crypto.base32-hash'
+import { createHexHash } from '@pnpm/crypto.hash'
 import { createCacheKey } from '../src/dlx'
 
 test('creates a hash', () => {
@@ -6,7 +6,7 @@ test('creates a hash', () => {
     default: 'https://registry.npmjs.com/',
     '@foo': 'https://example.com/npm-registry/foo/',
   })
-  const expected = createBase32Hash(JSON.stringify([['@foo/bar', 'shx'], [
+  const expected = createHexHash(JSON.stringify([['@foo/bar', 'shx'], [
     ['@foo', 'https://example.com/npm-registry/foo/'],
     ['default', 'https://registry.npmjs.com/'],
   ]]))

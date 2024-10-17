@@ -48,10 +48,12 @@ export function addFilesFromDir (
     if (opts.readManifest && relativePath === 'package.json') {
       manifest = parseJsonBufferSync(buffer) as DependencyManifest
     }
+    // Remove the file type information (regular file, directory, etc.) and leave just the permission bits (rwx for owner, group, and others)
+    const mode = stat.mode & 0o777
     filesIndex[relativePath] = {
-      mode: stat.mode,
+      mode,
       size: stat.size,
-      ...addBuffer(buffer, stat.mode),
+      ...addBuffer(buffer, mode),
     }
   }
   return { manifest, filesIndex }
@@ -78,7 +80,9 @@ function findFiles (
   for (const file of files) {
     const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file.name}`
     if (file.isDirectory()) {
-      findFiles(filesList, path.join(dir, file.name), relativeSubdir)
+      if (relativeDir !== '' || file.name !== 'node_modules') {
+        findFiles(filesList, path.join(dir, file.name), relativeSubdir)
+      }
       continue
     }
     const absolutePath = path.join(dir, file.name)

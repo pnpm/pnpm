@@ -96,8 +96,8 @@ catalog:
   "@types/write-file-atomic": ^4.0.3
   "@types/yarnpkg__lockfile": ^1.1.9
   "@types/zkochan__table": npm:@types/table@6.0.0
-  "@yarnpkg/core": 4.0.3
-  "@yarnpkg/extensions": 2.0.1
+  "@yarnpkg/core": 4.0.5
+  "@yarnpkg/extensions": 2.0.3
   "@yarnpkg/lockfile": ^1.1.0
   "@yarnpkg/nm": 4.0.2
   "@yarnpkg/parsers": 3.0.0

@@ -1574,5 +1574,5 @@ test('setting a custom peersSuffixMaxLength', async () => {
 
   const lockfile = project.readLockfile()
   expect(lockfile.settings.peersSuffixMaxLength).toBe(10)
-  expect(lockfile.importers['.']?.dependencies?.['@pnpm.e2e/abc']?.version?.length).toBe(33)
+  expect(lockfile.importers['.']?.dependencies?.['@pnpm.e2e/abc']?.version?.length).toBe(39)
 })
