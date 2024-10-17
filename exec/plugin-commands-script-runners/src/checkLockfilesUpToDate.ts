@@ -7,7 +7,12 @@ import { type Config, type OptionsFromRootManifest, getOptionsFromRootManifest }
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
-import { type Lockfile, readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
+import {
+  type Lockfile,
+  getLockfileImporterId,
+  readCurrentLockfile,
+  readWantedLockfile,
+} from '@pnpm/lockfile.fs'
 import {
   calcPatchHashes,
   createOverridesMapFromParsed,
@@ -20,7 +25,7 @@ import { globalWarn } from '@pnpm/logger'
 // TODO: remove @pnpm/manifest-utils
 // import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { parseOverrides } from '@pnpm/parse-overrides'
-import { type ProjectId, type ProjectManifest } from '@pnpm/types'
+import { type Project, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 
 // The scripts that `pnpm run` executes are likely to also execute other `pnpm run`.
@@ -155,6 +160,11 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       }
     }
 
+    type GetProjectId = (project: Pick<Project, 'rootDir'>) => ProjectId
+    const getProjectId: GetProjectId = sharedWorkspaceLockfile
+      ? project => getLockfileImporterId(workspaceDir, project.rootDir)
+      : () => '.' as ProjectId
+
     await Promise.all(modifiedProjects.map(async ({ project }) => {
       const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
 
@@ -162,7 +172,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         autoInstallPeers,
         config: opts,
         excludeLinksFromLockfile,
-        projectId: undefined as unknown as ProjectId, // TODO: fix this
+        projectId: getProjectId(project),
         projectManifest: project.manifest,
         rootDir: workspaceDir,
         rootManifestOptions,
