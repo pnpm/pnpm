@@ -28,7 +28,7 @@ export async function linkedPackagesAreUpToDate (
   }: {
     linkWorkspacePackages: boolean
     manifestsByDir: Record<string, DependencyManifest>
-    workspacePackages: WorkspacePackages
+    workspacePackages?: WorkspacePackages
     lockfilePackages?: PackageSnapshots
     lockfileDir: string
   },
