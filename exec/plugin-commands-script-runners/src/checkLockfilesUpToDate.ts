@@ -36,11 +36,9 @@ import {
   type ProjectId,
   type ProjectManifest,
 } from '@pnpm/types'
-// TODO
-// import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
-// TODO
-// import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 // The scripts that `pnpm run` executes are likely to also execute other `pnpm run`.
 // We don't want this potentially expensive check to repeat.
@@ -218,7 +216,17 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       workspaceDir,
     })
   } else if (rootProjectManifest && rootProjectManifestDir) {
-    // TODO: handle case of non-recursive run on a workspace package (manifest dir is not root dir).
+    const workspaceManifest = await readWorkspaceManifest(rootProjectManifestDir)
+    if (workspaceManifest) {
+      const allProjects = await findWorkspacePackages(rootProjectManifestDir, {
+        patterns: workspaceManifest.packages,
+        sharedWorkspaceLockfile,
+      })
+      return checkLockfilesUpToDate({
+        ...opts,
+        allProjects,
+      })
+    }
 
     const virtualStoreDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
     const currentLockfilePromise = readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })

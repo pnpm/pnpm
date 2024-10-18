@@ -97,7 +97,13 @@
       "path": "../../workspace/filter-workspace-packages"
     },
     {
+      "path": "../../workspace/find-packages"
+    },
+    {
       "path": "../../workspace/packages-list-cache"
+    },
+    {
+      "path": "../../workspace/read-manifest"
     },
     {
       "path": "../../workspace/sort-packages"
