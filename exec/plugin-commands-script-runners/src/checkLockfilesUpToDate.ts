@@ -216,17 +216,19 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     return
   }
 
-  const workspaceRoot = workspaceDir || rootProjectManifestDir
-  const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
-  if ((workspaceManifest || workspaceDir) && !allProjects) {
-    const allProjects = await findWorkspacePackages(rootProjectManifestDir, {
-      patterns: workspaceManifest?.packages,
-      sharedWorkspaceLockfile,
-    })
-    return checkLockfilesUpToDate({
-      ...opts,
-      allProjects,
-    })
+  if (!allProjects) {
+    const workspaceRoot = workspaceDir || rootProjectManifestDir
+    const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
+    if (workspaceManifest || workspaceDir) {
+      const allProjects = await findWorkspacePackages(rootProjectManifestDir, {
+        patterns: workspaceManifest?.packages,
+        sharedWorkspaceLockfile,
+      })
+      return checkLockfilesUpToDate({
+        ...opts,
+        allProjects,
+      })
+    }
   }
 
   if (rootProjectManifest && rootProjectManifestDir) {
