@@ -28,13 +28,31 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/parse-overrides"
+    },
+    {
       "path": "../../crypto/hash"
+    },
+    {
+      "path": "../../crypto/object-hasher"
     },
     {
       "path": "../../env/path"
     },
     {
       "path": "../../env/plugin-commands-env"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/settings-checker"
+    },
+    {
+      "path": "../../lockfile/verification"
+    },
+    {
+      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/core-loggers"
@@ -49,6 +67,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../pkg-manager/get-context"
+    },
+    {
       "path": "../../pkg-manager/package-bins"
     },
     {
@@ -61,6 +82,9 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
+      "path": "../../resolving/resolver-base"
+    },
+    {
       "path": "../../store/store-path"
     },
     {
@@ -68,6 +92,15 @@
     },
     {
       "path": "../../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../../workspace/find-packages"
+    },
+    {
+      "path": "../../workspace/packages-list-cache"
+    },
+    {
+      "path": "../../workspace/read-manifest"
     },
     {
       "path": "../../workspace/sort-packages"

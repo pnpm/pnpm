@@ -2233,27 +2233,48 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/env.path':
         specifier: workspace:*
         version: link:../../env/path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/get-context':
+        specifier: workspace:*
+        version: link:../../pkg-manager/get-context
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.settings-checker':
+        specifier: workspace:*
+        version: link:../../lockfile/settings-checker
+      '@pnpm/lockfile.verification':
+        specifier: workspace:*
+        version: link:../../lockfile/verification
       '@pnpm/log.group':
         specifier: 'catalog:'
         version: 3.0.0
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins
+      '@pnpm/parse-overrides':
+        specifier: workspace:*
+        version: link:../../config/parse-overrides
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: link:../../env/plugin-commands-env
@@ -2266,6 +2287,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/sort-packages':
         specifier: workspace:*
         version: link:../../workspace/sort-packages
@@ -2275,6 +2299,15 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../../workspace/find-packages
+      '@pnpm/workspace.packages-list-cache':
+        specifier: workspace:*
+        version: link:../../workspace/packages-list-cache
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-manifest
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -5016,6 +5049,9 @@ importers:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../../workspace/find-packages
+      '@pnpm/workspace.packages-list-cache':
+        specifier: workspace:*
+        version: link:../../workspace/packages-list-cache
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
@@ -7648,6 +7684,28 @@ importers:
         version: 5.0.0
     devDependencies:
       '@pnpm/find-workspace-dir':
+        specifier: workspace:*
+        version: 'link:'
+
+  workspace/packages-list-cache:
+    dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+    devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/workspace.packages-list-cache':
         specifier: workspace:*
         version: 'link:'
 
