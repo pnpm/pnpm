@@ -147,6 +147,7 @@ export type DependenciesMutation = InstallDepsMutation | InstallSomeDepsMutation
 type Opts = Omit<InstallOptions, 'allProjects'> & {
   preferredVersions?: PreferredVersions
   pruneDirectDependencies?: boolean
+  binsDir?: string
 } & InstallMutationOptions
 
 export async function install (
@@ -171,6 +172,7 @@ export async function install (
         buildIndex: 0,
         manifest,
         rootDir,
+        binsDir: opts.binsDir,
       }],
     }
   )

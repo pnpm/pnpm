@@ -7,7 +7,7 @@ import {
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { DEPENDENCIES_FIELDS, ProjectManifest } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type ProjectManifest, type Project } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
@@ -18,7 +18,6 @@ import {
   type WorkspacePackages,
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
-import { type Project } from '@pnpm/types'
 import pathAbsolute from 'path-absolute'
 import pick from 'ramda/src/pick'
 import partition from 'ramda/src/partition'
@@ -134,6 +133,7 @@ export async function handler (
     storeDir: store.dir,
     targetDependenciesField: getSaveType(opts),
     workspacePackages,
+    binsDir: opts.bin,
   })
 
   const linkCwdDir = opts.cliOptions?.dir && opts.cliOptions?.global ? path.resolve(opts.cliOptions.dir) : cwd
