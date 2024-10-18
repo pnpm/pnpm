@@ -264,7 +264,10 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       })
     }
   } else {
-    globalWarn('Impossible variant detected! Skipping check.')
+    // `opts.allProject` being `undefined` means that the run command was not run with `--recursive`.
+    // `rootProjectManifest` being `undefined` means that there's no root manifest.
+    // Both means that `pnpm run` would fail, so checking lockfiles here is pointless.
+    globalWarn('Skipping check.')
   }
 }
 
