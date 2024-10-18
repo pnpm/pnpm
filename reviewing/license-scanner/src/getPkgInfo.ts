@@ -55,7 +55,7 @@ const LICENSE_NAMES = [
   'BSD-4-Clause',
   'CC01',
   'CC0-1.0',
-  'CC0-1.0',
+  'CC0 1.0',
   'CDDL1',
   'CDDL-1.0',
   'Common Development and Distribution License 1.0',
