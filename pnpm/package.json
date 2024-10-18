@@ -158,7 +158,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pnpm/pnpm.git"
+    "url": "git+https://github.com/pnpm/pnpm.git",
+    "directory": "pnpm"
   },
   "scripts": {
     "bundle": "ts-node bundle.ts",
