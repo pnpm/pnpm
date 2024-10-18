@@ -2269,9 +2269,6 @@ importers:
       '@pnpm/log.group':
         specifier: 'catalog:'
         version: 3.0.0
-      '@pnpm/manifest-utils':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/manifest-utils
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins

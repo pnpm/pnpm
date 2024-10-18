@@ -26,8 +26,6 @@ import {
 } from '@pnpm/lockfile.verification'
 import { globalWarn } from '@pnpm/logger'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
-// TODO: remove @pnpm/manifest-utils
-// import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
 import {

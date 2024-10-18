@@ -61,7 +61,6 @@
     "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/log.group": "catalog:",
     "@pnpm/get-context": "workspace:*",
-    "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/package-bins": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/plugin-commands-env": "workspace:*",
