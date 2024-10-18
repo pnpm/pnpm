@@ -92,11 +92,13 @@ test('link to global bin from the specified directory', async function () {
   await writePkg('./dir/package-with-bin-in-dir', { name: 'package-with-bin-in-dir', version: '1.0.0', bin: 'bin.js' })
   fs.writeFileSync('./dir/package-with-bin-in-dir/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
 
+  const projectToLinkDir = path.resolve('./dir/package-with-bin-in-dir')
+  process.chdir(projectToLinkDir)
   await link.handler({
     ...DEFAULT_OPTS,
     cliOptions: {
       global: true,
-      dir: path.resolve('./dir/package-with-bin-in-dir'),
+      dir: projectToLinkDir,
     },
     bin: globalBin,
     dir: globalDir,
