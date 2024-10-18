@@ -98,7 +98,6 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
 
   if (!virtualStoreDir) return
 
-  // TODO: this can be moved to assertWantedLockfileUpToDate
   const rootManifestOptions = rootProjectManifest && rootProjectManifestDir
     ? getOptionsFromRootManifest(rootProjectManifestDir, rootProjectManifest)
     : undefined
