@@ -1,11 +1,13 @@
 import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
 import renderHelp from 'render-help'
+import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 
 export function createHelp (helpByCommandName: Record<string, () => string>): (opts: unknown, params: string[]) => string {
   return function (opts: unknown, params: string[]) {
     let helpText!: string
     if (params.length === 0) {
-      helpText = getHelpText()
+      const all = (opts as ParsedCliArgs).argv.original.includes('-a')
+      helpText = getHelpText(all)
     } else if (helpByCommandName[params[0]]) {
       helpText = helpByCommandName[params[0]]()
     } else {
@@ -17,8 +19,9 @@ ${detectIfCurrentPkgIsExecutable() != null ? ` (compiled to binary; bundled Node
   }
 }
 
-function getHelpText (): string {
+function getHelpText (all: boolean): string {
   return renderHelp({
+    description: all ? '' : 'These are common pnpm commands used in various situations, use \'pnpm --help -a\' to list all commands',
     descriptionLists: [
       {
         title: 'Manage your dependencies',
@@ -61,15 +64,49 @@ function getHelpText (): string {
             name: 'install-test',
             shortAlias: 'it',
           },
+          ...all
+            ? [
+              {
+                description: 'Rebuild a package',
+                name: 'rebuild',
+                shortAlias: 'rb',
+              },
+              {
+                description: 'Removes extraneous packages',
+                name: 'prune',
+              },
+              {
+                description: 'Fetch packages from a lockfile into virtual store, package manifest is ignored',
+                name: 'fetch',
+              },
+              {
+                description: 'Perform an install removing older dependencies in the lockfile if a newer version can be used',
+                name: 'dedupe',
+              },
+            ]
+            : [],
+        ],
+      },
+      {
+        title: 'Patch your dependencies',
+
+        list: [
           {
-            description: 'Rebuild a package',
-            name: 'rebuild',
-            shortAlias: 'rb',
+            description: 'Prepare a package for patching',
+            name: 'patch',
           },
-          {
-            description: 'Removes extraneous packages',
-            name: 'prune',
-          },
+          ...all
+            ? [
+              {
+                description: 'Generate a patch out of a directory',
+                name: 'patch-commit',
+              },
+              {
+                description: 'Remove existing patch files',
+                name: 'patch-remove',
+              },
+            ]
+            : [],
         ],
       },
       {
@@ -92,6 +129,10 @@ function getHelpText (): string {
           {
             description: 'Check licenses in consumed packages',
             name: 'licenses',
+          },
+          {
+            description: 'Shows all packages that depend on the specified package',
+            name: 'why',
           },
         ],
       },
@@ -116,6 +157,14 @@ function getHelpText (): string {
             description: 'Runs an arbitrary command specified in the package\'s "start" property of its "scripts" object',
             name: 'start',
           },
+          {
+            description: 'Fetches a package from the registry without installing it as a dependency, hot loads it, and runs whatever default command binary it exposes',
+            name: 'dlx',
+          },
+          {
+            description: 'Create a project from a "create-*" or "@foo/create-*" starter kit',
+            name: 'create',
+          },
         ],
       },
       {
@@ -131,45 +180,116 @@ function getHelpText (): string {
             name: 'publish',
           },
           {
-            description: 'Prints the effective modules directory',
-            name: 'root',
+            description: 'Updates pnpm to the latest version.',
+            name: 'self-update',
           },
           {
-            description: 'Prints the index file of a specific package from the store',
-            name: 'cat-index',
+            description: 'Create a package.json file',
+            name: 'init',
           },
           {
-            description: 'Prints the contents of a file based on the hash value stored in the index file',
-            name: 'cat-file',
+            description: 'Manage the pnpm configuration files',
+            name: 'config',
+            shortAlias: 'c',
           },
-          {
-            description: 'Experimental! Lists the packages that include the file with the specified hash.',
-            name: 'find-hash',
-          },
+          ...all
+            ? [
+              {
+                description: 'Prints the effective modules directory',
+                name: 'root',
+              },
+              {
+                description: 'Prints the directory into which the executables of dependencies are linked',
+                name: 'bin',
+              },
+              {
+                description: 'Deploy a package from a workspace',
+                name: 'deploy',
+              },
+              {
+                description: 'Checks for known common issues with pnpm configuration',
+                name: 'doctor',
+              },
+            ]
+            : [],
         ],
       },
       {
-        title: 'Manage your store',
+        title: 'Manage your environments',
 
         list: [
           {
-            description: 'Adds new packages to the pnpm store directly. Does not modify any projects or files outside the store',
-            name: 'store add',
-          },
-          {
-            description: 'Prints the path to the active store directory',
-            name: 'store path',
-          },
-          {
-            description: 'Removes unreferenced (extraneous, orphan) packages from the store',
-            name: 'store prune',
-          },
-          {
-            description: 'Checks for modified packages in the store',
-            name: 'store status',
+            description: 'Manage Node.js versions',
+            name: 'env ',
           },
         ],
       },
+      ...all
+        ? [
+          {
+            title: 'Inspect your store',
+
+            list: [
+              {
+                description: 'Prints the index file of a specific package from the store',
+                name: 'cat-index',
+              },
+              {
+                description: 'Prints the contents of a file based on the hash value stored in the index file',
+                name: 'cat-file',
+              },
+              {
+                description: 'Experimental! Lists the packages that include the file with the specified hash',
+                name: 'find-hash',
+              },
+            ],
+          },
+          {
+            title: 'Manage your store',
+
+            list: [
+              {
+                description: 'Adds new packages to the pnpm store directly. Does not modify any projects or files outside the store',
+                name: 'store add',
+              },
+              {
+                description: 'Prints the path to the active store directory',
+                name: 'store path',
+              },
+              {
+                description: 'Removes unreferenced (extraneous, orphan) packages from the store',
+                name: 'store prune',
+              },
+              {
+                description: 'Checks for modified packages in the store',
+                name: 'store status',
+              },
+            ],
+          },
+          {
+            title: 'Manage your cache',
+
+            list: [
+              {
+                description: 'Experimental! Lists the available packages metadata cache. Supports filtering by glob',
+                name: 'cache list',
+              },
+              {
+                description: 'Experimental! Lists all registries that have their metadata cache locally',
+                name: 'cache list-registries',
+              },
+              {
+                description: 'Experimental! Views information from the specified package\'s cache',
+                name: 'cache view',
+              },
+              {
+                description: 'Experimental! Deletes metadata cache for the specified package(s). Supports patterns',
+                name: 'cache delete',
+              },
+            ],
+          },
+        ]
+        : [],
       {
         title: 'Options',
 
