@@ -229,6 +229,9 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         allProjects,
       })
     }
+  } else {
+    // this error shouldn't happen
+    throw new Error('Impossible variant: allProjects is defined but workspaceDir is undefined')
   }
 
   if (rootProjectManifest && rootProjectManifestDir) {
