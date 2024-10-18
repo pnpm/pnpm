@@ -61,8 +61,15 @@ export async function parseCliArgs (
     inputArgv.unshift(opts.fallbackCommand!)
   // The run command has special casing for --help and is handled further below.
   } else if (cmd !== 'run') {
+    const dir = noptExploratoryResults['dir'] ?? process.cwd()
+    const workspaceDir = noptExploratoryResults['global'] || noptExploratoryResults['ignore-workspace']
+      ? undefined
+      : await findWorkspaceDir(dir)
     if (noptExploratoryResults['help']) {
-      return getParsedArgsForHelp()
+      return {
+        ...getParsedArgsForHelp(),
+        workspaceDir,
+      }
     }
     if (noptExploratoryResults['version'] || noptExploratoryResults['v']) {
       return {
@@ -137,11 +144,18 @@ export async function parseCliArgs (
     0,
     { escapeArgs: getEscapeArgsWithSpecialCaseForRun() }
   )
+  const dir = options['dir'] ?? process.cwd()
+  const workspaceDir = options['global'] || options['ignore-workspace']
+    ? undefined
+    : await findWorkspaceDir(dir)
 
   // For the run command, it's not clear whether --help should be passed to the
   // underlying script or invoke pnpm's help text until an additional nopt call.
   if (cmd === 'run' && options['help']) {
-    return getParsedArgsForHelp()
+    return {
+      ...getParsedArgsForHelp(),
+      workspaceDir,
+    }
   }
 
   if (opts.renamedOptions != null) {
@@ -164,10 +178,6 @@ export async function parseCliArgs (
       cmd = subCmd
     }
   }
-  const dir = options['dir'] ?? process.cwd()
-  const workspaceDir = options['global'] || options['ignore-workspace']
-    ? undefined
-    : await findWorkspaceDir(dir)
   if (options['workspace-root']) {
     if (options['global']) {
       throw new PnpmError('OPTIONS_CONFLICT', '--workspace-root may not be used with --global')
