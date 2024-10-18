@@ -216,19 +216,20 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     return
   }
 
-  if (rootProjectManifest && rootProjectManifestDir) {
-    const workspaceManifest = await readWorkspaceManifest(rootProjectManifestDir)
-    if (workspaceManifest) {
-      const allProjects = await findWorkspacePackages(rootProjectManifestDir, {
-        patterns: workspaceManifest.packages,
-        sharedWorkspaceLockfile,
-      })
-      return checkLockfilesUpToDate({
-        ...opts,
-        allProjects,
-      })
-    }
+  const workspaceRoot = workspaceDir || rootProjectManifestDir
+  const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
+  if ((workspaceManifest || workspaceDir) && !allProjects) {
+    const allProjects = await findWorkspacePackages(rootProjectManifestDir, {
+      patterns: workspaceManifest?.packages,
+      sharedWorkspaceLockfile,
+    })
+    return checkLockfilesUpToDate({
+      ...opts,
+      allProjects,
+    })
+  }
 
+  if (rootProjectManifest && rootProjectManifestDir) {
     const virtualStoreDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
     const currentLockfilePromise = readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
     const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, { ignoreIncompatible: false })
