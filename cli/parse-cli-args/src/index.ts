@@ -61,14 +61,10 @@ export async function parseCliArgs (
     inputArgv.unshift(opts.fallbackCommand!)
   // The run command has special casing for --help and is handled further below.
   } else if (cmd !== 'run') {
-    const dir = noptExploratoryResults['dir'] ?? process.cwd()
-    const workspaceDir = noptExploratoryResults['global'] || noptExploratoryResults['ignore-workspace']
-      ? undefined
-      : await findWorkspaceDir(dir)
     if (noptExploratoryResults['help']) {
       return {
         ...getParsedArgsForHelp(),
-        workspaceDir,
+        workspaceDir: await getWorkspaceDir(noptExploratoryResults),
       }
     }
     if (noptExploratoryResults['version'] || noptExploratoryResults['v']) {
@@ -144,10 +140,7 @@ export async function parseCliArgs (
     0,
     { escapeArgs: getEscapeArgsWithSpecialCaseForRun() }
   )
-  const dir = options['dir'] ?? process.cwd()
-  const workspaceDir = options['global'] || options['ignore-workspace']
-    ? undefined
-    : await findWorkspaceDir(dir)
+  const workspaceDir = await getWorkspaceDir(options)
 
   // For the run command, it's not clear whether --help should be passed to the
   // underlying script or invoke pnpm's help text until an additional nopt call.
@@ -242,4 +235,10 @@ function getClosestOptionMatches (knownOptions: string[], option: string): strin
   return didYouMean(option, knownOptions, {
     returnType: ReturnTypeEnums.ALL_CLOSEST_MATCHES,
   })
+}
+
+async function getWorkspaceDir (parsedOpts: Record<string, unknown>): Promise<string | undefined> {
+  if (parsedOpts['global'] || parsedOpts['ignore-workspace']) return undefined
+  const dir = parsedOpts['dir'] ?? process.cwd()
+  return findWorkspaceDir(dir as string)
 }
