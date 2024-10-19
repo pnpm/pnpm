@@ -40,7 +40,9 @@ export type NvmNodeCommandOptions = Pick<Config,
 const nodeFetchPromises: Record<string, Promise<string>> = {}
 
 export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {
-  if (!executionEnv?.nodeVersion) return { extraBinPaths: extraBinPaths ?? [] }
+  if (!executionEnv?.nodeVersion || executionEnv.nodeVersion === process.versions.node) {
+    return { extraBinPaths: extraBinPaths ?? [] }
+  }
 
   let nodePathPromise = nodeFetchPromises[executionEnv.nodeVersion]
   if (!nodePathPromise) {

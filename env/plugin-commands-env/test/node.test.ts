@@ -1,8 +1,9 @@
 import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
+import { rmSync } from 'fs'
 import { Readable } from 'stream'
-import { getNodeDir, getNodeBinDir, getNodeVersionsBaseDir, type NvmNodeCommandOptions } from '../lib/node'
+import { getNodeDir, getNodeBinDir, getNodeVersionsBaseDir, type NvmNodeCommandOptions, prepareExecutionEnv } from '../lib/node'
 import { tempDir } from '@pnpm/prepare'
 
 const fetchMock = jest.fn(async (url: string) => {
@@ -83,4 +84,25 @@ test('get node version base dir', async () => {
   expect(typeof getNodeVersionsBaseDir).toBe('function')
   const versionDir = getNodeVersionsBaseDir(process.cwd())
   expect(versionDir).toBe(path.resolve(process.cwd(), 'nodejs'))
+})
+
+describe('prepareExecutionEnv', () => {
+  test('should not proceed to fetch Node.js if the process is already running in wanted node version', async () => {
+    const _tempDir = tempDir()
+
+    await prepareExecutionEnv({
+      bin: '',
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, {
+      executionEnv: { nodeVersion: process.versions.node },
+    })
+
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    // We retry tests once. The test always passes on retry, because requested
+    // node version exists, hence actually no call to download node
+    // so we need to clean up the temp dir, to make sure we are testing the right thing
+    rmSync(_tempDir, { recursive: true })
+  })
 })
