@@ -1905,6 +1905,9 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
+      '@types/tar-stream':
+        specifier: 'catalog:'
+        version: 2.2.3
       adm-zip:
         specifier: 'catalog:'
         version: 0.5.14
@@ -1920,6 +1923,9 @@ importers:
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
+      tar-stream:
+        specifier: 'catalog:'
+        version: 2.2.0
 
   exec/build-modules:
     dependencies:

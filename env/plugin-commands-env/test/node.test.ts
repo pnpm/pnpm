@@ -2,11 +2,16 @@ import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
 import { Readable } from 'stream'
+import tar from 'tar-stream'
 import { getNodeDir, getNodeBinDir, getNodeVersionsBaseDir, type NvmNodeCommandOptions } from '../lib/node'
 import { tempDir } from '@pnpm/prepare'
 
 const fetchMock = jest.fn(async (url: string) => {
-  if (url.endsWith('.zip')) {
+  if (url.endsWith('.tar.gz')) {
+    const pack = tar.pack()
+    pack.finalize()
+    return new Response(pack) // pack is a readable stream
+  } else if (url.endsWith('.zip')) {
     // The Windows code path for pnpm's node bootstrapping expects a subdir
     // within the .zip file.
     const pkgName = path.basename(url, '.zip')
@@ -31,8 +36,7 @@ test('check API (placeholder test)', async () => {
   expect(typeof getNodeDir).toBe('function')
 })
 
-// TODO: unskip. The mock function should return a valid tarball
-test.skip('install Node uses node-mirror:release option', async () => {
+test('install Node uses node-mirror:release option', async () => {
   tempDir()
   const configDir = path.resolve('config')
 
@@ -55,8 +59,7 @@ test.skip('install Node uses node-mirror:release option', async () => {
   }
 })
 
-// TODO: unskip. The mock function should return a valid tarball
-test.skip('install an rc version of Node.js', async () => {
+test('install an rc version of Node.js', async () => {
   tempDir()
   const configDir = path.resolve('config')
 
