@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import { type Config } from '@pnpm/config'
+import { getSystemNodeVersion } from '@pnpm/env.system-node-version'
 import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
 import { fetchNode } from '@pnpm/node.fetcher'
@@ -40,7 +41,7 @@ export type NvmNodeCommandOptions = Pick<Config,
 const nodeFetchPromises: Record<string, Promise<string>> = {}
 
 export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {
-  if (!executionEnv?.nodeVersion || executionEnv.nodeVersion === process.versions.node) {
+  if (!executionEnv?.nodeVersion || executionEnv.nodeVersion === getSystemNodeVersion()) {
     return { extraBinPaths: extraBinPaths ?? [] }
   }
 

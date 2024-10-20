@@ -13,6 +13,9 @@
       "path": "../../cli/cli-meta"
     },
     {
+      "path": "../../env/system-node-version"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {
