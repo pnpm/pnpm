@@ -42,7 +42,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {
     // We throw this error to prevent an infinite recursive call of the same pnpm version.
-    throw new PnpmError('VERSION_SWITCH_FAIL', `Failed to switch pnpm to v${pm.version}. Looks like pnpm CLI is missing at "${wantedPnpmBinDir}" or is incorrect`)
+    throw new VersionSwitchFail(pm.version, wantedPnpmBinDir)
   }
 
   // Specify the exact pnpm file path that's expected to execute to spawn.sync()
@@ -64,4 +64,10 @@ export async function switchCliVersion (config: Config): Promise<void> {
     },
   })
   process.exit(status ?? 0)
+}
+
+class VersionSwitchFail extends PnpmError {
+  constructor (version: string, wantedPnpmBinDir: string) {
+    super('VERSION_SWITCH_FAIL', `Failed to switch pnpm to v${version}. Looks like pnpm CLI is missing at "${wantedPnpmBinDir}" or is incorrect`)
+  }
 }
