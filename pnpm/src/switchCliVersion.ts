@@ -56,18 +56,30 @@ export async function switchCliVersion (config: Config): Promise<void> {
   // at https://github.com/pnpm/pnpm/pull/8679.
   const pnpmBinPath = path.join(wantedPnpmBinDir, 'pnpm')
 
-  const { status } = spawn.sync(pnpmBinPath, process.argv.slice(2), {
+  const { status, error } = spawn.sync(pnpmBinPath, process.argv.slice(2), {
     stdio: 'inherit',
     env: {
       ...process.env,
       [pnpmEnv.name]: pnpmEnv.value,
     },
   })
+
+  if (error) {
+    throw new VersionSwitchFail(pm.version, wantedPnpmBinDir, error)
+  }
+
   process.exit(status ?? 0)
 }
 
 class VersionSwitchFail extends PnpmError {
-  constructor (version: string, wantedPnpmBinDir: string) {
-    super('VERSION_SWITCH_FAIL', `Failed to switch pnpm to v${version}. Looks like pnpm CLI is missing at "${wantedPnpmBinDir}" or is incorrect`)
+  constructor (version: string, wantedPnpmBinDir: string, cause?: unknown) {
+    super(
+      'VERSION_SWITCH_FAIL',
+      `Failed to switch pnpm to v${version}. Looks like pnpm CLI is missing at "${wantedPnpmBinDir}" or is incorrect`,
+      { hint: cause instanceof Error ? cause?.message : undefined })
+
+    if (cause != null) {
+      this.cause = cause
+    }
   }
 }
