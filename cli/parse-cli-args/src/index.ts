@@ -17,7 +17,7 @@ export interface ParsedCliArgs {
   cmd: string | null
   unknownOptions: Map<string, string[]>
   fallbackCommandUsed: boolean
-  workspaceDir?: string
+  workspaceDir: string | undefined
 }
 
 export async function parseCliArgs (
@@ -77,11 +77,12 @@ export async function parseCliArgs (
         params: noptExploratoryResults.argv.remain,
         unknownOptions: new Map(),
         fallbackCommandUsed: false,
+        workspaceDir: await getWorkspaceDir(noptExploratoryResults),
       }
     }
   }
 
-  function getParsedArgsForHelp (): ParsedCliArgs {
+  function getParsedArgsForHelp (): Omit<ParsedCliArgs, 'workspaceDir'> {
     return {
       argv: noptExploratoryResults.argv,
       cmd: 'help',
