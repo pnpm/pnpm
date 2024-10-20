@@ -1,7 +1,6 @@
 import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
-import { rmSync } from 'fs'
 import { Readable } from 'stream'
 import { getNodeDir, getNodeBinDir, getNodeVersionsBaseDir, type NvmNodeCommandOptions, prepareExecutionEnv } from '../lib/node'
 import { tempDir } from '@pnpm/prepare'
@@ -88,7 +87,11 @@ test('get node version base dir', async () => {
 
 describe('prepareExecutionEnv', () => {
   test('should not proceed to fetch Node.js if the process is already running in wanted node version', async () => {
-    const _tempDir = tempDir()
+    fetchMock.mockImplementationOnce(() => {
+      throw new Error('prepareExecutionEnv should not proceed to fetch Node.js when wanted version is running')
+    })
+
+    tempDir()
 
     await prepareExecutionEnv({
       bin: '',
@@ -97,12 +100,5 @@ describe('prepareExecutionEnv', () => {
     }, {
       executionEnv: { nodeVersion: process.versions.node },
     })
-
-    expect(fetchMock).not.toHaveBeenCalled()
-
-    // We retry tests once. The test always passes on retry, because requested
-    // node version exists, hence actually no call to download node
-    // so we need to clean up the temp dir, to make sure we are testing the right thing
-    rmSync(_tempDir, { recursive: true })
   })
 })
