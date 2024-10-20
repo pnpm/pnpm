@@ -91,8 +91,6 @@ describe('prepareExecutionEnv', () => {
       throw new Error('prepareExecutionEnv should not proceed to fetch Node.js when wanted version is running')
     })
 
-    tempDir()
-
     await prepareExecutionEnv({
       bin: '',
       pnpmHomeDir: process.cwd(),
