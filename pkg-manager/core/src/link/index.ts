@@ -55,7 +55,7 @@ export async function link (
   const ctx = await getContextForSingleImporter(opts.manifest, {
     ...opts,
     extraBinPaths: [], // ctx.extraBinPaths is not needed, so this is fine
-  }, true)
+  })
 
   const importerId = getLockfileImporterId(ctx.lockfileDir, opts.dir)
   const specsToUpsert = [] as PackageSpecObject[]

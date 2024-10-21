@@ -4216,6 +4216,12 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      ci-info:
+        specifier: 'catalog:'
+        version: 3.9.0
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
       is-inner-link:
         specifier: 'catalog:'
         version: 4.0.0
@@ -4319,9 +4325,6 @@ importers:
       '@yarnpkg/core':
         specifier: 'catalog:'
         version: 4.0.3(typanion@3.14.0)
-      ci-info:
-        specifier: 'catalog:'
-        version: 3.9.0
       deep-require-cwd:
         specifier: 'catalog:'
         version: 1.0.0
@@ -4398,9 +4401,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -4416,15 +4416,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@zkochan/rimraf':
-        specifier: 'catalog:'
-        version: 3.0.2
       ci-info:
         specifier: 'catalog:'
         version: 3.9.0
-      enquirer:
-        specifier: 'catalog:'
-        version: 2.4.1
       path-absolute:
         specifier: 'catalog:'
         version: 1.0.1
