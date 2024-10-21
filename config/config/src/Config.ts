@@ -197,6 +197,7 @@ export interface Config {
   extendNodePath?: boolean
   gitBranchLockfile?: boolean
   globalDir?: string
+  globalDirPrefix: string
   lockfile?: boolean
   dedupeInjectedDeps?: boolean
   nodeOptions?: string

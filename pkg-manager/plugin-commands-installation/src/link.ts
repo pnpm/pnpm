@@ -18,7 +18,6 @@ import {
   type WorkspacePackages,
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
-import pathAbsolute from 'path-absolute'
 import pick from 'ramda/src/pick'
 import partition from 'ramda/src/partition'
 import renderHelp from 'render-help'
@@ -38,6 +37,7 @@ type LinkOpts = CreateStoreControllerOptions & Pick<Config,
 | 'workspaceDir'
 | 'workspacePackagePatterns'
 | 'sharedWorkspaceLockfile'
+| 'globalDirPrefix'
 > & Partial<Pick<Config, 'linkWorkspacePackages'>>
 
 export const rcOptionsTypes = cliOptionsTypes
@@ -136,19 +136,17 @@ export async function handler (
     binsDir: opts.bin,
   })
 
-  const linkCwdDir = opts.cliOptions?.dir && opts.cliOptions?.global ? path.resolve(opts.cliOptions.dir) : cwd
-
-  // "pnpm link -g"
+  // "pnpm link"
   if ((params == null) || (params.length === 0)) {
     if (path.relative(linkOpts.dir, cwd) === '') {
       throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter')
     }
 
-    await checkPeerDeps(linkCwdDir, opts)
+    await checkPeerDeps(cwd, opts)
 
-    const { manifest, writeProjectManifest } = await tryReadProjectManifest(linkOpts.dir, opts)
+    const { manifest, writeProjectManifest } = await tryReadProjectManifest(linkOpts.globalDirPrefix, opts)
     const newManifest = manifest ?? {}
-    await addLinkToManifest(opts, newManifest, linkCwdDir, linkOpts.dir)
+    await addLinkToManifest(opts, newManifest, cwd, linkOpts.globalDirPrefix)
     await writeProjectManifest(newManifest)
     await install(newManifest, linkOpts)
     return
@@ -176,16 +174,15 @@ export async function handler (
     } else {
       globalPkgNames = pkgNames
     }
-    const globalPkgPath = pathAbsolute(opts.dir)
-    globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
+    globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(opts.globalDirPrefix, 'node_modules', pkgName)))
   }
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(linkCwdDir, opts)
+  const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir, opts)
 
   const newManifest = manifest ?? {}
   await Promise.all(
     pkgPaths.map(async (dir) => {
-      await addLinkToManifest(opts, newManifest, linkCwdDir, dir)
+      await addLinkToManifest(opts, newManifest, dir, opts.dir)
       await checkPeerDeps(dir, opts)
     })
   )

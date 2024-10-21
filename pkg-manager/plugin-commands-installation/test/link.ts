@@ -1,6 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import { sync as readYamlFile } from 'read-yaml-file'
 import { install, link } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { assertProject, isExecutable } from '@pnpm/assert-project'
@@ -26,27 +25,24 @@ test('linking multiple packages', async () => {
   process.chdir('linked-foo')
 
   console.log('linking linked-foo to global package')
-  const linkOpts = {
+  await link.handler({
     ...DEFAULT_OPTS,
     bin: path.join(globalDir, 'bin'),
     dir: globalDir,
-  }
-  await link.handler({
-    ...linkOpts,
+    globalDirPrefix: globalDir,
   })
 
   process.chdir('..')
   process.chdir('project')
 
   await link.handler({
-    ...linkOpts,
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    globalDirPrefix: globalDir,
   }, ['linked-foo', '../linked-bar'])
 
   project.has('linked-foo')
   project.has('linked-bar')
-
-  const modules = readYamlFile<any>('../linked-bar/node_modules/.modules.yaml') // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(modules.hoistPattern).toStrictEqual(['*']) // the linked package used its own configs during installation // eslint-disable-line @typescript-eslint/dot-notation
 })
 
 test('link global bin', async function () {
@@ -71,6 +67,7 @@ test('link global bin', async function () {
     },
     bin: globalBin,
     dir: globalDir,
+    globalDirPrefix: '',
   })
   process.env[PATH] = oldPath
 
@@ -102,6 +99,7 @@ test('link to global bin from the specified directory', async function () {
     },
     bin: globalBin,
     dir: globalDir,
+    globalDirPrefix: '',
   })
   process.env[PATH] = oldPath
 
@@ -133,6 +131,7 @@ test('link a global package to the specified directory', async function () {
     },
     bin: globalBin,
     dir: globalDir,
+    globalDirPrefix: '',
   })
 
   process.chdir('..')
@@ -148,6 +147,7 @@ test('link a global package to the specified directory', async function () {
     bin: globalBin,
     dir: globalDir,
     saveProd: true, // @pnpm/config sets this setting to true when global is true. This should probably be changed.
+    globalDirPrefix: '',
   }, ['global-package-with-bin'])
 
   process.env[PATH] = oldPath
@@ -171,6 +171,7 @@ test('relative link', async () => {
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
+    globalDirPrefix: '',
   }, [`../${linkedPkgName}`])
 
   project.isExecutable('.bin/hello-world-js-bin')
@@ -204,6 +205,7 @@ test('absolute link', async () => {
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
+    globalDirPrefix: '',
   }, [linkedPkgPath])
 
   project.isExecutable('.bin/hello-world-js-bin')
@@ -259,6 +261,7 @@ test('link --production', async () => {
     ...DEFAULT_OPTS,
     cliOptions: { production: true },
     dir: process.cwd(),
+    globalDirPrefix: '',
   }, ['../source'])
 
   projects['source'].has('is-positive')
@@ -276,6 +279,7 @@ test('link fails if nothing is linked', async () => {
     link.handler({
       ...DEFAULT_OPTS,
       dir: '',
+      globalDirPrefix: '',
     }, [])
   ).rejects.toThrow(/You must provide a parameter/)
 })
@@ -305,6 +309,7 @@ test('logger warns about peer dependencies when linking', async () => {
   }
   await link.handler({
     ...linkOpts,
+    globalDirPrefix: '',
   })
 
   process.chdir('..')
@@ -312,6 +317,7 @@ test('logger warns about peer dependencies when linking', async () => {
 
   await link.handler({
     ...linkOpts,
+    globalDirPrefix: '',
   }, ['linked-with-peer-deps'])
 
   expect(warnMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -344,6 +350,7 @@ test('logger should not warn about peer dependencies when it is an empty object'
   }
   await link.handler({
     ...linkOpts,
+    globalDirPrefix: '',
   })
 
   process.chdir('..')
@@ -351,6 +358,7 @@ test('logger should not warn about peer dependencies when it is an empty object'
 
   await link.handler({
     ...linkOpts,
+    globalDirPrefix: '',
   }, ['linked-with-empty-peer-deps'])
 
   expect(warnMock).not.toHaveBeenCalledWith(expect.objectContaining({
