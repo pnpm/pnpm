@@ -73,6 +73,9 @@
       "path": "../../workspace/sort-packages"
     },
     {
+      "path": "../check-lockfiles-up-to-date"
+    },
+    {
       "path": "../lifecycle"
     }
   ]
