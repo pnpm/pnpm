@@ -34,6 +34,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/list#readme",
   "dependencies": {
+    "@pnpm/crypto.polyfill": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",

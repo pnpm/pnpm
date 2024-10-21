@@ -13,6 +13,9 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../crypto/polyfill"
+    },
+    {
       "path": "../../fs/graceful-fs"
     },
     {

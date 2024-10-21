@@ -8,12 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../__utils__/prepare"
-    },
-    {
-      "path": "../../crypto/polyfill"
-    }
-  ]
+  "references": []
 }

@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
@@ -14,6 +13,7 @@ import {
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
+import * as crypto from '@pnpm/crypto.polyfill'
 import {
   calcPatchHashes,
   createOverridesMapFromParsed,
@@ -746,7 +746,7 @@ Note that in CI environments, this setting is enabled by default.`,
 
 export function createObjectChecksum (obj: Record<string, unknown>): string {
   const s = JSON.stringify(sortKeys(obj, { deep: true }))
-  return crypto.createHash('md5').update(s).digest('hex')
+  return crypto.hash('md5', s, 'hex')
 }
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {

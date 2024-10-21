@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { promises as fs } from 'fs'
 import path from 'path'
+import * as crypto from '@pnpm/crypto.polyfill'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
@@ -270,7 +270,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
 
 function encodePkgName (pkgName: string): string {
   if (pkgName !== pkgName.toLowerCase()) {
-    return `${pkgName}_${crypto.createHash('md5').update(pkgName).digest('hex')}`
+    return `${pkgName}_${crypto.hash('md5', pkgName, 'hex')}`
   }
   return pkgName
 }

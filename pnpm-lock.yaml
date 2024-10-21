@@ -1641,6 +1641,12 @@ importers:
         specifier: 'catalog:'
         version: 3.0.6
 
+  crypto/polyfill:
+    devDependencies:
+      '@pnpm/crypto.polyfill':
+        specifier: workspace:*
+        version: 'link:'
+
   dedupe/check:
     dependencies:
       '@pnpm/dedupe.types':
@@ -3585,6 +3591,9 @@ importers:
 
   packages/crypto.base32-hash:
     dependencies:
+      '@pnpm/crypto.polyfill':
+        specifier: workspace:*
+        version: link:../../crypto/polyfill
       rfc4648:
         specifier: 'catalog:'
         version: 1.5.3
@@ -4084,6 +4093,9 @@ importers:
       '@pnpm/crypto.base32-hash':
         specifier: workspace:*
         version: link:../../packages/crypto.base32-hash
+      '@pnpm/crypto.polyfill':
+        specifier: workspace:*
+        version: link:../../crypto/polyfill
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -6269,6 +6281,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/crypto.polyfill':
+        specifier: workspace:*
+        version: link:../../crypto/polyfill
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -6520,6 +6535,9 @@ importers:
 
   reviewing/list:
     dependencies:
+      '@pnpm/crypto.polyfill':
+        specifier: workspace:*
+        version: link:../../crypto/polyfill
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -7521,6 +7539,9 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../store/create-cafs-store
+      '@pnpm/crypto.polyfill':
+        specifier: workspace:*
+        version: link:../crypto/polyfill
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error
