@@ -9,6 +9,7 @@ import { type ProjectRootDir } from '@pnpm/types'
 import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
 import pick from 'ramda/src/pick'
+import { deleteEditDirState } from './stateFile'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -57,7 +58,8 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
   if (!patchesToRemove.length) {
     throw new PnpmError('NO_PATCHES_TO_REMOVE', 'There are no patches that need to be removed')
   }
-
+  const modulesDir = path.join(opts.dir, opts.modulesDir ?? 'node_modules')
+  const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
   const patchesDirs = new Set<string>()
   await Promise.all(patchesToRemove.map(async (patch) => {
     if (Object.prototype.hasOwnProperty.call(patchedDependencies, patch)) {
@@ -65,6 +67,9 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
       patchesDirs.add(path.dirname(patchFile))
       await fs.rm(patchFile, { force: true })
       delete rootProjectManifest.pnpm!.patchedDependencies![patch]
+      const editDir = path.join(pnpmPatches, patch)
+      deleteEditDirState({ editDir, modulesDir })
+      await fs.rm(editDir, { recursive: true, force: true })
       if (!Object.keys(rootProjectManifest.pnpm!.patchedDependencies!).length) {
         delete rootProjectManifest.pnpm!.patchedDependencies
         if (!Object.keys(rootProjectManifest.pnpm!).length) {
