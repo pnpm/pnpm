@@ -17,7 +17,6 @@
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "_test": "jest",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
