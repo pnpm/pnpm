@@ -11,6 +11,12 @@ import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import {
+  type CheckLockfilesUpToDateOptions,
+  DISABLE_DEPS_CHECK_ENV,
+  checkLockfilesUpToDate,
+  shouldRunCheck,
+} from '@pnpm/exec.check-lockfiles-up-to-date'
+import {
   runLifecycleHook,
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
@@ -23,12 +29,6 @@ import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifie
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
-import {
-  type CheckLockfilesUpToDateOptions,
-  DISABLE_DEPS_CHECK_ENV,
-  checkLockfilesUpToDate,
-  shouldRunCheck,
-} from './checkLockfilesUpToDate'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
