@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { promises as fs } from 'fs'
 import path from 'path'
+import * as crypto from '@pnpm/crypto.polyfill'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
@@ -268,18 +268,9 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
   }
 }
 
-const hash =
-  // @ts-expect-error -- crypto.hash is supported in Node 21.7.0+, 20.12.0+
-  crypto.hash ??
-  ((
-    algorithm: string,
-    data: crypto.BinaryLike,
-    outputEncoding: crypto.BinaryToTextEncoding
-  ) => crypto.createHash(algorithm).update(data).digest(outputEncoding))
-
 function encodePkgName (pkgName: string): string {
   if (pkgName !== pkgName.toLowerCase()) {
-    return `${pkgName}_${hash('md5', pkgName, 'hex')}`
+    return `${pkgName}_${crypto.hash('md5', pkgName, 'hex')}`
   }
   return pkgName
 }

@@ -31,6 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/crypto.base32-hash#readme",
   "dependencies": {
+    "@pnpm/crypto.polyfill": "workspace:*",
     "rfc4648": "catalog:"
   },
   "devDependencies": {

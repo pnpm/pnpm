@@ -4,6 +4,7 @@ import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import * as crypto from '@pnpm/crypto.polyfill'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
@@ -34,15 +35,6 @@ import {
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
 
 parentPort!.on('message', handleMessage)
-
-const hash =
-  // @ts-expect-error -- crypto.hash is supported in Node 21.7.0+, 20.12.0+
-  crypto.hash ??
-  ((
-    algorithm: string,
-    data: crypto.BinaryLike,
-    outputEncoding: crypto.BinaryToTextEncoding
-  ) => crypto.createHash(algorithm).update(data).digest(outputEncoding))
 
 const cafsCache = new Map<string, CafsFunctions>()
 const cafsStoreCache = new Map<string, Cafs>()
@@ -138,7 +130,7 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile }: Tarb
     // Compensate for the possibility of non-uniform Base64 padding
     const normalizedRemoteHash: string = Buffer.from(integrityHash, 'base64').toString('hex')
 
-    const calculatedHash: string = hash(algo, buffer, 'hex')
+    const calculatedHash: string = crypto.hash(algo, buffer, 'hex')
     if (calculatedHash !== normalizedRemoteHash) {
       return {
         status: 'error',

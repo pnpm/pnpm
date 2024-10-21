@@ -43,6 +43,9 @@
       "path": "../../crypto/object-hasher"
     },
     {
+      "path": "../../crypto/polyfill"
+    },
+    {
       "path": "../../deps/graph-sequencer"
     },
     {
