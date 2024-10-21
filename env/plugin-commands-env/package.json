@@ -62,11 +62,13 @@
     "@types/graceful-fs": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/semver": "catalog:",
+    "@types/tar-stream": "catalog:",
     "adm-zip": "catalog:",
     "execa": "catalog:",
     "nock": "catalog:",
     "node-fetch": "catalog:",
-    "path-name": "catalog:"
+    "path-name": "catalog:",
+    "tar-stream": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"
