@@ -1,7 +1,6 @@
 import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
-import * as crypto from 'crypto'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import * as crypto from '@pnpm/crypto.polyfill'
