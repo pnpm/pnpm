@@ -274,12 +274,13 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   scripts.compile = 'tsc --build && pnpm run lint --fix'
   delete scripts.tsc
   let homepage: string
-  let repository: string | { type: 'git', url: string }
+  let repository: string | { type: 'git', url: string, directory: 'pnpm' }
   if (manifest.name === CLI_PKG_NAME) {
     homepage = 'https://pnpm.io'
     repository = {
       type: 'git',
       url: 'git+https://github.com/pnpm/pnpm.git',
+      directory: 'pnpm',
     }
     scripts.compile += ' && rimraf dist bin/nodes && pnpm run bundle \
 && shx cp -r node-gyp-bin dist/node-gyp-bin \
