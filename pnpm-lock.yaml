@@ -1524,6 +1524,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/env.system-node-version':
+        specifier: workspace:*
+        version: link:../../env/system-node-version
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -1835,6 +1838,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/env.system-node-version':
+        specifier: workspace:*
+        version: link:../system-node-version
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -1920,6 +1926,22 @@ importers:
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
+
+  env/system-node-version:
+    dependencies:
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../../cli/cli-meta
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.1.2
+      mem:
+        specifier: 'catalog:'
+        version: 8.1.1
+    devDependencies:
+      '@pnpm/env.system-node-version':
+        specifier: workspace:*
+        version: 'link:'
 
   exec/build-modules:
     dependencies:

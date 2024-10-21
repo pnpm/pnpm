@@ -2,7 +2,7 @@ import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
 import { Readable } from 'stream'
-import { getNodeDir, getNodeBinDir, getNodeVersionsBaseDir, type NvmNodeCommandOptions } from '../lib/node'
+import { getNodeDir, getNodeBinDir, getNodeVersionsBaseDir, type NvmNodeCommandOptions, prepareExecutionEnv } from '../lib/node'
 import { tempDir } from '@pnpm/prepare'
 
 const fetchMock = jest.fn(async (url: string) => {
@@ -83,4 +83,20 @@ test('get node version base dir', async () => {
   expect(typeof getNodeVersionsBaseDir).toBe('function')
   const versionDir = getNodeVersionsBaseDir(process.cwd())
   expect(versionDir).toBe(path.resolve(process.cwd(), 'nodejs'))
+})
+
+describe('prepareExecutionEnv', () => {
+  test('should not proceed to fetch Node.js if the process is already running in wanted node version', async () => {
+    fetchMock.mockImplementationOnce(() => {
+      throw new Error('prepareExecutionEnv should not proceed to fetch Node.js when wanted version is running')
+    })
+
+    await prepareExecutionEnv({
+      bin: '',
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, {
+      executionEnv: { nodeVersion: process.versions.node },
+    })
+  })
 })

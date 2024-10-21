@@ -31,6 +31,7 @@
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/env.system-node-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
     "detect-libc": "catalog:",

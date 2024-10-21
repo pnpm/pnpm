@@ -41,6 +41,9 @@
     },
     {
       "path": "../node.resolver"
+    },
+    {
+      "path": "../system-node-version"
     }
   ]
 }
