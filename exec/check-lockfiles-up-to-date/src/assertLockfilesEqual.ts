@@ -9,12 +9,12 @@ export function assertLockfilesEqual (currentLockfile: Lockfile | null, wantedLo
       if (!equals(snapshot.specifiers, {})) {
         throw new PnpmError('RUN_CHECK_DEPS_NO_DEPS', `Project ${name} requires dependencies but none was installed.`, {
           hint: 'Run `pnpm install` to install dependencies',
-        });
+        })
       }
     }
   } else if (!equals(currentLockfile, wantedLockfile)) {
     throw new PnpmError('RUN_CHECK_DEPS_OUTDATED_DEPS', `The installed dependencies in the modules directory is not up-to-date with the lockfile in ${wantedLockfileDir}.`, {
       hint: 'Run `pnpm install` to update dependencies.',
-    });
+    })
   }
 }
