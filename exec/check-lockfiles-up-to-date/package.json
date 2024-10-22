@@ -49,6 +49,8 @@
   },
   "devDependencies": {
     "@pnpm/exec.check-lockfiles-up-to-date": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/write-project-manifest": "workspace:*",
     "@types/ramda": "catalog:"
   },
   "peerDependencies": {

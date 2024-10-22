@@ -2051,6 +2051,12 @@ importers:
       '@pnpm/exec.check-lockfiles-up-to-date':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/write-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/write-project-manifest
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12

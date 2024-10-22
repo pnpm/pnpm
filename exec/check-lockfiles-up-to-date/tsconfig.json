@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../__utils__/prepare"
+    },
+    {
       "path": "../../config/config"
     },
     {
@@ -38,6 +41,9 @@
     },
     {
       "path": "../../pkg-manager/get-context"
+    },
+    {
+      "path": "../../pkg-manifest/write-project-manifest"
     },
     {
       "path": "../../resolving/resolver-base"
