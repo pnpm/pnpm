@@ -37,6 +37,7 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { assertLockfilesEqual } from './assertLockfilesEqual'
+import { statManifestFile } from './statManifestFile'
 
 export type CheckLockfilesUpToDateOptions = Pick<Config,
 | 'allProjects'
@@ -352,23 +353,6 @@ async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateO
       hint: 'Run `pnpm install` to update the packages',
     })
   }
-}
-
-async function statManifestFile (projectRootDir: string): Promise<fs.Stats | undefined> {
-  const attempts = await Promise.all(MANIFEST_BASE_NAMES.map(async baseName => {
-    const manifestPath = path.join(projectRootDir, baseName)
-    let stats: fs.Stats
-    try {
-      stats = await fs.promises.stat(manifestPath)
-    } catch (error) {
-      if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
-        return undefined
-      }
-      throw error
-    }
-    return stats
-  }))
-  return attempts.find(x => !!x)
 }
 
 async function statIfExists (filePath: string): Promise<fs.Stats | undefined> {
