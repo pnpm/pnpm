@@ -36,6 +36,7 @@ import {
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { assertLockfilesEqual } from './assertLockfilesEqual'
 
 export type CheckLockfilesUpToDateOptions = Pick<Config,
 | 'allProjects'
@@ -381,23 +382,6 @@ async function statIfExists (filePath: string): Promise<fs.Stats | undefined> {
     throw error
   }
   return stats
-}
-
-function assertLockfilesEqual (currentLockfile: Lockfile | null, wantedLockfile: Lockfile, wantedLockfileDir: string): void {
-  if (!currentLockfile) {
-    // make sure that no importer of wantedLockfile has any dependency
-    for (const [name, snapshot] of Object.entries(wantedLockfile.importers)) {
-      if (!equals(snapshot.specifiers, {})) {
-        throw new PnpmError('RUN_CHECK_DEPS_NO_DEPS', `Project ${name} requires dependencies but none was installed.`, {
-          hint: 'Run `pnpm install` to install dependencies',
-        })
-      }
-    }
-  } else if (!equals(currentLockfile, wantedLockfile)) {
-    throw new PnpmError('RUN_CHECK_DEPS_OUTDATED_DEPS', `The installed dependencies in the modules directory is not up-to-date with the lockfile in ${wantedLockfileDir}.`, {
-      hint: 'Run `pnpm install` to update dependencies.',
-    })
-  }
 }
 
 function throwLockfileNotFound (wantedLockfileDir: string): never {
