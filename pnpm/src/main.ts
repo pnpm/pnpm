@@ -106,7 +106,23 @@ export async function main (inputArgv: string[]): Promise<void> {
       checkUnknownSetting: false,
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
-    if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
+    // In some cases, we would want to proceed without regard for the
+    // "packageManager" field in the manifest file.
+    const ignoreWantedPackageManager = isExecutedByCorepack() ||
+    // Some commands should run irrespective of the current project.
+    !cmd || [
+      'cat-file',
+      'cat-index',
+      'completion',
+      'completion-server',
+      'env',
+      'find-hash',
+      'init',
+      'self-update',
+      'setup',
+      'store',
+    ].includes(cmd)
+    if (!ignoreWantedPackageManager && config.wantedPackageManager != null) {
       if (config.managePackageManagerVersions) {
         await switchCliVersion(config)
       } else {
