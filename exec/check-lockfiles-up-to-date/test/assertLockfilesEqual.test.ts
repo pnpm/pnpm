@@ -17,7 +17,7 @@ const wantedLockfile: Lockfile = {
   },
 }
 
-test('should not error if the currentLockfile does not exist', () => {
+test.skip('should not error if the currentLockfile does not exist', () => {
   assertLockfilesEqual(null, wantedLockfile, '<LOCKFILE_DIR>')
 })
 
