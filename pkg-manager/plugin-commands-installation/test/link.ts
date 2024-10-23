@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { install, link } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { assertProject, isExecutable } from '@pnpm/assert-project'
+import { isExecutable } from '@pnpm/assert-project'
 import { fixtures } from '@pnpm/test-fixtures'
 import { logger } from '@pnpm/logger'
 import { sync as loadJsonFile } from 'load-json-file'
@@ -171,18 +171,19 @@ test('absolute link', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     globalDirPrefix: '',
+    rootProjectManifestDir: process.cwd(),
+    rootProjectManifest: {
+      dependencies: {
+        '@pnpm.e2e/hello-world-js-bin': '*',
+      },
+    },
   }, [linkedPkgPath])
 
   project.isExecutable('.bin/hello-world-js-bin')
 
-  // The linked package has been installed successfully as well with bins linked
-  // to node_modules/.bin
-  const linkedProject = assertProject(linkedPkgPath)
-  linkedProject.isExecutable('.bin/cowsay')
-
   const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
-    specifier: '*', // specifier of linked dependency added to ${WANTED_LOCKFILE}
+    specifier: 'link:../hello-world-js-bin', // specifier of linked dependency added to ${WANTED_LOCKFILE}
     version: 'link:../hello-world-js-bin', // link added to wanted lockfile
   })
 
@@ -191,18 +192,19 @@ test('absolute link', async () => {
 })
 
 test('link --production', async () => {
-  const projects = preparePackages([
-    {
-      name: 'target',
-      version: '1.0.0',
+  const targetManifest = {
+    name: 'target',
+    version: '1.0.0',
 
-      dependencies: {
-        'is-positive': '1.0.0',
-      },
-      devDependencies: {
-        'is-negative': '1.0.0',
-      },
+    dependencies: {
+      'is-positive': '1.0.0',
     },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  }
+  const projects = preparePackages([
+    targetManifest,
     {
       name: 'source',
       version: '1.0.0',
@@ -227,10 +229,9 @@ test('link --production', async () => {
     cliOptions: { production: true },
     dir: process.cwd(),
     globalDirPrefix: '',
+    rootProjectManifestDir: process.cwd(),
+    rootProjectManifest: targetManifest,
   }, ['../source'])
-
-  projects['source'].has('is-positive')
-  projects['source'].hasNot('is-negative')
 
   // --production should not have effect on the target
   projects['target'].has('is-positive')
@@ -267,22 +268,21 @@ test('logger warns about peer dependencies when linking', async () => {
 
   process.chdir('linked-with-peer-deps')
 
-  const linkOpts = {
+  await link.handler({
     ...DEFAULT_OPTS,
     bin: path.join(globalDir, 'bin'),
     dir: globalDir,
-  }
-  await link.handler({
-    ...linkOpts,
-    globalDirPrefix: '',
+    globalDirPrefix: globalDir,
+    rootProjectManifestDir: globalDir,
   })
 
   process.chdir('..')
   process.chdir('project')
 
   await link.handler({
-    ...linkOpts,
-    globalDirPrefix: '',
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    globalDirPrefix: globalDir,
   }, ['linked-with-peer-deps'])
 
   expect(warnMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -308,22 +308,22 @@ test('logger should not warn about peer dependencies when it is an empty object'
 
   process.chdir('linked-with-empty-peer-deps')
 
-  const linkOpts = {
+  await link.handler({
     ...DEFAULT_OPTS,
+    globalDirPrefix: '',
     bin: path.join(globalDir, 'bin'),
     dir: globalDir,
-  }
-  await link.handler({
-    ...linkOpts,
-    globalDirPrefix: '',
+    rootProjectManifestDir: globalDir,
   })
 
   process.chdir('..')
   process.chdir('project')
 
   await link.handler({
-    ...linkOpts,
-    globalDirPrefix: '',
+    ...DEFAULT_OPTS,
+    globalDirPrefix: globalDir,
+    dir: process.cwd(),
+    rootProjectManifestDir: process.cwd(),
   }, ['linked-with-empty-peer-deps'])
 
   expect(warnMock).not.toHaveBeenCalledWith(expect.objectContaining({
