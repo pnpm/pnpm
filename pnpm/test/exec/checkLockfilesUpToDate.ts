@@ -109,7 +109,6 @@ describe('single project workspace', () => {
       private: true,
       scripts: {
         start: 'echo hello from script',
-        'check-env:linux': 'echo pnpm_run_skip_deps_check is $pnpm_run_skip_deps_check',
       },
     }
 
