@@ -16,7 +16,7 @@ describe('single project workspace', () => {
       },
       scripts: {
         start: 'echo hello from script',
-        checkEnv: 'node -p "\'pnpm_run_skip_deps_check is \' + process.env.pnpm_run_skip_deps_check"',
+        checkEnv: 'node --eval "assert.strictEqual(process.env.pnpm_run_skip_deps_check, \'true\')"',
       },
     }
 
@@ -97,9 +97,8 @@ describe('single project workspace', () => {
 
     // should set env.pnpm_run_skip_deps_check for the script
     {
-      const { status, stdout } = execPnpmSync([...config, 'run', 'checkEnv'])
+      const { status } = execPnpmSync([...config, 'run', 'checkEnv'])
       expect(status).toBe(0)
-      expect(stdout.toString()).toContain('pnpm_run_skip_deps_check is true')
     }
   })
 
